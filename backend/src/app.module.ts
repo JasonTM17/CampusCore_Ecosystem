@@ -24,6 +24,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { SupportTicketsModule } from './modules/support-tickets/support-tickets.module';
 import { ClassroomsModule } from './modules/classrooms/classrooms.module';
+import { SchedulesModule } from './modules/schedules/schedules.module';
 import { HealthModule } from './modules/health/health.module';
 
 @Module({
@@ -56,6 +57,7 @@ import { HealthModule } from './modules/health/health.module';
     AuditLogsModule,
     SupportTicketsModule,
     ClassroomsModule,
+    SchedulesModule,
     HealthModule,
   ],
 })
