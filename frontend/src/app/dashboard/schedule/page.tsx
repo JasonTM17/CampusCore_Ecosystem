@@ -3,11 +3,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { enrollmentsApi } from '@/lib/api';
-import { Enrollment, SectionSchedule } from '@/types/api';
+import { enrollmentsApi, semestersApi } from '@/lib/api';
+import { Enrollment, SectionSchedule, Semester } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { Loader2, BookOpen, Clock, MapPin } from 'lucide-react';
+import { Loader2, BookOpen, Clock, MapPin, Calendar } from 'lucide-react';
 
 interface TimetableSlot {
   courseName: string;
@@ -17,20 +17,47 @@ interface TimetableSlot {
   endTime: string;
   building: string;
   roomNumber: string;
+  lecturerName?: string;
 }
 
 export default function SchedulePage() {
   const { user, logout } = useAuth();
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [semesters, setSemesters] = useState<Semester[]>([]);
+  const [selectedSemester, setSelectedSemester] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetchEnrollments();
+    fetchData();
   }, []);
 
-  const fetchEnrollments = async () => {
+  const fetchData = async () => {
     try {
-      const data = await enrollmentsApi.getMyEnrollments();
+      const [semestersRes] = await Promise.all([
+        semestersApi.getAll(),
+      ]);
+      setSemesters(semestersRes.data);
+      
+      // Auto-select current semester based on status (IN_PROGRESS or ADD_DROP_OPEN)
+      const currentSemester = semestersRes.data.find(s => 
+        s.status === 'IN_PROGRESS' || s.status === 'ADD_DROP_OPEN' || s.status === 'REGISTRATION_OPEN'
+      );
+      if (currentSemester) {
+        setSelectedSemester(currentSemester.id);
+      }
+    } catch (error) {
+      toast.error('Failed to load semesters');
+    }
+  };
+
+  useEffect(() => {
+    fetchEnrollments();
+  }, [selectedSemester]);
+
+  const fetchEnrollments = async () => {
+    setIsLoading(true);
+    try {
+      const data = await enrollmentsApi.getMyEnrollments(selectedSemester || undefined);
       setEnrollments(data);
     } catch (error) {
       toast.error('Failed to load schedule');
@@ -68,6 +95,9 @@ export default function SchedulePage() {
               endTime: sched.endTime,
               building: sched.classroom?.building || '',
               roomNumber: sched.classroom?.roomNumber || '',
+              lecturerName: section.lecturer?.user 
+                ? `Prof. ${section.lecturer.user.firstName} ${section.lecturer.user.lastName}`
+                : '',
             });
           });
         }
@@ -140,9 +170,28 @@ export default function SchedulePage() {
       <main className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold">My Class Schedule</h2>
-          <Link href="/dashboard/enrollments">
-            <Button variant="outline">View Enrollments</Button>
-          </Link>
+          <div className="flex items-center gap-4">
+            {semesters.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-gray-500" />
+                <select
+                  value={selectedSemester}
+                  onChange={(e) => setSelectedSemester(e.target.value)}
+                  className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">All Semesters</option>
+                  {semesters.map(sem => (
+                    <option key={sem.id} value={sem.id}>
+                      {sem.name} {(sem.status === 'IN_PROGRESS' || sem.status === 'ADD_DROP_OPEN') ? '(Current)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <Link href="/dashboard/enrollments">
+              <Button variant="outline">View Enrollments</Button>
+            </Link>
+          </div>
         </div>
 
         {!hasClasses ? (
@@ -216,6 +265,9 @@ export default function SchedulePage() {
                         >
                           <div className="font-semibold">{slot.courseCode}</div>
                           <div>Sec {slot.sectionNumber}</div>
+                          {slot.lecturerName && (
+                            <div className="text-blue-200 truncate">{slot.lecturerName}</div>
+                          )}
                           <div className="flex items-center gap-1 mt-1">
                             <Clock className="h-3 w-3" />
                             {slot.startTime}-{slot.endTime}
