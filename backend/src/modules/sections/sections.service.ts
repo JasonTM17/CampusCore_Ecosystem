@@ -9,11 +9,35 @@ export class SectionsService {
     return this.prisma.section.create({ data, include: { course: true, semester: true, lecturer: true, classroom: true, enrollments: true, waitlists: true } });
   }
 
-  async findAllSections(page = 1, limit = 20) {
+  async findAllSections(page = 1, limit = 100, semesterId?: string, departmentId?: string, courseId?: string) {
     const skip = (page - 1) * limit;
+    const where: any = {};
+    
+    if (semesterId) {
+      where.semesterId = semesterId;
+    }
+    if (courseId) {
+      where.courseId = courseId;
+    }
+    if (departmentId) {
+      where.course = { departmentId };
+    }
+
     const [sections, total] = await Promise.all([
-      this.prisma.section.findMany({ skip, take: limit, include: { course: true, semester: true, lecturer: true }, orderBy: { sectionNumber: 'asc' } }),
-      this.prisma.section.count(),
+      this.prisma.section.findMany({ 
+        skip, 
+        take: limit, 
+        where,
+        include: { 
+          course: { include: { department: true } }, 
+          semester: true, 
+          lecturer: { include: { user: true } },
+          schedules: true,
+          classroom: true,
+        }, 
+        orderBy: { sectionNumber: 'asc' } 
+      }),
+      this.prisma.section.count({ where }),
     ]);
     return { data: sections, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }

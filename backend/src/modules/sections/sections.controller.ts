@@ -20,9 +20,21 @@ export class SectionsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all sections' })
-  findAll(@Query('page') page?: number, @Query('limit') limit?: number) {
-    return this.sectionsService.findAllSections(page || 1, limit || 20);
+  @ApiOperation({ summary: 'Get all sections with filters' })
+  findAll(
+    @Query('page') page?: number, 
+    @Query('limit') limit?: number,
+    @Query('semesterId') semesterId?: string,
+    @Query('departmentId') departmentId?: string,
+    @Query('courseId') courseId?: string,
+  ) {
+    return this.sectionsService.findAllSections(
+      page || 1, 
+      limit || 100, 
+      semesterId, 
+      departmentId, 
+      courseId
+    );
   }
 
   @Get(':id')
