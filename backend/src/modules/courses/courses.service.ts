@@ -6,7 +6,7 @@ export class CoursesService {
   constructor(private prisma: PrismaService) {}
 
   async create(data: any) {
-    return this.prisma.course.create({ data, include: { department: true, prerequisites: true, curricula: true } });
+    return this.prisma.course.create({ data, include: { department: true, prerequisites: true, curriculumCourses: true } });
   }
 
   async findAll(page = 1, limit = 20) {

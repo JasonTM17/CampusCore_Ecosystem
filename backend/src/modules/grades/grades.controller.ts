@@ -12,37 +12,71 @@ import { Roles } from '../auth/decorators/roles.decorator';
 export class GradesController {
   constructor(private gradesService: GradesService) {}
 
-  @Post()
+  @Post('items')
   @Roles('ADMIN', 'SUPER_ADMIN', 'LECTURER')
-  @ApiOperation({ summary: 'Create grade' })
-  create(@Body() data: any) {
-    return this.gradesService.create(data);
+  @ApiOperation({ summary: 'Create grade item' })
+  createGradeItem(@Body() data: any) {
+    return this.gradesService.createGradeItem(data);
   }
 
-  @Get()
+  @Get('items')
   @Roles('ADMIN', 'SUPER_ADMIN')
-  @ApiOperation({ summary: 'Get all grades' })
-  findAll(@Query('page') page?: number, @Query('limit') limit?: number) {
-    return this.gradesService.findAll(page || 1, limit || 20);
+  @ApiOperation({ summary: 'Get all grade items' })
+  findAllGradeItems(@Query('page') page?: number, @Query('limit') limit?: number) {
+    return this.gradesService.findAllGradeItems(page || 1, limit || 20);
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get grade by ID' })
-  findOne(@Param('id') id: string) {
-    return this.gradesService.findOne(id);
+  @Get('items/:id')
+  @ApiOperation({ summary: 'Get grade item by ID' })
+  findOneGradeItem(@Param('id') id: string) {
+    return this.gradesService.findOneGradeItem(id);
   }
 
-  @Put(':id')
+  @Put('items/:id')
   @Roles('ADMIN', 'SUPER_ADMIN', 'LECTURER')
-  @ApiOperation({ summary: 'Update grade' })
-  update(@Param('id') id: string, @Body() data: any) {
-    return this.gradesService.update(id, data);
+  @ApiOperation({ summary: 'Update grade item' })
+  updateGradeItem(@Param('id') id: string, @Body() data: any) {
+    return this.gradesService.updateGradeItem(id, data);
   }
 
-  @Delete(':id')
+  @Delete('items/:id')
   @Roles('ADMIN', 'SUPER_ADMIN')
-  @ApiOperation({ summary: 'Delete grade' })
-  remove(@Param('id') id: string) {
-    return this.gradesService.remove(id);
+  @ApiOperation({ summary: 'Delete grade item' })
+  removeGradeItem(@Param('id') id: string) {
+    return this.gradesService.removeGradeItem(id);
+  }
+
+  @Post('student-grades')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'LECTURER')
+  @ApiOperation({ summary: 'Create student grade' })
+  createStudentGrade(@Body() data: any) {
+    return this.gradesService.createStudentGrade(data);
+  }
+
+  @Get('student-grades')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Get all student grades' })
+  findAllStudentGrades(@Query('page') page?: number, @Query('limit') limit?: number) {
+    return this.gradesService.findAllStudentGrades(page || 1, limit || 20);
+  }
+
+  @Get('student-grades/:id')
+  @ApiOperation({ summary: 'Get student grade by ID' })
+  findOneStudentGrade(@Param('id') id: string) {
+    return this.gradesService.findOneStudentGrade(id);
+  }
+
+  @Put('student-grades/:id')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'LECTURER')
+  @ApiOperation({ summary: 'Update student grade' })
+  updateStudentGrade(@Param('id') id: string, @Body() data: any) {
+    return this.gradesService.updateStudentGrade(id, data);
+  }
+
+  @Delete('student-grades/:id')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Delete student grade' })
+  removeStudentGrade(@Param('id') id: string) {
+    return this.gradesService.removeStudentGrade(id);
   }
 }

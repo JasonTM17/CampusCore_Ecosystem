@@ -5,33 +5,63 @@ import { PrismaService } from '../common/prisma/prisma.service';
 export class GradesService {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: any) {
-    return this.prisma.grade.create({ data, include: { enrollment: true } });
+  async createGradeItem(data: any) {
+    return this.prisma.gradeItem.create({ data, include: { section: true } });
   }
 
-  async findAll(page = 1, limit = 20) {
+  async findAllGradeItems(page = 1, limit = 20) {
     const skip = (page - 1) * limit;
-    const [grades, total] = await Promise.all([
-      this.prisma.grade.findMany({ skip, take: limit, include: { enrollment: { include: { student: true, section: true } } }, orderBy: { createdAt: 'desc' } }),
-      this.prisma.grade.count(),
+    const [gradeItems, total] = await Promise.all([
+      this.prisma.gradeItem.findMany({ skip, take: limit, include: { section: true }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.gradeItem.count(),
     ]);
-    return { data: grades, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return { data: gradeItems, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }
 
-  async findOne(id: string) {
-    const grade = await this.prisma.grade.findUnique({ where: { id }, include: { enrollment: { include: { student: true, section: true } } } });
-    if (!grade) throw new NotFoundException('Grade not found');
-    return grade;
+  async findOneGradeItem(id: string) {
+    const gradeItem = await this.prisma.gradeItem.findUnique({ where: { id }, include: { section: true } });
+    if (!gradeItem) throw new NotFoundException('Grade item not found');
+    return gradeItem;
   }
 
-  async update(id: string, data: any) {
-    await this.findOne(id);
-    return this.prisma.grade.update({ where: { id }, data, include: { enrollment: true } });
+  async updateGradeItem(id: string, data: any) {
+    await this.findOneGradeItem(id);
+    return this.prisma.gradeItem.update({ where: { id }, data, include: { section: true } });
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
-    await this.prisma.grade.delete({ where: { id } });
-    return { message: 'Grade deleted successfully' };
+  async removeGradeItem(id: string) {
+    await this.findOneGradeItem(id);
+    await this.prisma.gradeItem.delete({ where: { id } });
+    return { message: 'Grade item deleted successfully' };
+  }
+
+  async createStudentGrade(data: any) {
+    return this.prisma.studentGrade.create({ data, include: { gradeItem: true, enrollment: true } });
+  }
+
+  async findAllStudentGrades(page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+    const [studentGrades, total] = await Promise.all([
+      this.prisma.studentGrade.findMany({ skip, take: limit, include: { gradeItem: true, enrollment: true }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.studentGrade.count(),
+    ]);
+    return { data: studentGrades, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+  }
+
+  async findOneStudentGrade(id: string) {
+    const studentGrade = await this.prisma.studentGrade.findUnique({ where: { id }, include: { gradeItem: true, enrollment: true } });
+    if (!studentGrade) throw new NotFoundException('Student grade not found');
+    return studentGrade;
+  }
+
+  async updateStudentGrade(id: string, data: any) {
+    await this.findOneStudentGrade(id);
+    return this.prisma.studentGrade.update({ where: { id }, data, include: { gradeItem: true, enrollment: true } });
+  }
+
+  async removeStudentGrade(id: string) {
+    await this.findOneStudentGrade(id);
+    await this.prisma.studentGrade.delete({ where: { id } });
+    return { message: 'Student grade deleted successfully' };
   }
 }

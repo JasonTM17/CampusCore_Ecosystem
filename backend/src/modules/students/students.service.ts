@@ -8,16 +8,23 @@ export class StudentsService {
 
   async create(createStudentDto: CreateStudentDto) {
     const existingStudent = await this.prisma.student.findFirst({
-      where: { studentCode: createStudentDto.studentCode },
+      where: { studentId: createStudentDto.studentId },
     });
 
     if (existingStudent) {
-      throw new BadRequestException('Student code already exists');
+      throw new BadRequestException('Student ID already exists');
     }
 
     return this.prisma.student.create({
-      data: createStudentDto,
-      include: { user: true },
+      data: {
+        userId: createStudentDto.userId,
+        studentId: createStudentDto.studentId,
+        curriculumId: createStudentDto.curriculumId,
+        year: createStudentDto.year,
+        admissionDate: new Date(createStudentDto.admissionDate),
+        status: createStudentDto.status || 'ACTIVE',
+      },
+      include: { user: true, curriculum: true },
     });
   }
 
@@ -29,7 +36,7 @@ export class StudentsService {
         skip,
         take: limit,
         where: status ? { status: status as any } : undefined,
-        include: { user: true, department: true, enrollments: true },
+        include: { user: true, curriculum: true },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.student.count(),
@@ -46,9 +53,9 @@ export class StudentsService {
       where: { id },
       include: {
         user: true,
-        department: true,
-        enrollments: { include: { course: true } },
-        waitlist: true,
+        curriculum: true,
+        enrollments: { include: { section: true } },
+        waitlists: true,
       },
     });
 
@@ -77,7 +84,7 @@ export class StudentsService {
   async getEnrollmentHistory(studentId: string) {
     return this.prisma.enrollment.findMany({
       where: { studentId },
-      include: { course: true, section: true, grades: true },
+      include: { section: { include: { course: true } }, gradeItems: true },
       orderBy: { createdAt: 'desc' },
     });
   }

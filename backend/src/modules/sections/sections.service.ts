@@ -5,11 +5,11 @@ import { PrismaService } from '../common/prisma/prisma.service';
 export class SectionsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: any) {
-    return this.prisma.section.create({ data, include: { course: true, semester: true, lecturer: true, classroom: true, enrollments: true, waitlist: true } });
+  async createSection(data: any) {
+    return this.prisma.section.create({ data, include: { course: true, semester: true, lecturer: true, classroom: true, enrollments: true, waitlists: true } });
   }
 
-  async findAll(page = 1, limit = 20) {
+  async findAllSections(page = 1, limit = 20) {
     const skip = (page - 1) * limit;
     const [sections, total] = await Promise.all([
       this.prisma.section.findMany({ skip, take: limit, include: { course: true, semester: true, lecturer: true }, orderBy: { sectionNumber: 'asc' } }),
@@ -18,19 +18,19 @@ export class SectionsService {
     return { data: sections, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }
 
-  async findOne(id: string) {
-    const section = await this.prisma.section.findUnique({ where: { id }, include: { course: true, semester: true, lecturer: true, classroom: true, enrollments: true, waitlist: true } });
+  async findOneSection(id: string) {
+    const section = await this.prisma.section.findUnique({ where: { id }, include: { course: true, semester: true, lecturer: true, classroom: true, enrollments: true, waitlists: true } });
     if (!section) throw new NotFoundException('Section not found');
     return section;
   }
 
-  async update(id: string, data: any) {
-    await this.findOne(id);
+  async updateSection(id: string, data: any) {
+    await this.findOneSection(id);
     return this.prisma.section.update({ where: { id }, data, include: { course: true, lecturer: true } });
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async removeSection(id: string) {
+    await this.findOneSection(id);
     await this.prisma.section.delete({ where: { id } });
     return { message: 'Section deleted successfully' };
   }

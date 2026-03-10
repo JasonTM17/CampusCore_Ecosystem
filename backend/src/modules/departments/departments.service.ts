@@ -6,7 +6,7 @@ export class DepartmentsService {
   constructor(private prisma: PrismaService) {}
 
   async create(data: any) {
-    return this.prisma.department.create({ data, include: { faculty: true, students: true, lecturers: true } });
+    return this.prisma.department.create({ data, include: { faculty: true, lecturers: true } });
   }
 
   async findAll(page = 1, limit = 20) {
@@ -19,7 +19,7 @@ export class DepartmentsService {
   }
 
   async findOne(id: string) {
-    const department = await this.prisma.department.findUnique({ where: { id }, include: { faculty: true, students: true, lecturers: true } });
+    const department = await this.prisma.department.findUnique({ where: { id }, include: { faculty: true, lecturers: true } });
     if (!department) throw new NotFoundException('Department not found');
     return department;
   }

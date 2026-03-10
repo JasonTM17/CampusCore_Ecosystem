@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsDateString, IsUUID } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsDateString, IsUUID, IsNumber } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateStudentDto {
@@ -8,25 +8,22 @@ export class CreateStudentDto {
 
   @ApiProperty()
   @IsString()
-  studentCode: string;
+  studentId: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  major?: string;
-
-  @ApiPropertyOptional({ enum: ['ACTIVE', 'GRADUATED', 'SUSPENDED', 'DROPPED'] })
-  @IsOptional()
-  @IsEnum(['ACTIVE', 'GRADUATED', 'SUSPENDED', 'DROPPED'])
-  status?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsDateString()
-  enrollmentDate?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsUUID()
-  departmentId?: string;
+  curriculumId: string;
+
+  @ApiProperty()
+  @IsNumber()
+  year: number;
+
+  @ApiProperty()
+  @IsDateString()
+  admissionDate: string;
+
+  @ApiPropertyOptional({ enum: ['ACTIVE', 'GRADUATED', 'SUSPENDED', 'WITHDRAWN'] })
+  @IsOptional()
+  @IsEnum(['ACTIVE', 'GRADUATED', 'SUSPENDED', 'WITHDRAWN'])
+  status?: string;
 }

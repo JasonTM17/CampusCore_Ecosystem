@@ -12,37 +12,71 @@ import { Roles } from '../auth/decorators/roles.decorator';
 export class FinanceController {
   constructor(private financeService: FinanceService) {}
 
-  @Post()
+  @Post('invoices')
   @Roles('ADMIN', 'SUPER_ADMIN')
-  @ApiOperation({ summary: 'Create finance record' })
-  create(@Body() data: any) {
-    return this.financeService.create(data);
+  @ApiOperation({ summary: 'Create invoice' })
+  createInvoice(@Body() data: any) {
+    return this.financeService.createInvoice(data);
   }
 
-  @Get()
+  @Get('invoices')
   @Roles('ADMIN', 'SUPER_ADMIN')
-  @ApiOperation({ summary: 'Get all finance records' })
-  findAll(@Query('page') page?: number, @Query('limit') limit?: number) {
-    return this.financeService.findAll(page || 1, limit || 20);
+  @ApiOperation({ summary: 'Get all invoices' })
+  findAllInvoices(@Query('page') page?: number, @Query('limit') limit?: number) {
+    return this.financeService.findAllInvoices(page || 1, limit || 20);
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get finance record by ID' })
-  findOne(@Param('id') id: string) {
-    return this.financeService.findOne(id);
+  @Get('invoices/:id')
+  @ApiOperation({ summary: 'Get invoice by ID' })
+  findOneInvoice(@Param('id') id: string) {
+    return this.financeService.findOneInvoice(id);
   }
 
-  @Put(':id')
+  @Put('invoices/:id')
   @Roles('ADMIN', 'SUPER_ADMIN')
-  @ApiOperation({ summary: 'Update finance record' })
-  update(@Param('id') id: string, @Body() data: any) {
-    return this.financeService.update(id, data);
+  @ApiOperation({ summary: 'Update invoice' })
+  updateInvoice(@Param('id') id: string, @Body() data: any) {
+    return this.financeService.updateInvoice(id, data);
   }
 
-  @Delete(':id')
+  @Delete('invoices/:id')
   @Roles('ADMIN', 'SUPER_ADMIN')
-  @ApiOperation({ summary: 'Delete finance record' })
-  remove(@Param('id') id: string) {
-    return this.financeService.remove(id);
+  @ApiOperation({ summary: 'Delete invoice' })
+  removeInvoice(@Param('id') id: string) {
+    return this.financeService.removeInvoice(id);
+  }
+
+  @Post('payments')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Create payment' })
+  createPayment(@Body() data: any) {
+    return this.financeService.createPayment(data);
+  }
+
+  @Get('payments')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Get all payments' })
+  findAllPayments(@Query('page') page?: number, @Query('limit') limit?: number) {
+    return this.financeService.findAllPayments(page || 1, limit || 20);
+  }
+
+  @Get('payments/:id')
+  @ApiOperation({ summary: 'Get payment by ID' })
+  findOnePayment(@Param('id') id: string) {
+    return this.financeService.findOnePayment(id);
+  }
+
+  @Put('payments/:id')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Update payment' })
+  updatePayment(@Param('id') id: string, @Body() data: any) {
+    return this.financeService.updatePayment(id, data);
+  }
+
+  @Delete('payments/:id')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Delete payment' })
+  removePayment(@Param('id') id: string) {
+    return this.financeService.removePayment(id);
   }
 }

@@ -16,32 +16,32 @@ export class SectionsController {
   @Roles('ADMIN', 'SUPER_ADMIN', 'LECTURER')
   @ApiOperation({ summary: 'Create section' })
   create(@Body() data: any) {
-    return this.sectionsService.create(data);
+    return this.sectionsService.createSection(data);
   }
 
   @Get()
   @ApiOperation({ summary: 'Get all sections' })
   findAll(@Query('page') page?: number, @Query('limit') limit?: number) {
-    return this.sectionsService.findAll(page || 1, limit || 20);
+    return this.sectionsService.findAllSections(page || 1, limit || 20);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get section by ID' })
   findOne(@Param('id') id: string) {
-    return this.sectionsService.findOne(id);
+    return this.sectionsService.findOneSection(id);
   }
 
   @Put(':id')
   @Roles('ADMIN', 'SUPER_ADMIN', 'LECTURER')
   @ApiOperation({ summary: 'Update section' })
   update(@Param('id') id: string, @Body() data: any) {
-    return this.sectionsService.update(id, data);
+    return this.sectionsService.updateSection(id, data);
   }
 
   @Delete(':id')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Delete section' })
   remove(@Param('id') id: string) {
-    return this.sectionsService.remove(id);
+    return this.sectionsService.removeSection(id);
   }
 }
