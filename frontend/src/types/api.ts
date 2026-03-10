@@ -21,6 +21,9 @@ export interface User {
   address?: string;
   status: string;
   createdAt: string;
+  // Linked identities from JWT
+  studentId?: string | null;
+  lecturerId?: string | null;
 }
 
 export interface AuthTokens {

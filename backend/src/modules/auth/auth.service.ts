@@ -61,6 +61,8 @@ export class AuthService {
             },
           },
         },
+        student: true,
+        lecturer: true,
       },
     });
 
@@ -223,6 +225,9 @@ export class AuthService {
       permissions: user.roles.flatMap((r: any) => 
         r.role.permissions.map((p: any) => `${p.module}:${p.action}`)
       ),
+      // Include student/lecturer IDs for role-based access
+      studentId: user.student?.id || null,
+      lecturerId: user.lecturer?.id || null,
     };
 
     const [accessToken, refreshToken] = await Promise.all([
@@ -260,6 +265,9 @@ export class AuthService {
       permissions: user.roles.flatMap((r: any) =>
         r.role.permissions.map((p: any) => `${p.module}:${p.action}`)
       ),
+      // Include student/lecturer ID if user has these roles
+      studentId: user.student?.id || null,
+      lecturerId: user.lecturer?.id || null,
     };
   }
 

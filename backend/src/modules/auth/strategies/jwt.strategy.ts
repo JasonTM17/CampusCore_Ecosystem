@@ -22,6 +22,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException();
     }
-    return payload;
+    // Return the full user object including studentId and lecturerId
+    return {
+      ...payload,
+      ...user,
+    };
   }
 }

@@ -80,17 +80,14 @@ export default function RegisterPage() {
   }, [enrollments]);
 
   const handleEnroll = async (sectionId: string) => {
+    if (!user?.studentId) {
+      toast.error('Student profile not found. Please log in as a student.');
+      return;
+    }
+
     setIsEnrolling(sectionId);
     try {
-      // Get student ID from localStorage (in real app, this would come from auth context)
-      const studentId = localStorage.getItem('studentId') || '';
-      
-      if (!studentId) {
-        toast.error('Student ID not found. Please log in as a student.');
-        return;
-      }
-      
-      const result = await enrollmentsApi.enroll(studentId, sectionId);
+      const result = await enrollmentsApi.enroll(sectionId);
       
       // Check if added to waitlist
       if ('position' in result && result.status === 'ACTIVE') {

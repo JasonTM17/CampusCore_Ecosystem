@@ -31,10 +31,8 @@ export default function EnrollmentsPage() {
   };
 
   const handleDrop = async (enrollmentId: string) => {
-    const studentId = localStorage.getItem('studentId') || '';
-    
-    if (!studentId) {
-      toast.error('Student ID not found');
+    if (!user?.studentId) {
+      toast.error('Student profile not found. Please log in again.');
       return;
     }
 
@@ -44,7 +42,7 @@ export default function EnrollmentsPage() {
 
     setIsDropping(enrollmentId);
     try {
-      await enrollmentsApi.drop(enrollmentId, studentId);
+      await enrollmentsApi.drop(enrollmentId);
       toast.success('Course dropped successfully');
       fetchEnrollments();
     } catch (error: any) {

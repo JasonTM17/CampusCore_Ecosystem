@@ -74,13 +74,13 @@ export const sectionsApi = {
 
 // Enrollments API
 export const enrollmentsApi = {
-  enroll: async (studentId: string, sectionId: string): Promise<Enrollment | WaitlistEntry> => {
-    const response = await api.post<Enrollment | WaitlistEntry>('/enrollments/enroll', { studentId, sectionId });
+  enroll: async (sectionId: string): Promise<Enrollment | WaitlistEntry> => {
+    const response = await api.post<Enrollment | WaitlistEntry>('/enrollments/enroll', { sectionId });
     return response.data;
   },
 
-  drop: async (enrollmentId: string, studentId: string): Promise<{ message: string }> => {
-    const response = await api.post<{ message: string }>(`/enrollments/${enrollmentId}/drop`, { studentId });
+  drop: async (enrollmentId: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>(`/enrollments/${enrollmentId}/drop`, {});
     return response.data;
   },
 
