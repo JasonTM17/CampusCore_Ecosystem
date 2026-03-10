@@ -12,18 +12,25 @@ import { Roles } from '../auth/decorators/roles.decorator';
 export class WaitlistController {
   constructor(private waitlistService: WaitlistService) {}
 
-  @Post()
-  @Roles('ADMIN', 'SUPER_ADMIN', 'STUDENT')
-  @ApiOperation({ summary: 'Add to waitlist' })
-  create(@Body() data: any) {
-    return this.waitlistService.create(data);
+  @Get('section/:sectionId')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'LECTURER')
+  @ApiOperation({ summary: 'Get waitlist for a section' })
+  findBySection(@Param('sectionId') sectionId: string) {
+    return this.waitlistService.findBySection(sectionId);
+  }
+
+  @Post(':id/promote')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Promote student from waitlist to enrolled' })
+  promoteStudent(@Param('id') id: string) {
+    return this.waitlistService.promoteStudent(id);
   }
 
   @Get()
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get all waitlist entries' })
-  findAll(@Query('page') page?: number, @Query('limit') limit?: number) {
-    return this.waitlistService.findAll(page || 1, limit || 20);
+  findAll(@Query('page') page?: number, @Query('limit') limit?: number, @Query('sectionId') sectionId?: string) {
+    return this.waitlistService.findAll(page || 1, limit || 20, sectionId);
   }
 
   @Get(':id')
