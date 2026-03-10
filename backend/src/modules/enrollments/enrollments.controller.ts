@@ -11,7 +11,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class EnrollmentsController {
-  constructor(private enrollmentsService: EnrollmentsService) {}
+  constructor(private enrollmentsService: EnrollmentsService) { }
 
   @Post('enroll')
   @Roles('ADMIN', 'SUPER_ADMIN', 'STUDENT')
@@ -50,6 +50,19 @@ export class EnrollmentsController {
       throw new ForbiddenException('You do not have a student profile.');
     }
     return this.enrollmentsService.getStudentEnrollments(studentId, semesterId);
+  }
+
+  @Get('my/grades')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'STUDENT')
+  @ApiOperation({ summary: 'Get current student grades' })
+  getMyGrades(
+    @CurrentUser('studentId') studentId: string,
+    @Query('semesterId') semesterId?: string
+  ) {
+    if (!studentId) {
+      throw new ForbiddenException('You do not have a student profile.');
+    }
+    return this.enrollmentsService.getStudentGrades(studentId, semesterId);
   }
 
   @Get('student/:studentId')

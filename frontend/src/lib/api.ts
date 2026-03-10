@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { LoginResponse, ApiResponse, User, Section, Enrollment, WaitlistEntry, Semester, Department, Course } from '@/types/api';
+import { LoginResponse, ApiResponse, User, Section, Enrollment, WaitlistEntry, Semester, Department, Course, StudentGradeRecord } from '@/types/api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -120,6 +120,14 @@ export const departmentsApi = {
 export const coursesApi = {
   getAll: async (params?: { page?: number; limit?: number; departmentId?: string }): Promise<ApiResponse<Course[]>> => {
     const response = await api.get<ApiResponse<Course[]>>('/courses', { params });
+    return response.data;
+  },
+};
+
+// Grades API
+export const gradesApi = {
+  getMyGrades: async (semesterId?: string): Promise<StudentGradeRecord[]> => {
+    const response = await api.get<StudentGradeRecord[]>('/enrollments/my/grades', { params: { semesterId } });
     return response.data;
   },
 };

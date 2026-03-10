@@ -21,7 +21,7 @@ export default function DashboardPage() {
 
       <main className="container mx-auto px-4 py-8">
         <h2 className="text-2xl font-bold mb-6">Student Dashboard</h2>
-        
+
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <Link href="/dashboard/register">
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer">
@@ -41,6 +41,13 @@ export default function DashboardPage() {
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer">
               <h3 className="text-lg font-semibold mb-2">My Schedule</h3>
               <p className="text-gray-600">View your class timetable</p>
+            </div>
+          </Link>
+
+          <Link href="/dashboard/grades">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer">
+              <h3 className="text-lg font-semibold mb-2">My Grades</h3>
+              <p className="text-gray-600">View your academic grades and GPA</p>
             </div>
           </Link>
         </div>

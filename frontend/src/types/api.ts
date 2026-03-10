@@ -205,3 +205,19 @@ export interface Lecturer {
   user?: User;
   department?: Department;
 }
+
+// Grade Types
+export interface StudentGradeRecord {
+  id: string;
+  courseCode: string;
+  courseName: string;
+  credits: number;
+  sectionCode: string;
+  lecturerName: string | null;
+  semester: string;
+  semesterId: string;
+  finalGrade: number | null;
+  letterGrade: string | null;
+  gradeStatus: 'DRAFT' | 'PUBLISHED' | 'APPEALED';
+  enrollmentStatus: 'PENDING' | 'CONFIRMED' | 'DROPPED' | 'COMPLETED' | 'CANCELLED';
+}

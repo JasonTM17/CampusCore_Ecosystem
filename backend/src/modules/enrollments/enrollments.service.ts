@@ -4,7 +4,7 @@ import { Prisma, EnrollmentStatus, WaitlistStatus } from '@prisma/client';
 
 @Injectable()
 export class EnrollmentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   async enrollStudent(studentId: string, sectionId: string) {
     const section = await this.prisma.section.findUnique({
@@ -327,6 +327,51 @@ export class EnrollmentsService {
     await this.findOne(id);
     await this.prisma.enrollment.delete({ where: { id } });
     return { message: 'Enrollment deleted successfully' };
+  }
+
+  async getStudentGrades(studentId: string, semesterId?: string) {
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: {
+        studentId,
+        ...(semesterId ? { semesterId } : {}),
+        OR: [
+          { status: EnrollmentStatus.COMPLETED },
+          { gradeStatus: { in: ['PUBLISHED', 'APPEALED'] } },
+        ],
+      },
+      include: {
+        section: {
+          include: {
+            course: true,
+            lecturer: { include: { user: true } },
+          },
+        },
+        semester: {
+          include: { academicYear: true },
+        },
+      },
+      orderBy: [
+        { semester: { academicYear: { year: 'desc' } } },
+        { semester: { startDate: 'desc' } },
+      ],
+    });
+
+    return enrollments.map((enrollment) => ({
+      id: enrollment.id,
+      courseCode: enrollment.section.course.code,
+      courseName: enrollment.section.course.name,
+      credits: enrollment.section.course.credits,
+      sectionCode: enrollment.section.sectionNumber,
+      lecturerName: enrollment.section.lecturer?.user
+        ? `${enrollment.section.lecturer.user.firstName} ${enrollment.section.lecturer.user.lastName}`
+        : null,
+      semester: enrollment.semester.name,
+      semesterId: enrollment.semesterId,
+      finalGrade: enrollment.finalGrade ? Number(enrollment.finalGrade) : null,
+      letterGrade: enrollment.letterGrade,
+      gradeStatus: enrollment.gradeStatus,
+      enrollmentStatus: enrollment.status,
+    }));
   }
 
   private timeToMinutes(time: string): number {
