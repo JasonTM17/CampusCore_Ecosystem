@@ -58,4 +58,79 @@ export class SectionsService {
     await this.prisma.section.delete({ where: { id } });
     return { message: 'Section deleted successfully' };
   }
+
+  async getSectionGrades(sectionId: string) {
+    const section = await this.prisma.section.findUnique({
+      where: { id: sectionId },
+      include: {
+        course: { include: { department: true } },
+        semester: true,
+        lecturer: { include: { user: true } },
+        enrollments: {
+          include: {
+            student: { include: { user: true } },
+          },
+          where: { status: { in: ['CONFIRMED', 'COMPLETED'] } },
+        },
+      },
+    });
+    if (!section) throw new NotFoundException('Section not found');
+
+    return {
+      sectionId: section.id,
+      sectionNumber: section.sectionNumber,
+      courseCode: section.course.code,
+      courseName: section.course.name,
+      credits: section.course.credits,
+      departmentName: section.course.department.name,
+      semester: section.semester.name,
+      lecturerName: section.lecturer ? `${section.lecturer.user.firstName} ${section.lecturer.user.lastName}` : undefined,
+      status: section.status,
+      enrollments: section.enrollments.map((enrollment) => ({
+        id: enrollment.id,
+        studentId: enrollment.studentId,
+        studentName: `${enrollment.student.user.firstName} ${enrollment.student.user.lastName}`,
+        studentCode: enrollment.student.studentId,
+        email: enrollment.student.user.email,
+        finalGrade: enrollment.finalGrade,
+        letterGrade: enrollment.letterGrade,
+        gradeStatus: enrollment.gradeStatus,
+        enrollmentStatus: enrollment.status,
+      })),
+    };
+  }
+
+  async updateSectionGrades(sectionId: string, grades: { enrollmentId: string; finalGrade: number; letterGrade: string }[]) {
+    await this.findOneSection(sectionId);
+    
+    const updates = grades.map((grade) =>
+      this.prisma.enrollment.update({
+        where: { id: grade.enrollmentId },
+        data: {
+          finalGrade: grade.finalGrade,
+          letterGrade: grade.letterGrade,
+          gradeStatus: 'DRAFT',
+          status: 'COMPLETED',
+        },
+      })
+    );
+    
+    await this.prisma.$transaction(updates);
+    return { message: 'Grades updated successfully' };
+  }
+
+  async publishSectionGrades(sectionId: string) {
+    const section = await this.prisma.section.findUnique({
+      where: { id: sectionId },
+      include: { enrollments: true },
+    });
+    if (!section) throw new NotFoundException('Section not found');
+
+    await this.prisma.enrollment.updateMany({
+      where: { sectionId, status: { in: ['CONFIRMED', 'COMPLETED'] }, finalGrade: { not: null } },
+      data: { gradeStatus: 'PUBLISHED' },
+    });
+
+    return { message: 'Grades published successfully' };
+  }
 }

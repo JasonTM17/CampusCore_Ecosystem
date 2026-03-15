@@ -20,6 +20,8 @@ export interface User {
   dateOfBirth?: string;
   address?: string;
   status: string;
+  role?: 'ADMIN' | 'SUPER_ADMIN' | 'LECTURER' | 'STUDENT';
+  roles?: string[];
   createdAt: string;
   // Linked identities from JWT
   studentId?: string | null;
@@ -218,6 +220,7 @@ export interface StudentGradeRecord {
   semesterId: string;
   finalGrade: number | null;
   letterGrade: string | null;
+  gradePoint: number | null;
   gradeStatus: 'DRAFT' | 'PUBLISHED' | 'APPEALED';
   enrollmentStatus: 'PENDING' | 'CONFIRMED' | 'DROPPED' | 'COMPLETED' | 'CANCELLED';
 }
@@ -240,4 +243,92 @@ export interface StudentTranscriptSummary {
 export interface StudentTranscript {
   summary: StudentTranscriptSummary;
   semesters: StudentTranscriptSemester[];
+}
+
+export interface StudentGrade {
+  id: string;
+  enrollmentId: string;
+  gradeItemId: string;
+  score?: number;
+  letterGrade?: string;
+}
+
+export interface GradeUpdate {
+  enrollmentId: string;
+  finalGrade: number;
+  letterGrade: string;
+}
+
+export interface GradingSection {
+  id: string;
+  sectionId: string;
+  sectionNumber: string;
+  courseCode: string;
+  courseName: string;
+  credits: number;
+  departmentName: string;
+  semester: string;
+  semesterName?: string;
+  enrolledCount: number;
+  gradedCount: number;
+  publishedCount: number;
+  gradeStatus: 'NONE' | 'PARTIAL' | 'ALL_GRADED';
+  canPublish: boolean;
+}
+
+export interface LecturerSection {
+  id: string;
+  sectionId: string;
+  sectionNumber: string;
+  courseCode: string;
+  courseName: string;
+  credits: number;
+  capacity: number;
+  enrolledCount: number;
+  departmentName: string;
+  status: 'OPEN' | 'CLOSED' | 'CANCELLED';
+  schedules: {
+    id: string;
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    building: string;
+    roomNumber: string;
+  }[];
+}
+
+export interface TranscriptResponse {
+  records: StudentGradeRecord[];
+  summary: {
+    cumulativeGPA: number;
+    totalEarnedCredits: number;
+    totalAttemptedCredits: number;
+    totalCourses: number;
+    gradeCount: number;
+  };
+}
+
+export interface SectionGrades {
+  sectionId: string;
+  sectionNumber: string;
+  courseCode: string;
+  courseName: string;
+  lecturerName?: string;
+  status?: 'OPEN' | 'CLOSED' | 'CANCELLED';
+  credits?: number;
+  departmentName?: string;
+  semester?: string;
+  enrollments: {
+    id: string;
+    studentId: string;
+    studentName: string;
+    studentCode: string;
+    email?: string;
+    midtermScore?: number;
+    finalScore?: number;
+    finalGrade?: number;
+    letterGrade?: string;
+    gradeStatus?: 'DRAFT' | 'PUBLISHED' | 'APPEALED';
+    enrollmentStatus?: 'PENDING' | 'CONFIRMED' | 'DROPPED' | 'COMPLETED' | 'CANCELLED';
+  }[];
 }
