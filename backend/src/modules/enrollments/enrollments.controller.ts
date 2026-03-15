@@ -86,22 +86,22 @@ export class EnrollmentsController {
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get all enrollments' })
   findAll(
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
+    @Query('page') page?: number, 
+    @Query('limit') limit?: number, 
     @Query('status') status?: string,
     @Query('semesterId') semesterId?: string,
-    @Query('sectionId') sectionId?: string,
     @Query('studentId') studentId?: string,
-    @Query('search') search?: string,
+    @Query('courseId') courseId?: string,
+    @Query('sectionId') sectionId?: string,
   ) {
     return this.enrollmentsService.findAll(
-      page || 1,
-      limit || 20,
+      page || 1, 
+      limit || 20, 
       status,
       semesterId,
-      sectionId,
       studentId,
-      search,
+      courseId,
+      sectionId
     );
   }
 

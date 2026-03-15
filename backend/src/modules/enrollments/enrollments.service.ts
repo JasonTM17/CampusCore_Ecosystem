@@ -285,38 +285,24 @@ export class EnrollmentsService {
     });
   }
 
-  async findAll(
-    page = 1,
-    limit = 20,
-    status?: string,
-    semesterId?: string,
-    sectionId?: string,
-    studentId?: string,
-    search?: string,
-  ) {
+  async findAll(page = 1, limit = 20, status?: string, semesterId?: string, studentId?: string, courseId?: string, sectionId?: string) {
     const skip = (page - 1) * limit;
     const where: any = {};
-
+    
     if (status) {
-      where.status = status as EnrollmentStatus;
+      where.status = status;
     }
     if (semesterId) {
       where.semesterId = semesterId;
     }
-    if (sectionId) {
-      where.sectionId = sectionId;
-    }
     if (studentId) {
       where.studentId = studentId;
     }
-    if (search) {
-      where.OR = [
-        { student: { user: { firstName: { contains: search, mode: 'insensitive' } } } },
-        { student: { user: { lastName: { contains: search, mode: 'insensitive' } } } },
-        { student: { studentCode: { contains: search, mode: 'insensitive' } } },
-        { section: { course: { code: { contains: search, mode: 'insensitive' } } } },
-        { section: { course: { name: { contains: search, mode: 'insensitive' } } } },
-      ];
+    if (sectionId) {
+      where.sectionId = sectionId;
+    }
+    if (courseId) {
+      where.section = { courseId };
     }
 
     const [enrollments, total] = await Promise.all([
@@ -326,12 +312,11 @@ export class EnrollmentsService {
         where,
         include: {
           student: { include: { user: true } },
-          section: {
-            include: {
+          section: { 
+            include: { 
               course: true,
               lecturer: { include: { user: true } },
-              semester: true,
-            },
+            } 
           },
           semester: true,
         },
@@ -355,9 +340,41 @@ export class EnrollmentsService {
     return enrollment;
   }
 
-  async update(id: string, data: any) {
-    await this.findOne(id);
-    return this.prisma.enrollment.update({ where: { id }, data });
+  async update(id: string, data: { status?: string; finalGrade?: number; letterGrade?: string }) {
+    const enrollment = await this.findOne(id);
+    
+    // Validate status transition if status is being changed
+    if (data.status && data.status !== enrollment.status) {
+      const validTransitions: Record<string, string[]> = {
+        'PENDING': ['CONFIRMED', 'CANCELLED'],
+        'CONFIRMED': ['COMPLETED', 'DROPPED', 'CANCELLED'],
+        'COMPLETED': [],
+        'DROPPED': [],
+        'CANCELLED': [],
+      };
+      
+      const allowedStatuses = validTransitions[enrollment.status] || [];
+      if (!allowedStatuses.includes(data.status)) {
+        throw new BadRequestException(
+          `Cannot change status from ${enrollment.status} to ${data.status}`
+        );
+      }
+    }
+    
+    const updateData: any = { ...data };
+    if (data.finalGrade !== undefined) {
+      updateData.finalGrade = data.finalGrade;
+    }
+    
+    return this.prisma.enrollment.update({ 
+      where: { id }, 
+      data: updateData,
+      include: {
+        student: { include: { user: true } },
+        section: { include: { course: true, lecturer: { include: { user: true } } } },
+        semester: true,
+      },
+    });
   }
 
   async remove(id: string) {
