@@ -340,4 +340,32 @@ export const academicYearsApi = {
   },
 };
 
+// Analytics API
+export const analyticsApi = {
+  getOverview: async (): Promise<any> => {
+    const response = await api.get<any>('/analytics/overview');
+    return response.data;
+  },
+
+  getEnrollmentsBySemester: async (): Promise<any[]> => {
+    const response = await api.get<any[]>('/analytics/enrollments-by-semester');
+    return response.data;
+  },
+
+  getSectionOccupancy: async (): Promise<any[]> => {
+    const response = await api.get<any[]>('/analytics/section-occupancy');
+    return response.data;
+  },
+
+  getGradeDistribution: async (): Promise<any[]> => {
+    const response = await api.get<any[]>('/analytics/grade-distribution');
+    return response.data;
+  },
+
+  getEnrollmentTrends: async (): Promise<any[]> => {
+    const response = await api.get<any[]>('/analytics/enrollment-trends');
+    return response.data;
+  },
+};
+
 export default api;
