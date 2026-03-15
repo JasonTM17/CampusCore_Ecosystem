@@ -285,22 +285,59 @@ export class EnrollmentsService {
     });
   }
 
-  async findAll(page = 1, limit = 20, status?: string) {
+  async findAll(
+    page = 1,
+    limit = 20,
+    status?: string,
+    semesterId?: string,
+    sectionId?: string,
+    studentId?: string,
+    search?: string,
+  ) {
     const skip = (page - 1) * limit;
+    const where: any = {};
+
+    if (status) {
+      where.status = status as EnrollmentStatus;
+    }
+    if (semesterId) {
+      where.semesterId = semesterId;
+    }
+    if (sectionId) {
+      where.sectionId = sectionId;
+    }
+    if (studentId) {
+      where.studentId = studentId;
+    }
+    if (search) {
+      where.OR = [
+        { student: { user: { firstName: { contains: search, mode: 'insensitive' } } } },
+        { student: { user: { lastName: { contains: search, mode: 'insensitive' } } } },
+        { student: { studentCode: { contains: search, mode: 'insensitive' } } },
+        { section: { course: { code: { contains: search, mode: 'insensitive' } } } },
+        { section: { course: { name: { contains: search, mode: 'insensitive' } } } },
+      ];
+    }
+
     const [enrollments, total] = await Promise.all([
       this.prisma.enrollment.findMany({
         skip,
         take: limit,
-        where: status ? { status: status as EnrollmentStatus } : undefined,
+        where,
         include: {
           student: { include: { user: true } },
-          section: { include: { course: true } },
+          section: {
+            include: {
+              course: true,
+              lecturer: { include: { user: true } },
+              semester: true,
+            },
+          },
+          semester: true,
         },
         orderBy: { enrolledAt: 'desc' },
       }),
-      this.prisma.enrollment.count({
-        where: status ? { status: status as EnrollmentStatus } : undefined,
-      }),
+      this.prisma.enrollment.count({ where }),
     ]);
     return { data: enrollments, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }
