@@ -56,4 +56,25 @@ export class SectionsController {
   remove(@Param('id') id: string) {
     return this.sectionsService.removeSection(id);
   }
+
+  @Get(':id/grades')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'LECTURER')
+  @ApiOperation({ summary: 'Get section grades' })
+  getSectionGrades(@Param('id') id: string) {
+    return this.sectionsService.getSectionGrades(id);
+  }
+
+  @Put(':id/grades')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'LECTURER')
+  @ApiOperation({ summary: 'Update section grades' })
+  updateSectionGrades(@Param('id') id: string, @Body() data: { grades: { enrollmentId: string; finalGrade: number; letterGrade: string }[] }) {
+    return this.sectionsService.updateSectionGrades(id, data.grades);
+  }
+
+  @Post(':id/grades/publish')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'LECTURER')
+  @ApiOperation({ summary: 'Publish section grades' })
+  publishSectionGrades(@Param('id') id: string) {
+    return this.sectionsService.publishSectionGrades(id);
+  }
 }

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { LoginResponse, ApiResponse, User, Section, Enrollment, WaitlistEntry, Semester, Department, Course, StudentGradeRecord, StudentTranscript } from '@/types/api';
+import { LoginResponse, ApiResponse, User, Section, Enrollment, WaitlistEntry, Semester, Department, Course, StudentGradeRecord, StudentTranscript, TranscriptResponse } from '@/types/api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -70,6 +70,31 @@ export const sectionsApi = {
     const response = await api.get<Section>(`/sections/${id}`);
     return response.data;
   },
+
+  getSectionGrades: async (sectionId: string): Promise<any> => {
+    const response = await api.get<any>(`/sections/${sectionId}/grades`);
+    return response.data;
+  },
+
+  getMySchedule: async (semesterId?: string): Promise<any[]> => {
+    const response = await api.get<any[]>('/sections/my/schedule', { params: { semesterId } });
+    return response.data;
+  },
+
+  getMyGradingSections: async (semesterId?: string): Promise<any[]> => {
+    const response = await api.get<any[]>('/sections/my/grading', { params: { semesterId } });
+    return response.data;
+  },
+
+  updateSectionGrades: async (sectionId: string, grades: { enrollmentId: string; finalGrade: number; letterGrade: string }[]): Promise<{ message: string }> => {
+    const response = await api.put<{ message: string }>(`/sections/${sectionId}/grades`, { grades });
+    return response.data;
+  },
+
+  publishSectionGrades: async (sectionId: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>(`/sections/${sectionId}/grades/publish`);
+    return response.data;
+  },
 };
 
 // Enrollments API
@@ -89,13 +114,23 @@ export const enrollmentsApi = {
     return response.data;
   },
 
-  getAll: async (params?: { page?: number; limit?: number; status?: string }): Promise<ApiResponse<Enrollment[]>> => {
+  getAll: async (params?: { page?: number; limit?: number; status?: string; semesterId?: string; studentId?: string; courseId?: string; sectionId?: string }): Promise<ApiResponse<Enrollment[]>> => {
     const response = await api.get<ApiResponse<Enrollment[]>>('/enrollments', { params });
     return response.data;
   },
 
   getById: async (id: string): Promise<Enrollment> => {
     const response = await api.get<Enrollment>(`/enrollments/${id}`);
+    return response.data;
+  },
+
+  update: async (id: string, data: { status?: string; finalGrade?: number; letterGrade?: string }): Promise<Enrollment> => {
+    const response = await api.put<Enrollment>(`/enrollments/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: string): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/enrollments/${id}`);
     return response.data;
   },
 };
@@ -110,8 +145,24 @@ export const semestersApi = {
 
 // Departments API
 export const departmentsApi = {
-  getAll: async (): Promise<ApiResponse<Department[]>> => {
-    const response = await api.get<ApiResponse<Department[]>>('/departments');
+  getAll: async (params?: { page?: number; limit?: number }): Promise<ApiResponse<Department[]>> => {
+    const response = await api.get<ApiResponse<Department[]>>('/departments', { params });
+    return response.data;
+  },
+  getById: async (id: string): Promise<Department> => {
+    const response = await api.get<Department>(`/departments/${id}`);
+    return response.data;
+  },
+  create: async (data: Partial<Department>): Promise<Department> => {
+    const response = await api.post<Department>('/departments', data);
+    return response.data;
+  },
+  update: async (id: string, data: Partial<Department>): Promise<Department> => {
+    const response = await api.put<Department>(`/departments/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: string): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/departments/${id}`);
     return response.data;
   },
 };
@@ -120,6 +171,22 @@ export const departmentsApi = {
 export const coursesApi = {
   getAll: async (params?: { page?: number; limit?: number; departmentId?: string }): Promise<ApiResponse<Course[]>> => {
     const response = await api.get<ApiResponse<Course[]>>('/courses', { params });
+    return response.data;
+  },
+  getById: async (id: string): Promise<Course> => {
+    const response = await api.get<Course>(`/courses/${id}`);
+    return response.data;
+  },
+  create: async (data: Partial<Course>): Promise<Course> => {
+    const response = await api.post<Course>('/courses', data);
+    return response.data;
+  },
+  update: async (id: string, data: Partial<Course>): Promise<Course> => {
+    const response = await api.put<Course>(`/courses/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: string): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/courses/${id}`);
     return response.data;
   },
 };
@@ -131,8 +198,144 @@ export const gradesApi = {
     return response.data;
   },
 
-  getMyTranscript: async (): Promise<StudentTranscript> => {
-    const response = await api.get<StudentTranscript>('/enrollments/my/transcript');
+  getMyTranscript: async (semesterId?: string): Promise<TranscriptResponse> => {
+    const response = await api.get<TranscriptResponse>('/enrollments/my/transcript', { params: { semesterId } });
+    return response.data;
+  },
+};
+
+// Admin Users API
+export const usersApi = {
+  getAll: async (params?: { page?: number; limit?: number; status?: string; search?: string }): Promise<ApiResponse<any>> => {
+    const response = await api.get<ApiResponse<any>>('/users', { params });
+    return response.data;
+  },
+  create: async (data: any): Promise<any> => {
+    const response = await api.post<any>('/users', data);
+    return response.data;
+  },
+  update: async (id: string, data: any): Promise<any> => {
+    const response = await api.put<any>(`/users/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: string): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/users/${id}`);
+    return response.data;
+  },
+};
+
+// Admin Semesters API
+export const adminSemestersApi = {
+  getAll: async (params?: { page?: number; limit?: number }): Promise<ApiResponse<any>> => {
+    const response = await api.get<ApiResponse<any>>('/semesters', { params });
+    return response.data;
+  },
+  create: async (data: any): Promise<any> => {
+    const response = await api.post<any>('/semesters', data);
+    return response.data;
+  },
+  update: async (id: string, data: any): Promise<any> => {
+    const response = await api.put<any>(`/semesters/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: string): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/semesters/${id}`);
+    return response.data;
+  },
+};
+
+// Admin Sections API
+export const adminSectionsApi = {
+  getAll: async (params?: { page?: number; limit?: number; semesterId?: string; departmentId?: string; courseId?: string }): Promise<ApiResponse<any>> => {
+    const response = await api.get<ApiResponse<any>>('/sections', { params });
+    return response.data;
+  },
+  getById: async (id: string): Promise<any> => {
+    const response = await api.get<any>(`/sections/${id}`);
+    return response.data;
+  },
+  create: async (data: any): Promise<any> => {
+    const response = await api.post<any>('/sections', data);
+    return response.data;
+  },
+  update: async (id: string, data: any): Promise<any> => {
+    const response = await api.put<any>(`/sections/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: string): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/sections/${id}`);
+    return response.data;
+  },
+};
+
+// Admin Lecturers API
+export const lecturersApi = {
+  getAll: async (params?: { page?: number; limit?: number }): Promise<ApiResponse<any>> => {
+    const response = await api.get<ApiResponse<any>>('/lecturers', { params });
+    return response.data;
+  },
+  getById: async (id: string): Promise<any> => {
+    const response = await api.get<any>(`/lecturers/${id}`);
+    return response.data;
+  },
+  create: async (data: any): Promise<any> => {
+    const response = await api.post<any>('/lecturers', data);
+    return response.data;
+  },
+  update: async (id: string, data: any): Promise<any> => {
+    const response = await api.put<any>(`/lecturers/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: string): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/lecturers/${id}`);
+    return response.data;
+  },
+};
+
+// Admin Classrooms API
+export const classroomsApi = {
+  getAll: async (params?: { page?: number; limit?: number }): Promise<ApiResponse<any>> => {
+    const response = await api.get<ApiResponse<any>>('/classrooms', { params });
+    return response.data;
+  },
+  getById: async (id: string): Promise<any> => {
+    const response = await api.get<any>(`/classrooms/${id}`);
+    return response.data;
+  },
+  create: async (data: any): Promise<any> => {
+    const response = await api.post<any>('/classrooms', data);
+    return response.data;
+  },
+  update: async (id: string, data: any): Promise<any> => {
+    const response = await api.put<any>(`/classrooms/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: string): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/classrooms/${id}`);
+    return response.data;
+  },
+};
+
+// Admin Academic Years API
+export const academicYearsApi = {
+  getAll: async (params?: { page?: number; limit?: number }): Promise<ApiResponse<any>> => {
+    const response = await api.get<ApiResponse<any>>('/academic-years', { params });
+    return response.data;
+  },
+  getById: async (id: string): Promise<any> => {
+    const response = await api.get<any>(`/academic-years/${id}`);
+    return response.data;
+  },
+  create: async (data: any): Promise<any> => {
+    const response = await api.post<any>('/academic-years', data);
+    return response.data;
+  },
+  update: async (id: string, data: any): Promise<any> => {
+    const response = await api.put<any>(`/academic-years/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: string): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/academic-years/${id}`);
     return response.data;
   },
 };

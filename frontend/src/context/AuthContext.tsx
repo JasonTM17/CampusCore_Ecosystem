@@ -7,6 +7,10 @@ import { authApi } from '@/lib/api';
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
+  isStudent: boolean;
+  isLecturer: boolean;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
@@ -51,8 +55,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const isStudent = user?.roles?.includes('STUDENT') ?? false;
+  const isLecturer = user?.roles?.includes('LECTURER') ?? false;
+  const isAdmin = user?.roles?.includes('ADMIN') ?? false;
+  const isSuperAdmin = user?.roles?.includes('SUPER_ADMIN') ?? false;
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, isStudent, isLecturer, isAdmin, isSuperAdmin, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
