@@ -26,6 +26,7 @@ import { SupportTicketsModule } from './modules/support-tickets/support-tickets.
 import { ClassroomsModule } from './modules/classrooms/classrooms.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
 import { HealthModule } from './modules/health/health.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { HealthModule } from './modules/health/health.module';
     ClassroomsModule,
     SchedulesModule,
     HealthModule,
+    AnalyticsModule,
   ],
 })
 export class AppModule {}

@@ -103,6 +103,13 @@ export default function AdminDashboardPage() {
               <p className="text-gray-600">Manage rooms and facilities</p>
             </div>
           </Link>
+
+          <Link href="/admin/analytics">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer">
+              <h3 className="text-lg font-semibold mb-2">Reports & Analytics</h3>
+              <p className="text-gray-600">View campus statistics and enrollment insights</p>
+            </div>
+          </Link>
         </div>
       </main>
     </div>
