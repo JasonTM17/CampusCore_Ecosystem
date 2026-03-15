@@ -41,6 +41,16 @@ coverage/
 # Production
 *.tgz
 
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
 # Misc
-*.ts
-!*.d.ts
+# Keep TypeScript source files - don't ignore them!
+

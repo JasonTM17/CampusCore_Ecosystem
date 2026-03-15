@@ -374,6 +374,74 @@ export class EnrollmentsService {
     }));
   }
 
+  async getStudentTranscript(studentId: string) {
+    const grades = await this.getStudentGrades(studentId);
+
+    const gradePoints: Record<string, number> = {
+      'A+': 4.0, 'A': 4.0, 'A-': 3.7,
+      'B+': 3.3, 'B': 3.0, 'B-': 2.7,
+      'C+': 2.3, 'C': 2.0, 'C-': 1.7,
+      'D+': 1.3, 'D': 1.0, 'D-': 0.7,
+      'F': 0.0,
+    };
+
+    let totalCreditsAttempted = 0;
+    let totalCreditsEarned = 0;
+    let totalGradePoints = 0;
+
+    const semestersMap = new Map<string, any>();
+
+    for (const record of grades) {
+      if (!semestersMap.has(record.semesterId)) {
+        semestersMap.set(record.semesterId, {
+          semesterId: record.semesterId,
+          semesterName: record.semester,
+          records: [],
+          gpa: 0,
+          creditsEarned: 0,
+          creditsAttempted: 0,
+          gradePoints: 0,
+        });
+      }
+
+      const sem = semestersMap.get(record.semesterId);
+      sem.records.push(record);
+
+      if (record.letterGrade && gradePoints[record.letterGrade] !== undefined) {
+        const points = gradePoints[record.letterGrade] * record.credits;
+        sem.creditsAttempted += record.credits;
+        sem.gradePoints += points;
+        totalCreditsAttempted += record.credits;
+        totalGradePoints += points;
+
+        if (record.letterGrade !== 'F') {
+          sem.creditsEarned += record.credits;
+          totalCreditsEarned += record.credits;
+        }
+      } else if (record.enrollmentStatus === 'COMPLETED') {
+        sem.creditsEarned += record.credits;
+        totalCreditsEarned += record.credits;
+      }
+    }
+
+    const semesters = Array.from(semestersMap.values()).map(sem => {
+      sem.gpa = sem.creditsAttempted > 0 ? Number((sem.gradePoints / sem.creditsAttempted).toFixed(2)) : 0;
+      const { gradePoints, ...rest } = sem;
+      return rest;
+    });
+
+    const cumulativeGpa = totalCreditsAttempted > 0 ? Number((totalGradePoints / totalCreditsAttempted).toFixed(2)) : 0;
+
+    return {
+      summary: {
+        cumulativeGpa,
+        totalCreditsEarned,
+        totalCreditsAttempted,
+      },
+      semesters,
+    };
+  }
+
   private timeToMinutes(time: string): number {
     const [hours, minutes] = time.split(':').map(Number);
     return hours * 60 + minutes;
