@@ -221,3 +221,23 @@ export interface StudentGradeRecord {
   gradeStatus: 'DRAFT' | 'PUBLISHED' | 'APPEALED';
   enrollmentStatus: 'PENDING' | 'CONFIRMED' | 'DROPPED' | 'COMPLETED' | 'CANCELLED';
 }
+
+export interface StudentTranscriptSemester {
+  semesterId: string;
+  semesterName: string;
+  records: StudentGradeRecord[];
+  gpa: number;
+  creditsEarned: number;
+  creditsAttempted: number;
+}
+
+export interface StudentTranscriptSummary {
+  cumulativeGpa: number;
+  totalCreditsEarned: number;
+  totalCreditsAttempted: number;
+}
+
+export interface StudentTranscript {
+  summary: StudentTranscriptSummary;
+  semesters: StudentTranscriptSemester[];
+}

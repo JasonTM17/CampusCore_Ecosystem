@@ -65,6 +65,16 @@ export class EnrollmentsController {
     return this.enrollmentsService.getStudentGrades(studentId, semesterId);
   }
 
+  @Get('my/transcript')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'STUDENT')
+  @ApiOperation({ summary: 'Get current student transcript' })
+  getMyTranscript(@CurrentUser('studentId') studentId: string) {
+    if (!studentId) {
+      throw new ForbiddenException('You do not have a student profile.');
+    }
+    return this.enrollmentsService.getStudentTranscript(studentId);
+  }
+
   @Get('student/:studentId')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get student enrollments (admin only)' })
