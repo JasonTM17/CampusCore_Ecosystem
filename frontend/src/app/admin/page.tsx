@@ -110,6 +110,13 @@ export default function AdminDashboardPage() {
               <p className="text-gray-600">View campus statistics and enrollment insights</p>
             </div>
           </Link>
+
+          <Link href="/admin/invoices">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer">
+              <h3 className="text-lg font-semibold mb-2">Invoice Management</h3>
+              <p className="text-gray-600">Manage tuition invoices and payments</p>
+            </div>
+          </Link>
         </div>
       </main>
     </div>

@@ -368,4 +368,70 @@ export const analyticsApi = {
   },
 };
 
+// Finance API
+export const financeApi = {
+  // Student endpoints
+  getMyInvoices: async (semesterId?: string): Promise<any[]> => {
+    const response = await api.get<any[]>('/finance/my/invoices', { params: { semesterId } });
+    return response.data;
+  },
+
+  getMyInvoiceById: async (id: string): Promise<any> => {
+    const response = await api.get<any>(`/finance/my/invoices/${id}`);
+    return response.data;
+  },
+
+  createMyPayment: async (data: { invoiceId: string; amount: number; method: string; transactionId?: string }): Promise<any> => {
+    const response = await api.post<any>('/finance/my/payments', data);
+    return response.data;
+  },
+
+  // Admin endpoints
+  getAllInvoices: async (params?: { page?: number; limit?: number; status?: string; semesterId?: string; studentId?: string }): Promise<ApiResponse<any>> => {
+    const response = await api.get<ApiResponse<any>>('/finance/invoices', { params });
+    return response.data;
+  },
+
+  getInvoiceById: async (id: string): Promise<any> => {
+    const response = await api.get<any>(`/finance/invoices/${id}`);
+    return response.data;
+  },
+
+  createInvoice: async (data: any): Promise<any> => {
+    const response = await api.post<any>('/finance/invoices', data);
+    return response.data;
+  },
+
+  updateInvoice: async (id: string, data: { status?: string; notes?: string }): Promise<any> => {
+    const response = await api.put<any>(`/finance/invoices/${id}`, data);
+    return response.data;
+  },
+
+  deleteInvoice: async (id: string): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/finance/invoices/${id}`);
+    return response.data;
+  },
+
+  generateStudentInvoice: async (studentId: string, semesterId: string): Promise<any> => {
+    const response = await api.post<any>(`/finance/invoices/generate/student/${studentId}/semester/${semesterId}`);
+    return response.data;
+  },
+
+  generateSemesterInvoices: async (semesterId: string): Promise<any> => {
+    const response = await api.post<any>(`/finance/invoices/generate/semester/${semesterId}`);
+    return response.data;
+  },
+
+  // Admin payments
+  getAllPayments: async (params?: { page?: number; limit?: number; status?: string; invoiceId?: string; studentId?: string }): Promise<ApiResponse<any>> => {
+    const response = await api.get<ApiResponse<any>>('/finance/payments', { params });
+    return response.data;
+  },
+
+  createPayment: async (data: any): Promise<any> => {
+    const response = await api.post<any>('/finance/payments', data);
+    return response.data;
+  },
+};
+
 export default api;

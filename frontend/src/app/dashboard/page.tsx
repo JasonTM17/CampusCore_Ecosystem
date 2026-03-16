@@ -51,6 +51,13 @@ export default function DashboardPage() {
             </div>
           </Link>
 
+          <Link href="/dashboard/invoices">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer">
+              <h3 className="text-lg font-semibold mb-2">My Invoices</h3>
+              <p className="text-gray-600">View and pay your tuition invoices</p>
+            </div>
+          </Link>
+
           <Link href="/dashboard/transcript">
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer">
               <h3 className="text-lg font-semibold mb-2">Official Transcript</h3>
