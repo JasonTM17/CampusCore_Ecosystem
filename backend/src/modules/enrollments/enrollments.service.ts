@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { Prisma, EnrollmentStatus, WaitlistStatus } from '@prisma/client';
+import { CsvExportService } from '../common/services/csv-export.service';
 
 @Injectable()
 export class EnrollmentsService {
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    private prisma: PrismaService,
+    private csvExportService: CsvExportService,
+  ) { }
 
   async enrollStudent(studentId: string, sectionId: string) {
     const section = await this.prisma.section.findUnique({
@@ -325,6 +329,62 @@ export class EnrollmentsService {
       this.prisma.enrollment.count({ where }),
     ]);
     return { data: enrollments, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+  }
+
+  async exportAll(status?: string, semesterId?: string, studentId?: string, courseId?: string, sectionId?: string) {
+    const where: any = {};
+
+    if (status) {
+      where.status = status;
+    }
+    if (semesterId) {
+      where.semesterId = semesterId;
+    }
+    if (studentId) {
+      where.studentId = studentId;
+    }
+    if (sectionId) {
+      where.sectionId = sectionId;
+    }
+    if (courseId) {
+      where.section = { courseId };
+    }
+
+    const enrollments = await this.prisma.enrollment.findMany({
+      where,
+      include: {
+        student: { include: { user: true } },
+        section: {
+          include: {
+            course: true,
+            lecturer: { include: { user: true } },
+          }
+        },
+        semester: true,
+      },
+      orderBy: { enrolledAt: 'desc' },
+    });
+
+    const exportData = enrollments.map(e => ({
+      enrollmentId: e.id,
+      studentId: e.studentId,
+      studentName: e.student.user ? `${e.student.user.firstName} ${e.student.user.lastName}` : '',
+      studentEmail: e.student.user?.email || '',
+      studentNumber: e.student.studentId || '',
+      sectionId: e.sectionId,
+      sectionNumber: e.section.sectionNumber,
+      courseCode: e.section.course.code,
+      courseName: e.section.course.name,
+      credits: e.section.course.credits,
+      lecturerName: e.section.lecturer?.user ? `${e.section.lecturer.user.firstName} ${e.section.lecturer.user.lastName}` : '',
+      semesterName: e.semester.name,
+      status: e.status,
+      finalGrade: e.finalGrade ? Number(e.finalGrade) : null,
+      letterGrade: e.letterGrade || '',
+      enrolledAt: e.enrolledAt ? e.enrolledAt.toISOString() : '',
+    }));
+
+    return this.csvExportService.generateCsv(exportData);
   }
 
   async findOne(id: string) {

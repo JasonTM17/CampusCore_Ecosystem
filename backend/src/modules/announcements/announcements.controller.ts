@@ -5,6 +5,11 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AuthUser } from '../auth/types/auth-user.type';
+import { CreateAnnouncementDto } from './dto/create-announcement.dto';
+import { UpdateAnnouncementDto } from './dto/update-announcement.dto';
+import { ListAnnouncementsQueryDto } from './dto/list-announcements-query.dto';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @ApiTags('Announcements')
 @Controller('announcements')
@@ -16,17 +21,16 @@ export class AnnouncementsController {
   @Get('my')
   @ApiOperation({ summary: 'Get announcements relevant to current user' })
   getMyAnnouncements(
-    @CurrentUser() user: any,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
+    @CurrentUser() user: AuthUser,
+    @Query() query: PaginationQueryDto,
   ) {
-    return this.announcementsService.findForUser(user, page || 1, limit || 20);
+    return this.announcementsService.findForUser(user, query.page || 1, query.limit || 20);
   }
 
   @Post()
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Create announcement' })
-  create(@CurrentUser('id') userId: string, @Body() data: any) {
+  create(@CurrentUser('id') userId: string, @Body() data: CreateAnnouncementDto) {
     if (!userId) throw new ForbiddenException('Not authenticated');
     return this.announcementsService.create({ ...data, publishedBy: userId });
   }
@@ -34,14 +38,12 @@ export class AnnouncementsController {
   @Get()
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get all announcements' })
-  findAll(
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-    @Query('semesterId') semesterId?: string,
-    @Query('sectionId') sectionId?: string,
-    @Query('priority') priority?: string,
-  ) {
-    return this.announcementsService.findAll(page || 1, limit || 20, { semesterId, sectionId, priority });
+  findAll(@Query() query: ListAnnouncementsQueryDto) {
+    return this.announcementsService.findAll(query.page || 1, query.limit || 20, {
+      semesterId: query.semesterId,
+      sectionId: query.sectionId,
+      priority: query.priority,
+    });
   }
 
   @Get(':id')
@@ -54,7 +56,7 @@ export class AnnouncementsController {
   @Put(':id')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Update announcement' })
-  update(@Param('id') id: string, @Body() data: any) {
+  update(@Param('id') id: string, @Body() data: UpdateAnnouncementDto) {
     return this.announcementsService.update(id, data);
   }
 

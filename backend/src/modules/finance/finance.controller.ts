@@ -1,10 +1,16 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ForbiddenException, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Response } from 'express';
 import { FinanceService } from './finance.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentStudent } from '../auth/decorators/current-user.decorator';
+import { CreateInvoiceDto } from './dto/create-invoice.dto';
+import { UpdateInvoiceDto } from './dto/update-invoice.dto';
+import { CreatePaymentDto } from './dto/create-payment.dto';
+import { UpdatePaymentDto } from './dto/update-payment.dto';
+import { CreateMyPaymentDto } from './dto/create-my-payment.dto';
 
 @ApiTags('Finance')
 @Controller('finance')
@@ -16,40 +22,34 @@ export class FinanceController {
   // ============ STUDENT INVOICE ENDPOINTS ============
 
   @Get('my/invoices')
-  @Roles('ADMIN', 'SUPER_ADMIN', 'STUDENT')
+  @Roles('STUDENT')
   @ApiOperation({ summary: 'Get current student invoices' })
   getMyInvoices(
-    @CurrentUser('studentId') studentId: string,
+    @CurrentStudent() studentId: string,
     @Query('semesterId') semesterId?: string
   ) {
-    if (!studentId) {
-      throw new Error('Student profile not found');
-    }
     return this.financeService.getStudentInvoices(studentId, semesterId);
   }
 
   @Get('my/invoices/:id')
-  @Roles('ADMIN', 'SUPER_ADMIN', 'STUDENT')
+  @Roles('STUDENT')
   @ApiOperation({ summary: 'Get current student invoice by ID' })
   getMyInvoiceById(
-    @CurrentUser('studentId') studentId: string,
+    @CurrentStudent() studentId: string,
     @Param('id') id: string
   ) {
-    if (!studentId) {
-      throw new Error('Student profile not found');
-    }
     return this.financeService.getStudentInvoiceById(studentId, id);
   }
 
   @Post('my/payments')
-  @Roles('ADMIN', 'SUPER_ADMIN', 'STUDENT')
+  @Roles('STUDENT')
   @ApiOperation({ summary: 'Record payment for current student invoice' })
   createMyPayment(
-    @CurrentUser('studentId') studentId: string,
-    @Body() data: { invoiceId: string; amount: number; method: string; transactionId?: string }
+    @CurrentStudent() studentId: string,
+    @Body() data: CreateMyPaymentDto
   ) {
     if (!studentId) {
-      throw new Error('Student profile not found');
+      throw new ForbiddenException('Student profile not found');
     }
     return this.financeService.createPayment({
       ...data,
@@ -62,7 +62,7 @@ export class FinanceController {
   @Post('invoices')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Create invoice (admin only)' })
-  createInvoice(@Body() data: any) {
+  createInvoice(@Body() data: CreateInvoiceDto) {
     return this.financeService.createInvoice(data);
   }
 
@@ -79,6 +79,21 @@ export class FinanceController {
     return this.financeService.findAllInvoices(page || 1, limit || 20, status, semesterId, studentId);
   }
 
+  @Get('invoices/export/csv')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Export invoices as CSV' })
+  async exportInvoicesCsv(
+    @Res() res: Response,
+    @Query('status') status?: string,
+    @Query('semesterId') semesterId?: string,
+    @Query('studentId') studentId?: string,
+  ) {
+    const csv = await this.financeService.exportInvoices(status, semesterId, studentId);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=invoices.csv');
+    res.send(csv);
+  }
+
   @Get('invoices/:id')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get invoice by ID (admin only)' })
@@ -89,7 +104,7 @@ export class FinanceController {
   @Put('invoices/:id')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Update invoice (admin only)' })
-  updateInvoice(@Param('id') id: string, @Body() data: any) {
+  updateInvoice(@Param('id') id: string, @Body() data: UpdateInvoiceDto) {
     return this.financeService.updateInvoice(id, data);
   }
 
@@ -124,7 +139,7 @@ export class FinanceController {
   @Post('payments')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Create payment (admin only)' })
-  createPayment(@Body() data: any) {
+  createPayment(@Body() data: CreatePaymentDto) {
     return this.financeService.createPayment(data);
   }
 
@@ -141,6 +156,21 @@ export class FinanceController {
     return this.financeService.findAllPayments(page || 1, limit || 20, status, invoiceId, studentId);
   }
 
+  @Get('payments/export/csv')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Export payments as CSV' })
+  async exportPaymentsCsv(
+    @Res() res: Response,
+    @Query('status') status?: string,
+    @Query('invoiceId') invoiceId?: string,
+    @Query('studentId') studentId?: string,
+  ) {
+    const csv = await this.financeService.exportPayments(status, invoiceId, studentId);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=payments.csv');
+    res.send(csv);
+  }
+
   @Get('payments/:id')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get payment by ID (admin only)' })
@@ -151,7 +181,7 @@ export class FinanceController {
   @Put('payments/:id')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Update payment (admin only)' })
-  updatePayment(@Param('id') id: string, @Body() data: any) {
+  updatePayment(@Param('id') id: string, @Body() data: UpdatePaymentDto) {
     return this.financeService.updatePayment(id, data);
   }
 

@@ -1,10 +1,12 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, NotFoundException, ForbiddenException, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Response } from 'express';
 import { EnrollmentsService } from './enrollments.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentStudent } from '../auth/decorators/current-user.decorator';
+import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
 
 @ApiTags('Enrollments')
 @Controller('enrollments')
@@ -14,64 +16,49 @@ export class EnrollmentsController {
   constructor(private enrollmentsService: EnrollmentsService) { }
 
   @Post('enroll')
-  @Roles('ADMIN', 'SUPER_ADMIN', 'STUDENT')
+  @Roles('STUDENT')
   @ApiOperation({ summary: 'Enroll current student in a section' })
   enrollStudent(
-    @CurrentUser('studentId') studentId: string,
+    @CurrentStudent() studentId: string,
     @Body() body: { sectionId: string }
   ) {
-    if (!studentId) {
-      throw new ForbiddenException('You do not have a student profile. Only students can enroll in courses.');
-    }
     return this.enrollmentsService.enrollStudent(studentId, body.sectionId);
   }
 
   @Post(':id/drop')
-  @Roles('ADMIN', 'SUPER_ADMIN', 'STUDENT')
+  @Roles('STUDENT')
   @ApiOperation({ summary: 'Drop enrollment' })
   dropEnrollment(
-    @CurrentUser('studentId') studentId: string,
+    @CurrentStudent() studentId: string,
     @Param('id') id: string
   ) {
-    if (!studentId) {
-      throw new ForbiddenException('You do not have a student profile.');
-    }
     return this.enrollmentsService.dropEnrollment(id, studentId);
   }
 
   @Get('my')
-  @Roles('ADMIN', 'SUPER_ADMIN', 'STUDENT')
+  @Roles('STUDENT')
   @ApiOperation({ summary: 'Get current student enrollments' })
   getMyEnrollments(
-    @CurrentUser('studentId') studentId: string,
+    @CurrentStudent() studentId: string,
     @Query('semesterId') semesterId?: string
   ) {
-    if (!studentId) {
-      throw new ForbiddenException('You do not have a student profile.');
-    }
     return this.enrollmentsService.getStudentEnrollments(studentId, semesterId);
   }
 
   @Get('my/grades')
-  @Roles('ADMIN', 'SUPER_ADMIN', 'STUDENT')
+  @Roles('STUDENT')
   @ApiOperation({ summary: 'Get current student grades' })
   getMyGrades(
-    @CurrentUser('studentId') studentId: string,
+    @CurrentStudent() studentId: string,
     @Query('semesterId') semesterId?: string
   ) {
-    if (!studentId) {
-      throw new ForbiddenException('You do not have a student profile.');
-    }
     return this.enrollmentsService.getStudentGrades(studentId, semesterId);
   }
 
   @Get('my/transcript')
-  @Roles('ADMIN', 'SUPER_ADMIN', 'STUDENT')
+  @Roles('STUDENT')
   @ApiOperation({ summary: 'Get current student transcript' })
-  getMyTranscript(@CurrentUser('studentId') studentId: string) {
-    if (!studentId) {
-      throw new ForbiddenException('You do not have a student profile.');
-    }
+  getMyTranscript(@CurrentStudent() studentId: string) {
     return this.enrollmentsService.getStudentTranscript(studentId);
   }
 
@@ -105,6 +92,30 @@ export class EnrollmentsController {
     );
   }
 
+  @Get('export/csv')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Export enrollments as CSV' })
+  async exportCsv(
+    @Res() res: Response,
+    @Query('status') status?: string,
+    @Query('semesterId') semesterId?: string,
+    @Query('studentId') studentId?: string,
+    @Query('courseId') courseId?: string,
+    @Query('sectionId') sectionId?: string,
+  ) {
+    const csv = await this.enrollmentsService.exportAll(
+      status,
+      semesterId,
+      studentId,
+      courseId,
+      sectionId
+    );
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=enrollments.csv');
+    res.send(csv);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get enrollment by ID' })
   findOne(@Param('id') id: string) {
@@ -114,7 +125,7 @@ export class EnrollmentsController {
   @Put(':id')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Update enrollment' })
-  update(@Param('id') id: string, @Body() data: any) {
+  update(@Param('id') id: string, @Body() data: UpdateEnrollmentDto) {
     return this.enrollmentsService.update(id, data);
   }
 

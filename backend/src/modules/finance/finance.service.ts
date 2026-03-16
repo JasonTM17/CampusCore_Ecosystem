@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { Prisma, InvoiceStatus, PaymentStatus } from '@prisma/client';
+import { CsvExportService } from '../common/services/csv-export.service';
 
 @Injectable()
 export class FinanceService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private csvExportService: CsvExportService,
+  ) {}
 
   // ============ INVOICE METHODS ============
 
@@ -82,6 +86,54 @@ export class FinanceService {
     ]);
 
     return { data: invoices, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+  }
+
+  async exportInvoices(status?: string, semesterId?: string, studentId?: string) {
+    const where: any = {};
+
+    if (status) {
+      where.status = status;
+    }
+    if (semesterId) {
+      where.semesterId = semesterId;
+    }
+    if (studentId) {
+      where.studentId = studentId;
+    }
+
+    const invoices = await this.prisma.invoice.findMany({
+      where,
+      include: {
+        student: { include: { user: true } },
+        semester: true,
+        payments: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const exportData = invoices.map(inv => ({
+      invoiceNumber: inv.invoiceNumber,
+      studentName: inv.student.user ? `${inv.student.user.firstName} ${inv.student.user.lastName}` : '',
+      studentEmail: inv.student.user?.email || '',
+      studentNumber: inv.student.studentId || '',
+      semesterName: inv.semester.name,
+      status: inv.status,
+      subtotal: Number(inv.subtotal),
+      discount: Number(inv.discount),
+      total: Number(inv.total),
+      dueDate: inv.dueDate ? inv.dueDate.toISOString() : '',
+      paidAt: inv.paidAt ? inv.paidAt.toISOString() : '',
+      paidAmount: inv.payments
+        .filter(p => p.status === PaymentStatus.COMPLETED)
+        .reduce((sum, p) => sum + Number(p.amount), 0),
+      balance: Number(inv.total) - inv.payments
+        .filter(p => p.status === PaymentStatus.COMPLETED)
+        .reduce((sum, p) => sum + Number(p.amount), 0),
+      notes: inv.notes || '',
+      createdAt: inv.createdAt ? inv.createdAt.toISOString() : '',
+    }));
+
+    return this.csvExportService.generateCsv(exportData);
   }
 
   async findOneInvoice(id: string) {
@@ -288,6 +340,46 @@ export class FinanceService {
       })), 
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) } 
     };
+  }
+
+  async exportPayments(status?: string, invoiceId?: string, studentId?: string) {
+    const where: any = {};
+
+    if (status) {
+      where.status = status;
+    }
+    if (invoiceId) {
+      where.invoiceId = invoiceId;
+    }
+    if (studentId) {
+      where.studentId = studentId;
+    }
+
+    const payments = await this.prisma.payment.findMany({
+      where,
+      include: {
+        invoice: true,
+        student: { include: { user: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const exportData = payments.map(p => ({
+      paymentNumber: p.paymentNumber,
+      invoiceNumber: p.invoice.invoiceNumber,
+      studentName: p.student.user ? `${p.student.user.firstName} ${p.student.user.lastName}` : '',
+      studentEmail: p.student.user?.email || '',
+      studentNumber: p.student.studentId || '',
+      amount: Number(p.amount),
+      method: p.method,
+      status: p.status,
+      paidAt: p.paidAt ? p.paidAt.toISOString() : '',
+      transactionId: p.transactionId || '',
+      notes: p.notes || '',
+      createdAt: p.createdAt ? p.createdAt.toISOString() : '',
+    }));
+
+    return this.csvExportService.generateCsv(exportData);
   }
 
   async findOnePayment(id: string) {
