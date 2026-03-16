@@ -15,6 +15,8 @@ import { UpdateNotificationDto } from './dto/update-notification.dto';
 export class NotificationsController {
   constructor(private notificationsService: NotificationsService) {}
 
+  // ============ USER ENDPOINTS ============
+
   @Get('my')
   @ApiOperation({ summary: 'Get current user notifications' })
   getMyNotifications(
@@ -26,6 +28,13 @@ export class NotificationsController {
     if (!userId) throw new ForbiddenException('Not authenticated');
     const parsedIsRead = isRead === undefined ? undefined : isRead === 'true';
     return this.notificationsService.findMy(userId, page || 1, limit || 20, parsedIsRead);
+  }
+
+  @Get('my/unread-count')
+  @ApiOperation({ summary: 'Get current user unread notification count' })
+  getMyUnreadCount(@CurrentUser('id') userId: string) {
+    if (!userId) throw new ForbiddenException('Not authenticated');
+    return this.notificationsService.getUnreadCount(userId);
   }
 
   @Patch('my/:id/read')
@@ -42,6 +51,15 @@ export class NotificationsController {
     return this.notificationsService.markAllRead(userId);
   }
 
+  @Delete('my/:id')
+  @ApiOperation({ summary: 'Delete current user notification' })
+  deleteMyNotification(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    if (!userId) throw new ForbiddenException('Not authenticated');
+    return this.notificationsService.deleteMyNotification(userId, id);
+  }
+
+  // ============ ADMIN ENDPOINTS ============
+
   @Post()
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Create notification' })
@@ -52,8 +70,12 @@ export class NotificationsController {
   @Get()
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get all notifications' })
-  findAll(@Query('page') page?: number, @Query('limit') limit?: number) {
-    return this.notificationsService.findAll(page || 1, limit || 20);
+  findAll(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('userId') userId?: string,
+  ) {
+    return this.notificationsService.findAll(page || 1, limit || 20, userId);
   }
 
   @Get(':id')

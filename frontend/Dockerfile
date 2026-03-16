@@ -28,11 +28,10 @@ RUN addgroup -g 1001 -S nodejs && \
 COPY frontend/package*.json ./
 
 # Install production dependencies only
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Copy built application
 COPY --from=build /app/.next ./.next
-COPY --from=build /app/public ./public
 COPY --from=build /app/node_modules ./node_modules
 
 # Copy environment file template

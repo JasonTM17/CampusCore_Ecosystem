@@ -36,3 +36,32 @@ export const CurrentStudent = createParamDecorator(
     return user[data];
   },
 );
+
+/**
+ * Decorator to get the current authenticated lecturer's ID.
+ * Requires the user to have the LECTURER role and a valid lecturerId in the JWT.
+ */
+export const CurrentLecturer = createParamDecorator(
+  (data: string | undefined, ctx: ExecutionContext) => {
+    const request = ctx.switchToHttp().getRequest();
+    const user = request.user;
+    
+    if (!user) {
+      throw new ForbiddenException('Not authenticated');
+    }
+
+    const lecturerId = user.lecturerId;
+    
+    if (!lecturerId) {
+      throw new ForbiddenException('You do not have a lecturer profile. Only lecturers can access this resource.');
+    }
+
+    // Return the lecturerId if no specific field is requested
+    if (!data) {
+      return lecturerId;
+    }
+
+    // For specific fields, return from the user object (which should be populated from JWT)
+    return user[data];
+  },
+);
