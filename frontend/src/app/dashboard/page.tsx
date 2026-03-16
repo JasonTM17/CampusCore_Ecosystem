@@ -51,6 +51,13 @@ export default function DashboardPage() {
             </div>
           </Link>
 
+          <Link href="/dashboard/announcements">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer">
+              <h3 className="text-lg font-semibold mb-2">Announcements</h3>
+              <p className="text-gray-600">Read updates from the university and your courses</p>
+            </div>
+          </Link>
+
           <Link href="/dashboard/invoices">
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer">
               <h3 className="text-lg font-semibold mb-2">My Invoices</h3>

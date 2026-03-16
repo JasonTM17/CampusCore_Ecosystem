@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Patch, Body, Param, Query, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('Notifications')
 @Controller('notifications')
@@ -11,6 +12,33 @@ import { Roles } from '../auth/decorators/roles.decorator';
 @ApiBearerAuth()
 export class NotificationsController {
   constructor(private notificationsService: NotificationsService) {}
+
+  @Get('my')
+  @ApiOperation({ summary: 'Get current user notifications' })
+  getMyNotifications(
+    @CurrentUser('id') userId: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('isRead') isRead?: string,
+  ) {
+    if (!userId) throw new ForbiddenException('Not authenticated');
+    const parsedIsRead = isRead === undefined ? undefined : isRead === 'true';
+    return this.notificationsService.findMy(userId, page || 1, limit || 20, parsedIsRead);
+  }
+
+  @Patch('my/:id/read')
+  @ApiOperation({ summary: 'Mark current user notification as read' })
+  markMyNotificationRead(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    if (!userId) throw new ForbiddenException('Not authenticated');
+    return this.notificationsService.markRead(userId, id);
+  }
+
+  @Patch('my/read-all')
+  @ApiOperation({ summary: 'Mark all current user notifications as read' })
+  markAllMyNotificationsRead(@CurrentUser('id') userId: string) {
+    if (!userId) throw new ForbiddenException('Not authenticated');
+    return this.notificationsService.markAllRead(userId);
+  }
 
   @Post()
   @Roles('ADMIN', 'SUPER_ADMIN')
@@ -27,6 +55,7 @@ export class NotificationsController {
   }
 
   @Get(':id')
+  @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get notification by ID' })
   findOne(@Param('id') id: string) {
     return this.notificationsService.findOne(id);
