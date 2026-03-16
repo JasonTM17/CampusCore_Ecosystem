@@ -1,0 +1,61 @@
+name: Build and Push Docker Images
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag (default: latest)'
+        required: false
+        default: 'latest'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      DOCKERHUB_USERNAME: nguyenson1710
+      IMAGE_TAG: ${{ github.event.inputs.tag || 'latest' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Build and push backend
+      - name: Build and push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            nguyenson1710/campuscore-backend:${{ env.IMAGE_TAG }}
+            nguyenson1710/campuscore-backend:${{ github.sha }}
+          cache-from: type=registry,ref=nguyenson1710/campuscore-backend:buildcache
+          cache-to: type=registry,ref=nguyenson1710/campuscore-backend:buildcache,mode=max
+
+      # Build and push frontend
+      - name: Build and push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            nguyenson1710/campuscore-frontend:${{ env.IMAGE_TAG }}
+            nguyenson1710/campuscore-frontend:${{ github.sha }}
+          cache-from: type=registry,ref=nguyenson1710/campuscore-frontend:buildcache
+          cache-to: type=registry,ref=nguyenson1710/campuscore-frontend:buildcache,mode=max

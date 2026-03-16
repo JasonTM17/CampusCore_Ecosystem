@@ -1,7 +1,14 @@
-# Build stage
-FROM node:20-alpine AS build
+# Build stage - using slim for better native module compatibility
+FROM node:20-slim AS build
 
 WORKDIR /app
+
+# Install build dependencies for bcrypt (native module)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
 COPY backend/package*.json ./
@@ -19,19 +26,19 @@ RUN npx prisma generate
 RUN npm run build
 
 # Production stage
-FROM node:20-alpine AS production
+FROM node:20-slim AS production
 
 WORKDIR /app
 
 # Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+RUN groupadd -g 1001 nodejs && \
+    useradd -r -u 1001 -g nodejs nodejs
 
 # Copy package files
 COPY backend/package*.json ./
 
 # Install production dependencies only
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Copy built application
 COPY --from=build /app/dist ./dist
@@ -50,8 +57,9 @@ USER nodejs
 EXPOSE 3000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
 # Start the application
+# Image name: nguyenson1710/campuscore-backend:latest
 CMD ["node", "dist/main"]
