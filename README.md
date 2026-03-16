@@ -1,6 +1,41 @@
-# CampusCore Deployment Guide
+# CampusCore - Enterprise Academic Management Platform
 
-This document describes how to deploy CampusCore using Docker and Docker Hub.
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.0.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
+  <img src="https://img.shields.io/badge/status-Production Ready-brightgreen" alt="Status">
+</p>
+
+> A production-grade university academic management and course registration platform built with modern technologies.
+
+## Author
+
+**Nguyễn Sơn** - Full Stack Developer
+- GitHub: [JasonTM17](https://github.com/JasonTM17)
+- Email: nguyenson1710@gmail.com
+
+## Technology Stack
+
+### Backend
+- **Framework**: NestJS (Node.js)
+- **Database**: PostgreSQL 15+
+- **ORM**: Prisma
+- **Cache**: Redis 7+
+- **Authentication**: JWT with refresh tokens
+- **API Documentation**: Swagger/OpenAPI
+
+### Frontend
+- **Framework**: Next.js 14 (React)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **UI Components**: shadcn/ui
+- **Icons**: Lucide React
+
+### DevOps & Infrastructure
+- **Container**: Docker & Docker Compose
+- **Reverse Proxy**: Nginx
+- **CI/CD**: GitHub Actions
+- **Load Testing**: k6
 
 ## Architecture
 
