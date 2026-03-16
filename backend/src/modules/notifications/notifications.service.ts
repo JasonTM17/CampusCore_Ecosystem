@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 
 @Injectable()
 export class NotificationsService {
   constructor(private prisma: PrismaService) {}
+
+  // ============ USER METHODS ============
 
   async findMy(userId: string, page = 1, limit = 20, isRead?: boolean) {
     const skip = (page - 1) * limit;
@@ -21,6 +23,13 @@ export class NotificationsService {
     ]);
 
     return { data: notifications, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+  }
+
+  async getUnreadCount(userId: string) {
+    const count = await this.prisma.notification.count({
+      where: { userId, isRead: false },
+    });
+    return { unreadCount: count };
   }
 
   async markRead(userId: string, notificationId: string) {
@@ -45,15 +54,36 @@ export class NotificationsService {
     return { updated: result.count };
   }
 
+  async deleteMyNotification(userId: string, notificationId: string) {
+    const existing = await this.prisma.notification.findFirst({
+      where: { id: notificationId, userId },
+    });
+    if (!existing) throw new ForbiddenException('Cannot delete this notification');
+
+    await this.prisma.notification.delete({ where: { id: notificationId } });
+    return { message: 'Notification deleted successfully' };
+  }
+
+  // ============ ADMIN METHODS ============
+
   async create(data: any) {
     return this.prisma.notification.create({ data, include: { user: true } });
   }
 
-  async findAll(page = 1, limit = 20) {
+  async findAll(page = 1, limit = 20, userId?: string) {
     const skip = (page - 1) * limit;
+    const where: any = {};
+    if (userId) where.userId = userId;
+
     const [notifications, total] = await Promise.all([
-      this.prisma.notification.findMany({ skip, take: limit, include: { user: true }, orderBy: { createdAt: 'desc' } }),
-      this.prisma.notification.count(),
+      this.prisma.notification.findMany({
+        skip,
+        take: limit,
+        where,
+        include: { user: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.notification.count({ where }),
     ]);
     return { data: notifications, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }

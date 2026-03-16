@@ -193,4 +193,184 @@ export class AnalyticsService {
 
     return Object.values(monthlyData).reverse();
   }
+
+  async getRevenueAnalytics(semesterId?: string) {
+    const where: any = {};
+    if (semesterId) where.semesterId = semesterId;
+
+    const [invoices, payments] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where,
+        include: { semester: true },
+      }),
+      this.prisma.payment.findMany({
+        where: semesterId ? { invoice: { semesterId } } : undefined,
+        include: { invoice: true },
+      }),
+    ]);
+
+    const totalInvoiced = invoices.reduce((sum, inv) => sum + Number(inv.total), 0);
+    const totalPaid = payments
+      .filter(p => p.status === 'COMPLETED')
+      .reduce((sum, p) => sum + Number(p.amount), 0);
+    const pending = totalInvoiced - totalPaid;
+
+    return {
+      totalInvoiced: Number(totalInvoiced.toFixed(2)),
+      totalPaid: Number(totalPaid.toFixed(2)),
+      pending: Number(pending.toFixed(2)),
+      invoiceCount: invoices.length,
+      paidInvoiceCount: invoices.filter(i => i.status === 'PAID').length,
+      pendingInvoiceCount: invoices.filter(i => i.status !== 'PAID').length,
+    };
+  }
+
+  async getAttendanceAnalytics(semesterId?: string) {
+    const where: any = {};
+    if (semesterId) {
+      where.section = { semesterId };
+    }
+
+    const attendances = await this.prisma.attendance.findMany({ where });
+
+    const total = attendances.length;
+    const present = attendances.filter(a => a.status === 'PRESENT').length;
+    const absent = attendances.filter(a => a.status === 'ABSENT').length;
+    const late = attendances.filter(a => a.status === 'LATE').length;
+    const excused = attendances.filter(a => a.status === 'EXCUSED').length;
+
+    return {
+      totalRecords: total,
+      present,
+      absent,
+      late,
+      excused,
+      attendanceRate: total > 0 ? Math.round(((present + late) / total) * 100) : 0,
+    };
+  }
+
+  async getTopCourses(limit = 10) {
+    const courses = await this.prisma.course.findMany({
+      include: {
+        _count: {
+          select: { sections: true },
+        },
+        sections: {
+          include: {
+            _count: {
+              select: {
+                enrollments: {
+                  where: { status: { in: ['CONFIRMED', 'PENDING'] } },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const courseStats = courses.map(course => {
+      const totalEnrollments = course.sections.reduce(
+        (sum, s) => sum + (s._count.enrollments || 0),
+        0
+      );
+      return {
+        courseId: course.id,
+        courseCode: course.code,
+        courseName: course.name,
+        credits: course.credits,
+        sectionCount: course._count.sections,
+        totalEnrollments,
+      };
+    });
+
+    return courseStats
+      .sort((a, b) => b.totalEnrollments - a.totalEnrollments)
+      .slice(0, limit);
+  }
+
+  async getStudentStatistics() {
+    const [
+      totalStudents,
+      activeStudents,
+      graduatedStudents,
+      suspendedStudents,
+      byYear,
+    ] = await Promise.all([
+      this.prisma.student.count(),
+      this.prisma.student.count({ where: { status: 'ACTIVE' } }),
+      this.prisma.student.count({ where: { status: 'GRADUATED' } }),
+      this.prisma.student.count({ where: { status: 'SUSPENDED' } }),
+      this.prisma.student.groupBy({
+        by: ['year'],
+        _count: { id: true },
+      }),
+    ]);
+
+    return {
+      total: totalStudents,
+      active: activeStudents,
+      graduated: graduatedStudents,
+      suspended: suspendedStudents,
+      byYear: byYear.map(y => ({ year: y.year, count: y._count.id })),
+    };
+  }
+
+  async getLecturerAnalytics(lecturerId: string) {
+    const [
+      totalSections,
+      totalStudents,
+      sectionsWithGrades,
+    ] = await Promise.all([
+      this.prisma.section.count({ where: { lecturerId } }),
+      this.prisma.enrollment.count({
+        where: {
+          section: { lecturerId },
+          status: { in: ['CONFIRMED', 'PENDING'] },
+        },
+      }),
+      this.prisma.enrollment.count({
+        where: {
+          section: { lecturerId },
+          gradeStatus: 'PUBLISHED',
+        },
+      }),
+    ]);
+
+    return {
+      totalSections,
+      totalStudents,
+      sectionsWithGrades,
+    };
+  }
+
+  async getLecturerSectionAnalytics(lecturerId: string) {
+    const sections = await this.prisma.section.findMany({
+      where: { lecturerId },
+      include: {
+        course: true,
+        semester: true,
+        _count: {
+          select: {
+            enrollments: {
+              where: { status: { in: ['CONFIRMED', 'PENDING'] } },
+            },
+          },
+        },
+      },
+    });
+
+    return sections.map(section => ({
+      sectionId: section.id,
+      sectionNumber: section.sectionNumber,
+      courseCode: section.course.code,
+      courseName: section.course.name,
+      semesterName: section.semester.name,
+      capacity: section.capacity,
+      enrolledCount: section._count.enrollments || section.enrolledCount,
+      occupancyRate: section.capacity > 0
+        ? Math.round(((section._count.enrollments || section.enrolledCount) / section.capacity) * 100)
+        : 0,
+    }));
+  }
 }
