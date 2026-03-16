@@ -581,8 +581,6 @@ async function main() {
         discount: student.studentId.startsWith('CS') ? 300 : 0,
         total: 2700,
         dueDate: new Date('2025-02-15'),
-        paidAmount: 0,
-        balance: 2700,
       },
     });
 
@@ -597,8 +595,6 @@ async function main() {
         discount: student.studentId.startsWith('CS') ? 300 : 0,
         total: 2700,
         dueDate: new Date('2024-10-15'),
-        paidAmount: 2700,
-        balance: 0,
         paidAt: new Date('2024-10-01'),
       },
     });
@@ -612,9 +608,8 @@ async function main() {
       content: 'Course registration for Spring 2025 semester is now open. Please register through the student portal.',
       priority: 'HIGH',
       semesterId: springSemester.id,
-      createdById: adminUser.id,
-      isPublished: true,
-      publishedAt: new Date(),
+      publishedBy: adminUser.email,
+      publishAt: new Date(),
     },
   });
 
@@ -622,11 +617,10 @@ async function main() {
     data: {
       title: 'Midterm Examination Schedule',
       content: 'Midterm examinations will be held from March 15-20, 2025. Please check your schedule.',
-      priority: 'MEDIUM',
+      priority: 'NORMAL',
       semesterId: springSemester.id,
-      createdById: adminUser.id,
-      isPublished: true,
-      publishedAt: new Date(),
+      publishedBy: adminUser.email,
+      publishAt: new Date(),
     },
   });
   console.log('Created Announcements');
