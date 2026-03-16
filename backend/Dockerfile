@@ -30,9 +30,10 @@ FROM node:20-slim AS production
 
 WORKDIR /app
 
-# Install libssl3 for Prisma on Debian 12
+# Install libssl3 for Prisma on Debian 12 and wget for healthcheck
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
@@ -67,4 +68,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 
 # Start the application
 # Image name: nguyenson1710/campuscore-backend:latest
-CMD ["node", "dist/main"]
+CMD ["node", "dist/src/main"]

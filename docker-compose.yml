@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -41,7 +39,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
       args:
-        DOCKERHUB_USERNAME: ${DOCKERHUB_USERNAME:-yourdockerhubusername}
+        DOCKERHUB_USERNAME: ${DOCKERHUB_USERNAME:-nguyenson1710}
     image: nguyenson1710/campuscore-backend:${IMAGE_TAG:-latest}
     container_name: campuscore-api
     environment:
@@ -74,7 +72,7 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
       args:
-        DOCKERHUB_USERNAME: ${DOCKERHUB_USERNAME:-yourdockerhubusername}
+        DOCKERHUB_USERNAME: ${DOCKERHUB_USERNAME:-nguyenson1710}
     image: nguyenson1710/campuscore-frontend:${IMAGE_TAG:-latest}
     container_name: campuscore-web
     environment:
