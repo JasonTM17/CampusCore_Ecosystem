@@ -12,7 +12,7 @@
 
 **Nguyễn Sơn** - Full Stack Developer
 - GitHub: [JasonTM17](https://github.com/JasonTM17)
-- Email: nguyenson1710@gmail.com
+- Email: jasonbmt06@gmail.com
 
 ## Technology Stack
 
