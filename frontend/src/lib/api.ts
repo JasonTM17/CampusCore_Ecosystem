@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { LoginResponse, ApiResponse, User, Section, Enrollment, WaitlistEntry, Semester, Department, Course, StudentGradeRecord, StudentTranscript, TranscriptResponse } from '@/types/api';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
