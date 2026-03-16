@@ -30,6 +30,11 @@ FROM node:20-slim AS production
 
 WORKDIR /app
 
+# Install libssl3 for Prisma on Debian 12
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create non-root user
 RUN groupadd -g 1001 nodejs && \
     useradd -r -u 1001 -g nodejs nodejs
