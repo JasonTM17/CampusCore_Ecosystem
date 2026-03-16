@@ -434,4 +434,45 @@ export const financeApi = {
   },
 };
 
+// Announcements API
+export const announcementsApi = {
+  getMy: async (params?: { page?: number; limit?: number }): Promise<ApiResponse<any>> => {
+    const response = await api.get<ApiResponse<any>>('/announcements/my', { params });
+    return response.data;
+  },
+  // Admin
+  getAll: async (params?: { page?: number; limit?: number; semesterId?: string; sectionId?: string; priority?: string }): Promise<ApiResponse<any>> => {
+    const response = await api.get<ApiResponse<any>>('/announcements', { params });
+    return response.data;
+  },
+  create: async (data: any): Promise<any> => {
+    const response = await api.post<any>('/announcements', data);
+    return response.data;
+  },
+  update: async (id: string, data: any): Promise<any> => {
+    const response = await api.put<any>(`/announcements/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: string): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/announcements/${id}`);
+    return response.data;
+  },
+};
+
+// Notifications API
+export const notificationsApi = {
+  getMy: async (params?: { page?: number; limit?: number; isRead?: boolean }): Promise<ApiResponse<any>> => {
+    const response = await api.get<ApiResponse<any>>('/notifications/my', { params });
+    return response.data;
+  },
+  markRead: async (id: string): Promise<any> => {
+    const response = await api.patch<any>(`/notifications/my/${id}/read`, {});
+    return response.data;
+  },
+  markAllRead: async (): Promise<{ updated: number }> => {
+    const response = await api.patch<{ updated: number }>('/notifications/my/read-all', {});
+    return response.data;
+  },
+};
+
 export default api;

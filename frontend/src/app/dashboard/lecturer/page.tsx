@@ -36,6 +36,13 @@ export default function LecturerDashboardPage() {
               <p className="text-gray-600">Enter and publish grades for your sections</p>
             </div>
           </Link>
+
+          <Link href="/dashboard/lecturer/announcements">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer">
+              <h3 className="text-lg font-semibold mb-2">Announcements</h3>
+              <p className="text-gray-600">Read updates relevant to you and your sections</p>
+            </div>
+          </Link>
         </div>
       </main>
     </div>
