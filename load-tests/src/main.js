@@ -23,27 +23,19 @@
 import { check, sleep, group } from 'k6';
 import http from 'k6/http';
 
-// Import helpers
-import { config, testAuth } from './helpers/config.js';
-
-// Import scenarios
-import { healthCheckScenario, loginScenario, getCurrentUserScenario, logoutScenario, authFlowTest } from './scenarios/auth-scenarios.js';
-import { 
-  getSectionsScenario, 
-  getMyEnrollmentsScenario, 
-  getMyGradesScenario,
-  getMyTranscriptScenario,
-  getMyScheduleScenario,
-  getMyInvoicesScenario,
-  studentPortalFlow 
-} from './scenarios/student-portal-scenarios.js';
-import { 
-  getAnalyticsOverviewScenario, 
-  adminPortalFlow 
-} from './scenarios/admin-portal-scenarios.js';
+// Configuration
+const BASE_URL = __ENV.BASE_URL || 'http://localhost';
+const API_BASE_URL = __ENV.API_BASE_URL || 'http://localhost/api/v1';
+const TEST_USER_EMAIL = __ENV.K6_USERS_EMAIL || 'student1@campuscore.edu';
+const TEST_USER_PASSWORD = __ENV.K6_USERS_PASSWORD || 'password123';
+const ADMIN_USER_EMAIL = __ENV.K6_ADMIN_EMAIL || 'admin@campuscore.edu';
+const ADMIN_USER_PASSWORD = __ENV.K6_ADMIN_PASSWORD || 'admin123';
 
 // Test scenario selection
 const SCENARIO = __ENV.SCENARIO || 'smoke';
+
+// Auth token storage
+let authToken = null;
 
 // Test configuration
 export const options = {
@@ -101,11 +93,133 @@ export const options = {
   },
 };
 
-// Default function for smoke test
+// Helper functions
+
+function getAuthHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+  return headers;
+}
+
+function login(email, password) {
+  const payload = JSON.stringify({ email, password });
+  const res = http.post(`${API_BASE_URL}/auth/login`, payload, {
+    headers: { 'Content-Type': 'application/json' },
+    tags: { scenario: 'login' },
+  });
+
+  const success = check(res, {
+    'login returns 200': (r) => r.status === 200,
+    'login returns access token': (r) => !!r.json('accessToken'),
+  });
+
+  if (success) {
+    authToken = res.json('accessToken');
+  }
+
+  return { success, token: authToken, response: res };
+}
+
+function logout() {
+  if (!authToken) return { success: false };
+
+  const res = http.post(`${API_BASE_URL}/auth/logout`, null, {
+    headers: { 'Authorization': `Bearer ${authToken}` },
+    tags: { scenario: 'logout' },
+  });
+
+  authToken = null;
+  return { success: res.status === 200, response: res };
+}
+
+function getCurrentUser() {
+  if (!authToken) return null;
+
+  const res = http.get(`${API_BASE_URL}/auth/me`, {
+    headers: getAuthHeaders(),
+    tags: { scenario: 'getCurrentUser' },
+  });
+
+  return { success: res.status === 200, user: res.json(), response: res };
+}
+
+function getSections(semesterId = null) {
+  const params = { headers: getAuthHeaders(), tags: { endpoint: 'sections' } };
+  if (semesterId) params.params = { semesterId };
+
+  const res = http.get(`${API_BASE_URL}/sections`, params);
+
+  return {
+    success: res.status === 200,
+    data: res.json(),
+    response: res,
+  };
+}
+
+function getMyEnrollments(semesterId = null) {
+  let url = `${API_BASE_URL}/enrollments/my`;
+  if (semesterId) url += `?semesterId=${semesterId}`;
+
+  const res = http.get(url, {
+    headers: getAuthHeaders(),
+    tags: { endpoint: 'enrollments' },
+  });
+
+  return { success: res.status === 200, data: res.json(), response: res };
+}
+
+function getMyGrades(semesterId = null) {
+  let url = `${API_BASE_URL}/enrollments/my/grades`;
+  if (semesterId) url += `?semesterId=${semesterId}`;
+
+  const res = http.get(url, {
+    headers: getAuthHeaders(),
+    tags: { endpoint: 'grades' },
+  });
+
+  return { success: res.status === 200, data: res.json(), response: res };
+}
+
+function getMySchedule(semesterId = null) {
+  let url = `${API_BASE_URL}/sections/my/schedule`;
+  if (semesterId) url += `?semesterId=${semesterId}`;
+
+  const res = http.get(url, {
+    headers: getAuthHeaders(),
+    tags: { endpoint: 'schedule' },
+  });
+
+  return { success: res.status === 200, data: res.json(), response: res };
+}
+
+function getMyInvoices(semesterId = null) {
+  let url = `${API_BASE_URL}/finance/my/invoices`;
+  if (semesterId) url += `?semesterId=${semesterId}`;
+
+  const res = http.get(url, {
+    headers: getAuthHeaders(),
+    tags: { endpoint: 'invoices' },
+  });
+
+  return { success: res.status === 200, data: res.json(), response: res };
+}
+
+function getAnalytics() {
+  const res = http.get(`${API_BASE_URL}/analytics/overview`, {
+    headers: getAuthHeaders(),
+    tags: { endpoint: 'analytics' },
+  });
+
+  return { success: res.status === 200, data: res.json(), response: res };
+}
+
+// Default function
 export default function () {
   // Test health endpoint (always public)
   group('Health Check', () => {
-    const res = http.get(`${config.apiBaseUrl}/health`);
+    const res = http.get(`${API_BASE_URL}/health`);
     check(res, {
       'health returns 200': (r) => r.status === 200,
       'health status is ok': (r) => r.json('status') === 'ok',
@@ -116,27 +230,32 @@ export default function () {
   if (SCENARIO === 'smoke') {
     group('Authentication', () => {
       // Login
-      const loginRes = loginScenario(config.testUser.email, config.testUser.password);
+      const loginRes = login(TEST_USER_EMAIL, TEST_USER_PASSWORD);
       
       if (loginRes.success && loginRes.token) {
         sleep(0.5);
         
         // Get current user
-        getCurrentUserScenario(loginRes.token);
+        const userRes = getCurrentUser();
+        if (userRes && userRes.success) {
+          check(userRes.response, {
+            'get current user returns 200': (r) => r.status === 200,
+          });
+        }
         sleep(0.5);
         
         // Logout
-        logoutScenario(loginRes.token);
+        logout();
       }
     });
   }
 }
 
-// Smoke test specific export
+// Smoke test specific
 export function smokeTest() {
   // Public health check
   group('Health Check', () => {
-    const res = http.get(`${config.apiBaseUrl}/health`);
+    const res = http.get(`${API_BASE_URL}/health`);
     check(res, {
       'health returns 200': (r) => r.status === 200,
     });
@@ -146,34 +265,32 @@ export function smokeTest() {
 // Load test - realistic student behavior
 export function loadTest() {
   // Login as student
-  const loginRes = loginScenario(config.testUser.email, config.testUser.password);
+  const loginRes = login(TEST_USER_EMAIL, TEST_USER_PASSWORD);
   
   if (!loginRes.success || !loginRes.token) {
     console.log('Login failed');
     return;
   }
   
-  const token = loginRes.token;
-  
   // Student portal operations
   group('Student Portal', () => {
-    getSectionsScenario(token);
+    getSections();
     sleep(0.3);
     
-    getMyEnrollmentsScenario(token);
+    getMyEnrollments();
     sleep(0.3);
     
-    getMyGradesScenario(token);
+    getMyGrades();
     sleep(0.3);
     
-    getMyScheduleScenario(token);
+    getMySchedule();
     sleep(0.3);
     
-    getMyInvoicesScenario(token);
+    getMyInvoices();
   });
   
   // Logout
-  logoutScenario(token);
+  logout();
 }
 
 // Stress test - mixed operations
@@ -183,25 +300,14 @@ export function stressTest() {
   
   if (isAdmin) {
     // Admin flow
-    const loginRes = loginScenario(config.adminUser.email, config.adminUser.password);
+    const loginRes = login(ADMIN_USER_EMAIL, ADMIN_USER_PASSWORD);
     
     if (loginRes.success && loginRes.token) {
-      adminPortalFlow(loginRes.token);
-      logoutScenario(loginRes.token);
+      getAnalytics();
+      logout();
     }
   } else {
     // Student flow
     loadTest();
   }
 }
-
-// Export scenarios for direct execution
-export { 
-  healthCheckScenario, 
-  loginScenario, 
-  getCurrentUserScenario, 
-  logoutScenario, 
-  authFlowTest,
-  studentPortalFlow,
-  adminPortalFlow 
-};
