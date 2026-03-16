@@ -1,11 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { AuthUser } from '../auth/types/auth-user.type';
+import { CreateAnnouncementDto } from './dto/create-announcement.dto';
+import { UpdateAnnouncementDto } from './dto/update-announcement.dto';
 
 @Injectable()
 export class AnnouncementsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: any) {
+  async create(data: CreateAnnouncementDto) {
     return this.prisma.announcement.create({ data, include: { semester: true, section: true, lecturer: true } });
   }
 
@@ -29,7 +32,7 @@ export class AnnouncementsService {
     return { data: announcements, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }
 
-  async findForUser(user: any, page = 1, limit = 20) {
+  async findForUser(user: AuthUser, page = 1, limit = 20) {
     const skip = (page - 1) * limit;
     const roles: string[] = user?.roles || [];
     const studentYear: number | null = user?.student?.year ?? null;
@@ -100,7 +103,7 @@ export class AnnouncementsService {
     return announcement;
   }
 
-  async update(id: string, data: any) {
+  async update(id: string, data: UpdateAnnouncementDto) {
     await this.findOne(id);
     return this.prisma.announcement.update({ where: { id }, data });
   }

@@ -5,6 +5,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CreateNotificationDto } from './dto/create-notification.dto';
+import { UpdateNotificationDto } from './dto/update-notification.dto';
 
 @ApiTags('Notifications')
 @Controller('notifications')
@@ -43,7 +45,7 @@ export class NotificationsController {
   @Post()
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Create notification' })
-  create(@Body() data: any) {
+  create(@Body() data: CreateNotificationDto) {
     return this.notificationsService.create(data);
   }
 
@@ -64,7 +66,7 @@ export class NotificationsController {
   @Put(':id')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Update notification' })
-  update(@Param('id') id: string, @Body() data: any) {
+  update(@Param('id') id: string, @Body() data: UpdateNotificationDto) {
     return this.notificationsService.update(id, data);
   }
 
