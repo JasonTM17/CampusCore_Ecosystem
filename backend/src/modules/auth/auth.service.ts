@@ -185,6 +185,42 @@ export class AuthService {
     return this.sanitizeUser(user);
   }
 
+  async updateProfile(userId: string, data: { firstName?: string; lastName?: string; phone?: string; dateOfBirth?: string; address?: string }) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        firstName: data.firstName ?? user.firstName,
+        lastName: data.lastName ?? user.lastName,
+        phone: data.phone ?? user.phone,
+        dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : user.dateOfBirth,
+        address: data.address ?? user.address,
+      },
+      include: {
+        roles: {
+          include: {
+            role: {
+              include: {
+                permissions: true,
+              },
+            },
+          },
+        },
+        student: true,
+        lecturer: true,
+      },
+    });
+
+    return this.sanitizeUser(updatedUser);
+  }
+
   async changePassword(userId: string, oldPassword: string, newPassword: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

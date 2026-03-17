@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { authApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,7 +24,13 @@ export default function ProfilePage() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      // API call would go here
+      await authApi.updateProfile({
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phone: formData.phone,
+        dateOfBirth: formData.dateOfBirth || undefined,
+        address: formData.address,
+      });
       toast.success('Profile updated successfully');
       await refreshUser();
     } catch (error) {
@@ -149,18 +156,42 @@ export default function ProfilePage() {
           <CardDescription>Update your password</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4">
+          <form className="space-y-4" onSubmit={async (e) => {
+            e.preventDefault();
+            const form = e.target as HTMLFormElement;
+            const oldPassword = (form.elements.namedItem('oldPassword') as HTMLInputElement).value;
+            const newPassword = (form.elements.namedItem('newPassword') as HTMLInputElement).value;
+            const confirmPassword = (form.elements.namedItem('confirmPassword') as HTMLInputElement).value;
+
+            if (newPassword !== confirmPassword) {
+              toast.error('New passwords do not match');
+              return;
+            }
+
+            if (newPassword.length < 6) {
+              toast.error('Password must be at least 6 characters');
+              return;
+            }
+
+            try {
+              await authApi.changePassword(oldPassword, newPassword);
+              toast.success('Password updated successfully');
+              form.reset();
+            } catch (error: any) {
+              toast.error(error.response?.data?.message || 'Failed to update password');
+            }
+          }}>
             <div className="space-y-2">
               <label className="text-sm font-medium dark:text-gray-200">Current Password</label>
-              <Input type="password" placeholder="Enter current password" />
+              <Input name="oldPassword" type="password" placeholder="Enter current password" required />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium dark:text-gray-200">New Password</label>
-              <Input type="password" placeholder="Enter new password" />
+              <Input name="newPassword" type="password" placeholder="Enter new password" required minLength={6} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium dark:text-gray-200">Confirm New Password</label>
-              <Input type="password" placeholder="Confirm new password" />
+              <Input name="confirmPassword" type="password" placeholder="Confirm new password" required minLength={6} />
             </div>
             <div className="flex justify-end">
               <Button type="submit">
