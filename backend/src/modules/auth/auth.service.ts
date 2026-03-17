@@ -5,6 +5,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { EmailService } from '../common/services/email.service';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private emailService: EmailService,
   ) {}
 
   async register(createUserDto: CreateUserDto) {
@@ -215,6 +217,121 @@ export class AuthService {
     await this.createAuditLog(userId, 'PASSWORD_CHANGE', 'User', userId, null, null);
 
     return { message: 'Password changed successfully' };
+  }
+
+  async forgotPassword(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      // Don't reveal if email exists
+      return { message: 'If the email exists, a reset link will be sent' };
+    }
+
+    // Generate reset token (valid for 15 minutes)
+    const resetToken = uuidv4();
+    const resetExpires = new Date(Date.now() + 15 * 60 * 1000);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetToken,
+        resetExpires,
+      },
+    });
+
+    // Send reset email
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/reset-password?token=${resetToken}`;
+    await this.emailService.sendPasswordResetEmail(user.email, user.firstName || 'User', resetUrl);
+
+    return { message: 'If the email exists, a reset link will be sent' };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        resetToken: token,
+        resetExpires: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetToken: null,
+        resetExpires: null,
+        passwordChangedAt: new Date(),
+        refreshToken: null,
+      },
+    });
+
+    await this.prisma.session.deleteMany({
+      where: { userId: user.id },
+    });
+
+    await this.createAuditLog(user.id, 'PASSWORD_RESET', 'User', user.id, null, null);
+
+    return { message: 'Password reset successfully' };
+  }
+
+  async verifyEmail(token: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        verificationToken: token,
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid verification token');
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        verificationToken: null,
+        status: 'ACTIVE',
+      },
+    });
+
+    await this.createAuditLog(user.id, 'EMAIL_VERIFIED', 'User', user.id, null, null);
+
+    return { message: 'Email verified successfully' };
+  }
+
+  async resendVerificationEmail(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      return { message: 'If the email is not verified, a verification link will be sent' };
+    }
+
+    if (user.emailVerified) {
+      throw new BadRequestException('Email is already verified');
+    }
+
+    const verificationToken = uuidv4();
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { verificationToken },
+    });
+
+    const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/verify-email?token=${verificationToken}`;
+    await this.emailService.sendVerificationEmail(user.email, user.firstName, verifyUrl);
+
+    return { message: 'Verification email sent' };
   }
 
   private async generateTokens(user: any) {

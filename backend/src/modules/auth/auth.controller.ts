@@ -59,6 +59,34 @@ export class AuthController {
     );
   }
 
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request password reset' })
+  async forgotPassword(@Body() body: { email: string }) {
+    return this.authService.forgotPassword(body.email);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset password with token' })
+  async resetPassword(@Body() body: { token: string; newPassword: string }) {
+    return this.authService.resetPassword(body.token, body.newPassword);
+  }
+
+  @Get('verify-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify email with token' })
+  async verifyEmail(@Body() body: { token: string }) {
+    return this.authService.verifyEmail(body.token);
+  }
+
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Resend verification email' })
+  async resendVerification(@Body() body: { email: string }) {
+    return this.authService.resendVerificationEmail(body.email);
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
