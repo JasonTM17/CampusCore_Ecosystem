@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { KeyRound } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -60,6 +61,12 @@ export default function LoginPage() {
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? 'Logging in...' : 'Login'}
           </Button>
+          <div className="text-center mt-4">
+            <Link href="/forgot-password" className="text-sm text-primary hover:underline flex items-center justify-center gap-1">
+              <KeyRound className="h-3 w-3" />
+              Forgot password?
+            </Link>
+          </div>
           <p className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
             <Link href="/" className="text-blue-600 hover:underline">Back to Home</Link>
           </p>
