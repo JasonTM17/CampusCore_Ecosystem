@@ -57,6 +57,31 @@ export const authApi = {
   logout: async (): Promise<void> => {
     await api.post('/auth/logout');
   },
+
+  changePassword: async (oldPassword: string, newPassword: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>('/auth/change-password', { oldPassword, newPassword });
+    return response.data;
+  },
+
+  forgotPassword: async (email: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>('/auth/forgot-password', { email });
+    return response.data;
+  },
+
+  resetPassword: async (token: string, newPassword: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>('/auth/reset-password', { token, newPassword });
+    return response.data;
+  },
+
+  verifyEmail: async (token: string): Promise<{ message: string }> => {
+    const response = await api.get<{ message: string }>('/auth/verify-email', { params: { token } });
+    return response.data;
+  },
+
+  resendVerification: async (email: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>('/auth/resend-verification', { email });
+    return response.data;
+  },
 };
 
 // Sections API
