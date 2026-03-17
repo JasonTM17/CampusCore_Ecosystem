@@ -20,6 +20,7 @@ import {
     FileText,
     Plus,
     RefreshCw,
+    Download,
 } from 'lucide-react';
 
 interface Invoice {
@@ -213,6 +214,20 @@ export default function AdminInvoicesPage() {
         }
     };
 
+    const handleExportCsv = async () => {
+        try {
+            const csvData = await financeApi.exportInvoicesCsv(filters);
+            const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `invoices_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+            toast.success('Export successful');
+        } catch (err) {
+            toast.error('Failed to export invoices');
+        }
+    };
+
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
     };
@@ -262,6 +277,10 @@ export default function AdminInvoicesPage() {
                         <div className="text-sm text-gray-500">
                             Total: {total} invoices
                         </div>
+                        <Button variant="outline" onClick={handleExportCsv}>
+                            <Download className="h-4 w-4 mr-2" />
+                            Export CSV
+                        </Button>
                         <Button onClick={handleGenerateInvoices} disabled={!filters.semesterId}>
                             <Plus className="h-4 w-4 mr-2" />
                             Generate Invoices

@@ -16,6 +16,7 @@ import {
     Pencil,
     Trash2,
     X,
+    Download,
 } from 'lucide-react';
 
 interface Enrollment {
@@ -203,6 +204,20 @@ export default function AdminEnrollmentsPage() {
         }
     };
 
+    const handleExportCsv = async () => {
+        try {
+            const csvData = await enrollmentsApi.exportCsv(filters);
+            const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `enrollments_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+            toast.success('Export successful');
+        } catch (err) {
+            toast.error('Failed to export enrollments');
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gray-50">
             <nav className="bg-slate-800 text-white shadow-sm">
@@ -234,6 +249,10 @@ export default function AdminEnrollmentsPage() {
                     <div className="text-sm text-gray-500">
                         Total: {total} enrollments
                     </div>
+                    <Button variant="outline" onClick={handleExportCsv}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Export CSV
+                    </Button>
                 </div>
 
                 {/* Filters */}
