@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './modules/common/prisma/prisma.module';
+import { CacheModule } from './modules/cache/cache.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { RolesModule } from './modules/roles/roles.module';
@@ -34,7 +36,21 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    ThrottlerModule.forRoot([{
+      name: 'short',
+      ttl: 1000,
+      limit: 10,
+    }, {
+      name: 'medium',
+      ttl: 10000,
+      limit: 50,
+    }, {
+      name: 'long',
+      ttl: 60000,
+      limit: 100,
+    }]),
     PrismaModule,
+    CacheModule,
     AuthModule,
     UsersModule,
     RolesModule,
