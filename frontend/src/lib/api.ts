@@ -133,6 +133,11 @@ export const enrollmentsApi = {
     const response = await api.delete<{ message: string }>(`/enrollments/${id}`);
     return response.data;
   },
+
+  exportCsv: async (params?: { status?: string; semesterId?: string; studentId?: string; courseId?: string }): Promise<string> => {
+    const response = await api.get<string>('/enrollments/export/csv', { params });
+    return response.data;
+  },
 };
 
 // Semesters API
@@ -430,6 +435,16 @@ export const financeApi = {
 
   createPayment: async (data: any): Promise<any> => {
     const response = await api.post<any>('/finance/payments', data);
+    return response.data;
+  },
+
+  exportInvoicesCsv: async (params?: { status?: string; semesterId?: string; studentId?: string }): Promise<string> => {
+    const response = await api.get<string>('/finance/invoices/export/csv', { params });
+    return response.data;
+  },
+
+  exportPaymentsCsv: async (params?: { status?: string; invoiceId?: string; studentId?: string }): Promise<string> => {
+    const response = await api.get<string>('/finance/payments/export/csv', { params });
     return response.data;
   },
 };
