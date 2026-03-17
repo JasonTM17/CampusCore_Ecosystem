@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { GlobalExceptionFilter } from './modules/common/filters/global-exception.filter';
 
 const logger = new Logger('Bootstrap');
 
@@ -25,6 +26,9 @@ async function bootstrap() {
       },
     }),
   );
+
+  // Register global exception filter
+  app.useGlobalFilters(new GlobalExceptionFilter());
   
   app.setGlobalPrefix('api/v1');
   
