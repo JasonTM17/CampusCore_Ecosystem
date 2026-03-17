@@ -41,6 +41,10 @@ coverage/
 # Production
 *.tgz
 
+# k6 load testing tool
+k6-temp/
+k6.zip
+
 # Frontend
 frontend/node_modules/
 frontend/.next/
