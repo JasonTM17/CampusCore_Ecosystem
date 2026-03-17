@@ -10,6 +10,8 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { toast } from 'sonner';
 import { Mail, ArrowLeft, KeyRound } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
