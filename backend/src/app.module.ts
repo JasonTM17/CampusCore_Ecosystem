@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './modules/common/prisma/prisma.module';
 import { CacheModule } from './modules/cache/cache.module';
+import { RabbitMQModule } from './modules/rabbitmq/rabbitmq.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { RolesModule } from './modules/roles/roles.module';
@@ -51,6 +52,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     }]),
     PrismaModule,
     CacheModule,
+    RabbitMQModule,
     AuthModule,
     UsersModule,
     RolesModule,
