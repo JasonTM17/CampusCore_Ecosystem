@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -55,6 +56,9 @@ export default function LoginPage() {
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? 'Logging in...' : 'Login'}
           </Button>
+          <p className="mt-4 text-center text-sm text-gray-500">
+            <Link href="/" className="text-blue-600 hover:underline">Back to Home</Link>
+          </p>
         </form>
       </div>
     </div>
