@@ -2,12 +2,14 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException 
 import { PrismaService } from '../common/prisma/prisma.service';
 import { Prisma, EnrollmentStatus, WaitlistStatus } from '@prisma/client';
 import { CsvExportService } from '../common/services/csv-export.service';
+import { EmailService } from '../common/services/email.service';
 
 @Injectable()
 export class EnrollmentsService {
   constructor(
     private prisma: PrismaService,
     private csvExportService: CsvExportService,
+    private emailService: EmailService,
   ) { }
 
   async enrollStudent(studentId: string, sectionId: string) {
@@ -190,7 +192,7 @@ export class EnrollmentsService {
     }
 
     // Create enrollment
-    return this.prisma.enrollment.create({
+    const enrollment = await this.prisma.enrollment.create({
       data: {
         studentId,
         sectionId,
@@ -202,6 +204,18 @@ export class EnrollmentsService {
         section: { include: { course: true } },
       },
     });
+
+    // Send enrollment confirmation email (async, don't await)
+    if (enrollment.student.user?.email) {
+      this.emailService.sendEnrollmentConfirmation(
+        enrollment.student.user.email,
+        `${enrollment.student.user.firstName} ${enrollment.student.user.lastName}`,
+        enrollment.section.course.name,
+        enrollment.section.sectionNumber,
+      ).catch(err => console.error('Failed to send enrollment email:', err));
+    }
+
+    return enrollment;
   }
 
   async dropEnrollment(enrollmentId: string, studentId: string) {

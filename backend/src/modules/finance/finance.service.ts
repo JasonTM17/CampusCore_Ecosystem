@@ -2,12 +2,14 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../common/prisma/prisma.service';
 import { Prisma, InvoiceStatus, PaymentStatus } from '@prisma/client';
 import { CsvExportService } from '../common/services/csv-export.service';
+import { EmailService } from '../common/services/email.service';
 
 @Injectable()
 export class FinanceService {
   constructor(
     private prisma: PrismaService,
     private csvExportService: CsvExportService,
+    private emailService: EmailService,
   ) {}
 
   // ============ INVOICE METHODS ============
@@ -294,6 +296,16 @@ export class FinanceService {
           paidAt: new Date(),
         },
       });
+    }
+
+    // Send payment confirmation email (async, don't await)
+    if (payment.student.user?.email) {
+      this.emailService.sendPaymentConfirmation(
+        payment.student.user.email,
+        `${payment.student.user.firstName} ${payment.student.user.lastName}`,
+        payment.invoice.invoiceNumber,
+        Number(payment.amount),
+      ).catch(err => console.error('Failed to send payment confirmation email:', err));
     }
 
     return payment;
