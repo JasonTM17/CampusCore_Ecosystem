@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EnrollmentsService } from './enrollments.service';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CsvExportService } from '../common/services/csv-export.service';
+import { EmailService } from '../common/services/email.service';
 import { NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { EnrollmentStatus, WaitlistStatus } from '@prisma/client';
 
@@ -42,12 +43,19 @@ describe('EnrollmentsService', () => {
     exportToCsv: jest.fn(),
   };
 
+  const mockEmailService = {
+    sendEnrollmentConfirmation: jest.fn(),
+    sendPaymentConfirmation: jest.fn(),
+    sendInvoiceNotification: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EnrollmentsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: CsvExportService, useValue: mockCsvExportService },
+        { provide: EmailService, useValue: mockEmailService },
       ],
     }).compile();
 
