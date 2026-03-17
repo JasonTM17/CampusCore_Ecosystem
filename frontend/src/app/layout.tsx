@@ -4,6 +4,8 @@ import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "sonner";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: "CampusCore - Student Portal",
   description: "University Academic Management and Course Registration Platform",
