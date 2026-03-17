@@ -1,0 +1,5 @@
+- name: 'Default'
+  folder: 'Dashboards'
+  type: file
+  options:
+    path: /etc/grafana/provisioning/dashboards
