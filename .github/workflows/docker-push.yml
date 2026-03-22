@@ -3,6 +3,8 @@ name: Build and Push Docker Images
 on:
   push:
     branches: [master, main]
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       tag:
@@ -10,16 +12,40 @@ on:
         required: false
         default: 'latest'
 
+concurrency:
+  group: docker-build-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  build-and-push:
+  docker-metadata:
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      image_tag_latest: nguyenson1710/campuscore-backend:latest
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract metadata (for Docker Hub)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: nguyenson1710/campuscore-backend
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=sha,prefix=
+
+  backend:
+    needs: docker-metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
 
     env:
-      DOCKERHUB_USERNAME: nguyenson1710
-      IMAGE_TAG: ${{ github.event.inputs.tag || 'latest' }}
+      DOCKER_BUILDKIT: 1
 
     steps:
       - name: Checkout code
@@ -34,7 +60,6 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Build and push backend
       - name: Build and push backend
         uses: docker/build-push-action@v5
         with:
@@ -42,12 +67,37 @@ jobs:
           file: ./backend/Dockerfile
           push: true
           tags: |
-            nguyenson1710/campuscore-backend:${{ env.IMAGE_TAG }}
+            nguyenson1710/campuscore-backend:${{ github.ref_name == 'master' && 'latest' || github.ref_name }}
             nguyenson1710/campuscore-backend:${{ github.sha }}
           cache-from: type=registry,ref=nguyenson1710/campuscore-backend:buildcache
           cache-to: type=registry,ref=nguyenson1710/campuscore-backend:buildcache,mode=max
+          platforms: linux/amd64
+          timeout: 25m
 
-      # Build and push frontend
+  frontend:
+    needs: [docker-metadata]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      DOCKER_BUILDKIT: 1
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Build and push frontend
         uses: docker/build-push-action@v5
         with:
@@ -55,7 +105,9 @@ jobs:
           file: ./frontend/Dockerfile
           push: true
           tags: |
-            nguyenson1710/campuscore-frontend:${{ env.IMAGE_TAG }}
+            nguyenson1710/campuscore-frontend:${{ github.ref_name == 'master' && 'latest' || github.ref_name }}
             nguyenson1710/campuscore-frontend:${{ github.sha }}
           cache-from: type=registry,ref=nguyenson1710/campuscore-frontend:buildcache
           cache-to: type=registry,ref=nguyenson1710/campuscore-frontend:buildcache,mode=max
+          platforms: linux/amd64
+          timeout: 25m
