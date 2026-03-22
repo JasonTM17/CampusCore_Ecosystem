@@ -59,6 +59,6 @@ frontend/.env.development.local
 frontend/.env.test.local
 frontend/.env.production.local
 
-# Misc
-# Keep TypeScript source files - don't ignore them!
+# Cursor IDE local data
+.cursor/
 

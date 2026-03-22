@@ -1,132 +1,138 @@
-# CampusCore Load Testing Setup
+# CampusCore — Load Testing Setup
 
-This directory contains the load testing infrastructure for the CampusCore application using k6.
+> **Lưu ý**: Đây là module kiểm thử tải của dự án học tập **CampusCore**, phục vụ mục đích thực hành và đánh giá hiệu năng hệ thống.
 
-## Prerequisites
+## Giới thiệu
 
-- [k6](https://k6.io/docs/getting-started/installation/) installed on your system
-- Docker and Docker Compose (for running the application stack)
-- Node.js (optional, for running seed data)
+Module này chứa bộ kiểm thử tải cho ứng dụng CampusCore, sử dụng công cụ [k6](https://k6.io/docs/getting-started/installation/).
 
-## Quick Start
+## Yêu cầu
 
-### 1. Start the Application Stack
+- [k6](https://k6.io/docs/getting-started/installation/) đã được cài đặt trên hệ thống
+- Docker và Docker Compose (để chạy ứng dụng)
+- Node.js (tùy chọn, để chạy seed data)
+
+## Khởi động nhanh
+
+### 1. Khởi động ứng dụng
 
 ```bash
-# Start all services
+# Khởi động tất cả dịch vụ
 docker compose up -d
 
-# Wait for services to be healthy
+# Chờ các dịch vụ sẵn sàng
 docker compose ps
 ```
 
-### 2. Run Load Tests
+### 2. Chạy kiểm thử
 
-#### Using PowerShell (Windows)
+#### PowerShell (Windows)
+
 ```powershell
-# Run smoke test
+# Smoke test — kiểm tra chức năng cơ bản
 .\load-tests\scripts\run-tests.ps1 smoke
 
-# Run load test
+# Load test — kiểm tra tải
 .\load-tests\scripts\run-tests.ps1 load
 
-# Run stress test
+# Stress test — kiểm tra giới hạn
 .\load-tests\scripts\run-tests.ps1 stress
 ```
 
-#### Using Bash (Linux/Mac)
+#### Bash (Linux/Mac)
+
 ```bash
-# Run smoke test
+# Smoke test
 ./load-tests/scripts/run-tests.sh smoke
 
-# Run load test
+# Load test
 ./load-tests/scripts/run-tests.sh load
 
-# Run stress test
+# Stress test
 ./load-tests/scripts/run-tests.sh stress
 ```
 
-## Test Profiles
+## Các cấu hình kiểm thử
 
-| Profile | Description | VUs | Duration | Use Case |
-|---------|-------------|-----|----------|----------|
-| smoke | Basic functionality check | 1 | 30s | Validate system works |
-| load | Baseline performance | 5-10 | 2min | Normal traffic simulation |
-| stress | Breaking point identification | 10-50 | 4min | Find capacity limits |
-| spike | Sudden traffic burst | 5-50 | 1min | Handle traffic spikes |
-| soak | Extended duration | 10 | 5min | Memory leak detection |
+| Cấu hình | Mô tả                      | VUs  | Thời lượng | Trường hợp sử dụng            |
+|----------|----------------------------|------|------------|-------------------------------|
+| smoke    | Kiểm tra chức năng cơ bản | 1    | 30s        | Xác nhận hệ thống hoạt động  |
+| load     | Tải cơ bản                | 5–10 | 2 phút     | Mô phỏng lưu lượng bình thường |
+| stress   | Tìm điểm giới hạn         | 10–50| 4 phút     | Xác định ngưỡng chịu tải      |
+| spike    | Bùng nổ lưu lượng         | 5–50 | 1 phút     | Xử lý đột biến traffic        |
+| soak     | Kiểm thử dài hạn          | 10   | 5 phút     | Phát hiện rò rỉ bộ nhớ       |
 
-## Environment Variables
+## Biến môi trường
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `BASE_URL` | http://localhost | Application base URL |
-| `API_BASE_URL` | http://localhost/api/v1 | API base URL |
-| `K6_USERS_EMAIL` | student1@campuscore.edu | Test student email |
-| `K6_USERS_PASSWORD` | (set in .env) | Test student password |
-| `K6_ADMIN_EMAIL` | admin@campuscore.edu | Test admin email |
-| `K6_ADMIN_PASSWORD` | (set in .env) | Test admin password |
+| Biến              | Mặc định                    | Mô tả                    |
+|-------------------|-----------------------------|--------------------------|
+| `BASE_URL`        | http://localhost            | Base URL ứng dụng        |
+| `API_BASE_URL`    | http://localhost/api/v1      | Base URL API             |
+| `K6_USERS_EMAIL`  | student1@campuscore.edu      | Email sinh viên test     |
+| `K6_USERS_PASSWORD`| (đặt trong .env)           | Mật khẩu sinh viên test  |
+| `K6_ADMIN_EMAIL`  | admin@campuscore.edu         | Email admin test         |
+| `K6_ADMIN_PASSWORD`| (đặt trong .env)           | Mật khẩu admin test      |
 
-## Project Structure
+## Cấu trúc dự án
 
 ```
 load-tests/
-├── configs/              # Test configurations
+├── configs/              # Cấu hình kiểm thử
 │   └── base-config.js
-├── helpers/              # Utility functions
-│   ├── auth.js          # Authentication helpers
-│   ├── config.js        # Configuration
-│   └── requests.js      # HTTP request wrappers
-├── scenarios/           # Business flow scenarios
+├── helpers/              # Các hàm tiện ích
+│   ├── auth.js          # Hỗ trợ xác thực
+│   ├── config.js        # Cấu hình
+│   └── requests.js      # Wrapper HTTP request
+├── scenarios/           # Kịch bản nghiệp vụ
 │   ├── admin-portal-scenarios.js
 │   ├── auth-scenarios.js
 │   ├── common.js
 │   └── student-portal-scenarios.js
-├── scripts/             # Run scripts
-│   ├── run-tests.ps1   # PowerShell script
-│   └── run-tests.sh    # Bash script
-├── src/                # Main test entry points
+├── scripts/             # Script chạy kiểm thử
+│   ├── run-tests.ps1   # PowerShell
+│   └── run-tests.sh    # Bash
+├── src/                # Entry point chính
 │   └── main.js
-├── reports/            # Test output (generated)
+├── reports/            # Kết quả kiểm thử (tự động tạo)
 │   └── *.json
-└── README.md           # This file
+└── README.md           # File này
 ```
 
-## Test Scenarios
+## Kịch bản kiểm thử
 
-### Authentication Flow
-- Login
-- Get current user
-- Logout
+### Luồng xác thực
+- Đăng nhập
+- Lấy thông tin người dùng hiện tại
+- Đăng xuất
 
-### Student Portal
-- Get available sections
-- Get my enrollments
-- Get my grades
-- Get my schedule
-- Get my transcript
-- Get my invoices
+### Cổng sinh viên
+- Lấy danh sách học phần có sẵn
+- Lấy danh sách đăng ký của tôi
+- Lấy điểm của tôi
+- Lấy lịch học của tôi
+- Lấy bảng điểm của tôi
+- Lấy hóa đơn của tôi
 
-### Admin Portal
-- Get analytics overview
-- Get all sections
-- Get all enrollments
-- Get all students
-- Get semesters
-- Get announcements
+### Cổng quản trị
+- Lấy tổng quan phân tích
+- Lấy tất cả học phần
+- Lấy tất cả đăng ký
+- Lấy tất cả sinh viên
+- Lấy các học kỳ
+- Lấy thông báo
 
-## Thresholds
+## Ngưỡng kiểm thử
 
-The tests use these default thresholds:
+Các ngưỡng mặc định:
 
 - **p95 latency**: < 500ms
 - **p99 latency**: < 1000ms
-- **Error rate**: < 1%
+- **Tỷ lệ lỗi**: < 1%
 - **Throughput**: > 5 req/s (load), > 10 req/s (stress)
 
-## Output
+## Kết quả kiểm thử
 
-Test results are saved to JSON files in `load-tests/reports/`:
+Kết quả được lưu vào file JSON trong `load-tests/reports/`:
 
 - `smoke-results.json`
 - `load-results.json`
@@ -134,44 +140,43 @@ Test results are saved to JSON files in `load-tests/reports/`:
 - `spike-results.json`
 - `soak-results.json`
 
-## Integration with Monitoring
+## Tích hợp Monitoring
 
-### Prometheus + Grafana (Optional)
+### Prometheus + Grafana (Tùy chọn)
 
-To enable metrics export:
+Để bật xuất metrics:
 
 ```powershell
-# Run with Prometheus output
 k6 run load-tests\src\main.js `
     --out prometheus `
     --prometheus-labels "env=local,app=campuscore"
 ```
 
-## Troubleshooting
+## Xử lý sự cố
 
-### Test fails with "connection refused"
-- Ensure Docker containers are running: `docker compose ps`
-- Check if backend is healthy: `curl http://localhost/api/v1/health`
+### Kiểm thử thất bại với "connection refused"
+- Đảm bảo Docker containers đang chạy: `docker compose ps`
+- Kiểm tra backend: `curl http://localhost/api/v1/health`
 
-### Authentication failures
-- Check test credentials in `.env` file
-- Ensure users exist in database
+### Lỗi xác thực
+- Kiểm tra credentials trong file `.env`
+- Đảm bảo users tồn tại trong database
 
-### High error rates
-- Check application logs: `docker logs campuscore-api`
-- Check database connectivity
-- Review k6 output for specific error messages
+### Tỷ lệ lỗi cao
+- Kiểm tra logs ứng dụng: `docker logs campuscore-api`
+- Kiểm tra kết nối database
+- Xem chi tiết lỗi trong output k6
 
-## CI/CD Integration
+## Tích hợp CI/CD
 
-Example GitHub Actions workflow:
+Ví dụ GitHub Actions workflow:
 
 ```yaml
 name: Load Tests
 
 on:
   schedule:
-    - cron: '0 2 * * *'  # Run daily at 2 AM
+    - cron: '0 2 * * *'  # Chạy hàng ngày lúc 2h sáng
   workflow_dispatch:
 
 jobs:
@@ -187,6 +192,6 @@ jobs:
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
 ```
 
-## License
+## Giấy phép
 
-MIT License
+MIT License — phục vụ mục đích học tập.
