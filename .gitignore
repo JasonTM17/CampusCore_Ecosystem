@@ -30,9 +30,13 @@ Thumbs.db
 # IDE
 .idea/
 .vscode/
+.cursor/
 *.swp
 *.swo
 *~
+
+# Scripts (local only)
+scripts/
 
 # Test
 coverage/
