@@ -1,34 +1,32 @@
-# CampusCore - Enterprise Academic Management Platform
+# CampusCore — Academic Management Platform
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-2.0.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
-  <img src="https://img.shields.io/badge/status-Production Ready-brightgreen" alt="Status">
-  <img src="https://img.shields.io/badge/Docker Hub-nguyenson1710-orange" alt="Docker Hub">
+  <img src="https://img.shields.io/badge/Purpose-Learning%20Project-9b59b6" alt="Purpose">
 </p>
 
-> A production-grade university academic management and course registration platform built with modern technologies.
+> **CampusCore** là dự án học tập cá nhân, xây dựng nền tảng quản lý đào tạo và đăng ký học phần dành cho các trường đại học. Dự án được phát triển nhằm thực hành và trình diễn các công nghệ hiện đại trong phát triển phần mềm full-stack.
 
-## Author
+---
 
-**Nguyễn Tiến Sơn** - Full Stack Developer
+## Liên hệ & Đóng góp
+
+Mọi ý kiến đóng góp, góp ý, hoặc thắc mắc, xin vui lòng liên hệ qua email:
+
+**📧 jasonbmt06@gmail.com**
+
+---
+
+## Tác giả
+
+**Nguyễn Tiến Sơn** — Full Stack Developer
 - GitHub: [JasonTM17](https://github.com/JasonTM17)
 - Email: jasonbmt06@gmail.com
 
-## Docker Hub Images
+---
 
-```
-Backend:  nguyenson1710/campuscore-backend:latest
-Frontend: nguyenson1710/campuscore-frontend:latest
-```
-
-Pull images:
-```bash
-docker pull nguyenson1710/campuscore-backend:latest
-docker pull nguyenson1710/campuscore-frontend:latest
-```
-
-## Technology Stack
+## Tổng quan kỹ thuật
 
 ### Backend
 - **Framework**: NestJS (Node.js)
@@ -57,31 +55,50 @@ docker pull nguyenson1710/campuscore-frontend:latest
 - **CI/CD**: GitHub Actions
 - **Monitoring Stack**: Prometheus + Grafana + Loki + Promtail + Jaeger
 
-## Features
+---
 
-### Student Portal
-- 📚 **Course Registration** - Browse and enroll in courses
-- 📅 **Class Schedule** - View weekly timetable with semester filtering
-- 📊 **Academic Grades** - View course grades with GPA calculation
-- 📜 **Official Transcript** - Comprehensive academic record with cumulative GPA
-- 💰 **Tuition Invoices** - View and manage payment invoices
-- 📢 **Announcements** - Stay updated with university notices
-- 👤 **Profile Management** - Update personal information
+## Tính năng chính
 
-### Lecturer Portal
-- 📝 **Grade Management** - Input and publish student grades
-- 📅 **Teaching Schedule** - View teaching timetable
-- 📢 **Course Announcements** - Post announcements for students
+### Cổng sinh viên
+- 📚 **Đăng ký học phần** — Xem và đăng ký các môn học
+- 📅 **Lịch học** — Xem thời khóa biểu theo học kỳ
+- 📊 **Điểm số** — Xem điểm các môn học và tính GPA
+- 📜 **Bảng điểm chính thức** — Bảng điểm tích lũy toàn khóa
+- 💰 **Hóa đơn học phí** — Xem và quản lý thanh toán
+- 📢 **Thông báo** — Cập nhật thông báo từ nhà trường
+- 👤 **Quản lý hồ sơ** — Cập nhật thông tin cá nhân
 
-### Admin Dashboard
-- 👥 **User Management** - Manage students, lecturers, staff
-- 📚 **Course Management** - Create and configure courses
-- 📅 **Section Management** - Manage class sections and capacity
-- ✅ **Enrollment Management** - Monitor and manage enrollments
-- 📊 **Analytics Dashboard** - Enrollment statistics and reports
-- 🏢 **Department & Faculty** - Organizational structure management
+### Cổng giảng viên
+- 📝 **Quản lý điểm** — Nhập và công bố điểm sinh viên
+- 📅 **Lịch giảng dạy** — Xem thời khóa biểu giảng dạy
+- 📢 **Thông báo môn học** — Đăng thông báo cho sinh viên
 
-## Architecture
+### Cổng quản trị
+- 👥 **Quản lý người dùng** — Sinh viên, giảng viên, nhân viên
+- 📚 **Quản lý môn học** — Tạo và cấu hình môn học
+- 📅 **Quản lý lớp học phần** — Quản lý nhóm và sức chứa
+- ✅ **Quản lý đăng ký** — Theo dõi và xử lý đăng ký
+- 📊 **Bảng phân tích** — Thống kê đăng ký và báo cáo
+- 🏢 **Khoa & Bộ môn** — Cấu trúc tổ chức
+
+---
+
+## Docker Hub Images
+
+```
+Backend:  nguyenson1710/campuscore-backend:latest
+Frontend: nguyenson1710/campuscore-frontend:latest
+```
+
+Pull images:
+```bash
+docker pull nguyenson1710/campuscore-backend:latest
+docker pull nguyenson1710/campuscore-frontend:latest
+```
+
+---
+
+## Kiến trúc hệ thống
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -105,22 +122,26 @@ docker pull nguyenson1710/campuscore-frontend:latest
 └────────┘ └──────┘ └─────────┘ └───────┘ └───────┘
 ```
 
-## Prerequisites
+---
 
-- Docker and Docker Compose v2.0+
-- Docker Hub account (for pulling images)
-- 4GB RAM minimum (8GB recommended)
-- 20GB disk space
+## Yêu cầu hệ thống
 
-## Environment Variables
+- Docker và Docker Compose v2.0+
+- Tài khoản Docker Hub (để pull images)
+- RAM tối thiểu 4GB (khuyến nghị 8GB)
+- 20GB dung lượng ổ đĩa
 
-Create a `.env` file in the project root:
+---
+
+## Biến môi trường
+
+Tạo file `.env` tại thư mục gốc của dự án:
 
 ```bash
 # Database
 POSTGRES_PASSWORD=your_secure_password
 
-# JWT Secrets (generate secure strings for production)
+# JWT Secrets (tạo chuỗi bảo mật cho production)
 JWT_SECRET=your-super-secret-jwt-key-change-in-production
 JWT_REFRESH_SECRET=your-super-secret-refresh-key-change-in-production
 
@@ -142,45 +163,49 @@ RABBITMQ_PASSWORD=your_secure_password
 GRAFANA_PASSWORD=admin123
 ```
 
-## Quick Start
+---
 
-### Development (Local Build)
+## Khởi động nhanh
+
+### Phát triển (Build local)
 
 ```bash
-# Clone the repository
+# Clone repository
 git clone https://github.com/JasonTM17/CampusCore_FullStack_Individual.git
 cd CampusCore_FullStack_Individual
 
-# Create .env file
+# Tạo file .env
 cp backend/.env.example .env
-# Edit .env with your values
+# Chỉnh sửa .env với các giá trị của bạn
 
-# Build and start all services
+# Build và khởi động tất cả dịch vụ
 docker-compose up -d --build
 
-# View logs
+# Xem logs
 docker-compose logs -f
 
-# Stop all services
+# Dừng tất cả dịch vụ
 docker-compose down
 ```
 
-### Production (Using Docker Hub Images)
+### Production (Sử dụng Docker Hub Images)
 
 ```bash
-# Start with pre-built images
+# Khởi động với images đã build sẵn
 docker-compose -f docker-compose.production.yml up -d
 
-# View logs
+# Xem logs
 docker-compose -f docker-compose.production.yml logs -f
 
-# Stop all services
+# Dừng tất cả dịch vụ
 docker-compose -f docker-compose.production.yml down
 ```
 
-## Building and Publishing to Docker Hub
+---
 
-### Local Build
+## Build và Push lên Docker Hub
+
+### Build local
 
 ```bash
 # Build backend image
@@ -190,10 +215,10 @@ docker build -f backend/Dockerfile -t nguyenson1710/campuscore-backend:latest .
 docker build -f frontend/Dockerfile -t nguyenson1710/campuscore-frontend:latest .
 ```
 
-### Tag and Push to Docker Hub
+### Tag và Push lên Docker Hub
 
 ```bash
-# Login to Docker Hub
+# Login Docker Hub
 docker login
 
 # Tag backend
@@ -209,74 +234,82 @@ docker push nguyenson1710/campuscore-backend:latest
 docker push nguyenson1710/campuscore-frontend:latest
 ```
 
-### Using the Publish Script
+### Script hỗ trợ
 
 ```bash
-# Run the helper script (default tag is "latest")
+# Chạy script (tag mặc định là "latest")
 ./scripts/docker-publish.sh
 
-# Or specify a custom tag
+# Hoặc chỉ định tag tùy chỉnh
 ./scripts/docker-publish.sh v2.0.0
 ```
 
-> **Note**: On Windows, run the script inside Git Bash or WSL. You can also run `bash ./scripts/docker-publish.sh`.
+> **Lưu ý**: Trên Windows, chạy script bên trong Git Bash hoặc WSL. Có thể chạy `bash ./scripts/docker-publish.sh`.
 
-## GitHub Actions (CI/CD)
+---
 
-The repository includes a GitHub Actions workflow that automatically builds and pushes images to Docker Hub on every push to master/main.
+## CI/CD với GitHub Actions
 
-### Required Secrets
+Repository đã tích hợp GitHub Actions workflow tự động build và push images lên Docker Hub mỗi khi push lên nhánh master/main.
 
-Add these secrets in GitHub repository settings:
+### Secrets cần thiết
 
-- `DOCKERHUB_USERNAME`: Your Docker Hub username
-- `DOCKERHUB_TOKEN`: Your Docker Hub access token
+Thêm các secrets sau trong GitHub repository settings:
 
-### Workflow Triggers
+- `DOCKERHUB_USERNAME`: Tên đăng nhập Docker Hub
+- `DOCKERHUB_TOKEN`: Docker Hub access token
 
-- On push to `master` or `main` branch
-- Manual trigger via GitHub Actions (workflow_dispatch)
+### Trigger workflow
 
-## Ports and Services
+- Push lên nhánh `master` hoặc `main`
+- Chạy thủ công qua GitHub Actions (workflow_dispatch)
 
-| Service    | Port | URL                        |
-|------------|------|----------------------------|
-| Frontend   | 3001 | http://localhost:3001      |
-| Backend    | 3000 | http://localhost:3000      |
-| Swagger    | 3000 | http://localhost:3000/api |
-| PostgreSQL | 5432 | localhost:5432            |
-| Redis      | 6379 | localhost:6379            |
-| RabbitMQ   | 5672 | localhost:5672            |
-| RabbitMQ UI| 15672| http://localhost:15672    |
-| MinIO      | 9000 | http://localhost:9000     |
-| MinIO UI   | 9001 | http://localhost:9001    |
-| Mailhog    | 8025 | http://localhost:8025     |
-| Nginx      | 80   | http://localhost          |
-| Prometheus | 9090 | http://localhost:9090     |
-| Grafana    | 3002 | http://localhost:3002     |
-| Loki       | 3100 | http://localhost:3100     |
-| Jaeger     | 16686| http://localhost:16686    |
+---
 
-## Default Credentials
+## Cổng và Dịch vụ
+
+| Dịch vụ      | Cổng  | URL                         |
+|--------------|--------|-----------------------------|
+| Frontend     | 3001   | http://localhost:3001       |
+| Backend      | 3000   | http://localhost:3000       |
+| Swagger      | 3000   | http://localhost:3000/api   |
+| PostgreSQL   | 5432   | localhost:5432              |
+| Redis        | 6379   | localhost:6379              |
+| RabbitMQ     | 5672   | localhost:5672              |
+| RabbitMQ UI  | 15672  | http://localhost:15672      |
+| MinIO        | 9000   | http://localhost:9000      |
+| MinIO UI     | 9001   | http://localhost:9001      |
+| Mailhog      | 8025   | http://localhost:8025       |
+| Nginx        | 80     | http://localhost           |
+| Prometheus   | 9090   | http://localhost:9090       |
+| Grafana      | 3002   | http://localhost:3002       |
+| Loki         | 3100   | http://localhost:3100       |
+| Jaeger       | 16686  | http://localhost:16686      |
+
+---
+
+## Thông tin đăng nhập mặc định
 
 ### Grafana
 - Username: `admin`
-- Password: `admin123` (or set via GRAFANA_PASSWORD env)
+- Password: `admin123` (hoặc đặt qua GRAFANA_PASSWORD env)
 
 ### RabbitMQ Management
 - Username: `campuscore`
-- Password: `campuscore_password` (or set via RABBITMQ_PASSWORD env)
+- Password: `campuscore_password` (hoặc đặt qua RABBITMQ_PASSWORD env)
 
 ### MinIO
 - Username: `campuscore`
-- Password: `campuscore_password` (or set via MINIO_PASSWORD env)
+- Password: `campuscore_password` (hoặc đặt qua MINIO_PASSWORD env)
 
-## Database Migrations
+---
 
-The backend container runs Prisma migrations automatically on startup.
+## Di chuyển Database
+
+Backend container tự động chạy Prisma migrations khi khởi động.
 
 ```bash
-# Run migrations manually (if needed)
+# Chạy migrations thủ công (nếu cần)
 docker exec -it campuscore-api npx prisma migrate deploy
 
 # Reset database
@@ -286,62 +319,72 @@ docker exec -it campuscore-api npx prisma migrate reset
 docker exec -it campuscore-api npx prisma generate
 ```
 
-## Troubleshooting
+---
 
-### Backend won't start
+## Xử lý sự cố
+
+### Backend không khởi động
 
 ```bash
-# Check logs
+# Kiểm tra logs
 docker-compose logs backend
 
-# Verify database connection
+# Xác minh kết nối database
 docker exec -it campuscore-api sh
-# Then run: node -e "require('dotenv').config(); console.log(process.env.DATABASE_URL)"
+# Sau đó chạy: node -e "require('dotenv').config(); console.log(process.env.DATABASE_URL)"
 ```
 
-### Database connection issues
+### Lỗi kết nối database
 
-- Ensure PostgreSQL container is healthy: `docker-compose ps`
-- Check DATABASE_URL format: `postgresql://user:password@hostname:port/database`
+- Đảm bảo PostgreSQL container đang chạy: `docker-compose ps`
+- Kiểm tra định dạng DATABASE_URL: `postgresql://user:password@hostname:port/database`
 
-### Redis connection issues
+### Lỗi kết nối Redis
 
-- Ensure Redis container is running: `docker-compose ps`
-- Check REDIS_URL format: `redis://hostname:6379`
+- Đảm bảo Redis container đang chạy: `docker-compose ps`
+- Kiểm tra định dạng REDIS_URL: `redis://hostname:6379`
 
-### Frontend build issues
+### Lỗi build Frontend
 
 ```bash
-# Clear Next.js cache
+# Xóa Next.js cache
 rm -rf frontend/.next
 
 # Rebuild
 docker-compose build frontend
 ```
 
-## API Documentation
+---
 
-Once the backend is running, visit:
+## Tài liệu API
+
+Khi backend đang chạy, truy cập:
 - Swagger UI: http://localhost:3000/api
 - OpenAPI JSON: http://localhost:3000/api-json
 
-## Production Checklist
+---
 
-- [ ] Change default JWT secrets
-- [ ] Use strong PostgreSQL password
-- [ ] Configure HTTPS with nginx (SSL certificates)
-- [ ] Set up proper logging
-- [ ] Configure backup for PostgreSQL
-- [ ] Set up monitoring and alerts
-- [ ] Configure environment-specific settings
-- [ ] Set up domain name and DNS
+## Checklist triển khai Production
 
-## License
+- [ ] Thay đổi JWT secrets mặc định
+- [ ] Sử dụng mật khẩu PostgreSQL mạnh
+- [ ] Cấu hình HTTPS với nginx (SSL certificates)
+- [ ] Thiết lập logging phù hợp
+- [ ] Cấu hình backup cho PostgreSQL
+- [ ] Thiết lập monitoring và alerts
+- [ ] Cấu hình settings theo môi trường
+- [ ] Thiết lập domain name và DNS
 
-MIT License - feel free to use for learning or commercial projects.
+---
 
-## Support
+## Giấy phép
 
-For issues and questions:
-- Email: jasonbmt06@gmail.com
-- GitHub Issues: https://github.com/JasonTM17/CampusCore_FullStack_Individual/issues
+MIT License — sử dụng tự do cho mục đích học tập hoặc thương mại.
+
+---
+
+## Liên hệ
+
+📧 **jasonbmt06@gmail.com**
+
+Mọi góp ý, báo lỗi, hoặc câu hỏi, xin gửi email về địa chỉ trên. Rất mong nhận được phản hồi từ bạn!
