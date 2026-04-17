@@ -132,8 +132,10 @@ The repository is validated with:
 
 - backend lint, format check, typecheck, build, and tests
 - frontend lint, typecheck, build, and smoke tests
+- image smoke that boots the production-like Docker runtime from the real Dockerfiles
 - Playwright fast E2E for local feedback
 - Playwright edge E2E through nginx for production-like verification
+- mandatory security scans for source and container images
 - Docker compose config validation for development, production, and E2E stacks
 
 Focused browser E2E currently covers:
@@ -149,15 +151,15 @@ Focused browser E2E currently covers:
 
 GitHub Actions provides:
 
-- `CI Build and Test` for backend, frontend, and edge E2E
-- `CD - Registry Publish` for registry publishing
+- `CI Build and Test` as the release quality gate across backend, frontend, compose contracts, image smoke, edge E2E, and security scanning
+- `CD - Gated Registry Publish` for registry publishing only after the matching CI run succeeds
 
 Registry behavior:
 
 - Docker Hub publishing uses `DOCKERHUB_NAMESPACE` as the preferred namespace input
 - `DOCKERHUB_USERNAME` remains supported as the legacy alias for compatibility
 - GitHub Container Registry publishing uses the repository owner namespace automatically
-- pushes to `master`, `main`, and version tags publish `latest` or the tag plus the commit SHA
+- pushes to `master`, `main`, and version tags publish `latest` or the tag plus the commit SHA only after the same commit passes the CI quality gate
 
 ## Documentation
 

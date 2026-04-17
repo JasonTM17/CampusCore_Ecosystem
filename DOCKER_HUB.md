@@ -33,7 +33,10 @@ The script pushes both the chosen tag and the short git SHA.
 
 ## GitHub Actions publish
 
-The CD workflow publishes both images on pushes to `master`, `main`, version tags, or manual workflow dispatch.
+The release pipeline now uses two workflows:
+
+- `CI Build and Test` as the quality gate for backend, frontend, compose contracts, image smoke, edge E2E, and security scanning
+- `CD - Gated Registry Publish` for registry publishing after the matching CI run succeeds
 
 Required secrets:
 
@@ -44,7 +47,7 @@ Optional secret:
 
 - `DOCKERHUB_NAMESPACE` targets an organization or namespace. If it is not set, `DOCKERHUB_USERNAME` is used as the legacy namespace alias.
 
-Manual runs accept an image tag input. Pushes to branches publish `latest` plus the commit SHA; version tags publish the tag name plus the commit SHA.
+Manual runs accept an image tag input. Pushes to branches publish `latest` plus the commit SHA; version tags publish the tag name plus the commit SHA. Registry publishing is blocked until the same commit clears the CI quality gate.
 
 ## GitHub Packages
 

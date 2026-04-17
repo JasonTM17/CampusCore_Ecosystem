@@ -132,8 +132,10 @@ Repo duoc khoa chat bang:
 
 - backend lint, format check, typecheck, build, va test
 - frontend lint, typecheck, build, va smoke test
+- image smoke de boot Docker runtime production-like tu Dockerfile that cua backend/frontend
 - Playwright fast E2E de lap nhanh local
 - Playwright edge E2E di qua nginx de verify production-like
+- mandatory security scan cho source va container image
 - Docker compose config validation cho dev, prod, va E2E stacks
 
 Browser E2E hien tai cover:
@@ -149,15 +151,15 @@ Browser E2E hien tai cover:
 
 GitHub Actions hien co:
 
-- `CI Build and Test` cho backend, frontend, va edge E2E
-- `CD - Registry Publish` de publish image len registry
+- `CI Build and Test` lam quality gate cho backend, frontend, compose contract, image smoke, edge E2E, va security scan
+- `CD - Gated Registry Publish` chi publish image len registry sau khi CI run tuong ung xanh
 
 Hanh vi registry:
 
 - Docker Hub uu tien `DOCKERHUB_NAMESPACE`
 - `DOCKERHUB_USERNAME` van duoc giu lam legacy alias de tuong thich
 - GitHub Container Registry tu dong dung namespace cua repository owner
-- push len `master`, `main`, va version tag se publish `latest` hoac tag release cung commit SHA
+- push len `master`, `main`, va version tag se publish `latest` hoac tag release cung commit SHA chi sau khi commit do qua CI quality gate
 
 ## Tai Lieu
 
