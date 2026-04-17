@@ -1,4 +1,4 @@
-name: CD — Docker Hub Publish
+name: CD - Docker Hub Publish
 
 on:
   push:
@@ -8,12 +8,11 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Image tag (default: latest)'
+        description: 'Image tag to publish'
         required: false
         default: 'latest'
 
 env:
-  NODE_VERSION: '20'
   BACKEND_IMAGE: campuscore-backend
   FRONTEND_IMAGE: campuscore-frontend
 
@@ -22,47 +21,53 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # ─────────────────────────────────────────────────────
-  # Gate: avoid failing the whole workflow when Hub secrets
-  # are missing (GitHub forbids using secrets in job-level
-  # `if`, so we probe in bash.)
-  # ─────────────────────────────────────────────────────
   docker-hub-check:
     name: Check Docker Hub credentials
     runs-on: ubuntu-latest
     if: >-
-      github.event_name == 'push' &&
-      (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' ||
-       startsWith(github.ref, 'refs/tags/v'))
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' &&
+       (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' ||
+        startsWith(github.ref, 'refs/tags/v')))
     outputs:
+      image_tag: ${{ steps.gate.outputs.image_tag }}
+      namespace: ${{ steps.gate.outputs.namespace }}
       should_publish: ${{ steps.gate.outputs.should_publish }}
     steps:
-      - name: Evaluate secrets
+      - name: Evaluate Docker Hub settings
         id: gate
         env:
-          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DH_NAMESPACE: ${{ secrets.DOCKERHUB_NAMESPACE }}
           DH_PASS: ${{ secrets.DOCKERHUB_PASSWORD }}
+          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          REQUESTED_TAG: ${{ github.event.inputs.tag }}
         run: |
-          if [ -n "$DH_USER" ] && [ -n "$DH_PASS" ]; then
+          namespace="${DH_NAMESPACE:-$DH_USER}"
+
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            image_tag="${REQUESTED_TAG:-latest}"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            image_tag="${GITHUB_REF_NAME}"
+          else
+            image_tag="latest"
+          fi
+
+          echo "image_tag=${image_tag}" >> "$GITHUB_OUTPUT"
+          echo "namespace=${namespace}" >> "$GITHUB_OUTPUT"
+
+          if [ -n "$DH_USER" ] && [ -n "$DH_PASS" ] && [ -n "$namespace" ]; then
             echo "should_publish=true" >> "$GITHUB_OUTPUT"
           else
             echo "should_publish=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Docker Hub publish skipped::Add secrets DOCKERHUB_USERNAME and DOCKERHUB_PASSWORD (recommended: Docker Hub access token) under Settings - Secrets and variables - Actions to enable CD push."
+            echo "::notice title=Docker Hub publish skipped::Add DOCKERHUB_USERNAME and DOCKERHUB_PASSWORD secrets. Optional DOCKERHUB_NAMESPACE can target an organization; when omitted, DOCKERHUB_USERNAME is used as the legacy namespace alias."
           fi
 
-  # ─────────────────────────────────────────────────────
-  # Publish Docker images to Docker Hub
-  # ─────────────────────────────────────────────────────
   publish:
-    name: Publish to Docker Hub
+    name: Publish images to Docker Hub
     runs-on: ubuntu-latest
     needs: docker-hub-check
-    if: >-
-      needs.docker-hub-check.outputs.should_publish == 'true' &&
-      github.event_name == 'push' &&
-      (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' ||
-       startsWith(github.ref, 'refs/tags/v'))
-    timeout-minutes: 40
+    if: needs.docker-hub-check.outputs.should_publish == 'true'
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -77,22 +82,18 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      # ── Backend image ──────────────────────────────────
       - name: Docker metadata (backend)
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}
+          images: ${{ needs.docker-hub-check.outputs.namespace }}/${{ env.BACKEND_IMAGE }}
           tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
+            type=raw,value=${{ needs.docker-hub-check.outputs.image_tag }}
             type=sha,prefix=
-            flavor: |
-              latest=true
           labels: |
             org.opencontainers.image.title=CampusCore Backend API
-            org.opencontainers.image.description=CampusCore REST API backend — NestJS với JWT authentication, Prisma ORM, RabbitMQ, Redis, và đầy đủ CRUD cho academic management.
-            org.opencontainers.image.source=https://github.com/JasonTM17/CampusCore_FullStack_Individual
+            org.opencontainers.image.description=CampusCore NestJS API with JWT auth, Prisma, PostgreSQL, Redis, RabbitMQ, MinIO, health checks, and Swagger docs.
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.vendor=CampusCore
 
@@ -110,22 +111,18 @@ jobs:
           provenance: true
           sbom: true
 
-      # ── Frontend image ──────────────────────────────────
       - name: Docker metadata (frontend)
         id: meta-frontend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}
+          images: ${{ needs.docker-hub-check.outputs.namespace }}/${{ env.FRONTEND_IMAGE }}
           tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
+            type=raw,value=${{ needs.docker-hub-check.outputs.image_tag }}
             type=sha,prefix=
-            flavor: |
-              latest=true
           labels: |
             org.opencontainers.image.title=CampusCore Frontend Web
-            org.opencontainers.image.description=CampusCore frontend — Next.js 14 với TypeScript, TailwindCSS, shadcn/ui, role-based routing, và academic management UI.
-            org.opencontainers.image.source=https://github.com/JasonTM17/CampusCore_FullStack_Individual
+            org.opencontainers.image.description=CampusCore Next.js 15 standalone frontend for the nginx-backed academic management stack.
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.vendor=CampusCore
 
@@ -143,59 +140,13 @@ jobs:
           provenance: true
           sbom: true
 
-      - name: Image digest (backend)
-        run: |
-          echo "Backend image: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE }}"
-          echo "Tags: ${{ steps.meta-backend.outputs.tags }}"
-
-      - name: Image digest (frontend)
-        run: |
-          echo "Frontend image: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE }}"
-          echo "Tags: ${{ steps.meta-frontend.outputs.tags }}"
-
-  # ─────────────────────────────────────────────────────
-  # Build verification only (no push) on tag push
-  # ─────────────────────────────────────────────────────
-  verify-tag-build:
-    name: Verify build on tag push
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: publish
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Verify backend build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./backend/Dockerfile
-          push: false
-          load: true
-          tags: campuscore-backend:verify
-          cache-from: type=gha
-
-      - name: Verify frontend build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./frontend/Dockerfile
-          push: false
-          load: true
-          tags: campuscore-frontend:verify
-          cache-from: type=gha
-
-      - name: Docker images
-        run: docker images | grep campuscore
-
       - name: Summary
         run: |
-          echo "## Release summary" >> $GITHUB_STEP_SUMMARY
-          echo "Tag: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "Backend image: ${{ secrets.DOCKERHUB_USERNAME }}/campuscore-backend:${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "Frontend image: ${{ secrets.DOCKERHUB_USERNAME }}/campuscore-frontend:${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "Docker Hub: https://hub.docker.com/u/${{ secrets.DOCKERHUB_USERNAME }}" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Docker Hub publish"
+            echo ""
+            echo "- Namespace: ${{ needs.docker-hub-check.outputs.namespace }}"
+            echo "- Tag: ${{ needs.docker-hub-check.outputs.image_tag }}"
+            echo "- Backend: ${{ needs.docker-hub-check.outputs.namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.docker-hub-check.outputs.image_tag }}"
+            echo "- Frontend: ${{ needs.docker-hub-check.outputs.namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.docker-hub-check.outputs.image_tag }}"
+          } >> "$GITHUB_STEP_SUMMARY"
