@@ -46,6 +46,15 @@ Optional secret:
 
 Manual runs accept an image tag input. Pushes to branches publish `latest` plus the commit SHA; version tags publish the tag name plus the commit SHA.
 
+## GitHub Packages
+
+The same CD workflow also publishes container packages to GitHub Container Registry:
+
+- `ghcr.io/jasontm17/campuscore-backend`
+- `ghcr.io/jasontm17/campuscore-frontend`
+
+GitHub Packages uses the repository owner namespace automatically, so no extra registry secret is required for that path.
+
 ## Compose usage
 
 ```yaml

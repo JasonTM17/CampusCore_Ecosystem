@@ -1,87 +1,132 @@
 # CampusCore
 
-CampusCore is an academic management platform for course registration, schedules, grades, announcements, and admin workflows.
+[![CI](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/ci.yml/badge.svg)](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/ci.yml)
+[![CD](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml/badge.svg)](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml)
+![Next.js](https://img.shields.io/badge/frontend-Next.js%2015-111827)
+![NestJS](https://img.shields.io/badge/backend-NestJS%2010-e11d48)
+![License](https://img.shields.io/badge/license-MIT-16a34a)
 
-## Runtime contract
+CampusCore is an academic management platform for course registration, schedules, grades, tuition invoices, announcements, and administration workflows.
+
+This repository keeps the backend as a single deployable NestJS application, but verifies it like a multi-service product through nginx, PostgreSQL, Redis, RabbitMQ, MinIO, and focused end-to-end smoke coverage.
+
+Language versions:
+
+- [English](./README.en.md)
+- [Tieng Viet](./README.vi.md)
+
+## Highlights
+
+- Student, lecturer, and admin flows in one stack
+- Public entrypoint through nginx at `http://localhost`
+- Frontend runs with Next.js standalone runtime in Docker
+- Backend health reports database, cache, and queue status
+- Fast local checks plus edge E2E through the public gateway
+- Published container images on Docker Hub and GitHub Container Registry
+
+## Runtime Contract
 
 | URL | Purpose |
 | --- | --- |
-| `http://localhost` | Main app entrypoint through nginx |
-| `http://localhost/health` | Public health check |
-| `http://localhost/api/docs` | Swagger UI |
-| `http://localhost:4000/api/v1/health` | Direct backend health check in the dev stack |
+| `http://localhost` | Public web entrypoint through nginx |
+| `http://localhost/login` | Login page |
+| `http://localhost/health` | Public health endpoint |
+| `http://localhost/api/docs` | Swagger UI through nginx |
+| `http://localhost:4000/api/v1/health` | Direct backend health in the local stack |
 
-The frontend service listens on port `3000` inside Docker, but the public route is the nginx reverse proxy on port `80`.
+## Feature Areas
 
-## Stack
+### Student Portal
 
-- Frontend: Next.js 15, React 18, TypeScript
-- Backend: NestJS, Prisma, PostgreSQL
-- Infrastructure: Redis, RabbitMQ, MinIO, Mailhog, nginx
-- Observability: Prometheus, Grafana, Loki, Jaeger
+- Course registration
+- Weekly schedule
+- Grades and transcript views
+- Tuition invoices
+- Announcements
+- Profile management
 
-## Compose modes
+### Lecturer Portal
 
-### Local full stack
+- Teaching schedule
+- Grade management
+- Lecturer dashboard flows with empty-state support
+
+### Admin Portal
+
+- User management
+- Course and section administration
+- Enrollment management
+- Dashboard analytics and operations views
+
+## Container Images and Packages
+
+### Docker Hub
+
+- `nguyenson1710/campuscore-backend`
+- `nguyenson1710/campuscore-frontend`
+
+### GitHub Packages (GHCR)
+
+- `ghcr.io/jasontm17/campuscore-backend`
+- `ghcr.io/jasontm17/campuscore-frontend`
+
+Published tags follow the same release strategy across registries:
+
+- `latest`
+- semantic tags such as `v1.0.0`
+- immutable commit SHA tags such as `0f8bc44`
+
+## Quick Start
+
+### Local Full Stack
 
 ```bash
 cp .env.example .env
 docker compose up -d --build
 ```
 
-This builds the local backend/frontend images from `backend/Dockerfile` and `frontend/Dockerfile`, then starts the full stack with nginx, database, cache, queue, storage, email testing, and the observability services.
+Open:
 
-### Production images
+- `http://localhost`
+- `http://localhost/api/docs`
+- `http://localhost/health`
+
+### Production-like Image Stack
 
 ```bash
 docker compose -f docker-compose.production.yml up -d
 ```
 
-This uses the published Docker Hub images for the app services and keeps the public surface on nginx only.
+Set `DOCKERHUB_NAMESPACE` and `IMAGE_TAG` in `.env` before using the production image compose file.
 
-## Environment
+## Quality Gates
 
-Create the root `.env` from `.env.example`.
+The repository is verified with:
 
-Key values:
+- backend lint, format check, typecheck, build, and tests
+- frontend lint, typecheck, build, and smoke tests
+- Playwright fast E2E for local iteration
+- Playwright edge E2E through nginx for production-like verification
+- Docker compose config validation for dev, prod, and E2E stacks
 
-- `POSTGRES_PASSWORD`
-- `JWT_SECRET`
-- `JWT_REFRESH_SECRET`
-- `RABBITMQ_PASSWORD`
-- `MINIO_PASSWORD`
-- `GRAFANA_PASSWORD`
-- `FRONTEND_URL`
-- `DOCKERHUB_NAMESPACE` when you use the production image stack
+## CI/CD
 
-`NEXT_PUBLIC_API_URL` is optional and can be left blank when using the nginx same-origin route.
+GitHub Actions provides:
 
-## Docker Hub
+- `CI Build and Test` for backend, frontend, and edge E2E
+- `CD - Registry Publish` for Docker Hub and GitHub Container Registry image publishing
 
-Use `scripts/docker-publish.sh` to build and push both app images.
+Docker Hub publishing uses `DOCKERHUB_NAMESPACE` as the preferred namespace input and keeps `DOCKERHUB_USERNAME` as the legacy alias for compatibility. GitHub Container Registry publishing uses the repository owner namespace automatically.
 
-```bash
-DOCKERHUB_NAMESPACE=<namespace> ./scripts/docker-publish.sh latest
-```
+## More Documentation
 
-Update image descriptions with:
+- [English Guide](./README.en.md)
+- [Huong dan tieng Viet](./README.vi.md)
+- [Docker Hub Notes](./DOCKER_HUB.md)
 
-```bash
-DOCKERHUB_TOKEN=... DOCKERHUB_NAMESPACE=<namespace> ./scripts/update-hub-description.sh
-```
+## Author
 
-The Docker Hub scripts prefer `DOCKERHUB_NAMESPACE`; `DOCKERHUB_USERNAME` remains supported as a legacy alias for CI compatibility.
+Nguyen Tien Son
 
-GitHub Actions publishes both images from `.github/workflows/cd.yml` when Docker Hub secrets are configured. `DOCKERHUB_USERNAME` and `DOCKERHUB_PASSWORD` are required; `DOCKERHUB_NAMESPACE` is optional and is preferred when publishing to an organization namespace.
-
-## Monitoring
-
-- Prometheus only scrapes itself by default.
-- Loki receives nginx access logs through promtail.
-- Grafana ships with Prometheus and Loki datasources plus a small overview dashboard.
-
-## Deployment notes
-
-- HTTPS is not bundled. Terminate TLS at your own edge proxy if you need it.
-- Backend runs on port `4000` internally and serves health at `/api/v1/health`.
-- The Render config is backend-only and expects external queue/storage/mail endpoints to be provided separately.
+- GitHub: [JasonTM17](https://github.com/JasonTM17)
+- Email: [jasonbmt06@gmail.com](mailto:jasonbmt06@gmail.com)
