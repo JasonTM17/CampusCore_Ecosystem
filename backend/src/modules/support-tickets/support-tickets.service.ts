@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 
 @Injectable()
@@ -31,7 +31,10 @@ export class SupportTicketsService {
       }),
       this.prisma.supportTicket.count({ where: { userId } }),
     ]);
-    return { data: tickets, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: tickets,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOneByUser(id: string, userId: string) {
@@ -51,7 +54,7 @@ export class SupportTicketsService {
     limit = 20,
     status?: string,
     priority?: string,
-    category?: string
+    category?: string,
   ) {
     const skip = (page - 1) * limit;
     const where: any = {};
@@ -70,7 +73,10 @@ export class SupportTicketsService {
       }),
       this.prisma.supportTicket.count({ where }),
     ]);
-    return { data: tickets, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: tickets,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: string) {
@@ -113,7 +119,12 @@ export class SupportTicketsService {
     });
   }
 
-  async addResponse(ticketId: string, userId: string, message: string, isInternal = false) {
+  async addResponse(
+    ticketId: string,
+    userId: string,
+    message: string,
+    isInternal = false,
+  ) {
     const ticket = await this.findOne(ticketId);
 
     // Create response

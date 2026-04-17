@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { GradesService } from './grades.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -25,7 +35,10 @@ export class GradesController {
   @Get('items')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get all grade items' })
-  findAllGradeItems(@Query('page') page?: number, @Query('limit') limit?: number) {
+  findAllGradeItems(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
     return this.gradesService.findAllGradeItems(page || 1, limit || 20);
   }
 
@@ -82,7 +95,10 @@ export class GradesController {
   @Get('student-grades')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get all student grades' })
-  findAllStudentGrades(@Query('page') page?: number, @Query('limit') limit?: number) {
+  findAllStudentGrades(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
     return this.gradesService.findAllStudentGrades(page || 1, limit || 20);
   }
 
@@ -96,8 +112,14 @@ export class GradesController {
   @Get('student-grades/lecturer/my')
   @Roles('LECTURER')
   @ApiOperation({ summary: 'Get student grades for lecturer sections' })
-  findMyStudentGrades(@CurrentLecturer() lecturerId: string, @Query('sectionId') sectionId?: string) {
-    return this.gradesService.findStudentGradesByLecturer(lecturerId, sectionId);
+  findMyStudentGrades(
+    @CurrentLecturer() lecturerId: string,
+    @Query('sectionId') sectionId?: string,
+  ) {
+    return this.gradesService.findStudentGradesByLecturer(
+      lecturerId,
+      sectionId,
+    );
   }
 
   @Get('student-grades/enrollment/:enrollmentId')

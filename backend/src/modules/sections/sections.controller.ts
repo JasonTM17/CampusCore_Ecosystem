@@ -1,9 +1,20 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SectionsService } from './sections.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentLecturer } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('Sections')
 @Controller('sections')
@@ -22,18 +33,41 @@ export class SectionsController {
   @Get()
   @ApiOperation({ summary: 'Get all sections with filters' })
   findAll(
-    @Query('page') page?: number, 
+    @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('semesterId') semesterId?: string,
     @Query('departmentId') departmentId?: string,
     @Query('courseId') courseId?: string,
   ) {
     return this.sectionsService.findAllSections(
-      page || 1, 
-      limit || 100, 
-      semesterId, 
-      departmentId, 
-      courseId
+      page || 1,
+      limit || 100,
+      semesterId,
+      departmentId,
+      courseId,
+    );
+  }
+
+  @Get('my/schedule')
+  @Roles('LECTURER')
+  @ApiOperation({ summary: 'Get lecturer teaching schedule' })
+  getMySchedule(
+    @CurrentLecturer() lecturerId: string,
+    @Query('semesterId') semesterId?: string,
+  ) {
+    return this.sectionsService.findLecturerSchedule(lecturerId, semesterId);
+  }
+
+  @Get('my/grading')
+  @Roles('LECTURER')
+  @ApiOperation({ summary: 'Get lecturer grading sections' })
+  getMyGradingSections(
+    @CurrentLecturer() lecturerId: string,
+    @Query('semesterId') semesterId?: string,
+  ) {
+    return this.sectionsService.findLecturerGradingSections(
+      lecturerId,
+      semesterId,
     );
   }
 
@@ -67,7 +101,17 @@ export class SectionsController {
   @Put(':id/grades')
   @Roles('ADMIN', 'SUPER_ADMIN', 'LECTURER')
   @ApiOperation({ summary: 'Update section grades' })
-  updateSectionGrades(@Param('id') id: string, @Body() data: { grades: { enrollmentId: string; finalGrade: number; letterGrade: string }[] }) {
+  updateSectionGrades(
+    @Param('id') id: string,
+    @Body()
+    data: {
+      grades: {
+        enrollmentId: string;
+        finalGrade: number;
+        letterGrade: string;
+      }[];
+    },
+  ) {
     return this.sectionsService.updateSectionGrades(id, data.grades);
   }
 

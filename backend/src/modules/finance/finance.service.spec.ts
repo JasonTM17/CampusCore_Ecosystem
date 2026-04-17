@@ -8,7 +8,6 @@ import { InvoiceStatus, PaymentStatus } from '@prisma/client';
 
 describe('FinanceService', () => {
   let service: FinanceService;
-  let prismaService: jest.Mocked<PrismaService>;
 
   const mockPrisma = {
     invoice: {
@@ -70,7 +69,6 @@ describe('FinanceService', () => {
     }).compile();
 
     service = module.get<FinanceService>(FinanceService);
-    prismaService = module.get(PrismaService);
     jest.clearAllMocks();
   });
 
@@ -192,7 +190,9 @@ describe('FinanceService', () => {
         status: PaymentStatus.COMPLETED,
       } as any);
 
-      const result = await service.updatePayment(paymentId, { status: 'COMPLETED' });
+      const result = await service.updatePayment(paymentId, {
+        status: 'COMPLETED',
+      });
 
       expect(result.status).toBe('COMPLETED');
     });

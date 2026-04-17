@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PermissionsService } from './permissions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -29,7 +37,15 @@ export class PermissionsController {
   @Post()
   @Roles('SUPER_ADMIN')
   @ApiOperation({ summary: 'Create a new permission' })
-  create(@Body() data: { name: string; description?: string; module: string; action: string }) {
+  create(
+    @Body()
+    data: {
+      name: string;
+      description?: string;
+      module: string;
+      action: string;
+    },
+  ) {
     return this.permissionsService.create(data);
   }
 

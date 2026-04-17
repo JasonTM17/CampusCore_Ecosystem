@@ -5,7 +5,6 @@ import { NotFoundException } from '@nestjs/common';
 
 describe('GradesService', () => {
   let service: GradesService;
-  let prismaService: jest.Mocked<PrismaService>;
 
   const mockPrisma = {
     gradeItem: {
@@ -48,7 +47,6 @@ describe('GradesService', () => {
     }).compile();
 
     service = module.get<GradesService>(GradesService);
-    prismaService = module.get(PrismaService);
     jest.clearAllMocks();
   });
 
@@ -72,9 +70,7 @@ describe('GradesService', () => {
   describe('findGradeItemsBySection', () => {
     it('should return grade items for a section', async () => {
       const sectionId = 'section-uuid';
-      const mockGradeItems = [
-        { id: '1', sectionId, name: 'Midterm' },
-      ];
+      const mockGradeItems = [{ id: '1', sectionId, name: 'Midterm' }];
       mockPrisma.gradeItem.findMany.mockResolvedValue(mockGradeItems as any);
 
       const result = await service.findGradeItemsBySection(sectionId);
@@ -114,7 +110,9 @@ describe('GradesService', () => {
       const updateData = { name: 'Updated Midterm', weight: 35 };
       const mockGradeItem = { id: gradeItemId, ...updateData };
 
-      mockPrisma.gradeItem.findUnique.mockResolvedValue({ id: gradeItemId } as any);
+      mockPrisma.gradeItem.findUnique.mockResolvedValue({
+        id: gradeItemId,
+      } as any);
       mockPrisma.gradeItem.update.mockResolvedValue(mockGradeItem as any);
 
       const result = await service.updateGradeItem(gradeItemId, updateData);
@@ -131,7 +129,9 @@ describe('GradesService', () => {
   describe('removeGradeItem', () => {
     it('should delete a grade item', async () => {
       const gradeItemId = 'grade-item-uuid';
-      mockPrisma.gradeItem.findUnique.mockResolvedValue({ id: gradeItemId } as any);
+      mockPrisma.gradeItem.findUnique.mockResolvedValue({
+        id: gradeItemId,
+      } as any);
       mockPrisma.gradeItem.delete.mockResolvedValue({ id: gradeItemId } as any);
 
       const result = await service.removeGradeItem(gradeItemId);
@@ -168,7 +168,9 @@ describe('GradesService', () => {
       const mockStudentGrades = [
         { id: '1', enrollment: { section: { course: { code: 'CS101' } } } },
       ];
-      mockPrisma.studentGrade.findMany.mockResolvedValue(mockStudentGrades as any);
+      mockPrisma.studentGrade.findMany.mockResolvedValue(
+        mockStudentGrades as any,
+      );
       mockPrisma.studentGrade.count.mockResolvedValue(1);
 
       const result = await service.findAllStudentGrades(1, 20);

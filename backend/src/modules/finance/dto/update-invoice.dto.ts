@@ -16,4 +16,3 @@ export class UpdateInvoiceDto {
   @IsDate()
   dueDate?: Date;
 }
-

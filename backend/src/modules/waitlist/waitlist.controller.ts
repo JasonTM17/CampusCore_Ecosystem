@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { WaitlistService } from './waitlist.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -29,7 +37,11 @@ export class WaitlistController {
   @Get()
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get all waitlist entries' })
-  findAll(@Query('page') page?: number, @Query('limit') limit?: number, @Query('sectionId') sectionId?: string) {
+  findAll(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('sectionId') sectionId?: string,
+  ) {
     return this.waitlistService.findAll(page || 1, limit || 20, sectionId);
   }
 

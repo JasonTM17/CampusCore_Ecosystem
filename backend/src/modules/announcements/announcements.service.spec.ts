@@ -5,7 +5,6 @@ import { NotFoundException } from '@nestjs/common';
 
 describe('AnnouncementsService', () => {
   let service: AnnouncementsService;
-  let prismaService: jest.Mocked<PrismaService>;
 
   const mockPrisma = {
     announcement: {
@@ -30,7 +29,6 @@ describe('AnnouncementsService', () => {
     }).compile();
 
     service = module.get<AnnouncementsService>(AnnouncementsService);
-    prismaService = module.get(PrismaService);
     jest.clearAllMocks();
   });
 
@@ -61,7 +59,9 @@ describe('AnnouncementsService', () => {
         { id: '1', title: 'Announcement 1' },
         { id: '2', title: 'Announcement 2' },
       ];
-      mockPrisma.announcement.findMany.mockResolvedValue(mockAnnouncements as any);
+      mockPrisma.announcement.findMany.mockResolvedValue(
+        mockAnnouncements as any,
+      );
       mockPrisma.announcement.count.mockResolvedValue(2);
 
       const result = await service.findAll(1, 20);
@@ -102,7 +102,9 @@ describe('AnnouncementsService', () => {
     it('should return an announcement by id', async () => {
       const announcementId = 'announcement-uuid';
       const mockAnnouncement = { id: announcementId, title: 'Test' };
-      mockPrisma.announcement.findUnique.mockResolvedValue(mockAnnouncement as any);
+      mockPrisma.announcement.findUnique.mockResolvedValue(
+        mockAnnouncement as any,
+      );
 
       const result = await service.findOne(announcementId);
 
@@ -112,7 +114,9 @@ describe('AnnouncementsService', () => {
     it('should throw NotFoundException if announcement not found', async () => {
       mockPrisma.announcement.findUnique.mockResolvedValue(null);
 
-      await expect(service.findOne('nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -121,7 +125,9 @@ describe('AnnouncementsService', () => {
       const announcementId = 'announcement-uuid';
       const updateData = { title: 'Updated Title' };
 
-      mockPrisma.announcement.findUnique.mockResolvedValue({ id: announcementId } as any);
+      mockPrisma.announcement.findUnique.mockResolvedValue({
+        id: announcementId,
+      } as any);
       mockPrisma.announcement.update.mockResolvedValue({
         id: announcementId,
         ...updateData,
@@ -136,8 +142,12 @@ describe('AnnouncementsService', () => {
   describe('remove', () => {
     it('should delete an announcement', async () => {
       const announcementId = 'announcement-uuid';
-      mockPrisma.announcement.findUnique.mockResolvedValue({ id: announcementId } as any);
-      mockPrisma.announcement.delete.mockResolvedValue({ id: announcementId } as any);
+      mockPrisma.announcement.findUnique.mockResolvedValue({
+        id: announcementId,
+      } as any);
+      mockPrisma.announcement.delete.mockResolvedValue({
+        id: announcementId,
+      } as any);
 
       await service.remove(announcementId);
 
@@ -149,7 +159,9 @@ describe('AnnouncementsService', () => {
     it('should throw NotFoundException when deleting non-existent announcement', async () => {
       mockPrisma.announcement.findUnique.mockResolvedValue(null);
 
-      await expect(service.remove('nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(service.remove('nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

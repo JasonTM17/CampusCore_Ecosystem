@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { EnrollmentStatus, WaitlistStatus } from '@prisma/client';
 
@@ -15,18 +15,27 @@ export class WaitlistService {
         where,
         skip,
         take: limit,
-        include: { student: { include: { user: true } }, section: { include: { course: true } } },
+        include: {
+          student: { include: { user: true } },
+          section: { include: { course: true } },
+        },
         orderBy: { position: 'asc' },
       }),
       this.prisma.waitlist.count({ where }),
     ]);
-    return { data: waitlist, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: waitlist,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: string) {
     const entry = await this.prisma.waitlist.findUnique({
       where: { id },
-      include: { student: { include: { user: true } }, section: { include: { course: true } } },
+      include: {
+        student: { include: { user: true } },
+        section: { include: { course: true } },
+      },
     });
     if (!entry) throw new NotFoundException('Waitlist entry not found');
     return entry;

@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, NotFoundException, ForbiddenException, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Res,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Response } from 'express';
 import { EnrollmentsService } from './enrollments.service';
@@ -13,14 +24,14 @@ import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class EnrollmentsController {
-  constructor(private enrollmentsService: EnrollmentsService) { }
+  constructor(private enrollmentsService: EnrollmentsService) {}
 
   @Post('enroll')
   @Roles('STUDENT')
   @ApiOperation({ summary: 'Enroll current student in a section' })
   enrollStudent(
     @CurrentStudent() studentId: string,
-    @Body() body: { sectionId: string }
+    @Body() body: { sectionId: string },
   ) {
     return this.enrollmentsService.enrollStudent(studentId, body.sectionId);
   }
@@ -28,10 +39,7 @@ export class EnrollmentsController {
   @Post(':id/drop')
   @Roles('STUDENT')
   @ApiOperation({ summary: 'Drop enrollment' })
-  dropEnrollment(
-    @CurrentStudent() studentId: string,
-    @Param('id') id: string
-  ) {
+  dropEnrollment(@CurrentStudent() studentId: string, @Param('id') id: string) {
     return this.enrollmentsService.dropEnrollment(id, studentId);
   }
 
@@ -40,7 +48,7 @@ export class EnrollmentsController {
   @ApiOperation({ summary: 'Get current student enrollments' })
   getMyEnrollments(
     @CurrentStudent() studentId: string,
-    @Query('semesterId') semesterId?: string
+    @Query('semesterId') semesterId?: string,
   ) {
     return this.enrollmentsService.getStudentEnrollments(studentId, semesterId);
   }
@@ -50,7 +58,7 @@ export class EnrollmentsController {
   @ApiOperation({ summary: 'Get current student grades' })
   getMyGrades(
     @CurrentStudent() studentId: string,
-    @Query('semesterId') semesterId?: string
+    @Query('semesterId') semesterId?: string,
   ) {
     return this.enrollmentsService.getStudentGrades(studentId, semesterId);
   }
@@ -65,7 +73,10 @@ export class EnrollmentsController {
   @Get('student/:studentId')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get student enrollments (admin only)' })
-  getStudentEnrollments(@Param('studentId') studentId: string, @Query('semesterId') semesterId?: string) {
+  getStudentEnrollments(
+    @Param('studentId') studentId: string,
+    @Query('semesterId') semesterId?: string,
+  ) {
     return this.enrollmentsService.getStudentEnrollments(studentId, semesterId);
   }
 
@@ -73,8 +84,8 @@ export class EnrollmentsController {
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get all enrollments' })
   findAll(
-    @Query('page') page?: number, 
-    @Query('limit') limit?: number, 
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
     @Query('status') status?: string,
     @Query('semesterId') semesterId?: string,
     @Query('studentId') studentId?: string,
@@ -82,13 +93,13 @@ export class EnrollmentsController {
     @Query('sectionId') sectionId?: string,
   ) {
     return this.enrollmentsService.findAll(
-      page || 1, 
-      limit || 20, 
+      page || 1,
+      limit || 20,
       status,
       semesterId,
       studentId,
       courseId,
-      sectionId
+      sectionId,
     );
   }
 
@@ -108,11 +119,14 @@ export class EnrollmentsController {
       semesterId,
       studentId,
       courseId,
-      sectionId
+      sectionId,
     );
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=enrollments.csv');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename=enrollments.csv',
+    );
     res.send(csv);
   }
 

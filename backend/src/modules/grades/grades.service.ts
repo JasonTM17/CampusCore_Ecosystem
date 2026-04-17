@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 
 @Injectable()
@@ -14,10 +14,18 @@ export class GradesService {
   async findAllGradeItems(page = 1, limit = 20) {
     const skip = (page - 1) * limit;
     const [gradeItems, total] = await Promise.all([
-      this.prisma.gradeItem.findMany({ skip, take: limit, include: { section: true }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.gradeItem.findMany({
+        skip,
+        take: limit,
+        include: { section: true },
+        orderBy: { createdAt: 'desc' },
+      }),
       this.prisma.gradeItem.count(),
     ]);
-    return { data: gradeItems, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: gradeItems,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findGradeItemsBySection(sectionId: string) {
@@ -33,13 +41,17 @@ export class GradesService {
       where: { lecturerId },
       select: { id: true },
     });
-    const sectionIds = sections.map(s => s.id);
+    const sectionIds = sections.map((s) => s.id);
 
     return this.prisma.gradeItem.findMany({
       where: { sectionId: { in: sectionIds } },
       include: {
         section: {
-          include: { course: true, semester: true, lecturer: { include: { user: true } } }
+          include: {
+            course: true,
+            semester: true,
+            lecturer: { include: { user: true } },
+          },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -47,14 +59,21 @@ export class GradesService {
   }
 
   async findOneGradeItem(id: string) {
-    const gradeItem = await this.prisma.gradeItem.findUnique({ where: { id }, include: { section: true } });
+    const gradeItem = await this.prisma.gradeItem.findUnique({
+      where: { id },
+      include: { section: true },
+    });
     if (!gradeItem) throw new NotFoundException('Grade item not found');
     return gradeItem;
   }
 
   async updateGradeItem(id: string, data: any) {
     await this.findOneGradeItem(id);
-    return this.prisma.gradeItem.update({ where: { id }, data, include: { section: true } });
+    return this.prisma.gradeItem.update({
+      where: { id },
+      data,
+      include: { section: true },
+    });
   }
 
   async removeGradeItem(id: string) {
@@ -66,7 +85,10 @@ export class GradesService {
   // ============ STUDENT GRADES ============
 
   async createStudentGrade(data: any) {
-    return this.prisma.studentGrade.create({ data, include: { gradeItem: true, enrollment: true } });
+    return this.prisma.studentGrade.create({
+      data,
+      include: { gradeItem: true, enrollment: true },
+    });
   }
 
   async createBulkStudentGrades(grades: any[]) {
@@ -79,10 +101,18 @@ export class GradesService {
   async findAllStudentGrades(page = 1, limit = 20) {
     const skip = (page - 1) * limit;
     const [studentGrades, total] = await Promise.all([
-      this.prisma.studentGrade.findMany({ skip, take: limit, include: { gradeItem: true, enrollment: true }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.studentGrade.findMany({
+        skip,
+        take: limit,
+        include: { gradeItem: true, enrollment: true },
+        orderBy: { createdAt: 'desc' },
+      }),
       this.prisma.studentGrade.count(),
     ]);
-    return { data: studentGrades, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: studentGrades,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findStudentGradesBySection(sectionId: string) {
@@ -97,8 +127,8 @@ export class GradesService {
       },
     });
 
-    return enrollments.map(enrollment => {
-      const grades = enrollment.gradeItems.map(g => ({
+    return enrollments.map((enrollment) => {
+      const grades = enrollment.gradeItems.map((g) => ({
         id: g.id,
         gradeItemId: g.gradeItemId,
         gradeItemName: g.gradeItem.name,
@@ -111,7 +141,7 @@ export class GradesService {
       // Calculate total score
       let totalScore = 0;
       let totalWeight = 0;
-      grades.forEach(g => {
+      grades.forEach((g) => {
         if (g.score !== null && g.maxScore && g.weight) {
           totalScore += (g.score / Number(g.maxScore)) * Number(g.weight);
           totalWeight += Number(g.weight);
@@ -121,11 +151,15 @@ export class GradesService {
       return {
         enrollmentId: enrollment.id,
         studentId: enrollment.studentId,
-        studentName: enrollment.student.user ? `${enrollment.student.user.firstName} ${enrollment.student.user.lastName}` : '',
+        studentName: enrollment.student.user
+          ? `${enrollment.student.user.firstName} ${enrollment.student.user.lastName}`
+          : '',
         studentNumber: enrollment.student.studentId,
         courseCode: enrollment.section.course.code,
         courseName: enrollment.section.course.name,
-        finalGrade: enrollment.finalGrade ? Number(enrollment.finalGrade) : null,
+        finalGrade: enrollment.finalGrade
+          ? Number(enrollment.finalGrade)
+          : null,
         letterGrade: enrollment.letterGrade,
         grades,
         calculatedTotal: totalWeight > 0 ? Number(totalScore.toFixed(2)) : null,
@@ -145,7 +179,7 @@ export class GradesService {
       include: { course: true, semester: true },
     });
 
-    const sectionIds = sections.map(s => s.id);
+    const sectionIds = sections.map((s) => s.id);
 
     const enrollments = await this.prisma.enrollment.findMany({
       where: { sectionId: { in: sectionIds } },
@@ -158,10 +192,12 @@ export class GradesService {
       },
     });
 
-    return enrollments.map(enrollment => ({
+    return enrollments.map((enrollment) => ({
       enrollmentId: enrollment.id,
       studentId: enrollment.studentId,
-      studentName: enrollment.student.user ? `${enrollment.student.user.firstName} ${enrollment.student.user.lastName}` : '',
+      studentName: enrollment.student.user
+        ? `${enrollment.student.user.firstName} ${enrollment.student.user.lastName}`
+        : '',
       studentNumber: enrollment.student.studentId,
       sectionId: enrollment.sectionId,
       sectionNumber: enrollment.section.sectionNumber,
@@ -170,7 +206,7 @@ export class GradesService {
       finalGrade: enrollment.finalGrade ? Number(enrollment.finalGrade) : null,
       letterGrade: enrollment.letterGrade,
       gradeStatus: enrollment.gradeStatus,
-      grades: enrollment.gradeItems.map(g => ({
+      grades: enrollment.gradeItems.map((g) => ({
         id: g.id,
         gradeItemId: g.gradeItemId,
         gradeItemName: g.gradeItem.name,
@@ -203,9 +239,11 @@ export class GradesService {
     // Calculate total
     let totalScore = 0;
     let totalWeight = 0;
-    grades.forEach(g => {
+    grades.forEach((g) => {
       if (g.score !== null && g.gradeItem.maxScore && g.gradeItem.weight) {
-        totalScore += (Number(g.score) / Number(g.gradeItem.maxScore)) * Number(g.gradeItem.weight);
+        totalScore +=
+          (Number(g.score) / Number(g.gradeItem.maxScore)) *
+          Number(g.gradeItem.weight);
         totalWeight += Number(g.gradeItem.weight);
       }
     });
@@ -214,11 +252,13 @@ export class GradesService {
       enrollment: {
         id: enrollment.id,
         studentId: enrollment.studentId,
-        studentName: enrollment.student.user ? `${enrollment.student.user.firstName} ${enrollment.student.user.lastName}` : '',
+        studentName: enrollment.student.user
+          ? `${enrollment.student.user.firstName} ${enrollment.student.user.lastName}`
+          : '',
         courseCode: enrollment.section.course.code,
         courseName: enrollment.section.course.name,
       },
-      grades: grades.map(g => ({
+      grades: grades.map((g) => ({
         id: g.id,
         gradeItemId: g.gradeItemId,
         gradeItemName: g.gradeItem.name,
@@ -233,14 +273,21 @@ export class GradesService {
   }
 
   async findOneStudentGrade(id: string) {
-    const studentGrade = await this.prisma.studentGrade.findUnique({ where: { id }, include: { gradeItem: true, enrollment: true } });
+    const studentGrade = await this.prisma.studentGrade.findUnique({
+      where: { id },
+      include: { gradeItem: true, enrollment: true },
+    });
     if (!studentGrade) throw new NotFoundException('Student grade not found');
     return studentGrade;
   }
 
   async updateStudentGrade(id: string, data: any) {
     await this.findOneStudentGrade(id);
-    return this.prisma.studentGrade.update({ where: { id }, data, include: { gradeItem: true, enrollment: true } });
+    return this.prisma.studentGrade.update({
+      where: { id },
+      data,
+      include: { gradeItem: true, enrollment: true },
+    });
   }
 
   async removeStudentGrade(id: string) {

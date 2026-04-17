@@ -3,12 +3,11 @@ import { EnrollmentsService } from './enrollments.service';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CsvExportService } from '../common/services/csv-export.service';
 import { EmailService } from '../common/services/email.service';
-import { NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
-import { EnrollmentStatus, WaitlistStatus } from '@prisma/client';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { EnrollmentStatus } from '@prisma/client';
 
 describe('EnrollmentsService', () => {
   let service: EnrollmentsService;
-  let prismaService: jest.Mocked<PrismaService>;
 
   const mockPrisma = {
     section: {
@@ -60,7 +59,6 @@ describe('EnrollmentsService', () => {
     }).compile();
 
     service = module.get<EnrollmentsService>(EnrollmentsService);
-    prismaService = module.get(PrismaService);
     jest.clearAllMocks();
   });
 
@@ -81,7 +79,10 @@ describe('EnrollmentsService', () => {
         id: sectionId,
         status: 'CLOSED',
         course: { prerequisites: [] },
-        semester: { registrationStart: new Date(), registrationEnd: new Date(Date.now() + 86400000) },
+        semester: {
+          registrationStart: new Date(),
+          registrationEnd: new Date(Date.now() + 86400000),
+        },
         enrollments: [],
         schedules: [],
       });
@@ -96,7 +97,10 @@ describe('EnrollmentsService', () => {
         id: sectionId,
         status: 'OPEN',
         course: { prerequisites: [] },
-        semester: { registrationStart: new Date(), registrationEnd: new Date(Date.now() + 86400000) },
+        semester: {
+          registrationStart: new Date(),
+          registrationEnd: new Date(Date.now() + 86400000),
+        },
         enrollments: [],
         schedules: [],
       });
@@ -115,13 +119,17 @@ describe('EnrollmentsService', () => {
     it('should add to waitlist if section is full', async () => {
       mockPrisma.section.findUnique.mockResolvedValue(null);
 
-      await expect(service.enrollStudent(studentId, sectionId)).rejects.toThrow();
+      await expect(
+        service.enrollStudent(studentId, sectionId),
+      ).rejects.toThrow();
     });
 
     it('should enroll student if seats available', async () => {
       mockPrisma.section.findUnique.mockResolvedValue(null);
 
-      await expect(service.enrollStudent(studentId, sectionId)).rejects.toThrow();
+      await expect(
+        service.enrollStudent(studentId, sectionId),
+      ).rejects.toThrow();
     });
   });
 
@@ -132,9 +140,9 @@ describe('EnrollmentsService', () => {
     it('should throw NotFoundException if enrollment not found', async () => {
       mockPrisma.enrollment.findUnique.mockResolvedValue(null);
 
-      await expect(service.dropEnrollment(enrollmentId, studentId)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.dropEnrollment(enrollmentId, studentId),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should handle drop with past deadline gracefully', async () => {
@@ -149,7 +157,9 @@ describe('EnrollmentsService', () => {
         addDropEnd: new Date(Date.now() - 86400000),
       });
 
-      await expect(service.dropEnrollment(enrollmentId, studentId)).rejects.toThrow();
+      await expect(
+        service.dropEnrollment(enrollmentId, studentId),
+      ).rejects.toThrow();
     });
   });
 

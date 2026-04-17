@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AttendanceService } from './attendance.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -40,7 +50,13 @@ export class AttendanceController {
     @Query('studentId') studentId?: string,
     @Query('date') date?: string,
   ) {
-    return this.attendanceService.findAll(page || 1, limit || 20, sectionId, studentId, date);
+    return this.attendanceService.findAll(
+      page || 1,
+      limit || 20,
+      sectionId,
+      studentId,
+      date,
+    );
   }
 
   // ============ STUDENT ENDPOINTS ============
@@ -53,7 +69,11 @@ export class AttendanceController {
     @Query('sectionId') sectionId?: string,
     @Query('semesterId') semesterId?: string,
   ) {
-    return this.attendanceService.getStudentAttendance(studentId, sectionId, semesterId);
+    return this.attendanceService.getStudentAttendance(
+      studentId,
+      sectionId,
+      semesterId,
+    );
   }
 
   @Get('my/summary')
@@ -63,7 +83,10 @@ export class AttendanceController {
     @CurrentStudent() studentId: string,
     @Query('semesterId') semesterId?: string,
   ) {
-    return this.attendanceService.getStudentAttendanceSummary(studentId, semesterId);
+    return this.attendanceService.getStudentAttendanceSummary(
+      studentId,
+      semesterId,
+    );
   }
 
   // ============ LECTURER ENDPOINTS ============
@@ -76,7 +99,11 @@ export class AttendanceController {
     @Query('sectionId') sectionId?: string,
     @Query('date') date?: string,
   ) {
-    return this.attendanceService.getSectionAttendanceByLecturer(lecturerId, sectionId, date);
+    return this.attendanceService.getSectionAttendanceByLecturer(
+      lecturerId,
+      sectionId,
+      date,
+    );
   }
 
   @Get('section/:sectionId')
@@ -102,9 +129,18 @@ export class AttendanceController {
   markSectionAttendance(
     @CurrentLecturer() lecturerId: string,
     @Param('sectionId') sectionId: string,
-    @Body() data: { date: string; records: { studentId: string; status: string; notes?: string }[] },
+    @Body()
+    data: {
+      date: string;
+      records: { studentId: string; status: string; notes?: string }[];
+    },
   ) {
-    return this.attendanceService.markSectionAttendance(lecturerId, sectionId, data.date, data.records);
+    return this.attendanceService.markSectionAttendance(
+      lecturerId,
+      sectionId,
+      data.date,
+      data.records,
+    );
   }
 
   // ============ COMMON ENDPOINTS ============

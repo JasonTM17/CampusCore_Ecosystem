@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class AnalyticsService {
@@ -101,9 +100,14 @@ export class AnalyticsService {
       semesterName: section.semester.name,
       capacity: section.capacity,
       enrolledCount: section._count.enrollments || section.enrolledCount,
-      occupancyRate: section.capacity > 0 
-        ? Math.round(((section._count.enrollments || section.enrolledCount) / section.capacity) * 100) 
-        : 0,
+      occupancyRate:
+        section.capacity > 0
+          ? Math.round(
+              ((section._count.enrollments || section.enrolledCount) /
+                section.capacity) *
+                100,
+            )
+          : 0,
     }));
   }
 
@@ -119,18 +123,18 @@ export class AnalyticsService {
     });
 
     const distribution: Record<string, number> = {
-      'A': 0,
+      A: 0,
       'A-': 0,
       'B+': 0,
-      'B': 0,
+      B: 0,
       'B-': 0,
       'C+': 0,
-      'C': 0,
+      C: 0,
       'C-': 0,
       'D+': 0,
-      'D': 0,
+      D: 0,
       'D-': 0,
-      'F': 0,
+      F: 0,
     };
 
     enrollments.forEach((e) => {
@@ -151,7 +155,11 @@ export class AnalyticsService {
 
   async getEnrollmentTrends() {
     const now = new Date();
-    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+    const sixMonthsAgo = new Date(
+      now.getFullYear(),
+      now.getMonth() - 6,
+      now.getDate(),
+    );
 
     const enrollments = await this.prisma.enrollment.findMany({
       where: {
@@ -165,7 +173,10 @@ export class AnalyticsService {
       },
     });
 
-    const monthlyData: Record<string, { month: string; enrolled: number; dropped: number; completed: number }> = {};
+    const monthlyData: Record<
+      string,
+      { month: string; enrolled: number; dropped: number; completed: number }
+    > = {};
 
     for (let i = 0; i < 6; i++) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -209,9 +220,12 @@ export class AnalyticsService {
       }),
     ]);
 
-    const totalInvoiced = invoices.reduce((sum, inv) => sum + Number(inv.total), 0);
+    const totalInvoiced = invoices.reduce(
+      (sum, inv) => sum + Number(inv.total),
+      0,
+    );
     const totalPaid = payments
-      .filter(p => p.status === 'COMPLETED')
+      .filter((p) => p.status === 'COMPLETED')
       .reduce((sum, p) => sum + Number(p.amount), 0);
     const pending = totalInvoiced - totalPaid;
 
@@ -220,8 +234,8 @@ export class AnalyticsService {
       totalPaid: Number(totalPaid.toFixed(2)),
       pending: Number(pending.toFixed(2)),
       invoiceCount: invoices.length,
-      paidInvoiceCount: invoices.filter(i => i.status === 'PAID').length,
-      pendingInvoiceCount: invoices.filter(i => i.status !== 'PAID').length,
+      paidInvoiceCount: invoices.filter((i) => i.status === 'PAID').length,
+      pendingInvoiceCount: invoices.filter((i) => i.status !== 'PAID').length,
     };
   }
 
@@ -234,10 +248,10 @@ export class AnalyticsService {
     const attendances = await this.prisma.attendance.findMany({ where });
 
     const total = attendances.length;
-    const present = attendances.filter(a => a.status === 'PRESENT').length;
-    const absent = attendances.filter(a => a.status === 'ABSENT').length;
-    const late = attendances.filter(a => a.status === 'LATE').length;
-    const excused = attendances.filter(a => a.status === 'EXCUSED').length;
+    const present = attendances.filter((a) => a.status === 'PRESENT').length;
+    const absent = attendances.filter((a) => a.status === 'ABSENT').length;
+    const late = attendances.filter((a) => a.status === 'LATE').length;
+    const excused = attendances.filter((a) => a.status === 'EXCUSED').length;
 
     return {
       totalRecords: total,
@@ -245,7 +259,8 @@ export class AnalyticsService {
       absent,
       late,
       excused,
-      attendanceRate: total > 0 ? Math.round(((present + late) / total) * 100) : 0,
+      attendanceRate:
+        total > 0 ? Math.round(((present + late) / total) * 100) : 0,
     };
   }
 
@@ -269,10 +284,10 @@ export class AnalyticsService {
       },
     });
 
-    const courseStats = courses.map(course => {
+    const courseStats = courses.map((course) => {
       const totalEnrollments = course.sections.reduce(
         (sum, s) => sum + (s._count.enrollments || 0),
-        0
+        0,
       );
       return {
         courseId: course.id,
@@ -312,30 +327,27 @@ export class AnalyticsService {
       active: activeStudents,
       graduated: graduatedStudents,
       suspended: suspendedStudents,
-      byYear: byYear.map(y => ({ year: y.year, count: y._count.id })),
+      byYear: byYear.map((y) => ({ year: y.year, count: y._count.id })),
     };
   }
 
   async getLecturerAnalytics(lecturerId: string) {
-    const [
-      totalSections,
-      totalStudents,
-      sectionsWithGrades,
-    ] = await Promise.all([
-      this.prisma.section.count({ where: { lecturerId } }),
-      this.prisma.enrollment.count({
-        where: {
-          section: { lecturerId },
-          status: { in: ['CONFIRMED', 'PENDING'] },
-        },
-      }),
-      this.prisma.enrollment.count({
-        where: {
-          section: { lecturerId },
-          gradeStatus: 'PUBLISHED',
-        },
-      }),
-    ]);
+    const [totalSections, totalStudents, sectionsWithGrades] =
+      await Promise.all([
+        this.prisma.section.count({ where: { lecturerId } }),
+        this.prisma.enrollment.count({
+          where: {
+            section: { lecturerId },
+            status: { in: ['CONFIRMED', 'PENDING'] },
+          },
+        }),
+        this.prisma.enrollment.count({
+          where: {
+            section: { lecturerId },
+            gradeStatus: 'PUBLISHED',
+          },
+        }),
+      ]);
 
     return {
       totalSections,
@@ -360,7 +372,7 @@ export class AnalyticsService {
       },
     });
 
-    return sections.map(section => ({
+    return sections.map((section) => ({
       sectionId: section.id,
       sectionNumber: section.sectionNumber,
       courseCode: section.course.code,
@@ -368,9 +380,14 @@ export class AnalyticsService {
       semesterName: section.semester.name,
       capacity: section.capacity,
       enrolledCount: section._count.enrollments || section.enrolledCount,
-      occupancyRate: section.capacity > 0
-        ? Math.round(((section._count.enrollments || section.enrolledCount) / section.capacity) * 100)
-        : 0,
+      occupancyRate:
+        section.capacity > 0
+          ? Math.round(
+              ((section._count.enrollments || section.enrolledCount) /
+                section.capacity) *
+                100,
+            )
+          : 0,
     }));
   }
 }

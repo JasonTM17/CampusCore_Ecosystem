@@ -9,10 +9,17 @@ export class AnnouncementsService {
   constructor(private prisma: PrismaService) {}
 
   async create(data: CreateAnnouncementDto) {
-    return this.prisma.announcement.create({ data, include: { semester: true, section: true, lecturer: true } });
+    return this.prisma.announcement.create({
+      data,
+      include: { semester: true, section: true, lecturer: true },
+    });
   }
 
-  async findAll(page = 1, limit = 20, filters?: { semesterId?: string; sectionId?: string; priority?: string }) {
+  async findAll(
+    page = 1,
+    limit = 20,
+    filters?: { semesterId?: string; sectionId?: string; priority?: string },
+  ) {
     const skip = (page - 1) * limit;
     const where: any = {};
     if (filters?.semesterId) where.semesterId = filters.semesterId;
@@ -24,12 +31,19 @@ export class AnnouncementsService {
         skip,
         take: limit,
         where,
-        include: { semester: true, section: true, lecturer: { include: { user: true } } },
+        include: {
+          semester: true,
+          section: true,
+          lecturer: { include: { user: true } },
+        },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.announcement.count({ where }),
     ]);
-    return { data: announcements, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: announcements,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findForUser(user: AuthUser, page = 1, limit = 20) {
@@ -42,22 +56,13 @@ export class AnnouncementsService {
     const where: any = {
       AND: [
         {
-          OR: [
-            { isGlobal: true },
-            { targetRoles: { hasSome: roles } },
-          ],
+          OR: [{ isGlobal: true }, { targetRoles: { hasSome: roles } }],
         },
         {
-          OR: [
-            { publishAt: null },
-            { publishAt: { lte: now } },
-          ],
+          OR: [{ publishAt: null }, { publishAt: { lte: now } }],
         },
         {
-          OR: [
-            { expiresAt: null },
-            { expiresAt: { gt: now } },
-          ],
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
         },
       ],
     };
@@ -94,11 +99,17 @@ export class AnnouncementsService {
       this.prisma.announcement.count({ where }),
     ]);
 
-    return { data: announcements, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: announcements,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: string) {
-    const announcement = await this.prisma.announcement.findUnique({ where: { id }, include: { semester: true, section: true, lecturer: true } });
+    const announcement = await this.prisma.announcement.findUnique({
+      where: { id },
+      include: { semester: true, section: true, lecturer: true },
+    });
     if (!announcement) throw new NotFoundException('Announcement not found');
     return announcement;
   }

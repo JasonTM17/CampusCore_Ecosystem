@@ -10,4 +10,3 @@ export class UpdatePaymentDto {
   @IsString()
   notes?: string;
 }
-

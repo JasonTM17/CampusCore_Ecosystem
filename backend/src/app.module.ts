@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { ConfigModule } from '@nestjs/config';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './modules/common/prisma/prisma.module';
 import { CacheModule } from './modules/cache/cache.module';
 import { RabbitMQModule } from './modules/rabbitmq/rabbitmq.module';
@@ -30,26 +31,33 @@ import { ClassroomsModule } from './modules/classrooms/classrooms.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
 import { HealthModule } from './modules/health/health.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { validateEnvironment } from './config/env.validation';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      ignoreEnvFile: process.env.NODE_ENV === 'test',
       envFilePath: '.env',
+      validate: validateEnvironment,
     }),
-    ThrottlerModule.forRoot([{
-      name: 'short',
-      ttl: 1000,
-      limit: 10,
-    }, {
-      name: 'medium',
-      ttl: 10000,
-      limit: 50,
-    }, {
-      name: 'long',
-      ttl: 60000,
-      limit: 100,
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        name: 'short',
+        ttl: 1000,
+        limit: 10,
+      },
+      {
+        name: 'medium',
+        ttl: 10000,
+        limit: 50,
+      },
+      {
+        name: 'long',
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
     PrismaModule,
     CacheModule,
     RabbitMQModule,
@@ -79,6 +87,12 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     SchedulesModule,
     HealthModule,
     AnalyticsModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

@@ -1,4 +1,8 @@
-import { createParamDecorator, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import {
+  createParamDecorator,
+  ExecutionContext,
+  ForbiddenException,
+} from '@nestjs/common';
 
 export const CurrentUser = createParamDecorator(
   (data: string | undefined, ctx: ExecutionContext) => {
@@ -16,15 +20,17 @@ export const CurrentStudent = createParamDecorator(
   (data: string | undefined, ctx: ExecutionContext) => {
     const request = ctx.switchToHttp().getRequest();
     const user = request.user;
-    
+
     if (!user) {
       throw new ForbiddenException('Not authenticated');
     }
 
     const studentId = user.studentId;
-    
+
     if (!studentId) {
-      throw new ForbiddenException('You do not have a student profile. Only students can access this resource.');
+      throw new ForbiddenException(
+        'You do not have a student profile. Only students can access this resource.',
+      );
     }
 
     // Return the studentId if no specific field is requested
@@ -45,15 +51,17 @@ export const CurrentLecturer = createParamDecorator(
   (data: string | undefined, ctx: ExecutionContext) => {
     const request = ctx.switchToHttp().getRequest();
     const user = request.user;
-    
+
     if (!user) {
       throw new ForbiddenException('Not authenticated');
     }
 
     const lecturerId = user.lecturerId;
-    
+
     if (!lecturerId) {
-      throw new ForbiddenException('You do not have a lecturer profile. Only lecturers can access this resource.');
+      throw new ForbiddenException(
+        'You do not have a lecturer profile. Only lecturers can access this resource.',
+      );
     }
 
     // Return the lecturerId if no specific field is requested
