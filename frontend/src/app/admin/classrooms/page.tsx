@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -23,8 +23,8 @@ interface Classroom {
     roomNumber: string;
     capacity: number;
     type: string;
-    isActive: boolean;
-    createdAt: string;
+    isActive?: boolean;
+    createdAt?: string;
 }
 
 export default function AdminClassroomsPage() {
@@ -44,6 +44,7 @@ export default function AdminClassroomsPage() {
         capacity: 30,
         type: 'LECTURE',
     });
+    const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
 
     useEffect(() => {
         if (user && !isAdmin && !isSuperAdmin) {
@@ -51,19 +52,7 @@ export default function AdminClassroomsPage() {
         }
     }, [user, isAdmin, isSuperAdmin, router]);
 
-    if (!user || (!isAdmin && !isSuperAdmin)) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
-
-    useEffect(() => {
-        fetchClassrooms();
-    }, [page]);
-
-    const fetchClassrooms = async () => {
+    const fetchClassrooms = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -83,7 +72,21 @@ export default function AdminClassroomsPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [page, search]);
+
+    useEffect(() => {
+        if (canAccess) {
+            void fetchClassrooms();
+        }
+    }, [canAccess, fetchClassrooms]);
+
+    if (!canAccess) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -146,7 +149,7 @@ export default function AdminClassroomsPage() {
                         <span className="text-gray-300">Classroom Management</span>
                     </div>
                     <div className="flex items-center gap-4">
-                        <span className="text-gray-300">Welcome, {user.firstName}</span>
+                        <span className="text-gray-300">Welcome, {user?.firstName}</span>
                         <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>Logout</Button>
                     </div>
                 </div>
@@ -218,10 +221,23 @@ export default function AdminClassroomsPage() {
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 <div className="flex items-center justify-center gap-2">
-                                                    <Button size="sm" variant="ghost" onClick={() => openEdit(room)}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => openEdit(room)}
+                                                        aria-label={`Edit classroom ${room.building} ${room.roomNumber}`}
+                                                        title={`Edit classroom ${room.building} ${room.roomNumber}`}
+                                                    >
                                                         <Pencil className="h-4 w-4" />
                                                     </Button>
-                                                    <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(room.id)}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="text-red-600 hover:text-red-700"
+                                                        onClick={() => handleDelete(room.id)}
+                                                        aria-label={`Delete classroom ${room.building} ${room.roomNumber}`}
+                                                        title={`Delete classroom ${room.building} ${room.roomNumber}`}
+                                                    >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -46,6 +46,7 @@ export default function AdminSemestersPage() {
         startDate: '',
         endDate: '',
     });
+    const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
 
     // Redirect non-admins
     useEffect(() => {
@@ -54,19 +55,7 @@ export default function AdminSemestersPage() {
         }
     }, [user, isAdmin, isSuperAdmin, router]);
 
-    if (!user || (!isAdmin && !isSuperAdmin)) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
-
-    useEffect(() => {
-        fetchSemesters();
-    }, [page]);
-
-    const fetchSemesters = async () => {
+    const fetchSemesters = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -79,7 +68,21 @@ export default function AdminSemestersPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [page]);
+
+    useEffect(() => {
+        if (canAccess) {
+            void fetchSemesters();
+        }
+    }, [canAccess, fetchSemesters]);
+
+    if (!canAccess) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     const handleDelete = async (id: string) => {
         if (!confirm('Are you sure you want to delete this semester?')) return;
@@ -154,7 +157,7 @@ export default function AdminSemestersPage() {
                         <span className="text-gray-300">Semester Management</span>
                     </div>
                     <div className="flex items-center gap-4">
-                        <span className="text-gray-300">Welcome, {user.firstName}</span>
+                        <span className="text-gray-300">Welcome, {user?.firstName}</span>
                         <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>Logout</Button>
                     </div>
                 </div>
@@ -211,10 +214,23 @@ export default function AdminSemestersPage() {
                                             <td className="px-4 py-3 text-center">{getStatusBadge(semester.status)}</td>
                                             <td className="px-4 py-3 text-center">
                                                 <div className="flex items-center justify-center gap-2">
-                                                    <Button size="sm" variant="ghost" onClick={() => openEdit(semester)}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => openEdit(semester)}
+                                                        aria-label={`Edit semester ${semester.name}`}
+                                                        title={`Edit semester ${semester.name}`}
+                                                    >
                                                         <Pencil className="h-4 w-4" />
                                                     </Button>
-                                                    <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(semester.id)}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="text-red-600 hover:text-red-700"
+                                                        onClick={() => handleDelete(semester.id)}
+                                                        aria-label={`Delete semester ${semester.name}`}
+                                                        title={`Delete semester ${semester.name}`}
+                                                    >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </div>

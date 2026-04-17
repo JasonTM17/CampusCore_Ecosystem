@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -42,6 +42,7 @@ export default function AdminDepartmentsPage() {
         code: '',
         description: '',
     });
+    const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
 
     useEffect(() => {
         if (user && !isAdmin && !isSuperAdmin) {
@@ -49,19 +50,7 @@ export default function AdminDepartmentsPage() {
         }
     }, [user, isAdmin, isSuperAdmin, router]);
 
-    if (!user || (!isAdmin && !isSuperAdmin)) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
-
-    useEffect(() => {
-        fetchDepartments();
-    }, [page]);
-
-    const fetchDepartments = async () => {
+    const fetchDepartments = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -81,7 +70,21 @@ export default function AdminDepartmentsPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [page, search]);
+
+    useEffect(() => {
+        if (canAccess) {
+            void fetchDepartments();
+        }
+    }, [canAccess, fetchDepartments]);
+
+    if (!canAccess) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -143,7 +146,7 @@ export default function AdminDepartmentsPage() {
                         <span className="text-gray-300">Department Management</span>
                     </div>
                     <div className="flex items-center gap-4">
-                        <span className="text-gray-300">Welcome, {user.firstName}</span>
+                        <span className="text-gray-300">Welcome, {user?.firstName}</span>
                         <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>Logout</Button>
                     </div>
                 </div>
@@ -213,10 +216,23 @@ export default function AdminDepartmentsPage() {
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 <div className="flex items-center justify-center gap-2">
-                                                    <Button size="sm" variant="ghost" onClick={() => openEdit(dept)}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => openEdit(dept)}
+                                                        aria-label={`Edit department ${dept.name}`}
+                                                        title={`Edit department ${dept.name}`}
+                                                    >
                                                         <Pencil className="h-4 w-4" />
                                                     </Button>
-                                                    <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(dept.id)}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="text-red-600 hover:text-red-700"
+                                                        onClick={() => handleDelete(dept.id)}
+                                                        aria-label={`Delete department ${dept.name}`}
+                                                        title={`Delete department ${dept.name}`}
+                                                    >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </div>

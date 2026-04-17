@@ -1,18 +1,20 @@
+# Dependencies stage
+FROM node:20-alpine AS deps
+
+WORKDIR /app
+
+COPY frontend/package*.json ./
+RUN npm ci
+
 # Build stage
 FROM node:20-alpine AS build
 
 WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Copy package files
-COPY frontend/package*.json ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy source code
+COPY --from=deps /app/node_modules ./node_modules
 COPY frontend/ ./
-
-# Build the application
+RUN mkdir -p public
 RUN npm run build
 
 # Production stage
@@ -20,35 +22,25 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Create non-root user
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+ENV NEXT_TELEMETRY_DISABLED=1
+
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
-# Copy package files for production dependencies
-COPY frontend/package*.json ./
+COPY --from=build /app/public ./.next/standalone/public
+COPY --from=build /app/.next/standalone ./.next/standalone
+COPY --from=build /app/.next/static ./.next/standalone/.next/static
 
-# Install production dependencies only
-RUN npm ci --omit=dev
-
-# Copy built application
-COPY --from=build /app/.next ./.next
-COPY --from=build /app/node_modules ./node_modules
-
-# Copy environment file template
-COPY frontend/.env.example .env.local
-
-# Change ownership
 RUN chown -R nodejs:nodejs /app
 
 USER nodejs
 
-# Expose port
 EXPOSE 3000
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1
+  CMD node -e "fetch('http://127.0.0.1:3000').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-# Start the application
-# Image name: nguyenson1710/campuscore-frontend:latest
-CMD ["npm", "start"]
+CMD ["node", ".next/standalone/server.js"]

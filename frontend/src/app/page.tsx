@@ -25,46 +25,46 @@ const features = [
   {
     icon: BookOpen,
     title: 'Course Registration',
-    description: 'Intuitive course selection and enrollment system with real-time capacity tracking',
+    description: 'Enroll in courses with clear section and capacity details.',
     color: 'from-blue-500 to-cyan-500'
   },
   {
     icon: Calendar,
     title: 'Smart Scheduling',
-    description: 'Automated timetable generation with conflict detection and optimization',
+    description: 'Review weekly schedules in one place.',
     color: 'from-purple-500 to-pink-500'
   },
   {
     icon: BarChart3,
     title: 'Analytics Dashboard',
-    description: 'Comprehensive insights into enrollment trends, grades, and academic performance',
+    description: 'Track enrollment and grading trends as data becomes available.',
     color: 'from-emerald-500 to-teal-500'
   },
   {
     icon: Shield,
     title: 'Role-Based Security',
-    description: 'Granular access control for students, lecturers, and administrators',
+    description: 'Keep each role on the right set of tools.',
     color: 'from-orange-500 to-red-500'
   },
   {
     icon: Cloud,
-    title: 'Cloud-Native Architecture',
-    description: 'Microservices design with Docker containers and Kubernetes-ready deployment',
+    title: 'Deployment Ready',
+    description: 'Built for containerized development and production deployment.',
     color: 'from-indigo-500 to-blue-500'
   },
   {
     icon: Users,
-    title: 'Multi-Tenant Support',
-    description: 'Scalable infrastructure supporting multiple institutions and departments',
+    title: 'Institution Structure',
+    description: 'Organize students, lecturers, departments, and sections cleanly.',
     color: 'from-rose-500 to-pink-500'
   }
 ];
 
 const stats = [
-  { value: '50K+', label: 'Active Students' },
-  { value: '2K+', label: 'Courses Offered' },
-  { value: '500+', label: 'Expert Lecturers' },
-  { value: '99.9%', label: 'Uptime SLA' }
+  { value: 'Live', label: 'Enrollment workflows' },
+  { value: 'Clear', label: 'Role-based access' },
+  { value: 'Shared', label: 'Academic records' },
+  { value: 'Ready', label: 'Operational dashboards' }
 ];
 
 export default function HomePage() {
@@ -110,11 +110,7 @@ export default function HomePage() {
 
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 overflow-hidden">
-        {/* Background Pattern */}
         <div className="absolute inset-0 -z-10">
-          <div className="absolute top-20 left-10 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl"></div>
-          <div className="absolute top-40 right-10 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-20 left-1/3 w-[500px] h-[500px] bg-purple-500/10 rounded-full blur-3xl"></div>
           <div className="absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.03)_1px,transparent_1px)] bg-[size:32px_32px]"></div>
         </div>
 
@@ -136,8 +132,7 @@ export default function HomePage() {
             </h1>
             
             <p className="text-xl text-gray-600 dark:text-gray-400 mb-10 max-w-2xl mx-auto leading-relaxed">
-              A comprehensive, cloud-native platform for managing courses, enrollments, 
-              grades, and academic analytics. Built with modern technologies for scale.
+              A focused academic portal for registrations, schedules, grades, and campus operations.
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -147,9 +142,11 @@ export default function HomePage() {
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
-              <Button size="lg" variant="outline" className="px-8 py-4 text-lg border-gray-200 dark:border-gray-700">
-                Watch Demo
-              </Button>
+              <Link href={user ? '/dashboard' : '/login'}>
+                <Button size="lg" variant="outline" className="px-8 py-4 text-lg border-gray-200 dark:border-gray-700">
+                  Open Portal
+                </Button>
+              </Link>
             </div>
 
             {/* Stats */}
@@ -210,18 +207,18 @@ export default function HomePage() {
                 <span className="bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent"> Technologies</span>
               </h2>
               <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
-                Our microservices architecture ensures scalability, reliability, and easy maintenance. 
-                Each component is designed to work independently while seamlessly integrating together.
+                CampusCore runs as a clear service-based stack across the app, API, database, cache, queue, and storage.
+                Core workflows stay simple while the platform remains ready for production-style verification.
               </p>
               
               <div className="space-y-4">
                 {[
                   'NestJS backend with TypeScript',
-                  'Next.js 14 frontend with React 18',
+                  'Next.js 15 frontend with React 18',
                   'PostgreSQL with Prisma ORM',
                   'Redis for caching and sessions',
                   'RabbitMQ for async messaging',
-                  'Docker & Kubernetes ready'
+                  'Docker-based deployment'
                 ].map((item, index) => (
                   <div key={index} className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-emerald-500" />
@@ -271,18 +268,15 @@ export default function HomePage() {
           <h2 className="text-4xl font-bold text-white mb-6">
             Ready to Get Started?
           </h2>
-          <p className="text-xl text-blue-100 mb-8">
-            Join thousands of institutions using CampusCore to manage their academic operations
+              <p className="text-xl text-blue-100 mb-8">
+            Manage academic operations from a single portal
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/login">
+            <Link href={user ? '/dashboard' : '/login'}>
               <Button size="lg" className="px-8 py-4 text-lg bg-white text-blue-600 hover:bg-gray-100 border-0">
-                Start Free Trial
+                {user ? 'Open Dashboard' : 'Sign In'}
               </Button>
             </Link>
-            <Button size="lg" variant="outline" className="px-8 py-4 text-lg text-white border-white hover:bg-white/10">
-              Contact Sales
-            </Button>
           </div>
         </div>
       </section>
@@ -305,25 +299,25 @@ export default function HomePage() {
             <div>
               <h4 className="font-semibold text-white mb-4">Platform</h4>
               <ul className="space-y-2 text-sm">
-                <li><Link href="#" className="hover:text-white">Features</Link></li>
-                <li><Link href="#" className="hover:text-white">Pricing</Link></li>
-                <li><Link href="#" className="hover:text-white">Documentation</Link></li>
+                <li><span>Features</span></li>
+                <li><span>Access</span></li>
+                <li><span>Documentation</span></li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold text-white mb-4">Company</h4>
               <ul className="space-y-2 text-sm">
-                <li><Link href="#" className="hover:text-white">About</Link></li>
-                <li><Link href="#" className="hover:text-white">Blog</Link></li>
-                <li><Link href="#" className="hover:text-white">Careers</Link></li>
+                <li><span>About</span></li>
+                <li><span>News</span></li>
+                <li><span>Careers</span></li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold text-white mb-4">Legal</h4>
               <ul className="space-y-2 text-sm">
-                <li><Link href="#" className="hover:text-white">Privacy</Link></li>
-                <li><Link href="#" className="hover:text-white">Terms</Link></li>
-                <li><Link href="#" className="hover:text-white">Security</Link></li>
+                <li><span>Privacy</span></li>
+                <li><span>Terms</span></li>
+                <li><span>Security</span></li>
               </ul>
             </div>
           </div>

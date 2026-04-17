@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { enrollmentsApi, gradesApi, semestersApi } from '@/lib/api';
+import { pickPreferredSemesterId } from '@/lib/semesters';
 import { Button } from '@/components/ui/button';
 import { 
   ClipboardList, 
@@ -103,36 +104,23 @@ export default function DashboardPage() {
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [currentSemester, setCurrentSemester] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [semestersRes] = await Promise.all([
         semestersApi.getAll(),
       ]);
       setSemesters(semestersRes.data);
-      
-      const current = semestersRes.data.find(s => 
-        s.status === 'IN_PROGRESS' || s.status === 'ADD_DROP_OPEN' || s.status === 'REGISTRATION_OPEN'
-      );
-      if (current) {
-        setCurrentSemester(current.id);
+
+      const preferredSemesterId = pickPreferredSemesterId(semestersRes.data);
+      if (preferredSemesterId) {
+        setCurrentSemester(preferredSemesterId);
       }
     } catch (error) {
       console.error('Failed to fetch semesters:', error);
     }
-  };
+  }, []);
 
-  useEffect(() => {
-    if (currentSemester) {
-      fetchEnrollments();
-    }
-  }, [currentSemester]);
-
-  const fetchEnrollments = async () => {
+  const fetchEnrollments = useCallback(async () => {
     try {
       const data = await enrollmentsApi.getMyEnrollments(currentSemester || undefined);
       setEnrollments(data);
@@ -141,7 +129,17 @@ export default function DashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentSemester]);
+
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (currentSemester) {
+      void fetchEnrollments();
+    }
+  }, [currentSemester, fetchEnrollments]);
 
   const upcomingCourses = enrollments
     .filter(e => e.status === 'CONFIRMED' || e.status === 'PENDING')
@@ -197,8 +195,8 @@ export default function DashboardPage() {
           <Link href="/dashboard/schedule" className="group">
             <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl p-5 text-white shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all group-hover:scale-105">
               <Calendar className="w-7 h-7 mb-2" />
-              <div className="font-semibold">View Schedule</div>
-              <div className="text-purple-100 text-sm">Today's classes</div>
+                <div className="font-semibold">View Schedule</div>
+              <div className="text-purple-100 text-sm">Today&apos;s classes</div>
             </div>
           </Link>
           <Link href="/dashboard/grades" className="group">
@@ -313,36 +311,10 @@ export default function DashboardPage() {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Upcoming Events */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Upcoming</h2>
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                    <CalendarDays className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white text-sm">Midterm Exams</p>
-                    <p className="text-gray-500 dark:text-gray-400 text-xs">Next week</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
-                    <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white text-sm">Course Withdrawal Deadline</p>
-                    <p className="text-gray-500 dark:text-gray-400 text-xs">3 days remaining</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center flex-shrink-0">
-                    <Award className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white text-sm">Grade Release</p>
-                    <p className="text-gray-500 dark:text-gray-400 text-xs">End of semester</p>
-                  </div>
-                </div>
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Upcoming</h2>
+              <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 p-4 text-sm text-gray-500 dark:text-gray-400">
+                No upcoming reminders are loaded yet.
               </div>
             </div>
 
@@ -354,15 +326,8 @@ export default function DashboardPage() {
                   View All
                 </Link>
               </div>
-              <div className="space-y-3">
-                <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
-                  <p className="font-medium text-gray-900 dark:text-white text-sm">Spring 2024 Registration Open</p>
-                  <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">2 hours ago</p>
-                </div>
-                <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
-                  <p className="font-medium text-gray-900 dark:text-white text-sm">Library Hours Update</p>
-                  <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">Yesterday</p>
-                </div>
+              <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 p-4 text-sm text-gray-500 dark:text-gray-400">
+                No announcements loaded yet.
               </div>
             </div>
 

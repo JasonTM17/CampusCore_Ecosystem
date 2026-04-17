@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useCallback, useEffect, useState, use } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -48,34 +48,13 @@ export default function SectionGradingPage({ params }: { params: Promise<{ id: s
     const [isSaving, setIsSaving] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
-    // Redirect non-lecturers
-    useEffect(() => {
-        if (!isLecturer && user) {
-            router.push('/dashboard');
-        }
-    }, [isLecturer, user, router]);
-
-    if (!isLecturer || !user) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
-
-    useEffect(() => {
-        fetchSectionGrades();
-    }, [id]);
-
-    const fetchSectionGrades = async () => {
+    const fetchSectionGrades = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
             const data = await sectionsApi.getSectionGrades(id) as SectionGrades;
             setSectionData(data);
 
-            // Initialize grades map with existing values
             const gradeMap = new Map<string, GradeUpdate>();
             data.enrollments.forEach((enrollment: { id: string; finalGrade?: number; letterGrade?: string }) => {
                 gradeMap.set(enrollment.id, {
@@ -92,7 +71,26 @@ export default function SectionGradingPage({ params }: { params: Promise<{ id: s
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [id]);
+
+    // Redirect non-lecturers
+    useEffect(() => {
+        if (!isLecturer && user) {
+            router.push('/dashboard');
+        }
+    }, [isLecturer, user, router]);
+
+    useEffect(() => {
+        void fetchSectionGrades();
+    }, [fetchSectionGrades]);
+
+    if (!isLecturer || !user) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     const handleGradeChange = (enrollmentId: string, field: 'finalGrade' | 'letterGrade', value: number | string) => {
         setGrades((prev) => {
@@ -208,7 +206,7 @@ export default function SectionGradingPage({ params }: { params: Promise<{ id: s
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
-                        <span className="text-gray-600">Welcome, {user.firstName}</span>
+                        <span className="text-gray-600">Welcome, {user?.firstName}</span>
                         <Button variant="outline" onClick={logout}>Logout</Button>
                     </div>
                 </div>

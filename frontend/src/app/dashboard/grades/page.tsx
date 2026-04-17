@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { gradesApi, semestersApi } from '@/lib/api';
@@ -55,25 +55,16 @@ export default function GradesPage() {
     const [selectedSemester, setSelectedSemester] = useState<string>('');
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        fetchSemesters();
-    }, []);
-
-    const fetchSemesters = async () => {
+    const fetchSemesters = useCallback(async () => {
         try {
             const semestersRes = await semestersApi.getAll();
             setSemesters(semestersRes.data);
         } catch {
             toast.error('Failed to load semesters');
         }
-    };
+    }, []);
 
-    useEffect(() => {
-        fetchGrades();
-    }, [selectedSemester]);
-
-    const fetchGrades = async () => {
+    const fetchGrades = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -85,7 +76,15 @@ export default function GradesPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [selectedSemester]);
+
+    useEffect(() => {
+        void fetchSemesters();
+    }, [fetchSemesters]);
+
+    useEffect(() => {
+        void fetchGrades();
+    }, [fetchGrades]);
 
     // GPA calculation
     const summary = useMemo(() => {
@@ -197,7 +196,7 @@ export default function GradesPage() {
                         <p className="text-gray-500 mb-4">
                             {selectedSemester
                                 ? 'No grades found for the selected semester.'
-                                : 'You don\'t have any grades recorded yet. Grades will appear here once your courses are completed and graded.'}
+                                : 'You do not have any grades recorded yet. Grades will appear here once your courses are completed and graded.'}
                         </p>
                         <Link href="/dashboard/enrollments">
                             <Button>View Enrollments</Button>

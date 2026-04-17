@@ -99,7 +99,7 @@ export default function LecturerDashboardPage() {
             <div className="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl p-5 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all group-hover:scale-105">
               <Calendar className="w-7 h-7 mb-2" />
               <div className="font-semibold">View Schedule</div>
-              <div className="text-blue-100 text-sm">Today's classes</div>
+              <div className="text-blue-100 text-sm">Today&apos;s classes</div>
             </div>
           </Link>
           <Link href="/dashboard/lecturer/announcements" className="group">
@@ -186,7 +186,7 @@ export default function LecturerDashboardPage() {
           <div className="space-y-6">
             {/* Today's Schedule */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Today's Classes</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Today&apos;s Classes</h2>
               <div className="space-y-4">
                 {[
                   { time: '10:00 - 12:00', course: 'CS101', room: 'Room 301' },

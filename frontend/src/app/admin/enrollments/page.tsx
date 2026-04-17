@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -87,6 +87,7 @@ export default function AdminEnrollmentsPage() {
     const [total, setTotal] = useState(0);
     const [selectedEnrollment, setSelectedEnrollment] = useState<Enrollment | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
+    const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
 
     // Redirect non-admins
     useEffect(() => {
@@ -95,23 +96,7 @@ export default function AdminEnrollmentsPage() {
         }
     }, [user, isAdmin, isSuperAdmin, router]);
 
-    if (!user || (!isAdmin && !isSuperAdmin)) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
-
-    useEffect(() => {
-        fetchDropdownData();
-    }, []);
-
-    useEffect(() => {
-        fetchEnrollments();
-    }, [page, filters]);
-
-    const fetchDropdownData = async () => {
+    const fetchDropdownData = useCallback(async () => {
         try {
             const [semestersRes, coursesRes] = await Promise.all([
                 semestersApi.getAll(),
@@ -122,9 +107,9 @@ export default function AdminEnrollmentsPage() {
         } catch (err) {
             console.error('Failed to fetch dropdown data:', err);
         }
-    };
+    }, []);
 
-    const fetchSectionsForCourse = async (courseId: string) => {
+    const fetchSectionsForCourse = useCallback(async (courseId: string) => {
         if (!courseId) {
             setSections([]);
             return;
@@ -135,21 +120,20 @@ export default function AdminEnrollmentsPage() {
         } catch (err) {
             console.error('Failed to fetch sections:', err);
         }
-    };
+    }, []);
 
-    useEffect(() => {
-        if (filters.courseId) {
-            fetchSectionsForCourse(filters.courseId);
-        } else {
-            setSections([]);
-        }
-    }, [filters.courseId]);
-
-    const fetchEnrollments = async () => {
+    const fetchEnrollments = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
-            const params: any = { page, limit: 20 };
+            const params: {
+                page: number;
+                limit: number;
+                semesterId?: string;
+                courseId?: string;
+                sectionId?: string;
+                status?: string;
+            } = { page, limit: 20 };
             if (filters.semesterId) params.semesterId = filters.semesterId;
             if (filters.courseId) params.courseId = filters.courseId;
             if (filters.sectionId) params.sectionId = filters.sectionId;
@@ -165,7 +149,34 @@ export default function AdminEnrollmentsPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [filters.courseId, filters.sectionId, filters.semesterId, filters.status, page]);
+
+    useEffect(() => {
+        if (!canAccess) return;
+        void fetchDropdownData();
+    }, [canAccess, fetchDropdownData]);
+
+    useEffect(() => {
+        if (!canAccess) return;
+        void fetchEnrollments();
+    }, [canAccess, fetchEnrollments]);
+
+    useEffect(() => {
+        if (!canAccess) return;
+        if (filters.courseId) {
+            void fetchSectionsForCourse(filters.courseId);
+        } else {
+            setSections([]);
+        }
+    }, [canAccess, fetchSectionsForCourse, filters.courseId]);
+
+    if (!canAccess) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     const handleFilterChange = (key: string, value: string) => {
         setFilters(prev => ({ ...prev, [key]: value }));
@@ -223,7 +234,12 @@ export default function AdminEnrollmentsPage() {
             <nav className="bg-slate-800 text-white shadow-sm">
                 <div className="container mx-auto px-4 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <Link href="/admin" className="flex items-center gap-2 text-gray-300 hover:text-white">
+                        <Link
+                            href="/admin"
+                            className="flex items-center gap-2 text-gray-300 hover:text-white"
+                            aria-label="Back to admin dashboard"
+                            title="Back to admin dashboard"
+                        >
                             <ArrowLeft className="h-4 w-4" />
                         </Link>
                         <h1 className="text-xl font-bold">CampusCore Admin</h1>
@@ -231,7 +247,7 @@ export default function AdminEnrollmentsPage() {
                         <span className="text-gray-300">Enrollment Management</span>
                     </div>
                     <div className="flex items-center gap-4">
-                        <span className="text-gray-300">Welcome, {user.firstName}</span>
+                        <span className="text-gray-300">Welcome, {user?.firstName}</span>
                         <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>Logout</Button>
                     </div>
                 </div>
@@ -352,7 +368,7 @@ export default function AdminEnrollmentsPage() {
                                                 <div>
                                                     <p className="font-medium text-gray-900">
                                                         {enrollment.student?.user ? 
-                                                            `${enrollment.student.user.firstName} ${enrollment.student.user.lastName}` 
+                `${enrollment.student.user?.firstName} ${enrollment.student.user?.lastName}`
                                                             : enrollment.studentId}
                                                     </p>
                                                     <p className="text-gray-500 text-xs">{enrollment.student?.user?.email}</p>
@@ -368,7 +384,7 @@ export default function AdminEnrollmentsPage() {
                                             <td className="px-4 py-3 text-gray-600">{enrollment.semester?.name || '-'}</td>
                                             <td className="px-4 py-3 text-gray-600">
                                                 {enrollment.section?.lecturer?.user ? 
-                                                    `${enrollment.section.lecturer.user.firstName} ${enrollment.section.lecturer.user.lastName}`
+                `${enrollment.section.lecturer.user?.firstName} ${enrollment.section.lecturer.user?.lastName}`
                                                     : '-'}
                                             </td>
                                             <td className="px-4 py-3 text-center">
@@ -381,10 +397,23 @@ export default function AdminEnrollmentsPage() {
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 <div className="flex items-center justify-center gap-2">
-                                                    <Button size="sm" variant="ghost" onClick={() => handleViewDetail(enrollment)}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => handleViewDetail(enrollment)}
+                                                        aria-label={`View enrollment details for ${enrollment.student?.user ? `${enrollment.student.user?.firstName} ${enrollment.student.user?.lastName}` : enrollment.studentId}`}
+                                                        title={`View enrollment details for ${enrollment.student?.user ? `${enrollment.student.user?.firstName} ${enrollment.student.user?.lastName}` : enrollment.studentId}`}
+                                                    >
                                                         <Eye className="h-4 w-4" />
                                                     </Button>
-                                                    <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(enrollment.id)}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="text-red-600 hover:text-red-700"
+                                                        onClick={() => handleDelete(enrollment.id)}
+                                                        aria-label={`Delete enrollment for ${enrollment.student?.user ? `${enrollment.student.user?.firstName} ${enrollment.student.user?.lastName}` : enrollment.studentId}`}
+                                                        title={`Delete enrollment for ${enrollment.student?.user ? `${enrollment.student.user?.firstName} ${enrollment.student.user?.lastName}` : enrollment.studentId}`}
+                                                    >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </div>
@@ -430,7 +459,13 @@ export default function AdminEnrollmentsPage() {
                     <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl p-6 my-8 mx-4">
                         <div className="flex justify-between items-start mb-4">
                             <h3 className="text-lg font-semibold">Enrollment Details</h3>
-                            <Button variant="ghost" size="sm" onClick={() => setIsDetailOpen(false)}>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setIsDetailOpen(false)}
+                                aria-label="Close enrollment details"
+                                title="Close enrollment details"
+                            >
                                 <X className="h-4 w-4" />
                             </Button>
                         </div>
@@ -474,7 +509,7 @@ export default function AdminEnrollmentsPage() {
                                     <label className="block text-sm font-medium text-gray-500">Lecturer</label>
                                     <p className="text-gray-900">
                                         {selectedEnrollment.section?.lecturer?.user ? 
-                                            `${selectedEnrollment.section.lecturer.user.firstName} ${selectedEnrollment.section.lecturer.user.lastName}`
+                `${selectedEnrollment.section.lecturer.user?.firstName} ${selectedEnrollment.section.lecturer.user?.lastName}`
                                             : '-'}
                                     </p>
                                 </div>

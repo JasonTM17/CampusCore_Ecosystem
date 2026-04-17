@@ -1,6 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { User } from '@/types/api';
 import { authApi } from '@/lib/api';
 
@@ -11,42 +12,39 @@ interface AuthContextType {
   isLecturer: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<User>;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const userData = await authApi.me();
       setUser(userData);
       localStorage.setItem('user', JSON.stringify(userData));
     } catch {
-      // Token invalid, clear storage
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
       setUser(null);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const initAuth = async () => {
       const token = localStorage.getItem('accessToken');
       const storedUser = localStorage.getItem('user');
-      
+
       if (token && storedUser) {
         try {
-          // Set user from storage first for fast load
           setUser(JSON.parse(storedUser));
-          
-          // Then validate token in background
           await refreshUser();
         } catch {
           localStorage.removeItem('accessToken');
@@ -55,33 +53,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
         }
       }
+
       setIsLoading(false);
     };
 
-    initAuth();
-  }, []);
+    void initAuth();
+  }, [refreshUser]);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     const response = await authApi.login(email, password);
     localStorage.setItem('accessToken', response.accessToken);
     localStorage.setItem('refreshToken', response.refreshToken);
     localStorage.setItem('user', JSON.stringify(response.user));
     setUser(response.user);
-  };
+    return response.user;
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await authApi.logout();
     } catch {
-      // Ignore logout API errors
+      // Ignore logout API errors and continue clearing local state.
     } finally {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
       setUser(null);
-      window.location.href = '/login';
+      router.replace('/login');
     }
-  };
+  }, [router]);
 
   const isStudent = user?.roles?.includes('STUDENT') ?? false;
   const isLecturer = user?.roles?.includes('LECTURER') ?? false;
@@ -89,17 +89,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isSuperAdmin = user?.roles?.includes('SUPER_ADMIN') ?? false;
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      isLoading, 
-      isStudent, 
-      isLecturer, 
-      isAdmin, 
-      isSuperAdmin, 
-      login, 
-      logout,
-      refreshUser 
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isLoading,
+        isStudent,
+        isLecturer,
+        isAdmin,
+        isSuperAdmin,
+        login,
+        logout,
+        refreshUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -113,34 +115,36 @@ export function useAuth() {
   return context;
 }
 
-// Hook for protected routes
 export function useRequireAuth(requiredRoles?: ('STUDENT' | 'LECTURER' | 'ADMIN' | 'SUPER_ADMIN')[]) {
   const { user, isLoading } = useAuth();
-  const router = typeof window !== 'undefined' ? require('next/navigation').useRouter() : null;
+  const router = useRouter();
   const [hasAccess, setHasAccess] = useState(false);
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading) {
+      return;
+    }
+
+    setHasAccess(false);
 
     if (!user) {
-      router?.push('/login');
+      router.push('/login');
       return;
     }
 
     if (requiredRoles && requiredRoles.length > 0) {
-      const hasRole = requiredRoles.some(role => {
+      const hasRole = requiredRoles.some((role) => {
         if (role === 'ADMIN') return user.roles?.includes('ADMIN') || user.roles?.includes('SUPER_ADMIN');
         return user.roles?.includes(role);
       });
 
       if (!hasRole) {
-        // Redirect to appropriate dashboard based on role
         if (user.roles?.includes('ADMIN') || user.roles?.includes('SUPER_ADMIN')) {
-          router?.push('/admin');
+          router.push('/admin');
         } else if (user.roles?.includes('LECTURER')) {
-          router?.push('/dashboard/lecturer');
+          router.push('/dashboard/lecturer');
         } else {
-          router?.push('/dashboard');
+          router.push('/dashboard');
         }
         return;
       }

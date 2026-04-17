@@ -54,7 +54,12 @@ export default function ProfilePage() {
               <div className="h-32 w-32 rounded-full bg-primary flex items-center justify-center text-white text-3xl font-bold">
                 {user?.firstName?.[0]}{user?.lastName?.[0]}
               </div>
-              <button className="absolute bottom-0 right-0 p-2 bg-white dark:bg-gray-800 rounded-full shadow-lg border border-gray-200 dark:border-gray-700">
+              <button
+                type="button"
+                className="absolute bottom-0 right-0 p-2 bg-white dark:bg-gray-800 rounded-full shadow-lg border border-gray-200 dark:border-gray-700"
+                aria-label="Upload profile photo"
+                title="Upload profile photo"
+              >
                 <Camera className="h-4 w-4 dark:text-white" />
               </button>
             </div>

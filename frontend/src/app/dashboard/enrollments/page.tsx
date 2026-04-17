@@ -107,7 +107,7 @@ export default function EnrollmentsPage() {
         {enrollments.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
             <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500 mb-4">You haven't enrolled in any courses yet</p>
+            <p className="text-gray-500 mb-4">You have not enrolled in any courses yet</p>
             <Link href="/dashboard/register">
               <Button>Browse Courses</Button>
             </Link>

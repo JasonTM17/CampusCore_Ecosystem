@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -47,6 +47,7 @@ export default function AdminLecturersPage() {
         departmentId: '',
         specialization: '',
     });
+    const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
 
     useEffect(() => {
         if (user && !isAdmin && !isSuperAdmin) {
@@ -54,32 +55,16 @@ export default function AdminLecturersPage() {
         }
     }, [user, isAdmin, isSuperAdmin, router]);
 
-    if (!user || (!isAdmin && !isSuperAdmin)) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
-
-    useEffect(() => {
-        fetchDepartments();
-    }, []);
-
-    useEffect(() => {
-        fetchLecturers();
-    }, [page]);
-
-    const fetchDepartments = async () => {
+    const fetchDepartments = useCallback(async () => {
         try {
             const response = await departmentsApi.getAll({ limit: 1000 });
             setDepartments(response.data);
         } catch {
             // Ignore error
         }
-    };
+    }, []);
 
-    const fetchLecturers = async () => {
+    const fetchLecturers = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -101,7 +86,25 @@ export default function AdminLecturersPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [page, search]);
+
+    useEffect(() => {
+        if (!canAccess) return;
+        void fetchDepartments();
+    }, [canAccess, fetchDepartments]);
+
+    useEffect(() => {
+        if (!canAccess) return;
+        void fetchLecturers();
+    }, [canAccess, fetchLecturers]);
+
+    if (!canAccess) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -164,7 +167,7 @@ export default function AdminLecturersPage() {
                         <span className="text-gray-300">Lecturer Management</span>
                     </div>
                     <div className="flex items-center gap-4">
-                        <span className="text-gray-300">Welcome, {user.firstName}</span>
+                        <span className="text-gray-300">Welcome, {user?.firstName}</span>
                         <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>Logout</Button>
                     </div>
                 </div>
@@ -240,10 +243,23 @@ export default function AdminLecturersPage() {
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 <div className="flex items-center justify-center gap-2">
-                                                    <Button size="sm" variant="ghost" onClick={() => openEdit(lecturer)}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => openEdit(lecturer)}
+                                                        aria-label={`Edit lecturer ${lecturer.employeeId}`}
+                                                        title={`Edit lecturer ${lecturer.employeeId}`}
+                                                    >
                                                         <Pencil className="h-4 w-4" />
                                                     </Button>
-                                                    <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(lecturer.id)}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="text-red-600 hover:text-red-700"
+                                                        onClick={() => handleDelete(lecturer.id)}
+                                                        aria-label={`Delete lecturer ${lecturer.employeeId}`}
+                                                        title={`Delete lecturer ${lecturer.employeeId}`}
+                                                    >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </div>

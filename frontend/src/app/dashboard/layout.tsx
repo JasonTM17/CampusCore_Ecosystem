@@ -49,7 +49,6 @@ const lecturerMenuItems = [
 const adminMenuItems = [
   { href: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/admin/users', icon: Users, label: 'Users' },
-  { href: '/admin/students', icon: GraduationCap, label: 'Students' },
   { href: '/admin/lecturers', icon: School, label: 'Lecturers' },
   { href: '/admin/courses', icon: BookOpen, label: 'Courses' },
   { href: '/admin/sections', icon: ClipboardList, label: 'Sections' },
@@ -132,7 +131,12 @@ export default function DashboardLayout({
             <School className="h-8 w-8 text-primary" />
             <span className="text-xl font-bold dark:text-white">CampusCore</span>
           </Link>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden"
+            aria-label="Close sidebar navigation"
+          >
             <X className="h-6 w-6 dark:text-white" />
           </button>
         </div>
@@ -165,9 +169,12 @@ export default function DashboardLayout({
         <header className="sticky top-0 z-30 h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between h-full px-4">
             <div className="flex items-center gap-4">
-              <button 
+              <button
+                type="button"
                 onClick={() => setSidebarOpen(true)}
                 className="lg:hidden p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                aria-label="Open sidebar navigation"
+                aria-expanded={sidebarOpen}
               >
                 <Menu className="h-6 w-6 dark:text-white" />
               </button>
@@ -179,43 +186,37 @@ export default function DashboardLayout({
               {/* Notifications */}
               <div className="relative" ref={notificationsRef}>
                 <button
+                  type="button"
                   onClick={() => setNotificationsOpen(!notificationsOpen)}
                   className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                  aria-label="Toggle notifications panel"
+                  aria-expanded={notificationsOpen}
+                  aria-controls="dashboard-notifications-panel"
                 >
                   <Bell className="h-5 w-5 dark:text-white" />
                   <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
                 </button>
                 
                 {notificationsOpen && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                  <div
+                    id="dashboard-notifications-panel"
+                    className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
+                  >
                     <div className="p-3 border-b border-gray-200 dark:border-gray-700">
                       <h3 className="font-semibold dark:text-white">Notifications</h3>
                     </div>
-                    <div className="max-h-64 overflow-y-auto">
-                      <Link 
-                        href="/dashboard/notifications" 
-                        className="block p-3 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700"
-                        onClick={() => setNotificationsOpen(false)}
-                      >
-                        <p className="text-sm dark:text-gray-200">New announcement posted</p>
-                        <p className="text-xs text-gray-500 mt-1">2 hours ago</p>
-                      </Link>
-                      <Link 
-                        href="/dashboard/notifications"
-                        className="block p-3 hover:bg-gray-50 dark:hover:bg-gray-700"
-                        onClick={() => setNotificationsOpen(false)}
-                      >
-                        <p className="text-sm dark:text-gray-200">Your grade has been posted</p>
-                        <p className="text-xs text-gray-500 mt-1">1 day ago</p>
-                      </Link>
+                  <div className="max-h-64 overflow-y-auto">
+                      <div className="p-4 text-sm text-gray-500 dark:text-gray-300">
+                        No dedicated notification inbox yet. Check announcements for live updates.
+                      </div>
                     </div>
                     <div className="p-2 border-t border-gray-200 dark:border-gray-700">
-                      <Link 
-                        href="/dashboard/notifications" 
+                      <Link
+                        href="/dashboard/announcements"
                         className="block text-center text-sm text-primary hover:underline"
                         onClick={() => setNotificationsOpen(false)}
                       >
-                        View all notifications
+                        View announcements
                       </Link>
                     </div>
                   </div>
@@ -225,8 +226,13 @@ export default function DashboardLayout({
               {/* Profile Dropdown */}
               <div className="relative" ref={profileRef}>
                 <button
+                  type="button"
                   onClick={() => setProfileOpen(!profileOpen)}
                   className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                  aria-label="Toggle profile menu"
+                  aria-expanded={profileOpen}
+                  aria-controls="dashboard-profile-menu"
+                  aria-haspopup="menu"
                 >
                   <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white font-medium">
                     {user.firstName?.[0]}{user.lastName?.[0]}
@@ -238,7 +244,10 @@ export default function DashboardLayout({
                 </button>
                 
                 {profileOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                  <div
+                    id="dashboard-profile-menu"
+                    className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
+                  >
                     <div className="p-3 border-b border-gray-200 dark:border-gray-700">
                       <p className="font-medium dark:text-white">{user.firstName} {user.lastName}</p>
                       <p className="text-sm text-gray-500">{user.email}</p>
@@ -255,13 +264,13 @@ export default function DashboardLayout({
                         <User className="h-4 w-4" />
                         Profile
                       </Link>
-                      <Link 
-                        href="/dashboard/settings" 
+                      <Link
+                        href="/dashboard/profile"
                         className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
                         onClick={() => setProfileOpen(false)}
                       >
                         <Settings className="h-4 w-4" />
-                        Settings
+                        Profile settings
                       </Link>
                       <button 
                         onClick={handleLogout}

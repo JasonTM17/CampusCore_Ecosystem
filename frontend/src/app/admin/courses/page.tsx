@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -53,6 +53,7 @@ export default function AdminCoursesPage() {
         departmentId: '',
         description: '',
     });
+    const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
 
     // Redirect non-admins
     useEffect(() => {
@@ -61,32 +62,16 @@ export default function AdminCoursesPage() {
         }
     }, [user, isAdmin, isSuperAdmin, router]);
 
-    if (!user || (!isAdmin && !isSuperAdmin)) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
-
-    useEffect(() => {
-        fetchDepartments();
-    }, []);
-
-    useEffect(() => {
-        fetchCourses();
-    }, [page, departmentFilter]);
-
-    const fetchDepartments = async () => {
+    const fetchDepartments = useCallback(async () => {
         try {
             const response = await departmentsApi.getAll();
             setDepartments(response.data);
         } catch {
             // Ignore error for departments
         }
-    };
+    }, []);
 
-    const fetchCourses = async () => {
+    const fetchCourses = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -95,7 +80,13 @@ export default function AdminCoursesPage() {
                 limit: 20, 
                 departmentId: departmentFilter || undefined 
             });
-            setCourses(response.data);
+            const filteredCourses = search
+                ? response.data.filter((course) =>
+                    course.code.toLowerCase().includes(search.toLowerCase()) ||
+                    course.name.toLowerCase().includes(search.toLowerCase())
+                )
+                : response.data;
+            setCourses(filteredCourses);
             setTotalPages(response.meta?.totalPages || 1);
         } catch {
             setError('Failed to load courses');
@@ -103,7 +94,29 @@ export default function AdminCoursesPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [departmentFilter, page, search]);
+
+    useEffect(() => {
+        if (!canAccess) {
+            return;
+        }
+        void fetchDepartments();
+    }, [canAccess, fetchDepartments]);
+
+    useEffect(() => {
+        if (!canAccess) {
+            return;
+        }
+        void fetchCourses();
+    }, [canAccess, fetchCourses]);
+
+    if (!canAccess) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -168,7 +181,7 @@ export default function AdminCoursesPage() {
                         <span className="text-gray-300">Course Management</span>
                     </div>
                     <div className="flex items-center gap-4">
-                        <span className="text-gray-300">Welcome, {user.firstName}</span>
+                        <span className="text-gray-300">Welcome, {user?.firstName}</span>
                         <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>Logout</Button>
                     </div>
                 </div>
@@ -254,10 +267,23 @@ export default function AdminCoursesPage() {
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 <div className="flex items-center justify-center gap-2">
-                                                    <Button size="sm" variant="ghost" onClick={() => openEdit(course)}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => openEdit(course)}
+                                                        aria-label={`Edit course ${course.code}`}
+                                                        title={`Edit course ${course.code}`}
+                                                    >
                                                         <Pencil className="h-4 w-4" />
                                                     </Button>
-                                                    <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(course.id)}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="text-red-600 hover:text-red-700"
+                                                        onClick={() => handleDelete(course.id)}
+                                                        aria-label={`Delete course ${course.code}`}
+                                                        title={`Delete course ${course.code}`}
+                                                    >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { gradesApi, semestersApi } from '@/lib/api';
@@ -88,25 +88,16 @@ export default function TranscriptPage() {
     const [selectedSemester, setSelectedSemester] = useState<string>('');
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        fetchSemesters();
-    }, []);
-
-    const fetchSemesters = async () => {
+    const fetchSemesters = useCallback(async () => {
         try {
             const semestersRes = await semestersApi.getAll();
             setSemesters(semestersRes.data);
         } catch {
             toast.error('Failed to load semesters');
         }
-    };
+    }, []);
 
-    useEffect(() => {
-        fetchTranscript();
-    }, [selectedSemester]);
-
-    const fetchTranscript = async () => {
+    const fetchTranscript = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -118,7 +109,15 @@ export default function TranscriptPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [selectedSemester]);
+
+    useEffect(() => {
+        void fetchSemesters();
+    }, [fetchSemesters]);
+
+    useEffect(() => {
+        void fetchTranscript();
+    }, [fetchTranscript]);
 
     // Group grades by semester
     const groupedRecords = useMemo(() => {
@@ -303,7 +302,7 @@ export default function TranscriptPage() {
                                         {summary && summary.courses > 0 && (
                                             <div className="flex items-center gap-4 text-sm">
                                                 <span className="text-gray-600">
-                                                    {summary.courses} course{summary.courses !== 1 ? 's' : ''} · {summary.credits} credits
+                                                    {summary.courses} course{summary.courses !== 1 ? 's' : ''} | {summary.credits} credits
                                                 </span>
                                                 <span className="font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
                                                     Semester GPA: {summary.gpa.toFixed(2)}
@@ -335,7 +334,7 @@ export default function TranscriptPage() {
                                                             <td className="px-4 py-3 text-center text-gray-600">{record.credits}</td>
                                                             <td className="px-4 py-3 text-center text-gray-600">{record.sectionCode}</td>
                                                             <td className="px-4 py-3 text-center text-gray-700 font-medium">
-                                                                {record.finalGrade !== null ? record.finalGrade.toFixed(1) : '—'}
+                                                                {record.finalGrade !== null ? record.finalGrade.toFixed(1) : '-'}
                                                             </td>
                                                             <td className="px-4 py-3 text-center">
                                                                 {record.letterGrade ? (
@@ -343,11 +342,11 @@ export default function TranscriptPage() {
                                                                         {record.letterGrade}
                                                                     </span>
                                                                 ) : (
-                                                                    <span className="text-gray-400">—</span>
+                                                                    <span className="text-gray-400">-</span>
                                                                 )}
                                                             </td>
                                                             <td className="px-4 py-3 text-center text-gray-600">
-                                                                {record.gradePoint !== null ? record.gradePoint.toFixed(1) : '—'}
+                                                                {record.gradePoint !== null ? record.gradePoint.toFixed(1) : '-'}
                                                             </td>
                                                             <td className="px-4 py-3 text-center text-sm">
                                                                 {enrollmentStatusBadge(record.enrollmentStatus)}
