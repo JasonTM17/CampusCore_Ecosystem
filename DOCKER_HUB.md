@@ -54,6 +54,7 @@ The same CD workflow also publishes container packages to GitHub Container Regis
 - `ghcr.io/jasontm17/campuscore-frontend`
 
 GitHub Packages uses the repository owner namespace automatically, so no extra registry secret is required for that path.
+New GHCR container packages are private on first publish by default. If you want anonymous pulls or a public package page, change the package visibility to `Public` once in GitHub Package settings.
 
 ## Compose usage
 
