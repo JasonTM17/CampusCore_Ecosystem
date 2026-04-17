@@ -4,8 +4,10 @@ services:
     type: web
     plan: free
     region: oregon
-    buildCommand: npm ci && npx prisma generate
+    rootDir: backend
+    buildCommand: npm ci && npx prisma generate && npm run build
     startCommand: npm run start:prod
+    healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV
         value: production
@@ -18,6 +20,24 @@ services:
           name: campuscore-redis
           type: redis
           property: connectionString
+      - key: RABBITMQ_URL
+        sync: false
+      - key: MINIO_ENDPOINT
+        sync: false
+      - key: MINIO_PORT
+        value: 9000
+      - key: MINIO_BUCKET
+        sync: false
+      - key: MINIO_ACCESS_KEY
+        sync: false
+      - key: MINIO_SECRET_KEY
+        sync: false
+      - key: MAIL_HOST
+        sync: false
+      - key: MAIL_PORT
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
       - key: JWT_SECRET
         sync: false
       - key: JWT_REFRESH_SECRET
@@ -27,7 +47,7 @@ services:
       - key: JWT_REFRESH_EXPIRATION
         value: 7d
       - key: PORT
-        value: 3000
+        value: 4000
 
   - name: campuscore-redis
     runtime: redis

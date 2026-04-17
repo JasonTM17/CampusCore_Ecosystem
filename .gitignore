@@ -35,8 +35,11 @@ Thumbs.db
 *.swo
 *~
 
-# Scripts (local only)
-scripts/
+# Scripts
+scripts/*
+!scripts/
+!scripts/*.sh
+!scripts/*.mjs
 
 # Test
 coverage/
@@ -53,6 +56,8 @@ k6.zip
 frontend/node_modules/
 frontend/.next/
 frontend/out/
+frontend/playwright-report/
+frontend/test-results/
 frontend/.env
 frontend/.env.local
 frontend/.env.development.local
@@ -61,4 +66,3 @@ frontend/.env.production.local
 
 # Cursor IDE local data
 .cursor/
-

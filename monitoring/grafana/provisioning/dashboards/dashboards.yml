@@ -1,5 +1,7 @@
-- name: 'Default'
-  folder: 'Dashboards'
+- name: Default
+  folder: Dashboards
   type: file
   options:
     path: /etc/grafana/provisioning/dashboards
+    disableDeletion: false
+    allowUiUpdates: false
