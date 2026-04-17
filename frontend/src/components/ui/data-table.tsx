@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Search, Download } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Search, Download } from 'lucide-react';
 import { Button } from './button';
 import { Input } from './input';
 import { Select } from './select';
@@ -24,7 +24,7 @@ interface DataTableProps<T> {
   emptyMessage?: string;
 }
 
-export function DataTable<T extends Record<string, any>>({
+export function DataTable<T extends Record<string, unknown>>({
   data,
   columns,
   keyField,
@@ -43,15 +43,15 @@ export function DataTable<T extends Record<string, any>>({
   const filteredData = data.filter((item) => {
     if (!search) return true;
     const searchLower = search.toLowerCase();
-    return searchKeys.some((key) => 
+    return searchKeys.some((key) =>
       String(item[key]).toLowerCase().includes(searchLower)
     );
   });
 
   const sortedData = [...filteredData].sort((a, b) => {
     if (!sortKey) return 0;
-    const aVal = a[sortKey];
-    const bVal = b[sortKey];
+    const aVal = normalizeSortValue(a[sortKey]);
+    const bVal = normalizeSortValue(b[sortKey]);
     if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
     if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
     return 0;
@@ -69,9 +69,25 @@ export function DataTable<T extends Record<string, any>>({
     }
   };
 
+  function normalizeSortValue(value: unknown): string | number {
+    if (typeof value === 'number') {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && value.trim() !== '' ? parsed : value.toLowerCase();
+    }
+
+    if (typeof value === 'boolean') {
+      return value ? 1 : 0;
+    }
+
+    return String(value ?? '');
+  }
+
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
         <div className="w-full sm:w-72">
           <Input
@@ -93,7 +109,6 @@ export function DataTable<T extends Record<string, any>>({
         )}
       </div>
 
-      {/* Table */}
       <div className="rounded-md border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -108,7 +123,13 @@ export function DataTable<T extends Record<string, any>>({
                     <div className="flex items-center gap-1">
                       {column.header}
                       {column.sortable && sortKey === column.key && (
-                        <span>{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        <span aria-hidden="true" className="inline-flex items-center">
+                          {sortOrder === 'asc' ? (
+                            <ArrowUp className="h-3 w-3" />
+                          ) : (
+                            <ArrowDown className="h-3 w-3" />
+                          )}
+                        </span>
                       )}
                     </div>
                   </th>
@@ -138,9 +159,7 @@ export function DataTable<T extends Record<string, any>>({
                   >
                     {columns.map((column) => (
                       <td key={column.key} className="px-4 py-3 text-sm">
-                        {column.render
-                          ? column.render(item)
-                          : String(item[column.key] ?? '-')}
+                        {column.render ? column.render(item) : String(item[column.key] ?? '-')}
                       </td>
                     ))}
                   </tr>
@@ -151,11 +170,12 @@ export function DataTable<T extends Record<string, any>>({
         </div>
       </div>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <span>Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, sortedData.length)} of {sortedData.length} results</span>
+            <span>
+              Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, sortedData.length)} of {sortedData.length} results
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <Select

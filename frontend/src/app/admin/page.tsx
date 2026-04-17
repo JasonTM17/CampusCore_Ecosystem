@@ -42,14 +42,6 @@ const menuItems = [
     bgColor: 'bg-blue-50 dark:bg-blue-900/20'
   },
   { 
-    href: '/admin/students', 
-    icon: GraduationCap, 
-    label: 'Students', 
-    description: 'Manage student profiles and records',
-    color: 'from-emerald-500 to-emerald-600',
-    bgColor: 'bg-emerald-50 dark:bg-emerald-900/20'
-  },
-  { 
     href: '/admin/lecturers', 
     icon: School, 
     label: 'Lecturers', 
@@ -193,7 +185,7 @@ export default function AdminDashboardPage() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-              <p className="text-blue-200 mt-1">Welcome back, {user.firstName}! Here's your campus overview.</p>
+                <p className="text-blue-200 mt-1">Welcome back, {user?.firstName}! Campus overview is ready.</p>
             </div>
             <div className="flex items-center gap-3">
               <Button 

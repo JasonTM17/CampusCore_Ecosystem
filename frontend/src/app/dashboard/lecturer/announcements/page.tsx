@@ -85,7 +85,7 @@ export default function LecturerAnnouncementsPage() {
               <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-            <span className="text-gray-300">Welcome, {user.firstName}</span>
+                        <span className="text-gray-300">Welcome, {user?.firstName}</span>
             <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>
               Logout
             </Button>

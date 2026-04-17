@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -16,9 +16,9 @@ type Announcement = {
   title: string;
   content: string;
   priority: string;
-  targetRoles: string[];
-  targetYears: number[];
-  isGlobal: boolean;
+  targetRoles?: string[];
+  targetYears?: number[];
+  isGlobal?: boolean;
   semesterId?: string | null;
   createdAt: string;
   semester?: { name: string } | null;
@@ -50,29 +50,22 @@ export default function AdminAnnouncementsPage() {
     targetRoles: [] as string[],
     targetYears: '' as string, // comma-separated
   });
+  const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
 
   useEffect(() => {
     if (user && !isAdmin && !isSuperAdmin) router.push('/dashboard');
   }, [user, isAdmin, isSuperAdmin, router]);
 
-  useEffect(() => {
-    fetchSemesters();
-  }, []);
-
-  useEffect(() => {
-    fetchAnnouncements();
-  }, [page, filters]);
-
-  const fetchSemesters = async () => {
+  const fetchSemesters = useCallback(async () => {
     try {
       const res = await semestersApi.getAll();
       setSemesters(res.data || []);
     } catch {
       // ignore
     }
-  };
+  }, []);
 
-  const fetchAnnouncements = async () => {
+  const fetchAnnouncements = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -90,7 +83,17 @@ export default function AdminAnnouncementsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [filters.priority, filters.semesterId, page]);
+
+  useEffect(() => {
+    if (!canAccess) return;
+    void fetchSemesters();
+  }, [canAccess, fetchSemesters]);
+
+  useEffect(() => {
+    if (!canAccess) return;
+    void fetchAnnouncements();
+  }, [canAccess, fetchAnnouncements]);
 
   const handleCreate = async () => {
     if (!draft.title.trim() || !draft.content.trim()) {
@@ -144,7 +147,7 @@ export default function AdminAnnouncementsPage() {
     }
   };
 
-  if (!user || (!isAdmin && !isSuperAdmin)) {
+  if (!canAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -157,7 +160,12 @@ export default function AdminAnnouncementsPage() {
       <nav className="bg-slate-800 text-white shadow-sm">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <Link href="/admin" className="flex items-center gap-2 text-gray-300 hover:text-white">
+            <Link
+              href="/admin"
+              className="flex items-center gap-2 text-gray-300 hover:text-white"
+              aria-label="Back to admin dashboard"
+              title="Back to admin dashboard"
+            >
               <ArrowLeft className="h-4 w-4" />
             </Link>
             <h1 className="text-xl font-bold">CampusCore Admin</h1>
@@ -174,7 +182,7 @@ export default function AdminAnnouncementsPage() {
               <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-            <span className="text-gray-300">Welcome, {user.firstName}</span>
+            <span className="text-gray-300">Welcome, {user?.firstName}</span>
             <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>
               Logout
             </Button>
@@ -292,6 +300,8 @@ export default function AdminAnnouncementsPage() {
                           variant="ghost"
                           className="text-red-600 hover:text-red-700"
                           onClick={() => handleDelete(a.id)}
+                          aria-label={`Delete announcement ${a.title}`}
+                          title={`Delete announcement ${a.title}`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -326,7 +336,13 @@ export default function AdminAnnouncementsPage() {
           <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl p-6 my-8 mx-4">
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-lg font-semibold">New Announcement</h3>
-              <Button variant="ghost" size="sm" onClick={() => setIsCreateOpen(false)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsCreateOpen(false)}
+                aria-label="Close new announcement form"
+                title="Close new announcement form"
+              >
                 <X className="h-4 w-4" />
               </Button>
             </div>

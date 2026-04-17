@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { sectionsApi, semestersApi } from '@/lib/api';
+import { pickPreferredSemesterId } from '@/lib/semesters';
 import { GradingSection, Semester } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -28,48 +29,21 @@ export default function LecturerGradesPage() {
     const [selectedSemester, setSelectedSemester] = useState<string>('');
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-
-    // Redirect non-lecturers
-    useEffect(() => {
-        if (!isLecturer && user) {
-            router.push('/dashboard');
-        }
-    }, [isLecturer, user, router]);
-
-    if (!isLecturer || !user) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
-
-    useEffect(() => {
-        fetchSemesters();
-    }, []);
-
-    const fetchSemesters = async () => {
+    const fetchSemesters = useCallback(async () => {
         try {
             const semestersRes = await semestersApi.getAll();
             setSemesters(semestersRes.data);
-            
-            // Auto-select current semester
-            const currentSemester = semestersRes.data.find(s => 
-                s.status === 'IN_PROGRESS' || s.status === 'ADD_DROP_OPEN' || s.status === 'REGISTRATION_OPEN'
-            );
-            if (currentSemester) {
-                setSelectedSemester(currentSemester.id);
+
+            const preferredSemesterId = pickPreferredSemesterId(semestersRes.data);
+            if (preferredSemesterId) {
+                setSelectedSemester(preferredSemesterId);
             }
         } catch {
             toast.error('Failed to load semesters');
         }
-    };
+    }, []);
 
-    useEffect(() => {
-        fetchSections();
-    }, [selectedSemester]);
-
-    const fetchSections = async () => {
+    const fetchSections = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -81,7 +55,30 @@ export default function LecturerGradesPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [selectedSemester]);
+
+    // Redirect non-lecturers
+    useEffect(() => {
+        if (!isLecturer && user) {
+            router.push('/dashboard');
+        }
+    }, [isLecturer, user, router]);
+
+    useEffect(() => {
+        void fetchSemesters();
+    }, [fetchSemesters]);
+
+    useEffect(() => {
+        void fetchSections();
+    }, [fetchSections]);
+
+    if (!isLecturer || !user) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     const getGradeStatusBadge = (status: string, canPublish: boolean) => {
         if (status === 'ALL_GRADED') {
@@ -127,7 +124,7 @@ export default function LecturerGradesPage() {
                         <span className="text-gray-600">Grade Management</span>
                     </div>
                     <div className="flex items-center gap-4">
-                        <span className="text-gray-600">Welcome, {user.firstName}</span>
+                        <span className="text-gray-600">Welcome, {user?.firstName}</span>
                         <Button variant="outline" onClick={logout}>Logout</Button>
                     </div>
                 </div>

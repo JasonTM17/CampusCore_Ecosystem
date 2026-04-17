@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { User } from '@/types/api';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -11,21 +12,40 @@ import { KeyRound, Mail, Lock, GraduationCap, ArrowRight, Eye, EyeOff } from 'lu
 
 export const dynamic = 'force-dynamic';
 
+function getPostLoginRoute(user: User) {
+  const roles = user.roles ?? (user.role ? [user.role] : []);
+
+  if (roles.includes('SUPER_ADMIN') || roles.includes('ADMIN')) {
+    return '/admin';
+  }
+
+  if (roles.includes('LECTURER')) {
+    return '/dashboard/lecturer';
+  }
+
+  return '/dashboard';
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isClientReady, setIsClientReady] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    setIsClientReady(true);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await login(email, password);
+      const user = await login(email, password);
       toast.success('Welcome back! Login successful');
-      router.push('/dashboard');
+      router.push(getPostLoginRoute(user));
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Invalid email or password');
     } finally {
@@ -120,7 +140,10 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="mt-8 space-y-6">
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                >
                   Email Address
                 </label>
                 <div className="relative">
@@ -128,6 +151,7 @@ export default function LoginPage() {
                     <Mail className="h-5 w-5 text-gray-400" />
                   </div>
                   <input
+                    id="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -139,7 +163,10 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                >
                   Password
                 </label>
                 <div className="relative">
@@ -147,6 +174,7 @@ export default function LoginPage() {
                     <Lock className="h-5 w-5 text-gray-400" />
                   </div>
                   <input
+                    id="password"
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -158,6 +186,10 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                    aria-pressed={showPassword}
+                    disabled={!isClientReady}
                   >
                     {showPassword ? (
                       <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
@@ -188,7 +220,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 flex items-center justify-center gap-2"
-              disabled={isLoading}
+              disabled={isLoading || !isClientReady}
             >
               {isLoading ? (
                 <span className="flex items-center gap-2">

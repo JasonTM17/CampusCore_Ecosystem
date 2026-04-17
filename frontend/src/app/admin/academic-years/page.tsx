@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -22,8 +22,9 @@ interface AcademicYear {
     year: number;
     startDate: string;
     endDate: string;
-    isActive: boolean;
-    createdAt: string;
+    isActive?: boolean;
+    isCurrent?: boolean;
+    createdAt?: string;
 }
 
 export default function AdminAcademicYearsPage() {
@@ -42,6 +43,7 @@ export default function AdminAcademicYearsPage() {
         startDate: '',
         endDate: '',
     });
+    const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
 
     useEffect(() => {
         if (user && !isAdmin && !isSuperAdmin) {
@@ -49,19 +51,7 @@ export default function AdminAcademicYearsPage() {
         }
     }, [user, isAdmin, isSuperAdmin, router]);
 
-    if (!user || (!isAdmin && !isSuperAdmin)) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
-
-    useEffect(() => {
-        fetchAcademicYears();
-    }, [page]);
-
-    const fetchAcademicYears = async () => {
+    const fetchAcademicYears = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -80,7 +70,21 @@ export default function AdminAcademicYearsPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [page, search]);
+
+    useEffect(() => {
+        if (canAccess) {
+            void fetchAcademicYears();
+        }
+    }, [canAccess, fetchAcademicYears]);
+
+    if (!canAccess) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -142,7 +146,7 @@ export default function AdminAcademicYearsPage() {
                         <span className="text-gray-300">Academic Year Management</span>
                     </div>
                     <div className="flex items-center gap-4">
-                        <span className="text-gray-300">Welcome, {user.firstName}</span>
+                        <span className="text-gray-300">Welcome, {user?.firstName}</span>
                         <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>Logout</Button>
                     </div>
                 </div>
@@ -205,17 +209,30 @@ export default function AdminAcademicYearsPage() {
                                             <td className="px-4 py-3 text-gray-600">{new Date(year.endDate).toLocaleDateString()}</td>
                                             <td className="px-4 py-3 text-center">
                                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                                    year.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                                                    (year.isActive ?? year.isCurrent) ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
                                                 }`}>
-                                                    {year.isActive ? 'Active' : 'Inactive'}
+                                                    {(year.isActive ?? year.isCurrent) ? 'Active' : 'Inactive'}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 <div className="flex items-center justify-center gap-2">
-                                                    <Button size="sm" variant="ghost" onClick={() => openEdit(year)}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => openEdit(year)}
+                                                        aria-label={`Edit academic year ${year.year}`}
+                                                        title={`Edit academic year ${year.year}`}
+                                                    >
                                                         <Pencil className="h-4 w-4" />
                                                     </Button>
-                                                    <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(year.id)}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="text-red-600 hover:text-red-700"
+                                                        onClick={() => handleDelete(year.id)}
+                                                        aria-label={`Delete academic year ${year.year}`}
+                                                        title={`Delete academic year ${year.year}`}
+                                                    >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </div>

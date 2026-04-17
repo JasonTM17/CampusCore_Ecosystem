@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { enrollmentsApi, semestersApi } from '@/lib/api';
+import { pickPreferredSemesterId } from '@/lib/semesters';
 import { Enrollment, SectionSchedule, Semester } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -26,35 +27,23 @@ export default function SchedulePage() {
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [selectedSemester, setSelectedSemester] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [semestersRes] = await Promise.all([
         semestersApi.getAll(),
       ]);
       setSemesters(semestersRes.data);
-      
-      // Auto-select current semester based on status (IN_PROGRESS or ADD_DROP_OPEN)
-      const currentSemester = semestersRes.data.find(s => 
-        s.status === 'IN_PROGRESS' || s.status === 'ADD_DROP_OPEN' || s.status === 'REGISTRATION_OPEN'
-      );
-      if (currentSemester) {
-        setSelectedSemester(currentSemester.id);
+
+      const preferredSemesterId = pickPreferredSemesterId(semestersRes.data);
+      if (preferredSemesterId) {
+        setSelectedSemester(preferredSemesterId);
       }
     } catch (error) {
       toast.error('Failed to load semesters');
     }
-  };
+  }, []);
 
-  useEffect(() => {
-    fetchEnrollments();
-  }, [selectedSemester]);
-
-  const fetchEnrollments = async () => {
+  const fetchEnrollments = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await enrollmentsApi.getMyEnrollments(selectedSemester || undefined);
@@ -64,7 +53,15 @@ export default function SchedulePage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedSemester]);
+
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    void fetchEnrollments();
+  }, [fetchEnrollments]);
 
   const timetable = useMemo(() => {
     const schedule: Record<string, TimetableSlot[]> = {
@@ -96,7 +93,7 @@ export default function SchedulePage() {
               building: sched.classroom?.building || '',
               roomNumber: sched.classroom?.roomNumber || '',
               lecturerName: section.lecturer?.user 
-                ? `Prof. ${section.lecturer.user.firstName} ${section.lecturer.user.lastName}`
+                ? `Prof. ${section.lecturer.user?.firstName} ${section.lecturer.user?.lastName}`
                 : '',
             });
           });
@@ -197,7 +194,7 @@ export default function SchedulePage() {
         {!hasClasses ? (
           <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
             <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500 mb-4">You don't have any classes scheduled yet</p>
+            <p className="text-gray-500 mb-4">You do not have any classes scheduled yet</p>
             <Link href="/dashboard/register">
               <Button>Browse Courses</Button>
             </Link>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -44,6 +44,7 @@ export default function AdminUsersPage() {
         firstName: '',
         lastName: '',
     });
+    const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
 
     // Redirect non-admins
     useEffect(() => {
@@ -52,19 +53,7 @@ export default function AdminUsersPage() {
         }
     }, [user, isAdmin, isSuperAdmin, router]);
 
-    if (!user || (!isAdmin && !isSuperAdmin)) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
-
-    useEffect(() => {
-        fetchUsers();
-    }, [page]);
-
-    const fetchUsers = async () => {
+    const fetchUsers = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -77,7 +66,21 @@ export default function AdminUsersPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [page, search]);
+
+    useEffect(() => {
+        if (canAccess) {
+            void fetchUsers();
+        }
+    }, [canAccess, fetchUsers]);
+
+    if (!canAccess) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -136,7 +139,12 @@ export default function AdminUsersPage() {
             <nav className="bg-slate-800 text-white shadow-sm">
                 <div className="container mx-auto px-4 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <Link href="/admin" className="flex items-center gap-2 text-gray-300 hover:text-white">
+                        <Link
+                            href="/admin"
+                            className="flex items-center gap-2 text-gray-300 hover:text-white"
+                            aria-label="Back to admin dashboard"
+                            title="Back to admin dashboard"
+                        >
                             <ArrowLeft className="h-4 w-4" />
                         </Link>
                         <h1 className="text-xl font-bold">CampusCore Admin</h1>
@@ -144,7 +152,7 @@ export default function AdminUsersPage() {
                         <span className="text-gray-300">User Management</span>
                     </div>
                     <div className="flex items-center gap-4">
-                        <span className="text-gray-300">Welcome, {user.firstName}</span>
+                        <span className="text-gray-300">Welcome, {user?.firstName}</span>
                         <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>Logout</Button>
                     </div>
                 </div>
@@ -218,10 +226,23 @@ export default function AdminUsersPage() {
                                             <td className="px-4 py-3 text-gray-600">{new Date(u.createdAt).toLocaleDateString()}</td>
                                             <td className="px-4 py-3 text-center">
                                                 <div className="flex items-center justify-center gap-2">
-                                                    <Button size="sm" variant="ghost" onClick={() => openEdit(u)}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => openEdit(u)}
+                                                        aria-label={`Edit user ${u.firstName} ${u.lastName}`}
+                                                        title={`Edit user ${u.firstName} ${u.lastName}`}
+                                                    >
                                                         <Pencil className="h-4 w-4" />
                                                     </Button>
-                                                    <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(u.id)}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="text-red-600 hover:text-red-700"
+                                                        onClick={() => handleDelete(u.id)}
+                                                        aria-label={`Delete user ${u.firstName} ${u.lastName}`}
+                                                        title={`Delete user ${u.firstName} ${u.lastName}`}
+                                                    >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </div>

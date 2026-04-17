@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
@@ -90,6 +90,7 @@ export default function AdminAnalyticsPage() {
     const [sectionOccupancy, setSectionOccupancy] = useState<SectionOccupancy[]>([]);
     const [gradeDistribution, setGradeDistribution] = useState<GradeDistribution[]>([]);
     const [enrollmentTrends, setEnrollmentTrends] = useState<EnrollmentTrend[]>([]);
+    const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
 
     useEffect(() => {
         if (user && !isAdmin && !isSuperAdmin) {
@@ -97,19 +98,7 @@ export default function AdminAnalyticsPage() {
         }
     }, [user, isAdmin, isSuperAdmin, router]);
 
-    if (!user || (!isAdmin && !isSuperAdmin)) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
-
-    useEffect(() => {
-        fetchAnalytics();
-    }, []);
-
-    const fetchAnalytics = async () => {
+    const fetchAnalytics = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -132,7 +121,21 @@ export default function AdminAnalyticsPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        if (canAccess) {
+            void fetchAnalytics();
+        }
+    }, [canAccess, fetchAnalytics]);
+
+    if (!canAccess) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     const stats = [
         { label: 'Total Students', value: overview?.totalStudents || 0, icon: Users, color: 'bg-blue-500' },
@@ -170,7 +173,7 @@ export default function AdminAnalyticsPage() {
                             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
                             Refresh
                         </Button>
-                        <span className="text-gray-300">Welcome, {user.firstName}</span>
+                        <span className="text-gray-300">Welcome, {user?.firstName}</span>
                         <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>Logout</Button>
                     </div>
                 </div>

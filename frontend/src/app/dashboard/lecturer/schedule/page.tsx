@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { sectionsApi, semestersApi } from '@/lib/api';
+import { pickPreferredSemesterId } from '@/lib/semesters';
 import { LecturerSection, Semester } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -48,50 +49,21 @@ export default function LecturerSchedulePage() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'table' | 'timetable'>('table');
-
-    // Redirect non-lecturers
-    useEffect(() => {
-        if (!isLecturer && user) {
-            router.push('/dashboard');
-        }
-    }, [isLecturer, user, router]);
-
-    if (!isLecturer || !user) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
-
-    useEffect(() => {
-        fetchSemesters();
-    }, []);
-
-    const fetchSemesters = async () => {
+    const fetchSemesters = useCallback(async () => {
         try {
             const semestersRes = await semestersApi.getAll();
             setSemesters(semestersRes.data);
-            
-            // Auto-select current semester
-            const currentSemester = semestersRes.data.find(s => 
-                s.status === 'IN_PROGRESS' || s.status === 'ADD_DROP_OPEN' || s.status === 'REGISTRATION_OPEN'
-            );
-            if (currentSemester) {
-                setSelectedSemester(currentSemester.id);
+
+            const preferredSemesterId = pickPreferredSemesterId(semestersRes.data);
+            if (preferredSemesterId) {
+                setSelectedSemester(preferredSemesterId);
             }
         } catch {
             toast.error('Failed to load semesters');
         }
-    };
+    }, []);
 
-    useEffect(() => {
-        if (selectedSemester !== '') {
-            fetchSchedule();
-        }
-    }, [selectedSemester]);
-
-    const fetchSchedule = async () => {
+    const fetchSchedule = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -103,7 +75,22 @@ export default function LecturerSchedulePage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [selectedSemester]);
+
+    // Redirect non-lecturers
+    useEffect(() => {
+        if (!isLecturer && user) {
+            router.push('/dashboard');
+        }
+    }, [isLecturer, user, router]);
+
+    useEffect(() => {
+        void fetchSemesters();
+    }, [fetchSemesters]);
+
+    useEffect(() => {
+        void fetchSchedule();
+    }, [fetchSchedule]);
 
     // Build timetable data
     const timetable = useMemo(() => {
@@ -134,6 +121,14 @@ export default function LecturerSchedulePage() {
 
         return schedule;
     }, [sections]);
+
+    if (!isLecturer || !user) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
 
     const getTimeSlotPosition = (time: string) => {
         const index = timeSlots.indexOf(time);
