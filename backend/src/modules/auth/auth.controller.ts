@@ -1,11 +1,29 @@
-import { Controller, Post, Body, Get, UseGuards, Request, HttpCode, HttpStatus, Put } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Put,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
-import { RegisterDto as CreateUserDto } from '../users/dto/create-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { LogoutDto } from './dto/logout.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 
@@ -15,14 +33,16 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('register')
+  @Throttle({ short: { limit: 3, ttl: 60_000 } })
   @ApiOperation({ summary: 'Register a new user' })
-  async register(@Body() registerDto: any) {
+  async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @UseGuards(LocalAuthGuard)
+  @Throttle({ short: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'User login' })
   async login(@Request() req: any, @Body() loginDto: LoginDto) {
     return this.authService.login(loginDto, req.ip, req.headers['user-agent']);
@@ -32,15 +52,16 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
+  @Throttle({ short: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'User logout' })
-  async logout(@Request() req: any) {
-    const refreshToken = req.headers.authorization?.split(' ')[1];
-    await this.authService.logout(req.user.sub, refreshToken);
+  async logout(@Request() req: any, @Body() body: LogoutDto) {
+    await this.authService.logout(req.user.sub, body?.refreshToken);
     return { message: 'Logged out successfully' };
   }
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ short: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Refresh access token' })
   async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
     return this.authService.refreshToken(refreshTokenDto);
@@ -50,8 +71,12 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
+  @Throttle({ short: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Change user password' })
-  async changePassword(@Request() req: any, @Body() changePasswordDto: ChangePasswordDto) {
+  async changePassword(
+    @Request() req: any,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
     return this.authService.changePassword(
       req.user.sub,
       changePasswordDto.oldPassword,
@@ -61,29 +86,42 @@ export class AuthController {
 
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ short: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Request password reset' })
-  async forgotPassword(@Body() body: { email: string }) {
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
     return this.authService.forgotPassword(body.email);
   }
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ short: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Reset password with token' })
-  async resetPassword(@Body() body: { token: string; newPassword: string }) {
+  async resetPassword(@Body() body: ResetPasswordDto) {
     return this.authService.resetPassword(body.token, body.newPassword);
   }
 
   @Get('verify-email')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ short: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Verify email with token' })
-  async verifyEmail(@Body() body: { token: string }) {
-    return this.authService.verifyEmail(body.token);
+  async verifyEmail(
+    @Query() query: VerifyEmailDto,
+    @Body() legacyBody: VerifyEmailDto,
+  ) {
+    const token = query.token ?? legacyBody?.token;
+
+    if (!token) {
+      throw new BadRequestException('Verification token is required');
+    }
+
+    return this.authService.verifyEmail(token);
   }
 
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ short: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Resend verification email' })
-  async resendVerification(@Body() body: { email: string }) {
+  async resendVerification(@Body() body: ResendVerificationDto) {
     return this.authService.resendVerificationEmail(body.email);
   }
 
@@ -99,7 +137,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update current user profile' })
-  async updateProfile(@Request() req: any, @Body() body: { firstName?: string; lastName?: string; phone?: string; dateOfBirth?: string; address?: string }) {
+  async updateProfile(@Request() req: any, @Body() body: UpdateProfileDto) {
     return this.authService.updateProfile(req.user.sub, body);
   }
 }

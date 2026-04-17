@@ -12,14 +12,24 @@ export class ClassroomsService {
   async findAll(page = 1, limit = 20) {
     const skip = (page - 1) * limit;
     const [classrooms, total] = await Promise.all([
-      this.prisma.classroom.findMany({ skip, take: limit, orderBy: { building: 'asc' } }),
+      this.prisma.classroom.findMany({
+        skip,
+        take: limit,
+        orderBy: { building: 'asc' },
+      }),
       this.prisma.classroom.count(),
     ]);
-    return { data: classrooms, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: classrooms,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: string) {
-    const classroom = await this.prisma.classroom.findUnique({ where: { id }, include: { sections: true } });
+    const classroom = await this.prisma.classroom.findUnique({
+      where: { id },
+      include: { sections: true },
+    });
     if (!classroom) throw new NotFoundException('Classroom not found');
     return classroom;
   }

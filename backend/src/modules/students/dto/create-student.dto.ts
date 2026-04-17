@@ -1,4 +1,11 @@
-import { IsString, IsOptional, IsEnum, IsDateString, IsUUID, IsNumber } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsEnum,
+  IsDateString,
+  IsUUID,
+  IsNumber,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateStudentDto {
@@ -22,7 +29,9 @@ export class CreateStudentDto {
   @IsDateString()
   admissionDate: string;
 
-  @ApiPropertyOptional({ enum: ['ACTIVE', 'GRADUATED', 'SUSPENDED', 'WITHDRAWN'] })
+  @ApiPropertyOptional({
+    enum: ['ACTIVE', 'GRADUATED', 'SUSPENDED', 'WITHDRAWN'],
+  })
   @IsOptional()
   @IsEnum(['ACTIVE', 'GRADUATED', 'SUSPENDED', 'WITHDRAWN'])
   status?: string;

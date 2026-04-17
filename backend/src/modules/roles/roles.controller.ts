@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { RolesService } from './roles.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -51,14 +60,20 @@ export class RolesController {
   @Post(':id/permissions')
   @Roles('SUPER_ADMIN')
   @ApiOperation({ summary: 'Assign permission to role' })
-  assignPermission(@Param('id') id: string, @Body('permissionId') permissionId: string) {
+  assignPermission(
+    @Param('id') id: string,
+    @Body('permissionId') permissionId: string,
+  ) {
     return this.rolesService.assignPermission(id, permissionId);
   }
 
   @Delete(':id/permissions/:permissionId')
   @Roles('SUPER_ADMIN')
   @ApiOperation({ summary: 'Remove permission from role' })
-  removePermission(@Param('id') id: string, @Param('permissionId') permissionId: string) {
+  removePermission(
+    @Param('id') id: string,
+    @Param('permissionId') permissionId: string,
+  ) {
     return this.rolesService.removePermission(id, permissionId);
   }
 }

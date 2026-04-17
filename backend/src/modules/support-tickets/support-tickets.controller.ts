@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SupportTicketsService } from './support-tickets.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -23,8 +33,16 @@ export class SupportTicketsController {
 
   @Get('my')
   @ApiOperation({ summary: 'Get current user tickets' })
-  getMyTickets(@CurrentUser() user: any, @Query('page') page?: number, @Query('limit') limit?: number) {
-    return this.supportTicketsService.findByUser(user.sub, page || 1, limit || 20);
+  getMyTickets(
+    @CurrentUser() user: any,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.supportTicketsService.findByUser(
+      user.sub,
+      page || 1,
+      limit || 20,
+    );
   }
 
   @Get('my/:id')
@@ -45,7 +63,13 @@ export class SupportTicketsController {
     @Query('priority') priority?: string,
     @Query('category') category?: string,
   ) {
-    return this.supportTicketsService.findAll(page || 1, limit || 20, status, priority, category);
+    return this.supportTicketsService.findAll(
+      page || 1,
+      limit || 20,
+      status,
+      priority,
+      category,
+    );
   }
 
   @Get(':id')
@@ -71,8 +95,17 @@ export class SupportTicketsController {
   @Post(':id/respond')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Respond to support ticket' })
-  respond(@Param('id') id: string, @CurrentUser() user: any, @Body() data: { message: string; isInternal?: boolean }) {
-    return this.supportTicketsService.addResponse(id, user.sub, data.message, data.isInternal);
+  respond(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() data: { message: string; isInternal?: boolean },
+  ) {
+    return this.supportTicketsService.addResponse(
+      id,
+      user.sub,
+      data.message,
+      data.isInternal,
+    );
   }
 
   @Delete(':id')

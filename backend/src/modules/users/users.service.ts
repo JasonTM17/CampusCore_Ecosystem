@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import * as bcrypt from 'bcrypt';
@@ -40,7 +44,7 @@ export class UsersService {
 
   async findAll(page = 1, limit = 20, status?: string) {
     const skip = (page - 1) * limit;
-    
+
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
         skip,
@@ -63,7 +67,7 @@ export class UsersService {
     ]);
 
     return {
-      data: users.map(user => ({
+      data: users.map((user) => ({
         ...user,
         password: undefined,
         refreshToken: undefined,
@@ -136,7 +140,7 @@ export class UsersService {
 
   async assignRole(userId: string, roleId: string) {
     await this.findOne(userId);
-    
+
     const role = await this.prisma.role.findUnique({ where: { id: roleId } });
     if (!role) {
       throw new NotFoundException('Role not found');

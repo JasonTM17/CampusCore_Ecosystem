@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 
 @Injectable()
 export class CachingService {
-  constructor(private cacheManager: Cache) {}
+  constructor(@Inject(CACHE_MANAGER) private cacheManager: Cache) {}
 
   async get<T>(key: string): Promise<T | undefined> {
     return this.cacheManager.get<T>(key);
@@ -18,8 +19,17 @@ export class CachingService {
   }
 
   async reset(): Promise<void> {
-    // Clear all cached items
-    const keys = await (this.cacheManager as any).keys();
+    const cache = this.cacheManager as Cache & {
+      clear?: () => Promise<boolean>;
+      keys?: () => Promise<string[]>;
+    };
+
+    if (cache.clear) {
+      await cache.clear();
+      return;
+    }
+
+    const keys = await cache.keys?.();
     if (keys && keys.length > 0) {
       for (const key of keys) {
         await this.cacheManager.del(key);

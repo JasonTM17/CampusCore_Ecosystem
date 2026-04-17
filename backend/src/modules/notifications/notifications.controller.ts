@@ -1,4 +1,16 @@
-import { Controller, Get, Post, Put, Delete, Patch, Body, Param, Query, UseGuards, ForbiddenException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Patch,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  ForbiddenException,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -27,7 +39,12 @@ export class NotificationsController {
   ) {
     if (!userId) throw new ForbiddenException('Not authenticated');
     const parsedIsRead = isRead === undefined ? undefined : isRead === 'true';
-    return this.notificationsService.findMy(userId, page || 1, limit || 20, parsedIsRead);
+    return this.notificationsService.findMy(
+      userId,
+      page || 1,
+      limit || 20,
+      parsedIsRead,
+    );
   }
 
   @Get('my/unread-count')
@@ -39,7 +56,10 @@ export class NotificationsController {
 
   @Patch('my/:id/read')
   @ApiOperation({ summary: 'Mark current user notification as read' })
-  markMyNotificationRead(@CurrentUser('id') userId: string, @Param('id') id: string) {
+  markMyNotificationRead(
+    @CurrentUser('id') userId: string,
+    @Param('id') id: string,
+  ) {
     if (!userId) throw new ForbiddenException('Not authenticated');
     return this.notificationsService.markRead(userId, id);
   }
@@ -53,7 +73,10 @@ export class NotificationsController {
 
   @Delete('my/:id')
   @ApiOperation({ summary: 'Delete current user notification' })
-  deleteMyNotification(@CurrentUser('id') userId: string, @Param('id') id: string) {
+  deleteMyNotification(
+    @CurrentUser('id') userId: string,
+    @Param('id') id: string,
+  ) {
     if (!userId) throw new ForbiddenException('Not authenticated');
     return this.notificationsService.deleteMyNotification(userId, id);
   }

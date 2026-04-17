@@ -1,6 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { Prisma, EnrollmentStatus, WaitlistStatus } from '@prisma/client';
+import { EnrollmentStatus, WaitlistStatus } from '@prisma/client';
 import { CsvExportService } from '../common/services/csv-export.service';
 import { EmailService } from '../common/services/email.service';
 
@@ -10,7 +15,7 @@ export class EnrollmentsService {
     private prisma: PrismaService,
     private csvExportService: CsvExportService,
     private emailService: EmailService,
-  ) { }
+  ) {}
 
   async enrollStudent(studentId: string, sectionId: string) {
     const section = await this.prisma.section.findUnique({
@@ -62,13 +67,19 @@ export class EnrollmentsService {
     if (semester.registrationEnd && now > semester.registrationEnd) {
       throw new ForbiddenException('Registration has ended');
     }
-    if (semester.addDropStart && semester.addDropEnd && now > semester.addDropEnd) {
+    if (
+      semester.addDropStart &&
+      semester.addDropEnd &&
+      now > semester.addDropEnd
+    ) {
       throw new ForbiddenException('Add/drop period has ended');
     }
 
     // Check capacity and handle waitlist
     const currentEnrollment = section.enrollments.filter(
-      (e) => e.status === EnrollmentStatus.CONFIRMED || e.status === EnrollmentStatus.PENDING,
+      (e) =>
+        e.status === EnrollmentStatus.CONFIRMED ||
+        e.status === EnrollmentStatus.PENDING,
     ).length;
 
     if (currentEnrollment >= section.capacity) {
@@ -140,7 +151,9 @@ export class EnrollmentsService {
       },
     });
 
-    const studentSchedules = studentEnrollmentsData.flatMap((e) => e.section.schedules);
+    const studentSchedules = studentEnrollmentsData.flatMap(
+      (e) => e.section.schedules,
+    );
     const newSchedules = section.schedules;
 
     for (const newSched of newSchedules) {
@@ -170,7 +183,9 @@ export class EnrollmentsService {
       const studentEnrollmentsData = await this.prisma.enrollment.findMany({
         where: {
           studentId,
-          status: { in: [EnrollmentStatus.CONFIRMED, EnrollmentStatus.PENDING] },
+          status: {
+            in: [EnrollmentStatus.CONFIRMED, EnrollmentStatus.PENDING],
+          },
           section: {
             semesterId: section.semesterId,
           },
@@ -180,7 +195,10 @@ export class EnrollmentsService {
         },
       });
 
-      const currentCredits = studentEnrollmentsData.reduce((sum, e) => sum + e.section.course.credits, 0);
+      const currentCredits = studentEnrollmentsData.reduce(
+        (sum, e) => sum + e.section.course.credits,
+        0,
+      );
       const newCredits = currentCredits + section.course.credits;
 
       const maxCredits = section.maxCredits || 21; // Default max credits
@@ -207,12 +225,14 @@ export class EnrollmentsService {
 
     // Send enrollment confirmation email (async, don't await)
     if (enrollment.student.user?.email) {
-      this.emailService.sendEnrollmentConfirmation(
-        enrollment.student.user.email,
-        `${enrollment.student.user.firstName} ${enrollment.student.user.lastName}`,
-        enrollment.section.course.name,
-        enrollment.section.sectionNumber,
-      ).catch(err => console.error('Failed to send enrollment email:', err));
+      this.emailService
+        .sendEnrollmentConfirmation(
+          enrollment.student.user.email,
+          `${enrollment.student.user.firstName} ${enrollment.student.user.lastName}`,
+          enrollment.section.course.name,
+          enrollment.section.sectionNumber,
+        )
+        .catch((err) => console.error('Failed to send enrollment email:', err));
     }
 
     return enrollment;
@@ -269,7 +289,10 @@ export class EnrollmentsService {
 
       // Update waitlist positions
       const remaining = await this.prisma.waitlist.findMany({
-        where: { sectionId: enrollment.sectionId, status: WaitlistStatus.ACTIVE },
+        where: {
+          sectionId: enrollment.sectionId,
+          status: WaitlistStatus.ACTIVE,
+        },
         orderBy: { position: 'asc' },
       });
 
@@ -303,10 +326,18 @@ export class EnrollmentsService {
     });
   }
 
-  async findAll(page = 1, limit = 20, status?: string, semesterId?: string, studentId?: string, courseId?: string, sectionId?: string) {
+  async findAll(
+    page = 1,
+    limit = 20,
+    status?: string,
+    semesterId?: string,
+    studentId?: string,
+    courseId?: string,
+    sectionId?: string,
+  ) {
     const skip = (page - 1) * limit;
     const where: any = {};
-    
+
     if (status) {
       where.status = status;
     }
@@ -330,11 +361,11 @@ export class EnrollmentsService {
         where,
         include: {
           student: { include: { user: true } },
-          section: { 
-            include: { 
+          section: {
+            include: {
               course: true,
               lecturer: { include: { user: true } },
-            } 
+            },
           },
           semester: true,
         },
@@ -342,10 +373,19 @@ export class EnrollmentsService {
       }),
       this.prisma.enrollment.count({ where }),
     ]);
-    return { data: enrollments, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: enrollments,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
-  async exportAll(status?: string, semesterId?: string, studentId?: string, courseId?: string, sectionId?: string) {
+  async exportAll(
+    status?: string,
+    semesterId?: string,
+    studentId?: string,
+    courseId?: string,
+    sectionId?: string,
+  ) {
     const where: any = {};
 
     if (status) {
@@ -372,17 +412,19 @@ export class EnrollmentsService {
           include: {
             course: true,
             lecturer: { include: { user: true } },
-          }
+          },
         },
         semester: true,
       },
       orderBy: { enrolledAt: 'desc' },
     });
 
-    const exportData = enrollments.map(e => ({
+    const exportData = enrollments.map((e) => ({
       enrollmentId: e.id,
       studentId: e.studentId,
-      studentName: e.student.user ? `${e.student.user.firstName} ${e.student.user.lastName}` : '',
+      studentName: e.student.user
+        ? `${e.student.user.firstName} ${e.student.user.lastName}`
+        : '',
       studentEmail: e.student.user?.email || '',
       studentNumber: e.student.studentId || '',
       sectionId: e.sectionId,
@@ -390,7 +432,9 @@ export class EnrollmentsService {
       courseCode: e.section.course.code,
       courseName: e.section.course.name,
       credits: e.section.course.credits,
-      lecturerName: e.section.lecturer?.user ? `${e.section.lecturer.user.firstName} ${e.section.lecturer.user.lastName}` : '',
+      lecturerName: e.section.lecturer?.user
+        ? `${e.section.lecturer.user.firstName} ${e.section.lecturer.user.lastName}`
+        : '',
       semesterName: e.semester.name,
       status: e.status,
       finalGrade: e.finalGrade ? Number(e.finalGrade) : null,
@@ -414,38 +458,43 @@ export class EnrollmentsService {
     return enrollment;
   }
 
-  async update(id: string, data: { status?: string; finalGrade?: number; letterGrade?: string }) {
+  async update(
+    id: string,
+    data: { status?: string; finalGrade?: number; letterGrade?: string },
+  ) {
     const enrollment = await this.findOne(id);
-    
+
     // Validate status transition if status is being changed
     if (data.status && data.status !== enrollment.status) {
       const validTransitions: Record<string, string[]> = {
-        'PENDING': ['CONFIRMED', 'CANCELLED'],
-        'CONFIRMED': ['COMPLETED', 'DROPPED', 'CANCELLED'],
-        'COMPLETED': [],
-        'DROPPED': [],
-        'CANCELLED': [],
+        PENDING: ['CONFIRMED', 'CANCELLED'],
+        CONFIRMED: ['COMPLETED', 'DROPPED', 'CANCELLED'],
+        COMPLETED: [],
+        DROPPED: [],
+        CANCELLED: [],
       };
-      
+
       const allowedStatuses = validTransitions[enrollment.status] || [];
       if (!allowedStatuses.includes(data.status)) {
         throw new BadRequestException(
-          `Cannot change status from ${enrollment.status} to ${data.status}`
+          `Cannot change status from ${enrollment.status} to ${data.status}`,
         );
       }
     }
-    
+
     const updateData: any = { ...data };
     if (data.finalGrade !== undefined) {
       updateData.finalGrade = data.finalGrade;
     }
-    
-    return this.prisma.enrollment.update({ 
-      where: { id }, 
+
+    return this.prisma.enrollment.update({
+      where: { id },
       data: updateData,
       include: {
         student: { include: { user: true } },
-        section: { include: { course: true, lecturer: { include: { user: true } } } },
+        section: {
+          include: { course: true, lecturer: { include: { user: true } } },
+        },
         semester: true,
       },
     });
@@ -506,11 +555,19 @@ export class EnrollmentsService {
     const grades = await this.getStudentGrades(studentId);
 
     const gradePoints: Record<string, number> = {
-      'A+': 4.0, 'A': 4.0, 'A-': 3.7,
-      'B+': 3.3, 'B': 3.0, 'B-': 2.7,
-      'C+': 2.3, 'C': 2.0, 'C-': 1.7,
-      'D+': 1.3, 'D': 1.0, 'D-': 0.7,
-      'F': 0.0,
+      'A+': 4.0,
+      A: 4.0,
+      'A-': 3.7,
+      'B+': 3.3,
+      B: 3.0,
+      'B-': 2.7,
+      'C+': 2.3,
+      C: 2.0,
+      'C-': 1.7,
+      'D+': 1.3,
+      D: 1.0,
+      'D-': 0.7,
+      F: 0.0,
     };
 
     let totalCreditsAttempted = 0;
@@ -552,13 +609,20 @@ export class EnrollmentsService {
       }
     }
 
-    const semesters = Array.from(semestersMap.values()).map(sem => {
-      sem.gpa = sem.creditsAttempted > 0 ? Number((sem.gradePoints / sem.creditsAttempted).toFixed(2)) : 0;
-      const { gradePoints, ...rest } = sem;
-      return rest;
+    const semesters = Array.from(semestersMap.values()).map((sem) => {
+      sem.gpa =
+        sem.creditsAttempted > 0
+          ? Number((sem.gradePoints / sem.creditsAttempted).toFixed(2))
+          : 0;
+      const semesterSummary = { ...sem };
+      delete semesterSummary.gradePoints;
+      return semesterSummary;
     });
 
-    const cumulativeGpa = totalCreditsAttempted > 0 ? Number((totalGradePoints / totalCreditsAttempted).toFixed(2)) : 0;
+    const cumulativeGpa =
+      totalCreditsAttempted > 0
+        ? Number((totalGradePoints / totalCreditsAttempted).toFixed(2))
+        : 0;
 
     return {
       summary: {

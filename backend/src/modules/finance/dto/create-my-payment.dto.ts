@@ -21,4 +21,3 @@ export class CreateMyPaymentDto {
   @IsString()
   notes?: string;
 }
-

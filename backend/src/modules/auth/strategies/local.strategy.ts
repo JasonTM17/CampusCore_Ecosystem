@@ -9,14 +9,16 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
     super({ usernameField: 'email' });
   }
 
-  async validate(email: string, password: string): Promise<any> {
-    const user = await this.authService['prisma'].user.findUnique({
-      where: { email },
-    });
-    
+  async validate(email: string, password: string) {
+    const user = await this.authService.validateLocalCredentials(
+      email,
+      password,
+    );
+
     if (!user) {
       throw new UnauthorizedException();
     }
-    return { email, password, user };
+
+    return user;
   }
 }

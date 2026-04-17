@@ -1,5 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsDate, IsOptional, IsString, IsUUID, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsDate,
+  IsOptional,
+  IsString,
+  IsUUID,
+  ValidateNested,
+} from 'class-validator';
 import { InvoiceItemDto } from './invoice-item.dto';
 
 export class CreateInvoiceDto {
@@ -22,4 +29,3 @@ export class CreateInvoiceDto {
   @IsString()
   notes?: string;
 }
-

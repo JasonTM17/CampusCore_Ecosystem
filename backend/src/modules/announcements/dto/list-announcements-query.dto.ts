@@ -1,6 +1,9 @@
 import { IsIn, IsOptional, IsUUID } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
-import { ANNOUNCEMENT_PRIORITIES, AnnouncementPriority } from './announcement-priority.dto';
+import {
+  ANNOUNCEMENT_PRIORITIES,
+  AnnouncementPriority,
+} from './announcement-priority.dto';
 
 export class ListAnnouncementsQueryDto extends PaginationQueryDto {
   @IsOptional()
@@ -15,4 +18,3 @@ export class ListAnnouncementsQueryDto extends PaginationQueryDto {
   @IsIn(ANNOUNCEMENT_PRIORITIES)
   priority?: AnnouncementPriority;
 }
-

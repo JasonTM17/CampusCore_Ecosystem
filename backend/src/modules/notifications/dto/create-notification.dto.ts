@@ -1,6 +1,11 @@
 import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 
-export const NOTIFICATION_TYPES = ['INFO', 'WARNING', 'ERROR', 'SUCCESS'] as const;
+export const NOTIFICATION_TYPES = [
+  'INFO',
+  'WARNING',
+  'ERROR',
+  'SUCCESS',
+] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
 export class CreateNotificationDto {

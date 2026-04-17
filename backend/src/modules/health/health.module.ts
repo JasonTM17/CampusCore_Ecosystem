@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
 import { CacheModule } from '../cache/cache.module';
-import { CachingService } from '../cache/caching.service';
+import { RabbitMQModule } from '../rabbitmq/rabbitmq.module';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 
 @Module({
-  imports: [CacheModule],
+  imports: [CacheModule, RabbitMQModule],
   controllers: [HealthController],
-  providers: [HealthService, CachingService],
+  providers: [HealthService],
   exports: [HealthService],
 })
 export class HealthModule {}

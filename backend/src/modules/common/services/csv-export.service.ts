@@ -5,7 +5,7 @@ import { stringify } from 'csv-stringify';
 export class CsvExportService {
   async generateCsv<T extends Record<string, unknown>>(
     data: T[],
-    columns?: string[]
+    columns?: string[],
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       const stringifier = stringify(
@@ -16,7 +16,7 @@ export class CsvExportService {
         (err, output) => {
           if (err) reject(err);
           else resolve(output);
-        }
+        },
       );
 
       data.forEach((row) => stringifier.write(row));

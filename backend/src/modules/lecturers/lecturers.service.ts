@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 
 @Injectable()
@@ -16,13 +16,17 @@ export class LecturersService {
     const skip = (page - 1) * limit;
     const [lecturers, total] = await Promise.all([
       this.prisma.lecturer.findMany({
-        skip, take: limit,
+        skip,
+        take: limit,
         include: { user: true, department: true },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.lecturer.count(),
     ]);
-    return { data: lecturers, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: lecturers,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: string) {
@@ -36,7 +40,11 @@ export class LecturersService {
 
   async update(id: string, data: any) {
     await this.findOne(id);
-    return this.prisma.lecturer.update({ where: { id }, data, include: { user: true } });
+    return this.prisma.lecturer.update({
+      where: { id },
+      data,
+      include: { user: true },
+    });
   }
 
   async remove(id: string) {

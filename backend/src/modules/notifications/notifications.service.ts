@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 
 @Injectable()
@@ -22,7 +26,10 @@ export class NotificationsService {
       this.prisma.notification.count({ where }),
     ]);
 
-    return { data: notifications, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: notifications,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async getUnreadCount(userId: string) {
@@ -58,7 +65,8 @@ export class NotificationsService {
     const existing = await this.prisma.notification.findFirst({
       where: { id: notificationId, userId },
     });
-    if (!existing) throw new ForbiddenException('Cannot delete this notification');
+    if (!existing)
+      throw new ForbiddenException('Cannot delete this notification');
 
     await this.prisma.notification.delete({ where: { id: notificationId } });
     return { message: 'Notification deleted successfully' };
@@ -85,11 +93,17 @@ export class NotificationsService {
       }),
       this.prisma.notification.count({ where }),
     ]);
-    return { data: notifications, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: notifications,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: string) {
-    const notification = await this.prisma.notification.findUnique({ where: { id }, include: { user: true } });
+    const notification = await this.prisma.notification.findUnique({
+      where: { id },
+      include: { user: true },
+    });
     if (!notification) throw new NotFoundException('Notification not found');
     return notification;
   }

@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
+import { ENV } from '../../../config/env.constants';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -27,7 +28,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
-      
+
       if (typeof exceptionResponse === 'string') {
         message = exceptionResponse;
       } else if (typeof exceptionResponse === 'object') {
@@ -52,7 +53,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     // Handle other errors
     else if (exception instanceof Error) {
       message = exception.message || message;
-      
+
       // Log non-HTTP errors for debugging
       if (status === HttpStatus.INTERNAL_SERVER_ERROR) {
         this.logger.error(
@@ -76,14 +77,19 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
 
     // Don't expose internal error details in production
-    if (status === HttpStatus.INTERNAL_SERVER_ERROR && process.env.NODE_ENV === 'production') {
+    if (
+      status === HttpStatus.INTERNAL_SERVER_ERROR &&
+      process.env[ENV.NODE_ENV] === 'production'
+    ) {
       responseBody.message = ['Internal server error'];
     }
 
     response.status(status).json(responseBody);
   }
 
-  private handlePrismaError(exception: Prisma.PrismaClientKnownRequestError): string {
+  private handlePrismaError(
+    exception: Prisma.PrismaClientKnownRequestError,
+  ): string {
     switch (exception.code) {
       case 'P2002':
         return `A record with this value already exists`;

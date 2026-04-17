@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ForbiddenException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  ForbiddenException,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AnnouncementsService } from './announcements.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -24,13 +35,20 @@ export class AnnouncementsController {
     @CurrentUser() user: AuthUser,
     @Query() query: PaginationQueryDto,
   ) {
-    return this.announcementsService.findForUser(user, query.page || 1, query.limit || 20);
+    return this.announcementsService.findForUser(
+      user,
+      query.page || 1,
+      query.limit || 20,
+    );
   }
 
   @Post()
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Create announcement' })
-  create(@CurrentUser('id') userId: string, @Body() data: CreateAnnouncementDto) {
+  create(
+    @CurrentUser('id') userId: string,
+    @Body() data: CreateAnnouncementDto,
+  ) {
     if (!userId) throw new ForbiddenException('Not authenticated');
     return this.announcementsService.create({ ...data, publishedBy: userId });
   }
@@ -39,11 +57,15 @@ export class AnnouncementsController {
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get all announcements' })
   findAll(@Query() query: ListAnnouncementsQueryDto) {
-    return this.announcementsService.findAll(query.page || 1, query.limit || 20, {
-      semesterId: query.semesterId,
-      sectionId: query.sectionId,
-      priority: query.priority,
-    });
+    return this.announcementsService.findAll(
+      query.page || 1,
+      query.limit || 20,
+      {
+        semesterId: query.semesterId,
+        sectionId: query.sectionId,
+        priority: query.priority,
+      },
+    );
   }
 
   @Get(':id')

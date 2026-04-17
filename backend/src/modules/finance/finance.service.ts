@@ -1,6 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { Prisma, InvoiceStatus, PaymentStatus } from '@prisma/client';
+import { InvoiceStatus, PaymentStatus } from '@prisma/client';
 import { CsvExportService } from '../common/services/csv-export.service';
 import { EmailService } from '../common/services/email.service';
 
@@ -21,8 +25,11 @@ export class FinanceService {
     items: { description: string; quantity: number; unitPrice: number }[];
     notes?: string;
   }) {
-    const subtotal = data.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
-    
+    const subtotal = data.items.reduce(
+      (sum, item) => sum + item.quantity * item.unitPrice,
+      0,
+    );
+
     const invoiceNumber = await this.generateInvoiceNumber();
 
     return this.prisma.invoice.create({
@@ -37,7 +44,7 @@ export class FinanceService {
         total: subtotal,
         status: InvoiceStatus.DRAFT,
         items: {
-          create: data.items.map(item => ({
+          create: data.items.map((item) => ({
             description: item.description,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
@@ -54,11 +61,11 @@ export class FinanceService {
   }
 
   async findAllInvoices(
-    page = 1, 
-    limit = 20, 
-    status?: string, 
-    semesterId?: string, 
-    studentId?: string
+    page = 1,
+    limit = 20,
+    status?: string,
+    semesterId?: string,
+    studentId?: string,
   ) {
     const skip = (page - 1) * limit;
     const where: any = {};
@@ -87,10 +94,17 @@ export class FinanceService {
       this.prisma.invoice.count({ where }),
     ]);
 
-    return { data: invoices, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: invoices,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
-  async exportInvoices(status?: string, semesterId?: string, studentId?: string) {
+  async exportInvoices(
+    status?: string,
+    semesterId?: string,
+    studentId?: string,
+  ) {
     const where: any = {};
 
     if (status) {
@@ -113,9 +127,11 @@ export class FinanceService {
       orderBy: { createdAt: 'desc' },
     });
 
-    const exportData = invoices.map(inv => ({
+    const exportData = invoices.map((inv) => ({
       invoiceNumber: inv.invoiceNumber,
-      studentName: inv.student.user ? `${inv.student.user.firstName} ${inv.student.user.lastName}` : '',
+      studentName: inv.student.user
+        ? `${inv.student.user.firstName} ${inv.student.user.lastName}`
+        : '',
       studentEmail: inv.student.user?.email || '',
       studentNumber: inv.student.studentId || '',
       semesterName: inv.semester.name,
@@ -126,11 +142,13 @@ export class FinanceService {
       dueDate: inv.dueDate ? inv.dueDate.toISOString() : '',
       paidAt: inv.paidAt ? inv.paidAt.toISOString() : '',
       paidAmount: inv.payments
-        .filter(p => p.status === PaymentStatus.COMPLETED)
+        .filter((p) => p.status === PaymentStatus.COMPLETED)
         .reduce((sum, p) => sum + Number(p.amount), 0),
-      balance: Number(inv.total) - inv.payments
-        .filter(p => p.status === PaymentStatus.COMPLETED)
-        .reduce((sum, p) => sum + Number(p.amount), 0),
+      balance:
+        Number(inv.total) -
+        inv.payments
+          .filter((p) => p.status === PaymentStatus.COMPLETED)
+          .reduce((sum, p) => sum + Number(p.amount), 0),
       notes: inv.notes || '',
       createdAt: inv.createdAt ? inv.createdAt.toISOString() : '',
     }));
@@ -152,11 +170,14 @@ export class FinanceService {
     return invoice;
   }
 
-  async updateInvoice(id: string, data: { status?: string; notes?: string; dueDate?: Date }) {
+  async updateInvoice(
+    id: string,
+    data: { status?: string; notes?: string; dueDate?: Date },
+  ) {
     await this.findOneInvoice(id);
-    
+
     const updateData: any = { ...data };
-    
+
     // If marking as paid, set paidAt
     if (data.status === InvoiceStatus.PAID) {
       updateData.paidAt = new Date();
@@ -196,7 +217,7 @@ export class FinanceService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return invoices.map(invoice => ({
+    return invoices.map((invoice) => ({
       id: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
       semesterName: invoice.semester.name,
@@ -209,11 +230,13 @@ export class FinanceService {
       paidAt: invoice.paidAt,
       createdAt: invoice.createdAt,
       paidAmount: invoice.payments
-        .filter(p => p.status === PaymentStatus.COMPLETED)
+        .filter((p) => p.status === PaymentStatus.COMPLETED)
         .reduce((sum, p) => sum + Number(p.amount), 0),
-      balance: Number(invoice.total) - invoice.payments
-        .filter(p => p.status === PaymentStatus.COMPLETED)
-        .reduce((sum, p) => sum + Number(p.amount), 0),
+      balance:
+        Number(invoice.total) -
+        invoice.payments
+          .filter((p) => p.status === PaymentStatus.COMPLETED)
+          .reduce((sum, p) => sum + Number(p.amount), 0),
     }));
   }
 
@@ -237,7 +260,7 @@ export class FinanceService {
       subtotal: Number(invoice.subtotal),
       discount: Number(invoice.discount),
       total: Number(invoice.total),
-      payments: invoice.payments.map(p => ({
+      payments: invoice.payments.map((p) => ({
         ...p,
         amount: Number(p.amount),
       })),
@@ -258,7 +281,7 @@ export class FinanceService {
 
     // Calculate current paid amount
     const currentPaid = await this.prisma.payment.aggregate({
-      where: { 
+      where: {
         invoiceId: data.invoiceId,
         status: PaymentStatus.COMPLETED,
       },
@@ -266,7 +289,7 @@ export class FinanceService {
     });
 
     const totalPaid = (currentPaid._sum.amount?.toNumber() || 0) + data.amount;
-    
+
     // Create payment
     const paymentNumber = await this.generatePaymentNumber();
     const payment = await this.prisma.payment.create({
@@ -291,7 +314,7 @@ export class FinanceService {
     if (totalPaid >= Number(invoice.total)) {
       await this.prisma.invoice.update({
         where: { id: data.invoiceId },
-        data: { 
+        data: {
           status: InvoiceStatus.PAID,
           paidAt: new Date(),
         },
@@ -300,23 +323,27 @@ export class FinanceService {
 
     // Send payment confirmation email (async, don't await)
     if (payment.student.user?.email) {
-      this.emailService.sendPaymentConfirmation(
-        payment.student.user.email,
-        `${payment.student.user.firstName} ${payment.student.user.lastName}`,
-        payment.invoice.invoiceNumber,
-        Number(payment.amount),
-      ).catch(err => console.error('Failed to send payment confirmation email:', err));
+      this.emailService
+        .sendPaymentConfirmation(
+          payment.student.user.email,
+          `${payment.student.user.firstName} ${payment.student.user.lastName}`,
+          payment.invoice.invoiceNumber,
+          Number(payment.amount),
+        )
+        .catch((err) =>
+          console.error('Failed to send payment confirmation email:', err),
+        );
     }
 
     return payment;
   }
 
   async findAllPayments(
-    page = 1, 
-    limit = 20, 
-    status?: string, 
-    invoiceId?: string, 
-    studentId?: string
+    page = 1,
+    limit = 20,
+    status?: string,
+    invoiceId?: string,
+    studentId?: string,
   ) {
     const skip = (page - 1) * limit;
     const where: any = {};
@@ -345,16 +372,20 @@ export class FinanceService {
       this.prisma.payment.count({ where }),
     ]);
 
-    return { 
-      data: payments.map(p => ({
+    return {
+      data: payments.map((p) => ({
         ...p,
         amount: Number(p.amount),
-      })), 
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) } 
+      })),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
 
-  async exportPayments(status?: string, invoiceId?: string, studentId?: string) {
+  async exportPayments(
+    status?: string,
+    invoiceId?: string,
+    studentId?: string,
+  ) {
     const where: any = {};
 
     if (status) {
@@ -376,10 +407,12 @@ export class FinanceService {
       orderBy: { createdAt: 'desc' },
     });
 
-    const exportData = payments.map(p => ({
+    const exportData = payments.map((p) => ({
       paymentNumber: p.paymentNumber,
       invoiceNumber: p.invoice.invoiceNumber,
-      studentName: p.student.user ? `${p.student.user.firstName} ${p.student.user.lastName}` : '',
+      studentName: p.student.user
+        ? `${p.student.user.firstName} ${p.student.user.lastName}`
+        : '',
       studentEmail: p.student.user?.email || '',
       studentNumber: p.student.studentId || '',
       amount: Number(p.amount),
@@ -429,14 +462,19 @@ export class FinanceService {
 
   // ============ INVOICE GENERATION ============
 
-  async generateInvoiceForStudentSemester(studentId: string, semesterId: string) {
+  async generateInvoiceForStudentSemester(
+    studentId: string,
+    semesterId: string,
+  ) {
     // Check if invoice already exists
     const existingInvoice = await this.prisma.invoice.findFirst({
       where: { studentId, semesterId },
     });
 
     if (existingInvoice) {
-      throw new BadRequestException('Invoice already exists for this student and semester');
+      throw new BadRequestException(
+        'Invoice already exists for this student and semester',
+      );
     }
 
     // Get student's enrollments for the semester
@@ -454,12 +492,14 @@ export class FinanceService {
     });
 
     if (enrollments.length === 0) {
-      throw new BadRequestException('No confirmed enrollments found for this semester');
+      throw new BadRequestException(
+        'No confirmed enrollments found for this semester',
+      );
     }
 
     // Create invoice items from enrollments (per credit pricing)
     const tuitionPerCredit = 150; // Default tuition rate - could be configurable
-    const items = enrollments.map(enrollment => ({
+    const items = enrollments.map((enrollment) => ({
       description: `${enrollment.section.course.code} - ${enrollment.section.course.name} (${enrollment.section.course.credits} credits)`,
       quantity: enrollment.section.course.credits,
       unitPrice: tuitionPerCredit,
@@ -470,7 +510,8 @@ export class FinanceService {
       where: { id: semesterId },
     });
 
-    const dueDate = semester?.endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const dueDate =
+      semester?.endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
     return this.createInvoice({
       studentId,
@@ -500,13 +541,18 @@ export class FinanceService {
 
     for (const enrollment of enrollments) {
       try {
-        await this.generateInvoiceForStudentSemester(enrollment.studentId, semesterId);
+        await this.generateInvoiceForStudentSemester(
+          enrollment.studentId,
+          semesterId,
+        );
         results.generated++;
       } catch (error) {
         if (error instanceof BadRequestException) {
           results.skipped++;
         } else {
-          results.errors.push(`Student ${enrollment.studentId}: ${error.message}`);
+          results.errors.push(
+            `Student ${enrollment.studentId}: ${error.message}`,
+          );
         }
       }
     }

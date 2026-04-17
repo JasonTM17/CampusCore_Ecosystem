@@ -8,16 +8,21 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger } from '@nestjs/common';
+import { Logger, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { AuthService } from '../auth/auth.service';
+import { AuthUser } from '../auth/types/auth-user.type';
 
 interface AuthenticatedSocket extends Socket {
-  userId?: string;
-  userRole?: string;
+  data: {
+    user?: AuthUser;
+    authPromise?: Promise<AuthUser | null>;
+  };
 }
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: true,
     credentials: true,
   },
   namespace: '/notifications',
@@ -31,9 +36,38 @@ export class NotificationsGateway
   private readonly logger = new Logger(NotificationsGateway.name);
   private connectedClients: Map<string, AuthenticatedSocket> = new Map();
 
-  handleConnection(client: AuthenticatedSocket) {
-    this.logger.log(`Client connected: ${client.id}`);
-    this.connectedClients.set(client.id, client);
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly authService: AuthService,
+  ) {}
+
+  async handleConnection(client: AuthenticatedSocket) {
+    client.data.authPromise = this.authenticateSocket(client);
+    const user = await client.data.authPromise;
+
+    if (!user) {
+      client.disconnect(true);
+      return;
+    }
+
+    try {
+      client.data.user = user;
+      this.connectedClients.set(client.id, client);
+      client.join(`user:${user.id}`);
+
+      for (const role of user.roles) {
+        client.join(`role:${role}`);
+      }
+
+      this.logger.log(
+        `Client connected: ${client.id} authenticated as ${user.id}`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Rejected socket ${client.id}: invalid authentication token`,
+      );
+      client.disconnect(true);
+    }
   }
 
   handleDisconnect(client: AuthenticatedSocket) {
@@ -42,47 +76,87 @@ export class NotificationsGateway
   }
 
   @SubscribeMessage('authenticate')
-  handleAuthentication(
+  async handleAuthentication(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { userId: string; role: string },
+    @MessageBody()
+    data: { channel?: string; userId?: string; role?: string },
   ) {
-    client.userId = data.userId;
-    client.userRole = data.role;
-    client.join(`user:${data.userId}`);
-    client.join(`role:${data.role}`);
-    
-    this.logger.log(`User ${data.userId} (${data.role}) authenticated on socket ${client.id}`);
-    
-    return { status: 'authenticated', userId: data.userId };
+    const user = await this.getAuthenticatedUser(client);
+
+    if (!user) {
+      return { status: 'unauthorized' };
+    }
+
+    if (data.channel && this.isAllowedChannel(user, data.channel)) {
+      client.join(data.channel);
+      this.logger.log(`Socket ${client.id} subscribed to ${data.channel}`);
+    } else if (data.channel) {
+      this.logger.warn(
+        `Socket ${client.id} attempted forbidden channel join: ${data.channel}`,
+      );
+      return {
+        status: 'authenticated',
+        userId: user.id,
+        roles: user.roles,
+        channelStatus: 'forbidden',
+        channel: data.channel,
+      };
+    }
+
+    return { status: 'authenticated', userId: user.id, roles: user.roles };
   }
 
   @SubscribeMessage('subscribe')
-  handleSubscribe(
+  async handleSubscribe(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { channel: string },
   ) {
-    if (data.channel) {
+    const user = await this.getAuthenticatedUser(client);
+
+    if (!user) {
+      return { status: 'unauthorized' };
+    }
+
+    if (data.channel && this.isAllowedChannel(user, data.channel)) {
       client.join(data.channel);
       this.logger.log(`Socket ${client.id} subscribed to ${data.channel}`);
+      return { status: 'subscribed', channel: data.channel };
     }
-    return { status: 'subscribed', channel: data.channel };
+
+    this.logger.warn(
+      `Socket ${client.id} attempted forbidden subscribe: ${data.channel}`,
+    );
+    return { status: 'forbidden', channel: data.channel };
   }
 
   @SubscribeMessage('unsubscribe')
-  handleUnsubscribe(
+  async handleUnsubscribe(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { channel: string },
   ) {
-    if (data.channel) {
+    const user = await this.getAuthenticatedUser(client);
+
+    if (!user) {
+      return { status: 'unauthorized' };
+    }
+
+    if (data.channel && this.isAllowedChannel(user, data.channel)) {
       client.leave(data.channel);
       this.logger.log(`Socket ${client.id} unsubscribed from ${data.channel}`);
+      return { status: 'unsubscribed', channel: data.channel };
     }
-    return { status: 'unsubscribed', channel: data.channel };
+
+    this.logger.warn(
+      `Socket ${client.id} attempted forbidden unsubscribe: ${data.channel}`,
+    );
+    return { status: 'forbidden', channel: data.channel };
   }
 
   sendNotificationToUser(userId: string, notification: any) {
     this.server.to(`user:${userId}`).emit('notification', notification);
-    this.logger.log(`Notification sent to user ${userId}: ${notification.title}`);
+    this.logger.log(
+      `Notification sent to user ${userId}: ${notification.title}`,
+    );
   }
 
   sendNotificationToRole(role: string, notification: any) {
@@ -101,5 +175,80 @@ export class NotificationsGateway
 
   getConnectedClientsCount(): number {
     return this.connectedClients.size;
+  }
+
+  private extractToken(client: AuthenticatedSocket) {
+    const authToken =
+      client.handshake.auth?.token ?? client.handshake.auth?.accessToken;
+    const headerToken = client.handshake.headers?.authorization;
+
+    if (typeof authToken === 'string' && authToken.trim()) {
+      return this.normalizeBearerToken(authToken);
+    }
+
+    if (typeof headerToken === 'string' && headerToken.trim()) {
+      return this.normalizeBearerToken(headerToken);
+    }
+
+    return null;
+  }
+
+  private normalizeBearerToken(token: string) {
+    return token.startsWith('Bearer ') ? token.slice(7) : token;
+  }
+
+  private async authenticateSocket(
+    client: AuthenticatedSocket,
+  ): Promise<AuthUser | null> {
+    const token = this.extractToken(client);
+
+    if (!token) {
+      this.logger.warn(`Rejected socket ${client.id}: missing auth token`);
+      return null;
+    }
+
+    try {
+      const payload = await this.jwtService.verifyAsync<{ sub: string }>(token);
+      const user = await this.authService.validateUser(payload.sub);
+
+      if (!user) {
+        throw new UnauthorizedException('Inactive user');
+      }
+
+      return user;
+    } catch (error) {
+      this.logger.warn(
+        `Rejected socket ${client.id}: invalid authentication token`,
+      );
+      return null;
+    }
+  }
+
+  private async getAuthenticatedUser(client: AuthenticatedSocket) {
+    if (client.data.user) {
+      return client.data.user;
+    }
+
+    if (!client.data.authPromise) {
+      return null;
+    }
+
+    const user = await client.data.authPromise.catch(() => null);
+
+    if (user) {
+      client.data.user = user;
+    }
+
+    return user;
+  }
+
+  private isAllowedChannel(user: AuthUser, channel: string) {
+    const allowedChannels = new Set<string>([
+      'announcements',
+      `user:${user.id}`,
+      ...user.roles.map((role) => `role:${role}`),
+    ]);
+
+    return allowedChannels.has(channel);
   }
 }

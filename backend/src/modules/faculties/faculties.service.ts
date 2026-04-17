@@ -12,21 +12,36 @@ export class FacultiesService {
   async findAll(page = 1, limit = 20) {
     const skip = (page - 1) * limit;
     const [faculties, total] = await Promise.all([
-      this.prisma.faculty.findMany({ skip, take: limit, include: { departments: true }, orderBy: { name: 'asc' } }),
+      this.prisma.faculty.findMany({
+        skip,
+        take: limit,
+        include: { departments: true },
+        orderBy: { name: 'asc' },
+      }),
       this.prisma.faculty.count(),
     ]);
-    return { data: faculties, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: faculties,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: string) {
-    const faculty = await this.prisma.faculty.findUnique({ where: { id }, include: { departments: true } });
+    const faculty = await this.prisma.faculty.findUnique({
+      where: { id },
+      include: { departments: true },
+    });
     if (!faculty) throw new NotFoundException('Faculty not found');
     return faculty;
   }
 
   async update(id: string, data: any) {
     await this.findOne(id);
-    return this.prisma.faculty.update({ where: { id }, data, include: { departments: true } });
+    return this.prisma.faculty.update({
+      where: { id },
+      data,
+      include: { departments: true },
+    });
   }
 
   async remove(id: string) {

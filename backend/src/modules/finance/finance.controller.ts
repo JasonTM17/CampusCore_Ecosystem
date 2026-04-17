@@ -1,4 +1,16 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ForbiddenException, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  ForbiddenException,
+  Res,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Response } from 'express';
 import { FinanceService } from './finance.service';
@@ -26,7 +38,7 @@ export class FinanceController {
   @ApiOperation({ summary: 'Get current student invoices' })
   getMyInvoices(
     @CurrentStudent() studentId: string,
-    @Query('semesterId') semesterId?: string
+    @Query('semesterId') semesterId?: string,
   ) {
     return this.financeService.getStudentInvoices(studentId, semesterId);
   }
@@ -36,7 +48,7 @@ export class FinanceController {
   @ApiOperation({ summary: 'Get current student invoice by ID' })
   getMyInvoiceById(
     @CurrentStudent() studentId: string,
-    @Param('id') id: string
+    @Param('id') id: string,
   ) {
     return this.financeService.getStudentInvoiceById(studentId, id);
   }
@@ -46,7 +58,7 @@ export class FinanceController {
   @ApiOperation({ summary: 'Record payment for current student invoice' })
   createMyPayment(
     @CurrentStudent() studentId: string,
-    @Body() data: CreateMyPaymentDto
+    @Body() data: CreateMyPaymentDto,
   ) {
     if (!studentId) {
       throw new ForbiddenException('Student profile not found');
@@ -70,13 +82,19 @@ export class FinanceController {
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get all invoices (admin only)' })
   findAllInvoices(
-    @Query('page') page?: number, 
+    @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('status') status?: string,
     @Query('semesterId') semesterId?: string,
-    @Query('studentId') studentId?: string
+    @Query('studentId') studentId?: string,
   ) {
-    return this.financeService.findAllInvoices(page || 1, limit || 20, status, semesterId, studentId);
+    return this.financeService.findAllInvoices(
+      page || 1,
+      limit || 20,
+      status,
+      semesterId,
+      studentId,
+    );
   }
 
   @Get('invoices/export/csv')
@@ -88,7 +106,11 @@ export class FinanceController {
     @Query('semesterId') semesterId?: string,
     @Query('studentId') studentId?: string,
   ) {
-    const csv = await this.financeService.exportInvoices(status, semesterId, studentId);
+    const csv = await this.financeService.exportInvoices(
+      status,
+      semesterId,
+      studentId,
+    );
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename=invoices.csv');
     res.send(csv);
@@ -119,17 +141,24 @@ export class FinanceController {
 
   @Post('invoices/generate/student/:studentId/semester/:semesterId')
   @Roles('ADMIN', 'SUPER_ADMIN')
-  @ApiOperation({ summary: 'Generate invoice for a student in a semester (admin only)' })
+  @ApiOperation({
+    summary: 'Generate invoice for a student in a semester (admin only)',
+  })
   generateStudentInvoice(
     @Param('studentId') studentId: string,
-    @Param('semesterId') semesterId: string
+    @Param('semesterId') semesterId: string,
   ) {
-    return this.financeService.generateInvoiceForStudentSemester(studentId, semesterId);
+    return this.financeService.generateInvoiceForStudentSemester(
+      studentId,
+      semesterId,
+    );
   }
 
   @Post('invoices/generate/semester/:semesterId')
   @Roles('ADMIN', 'SUPER_ADMIN')
-  @ApiOperation({ summary: 'Generate invoices for all students in a semester (admin only)' })
+  @ApiOperation({
+    summary: 'Generate invoices for all students in a semester (admin only)',
+  })
   generateSemesterInvoices(@Param('semesterId') semesterId: string) {
     return this.financeService.generateInvoicesForSemester(semesterId);
   }
@@ -147,13 +176,19 @@ export class FinanceController {
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get all payments (admin only)' })
   findAllPayments(
-    @Query('page') page?: number, 
+    @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('status') status?: string,
     @Query('invoiceId') invoiceId?: string,
-    @Query('studentId') studentId?: string
+    @Query('studentId') studentId?: string,
   ) {
-    return this.financeService.findAllPayments(page || 1, limit || 20, status, invoiceId, studentId);
+    return this.financeService.findAllPayments(
+      page || 1,
+      limit || 20,
+      status,
+      invoiceId,
+      studentId,
+    );
   }
 
   @Get('payments/export/csv')
@@ -165,7 +200,11 @@ export class FinanceController {
     @Query('invoiceId') invoiceId?: string,
     @Query('studentId') studentId?: string,
   ) {
-    const csv = await this.financeService.exportPayments(status, invoiceId, studentId);
+    const csv = await this.financeService.exportPayments(
+      status,
+      invoiceId,
+      studentId,
+    );
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename=payments.csv');
     res.send(csv);

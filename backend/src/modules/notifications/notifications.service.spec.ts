@@ -5,7 +5,6 @@ import { NotFoundException, ForbiddenException } from '@nestjs/common';
 
 describe('NotificationsService', () => {
   let service: NotificationsService;
-  let prismaService: jest.Mocked<PrismaService>;
 
   const mockPrisma = {
     notification: {
@@ -33,7 +32,6 @@ describe('NotificationsService', () => {
     }).compile();
 
     service = module.get<NotificationsService>(NotificationsService);
-    prismaService = module.get(PrismaService);
     jest.clearAllMocks();
   });
 
@@ -44,7 +42,9 @@ describe('NotificationsService', () => {
         { id: '1', userId, title: 'Notification 1', isRead: false },
         { id: '2', userId, title: 'Notification 2', isRead: true },
       ];
-      mockPrisma.notification.findMany.mockResolvedValue(mockNotifications as any);
+      mockPrisma.notification.findMany.mockResolvedValue(
+        mockNotifications as any,
+      );
       mockPrisma.notification.count.mockResolvedValue(2);
 
       const result = await service.findMy(userId, 1, 20);
@@ -89,7 +89,9 @@ describe('NotificationsService', () => {
       const notificationId = 'notification-uuid';
       const mockNotification = { id: notificationId, userId, isRead: false };
 
-      mockPrisma.notification.findFirst.mockResolvedValue(mockNotification as any);
+      mockPrisma.notification.findFirst.mockResolvedValue(
+        mockNotification as any,
+      );
       mockPrisma.notification.update.mockResolvedValue({
         ...mockNotification,
         isRead: true,
@@ -113,7 +115,9 @@ describe('NotificationsService', () => {
       const notificationId = 'notification-uuid';
       const mockNotification = { id: notificationId, userId, isRead: true };
 
-      mockPrisma.notification.findFirst.mockResolvedValue(mockNotification as any);
+      mockPrisma.notification.findFirst.mockResolvedValue(
+        mockNotification as any,
+      );
 
       const result = await service.markRead(userId, notificationId);
 
@@ -143,7 +147,9 @@ describe('NotificationsService', () => {
       const notificationId = 'notification-uuid';
       const mockNotification = { id: notificationId, userId };
 
-      mockPrisma.notification.findFirst.mockResolvedValue(mockNotification as any);
+      mockPrisma.notification.findFirst.mockResolvedValue(
+        mockNotification as any,
+      );
       mockPrisma.notification.delete.mockResolvedValue(mockNotification as any);
 
       await service.deleteMyNotification(userId, notificationId);

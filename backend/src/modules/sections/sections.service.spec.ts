@@ -4,7 +4,6 @@ import { PrismaService } from '../common/prisma/prisma.service';
 
 describe('SectionsService', () => {
   let service: SectionsService;
-  let prismaService: jest.Mocked<PrismaService>;
 
   const mockPrisma = {
     section: {
@@ -33,7 +32,6 @@ describe('SectionsService', () => {
     }).compile();
 
     service = module.get<SectionsService>(SectionsService);
-    prismaService = module.get(PrismaService);
     jest.clearAllMocks();
   });
 
@@ -81,6 +79,114 @@ describe('SectionsService', () => {
       mockPrisma.section.findUnique.mockResolvedValue(null);
 
       await expect(service.findOneSection('nonexistent')).rejects.toThrow();
+    });
+  });
+
+  describe('findLecturerSchedule', () => {
+    it('should map lecturer sections into the frontend schedule shape', async () => {
+      mockPrisma.section.findMany.mockResolvedValue([
+        {
+          id: 'section-1',
+          sectionNumber: '01',
+          capacity: 40,
+          enrolledCount: 12,
+          status: 'OPEN',
+          classroom: { building: 'Building A', roomNumber: 'Room 101' },
+          course: {
+            code: 'CS101',
+            name: 'Introduction to Programming',
+            credits: 3,
+            department: { name: 'Computer Science' },
+          },
+          schedules: [
+            {
+              id: 'sched-2',
+              dayOfWeek: 3,
+              startTime: '09:00',
+              endTime: '10:30',
+              classroom: { building: 'Building A', roomNumber: 'Room 101' },
+            },
+            {
+              id: 'sched-1',
+              dayOfWeek: 1,
+              startTime: '09:00',
+              endTime: '10:30',
+              classroom: { building: 'Building A', roomNumber: 'Room 101' },
+            },
+          ],
+          _count: { enrollments: 15 },
+        },
+      ]);
+
+      const result = await service.findLecturerSchedule('lecturer-1', 'sem-1');
+
+      expect(mockPrisma.section.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { lecturerId: 'lecturer-1', semesterId: 'sem-1' },
+        }),
+      );
+      expect(result).toEqual([
+        expect.objectContaining({
+          id: 'section-1',
+          sectionId: 'section-1',
+          courseCode: 'CS101',
+          departmentName: 'Computer Science',
+          enrolledCount: 15,
+          schedules: [
+            expect.objectContaining({ id: 'sched-1', dayOfWeek: 1 }),
+            expect.objectContaining({ id: 'sched-2', dayOfWeek: 3 }),
+          ],
+        }),
+      ]);
+    });
+  });
+
+  describe('findLecturerGradingSections', () => {
+    it('should summarize lecturer grading readiness', async () => {
+      mockPrisma.section.findMany.mockResolvedValue([
+        {
+          id: 'section-1',
+          sectionNumber: '01',
+          course: {
+            code: 'CS101',
+            name: 'Introduction to Programming',
+            credits: 3,
+            department: { name: 'Computer Science' },
+          },
+          semester: { name: 'Spring 2025' },
+          enrollments: [
+            { id: 'en-1', finalGrade: 85, gradeStatus: 'PUBLISHED' },
+            { id: 'en-2', finalGrade: 78, gradeStatus: 'DRAFT' },
+            { id: 'en-3', finalGrade: null, gradeStatus: 'DRAFT' },
+          ],
+        },
+      ]);
+
+      const result = await service.findLecturerGradingSections('lecturer-1');
+
+      expect(mockPrisma.section.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { lecturerId: 'lecturer-1' },
+        }),
+      );
+      expect(result).toEqual([
+        {
+          id: 'section-1',
+          sectionId: 'section-1',
+          sectionNumber: '01',
+          courseCode: 'CS101',
+          courseName: 'Introduction to Programming',
+          credits: 3,
+          departmentName: 'Computer Science',
+          semester: 'Spring 2025',
+          semesterName: 'Spring 2025',
+          enrolledCount: 3,
+          gradedCount: 2,
+          publishedCount: 1,
+          gradeStatus: 'PARTIAL',
+          canPublish: false,
+        },
+      ]);
     });
   });
 

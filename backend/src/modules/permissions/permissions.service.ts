@@ -30,7 +30,12 @@ export class PermissionsService {
     return permission;
   }
 
-  async create(data: { name: string; description?: string; module: string; action: string }) {
+  async create(data: {
+    name: string;
+    description?: string;
+    module: string;
+    action: string;
+  }) {
     return this.prisma.permission.create({
       data,
     });

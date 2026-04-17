@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { Transporter } from 'nodemailer';
+import { ENV, ENV_DEFAULTS } from '../../../config/env.constants';
 
 export interface EmailOptions {
   to: string;
@@ -24,29 +25,33 @@ export class EmailService {
   private isEmailConfigured: boolean = false;
 
   constructor(private configService: ConfigService) {
-    this.fromEmail = this.configService.get('EMAIL_FROM') || 'noreply@campuscore.edu';
-    this.fromName = this.configService.get('EMAIL_FROM_NAME') || 'CampusCore Administration';
+    this.fromEmail =
+      this.configService.get<string>(ENV.EMAIL_FROM) ?? ENV_DEFAULTS.EMAIL_FROM;
+    this.fromName =
+      this.configService.get<string>(ENV.EMAIL_FROM_NAME) ??
+      ENV_DEFAULTS.EMAIL_FROM_NAME;
     this.initializeTransporter();
   }
 
   private initializeTransporter(): void {
-    const host = this.configService.get('SMTP_HOST');
-    const port = this.configService.get('SMTP_PORT');
-    const user = this.configService.get('SMTP_USER');
-    const pass = this.configService.get('SMTP_PASSWORD');
-    const secure = this.configService.get('SMTP_SECURE') === 'true';
+    const host = this.configService.get<string>(ENV.SMTP_HOST);
+    const port = this.configService.get<number>(ENV.SMTP_PORT);
+    const user = this.configService.get<string>(ENV.SMTP_USER);
+    const pass = this.configService.get<string>(ENV.SMTP_PASSWORD);
+    const secure = this.configService.get<boolean>(ENV.SMTP_SECURE) === true;
 
     if (host && user && pass) {
       this.transporter = nodemailer.createTransport({
         host: host,
-        port: parseInt(port || '587', 10),
+        port: port ?? 587,
         secure: secure,
         auth: {
           user: user,
           pass: pass,
         },
         tls: {
-          rejectUnauthorized: this.configService.get('NODE_ENV') === 'production',
+          rejectUnauthorized:
+            this.configService.get<string>(ENV.NODE_ENV) === 'production',
         },
       });
       this.isEmailConfigured = true;
@@ -56,8 +61,17 @@ export class EmailService {
         jsonTransport: true,
       });
       this.isEmailConfigured = false;
-      this.logger.warn('Email service running in development mode - emails will be logged only');
+      this.logger.warn(
+        'Email service running in development mode - emails will be logged only',
+      );
     }
+  }
+
+  private getFrontendUrl(): string {
+    return (
+      this.configService.get<string>(ENV.FRONTEND_URL) ??
+      ENV_DEFAULTS.FRONTEND_URL
+    );
   }
 
   async sendEmail(options: EmailOptions): Promise<boolean> {
@@ -77,7 +91,9 @@ export class EmailService {
     try {
       if (this.isEmailConfigured) {
         const info = await this.transporter.sendMail(mailOptions);
-        this.logger.log(`Email sent successfully to ${to}, MessageId: ${info.messageId}`);
+        this.logger.log(
+          `Email sent successfully to ${to}, MessageId: ${info.messageId}`,
+        );
         return true;
       } else {
         this.logger.log(`[DEV MODE] Email would be sent:`);
@@ -85,7 +101,9 @@ export class EmailService {
         this.logger.log(`  To: ${to}`);
         this.logger.log(`  Subject: ${subject}`);
         if (html) {
-          this.logger.debug(`  HTML Content preview: ${html.substring(0, 200)}...`);
+          this.logger.debug(
+            `  HTML Content preview: ${html.substring(0, 200)}...`,
+          );
         }
         return true;
       }
@@ -177,7 +195,7 @@ CampusCore Administration`,
               <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td style="border-radius: 6px; background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);">
-                    <a href="${process.env.FRONTEND_URL || 'http://localhost:3001'}/dashboard/enrollments" target="_blank" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">View My Enrollments</a>
+                    <a href="${this.getFrontendUrl()}/dashboard/enrollments" target="_blank" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">View My Enrollments</a>
                   </td>
                 </tr>
               </table>
@@ -371,7 +389,7 @@ CampusCore Administration`,
               <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td style="border-radius: 6px; background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);">
-                    <a href="${process.env.FRONTEND_URL || 'http://localhost:3001'}/dashboard/invoices" target="_blank" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">Pay Invoice Now</a>
+                    <a href="${this.getFrontendUrl()}/dashboard/invoices" target="_blank" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">Pay Invoice Now</a>
                   </td>
                 </tr>
               </table>
@@ -448,7 +466,7 @@ CampusCore Administration`,
               <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td style="border-radius: 6px; background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);">
-                    <a href="${process.env.FRONTEND_URL || 'http://localhost:3001'}/dashboard" target="_blank" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">View Announcement</a>
+                    <a href="${this.getFrontendUrl()}/dashboard" target="_blank" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">View Announcement</a>
                   </td>
                 </tr>
               </table>
@@ -476,7 +494,9 @@ CampusCore Administration`,
     name: string,
     resetUrl: string,
   ): Promise<boolean> {
-    const expiryMinutes = parseInt(this.configService.get('PASSWORD_RESET_EXPIRY_MINUTES') || '15', 10);
+    const expiryMinutes =
+      this.configService.get<number>(ENV.PASSWORD_RESET_EXPIRY_MINUTES) ??
+      ENV_DEFAULTS.PASSWORD_RESET_EXPIRY_MINUTES;
 
     return this.sendEmail({
       to: email,
@@ -562,7 +582,7 @@ CampusCore Administration`,
     role: string,
     temporaryPassword?: string,
   ): Promise<boolean> {
-    const loginLink = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/login`;
+    const loginLink = `${this.getFrontendUrl()}/login`;
 
     return this.sendEmail({
       to: email,
@@ -621,12 +641,16 @@ CampusCore Administration`,
                         <td style="padding: 8px 0; color: #6B7280; font-size: 14px;">Role</td>
                         <td style="padding: 8px 0; color: #1F2937; font-size: 14px; font-weight: 600; text-align: right;">${role}</td>
                       </tr>
-                      ${temporaryPassword ? `
+                      ${
+                        temporaryPassword
+                          ? `
                       <tr>
                         <td style="padding: 8px 0; color: #6B7280; font-size: 14px;">Temporary Password</td>
                         <td style="padding: 8px 0; color: #EF4444; font-size: 14px; font-weight: 600; text-align: right;">${temporaryPassword}</td>
                       </tr>
-                      ` : ''}
+                      `
+                          : ''
+                      }
                     </table>
                   </td>
                 </tr>
@@ -735,7 +759,7 @@ CampusCore Administration`,
               <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td style="border-radius: 6px; background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);">
-                    <a href="${process.env.FRONTEND_URL || 'http://localhost:3001'}/dashboard/grades" target="_blank" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">View My Grades</a>
+                    <a href="${this.getFrontendUrl()}/dashboard/grades" target="_blank" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">View My Grades</a>
                   </td>
                 </tr>
               </table>

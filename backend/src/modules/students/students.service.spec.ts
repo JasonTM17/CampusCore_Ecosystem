@@ -4,7 +4,6 @@ import { PrismaService } from '../common/prisma/prisma.service';
 
 describe('StudentsService', () => {
   let service: StudentsService;
-  let prismaService: jest.Mocked<PrismaService>;
 
   const mockPrisma = {
     student: {
@@ -35,14 +34,17 @@ describe('StudentsService', () => {
     }).compile();
 
     service = module.get<StudentsService>(StudentsService);
-    prismaService = module.get(PrismaService);
     jest.clearAllMocks();
   });
 
   describe('findAll', () => {
     it('should return paginated students with metadata', async () => {
       const mockStudents = [
-        { id: '1', studentId: 'STU001', user: { firstName: 'John', lastName: 'Doe' } },
+        {
+          id: '1',
+          studentId: 'STU001',
+          user: { firstName: 'John', lastName: 'Doe' },
+        },
       ];
 
       mockPrisma.student.findMany.mockResolvedValue(mockStudents);
@@ -128,7 +130,9 @@ describe('StudentsService', () => {
     it('should throw NotFoundException if student not found', async () => {
       mockPrisma.student.findUnique.mockResolvedValue(null);
 
-      await expect(service.update('nonexistent', { year: 3 } as any)).rejects.toThrow();
+      await expect(
+        service.update('nonexistent', { year: 3 } as any),
+      ).rejects.toThrow();
     });
   });
 });

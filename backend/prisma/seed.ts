@@ -1,9 +1,12 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log('Starting seed...');
+  const adminPasswordHash = await bcrypt.hash('admin123', 12);
+  const defaultPasswordHash = await bcrypt.hash('password123', 12);
 
   // Create Academic Year
   const academicYear = await prisma.academicYear.create({
@@ -32,7 +35,7 @@ async function main() {
     },
   });
 
-  const summerSemester = await prisma.semester.create({
+  await prisma.semester.create({
     data: {
       name: 'Summer 2025',
       type: 'SUMMER',
@@ -182,7 +185,7 @@ async function main() {
       email: 'admin@campuscore.edu',
       firstName: 'Admin',
       lastName: 'User',
-      password: '$2a$10$rVqKxKxKxKxKxKxKxKxKeOvQ9xKxKxKxKxKxKxKxKxKxKxKxKx', // password: admin123
+      password: adminPasswordHash,
       status: 'ACTIVE',
     },
   });
@@ -201,7 +204,7 @@ async function main() {
       email: 'john.doe@campuscore.edu',
       firstName: 'John',
       lastName: 'Doe',
-      password: '$2a$10$rVqKxKxKxKxKxKxKxKeOvQ9xKxKxKxKxKxKxKxKxKxKxKxKx',
+      password: defaultPasswordHash,
       status: 'ACTIVE',
     },
   });
@@ -228,7 +231,7 @@ async function main() {
       email: 'jane.smith@campuscore.edu',
       firstName: 'Jane',
       lastName: 'Smith',
-      password: '$2a$10$rVqKxKxKxKxKxKxKxKeOvQ9xKxKxKxKxKxKxKxKxKxKxKxKx',
+      password: defaultPasswordHash,
       status: 'ACTIVE',
     },
   });
@@ -255,7 +258,7 @@ async function main() {
       email: 'bob.wilson@campuscore.edu',
       firstName: 'Bob',
       lastName: 'Wilson',
-      password: '$2a$10$rVqKxKxKxKxKxKxKxKeOvQ9xKxKxKxKxKxKxKxKxKxKxKxKx',
+      password: defaultPasswordHash,
       status: 'ACTIVE',
     },
   });
@@ -282,7 +285,7 @@ async function main() {
       email: 'alice.johnson@campuscore.edu',
       firstName: 'Alice',
       lastName: 'Johnson',
-      password: '$2a$10$rVqKxKxKxKxKxKxKxKeOvQ9xKxKxKxKxKxKxKxKxKxKxKxKx',
+      password: defaultPasswordHash,
       status: 'ACTIVE',
     },
   });
@@ -308,11 +311,36 @@ async function main() {
   // Create Student Users and Students
   const students = [];
   const studentData = [
-    { email: 'student1@campuscore.edu', firstName: 'Michael', lastName: 'Brown', studentId: 'CS001' },
-    { email: 'student2@campuscore.edu', firstName: 'Sarah', lastName: 'Davis', studentId: 'CS002' },
-    { email: 'student3@campuscore.edu', firstName: 'David', lastName: 'Miller', studentId: 'SE001' },
-    { email: 'student4@campuscore.edu', firstName: 'Emily', lastName: 'Wilson', studentId: 'CE001' },
-    { email: 'student5@campuscore.edu', firstName: 'James', lastName: 'Taylor', studentId: 'BA001' },
+    {
+      email: 'student1@campuscore.edu',
+      firstName: 'Michael',
+      lastName: 'Brown',
+      studentId: 'CS001',
+    },
+    {
+      email: 'student2@campuscore.edu',
+      firstName: 'Sarah',
+      lastName: 'Davis',
+      studentId: 'CS002',
+    },
+    {
+      email: 'student3@campuscore.edu',
+      firstName: 'David',
+      lastName: 'Miller',
+      studentId: 'SE001',
+    },
+    {
+      email: 'student4@campuscore.edu',
+      firstName: 'Emily',
+      lastName: 'Wilson',
+      studentId: 'CE001',
+    },
+    {
+      email: 'student5@campuscore.edu',
+      firstName: 'James',
+      lastName: 'Taylor',
+      studentId: 'BA001',
+    },
   ];
 
   for (const s of studentData) {
@@ -321,7 +349,7 @@ async function main() {
         email: s.email,
         firstName: s.firstName,
         lastName: s.lastName,
-        password: '$2a$10$rVqKxKxKxKxKxKxKxKeOvQ9xKxKxKxKxKxKxKxKxKxKxKxKx',
+        password: defaultPasswordHash,
         status: 'ACTIVE',
       },
     });
@@ -330,7 +358,9 @@ async function main() {
       data: {
         userId: user.id,
         studentId: s.studentId,
-        curriculumId: s.studentId.startsWith('CS') ? curriculumCS.id : curriculumSE.id,
+        curriculumId: s.studentId.startsWith('CS')
+          ? curriculumCS.id
+          : curriculumSE.id,
         year: 1,
         status: 'ACTIVE',
         admissionDate: new Date('2024-09-01'),
@@ -363,16 +393,36 @@ async function main() {
 
   // Create Courses
   const courses = [
-    { code: 'CS101', name: 'Introduction to Programming', credits: 3, dept: deptCS },
+    {
+      code: 'CS101',
+      name: 'Introduction to Programming',
+      credits: 3,
+      dept: deptCS,
+    },
     { code: 'CS201', name: 'Data Structures', credits: 4, dept: deptCS },
     { code: 'CS301', name: 'Algorithms', credits: 4, dept: deptCS },
-    { code: 'CS401', name: 'Artificial Intelligence', credits: 3, dept: deptCS },
-    { code: 'SE201', name: 'Software Engineering Principles', credits: 3, dept: deptSE },
+    {
+      code: 'CS401',
+      name: 'Artificial Intelligence',
+      credits: 3,
+      dept: deptCS,
+    },
+    {
+      code: 'SE201',
+      name: 'Software Engineering Principles',
+      credits: 3,
+      dept: deptSE,
+    },
     { code: 'SE301', name: 'Database Systems', credits: 4, dept: deptSE },
     { code: 'SE401', name: 'Web Development', credits: 3, dept: deptSE },
     { code: 'CE201', name: 'Computer Architecture', credits: 3, dept: deptCE },
     { code: 'CE301', name: 'Computer Networks', credits: 4, dept: deptCE },
-    { code: 'BA101', name: 'Introduction to Business', credits: 3, dept: deptBA },
+    {
+      code: 'BA101',
+      name: 'Introduction to Business',
+      credits: 3,
+      dept: deptBA,
+    },
     { code: 'BA201', name: 'Management Principles', credits: 3, dept: deptBA },
   ];
 
@@ -393,7 +443,12 @@ async function main() {
 
   // Create Sections for Spring Semester
   const sections = [];
-  const lecturers = [lecturer1Profile, lecturer2Profile, lecturer3Profile, lecturer4Profile];
+  const lecturers = [
+    lecturer1Profile,
+    lecturer2Profile,
+    lecturer3Profile,
+    lecturer4Profile,
+  ];
 
   for (let i = 0; i < createdCourses.length; i++) {
     const course = createdCourses[i];
@@ -474,7 +529,7 @@ async function main() {
     const numCourses = 3 + Math.floor(Math.random() * 2);
     for (let i = 0; i < numCourses && i < sections.length; i++) {
       const section = sections[i];
-      
+
       // Check if already enrolled
       const existingEnrollment = await prisma.enrollment.findFirst({
         where: { studentId: student.id, sectionId: section.id },
@@ -605,7 +660,8 @@ async function main() {
   await prisma.announcement.create({
     data: {
       title: 'Spring 2025 Registration Open',
-      content: 'Course registration for Spring 2025 semester is now open. Please register through the student portal.',
+      content:
+        'Course registration for Spring 2025 semester is now open. Please register through the student portal.',
       priority: 'HIGH',
       semesterId: springSemester.id,
       publishedBy: adminUser.email,
@@ -616,7 +672,8 @@ async function main() {
   await prisma.announcement.create({
     data: {
       title: 'Midterm Examination Schedule',
-      content: 'Midterm examinations will be held from March 15-20, 2025. Please check your schedule.',
+      content:
+        'Midterm examinations will be held from March 15-20, 2025. Please check your schedule.',
       priority: 'NORMAL',
       semesterId: springSemester.id,
       publishedBy: adminUser.email,

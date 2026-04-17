@@ -15,4 +15,3 @@ export class InvoiceItemDto {
   @Min(0)
   unitPrice!: number;
 }
-

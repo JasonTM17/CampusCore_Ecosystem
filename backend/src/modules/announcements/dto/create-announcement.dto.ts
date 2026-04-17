@@ -10,7 +10,10 @@ import {
   IsUUID,
   Min,
 } from 'class-validator';
-import { ANNOUNCEMENT_PRIORITIES, AnnouncementPriority } from './announcement-priority.dto';
+import {
+  ANNOUNCEMENT_PRIORITIES,
+  AnnouncementPriority,
+} from './announcement-priority.dto';
 
 export class CreateAnnouncementDto {
   @IsString()
@@ -65,4 +68,3 @@ export class CreateAnnouncementDto {
   @IsString()
   publishedBy?: string;
 }
-
