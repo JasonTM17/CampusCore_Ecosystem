@@ -6,6 +6,7 @@ import { ENV, ENV_DEFAULTS } from '../../../config/env.constants';
 
 export interface EmailOptions {
   to: string;
+  bcc?: string | string[];
   subject: string;
   text?: string;
   html?: string;
@@ -74,14 +75,42 @@ export class EmailService {
     );
   }
 
+  private escapeHtml(value: string | number | null | undefined): string {
+    if (value === null || value === undefined) {
+      return '';
+    }
+
+    return String(value)
+      .replace(/&/gu, '&amp;')
+      .replace(/</gu, '&lt;')
+      .replace(/>/gu, '&gt;')
+      .replace(/"/gu, '&quot;')
+      .replace(/'/gu, '&#39;');
+  }
+
+  private safeUrl(url: string): string {
+    try {
+      const parsedUrl = new URL(url);
+
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        return '#';
+      }
+
+      return this.escapeHtml(parsedUrl.toString());
+    } catch {
+      return '#';
+    }
+  }
+
   async sendEmail(options: EmailOptions): Promise<boolean> {
-    const { to, subject, text, html, attachments } = options;
+    const { to, bcc, subject, text, html, attachments } = options;
 
     this.logger.log(`Sending email to: ${to}, Subject: ${subject}`);
 
     const mailOptions = {
       from: `"${this.fromName}" <${this.fromEmail}>`,
       to,
+      bcc,
       subject,
       text,
       html,
@@ -135,6 +164,13 @@ export class EmailService {
     courseName: string,
     sectionNumber: string,
   ): Promise<boolean> {
+    const safeStudentName = this.escapeHtml(studentName);
+    const safeCourseName = this.escapeHtml(courseName);
+    const safeSectionNumber = this.escapeHtml(sectionNumber);
+    const enrollmentsUrl = this.safeUrl(
+      `${this.getFrontendUrl()}/dashboard/enrollments`,
+    );
+
     return this.sendEmail({
       to: studentEmail,
       subject: 'Enrollment Confirmed - CampusCore',
@@ -168,7 +204,7 @@ CampusCore Administration`,
             <td style="padding: 40px 30px;">
               <h2 style="color: #1F2937; margin: 0 0 20px 0; font-size: 24px;">Enrollment Confirmed</h2>
               <p style="color: #4B5563; margin: 0 0 20px 0; font-size: 16px; line-height: 1.6;">
-                Dear <strong style="color: #4F46E5;">${studentName}</strong>,
+                Dear <strong style="color: #4F46E5;">${safeStudentName}</strong>,
               </p>
               <p style="color: #4B5563; margin: 0 0 20px 0; font-size: 16px; line-height: 1.6;">
                 Your enrollment has been <strong style="color: #10B981;">successfully confirmed</strong> for the following course:
@@ -179,11 +215,11 @@ CampusCore Administration`,
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                       <tr>
                         <td style="padding: 8px 0; color: #6B7280; font-size: 14px;">Course</td>
-                        <td style="padding: 8px 0; color: #1F2937; font-size: 14px; font-weight: 600; text-align: right;">${courseName}</td>
+                        <td style="padding: 8px 0; color: #1F2937; font-size: 14px; font-weight: 600; text-align: right;">${safeCourseName}</td>
                       </tr>
                       <tr>
                         <td style="padding: 8px 0; color: #6B7280; font-size: 14px;">Section</td>
-                        <td style="padding: 8px 0; color: #1F2937; font-size: 14px; font-weight: 600; text-align: right;">${sectionNumber}</td>
+                        <td style="padding: 8px 0; color: #1F2937; font-size: 14px; font-weight: 600; text-align: right;">${safeSectionNumber}</td>
                       </tr>
                     </table>
                   </td>
@@ -195,7 +231,7 @@ CampusCore Administration`,
               <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td style="border-radius: 6px; background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);">
-                    <a href="${this.getFrontendUrl()}/dashboard/enrollments" target="_blank" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">View My Enrollments</a>
+                    <a href="${enrollmentsUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">View My Enrollments</a>
                   </td>
                 </tr>
               </table>
@@ -228,6 +264,9 @@ CampusCore Administration`,
       style: 'currency',
       currency: 'USD',
     }).format(amount);
+    const safeStudentName = this.escapeHtml(studentName);
+    const safeInvoiceNumber = this.escapeHtml(invoiceNumber);
+    const safeFormattedAmount = this.escapeHtml(formattedAmount);
 
     return this.sendEmail({
       to: studentEmail,
@@ -269,7 +308,7 @@ CampusCore Administration`,
               </div>
               <h2 style="color: #1F2937; margin: 0 0 10px 0; font-size: 24px; text-align: center;">Payment Received</h2>
               <p style="color: #4B5563; margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; text-align: center;">
-                Dear <strong style="color: #4F46E5;">${studentName}</strong>,
+                Dear <strong style="color: #4F46E5;">${safeStudentName}</strong>,
               </p>
               <p style="color: #4B5563; margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; text-align: center;">
                 We have received your payment. Thank you for your prompt payment!
@@ -280,11 +319,11 @@ CampusCore Administration`,
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                       <tr>
                         <td style="padding: 8px 0; color: #6B7280; font-size: 14px;">Invoice Number</td>
-                        <td style="padding: 8px 0; color: #1F2937; font-size: 14px; font-weight: 600; text-align: right;">${invoiceNumber}</td>
+                        <td style="padding: 8px 0; color: #1F2937; font-size: 14px; font-weight: 600; text-align: right;">${safeInvoiceNumber}</td>
                       </tr>
                       <tr>
                         <td style="padding: 8px 0; color: #6B7280; font-size: 14px;">Amount Paid</td>
-                        <td style="padding: 8px 0; color: #10B981; font-size: 14px; font-weight: 600; text-align: right;">${formattedAmount}</td>
+                        <td style="padding: 8px 0; color: #10B981; font-size: 14px; font-weight: 600; text-align: right;">${safeFormattedAmount}</td>
                       </tr>
                       <tr>
                         <td style="padding: 8px 0; color: #6B7280; font-size: 14px;">Status</td>
@@ -324,6 +363,13 @@ CampusCore Administration`,
       style: 'currency',
       currency: 'USD',
     }).format(amount);
+    const safeStudentName = this.escapeHtml(studentName);
+    const safeInvoiceNumber = this.escapeHtml(invoiceNumber);
+    const safeFormattedAmount = this.escapeHtml(formattedAmount);
+    const safeDueDate = this.escapeHtml(dueDate);
+    const invoicesUrl = this.safeUrl(
+      `${this.getFrontendUrl()}/dashboard/invoices`,
+    );
 
     return this.sendEmail({
       to: studentEmail,
@@ -361,7 +407,7 @@ CampusCore Administration`,
             <td style="padding: 40px 30px;">
               <h2 style="color: #1F2937; margin: 0 0 20px 0; font-size: 24px;">New Invoice Available</h2>
               <p style="color: #4B5563; margin: 0 0 20px 0; font-size: 16px; line-height: 1.6;">
-                Dear <strong style="color: #4F46E5;">${studentName}</strong>,
+                Dear <strong style="color: #4F46E5;">${safeStudentName}</strong>,
               </p>
               <p style="color: #4B5563; margin: 0 0 20px 0; font-size: 16px; line-height: 1.6;">
                 A new invoice has been generated for you. Please review and make your payment before the due date to avoid late fees.
@@ -372,15 +418,15 @@ CampusCore Administration`,
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                       <tr>
                         <td style="padding: 8px 0; color: #92400E; font-size: 14px;">Invoice Number</td>
-                        <td style="padding: 8px 0; color: #1F2937; font-size: 14px; font-weight: 600; text-align: right;">${invoiceNumber}</td>
+                        <td style="padding: 8px 0; color: #1F2937; font-size: 14px; font-weight: 600; text-align: right;">${safeInvoiceNumber}</td>
                       </tr>
                       <tr>
                         <td style="padding: 8px 0; color: #92400E; font-size: 14px;">Amount Due</td>
-                        <td style="padding: 8px 0; color: #1F2937; font-size: 14px; font-weight: 600; text-align: right;">${formattedAmount}</td>
+                        <td style="padding: 8px 0; color: #1F2937; font-size: 14px; font-weight: 600; text-align: right;">${safeFormattedAmount}</td>
                       </tr>
                       <tr>
                         <td style="padding: 8px 0; color: #92400E; font-size: 14px;">Due Date</td>
-                        <td style="padding: 8px 0; color: #DC2626; font-size: 14px; font-weight: 600; text-align: right;">${dueDate}</td>
+                        <td style="padding: 8px 0; color: #DC2626; font-size: 14px; font-weight: 600; text-align: right;">${safeDueDate}</td>
                       </tr>
                     </table>
                   </td>
@@ -389,7 +435,7 @@ CampusCore Administration`,
               <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td style="border-radius: 6px; background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);">
-                    <a href="${this.getFrontendUrl()}/dashboard/invoices" target="_blank" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">Pay Invoice Now</a>
+                    <a href="${invoicesUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">Pay Invoice Now</a>
                   </td>
                 </tr>
               </table>
@@ -417,10 +463,15 @@ CampusCore Administration`,
     title: string,
     content?: string,
   ): Promise<boolean> {
-    const recipientList = recipients.join(',');
+    const safeTitle = this.escapeHtml(title);
+    const previewContent = content ? content.substring(0, 200) : '';
+    const safePreviewContent = this.escapeHtml(previewContent);
+    const dashboardUrl = this.safeUrl(`${this.getFrontendUrl()}/dashboard`);
+    const sanitizedRecipients = recipients.filter(Boolean);
 
     return this.sendEmail({
-      to: recipientList,
+      to: this.fromEmail,
+      bcc: sanitizedRecipients,
       subject: `New Announcement: ${title}`,
       text: `A new announcement "${title}" has been posted on CampusCore.${content ? `\n\n${content.substring(0, 200)}...` : ''}\n\nPlease log in to view the full details.`,
       html: `
@@ -458,15 +509,15 @@ CampusCore Administration`,
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #F9FAFB; border-radius: 8px; margin: 20px 0;">
                 <tr>
                   <td style="padding: 20px;">
-                    <h3 style="color: #1F2937; margin: 0 0 10px 0; font-size: 18px;">${title}</h3>
-                    ${content ? `<p style="color: #4B5563; margin: 0; font-size: 14px; line-height: 1.6;">${content.substring(0, 200)}${content.length > 200 ? '...' : ''}</p>` : ''}
+                    <h3 style="color: #1F2937; margin: 0 0 10px 0; font-size: 18px;">${safeTitle}</h3>
+                    ${content ? `<p style="color: #4B5563; margin: 0; font-size: 14px; line-height: 1.6;">${safePreviewContent}${content.length > 200 ? '...' : ''}</p>` : ''}
                   </td>
                 </tr>
               </table>
               <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td style="border-radius: 6px; background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);">
-                    <a href="${this.getFrontendUrl()}/dashboard" target="_blank" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">View Announcement</a>
+                    <a href="${dashboardUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">View Announcement</a>
                   </td>
                 </tr>
               </table>
@@ -497,6 +548,8 @@ CampusCore Administration`,
     const expiryMinutes =
       this.configService.get<number>(ENV.PASSWORD_RESET_EXPIRY_MINUTES) ??
       ENV_DEFAULTS.PASSWORD_RESET_EXPIRY_MINUTES;
+    const safeName = this.escapeHtml(name);
+    const safeResetUrl = this.safeUrl(resetUrl);
 
     return this.sendEmail({
       to: email,
@@ -532,7 +585,7 @@ CampusCore Administration`,
               </div>
               <h2 style="color: #1F2937; margin: 0 0 10px 0; font-size: 24px; text-align: center;">Password Reset Request</h2>
               <p style="color: #4B5563; margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; text-align: center;">
-                Dear <strong style="color: #4F46E5;">${name}</strong>,
+                Dear <strong style="color: #4F46E5;">${safeName}</strong>,
               </p>
               <p style="color: #4B5563; margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; text-align: center;">
                 You requested to reset your password. Click the button below to create a new password.
@@ -545,12 +598,12 @@ CampusCore Administration`,
               <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td style="border-radius: 6px; background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);">
-                    <a href="${resetUrl}" target="_blank" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">Reset Password</a>
+                    <a href="${safeResetUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">Reset Password</a>
                   </td>
                 </tr>
               </table>
               <p style="color: #9CA3AF; margin: 20px 0 0 0; font-size: 12px; text-align: center;">
-                Or copy this link: ${resetUrl}
+                Or copy this link: ${safeResetUrl}
               </p>
               <div style="background-color: #FEE2E2; border-left: 4px solid #EF4444; padding: 12px 16px; margin: 20px 0; border-radius: 4px;">
                 <p style="color: #991B1B; margin: 0; font-size: 14px;">
@@ -583,6 +636,10 @@ CampusCore Administration`,
     temporaryPassword?: string,
   ): Promise<boolean> {
     const loginLink = `${this.getFrontendUrl()}/login`;
+    const safeName = this.escapeHtml(name);
+    const safeRole = this.escapeHtml(role);
+    const safeTemporaryPassword = this.escapeHtml(temporaryPassword);
+    const safeLoginLink = this.safeUrl(loginLink);
 
     return this.sendEmail({
       to: email,
@@ -628,7 +685,7 @@ CampusCore Administration`,
               </div>
               <h2 style="color: #1F2937; margin: 0 0 10px 0; font-size: 24px; text-align: center;">Welcome to CampusCore!</h2>
               <p style="color: #4B5563; margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; text-align: center;">
-                Dear <strong style="color: #4F46E5;">${name}</strong>,
+                Dear <strong style="color: #4F46E5;">${safeName}</strong>,
               </p>
               <p style="color: #4B5563; margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; text-align: center;">
                 Your account has been successfully created. You can now access the CampusCore academic management platform.
@@ -639,14 +696,14 @@ CampusCore Administration`,
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                       <tr>
                         <td style="padding: 8px 0; color: #6B7280; font-size: 14px;">Role</td>
-                        <td style="padding: 8px 0; color: #1F2937; font-size: 14px; font-weight: 600; text-align: right;">${role}</td>
+                        <td style="padding: 8px 0; color: #1F2937; font-size: 14px; font-weight: 600; text-align: right;">${safeRole}</td>
                       </tr>
                       ${
                         temporaryPassword
                           ? `
                       <tr>
                         <td style="padding: 8px 0; color: #6B7280; font-size: 14px;">Temporary Password</td>
-                        <td style="padding: 8px 0; color: #EF4444; font-size: 14px; font-weight: 600; text-align: right;">${temporaryPassword}</td>
+                        <td style="padding: 8px 0; color: #EF4444; font-size: 14px; font-weight: 600; text-align: right;">${safeTemporaryPassword}</td>
                       </tr>
                       `
                           : ''
@@ -658,7 +715,7 @@ CampusCore Administration`,
               <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td style="border-radius: 6px; background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);">
-                    <a href="${loginLink}" target="_blank" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">Login to CampusCore</a>
+                    <a href="${safeLoginLink}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">Login to CampusCore</a>
                   </td>
                 </tr>
               </table>
@@ -688,6 +745,12 @@ CampusCore Administration`,
     sectionNumber: string,
     grade: string,
   ): Promise<boolean> {
+    const safeStudentName = this.escapeHtml(studentName);
+    const safeCourseName = this.escapeHtml(courseName);
+    const safeSectionNumber = this.escapeHtml(sectionNumber);
+    const safeGrade = this.escapeHtml(grade);
+    const gradesUrl = this.safeUrl(`${this.getFrontendUrl()}/dashboard/grades`);
+
     return this.sendEmail({
       to: studentEmail,
       subject: `Grade Posted - ${courseName}`,
@@ -731,7 +794,7 @@ CampusCore Administration`,
               </div>
               <h2 style="color: #1F2937; margin: 0 0 10px 0; font-size: 24px; text-align: center;">Grade Posted</h2>
               <p style="color: #4B5563; margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; text-align: center;">
-                Dear <strong style="color: #4F46E5;">${studentName}</strong>,
+                Dear <strong style="color: #4F46E5;">${safeStudentName}</strong>,
               </p>
               <p style="color: #4B5563; margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; text-align: center;">
                 Your grade for this semester has been posted.
@@ -742,15 +805,15 @@ CampusCore Administration`,
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                       <tr>
                         <td style="padding: 8px 0; color: #6B7280; font-size: 14px;">Course</td>
-                        <td style="padding: 8px 0; color: #1F2937; font-size: 14px; font-weight: 600; text-align: right;">${courseName}</td>
+                        <td style="padding: 8px 0; color: #1F2937; font-size: 14px; font-weight: 600; text-align: right;">${safeCourseName}</td>
                       </tr>
                       <tr>
                         <td style="padding: 8px 0; color: #6B7280; font-size: 14px;">Section</td>
-                        <td style="padding: 8px 0; color: #1F2937; font-size: 14px; font-weight: 600; text-align: right;">${sectionNumber}</td>
+                        <td style="padding: 8px 0; color: #1F2937; font-size: 14px; font-weight: 600; text-align: right;">${safeSectionNumber}</td>
                       </tr>
                       <tr>
                         <td style="padding: 8px 0; color: #6B7280; font-size: 14px;">Grade</td>
-                        <td style="padding: 8px 0; color: #4F46E5; font-size: 20px; font-weight: 700; text-align: right;">${grade}</td>
+                        <td style="padding: 8px 0; color: #4F46E5; font-size: 20px; font-weight: 700; text-align: right;">${safeGrade}</td>
                       </tr>
                     </table>
                   </td>
@@ -759,7 +822,7 @@ CampusCore Administration`,
               <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td style="border-radius: 6px; background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);">
-                    <a href="${this.getFrontendUrl()}/dashboard/grades" target="_blank" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">View My Grades</a>
+                    <a href="${gradesUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">View My Grades</a>
                   </td>
                 </tr>
               </table>
@@ -787,6 +850,9 @@ CampusCore Administration`,
     name: string,
     verificationUrl: string,
   ): Promise<boolean> {
+    const safeName = this.escapeHtml(name);
+    const safeVerificationUrl = this.safeUrl(verificationUrl);
+
     return this.sendEmail({
       to: email,
       subject: 'Verify Your Email - CampusCore',
@@ -830,7 +896,7 @@ CampusCore Administration`,
               </div>
               <h2 style="color: #1F2937; margin: 0 0 10px 0; font-size: 24px; text-align: center;">Verify Your Email</h2>
               <p style="color: #4B5563; margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; text-align: center;">
-                Dear <strong style="color: #4F46E5;">${name}</strong>,
+                Dear <strong style="color: #4F46E5;">${safeName}</strong>,
               </p>
               <p style="color: #4B5563; margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; text-align: center;">
                 Thank you for registering with CampusCore. Please verify your email address to activate your account.
@@ -838,12 +904,12 @@ CampusCore Administration`,
               <table role="presentation" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td style="border-radius: 6px; background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);">
-                    <a href="${verificationUrl}" target="_blank" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">Verify Email</a>
+                    <a href="${safeVerificationUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 12px 24px; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 14px;">Verify Email</a>
                   </td>
                 </tr>
               </table>
               <p style="color: #9CA3AF; margin: 20px 0 0 0; font-size: 12px; text-align: center;">
-                Or copy this link: ${verificationUrl}
+                Or copy this link: ${safeVerificationUrl}
               </p>
             </td>
           </tr>

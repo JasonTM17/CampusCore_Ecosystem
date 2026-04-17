@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-campuscore_password}
       POSTGRES_DB: campuscore
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +21,7 @@ services:
     image: redis:7-alpine
     container_name: campuscore-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -38,8 +38,8 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-campuscore}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-campuscore_password}
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -56,8 +56,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_USER:-campuscore}
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-campuscore_password}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
@@ -76,10 +76,11 @@ services:
     container_name: campuscore-api
     environment:
       DATABASE_URL: postgresql://campuscore:${POSTGRES_PASSWORD:-campuscore_password}@postgres:5432/campuscore
-      JWT_SECRET: ${JWT_SECRET:-change-this-jwt-secret-in-production}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-refresh-secret-in-production}
+      JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-rotate-before-shared-use}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-local-dev-refresh-secret-rotate-before-shared-use}
       JWT_EXPIRATION: 15m
       JWT_REFRESH_EXPIRATION: 7d
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
       REDIS_URL: redis://redis:6379
       RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
       MINIO_ENDPOINT: minio
@@ -96,7 +97,7 @@ services:
       PORT: 4000
       NODE_ENV: production
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -137,7 +138,7 @@ services:
     image: nginx:alpine
     container_name: campuscore-nginx
     ports:
-      - "80:80"
+      - "127.0.0.1:80:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - nginx_logs:/var/log/nginx
@@ -158,15 +159,15 @@ services:
     image: mailhog/mailhog:latest
     container_name: campuscore-mailhog
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
     restart: unless-stopped
 
   prometheus:
     image: prom/prometheus:latest
     container_name: campuscore-prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -180,10 +181,10 @@ services:
     container_name: campuscore-grafana
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin123}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-local-dev-grafana-password-change-me}
       GF_INSTALL_PLUGINS: grafana-piechart-panel
     ports:
-      - "3002:3000"
+      - "127.0.0.1:3002:3000"
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana_data:/var/lib/grafana
@@ -195,7 +196,7 @@ services:
     image: grafana/loki:latest
     container_name: campuscore-loki
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     volumes:
       - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
@@ -221,10 +222,10 @@ services:
       COLLECTOR_OTLP_ENABLED: true
       SPAN_STORAGE_TYPE: badger
     ports:
-      - "16686:16686"
-      - "6831:6831/udp"
-      - "4317:4317"
-      - "4318:4318"
+      - "127.0.0.1:16686:16686"
+      - "127.0.0.1:6831:6831/udp"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
     volumes:
       - jaeger_data:/badger
     restart: unless-stopped
