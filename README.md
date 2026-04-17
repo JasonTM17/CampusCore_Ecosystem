@@ -107,18 +107,20 @@ The repository is verified with:
 
 - backend lint, format check, typecheck, build, and tests
 - frontend lint, typecheck, build, and smoke tests
+- image smoke that boots production-like Docker runtime from the real Dockerfiles
 - Playwright fast E2E for local iteration
 - Playwright edge E2E through nginx for production-like verification
+- mandatory security scans for source and published container images
 - Docker compose config validation for dev, prod, and E2E stacks
 
 ## CI/CD
 
 GitHub Actions provides:
 
-- `CI Build and Test` for backend, frontend, and edge E2E
-- `CD - Registry Publish` for Docker Hub and GitHub Container Registry image publishing
+- `CI Build and Test` as the release quality gate across backend, frontend, compose contracts, image smoke, edge E2E, and security scanning
+- `CD - Gated Registry Publish` for Docker Hub and GitHub Container Registry image publishing only after the matching CI run succeeds
 
-Docker Hub publishing uses `DOCKERHUB_NAMESPACE` as the preferred namespace input and keeps `DOCKERHUB_USERNAME` as the legacy alias for compatibility. GitHub Container Registry publishing uses the repository owner namespace automatically.
+Docker Hub publishing uses `DOCKERHUB_NAMESPACE` as the preferred namespace input and keeps `DOCKERHUB_USERNAME` as the legacy alias for compatibility. GitHub Container Registry publishing uses the repository owner namespace automatically. Release publishing is blocked until the same commit passes the CI quality gate.
 
 ## More Documentation
 
