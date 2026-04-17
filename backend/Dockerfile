@@ -51,9 +51,6 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/prisma ./prisma
 
-# Copy environment file template
-COPY backend/.env.example .env
-
 # Change ownership
 RUN chown -R nodejs:nodejs /app
 

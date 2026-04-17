@@ -104,7 +104,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       case 'P2025':
         return `Record not found`;
       default:
-        return `Database error: ${exception.message}`;
+        return `Database request failed`;
     }
   }
 }

@@ -37,7 +37,9 @@ import { validateEnvironment } from './config/env.validation';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      ignoreEnvFile: process.env.NODE_ENV === 'test',
+      ignoreEnvFile:
+        process.env.NODE_ENV === 'test' ||
+        process.env.NODE_ENV === 'production',
       envFilePath: '.env',
       validate: validateEnvironment,
     }),

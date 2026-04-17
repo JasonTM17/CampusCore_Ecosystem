@@ -12,6 +12,7 @@ const environmentSchema = z.object({
   [ENV.PORT]: maybeNumber.default(ENV_DEFAULTS.PORT),
   [ENV.DATABASE_URL]: z.string().min(1),
   [ENV.FRONTEND_URL]: z.string().url().optional(),
+  [ENV.SWAGGER_ENABLED]: z.coerce.boolean().optional(),
   [ENV.JWT_SECRET]: z.string().min(1),
   [ENV.JWT_REFRESH_SECRET]: z.string().min(1),
   [ENV.JWT_EXPIRES_IN]: durationString.default(ENV_DEFAULTS.JWT_EXPIRES_IN),
@@ -94,5 +95,7 @@ export function validateEnvironment(env: Record<string, unknown>) {
   return {
     ...parsed.data,
     [ENV.FRONTEND_URL]: frontendUrl ?? ENV_DEFAULTS.FRONTEND_URL,
+    [ENV.SWAGGER_ENABLED]:
+      parsed.data[ENV.SWAGGER_ENABLED] ?? ENV_DEFAULTS.SWAGGER_ENABLED,
   };
 }

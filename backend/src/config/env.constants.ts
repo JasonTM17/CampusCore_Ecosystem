@@ -3,6 +3,7 @@ export const ENV = {
   PORT: 'PORT',
   DATABASE_URL: 'DATABASE_URL',
   FRONTEND_URL: 'FRONTEND_URL',
+  SWAGGER_ENABLED: 'SWAGGER_ENABLED',
   JWT_SECRET: 'JWT_SECRET',
   JWT_REFRESH_SECRET: 'JWT_REFRESH_SECRET',
   JWT_EXPIRES_IN: 'JWT_EXPIRES_IN',
@@ -30,6 +31,7 @@ export const ENV = {
 export const ENV_DEFAULTS = {
   PORT: 4000,
   FRONTEND_URL: 'http://localhost',
+  SWAGGER_ENABLED: false,
   JWT_EXPIRES_IN: '15m',
   JWT_REFRESH_EXPIRES_IN: '7d',
   EMAIL_FROM: 'noreply@campuscore.edu',

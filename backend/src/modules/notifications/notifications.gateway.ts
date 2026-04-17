@@ -8,10 +8,14 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { IncomingMessage } from 'http';
 import { Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth/auth.service';
 import { AuthUser } from '../auth/types/auth-user.type';
+import { ENV, ENV_DEFAULTS } from '../../config/env.constants';
+import { getAllowedOrigins, isAllowedOrigin } from '../../config/cors.util';
 
 interface AuthenticatedSocket extends Socket {
   data: {
@@ -22,10 +26,29 @@ interface AuthenticatedSocket extends Socket {
 
 @WebSocketGateway({
   cors: {
-    origin: true,
+    origin: Array.from(
+      getAllowedOrigins(process.env.FRONTEND_URL ?? ENV_DEFAULTS.FRONTEND_URL),
+    ),
     credentials: true,
   },
   namespace: '/notifications',
+  maxHttpBufferSize: 1_000_000,
+  allowRequest: (
+    req: IncomingMessage,
+    callback: (err: string | null, success: boolean) => void,
+  ) => {
+    const origin = req.headers.origin;
+    const allowedOrigins = getAllowedOrigins(
+      process.env.FRONTEND_URL ?? ENV_DEFAULTS.FRONTEND_URL,
+    );
+    callback(
+      null,
+      isAllowedOrigin(
+        typeof origin === 'string' ? origin : undefined,
+        allowedOrigins,
+      ),
+    );
+  },
 })
 export class NotificationsGateway
   implements OnGatewayConnection, OnGatewayDisconnect
@@ -39,9 +62,24 @@ export class NotificationsGateway
   constructor(
     private readonly jwtService: JwtService,
     private readonly authService: AuthService,
+    private readonly configService: ConfigService,
   ) {}
 
   async handleConnection(client: AuthenticatedSocket) {
+    const origin = this.extractOrigin(client);
+    const allowedOrigins = getAllowedOrigins(
+      this.configService.get<string>(ENV.FRONTEND_URL) ??
+        ENV_DEFAULTS.FRONTEND_URL,
+    );
+
+    if (!isAllowedOrigin(origin, allowedOrigins)) {
+      this.logger.warn(
+        `Rejected socket ${client.id}: origin ${origin} is not allowed`,
+      );
+      client.disconnect(true);
+      return;
+    }
+
     client.data.authPromise = this.authenticateSocket(client);
     const user = await client.data.authPromise;
 
@@ -191,6 +229,11 @@ export class NotificationsGateway
     }
 
     return null;
+  }
+
+  private extractOrigin(client: AuthenticatedSocket) {
+    const origin = client.handshake.headers?.origin;
+    return typeof origin === 'string' ? origin : undefined;
   }
 
   private normalizeBearerToken(token: string) {

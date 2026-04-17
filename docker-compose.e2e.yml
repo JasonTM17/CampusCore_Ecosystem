@@ -85,6 +85,7 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-edge-e2e-refresh-secret}
       JWT_EXPIRATION: 15m
       JWT_REFRESH_EXPIRATION: 7d
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
       REDIS_URL: redis://redis:6379
       RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
       MINIO_ENDPOINT: minio

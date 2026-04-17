@@ -1,6 +1,7 @@
 import { NotificationsGateway } from './notifications.gateway';
 import { AuthService } from '../auth/auth.service';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 
 describe('NotificationsGateway', () => {
   let gateway: NotificationsGateway;
@@ -13,11 +14,16 @@ describe('NotificationsGateway', () => {
     validateUser: jest.fn(),
   };
 
+  const configService = {
+    get: jest.fn().mockReturnValue('http://localhost'),
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     gateway = new NotificationsGateway(
       jwtService as unknown as JwtService,
       authService as unknown as AuthService,
+      configService as unknown as ConfigService,
     );
     gateway.server = {
       to: jest.fn().mockReturnThis(),
@@ -30,7 +36,9 @@ describe('NotificationsGateway', () => {
       id: 'socket-1',
       handshake: {
         auth: { token: 'access-token' },
-        headers: {},
+        headers: {
+          origin: 'http://localhost',
+        },
       },
       join: jest.fn(),
       leave: jest.fn(),
@@ -68,6 +76,16 @@ describe('NotificationsGateway', () => {
 
     expect(client.disconnect).toHaveBeenCalledWith(true);
     expect(gateway.getConnectedClientsCount()).toBe(0);
+  });
+
+  it('should reject sockets from disallowed origins', async () => {
+    const client = buildClient();
+    client.handshake.headers.origin = 'http://evil.example';
+
+    await gateway.handleConnection(client);
+
+    expect(jwtService.verifyAsync).not.toHaveBeenCalled();
+    expect(client.disconnect).toHaveBeenCalledWith(true);
   });
 
   it('should ignore forged user claims from the authenticate event payload', async () => {
