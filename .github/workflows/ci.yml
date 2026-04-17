@@ -33,6 +33,14 @@ jobs:
         working-directory: backend
         run: npm run lint
 
+      - name: Check formatting
+        working-directory: backend
+        run: npm run lint:format
+
+      - name: Typecheck
+        working-directory: backend
+        run: npm run typecheck
+
       - name: Build
         working-directory: backend
         run: npm run build
@@ -65,6 +73,62 @@ jobs:
         working-directory: frontend
         run: npm run lint
 
+      - name: Typecheck
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Test
+        working-directory: frontend
+        run: npm test
+
       - name: Build
         working-directory: frontend
         run: npm run build
+
+  edge-e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run edge E2E
+        working-directory: frontend
+        run: npm run test:e2e:edge
+
+      - name: Upload edge stack logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: edge-e2e-stack-logs
+          path: frontend/test-results/edge-e2e-stack
+
+      - name: Upload edge E2E artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: edge-e2e-artifacts
+          path: |
+            frontend/playwright-report
+            frontend/test-results
