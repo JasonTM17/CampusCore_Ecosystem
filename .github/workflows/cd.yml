@@ -1,4 +1,4 @@
-name: CD - Registry Publish
+name: CD - Gated Registry Publish
 
 on:
   push:
@@ -18,6 +18,7 @@ env:
 
 permissions:
   contents: read
+  actions: read
   packages: write
 
 concurrency:
@@ -28,13 +29,10 @@ jobs:
   release-plan:
     name: Resolve image publish plan
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' &&
-       (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' ||
-        startsWith(github.ref, 'refs/tags/v')))
     outputs:
       image_tag: ${{ steps.gate.outputs.image_tag }}
+      short_sha: ${{ steps.gate.outputs.short_sha }}
+      source_sha: ${{ steps.gate.outputs.source_sha }}
       dockerhub_namespace: ${{ steps.gate.outputs.dockerhub_namespace }}
       ghcr_namespace: ${{ steps.gate.outputs.ghcr_namespace }}
       should_publish_dockerhub: ${{ steps.gate.outputs.should_publish_dockerhub }}
@@ -47,9 +45,11 @@ jobs:
           DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           GH_OWNER: ${{ github.repository_owner }}
           REQUESTED_TAG: ${{ github.event.inputs.tag }}
+          SOURCE_SHA: ${{ github.sha }}
         run: |
           dockerhub_namespace="${DH_NAMESPACE:-$DH_USER}"
           ghcr_namespace="$(printf '%s' "${GH_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          short_sha="$(printf '%s' "${SOURCE_SHA}" | cut -c1-7)"
 
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
             image_tag="${REQUESTED_TAG:-latest}"
@@ -59,21 +59,122 @@ jobs:
             image_tag="latest"
           fi
 
-          echo "image_tag=${image_tag}" >> "$GITHUB_OUTPUT"
-          echo "dockerhub_namespace=${dockerhub_namespace}" >> "$GITHUB_OUTPUT"
-          echo "ghcr_namespace=${ghcr_namespace}" >> "$GITHUB_OUTPUT"
-
           if [ -n "$DH_USER" ] && [ -n "$DH_PASS" ] && [ -n "$dockerhub_namespace" ]; then
-            echo "should_publish_dockerhub=true" >> "$GITHUB_OUTPUT"
+            should_publish_dockerhub=true
           else
-            echo "should_publish_dockerhub=false" >> "$GITHUB_OUTPUT"
+            should_publish_dockerhub=false
             echo "::notice title=Docker Hub publish skipped::Add DOCKERHUB_USERNAME and DOCKERHUB_PASSWORD secrets. Optional DOCKERHUB_NAMESPACE can target an organization; when omitted, DOCKERHUB_USERNAME is used as the legacy namespace alias."
           fi
+
+          {
+            echo "image_tag=${image_tag}"
+            echo "short_sha=${short_sha}"
+            echo "source_sha=${SOURCE_SHA}"
+            echo "dockerhub_namespace=${dockerhub_namespace}"
+            echo "ghcr_namespace=${ghcr_namespace}"
+            echo "should_publish_dockerhub=${should_publish_dockerhub}"
+          } >> "$GITHUB_OUTPUT"
+
+  wait-for-quality-gate:
+    name: Wait for CI quality gate
+    runs-on: ubuntu-latest
+    needs: release-plan
+    outputs:
+      ci_run_id: ${{ steps.wait-ci.outputs.ci_run_id }}
+      ci_run_url: ${{ steps.wait-ci.outputs.ci_run_url }}
+    steps:
+      - name: Wait for matching CI success
+        id: wait-ci
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const sha = context.sha;
+            const workflowId = 'ci.yml';
+            const timeoutMs = 90 * 60 * 1000;
+            const intervalMs = 30 * 1000;
+            const startedAt = Date.now();
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            const currentRun = await github.rest.actions.getWorkflowRun({
+              owner,
+              repo,
+              run_id: context.runId,
+            });
+
+            const currentRunCreatedAt = new Date(currentRun.data.created_at);
+            const requireFreshCiRun = context.eventName === 'push';
+            const minCreatedAt = new Date(currentRunCreatedAt.getTime() - 5 * 60 * 1000);
+
+            const describeRun = (run) =>
+              `id=${run.id} status=${run.status} conclusion=${run.conclusion} created=${run.created_at} event=${run.event} branch=${run.head_branch ?? 'n/a'}`;
+
+            while (Date.now() - startedAt < timeoutMs) {
+              const response = await github.rest.actions.listWorkflowRuns({
+                owner,
+                repo,
+                workflow_id: workflowId,
+                head_sha: sha,
+                per_page: 20,
+              });
+
+              let candidates = response.data.workflow_runs.filter(
+                (run) => run.name === 'CI Build and Test',
+              );
+
+              if (requireFreshCiRun) {
+                candidates = candidates.filter(
+                  (run) => new Date(run.created_at) >= minCreatedAt,
+                );
+              }
+
+              if (candidates.length > 0) {
+                candidates.sort(
+                  (left, right) =>
+                    new Date(right.created_at).getTime() -
+                    new Date(left.created_at).getTime(),
+                );
+
+                const latest = candidates[0];
+                core.info(`Latest matching CI run: ${describeRun(latest)}`);
+
+                if (latest.status === 'completed') {
+                  if (latest.conclusion === 'success') {
+                    core.setOutput('ci_run_id', String(latest.id));
+                    core.setOutput('ci_run_url', latest.html_url);
+                    return;
+                  }
+
+                  core.setFailed(
+                    `CI Build and Test failed for ${sha}. Latest matching run: ${describeRun(latest)}`,
+                  );
+                  return;
+                }
+              } else {
+                core.info(`No matching CI run found yet for ${sha}. Waiting...`);
+              }
+
+              await sleep(intervalMs);
+            }
+
+            core.setFailed(
+              `Timed out waiting for CI Build and Test to succeed for ${sha}.`,
+            );
+
+      - name: Summary
+        run: |
+          {
+            echo "## Release gate"
+            echo ""
+            echo "- Source SHA: ${{ needs.release-plan.outputs.source_sha }}"
+            echo "- CI run: ${{ steps.wait-ci.outputs.ci_run_url }}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   publish-dockerhub:
     name: Publish images to Docker Hub
     runs-on: ubuntu-latest
-    needs: release-plan
+    needs: [release-plan, wait-for-quality-gate]
     if: needs.release-plan.outputs.should_publish_dockerhub == 'true'
     timeout-minutes: 45
 
@@ -97,15 +198,17 @@ jobs:
           images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}
           tags: |
             type=raw,value=${{ needs.release-plan.outputs.image_tag }}
-            type=sha,prefix=
+            type=raw,value=${{ needs.release-plan.outputs.short_sha }}
           labels: |
             org.opencontainers.image.title=CampusCore Backend API
             org.opencontainers.image.description=CampusCore NestJS API with JWT auth, Prisma, PostgreSQL, Redis, RabbitMQ, MinIO, health checks, and Swagger docs.
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.vendor=CampusCore
 
       - name: Build and push backend
+        id: build-backend
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -126,15 +229,17 @@ jobs:
           images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}
           tags: |
             type=raw,value=${{ needs.release-plan.outputs.image_tag }}
-            type=sha,prefix=
+            type=raw,value=${{ needs.release-plan.outputs.short_sha }}
           labels: |
             org.opencontainers.image.title=CampusCore Frontend Web
             org.opencontainers.image.description=CampusCore Next.js 15 standalone frontend for the nginx-backed academic management stack.
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.vendor=CampusCore
 
       - name: Build and push frontend
+        id: build-frontend
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -153,16 +258,20 @@ jobs:
           {
             echo "## Docker Hub publish"
             echo ""
-            echo "- Namespace: ${{ needs.release-plan.outputs.dockerhub_namespace }}"
-            echo "- Tag: ${{ needs.release-plan.outputs.image_tag }}"
-            echo "- Backend: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
-            echo "- Frontend: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- CI gate run: ${{ needs.wait-for-quality-gate.outputs.ci_run_url }}"
+            echo "- Source SHA: ${{ needs.release-plan.outputs.source_sha }}"
+            echo "- Backend tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Backend SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Backend digest: ${{ steps.build-backend.outputs.digest }}"
+            echo "- Frontend tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Frontend SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Frontend digest: ${{ steps.build-frontend.outputs.digest }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
   publish-ghcr:
     name: Publish images to GitHub Container Registry
     runs-on: ubuntu-latest
-    needs: release-plan
+    needs: [release-plan, wait-for-quality-gate]
     timeout-minutes: 45
 
     steps:
@@ -186,15 +295,17 @@ jobs:
           images: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}
           tags: |
             type=raw,value=${{ needs.release-plan.outputs.image_tag }}
-            type=sha,prefix=
+            type=raw,value=${{ needs.release-plan.outputs.short_sha }}
           labels: |
             org.opencontainers.image.title=CampusCore Backend API
             org.opencontainers.image.description=CampusCore NestJS API with JWT auth, Prisma, PostgreSQL, Redis, RabbitMQ, MinIO, health checks, and Swagger docs.
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.vendor=CampusCore
 
       - name: Build and push backend
+        id: ghcr-build-backend
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -215,15 +326,17 @@ jobs:
           images: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}
           tags: |
             type=raw,value=${{ needs.release-plan.outputs.image_tag }}
-            type=sha,prefix=
+            type=raw,value=${{ needs.release-plan.outputs.short_sha }}
           labels: |
             org.opencontainers.image.title=CampusCore Frontend Web
             org.opencontainers.image.description=CampusCore Next.js 15 standalone frontend for the nginx-backed academic management stack.
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.vendor=CampusCore
 
       - name: Build and push frontend
+        id: ghcr-build-frontend
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -242,8 +355,12 @@ jobs:
           {
             echo "## GitHub Container Registry publish"
             echo ""
-            echo "- Namespace: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}"
-            echo "- Tag: ${{ needs.release-plan.outputs.image_tag }}"
-            echo "- Backend: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
-            echo "- Frontend: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- CI gate run: ${{ needs.wait-for-quality-gate.outputs.ci_run_url }}"
+            echo "- Source SHA: ${{ needs.release-plan.outputs.source_sha }}"
+            echo "- Backend tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Backend SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Backend digest: ${{ steps.ghcr-build-backend.outputs.digest }}"
+            echo "- Frontend tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Frontend SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Frontend digest: ${{ steps.ghcr-build-frontend.outputs.digest }}"
           } >> "$GITHUB_STEP_SUMMARY"
