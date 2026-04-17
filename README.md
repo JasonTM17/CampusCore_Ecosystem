@@ -70,6 +70,8 @@ Language versions:
 - `ghcr.io/jasontm17/campuscore-backend`
 - `ghcr.io/jasontm17/campuscore-frontend`
 
+GitHub publishes new container packages as private by default on first push. If you want anonymous pulls and a public package page, change the package visibility to `Public` once in GitHub Package settings.
+
 Published tags follow the same release strategy across registries:
 
 - `latest`

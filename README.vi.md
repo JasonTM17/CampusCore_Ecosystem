@@ -75,6 +75,8 @@ Trong dot nay, CampusCore khong tach backend thanh cac microservice rieng. Thay 
 - `ghcr.io/jasontm17/campuscore-backend`
 - `ghcr.io/jasontm17/campuscore-frontend`
 
+GitHub mac dinh tao container package o trang thai private trong lan publish dau tien. Neu ban muon anonymous pull va package page hien cong khai, hay doi visibility sang `Public` mot lan trong GitHub Package settings.
+
 Chien luoc tag dong bo tren cac registry:
 
 - `latest`
