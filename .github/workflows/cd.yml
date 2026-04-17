@@ -1,4 +1,4 @@
-name: CD - Docker Hub Publish
+name: CD - Registry Publish
 
 on:
   push:
@@ -16,13 +16,17 @@ env:
   BACKEND_IMAGE: campuscore-backend
   FRONTEND_IMAGE: campuscore-frontend
 
+permissions:
+  contents: read
+  packages: write
+
 concurrency:
   group: docker-publish-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  docker-hub-check:
-    name: Check Docker Hub credentials
+  release-plan:
+    name: Resolve image publish plan
     runs-on: ubuntu-latest
     if: >-
       github.event_name == 'workflow_dispatch' ||
@@ -31,18 +35,21 @@ jobs:
         startsWith(github.ref, 'refs/tags/v')))
     outputs:
       image_tag: ${{ steps.gate.outputs.image_tag }}
-      namespace: ${{ steps.gate.outputs.namespace }}
-      should_publish: ${{ steps.gate.outputs.should_publish }}
+      dockerhub_namespace: ${{ steps.gate.outputs.dockerhub_namespace }}
+      ghcr_namespace: ${{ steps.gate.outputs.ghcr_namespace }}
+      should_publish_dockerhub: ${{ steps.gate.outputs.should_publish_dockerhub }}
     steps:
-      - name: Evaluate Docker Hub settings
+      - name: Evaluate registry settings
         id: gate
         env:
           DH_NAMESPACE: ${{ secrets.DOCKERHUB_NAMESPACE }}
           DH_PASS: ${{ secrets.DOCKERHUB_PASSWORD }}
           DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          GH_OWNER: ${{ github.repository_owner }}
           REQUESTED_TAG: ${{ github.event.inputs.tag }}
         run: |
-          namespace="${DH_NAMESPACE:-$DH_USER}"
+          dockerhub_namespace="${DH_NAMESPACE:-$DH_USER}"
+          ghcr_namespace="$(printf '%s' "${GH_OWNER}" | tr '[:upper:]' '[:lower:]')"
 
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
             image_tag="${REQUESTED_TAG:-latest}"
@@ -53,20 +60,21 @@ jobs:
           fi
 
           echo "image_tag=${image_tag}" >> "$GITHUB_OUTPUT"
-          echo "namespace=${namespace}" >> "$GITHUB_OUTPUT"
+          echo "dockerhub_namespace=${dockerhub_namespace}" >> "$GITHUB_OUTPUT"
+          echo "ghcr_namespace=${ghcr_namespace}" >> "$GITHUB_OUTPUT"
 
-          if [ -n "$DH_USER" ] && [ -n "$DH_PASS" ] && [ -n "$namespace" ]; then
-            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          if [ -n "$DH_USER" ] && [ -n "$DH_PASS" ] && [ -n "$dockerhub_namespace" ]; then
+            echo "should_publish_dockerhub=true" >> "$GITHUB_OUTPUT"
           else
-            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            echo "should_publish_dockerhub=false" >> "$GITHUB_OUTPUT"
             echo "::notice title=Docker Hub publish skipped::Add DOCKERHUB_USERNAME and DOCKERHUB_PASSWORD secrets. Optional DOCKERHUB_NAMESPACE can target an organization; when omitted, DOCKERHUB_USERNAME is used as the legacy namespace alias."
           fi
 
-  publish:
+  publish-dockerhub:
     name: Publish images to Docker Hub
     runs-on: ubuntu-latest
-    needs: docker-hub-check
-    if: needs.docker-hub-check.outputs.should_publish == 'true'
+    needs: release-plan
+    if: needs.release-plan.outputs.should_publish_dockerhub == 'true'
     timeout-minutes: 45
 
     steps:
@@ -86,9 +94,9 @@ jobs:
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ needs.docker-hub-check.outputs.namespace }}/${{ env.BACKEND_IMAGE }}
+          images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}
           tags: |
-            type=raw,value=${{ needs.docker-hub-check.outputs.image_tag }}
+            type=raw,value=${{ needs.release-plan.outputs.image_tag }}
             type=sha,prefix=
           labels: |
             org.opencontainers.image.title=CampusCore Backend API
@@ -115,9 +123,9 @@ jobs:
         id: meta-frontend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ needs.docker-hub-check.outputs.namespace }}/${{ env.FRONTEND_IMAGE }}
+          images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}
           tags: |
-            type=raw,value=${{ needs.docker-hub-check.outputs.image_tag }}
+            type=raw,value=${{ needs.release-plan.outputs.image_tag }}
             type=sha,prefix=
           labels: |
             org.opencontainers.image.title=CampusCore Frontend Web
@@ -145,8 +153,97 @@ jobs:
           {
             echo "## Docker Hub publish"
             echo ""
-            echo "- Namespace: ${{ needs.docker-hub-check.outputs.namespace }}"
-            echo "- Tag: ${{ needs.docker-hub-check.outputs.image_tag }}"
-            echo "- Backend: ${{ needs.docker-hub-check.outputs.namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.docker-hub-check.outputs.image_tag }}"
-            echo "- Frontend: ${{ needs.docker-hub-check.outputs.namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.docker-hub-check.outputs.image_tag }}"
+            echo "- Namespace: ${{ needs.release-plan.outputs.dockerhub_namespace }}"
+            echo "- Tag: ${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Backend: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Frontend: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish-ghcr:
+    name: Publish images to GitHub Container Registry
+    runs-on: ubuntu-latest
+    needs: release-plan
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata (backend)
+        id: ghcr-meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}
+          tags: |
+            type=raw,value=${{ needs.release-plan.outputs.image_tag }}
+            type=sha,prefix=
+          labels: |
+            org.opencontainers.image.title=CampusCore Backend API
+            org.opencontainers.image.description=CampusCore NestJS API with JWT auth, Prisma, PostgreSQL, Redis, RabbitMQ, MinIO, health checks, and Swagger docs.
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.vendor=CampusCore
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.ghcr-meta-backend.outputs.tags }}
+          labels: ${{ steps.ghcr-meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          provenance: true
+          sbom: true
+
+      - name: Docker metadata (frontend)
+        id: ghcr-meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}
+          tags: |
+            type=raw,value=${{ needs.release-plan.outputs.image_tag }}
+            type=sha,prefix=
+          labels: |
+            org.opencontainers.image.title=CampusCore Frontend Web
+            org.opencontainers.image.description=CampusCore Next.js 15 standalone frontend for the nginx-backed academic management stack.
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.vendor=CampusCore
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.ghcr-meta-frontend.outputs.tags }}
+          labels: ${{ steps.ghcr-meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          provenance: true
+          sbom: true
+
+      - name: Summary
+        run: |
+          {
+            echo "## GitHub Container Registry publish"
+            echo ""
+            echo "- Namespace: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}"
+            echo "- Tag: ${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Backend: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Frontend: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
           } >> "$GITHUB_STEP_SUMMARY"
