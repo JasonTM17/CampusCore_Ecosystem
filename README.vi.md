@@ -3,171 +3,172 @@
 [![CI](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/ci.yml/badge.svg)](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/ci.yml)
 [![CD](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml/badge.svg)](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml)
 ![Next.js](https://img.shields.io/badge/frontend-Next.js%2015-111827)
-![NestJS](https://img.shields.io/badge/backend-NestJS%2010-e11d48)
+![NestJS](https://img.shields.io/badge/backend-NestJS%2011-e11d48)
 ![License](https://img.shields.io/badge/license-MIT-16a34a)
 
-CampusCore la nen tang quan ly dao tao, dang ky hoc phan, lich hoc, diem so, hoa don hoc phi, thong bao, va van hanh quan tri.
+CampusCore là nền tảng quản lý học vụ cho đăng ký học phần, thời khóa biểu, điểm số, hóa đơn học phí, thông báo và vận hành quản trị.
 
-Du an giu backend o dang mot ung dung NestJS co the deploy doc lap, nhung duoc verify theo kieu production-like multi-service thong qua nginx, PostgreSQL, Redis, RabbitMQ, MinIO, va bo edge E2E tap trung.
+Repo hiện giữ **một backend NestJS 11 deployable duy nhất**, nhưng được kiểm chứng theo kiểu **multi-service stack** với nginx, PostgreSQL, Redis, RabbitMQ, MinIO, image smoke và E2E tập trung. Nhờ vậy, kiến trúc triển khai vẫn gọn, nhưng hành vi runtime được kiểm tra sát với môi trường sản phẩm.
 
-## Bao Gom Gi
+## Ngôn Ngữ
 
-- Cong sinh vien, giang vien, va quan tri
-- Frontend Next.js 15 chay standalone runtime trong Docker
-- Backend NestJS 10 voi Prisma, JWT auth, Swagger, va websocket auth
-- PostgreSQL, Redis, RabbitMQ, MinIO, Mailhog, nginx, va monitoring stack
-- Fast local E2E cung edge E2E di qua nginx
+- [Tiếng Việt](./README.vi.md)
+- [English](./README.en.md)
 
-## Runtime Contract Cong Khai
+## Tóm Tắt Nhanh
 
-| URL | Muc dich |
+- Frontend Next.js 15 chạy bằng standalone runtime trong Docker
+- Public surface đi qua nginx tại `http://localhost`
+- `GET /health` là liveness công khai tối giản
+- Canonical readiness là `GET /api/v1/health/readiness`
+- Browser auth dùng cookie `HttpOnly` + CSRF
+- Legacy clients vẫn được hỗ trợ bằng JSON token/Bearer trong giai đoạn chuyển tiếp
+- Release public chỉ phát hành từ tag semver `vX.Y.Z`
+
+## Kiến Trúc Thực Tế
+
+| URL | Mục đích |
 | --- | --- |
-| `http://localhost` | Cong vao cong khai qua nginx |
-| `http://localhost/login` | Trang dang nhap |
-| `http://localhost/health` | Health endpoint cong khai |
+| `http://localhost` | Điểm vào công khai qua nginx |
+| `http://localhost/login` | Trang đăng nhập |
+| `http://localhost/health` | Liveness công khai, payload tối giản |
 | `http://localhost/api/docs` | Swagger UI qua nginx |
-| `http://localhost:4000/api/v1/health` | Health truc tiep cua backend trong local stack |
+| `http://localhost/api/v1/health/readiness` | Readiness nội bộ, cần `X-Health-Key` trong môi trường production-like |
+| `http://localhost:4000/api/v1/health/liveness` | Liveness backend trực tiếp trong local stack |
 
-Frontend lang nghe trong Docker o cong `3000`, backend o cong `4000`, va nginx la mat ngo cong khai duy nhat trong cac compose stack.
+Trong Docker, frontend lắng nghe ở cổng `3000`, backend ở cổng `4000`, và nginx là cổng công khai duy nhất của stack runtime.
 
-## Khu Vuc Tinh Nang
+```mermaid
+flowchart LR
+  U["Người dùng"] --> N["nginx gateway"]
+  N --> F["Frontend Next.js standalone"]
+  N --> B["Backend NestJS 11"]
+  B --> P["PostgreSQL"]
+  B --> R["Redis"]
+  B --> Q["RabbitMQ"]
+  B --> M["MinIO"]
+```
 
-### Cong Sinh Vien
+## Luồng Chức Năng
 
-- Dang ky hoc phan
-- Xem lich hoc theo tuan
-- Xem diem va bang diem
-- Theo doi hoa don hoc phi
-- Xem thong bao
-- Quan ly ho so ca nhan
+### Sinh viên
 
-### Cong Giang Vien
+- Đăng ký học phần
+- Xem lịch học theo tuần
+- Xem điểm và bảng điểm
+- Theo dõi hóa đơn học phí
+- Xem thông báo
+- Quản lý hồ sơ cá nhân
 
-- Lich giang day
-- Quan ly diem
-- Flow empty state an toan khi chua co du lieu
+### Giảng viên
 
-### Cong Quan Tri
+- Lịch giảng dạy
+- Quản lý điểm
+- Dashboard có hỗ trợ empty state khi chưa có dữ liệu
 
-- Quan ly nguoi dung
-- Quan ly mon hoc va lop hoc phan
-- Quan ly dang ky
-- Dashboard van hanh
+### Quản trị
 
-## Ghi Chu Kien Truc
+- Quản lý người dùng
+- Quản lý môn học và lớp học phần
+- Quản lý đăng ký
+- Dashboard vận hành
 
-- Frontend: Next.js 15, React 18, TypeScript, Tailwind CSS
-- Backend: NestJS 10, Prisma, PostgreSQL, JWT, Socket.IO
-- Runtime services: Redis, RabbitMQ, MinIO, Mailhog, nginx
-- Observability: Prometheus, Grafana, Loki, Promtail, Jaeger
+## Auth Hiện Tại
 
-Trong dot nay, CampusCore khong tach backend thanh cac microservice rieng. Thay vao do, repo verify mot deployable backend duy nhat cung toan bo service xung quanh, de hanh vi runtime van giong mot he thong nhieu thanh phan that.
+Browser flow dùng các cookie:
 
-## Container Images
+- `cc_access_token`
+- `cc_refresh_token`
+- `cc_csrf`
+
+Các request mutating từ browser gửi `X-CSRF-Token`. Các client cũ vẫn có thể dùng response JSON có `accessToken`, `refreshToken`, `user` và Bearer header để không gãy tích hợp ngoài repo.
+
+## Health Hiện Tại
+
+- `GET /health`: public liveness tối giản
+- `GET /api/v1/health/readiness`: readiness nội bộ chi tiết
+- `GET /api/v1/health`: alias chuyển tiếp cho readiness để giữ tương thích
+
+Readiness phản ánh trung thực trạng thái `database`, `redis`, `rabbitmq` theo các mức `up`, `down`, `not_configured`.
+
+## Container Images Và Registry
 
 ### Docker Hub
 
 - `nguyenson1710/campuscore-backend`
 - `nguyenson1710/campuscore-frontend`
 
-### GitHub Packages (GHCR)
+### GitHub Container Registry
 
 - `ghcr.io/jasontm17/campuscore-backend`
 - `ghcr.io/jasontm17/campuscore-frontend`
 
-GitHub mac dinh tao container package o trang thai private trong lan publish dau tien. Neu ban muon anonymous pull va package page hien cong khai, hay doi visibility sang `Public` mot lan trong GitHub Package settings.
-
-Chien luoc tag dong bo tren cac registry:
+Tags được phát hành theo cùng một quy ước:
 
 - `latest`
-- tag phien ban nhu `v1.0.0`
-- tag commit SHA bat bien nhu `0f8bc44`
+- tag semver như `v1.0.0`
+- tag SHA bất biến như `0f8bc44`
 
-Vi du pull image:
+Public release chỉ được publish từ tag semver `vX.Y.Z`. Nhánh thường chỉ chạy CI và không được dùng để phát hành public.
 
-```bash
-docker pull nguyenson1710/campuscore-backend:v1.0.0
-docker pull nguyenson1710/campuscore-frontend:v1.0.0
-docker pull ghcr.io/jasontm17/campuscore-backend:v1.0.0
-docker pull ghcr.io/jasontm17/campuscore-frontend:v1.0.0
-```
+## Khởi Động Nhanh
 
-## Khoi Dong Nhanh
-
-### Local Full Stack
+### Chạy local full stack
 
 ```bash
 cp .env.example .env
 docker compose up -d --build
 ```
 
-Mo:
+Mở:
 
 - `http://localhost`
 - `http://localhost/api/docs`
 - `http://localhost/health`
 
-### Production-like Image Stack
+### Chạy production-like
 
 ```bash
 docker compose -f docker-compose.production.yml up -d
 ```
 
-Can dat cac bien sau trong `.env` truoc khi chay production image stack:
+Frontend production-like dùng standalone runtime. Trong mode này, image không lấy `next start` làm đường chạy chính.
 
-- `POSTGRES_PASSWORD`
-- `JWT_SECRET`
-- `JWT_REFRESH_SECRET`
-- `RABBITMQ_PASSWORD`
-- `MINIO_PASSWORD`
-- `GRAFANA_PASSWORD`
-- `DOCKERHUB_NAMESPACE`
-- `IMAGE_TAG`
+## Kiểm Thử
 
-`NEXT_PUBLIC_API_URL` co the de trong khi frontend di qua same-origin routing cua nginx.
+Repo hiện được khóa bằng:
 
-## Verify Va Test
-
-Repo duoc khoa chat bang:
-
-- backend lint, format check, typecheck, build, va test
-- frontend lint, typecheck, build, va smoke test
-- image smoke de boot Docker runtime production-like tu Dockerfile that cua backend/frontend
-- Playwright fast E2E de lap nhanh local
-- Playwright edge E2E di qua nginx de verify production-like
-- mandatory security scan cho source va container image
-- Docker compose config validation cho dev, prod, va E2E stacks
-
-Browser E2E hien tai cover:
-
-- load cong khai cho `/` va `/login`
-- dang nhap sinh vien va mo chi tiet hoa don
-- dang nhap admin va thao tac tren trang user management
-- dang nhap giang vien va mo flow lich day hoac empty state hop le
-- health va Swagger qua nginx
-- websocket auth smoke voi token hop le va token sai
+- backend lint, format check, typecheck, build, unit test và integration test
+- frontend lint, typecheck, build, smoke test và E2E
+- image smoke production-like từ Dockerfile thật
+- edge E2E qua nginx
+- Docker compose contract cho dev, prod và E2E
+- security scan cho source và image
 
 ## CI/CD
 
-GitHub Actions hien co:
+GitHub Actions hiện đóng vai trò quality gate và release gate:
 
-- `CI Build and Test` lam quality gate cho backend, frontend, compose contract, image smoke, edge E2E, va security scan
-- `CD - Gated Registry Publish` chi publish image len registry sau khi CI run tuong ung xanh
+- `CI Build and Test` chạy toàn bộ kiểm tra chất lượng, integration, E2E, image smoke và security scan
+- `CD - Gated Registry Publish` chỉ publish registry khi commit đã vượt qua quality gate và ref là tag semver `vX.Y.Z`
 
-Hanh vi registry:
+Quy ước publish:
 
-- Docker Hub uu tien `DOCKERHUB_NAMESPACE`
-- `DOCKERHUB_USERNAME` van duoc giu lam legacy alias de tuong thich
-- GitHub Container Registry tu dong dung namespace cua repository owner
-- push len `master`, `main`, va version tag se publish `latest` hoac tag release cung commit SHA chi sau khi commit do qua CI quality gate
+- `DOCKERHUB_NAMESPACE` là namespace ưu tiên
+- `DOCKERHUB_USERNAME` là legacy alias để tương thích
+- `latest` chỉ cập nhật khi có release semver
+- rollback nên dùng digest hoặc tag SHA bất biến
 
-## Tai Lieu
+## Tài Liệu Bổ Sung
 
-- [README goc](./README.md)
-- [English Guide](./README.en.md)
-- [Docker Hub Notes](./DOCKER_HUB.md)
+- [README tiếng Anh](./README.en.md)
+- [Docker Hub Guide](./DOCKER_HUB.md)
+- [Kiến trúc](./docs/ARCHITECTURE.md)
+- [Vận hành](./docs/OPERATIONS.md)
+- [Bảo mật](./docs/SECURITY.md)
+- [Phát hành](./docs/RELEASE.md)
 
-## Tac Gia
+## Tác Giả
 
 Nguyen Tien Son
 

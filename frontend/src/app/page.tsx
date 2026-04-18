@@ -172,7 +172,7 @@ export default function HomePage() {
               Everything You Need
             </h2>
             <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-              A complete solution for academic management with modern features and enterprise-grade security
+              Academic operations, identity, and verification flows aligned in one production-like stack
             </p>
           </div>
 
@@ -207,8 +207,8 @@ export default function HomePage() {
                 <span className="bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent"> Technologies</span>
               </h2>
               <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
-                CampusCore runs as a clear service-based stack across the app, API, database, cache, queue, and storage.
-                Core workflows stay simple while the platform remains ready for production-style verification.
+                CampusCore ships one NestJS backend deployable behind nginx, then verifies the full runtime contract across
+                the web app, API, database, cache, queue, and object storage.
               </p>
               
               <div className="space-y-4">
@@ -232,7 +232,7 @@ export default function HomePage() {
               <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 text-white shadow-2xl">
                 <div className="flex items-center gap-3 mb-6">
                   <Globe className="w-6 h-6 text-cyan-400" />
-                  <span className="font-semibold">Microservices Architecture</span>
+                  <span className="font-semibold">Production-Like Stack Verification</span>
                 </div>
                 <div className="space-y-3 font-mono text-sm">
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
@@ -241,19 +241,19 @@ export default function HomePage() {
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
                     <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                    <span>Auth Service</span>
+                    <span>Frontend App (Next.js standalone)</span>
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
                     <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                    <span>Enrollment Service</span>
+                    <span>Backend API (NestJS 11)</span>
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
                     <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                    <span>Grade Service</span>
+                    <span>Data Plane (PostgreSQL + Redis)</span>
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
                     <div className="w-3 h-3 rounded-full bg-cyan-500"></div>
-                    <span>Notification Service</span>
+                    <span>Async + Storage (RabbitMQ + MinIO)</span>
                   </div>
                 </div>
               </div>
