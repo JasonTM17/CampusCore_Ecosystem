@@ -15,6 +15,15 @@ Mở:
 - `http://localhost/api/docs`
 - `http://localhost/health`
 
+Nếu chỉ cần boot nhanh từng app để kiểm tra local:
+
+```bash
+cd backend && npm run start
+cd frontend && npm run dev -- --hostname 127.0.0.1 --port 3100
+```
+
+Không dùng `npm run dev` ở root. Repo này có nhiều chế độ verify khác nhau nên entrypoint mơ hồ rất dễ làm terminal trông như bị treo.
+
 ## Chạy Production-Like
 
 ```bash
@@ -27,6 +36,29 @@ Trong mode production-like:
 - backend chạy từ runtime build thật
 - nginx là public entrypoint
 - readiness nội bộ yêu cầu `X-Health-Key`
+
+## Chọn Đúng Chế Độ Chạy
+
+- **Debug nhanh local**
+  - dùng `backend npm run start` và `frontend npm run dev`
+  - phù hợp khi cần kiểm tra app có boot hay render được không
+- **Fast verify**
+  - dùng `frontend npm run test:e2e`
+  - script sẽ tự quản lý Postgres cô lập, seed dữ liệu, rồi chạy Playwright local
+- **Production-like verify**
+  - dùng `frontend npm run test:e2e:edge`
+  - script sẽ build stack Docker, chạy nginx và kiểm tra public edge
+
+Mốc thời gian tham chiếu:
+
+- local dev: thường dưới 2-3 phút
+- fast E2E: thường dưới 6-8 phút
+- edge E2E: thường dưới 10-12 phút
+
+Log chính khi debug:
+
+- `frontend/test-results/fast-e2e-stack`
+- `frontend/test-results/edge-e2e-stack`
 
 ## Health Check
 
@@ -67,6 +99,17 @@ Các lớp kiểm tra nên chạy khi muốn xác nhận hệ thống:
 - RabbitMQ
 - `HEALTH_READINESS_KEY`
 
+### Lệnh chạy lâu nhưng không ra gì
+
+Ưu tiên kiểm tra:
+
+- có đang chạy đúng chế độ verify hay không
+- có tiến trình `node` mồ côi không còn mở cổng nào không
+- có container compose cũ còn giữ tài nguyên không
+- log trong `frontend/test-results/*` có còn sinh thêm dòng mới không
+
+Nếu vượt mốc thời gian tham chiếu mà log đứng yên, nên dừng tiến trình đó và khởi động lại bằng đúng entrypoint thay vì chờ vô hạn.
+
 ### Frontend không lên trong production-like
 
 Kiểm tra:
@@ -83,6 +126,16 @@ Kiểm tra:
 - `SameSite`
 - `X-CSRF-Token`
 - domain/path của cookie trong môi trường đang chạy
+
+### Backend local không lên được
+
+Nếu backend local chết sớm với lỗi Prisma hoặc quyền database, nguyên nhân thường là `backend/.env` đang trỏ vào một Postgres cục bộ không khớp quyền hoặc schema.
+
+Ưu tiên xử lý theo thứ tự:
+
+- override `DATABASE_URL` sang một Postgres cô lập để verify nhanh
+- hoặc cập nhật local `.env` để trỏ đúng database thật mà bạn có quyền dùng
+- không ép repo dùng chung một database của project khác chỉ để local boot tạm
 
 ## Teardown
 
