@@ -53,7 +53,19 @@
   * {
     @apply border-border;
   }
+  html {
+    font-family: var(--font-sans), system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
   body {
     @apply bg-background text-foreground;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
   }
 }

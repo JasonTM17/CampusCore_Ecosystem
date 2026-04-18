@@ -14,6 +14,9 @@ const databaseUrl =
   'postgresql://campuscore:campuscore_password@127.0.0.1:5433/campuscore_e2e?schema=public';
 const redisUrl = process.env.E2E_REDIS_URL ?? 'disabled';
 const rabbitmqUrl = process.env.E2E_RABBITMQ_URL ?? 'disabled';
+const frontendNodeOptions = [process.env.NODE_OPTIONS, '--max-old-space-size=4096']
+  .filter(Boolean)
+  .join(' ');
 
 export default defineConfig({
   testDir: './e2e',
@@ -66,6 +69,7 @@ export default defineConfig({
           env: {
             ...process.env,
             NEXT_PUBLIC_API_URL: apiBaseURL,
+            NODE_OPTIONS: frontendNodeOptions,
           },
         },
       ],

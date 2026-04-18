@@ -4,19 +4,19 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
-import { 
-  GraduationCap, 
-  BookOpen, 
-  Calendar, 
-  BarChart3, 
-  Shield, 
-  Cloud, 
+import {
+  GraduationCap,
+  BookOpen,
+  Calendar,
+  BarChart3,
+  Shield,
+  Cloud,
   Users,
   ArrowRight,
   CheckCircle2,
   Star,
   Zap,
-  Globe
+  Globe,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -26,45 +26,48 @@ const features = [
     icon: BookOpen,
     title: 'Course Registration',
     description: 'Enroll in courses with clear section and capacity details.',
-    color: 'from-blue-500 to-cyan-500'
+    color: 'from-blue-500 to-cyan-500',
   },
   {
     icon: Calendar,
     title: 'Smart Scheduling',
     description: 'Review weekly schedules in one place.',
-    color: 'from-purple-500 to-pink-500'
+    color: 'from-purple-500 to-pink-500',
   },
   {
     icon: BarChart3,
     title: 'Analytics Dashboard',
-    description: 'Track enrollment and grading trends as data becomes available.',
-    color: 'from-emerald-500 to-teal-500'
+    description:
+      'Track enrollment and grading trends as data becomes available.',
+    color: 'from-emerald-500 to-teal-500',
   },
   {
     icon: Shield,
     title: 'Role-Based Security',
     description: 'Keep each role on the right set of tools.',
-    color: 'from-orange-500 to-red-500'
+    color: 'from-orange-500 to-red-500',
   },
   {
     icon: Cloud,
     title: 'Deployment Ready',
-    description: 'Built for containerized development and production deployment.',
-    color: 'from-indigo-500 to-blue-500'
+    description:
+      'Built for containerized development and production deployment.',
+    color: 'from-indigo-500 to-blue-500',
   },
   {
     icon: Users,
     title: 'Institution Structure',
-    description: 'Organize students, lecturers, departments, and sections cleanly.',
-    color: 'from-rose-500 to-pink-500'
-  }
+    description:
+      'Organize students, lecturers, departments, and sections cleanly.',
+    color: 'from-rose-500 to-pink-500',
+  },
 ];
 
 const stats = [
   { value: 'Live', label: 'Enrollment workflows' },
   { value: 'Clear', label: 'Role-based access' },
   { value: 'Shared', label: 'Academic records' },
-  { value: 'Ready', label: 'Operational dashboards' }
+  { value: 'Ready', label: 'Operational dashboards' },
 ];
 
 export default function HomePage() {
@@ -84,11 +87,11 @@ export default function HomePage() {
                 CampusCore
               </span>
             </Link>
-            
+
             <div className="flex items-center gap-4">
               <ThemeToggle />
-              {!isLoading && (
-                user ? (
+              {!isLoading &&
+                (user ? (
                   <Link href="/dashboard">
                     <Button className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 border-0">
                       Dashboard
@@ -97,12 +100,14 @@ export default function HomePage() {
                   </Link>
                 ) : (
                   <Link href="/login">
-                    <Button variant="outline" className="border-gray-200 dark:border-gray-700">
+                    <Button
+                      variant="outline"
+                      className="border-gray-200 dark:border-gray-700"
+                    >
                       Sign In
                     </Button>
                   </Link>
-                )
-              )}
+                ))}
             </div>
           </div>
         </div>
@@ -118,9 +123,9 @@ export default function HomePage() {
           <div className="text-center max-w-4xl mx-auto">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-sm font-medium mb-6">
               <Zap className="w-4 h-4" />
-              Enterprise Academic Management Platform
+              Academic Management Stack
             </div>
-            
+
             <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
               <span className="bg-gradient-to-r from-gray-900 via-blue-900 to-gray-900 dark:from-white dark:via-blue-200 dark:to-white bg-clip-text text-transparent">
                 Transform Your
@@ -130,20 +135,28 @@ export default function HomePage() {
                 University Operations
               </span>
             </h1>
-            
+
             <p className="text-xl text-gray-600 dark:text-gray-400 mb-10 max-w-2xl mx-auto leading-relaxed">
-              A focused academic portal for registrations, schedules, grades, and campus operations.
+              A focused academic portal for registrations, schedules, grades,
+              and campus operations.
             </p>
-            
+
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link href="/login">
-                <Button size="lg" className="px-8 py-4 text-lg bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 border-0 shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 transition-all">
+                <Button
+                  size="lg"
+                  className="px-8 py-4 text-lg bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 border-0 shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 transition-all"
+                >
                   Get Started
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
               <Link href={user ? '/dashboard' : '/login'}>
-                <Button size="lg" variant="outline" className="px-8 py-4 text-lg border-gray-200 dark:border-gray-700">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="px-8 py-4 text-lg border-gray-200 dark:border-gray-700"
+                >
                   Open Portal
                 </Button>
               </Link>
@@ -156,7 +169,9 @@ export default function HomePage() {
                   <div className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
                     {stat.value}
                   </div>
-                  <div className="text-gray-500 dark:text-gray-400 mt-1">{stat.label}</div>
+                  <div className="text-gray-500 dark:text-gray-400 mt-1">
+                    {stat.label}
+                  </div>
                 </div>
               ))}
             </div>
@@ -172,17 +187,20 @@ export default function HomePage() {
               Everything You Need
             </h2>
             <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-              Academic operations, identity, and verification flows aligned in one production-like stack
+              Academic operations, identity, and verification flows aligned in
+              one production-like stack
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {features.map((feature, index) => (
-              <div 
+              <div
                 key={index}
                 className="group bg-white dark:bg-gray-800 rounded-2xl p-8 border border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600 hover:shadow-xl hover:shadow-gray-500/10 transition-all duration-300"
               >
-                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-6 shadow-lg`}>
+                <div
+                  className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-6 shadow-lg`}
+                >
                   <feature.icon className="w-7 h-7 text-white" />
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">
@@ -204,25 +222,33 @@ export default function HomePage() {
             <div>
               <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-6">
                 Built with Modern
-                <span className="bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent"> Technologies</span>
+                <span className="bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+                  {' '}
+                  Technologies
+                </span>
               </h2>
               <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
-                CampusCore ships one NestJS backend deployable behind nginx, then verifies the full runtime contract across
-                the web app, API, database, cache, queue, and object storage.
+                CampusCore ships a NestJS 11 core API and a standalone
+                notification service behind nginx, then verifies the full
+                runtime contract across the web app, API edge, database, cache,
+                queue, and object storage.
               </p>
-              
+
               <div className="space-y-4">
                 {[
-                  'NestJS backend with TypeScript',
+                  'NestJS 11 core API with TypeScript',
+                  'Standalone notification service with Socket.IO',
                   'Next.js 15 frontend with React 18',
                   'PostgreSQL with Prisma ORM',
                   'Redis for caching and sessions',
                   'RabbitMQ for async messaging',
-                  'Docker-based deployment'
+                  'Docker-based deployment',
                 ].map((item, index) => (
                   <div key={index} className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                    <span className="text-gray-700 dark:text-gray-300">{item}</span>
+                    <span className="text-gray-700 dark:text-gray-300">
+                      {item}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -232,7 +258,9 @@ export default function HomePage() {
               <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 text-white shadow-2xl">
                 <div className="flex items-center gap-3 mb-6">
                   <Globe className="w-6 h-6 text-cyan-400" />
-                  <span className="font-semibold">Production-Like Stack Verification</span>
+                  <span className="font-semibold">
+                    Production-Like Stack Verification
+                  </span>
                 </div>
                 <div className="space-y-3 font-mono text-sm">
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
@@ -245,7 +273,11 @@ export default function HomePage() {
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
                     <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                    <span>Backend API (NestJS 11)</span>
+                    <span>Core API (NestJS 11)</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
+                    <div className="w-3 h-3 rounded-full bg-pink-500"></div>
+                    <span>Notification Service (Inbox + Realtime)</span>
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
                     <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
@@ -268,12 +300,15 @@ export default function HomePage() {
           <h2 className="text-4xl font-bold text-white mb-6">
             Ready to Get Started?
           </h2>
-              <p className="text-xl text-blue-100 mb-8">
+          <p className="text-xl text-blue-100 mb-8">
             Manage academic operations from a single portal
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href={user ? '/dashboard' : '/login'}>
-              <Button size="lg" className="px-8 py-4 text-lg bg-white text-blue-600 hover:bg-gray-100 border-0">
+              <Button
+                size="lg"
+                className="px-8 py-4 text-lg bg-white text-blue-600 hover:bg-gray-100 border-0"
+              >
                 {user ? 'Open Dashboard' : 'Sign In'}
               </Button>
             </Link>
@@ -293,31 +328,49 @@ export default function HomePage() {
                 <span className="text-lg font-bold text-white">CampusCore</span>
               </div>
               <p className="text-sm">
-                Enterprise Academic Management Platform for modern universities
+                Academic operations platform for modern universities
               </p>
             </div>
             <div>
               <h4 className="font-semibold text-white mb-4">Platform</h4>
               <ul className="space-y-2 text-sm">
-                <li><span>Features</span></li>
-                <li><span>Access</span></li>
-                <li><span>Documentation</span></li>
+                <li>
+                  <span>Features</span>
+                </li>
+                <li>
+                  <span>Access</span>
+                </li>
+                <li>
+                  <span>Documentation</span>
+                </li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold text-white mb-4">Company</h4>
               <ul className="space-y-2 text-sm">
-                <li><span>About</span></li>
-                <li><span>News</span></li>
-                <li><span>Careers</span></li>
+                <li>
+                  <span>About</span>
+                </li>
+                <li>
+                  <span>News</span>
+                </li>
+                <li>
+                  <span>Careers</span>
+                </li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold text-white mb-4">Legal</h4>
               <ul className="space-y-2 text-sm">
-                <li><span>Privacy</span></li>
-                <li><span>Terms</span></li>
-                <li><span>Security</span></li>
+                <li>
+                  <span>Privacy</span>
+                </li>
+                <li>
+                  <span>Terms</span>
+                </li>
+                <li>
+                  <span>Security</span>
+                </li>
               </ul>
             </div>
           </div>
