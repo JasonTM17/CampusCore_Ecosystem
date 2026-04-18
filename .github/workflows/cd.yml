@@ -7,6 +7,7 @@ on:
 
 env:
   BACKEND_IMAGE: campuscore-backend
+  NOTIFICATION_IMAGE: campuscore-notification-service
   FRONTEND_IMAGE: campuscore-frontend
 
 permissions:
@@ -81,6 +82,7 @@ jobs:
             const intervalMs = 30 * 1000;
             const startedAt = Date.now();
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const tagName = context.ref.replace('refs/tags/', '');
 
             const currentRun = await github.rest.actions.getWorkflowRun({
               owner,
@@ -89,7 +91,7 @@ jobs:
             });
 
             const currentRunCreatedAt = new Date(currentRun.data.created_at);
-            const minCreatedAt = new Date(currentRunCreatedAt.getTime() - 5 * 60 * 1000);
+            const minCreatedAt = new Date(currentRunCreatedAt.getTime() - 60 * 1000);
 
             const describeRun = (run) =>
               `id=${run.id} status=${run.status} conclusion=${run.conclusion} created=${run.created_at} event=${run.event} branch=${run.head_branch ?? 'n/a'}`;
@@ -104,7 +106,10 @@ jobs:
               });
 
               let candidates = response.data.workflow_runs.filter(
-                (run) => run.name === 'CI Build and Test',
+                (run) =>
+                  run.name === 'CI Build and Test' &&
+                  run.event === 'push' &&
+                  !run.head_branch,
               );
 
               candidates = candidates.filter((run) => new Date(run.created_at) >= minCreatedAt);
@@ -117,7 +122,7 @@ jobs:
                 );
 
                 const latest = candidates[0];
-                core.info(`Latest matching CI run: ${describeRun(latest)}`);
+                core.info(`Latest matching tag CI run for ${tagName}: ${describeRun(latest)}`);
 
                 if (latest.status === 'completed') {
                   if (latest.conclusion === 'success') {
@@ -127,7 +132,7 @@ jobs:
                   }
 
                   core.setFailed(
-                    `CI Build and Test failed for ${sha}. Latest matching run: ${describeRun(latest)}`,
+                    `CI Build and Test failed for tag ${tagName} on ${sha}. Latest matching run: ${describeRun(latest)}`,
                   );
                   return;
                 }
@@ -139,7 +144,7 @@ jobs:
             }
 
             core.setFailed(
-              `Timed out waiting for CI Build and Test to succeed for ${sha}.`,
+              `Timed out waiting for CI Build and Test to succeed for tag ${tagName} on ${sha}.`,
             );
 
       - name: Summary
@@ -204,6 +209,39 @@ jobs:
           provenance: true
           sbom: true
 
+      - name: Docker metadata (notification service)
+        id: meta-notification
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}
+          tags: |
+            type=raw,value=${{ needs.release-plan.outputs.image_tag }}
+            type=raw,value=${{ needs.release-plan.outputs.short_sha }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=CampusCore Notification Service
+            org.opencontainers.image.description=CampusCore notification inbox and realtime delivery service powered by NestJS 11, RabbitMQ, and Socket.IO.
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
+            org.opencontainers.image.version=${{ needs.release-plan.outputs.image_tag }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.vendor=CampusCore
+
+      - name: Build and push notification service
+        id: build-notification
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./notification-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta-notification.outputs.tags }}
+          labels: ${{ steps.meta-notification.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          provenance: true
+          sbom: true
+
       - name: Docker metadata (frontend)
         id: meta-frontend
         uses: docker/metadata-action@v5
@@ -248,6 +286,10 @@ jobs:
             echo "- Backend SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
             echo "- Backend latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}:latest"
             echo "- Backend digest: ${{ steps.build-backend.outputs.digest }}"
+            echo "- Notification tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Notification SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Notification latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}:latest"
+            echo "- Notification digest: ${{ steps.build-notification.outputs.digest }}"
             echo "- Frontend tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
             echo "- Frontend SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
             echo "- Frontend latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:latest"
@@ -308,6 +350,39 @@ jobs:
           provenance: true
           sbom: true
 
+      - name: Docker metadata (notification service)
+        id: ghcr-meta-notification
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}
+          tags: |
+            type=raw,value=${{ needs.release-plan.outputs.image_tag }}
+            type=raw,value=${{ needs.release-plan.outputs.short_sha }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=CampusCore Notification Service
+            org.opencontainers.image.description=CampusCore notification inbox and realtime delivery service powered by NestJS 11, RabbitMQ, and Socket.IO.
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
+            org.opencontainers.image.version=${{ needs.release-plan.outputs.image_tag }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.vendor=CampusCore
+
+      - name: Build and push notification service
+        id: ghcr-build-notification
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./notification-service/Dockerfile
+          push: true
+          tags: ${{ steps.ghcr-meta-notification.outputs.tags }}
+          labels: ${{ steps.ghcr-meta-notification.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          provenance: true
+          sbom: true
+
       - name: Docker metadata (frontend)
         id: ghcr-meta-frontend
         uses: docker/metadata-action@v5
@@ -352,9 +427,136 @@ jobs:
             echo "- Backend SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
             echo "- Backend latest tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}:latest"
             echo "- Backend digest: ${{ steps.ghcr-build-backend.outputs.digest }}"
+            echo "- Notification tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Notification SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Notification latest tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}:latest"
+            echo "- Notification digest: ${{ steps.ghcr-build-notification.outputs.digest }}"
             echo "- Frontend tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
             echo "- Frontend SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
             echo "- Frontend latest tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:latest"
             echo "- Frontend digest: ${{ steps.ghcr-build-frontend.outputs.digest }}"
             echo "- Provenance/SBOM: enabled via docker/build-push-action@v6"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  verify-release-artifacts:
+    name: Verify published release artifacts
+    runs-on: ubuntu-latest
+    needs: [release-plan, wait-for-quality-gate, publish-ghcr, publish-dockerhub]
+    if: >
+      always() &&
+      needs.publish-ghcr.result == 'success' &&
+      (needs.release-plan.outputs.should_publish_dockerhub != 'true' || needs.publish-dockerhub.result == 'success')
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        if: needs.release-plan.outputs.should_publish_dockerhub == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Verify GHCR manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          images=(
+            "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}"
+            "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}"
+            "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}"
+          )
+          tags=(
+            "${{ needs.release-plan.outputs.image_tag }}"
+            "${{ needs.release-plan.outputs.short_sha }}"
+            "latest"
+          )
+          for image in "${images[@]}"; do
+            for tag in "${tags[@]}"; do
+              docker manifest inspect "${image}:${tag}" > /dev/null
+            done
+          done
+
+      - name: Verify Docker Hub manifests
+        if: needs.release-plan.outputs.should_publish_dockerhub == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          images=(
+            "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}"
+            "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}"
+            "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}"
+          )
+          tags=(
+            "${{ needs.release-plan.outputs.image_tag }}"
+            "${{ needs.release-plan.outputs.short_sha }}"
+            "latest"
+          )
+          for image in "${images[@]}"; do
+            for tag in "${tags[@]}"; do
+              docker manifest inspect "${image}:${tag}" > /dev/null
+            done
+          done
+
+      - name: Smoke published GHCR images
+        env:
+          E2E_USE_PREBUILT_IMAGES: '1'
+          E2E_CORE_API_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
+          E2E_NOTIFICATION_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
+          E2E_FRONTEND_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
+        run: node scripts/run-image-smoke.mjs
+
+      - name: Edge E2E against published GHCR images
+        working-directory: frontend
+        env:
+          E2E_USE_PREBUILT_IMAGES: '1'
+          E2E_CORE_API_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
+          E2E_NOTIFICATION_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
+          E2E_FRONTEND_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
+        run: npm run test:e2e:edge
+
+      - name: Upload release verification logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-verification-logs
+          path: |
+            frontend/test-results/image-smoke-stack
+            frontend/test-results/edge-e2e-stack
+            frontend/playwright-report
+            frontend/test-results
+
+      - name: Summary
+        run: |
+          {
+            echo "## Published artifact verification"
+            echo ""
+            echo "- CI gate run: ${{ needs.wait-for-quality-gate.outputs.ci_run_url }}"
+            echo "- Release tag: ${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Verified remote manifests for GHCR and Docker Hub (when configured)"
+            echo "- Smoke target: published GHCR release images"
           } >> "$GITHUB_STEP_SUMMARY"

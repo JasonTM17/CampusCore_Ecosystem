@@ -18,8 +18,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend-quality:
-    name: backend-quality
+  core-quality:
+    name: core-quality
     runs-on: ubuntu-latest
 
     steps:
@@ -63,10 +63,10 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=4096
         run: npm run test:unit -- --runInBand
 
-  backend-integration:
-    name: backend-integration
+  core-integration:
+    name: core-integration
     runs-on: ubuntu-latest
-    needs: backend-quality
+    needs: core-quality
 
     services:
       postgres:
@@ -159,14 +159,137 @@ jobs:
           COOKIE_SECURE: 'false'
         run: npm run test:integration -- --runInBand
 
-      - name: Upload backend integration logs
+      - name: Upload core integration logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-integration-logs
+          name: core-integration-logs
           path: |
             backend/coverage
             backend/test-results
+
+  notification-quality:
+    name: notification-quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: notification-service/package-lock.json
+
+      - name: Install dependencies
+        working-directory: notification-service
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: notification-service
+        run: npm run prisma:generate
+
+      - name: Lint
+        working-directory: notification-service
+        run: npm run lint
+
+      - name: Check formatting
+        working-directory: notification-service
+        run: npm run lint:format
+
+      - name: Typecheck
+        working-directory: notification-service
+        run: npm run typecheck
+
+      - name: Build
+        working-directory: notification-service
+        run: npm run build
+
+      - name: Unit tests
+        working-directory: notification-service
+        run: npm run test:unit -- --runInBand
+
+  notification-integration:
+    name: notification-integration
+    runs-on: ubuntu-latest
+    needs: notification-quality
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: campuscore
+          POSTGRES_USER: campuscore
+          POSTGRES_PASSWORD: ci-postgres-password
+        options: >-
+          --health-cmd "pg_isready -U campuscore -d campuscore"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: campuscore
+          RABBITMQ_DEFAULT_PASS: ci-rabbitmq-password
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: notification-service/package-lock.json
+
+      - name: Install dependencies
+        working-directory: notification-service
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: notification-service
+        run: npm run prisma:generate
+
+      - name: Push Prisma schema
+        working-directory: notification-service
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=notifications
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+        run: npx prisma db push --skip-generate
+
+      - name: Integration tests
+        working-directory: notification-service
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=notifications
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+        run: npm run test:integration -- --runInBand
+
+      - name: Upload notification integration logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-integration-logs
+          path: |
+            notification-service/coverage
+            notification-service/test-results
 
   frontend-quality:
     name: frontend-quality
@@ -206,7 +329,7 @@ jobs:
   frontend-fast-e2e:
     name: frontend-fast-e2e
     runs-on: ubuntu-latest
-    needs: [backend-quality, frontend-quality]
+    needs: [core-quality, frontend-quality]
 
     steps:
       - name: Checkout code
@@ -259,7 +382,7 @@ jobs:
       MINIO_USER: campuscore
       MINIO_PASSWORD: ci-minio-password
       DOCKERHUB_NAMESPACE: ci-namespace
-      IMAGE_TAG: latest
+      IMAGE_TAG: v9.9.9
       FRONTEND_URL: http://localhost
 
     steps:
@@ -281,7 +404,16 @@ jobs:
   image-smoke:
     name: image-smoke
     runs-on: ubuntu-latest
-    needs: [backend-quality, frontend-quality, backend-integration, frontend-fast-e2e, compose-contract]
+    needs:
+      [
+        core-quality,
+        core-integration,
+        notification-quality,
+        notification-integration,
+        frontend-quality,
+        frontend-fast-e2e,
+        compose-contract,
+      ]
 
     steps:
       - name: Checkout code
@@ -305,7 +437,16 @@ jobs:
   edge-e2e:
     name: edge-e2e
     runs-on: ubuntu-latest
-    needs: [backend-quality, frontend-quality, backend-integration, frontend-fast-e2e, compose-contract]
+    needs:
+      [
+        core-quality,
+        core-integration,
+        notification-quality,
+        notification-integration,
+        frontend-quality,
+        frontend-fast-e2e,
+        compose-contract,
+      ]
 
     steps:
       - name: Checkout code
@@ -355,14 +496,76 @@ jobs:
   security-scan:
     name: security-scan
     runs-on: ubuntu-latest
-    needs: [backend-quality, frontend-quality, backend-integration, frontend-fast-e2e, compose-contract]
+    needs:
+      [
+        core-quality,
+        core-integration,
+        notification-quality,
+        notification-integration,
+        frontend-quality,
+        frontend-fast-e2e,
+        compose-contract,
+      ]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            notification-service/package-lock.json
+            frontend/package-lock.json
 
       - name: Prepare scan directory
-        run: mkdir -p trivy-results
+        run: mkdir -p security-results
+
+      - name: Gitleaks repo scan
+        id: gitleaks
+        continue-on-error: true
+        uses: gacts/gitleaks@v1
+        with:
+          path: .
+
+      - name: Collect gitleaks SARIF
+        if: always() && steps.gitleaks.outputs.sarif != ''
+        run: cp "${{ steps.gitleaks.outputs.sarif }}" security-results/gitleaks.sarif
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install notification service dependencies
+        working-directory: notification-service
+        run: npm ci
+
+      - name: Backend npm audit
+        id: backend-npm-audit
+        continue-on-error: true
+        working-directory: backend
+        run: npm audit --audit-level=high --json > ../security-results/backend-npm-audit.json 2> ../security-results/backend-npm-audit.stderr.log
+
+      - name: Frontend npm audit
+        id: frontend-npm-audit
+        continue-on-error: true
+        working-directory: frontend
+        run: npm audit --audit-level=high --json > ../security-results/frontend-npm-audit.json 2> ../security-results/frontend-npm-audit.stderr.log
+
+      - name: Notification service npm audit
+        id: notification-npm-audit
+        continue-on-error: true
+        working-directory: notification-service
+        run: npm audit --audit-level=high --json > ../security-results/notification-npm-audit.json 2> ../security-results/notification-npm-audit.stderr.log
 
       - name: Filesystem scan
         id: trivy-fs
@@ -372,7 +575,7 @@ jobs:
           scan-type: fs
           scan-ref: .
           format: sarif
-          output: trivy-results/trivy-fs.sarif
+          output: security-results/trivy-fs.sarif
           severity: HIGH,CRITICAL
           exit-code: '1'
 
@@ -382,6 +585,9 @@ jobs:
       - name: Build frontend image for scan
         run: docker build -f frontend/Dockerfile -t campuscore-frontend:security .
 
+      - name: Build notification service image for scan
+        run: docker build -f notification-service/Dockerfile -t campuscore-notification-service:security .
+
       - name: Backend image scan
         id: trivy-backend-image
         continue-on-error: true
@@ -390,7 +596,7 @@ jobs:
           scan-type: image
           image-ref: campuscore-backend:security
           format: sarif
-          output: trivy-results/trivy-backend-image.sarif
+          output: security-results/trivy-backend-image.sarif
           severity: HIGH,CRITICAL
           exit-code: '1'
 
@@ -402,45 +608,76 @@ jobs:
           scan-type: image
           image-ref: campuscore-frontend:security
           format: sarif
-          output: trivy-results/trivy-frontend-image.sarif
+          output: security-results/trivy-frontend-image.sarif
           severity: HIGH,CRITICAL
           exit-code: '1'
 
-      - name: Upload filesystem SARIF
-        if: always() && hashFiles('trivy-results/trivy-fs.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+      - name: Notification service image scan
+        id: trivy-notification-image
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: campuscore-notification-service:security
+          format: sarif
+          output: security-results/trivy-notification-image.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+
+      - name: Upload gitleaks SARIF
+        if: always() && hashFiles('security-results/gitleaks.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: trivy-results/trivy-fs.sarif
+          sarif_file: security-results/gitleaks.sarif
+          category: gitleaks
+
+      - name: Upload filesystem SARIF
+        if: always() && hashFiles('security-results/trivy-fs.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-results/trivy-fs.sarif
           category: trivy-fs
 
       - name: Upload backend image SARIF
-        if: always() && hashFiles('trivy-results/trivy-backend-image.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        if: always() && hashFiles('security-results/trivy-backend-image.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: trivy-results/trivy-backend-image.sarif
+          sarif_file: security-results/trivy-backend-image.sarif
           category: trivy-backend-image
 
       - name: Upload frontend image SARIF
-        if: always() && hashFiles('trivy-results/trivy-frontend-image.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        if: always() && hashFiles('security-results/trivy-frontend-image.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: trivy-results/trivy-frontend-image.sarif
+          sarif_file: security-results/trivy-frontend-image.sarif
           category: trivy-frontend-image
+
+      - name: Upload notification image SARIF
+        if: always() && hashFiles('security-results/trivy-notification-image.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-results/trivy-notification-image.sarif
+          category: trivy-notification-image
 
       - name: Upload scan reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: security-scan-reports
-          path: trivy-results
+          path: security-results
 
       - name: Enforce scan gate
         if: always()
         run: |
-          if [ "${{ steps.trivy-fs.outcome }}" != "success" ] || \
+          if [ "${{ steps.gitleaks.outcome }}" != "success" ] || \
+             [ "${{ steps.backend-npm-audit.outcome }}" != "success" ] || \
+             [ "${{ steps.frontend-npm-audit.outcome }}" != "success" ] || \
+             [ "${{ steps.notification-npm-audit.outcome }}" != "success" ] || \
+             [ "${{ steps.trivy-fs.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-backend-image.outcome }}" != "success" ] || \
-             [ "${{ steps.trivy-frontend-image.outcome }}" != "success" ]; then
-            echo "Security scan failed at HIGH/CRITICAL severity threshold."
+             [ "${{ steps.trivy-frontend-image.outcome }}" != "success" ] || \
+             [ "${{ steps.trivy-notification-image.outcome }}" != "success" ]; then
+            echo "Security scan failed. Review npm audit, gitleaks, and Trivy reports."
             exit 1
           fi
 
@@ -462,8 +699,10 @@ jobs:
     name: quality-gate
     runs-on: ubuntu-latest
     needs:
-      - backend-quality
-      - backend-integration
+      - core-quality
+      - core-integration
+      - notification-quality
+      - notification-integration
       - frontend-quality
       - frontend-fast-e2e
       - compose-contract
@@ -498,8 +737,10 @@ jobs:
             fi
           }
 
-          check_required backend-quality "${{ needs.backend-quality.result }}"
-          check_required backend-integration "${{ needs.backend-integration.result }}"
+          check_required core-quality "${{ needs.core-quality.result }}"
+          check_required core-integration "${{ needs.core-integration.result }}"
+          check_required notification-quality "${{ needs.notification-quality.result }}"
+          check_required notification-integration "${{ needs.notification-integration.result }}"
           check_required frontend-quality "${{ needs.frontend-quality.result }}"
           check_required frontend-fast-e2e "${{ needs.frontend-fast-e2e.result }}"
           check_required compose-contract "${{ needs.compose-contract.result }}"
@@ -517,8 +758,10 @@ jobs:
           {
             echo "## Quality gate"
             echo ""
-            echo "- backend-quality: ${{ needs.backend-quality.result }}"
-            echo "- backend-integration: ${{ needs.backend-integration.result }}"
+            echo "- core-quality: ${{ needs.core-quality.result }}"
+            echo "- core-integration: ${{ needs.core-integration.result }}"
+            echo "- notification-quality: ${{ needs.notification-quality.result }}"
+            echo "- notification-integration: ${{ needs.notification-integration.result }}"
             echo "- frontend-quality: ${{ needs.frontend-quality.result }}"
             echo "- frontend-fast-e2e: ${{ needs.frontend-fast-e2e.result }}"
             echo "- compose-contract: ${{ needs.compose-contract.result }}"
