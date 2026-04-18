@@ -3,36 +3,55 @@
 [![CI](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/ci.yml/badge.svg)](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/ci.yml)
 [![CD](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml/badge.svg)](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml)
 ![Next.js](https://img.shields.io/badge/frontend-Next.js%2015-111827)
-![NestJS](https://img.shields.io/badge/backend-NestJS%2010-e11d48)
+![NestJS](https://img.shields.io/badge/backend-NestJS%2011-e11d48)
 ![License](https://img.shields.io/badge/license-MIT-16a34a)
 
-CampusCore is an academic management platform for course registration, schedules, grades, tuition invoices, announcements, and administration workflows.
+CampusCore is an academic management platform for course registration, schedules, grades, tuition invoices, announcements, and administrative operations.
 
-The project keeps the backend as a single deployable NestJS application, but verifies it as a production-like multi-service stack through nginx, PostgreSQL, Redis, RabbitMQ, MinIO, and focused edge E2E coverage.
+The repository keeps **one deployable NestJS 11 backend**, but verifies it as a **multi-service stack** with nginx, PostgreSQL, Redis, RabbitMQ, MinIO, image smoke, and focused end-to-end coverage. That keeps deployment simple while making runtime checks behave like a production environment.
 
-## What Is Included
+## Languages
 
-- Student, lecturer, and admin portals
-- Next.js 15 frontend with standalone runtime for Docker
-- NestJS 10 backend with Prisma, JWT auth, Swagger, and websocket auth
-- PostgreSQL, Redis, RabbitMQ, MinIO, Mailhog, nginx, and monitoring services
-- Fast local E2E plus nginx-backed edge E2E
+- [Tiếng Việt](./README.vi.md)
+- [English](./README.en.md)
 
-## Public Runtime Contract
+## Quick Summary
+
+- Next.js 15 frontend runs with the standalone runtime in Docker
+- Public traffic goes through nginx at `http://localhost`
+- `GET /health` is the public liveness endpoint and stays minimal
+- The canonical readiness endpoint is `GET /api/v1/health/readiness`
+- Browser auth uses `HttpOnly` cookies plus CSRF protection
+- Legacy clients still work with JSON token/Bearer flows during the transition period
+- Public releases are published only from semver tags `vX.Y.Z`
+
+## Real Runtime Shape
 
 | URL | Purpose |
 | --- | --- |
 | `http://localhost` | Public entrypoint through nginx |
 | `http://localhost/login` | Login page |
-| `http://localhost/health` | Public health endpoint |
+| `http://localhost/health` | Public liveness endpoint with a minimal payload |
 | `http://localhost/api/docs` | Swagger UI through nginx |
-| `http://localhost:4000/api/v1/health` | Direct backend health in the local stack |
+| `http://localhost/api/v1/health/readiness` | Internal readiness, protected by `X-Health-Key` in production-like environments |
+| `http://localhost:4000/api/v1/health/liveness` | Direct backend liveness in the local stack |
 
-The frontend listens on port `3000` inside Docker, the backend listens on port `4000`, and nginx is the only public surface in the compose stacks.
+Inside Docker, the frontend listens on port `3000`, the backend listens on port `4000`, and nginx is the only public gateway in the runtime stack.
 
-## Feature Areas
+```mermaid
+flowchart LR
+  U["User"] --> N["nginx gateway"]
+  N --> F["Next.js standalone frontend"]
+  N --> B["NestJS 11 backend"]
+  B --> P["PostgreSQL"]
+  B --> R["Redis"]
+  B --> Q["RabbitMQ"]
+  B --> M["MinIO"]
+```
 
-### Student Portal
+## Functional Areas
+
+### Student
 
 - Course registration
 - Weekly schedule
@@ -41,60 +60,60 @@ The frontend listens on port `3000` inside Docker, the backend listens on port `
 - Announcements
 - Profile management
 
-### Lecturer Portal
+### Lecturer
 
 - Teaching schedule
 - Grade management
-- Empty-state safe lecturer flows
+- Dashboard flows with safe empty states
 
-### Admin Portal
+### Admin
 
 - User management
 - Course and section administration
 - Enrollment management
 - Operational dashboards
 
-## Architecture Notes
+## Current Auth Model
 
-- Frontend: Next.js 15, React 18, TypeScript, Tailwind CSS
-- Backend: NestJS 10, Prisma, PostgreSQL, JWT, Socket.IO
-- Runtime services: Redis, RabbitMQ, MinIO, Mailhog, nginx
-- Observability stack: Prometheus, Grafana, Loki, Promtail, Jaeger
+Browser sessions use these cookies:
 
-CampusCore is not split into separate backend microservices in this release. Instead, the repository verifies the single backend deployable together with the surrounding services, so runtime behavior still reflects a realistic multi-service deployment.
+- `cc_access_token`
+- `cc_refresh_token`
+- `cc_csrf`
 
-## Container Images
+Mutating browser requests send `X-CSRF-Token`. Legacy clients can still use JSON responses with `accessToken`, `refreshToken`, `user` and Bearer authorization so external integrations do not break during migration.
+
+## Current Health Model
+
+- `GET /health`: public liveness, minimal payload
+- `GET /api/v1/health/readiness`: internal readiness, detailed payload
+- `GET /api/v1/health`: temporary alias for readiness to preserve compatibility
+
+Readiness reports the real status of `database`, `redis`, and `rabbitmq` as `up`, `down`, or `not_configured`.
+
+## Container Images and Registry
 
 ### Docker Hub
 
 - `nguyenson1710/campuscore-backend`
 - `nguyenson1710/campuscore-frontend`
 
-### GitHub Packages (GHCR)
+### GitHub Container Registry
 
 - `ghcr.io/jasontm17/campuscore-backend`
 - `ghcr.io/jasontm17/campuscore-frontend`
 
-GitHub publishes new container packages as private by default on first push. If you want anonymous pulls and a public package page, change the package visibility to `Public` once in GitHub Package settings.
-
-Tag strategy across registries:
+Tags follow the same release rule everywhere:
 
 - `latest`
-- semantic release tags such as `v1.0.0`
-- immutable commit SHA tags such as `0f8bc44`
+- semantic tags such as `v1.0.0`
+- immutable SHA tags such as `0f8bc44`
 
-Example pulls:
-
-```bash
-docker pull nguyenson1710/campuscore-backend:v1.0.0
-docker pull nguyenson1710/campuscore-frontend:v1.0.0
-docker pull ghcr.io/jasontm17/campuscore-backend:v1.0.0
-docker pull ghcr.io/jasontm17/campuscore-frontend:v1.0.0
-```
+Public release publishing is allowed only from semver tags `vX.Y.Z`. Branch pushes run CI only and do not publish public releases.
 
 ## Quick Start
 
-### Local Full Stack
+### Local full stack
 
 ```bash
 cp .env.example .env
@@ -107,65 +126,47 @@ Open:
 - `http://localhost/api/docs`
 - `http://localhost/health`
 
-### Production-like Image Stack
+### Production-like runtime
 
 ```bash
 docker compose -f docker-compose.production.yml up -d
 ```
 
-Set the following values in `.env` before starting the production image stack:
+The production-like frontend uses the standalone runtime. It does not rely on `next start` as the primary runtime path.
 
-- `POSTGRES_PASSWORD`
-- `JWT_SECRET`
-- `JWT_REFRESH_SECRET`
-- `RABBITMQ_PASSWORD`
-- `MINIO_PASSWORD`
-- `GRAFANA_PASSWORD`
-- `DOCKERHUB_NAMESPACE`
-- `IMAGE_TAG`
+## Verification
 
-`NEXT_PUBLIC_API_URL` can stay empty when the frontend uses nginx same-origin routing.
+The repository is gated by:
 
-## Verification and Testing
-
-The repository is validated with:
-
-- backend lint, format check, typecheck, build, and tests
-- frontend lint, typecheck, build, and smoke tests
-- image smoke that boots the production-like Docker runtime from the real Dockerfiles
-- Playwright fast E2E for local feedback
-- Playwright edge E2E through nginx for production-like verification
-- mandatory security scans for source and container images
-- Docker compose config validation for development, production, and E2E stacks
-
-Focused browser E2E currently covers:
-
-- public load for `/` and `/login`
-- student login and invoice detail flow
-- admin login and user-management action controls
-- lecturer login and schedule or empty-state flow
-- public health and Swagger through nginx
-- websocket auth smoke with valid and invalid tokens
+- backend lint, format check, typecheck, build, unit tests, and integration tests
+- frontend lint, typecheck, build, smoke tests, and E2E
+- production-like image smoke from the real Dockerfiles
+- edge E2E through nginx
+- Docker compose contract checks for dev, prod, and E2E
+- security scans for source and images
 
 ## CI/CD
 
-GitHub Actions provides:
+GitHub Actions acts as both quality gate and release gate:
 
-- `CI Build and Test` as the release quality gate across backend, frontend, compose contracts, image smoke, edge E2E, and security scanning
-- `CD - Gated Registry Publish` for registry publishing only after the matching CI run succeeds
+- `CI Build and Test` runs the full quality matrix, integration, E2E, image smoke, and security scanning
+- `CD - Gated Registry Publish` publishes registry images only after the matching commit has cleared the quality gate and the ref is a semver tag `vX.Y.Z`
 
-Registry behavior:
+Release rules:
 
-- Docker Hub publishing uses `DOCKERHUB_NAMESPACE` as the preferred namespace input
-- `DOCKERHUB_USERNAME` remains supported as the legacy alias for compatibility
-- GitHub Container Registry publishing uses the repository owner namespace automatically
-- pushes to `master`, `main`, and version tags publish `latest` or the tag plus the commit SHA only after the same commit passes the CI quality gate
+- `DOCKERHUB_NAMESPACE` is the preferred namespace input
+- `DOCKERHUB_USERNAME` is kept as a legacy alias for compatibility
+- `latest` updates only when a semver release is published
+- rollback should use a digest or an immutable SHA tag
 
-## Documentation
+## Additional Docs
 
-- [Root README](./README.md)
-- [Vietnamese Guide](./README.vi.md)
-- [Docker Hub Notes](./DOCKER_HUB.md)
+- [Vietnamese README](./README.vi.md)
+- [Docker Hub Guide](./DOCKER_HUB.md)
+- [Architecture](./docs/ARCHITECTURE.md)
+- [Operations](./docs/OPERATIONS.md)
+- [Security](./docs/SECURITY.md)
+- [Release](./docs/RELEASE.md)
 
 ## Author
 
