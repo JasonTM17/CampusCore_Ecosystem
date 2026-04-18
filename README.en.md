@@ -1,117 +1,72 @@
-# CampusCore
+﻿# CampusCore
 
 [![CI](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/ci.yml/badge.svg)](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/ci.yml)
 [![CD](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml/badge.svg)](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml)
 ![Next.js](https://img.shields.io/badge/frontend-Next.js%2015-111827)
-![NestJS](https://img.shields.io/badge/backend-NestJS%2011-e11d48)
+![NestJS](https://img.shields.io/badge/core--api-NestJS%2011-e11d48)
+![Service](https://img.shields.io/badge/notification--service-NestJS%2011-7c3aed)
 ![License](https://img.shields.io/badge/license-MIT-16a34a)
 
-CampusCore is an academic management platform for course registration, schedules, grades, tuition invoices, announcements, and administrative operations.
-
-The repository keeps **one deployable NestJS 11 backend**, but verifies it as a **multi-service stack** with nginx, PostgreSQL, Redis, RabbitMQ, MinIO, image smoke, and focused end-to-end coverage. That keeps deployment simple while making runtime checks behave like a production environment.
+CampusCore is an academic management platform built as **Microservices Portfolio v1**. The current runtime has a dedicated `core-api` for auth and academic domains, plus an independent `notification-service` for inbox ownership and realtime delivery. Public traffic goes through `nginx`, while PostgreSQL, Redis, RabbitMQ, and MinIO remain shared infrastructure services.
 
 ## Languages
 
 - [Tiếng Việt](./README.vi.md)
 - [English](./README.en.md)
 
-## Quick Summary
+## Current architecture
 
-- Next.js 15 frontend runs with the standalone runtime in Docker
-- Public traffic goes through nginx at `http://localhost`
-- `GET /health` is the public liveness endpoint and stays minimal
-- The canonical readiness endpoint is `GET /api/v1/health/readiness`
-- Browser auth uses `HttpOnly` cookies plus CSRF protection
-- Legacy clients still work with JSON token/Bearer flows during the transition period
-- Public releases are published only from semver tags `vX.Y.Z`
+CampusCore currently ships three deployable applications:
 
-## Real Runtime Shape
-
-| URL | Purpose |
-| --- | --- |
-| `http://localhost` | Public entrypoint through nginx |
-| `http://localhost/login` | Login page |
-| `http://localhost/health` | Public liveness endpoint with a minimal payload |
-| `http://localhost/api/docs` | Swagger UI through nginx |
-| `http://localhost/api/v1/health/readiness` | Internal readiness, protected by `X-Health-Key` in production-like environments |
-| `http://localhost:4000/api/v1/health/liveness` | Direct backend liveness in the local stack |
-
-Inside Docker, the frontend listens on port `3000`, the backend listens on port `4000`, and nginx is the only public gateway in the runtime stack.
+- `frontend`: Next.js 15 using the standalone runtime
+- `core-api`: NestJS 11 owning auth, users, announcements, enrollments, finance, grades, schedules, analytics, and public health
+- `notification-service`: NestJS 11 owning notification inboxes, the `/notifications` websocket namespace, RabbitMQ consumption, and notification health probes
 
 ```mermaid
 flowchart LR
   U["User"] --> N["nginx gateway"]
-  N --> F["Next.js standalone frontend"]
-  N --> B["NestJS 11 backend"]
-  B --> P["PostgreSQL"]
-  B --> R["Redis"]
-  B --> Q["RabbitMQ"]
-  B --> M["MinIO"]
+  N --> F["frontend"]
+  N --> C["core-api"]
+  N --> S["notification-service"]
+  C --> P["PostgreSQL (public schema)"]
+  S --> PN["PostgreSQL (notifications schema)"]
+  C --> R["Redis"]
+  C --> Q["RabbitMQ"]
+  S --> Q
+  C --> M["MinIO"]
 ```
 
-## Functional Areas
+## Public contract
 
-### Student
+| URL                                        | Purpose                                                  |
+| ------------------------------------------ | -------------------------------------------------------- |
+| `http://localhost`                         | Public entrypoint through nginx                          |
+| `http://localhost/login`                   | Login page                                               |
+| `http://localhost/health`                  | Public liveness from `core-api`                          |
+| `http://localhost/api/docs`                | Swagger through nginx                                    |
+| `http://localhost/api/v1/notifications/*`  | Public notifications API owned by `notification-service` |
+| `http://localhost/socket.io/*`             | Public Socket.IO route owned by `notification-service`   |
+| `http://localhost/api/v1/health/readiness` | Blocked on the public edge                               |
 
-- Course registration
-- Weekly schedule
-- Grades and transcript views
-- Tuition invoices
-- Announcements
-- Profile management
+## Auth model
 
-### Lecturer
-
-- Teaching schedule
-- Grade management
-- Dashboard flows with safe empty states
-
-### Admin
-
-- User management
-- Course and section administration
-- Enrollment management
-- Operational dashboards
-
-## Current Auth Model
-
-Browser sessions use these cookies:
+Browser traffic uses:
 
 - `cc_access_token`
 - `cc_refresh_token`
 - `cc_csrf`
+- `X-CSRF-Token` for mutating requests
 
-Mutating browser requests send `X-CSRF-Token`. Legacy clients can still use JSON responses with `accessToken`, `refreshToken`, `user` and Bearer authorization so external integrations do not break during migration.
+Legacy clients are still supported through JSON `accessToken`, `refreshToken`, `user`, and Bearer authentication.
 
-## Current Health Model
+## Health model
 
-- `GET /health`: public liveness, minimal payload
-- `GET /api/v1/health/readiness`: internal readiness, detailed payload
-- `GET /api/v1/health`: temporary alias for readiness to preserve compatibility
+- `GET /health`: minimal public liveness from `core-api`
+- `GET /api/v1/health/readiness`: internal readiness for `core-api`
+- `GET /api/v1/health/liveness`: per-service internal liveness
+- `notification-service` exposes its own readiness and liveness, but nginx does not publish them on the public edge
 
-Readiness reports the real status of `database`, `redis`, and `rabbitmq` as `up`, `down`, or `not_configured`.
-
-## Container Images and Registry
-
-### Docker Hub
-
-- `nguyenson1710/campuscore-backend`
-- `nguyenson1710/campuscore-frontend`
-
-### GitHub Container Registry
-
-- `ghcr.io/jasontm17/campuscore-backend`
-- `ghcr.io/jasontm17/campuscore-frontend`
-
-Tags follow the same release rule everywhere:
-
-- `latest`
-- semantic tags such as `v1.0.0`
-- immutable SHA tags such as `0f8bc44`
-
-Public release publishing is allowed only from semver tags `vX.Y.Z`. Branch pushes run CI only and do not publish public releases.
-
-## Quick Start
+## Quick start
 
 ### Local full stack
 
@@ -120,78 +75,90 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Open:
+The dev compose stack boots in this order:
 
-- `http://localhost`
-- `http://localhost/api/docs`
-- `http://localhost/health`
+1. `postgres`, `redis`, `rabbitmq`, `minio`
+2. `core-api-init` to push the `public` schema and seed deterministic data
+3. `notification-service-init` to push the `notifications` schema and copy legacy notifications once when the old table exists
+4. `core-api`, `notification-service`, `frontend`, `nginx`
 
-### Production-like runtime
+### Production-like stack
 
 ```bash
+export DOCKERHUB_NAMESPACE=<namespace>
+export IMAGE_TAG=v1.0.0
+docker compose -f docker-compose.production.yml --profile bootstrap run --rm core-api-init
+docker compose -f docker-compose.production.yml --profile bootstrap run --rm notification-service-init
 docker compose -f docker-compose.production.yml up -d
 ```
 
-The production-like frontend uses the standalone runtime. It does not rely on `next start` as the primary runtime path.
+Production compose keeps runtime images clean. Schema bootstrap must be run before the first deployment as documented in [docs/OPERATIONS.md](./docs/OPERATIONS.md).
 
-## Choosing The Right Run Mode
+## Verification matrix
 
-To avoid the feeling that a command is "stuck", use the mode that matches the goal:
+CampusCore is gated by these lanes:
 
-- **Fast local debugging**
-  - backend: `cd backend && npm run start`
-  - frontend: `cd frontend && npm run dev -- --hostname 127.0.0.1 --port 3100`
-- **Fast verification**
-  - `cd frontend && npm run test:e2e`
-- **Production-like verification**
-  - `cd frontend && npm run test:e2e:edge`
+- `core-quality`
+- `core-integration`
+- `notification-quality`
+- `notification-integration`
+- `frontend-quality`
+- `frontend-fast-e2e`
+- `compose-contract`
+- `image-smoke`
+- `edge-e2e`
+- `security-scan`
+- `dependency-review`
+- `quality-gate`
 
-Do not use an ambiguous root-level `npm run dev`. If the goal is only to confirm that the apps boot, run the local smoke path first and move to E2E only when needed.
+### Local verification
 
-Reference timing:
+- `cd backend && npm run lint && npm run lint:format && npm run typecheck && npm run build && npm run test:unit -- --runInBand && npm run test:integration -- --runInBand`
+- `cd notification-service && npm run lint && npm run lint:format && npm run typecheck && npm run build && npm run test:unit -- --runInBand && npm run test:integration -- --runInBand`
+- `cd frontend && npm run lint && npm run typecheck && npm test && npm run build && npm run test:e2e`
+- `node scripts/run-image-smoke.mjs`
+- `cd frontend && npm run test:e2e:edge`
+- `node scripts/run-security-local.mjs`
+- `docker compose -f docker-compose.yml config`
+- `docker compose -f docker-compose.production.yml config`
+- `docker compose -f docker-compose.e2e.yml config`
+- `git diff --check`
 
-- local dev: usually under 2-3 minutes
-- fast E2E: usually under 6-8 minutes
-- edge E2E: usually under 10-12 minutes
+## Release policy
 
-When a heavier check needs debugging, inspect logs here:
+- Public registries publish only from semver tags `vX.Y.Z`
+- `master` and `main` run CI only and do not publish public releases
+- Each release publishes all three images:
+  - `campuscore-backend`
+  - `campuscore-notification-service`
+  - `campuscore-frontend`
+- Release tags always include:
+  - the semver tag, such as `v1.0.0`
+  - an immutable short SHA
+  - `latest`, updated only together with a semver release
 
-- `frontend/test-results/fast-e2e-stack`
-- `frontend/test-results/edge-e2e-stack`
+## Registry
 
-## Verification
+### Docker Hub
 
-The repository is gated by:
+- `nguyenson1710/campuscore-backend`
+- `nguyenson1710/campuscore-notification-service`
+- `nguyenson1710/campuscore-frontend`
 
-- backend lint, format check, typecheck, build, unit tests, and integration tests
-- frontend lint, typecheck, build, smoke tests, and E2E
-- production-like image smoke from the real Dockerfiles
-- edge E2E through nginx
-- Docker compose contract checks for dev, prod, and E2E
-- security scans for source and images
+### GitHub Container Registry
 
-## CI/CD
+- `ghcr.io/jasontm17/campuscore-backend`
+- `ghcr.io/jasontm17/campuscore-notification-service`
+- `ghcr.io/jasontm17/campuscore-frontend`
 
-GitHub Actions acts as both quality gate and release gate:
-
-- `CI Build and Test` runs the full quality matrix, integration, E2E, image smoke, and security scanning
-- `CD - Gated Registry Publish` publishes registry images only after the matching commit has cleared the quality gate and the ref is a semver tag `vX.Y.Z`
-
-Release rules:
-
-- `DOCKERHUB_NAMESPACE` is the preferred namespace input
-- `DOCKERHUB_USERNAME` is kept as a legacy alias for compatibility
-- `latest` updates only when a semver release is published
-- rollback should use a digest or an immutable SHA tag
-
-## Additional Docs
+## Additional docs
 
 - [Vietnamese README](./README.vi.md)
-- [Docker Hub Guide](./DOCKER_HUB.md)
 - [Architecture](./docs/ARCHITECTURE.md)
 - [Operations](./docs/OPERATIONS.md)
 - [Security](./docs/SECURITY.md)
 - [Release](./docs/RELEASE.md)
+- [Docker Hub Guide](./DOCKER_HUB.md)
 
 ## Author
 
