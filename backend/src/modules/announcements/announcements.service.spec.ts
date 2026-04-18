@@ -2,6 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AnnouncementsService } from './announcements.service';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { NotFoundException } from '@nestjs/common';
+import { RabbitMQService } from '../rabbitmq/rabbitmq.service';
+import {
+  NOTIFICATION_EVENTS_QUEUE,
+  NOTIFICATION_EVENT_TYPES,
+} from '../rabbitmq/notification-events';
 
 describe('AnnouncementsService', () => {
   let service: AnnouncementsService;
@@ -16,6 +21,9 @@ describe('AnnouncementsService', () => {
       count: jest.fn(),
     },
   };
+  const mockRabbitMQService = {
+    publishMessage: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -25,11 +33,16 @@ describe('AnnouncementsService', () => {
           provide: PrismaService,
           useValue: mockPrisma,
         },
+        {
+          provide: RabbitMQService,
+          useValue: mockRabbitMQService,
+        },
       ],
     }).compile();
 
     service = module.get<AnnouncementsService>(AnnouncementsService);
     jest.clearAllMocks();
+    mockRabbitMQService.publishMessage.mockResolvedValue(true);
   });
 
   describe('create', () => {
@@ -43,6 +56,8 @@ describe('AnnouncementsService', () => {
 
       mockPrisma.announcement.create.mockResolvedValue({
         id: 'announcement-uuid',
+        createdAt: new Date('2026-04-18T10:00:00.000Z'),
+        updatedAt: new Date('2026-04-18T10:00:00.000Z'),
         ...createData,
       } as any);
 
@@ -50,6 +65,19 @@ describe('AnnouncementsService', () => {
 
       expect(result).toHaveProperty('id');
       expect(mockPrisma.announcement.create).toHaveBeenCalled();
+      expect(mockRabbitMQService.publishMessage).toHaveBeenCalledWith(
+        NOTIFICATION_EVENTS_QUEUE,
+        expect.objectContaining({
+          type: NOTIFICATION_EVENT_TYPES.ANNOUNCEMENT_CREATED,
+          source: 'campuscore-core-api',
+          payload: expect.objectContaining({
+            announcement: expect.objectContaining({
+              id: 'announcement-uuid',
+              title: 'Test Announcement',
+            }),
+          }),
+        }),
+      );
     });
   });
 

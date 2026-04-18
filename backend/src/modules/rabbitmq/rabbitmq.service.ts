@@ -55,7 +55,7 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
 
   async publishMessage(
     queue: RabbitMQAllowedQueue,
-    message: Record<string, unknown>,
+    message: unknown,
   ): Promise<boolean> {
     if (!this.channel) {
       this.logger.warn('Channel not initialized');
