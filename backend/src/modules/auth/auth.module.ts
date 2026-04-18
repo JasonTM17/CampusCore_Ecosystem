@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import type { StringValue } from 'ms';
 import { PrismaModule } from '../common/prisma/prisma.module';
 import { CommonModule } from '../common/common.module';
 import { AuthService } from './auth.service';
@@ -22,7 +23,9 @@ import { ENV } from '../../config/env.constants';
       useFactory: (config: ConfigService) => ({
         secret: config.getOrThrow<string>(ENV.JWT_SECRET),
         signOptions: {
-          expiresIn: config.get<string>(ENV.JWT_EXPIRES_IN, '15m'),
+          expiresIn: config.getOrThrow<string>(
+            ENV.JWT_EXPIRES_IN,
+          ) as StringValue,
         },
       }),
     }),

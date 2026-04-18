@@ -4,6 +4,40 @@ import { ENV, ENV_DEFAULTS } from './env.constants';
 const maybeNumber = z.coerce.number().int().positive();
 const durationPattern = /^\d+[smhd]$/;
 const durationString = z.string().regex(durationPattern);
+const booleanLike = z
+  .union([z.boolean(), z.string(), z.number()])
+  .transform((value, ctx) => {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+
+    if (typeof value === 'number') {
+      if (value === 1) {
+        return true;
+      }
+      if (value === 0) {
+        return false;
+      }
+    }
+
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+
+      if (['true', '1', 'yes', 'on'].includes(normalized)) {
+        return true;
+      }
+
+      if (['false', '0', 'no', 'off'].includes(normalized)) {
+        return false;
+      }
+    }
+
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Expected a boolean-like value',
+    });
+    return z.NEVER;
+  });
 
 const environmentSchema = z.object({
   [ENV.NODE_ENV]: z
@@ -13,6 +47,8 @@ const environmentSchema = z.object({
   [ENV.DATABASE_URL]: z.string().min(1),
   [ENV.FRONTEND_URL]: z.string().url().optional(),
   [ENV.SWAGGER_ENABLED]: z.coerce.boolean().optional(),
+  [ENV.COOKIE_SECURE]: booleanLike.optional(),
+  [ENV.HEALTH_READINESS_KEY]: z.string().min(16).optional(),
   [ENV.JWT_SECRET]: z.string().min(1),
   [ENV.JWT_REFRESH_SECRET]: z.string().min(1),
   [ENV.JWT_EXPIRES_IN]: durationString.default(ENV_DEFAULTS.JWT_EXPIRES_IN),
@@ -89,6 +125,15 @@ export function validateEnvironment(env: Record<string, unknown>) {
   if (!frontendUrl && parsed.data[ENV.NODE_ENV] === 'production') {
     throw new Error(
       'Invalid environment configuration: FRONTEND_URL: required in production',
+    );
+  }
+
+  if (
+    parsed.data[ENV.NODE_ENV] === 'production' &&
+    !parsed.data[ENV.HEALTH_READINESS_KEY]
+  ) {
+    throw new Error(
+      'Invalid environment configuration: HEALTH_READINESS_KEY: required in production',
     );
   }
 

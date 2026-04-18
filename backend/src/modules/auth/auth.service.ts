@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import type { StringValue } from 'ms';
 import * as bcrypt from 'bcrypt';
 import { createHash } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
@@ -16,6 +17,7 @@ import { RegisterDto } from './dto/register.dto';
 import { EmailService } from '../common/services/email.service';
 import { ENV, ENV_DEFAULTS } from '../../config/env.constants';
 import { AuthUser } from './types/auth-user.type';
+import { parseDurationToMs } from './auth-session.util';
 
 type AuthUserRecord = {
   id: string;
@@ -149,6 +151,10 @@ export class AuthService {
   }
 
   async refreshToken(refreshTokenDto: RefreshTokenDto) {
+    if (!refreshTokenDto.refreshToken) {
+      throw new BadRequestException('Refresh token is required');
+    }
+
     const hashedRefreshToken = this.hashToken(refreshTokenDto.refreshToken);
 
     const session = await this.prisma.session.findFirst({
@@ -497,16 +503,14 @@ export class AuthService {
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
-        expiresIn: this.configService.get<string>(
+        expiresIn: this.configService.getOrThrow<string>(
           ENV.JWT_EXPIRES_IN,
-          ENV_DEFAULTS.JWT_EXPIRES_IN,
-        ),
+        ) as StringValue,
       }),
       this.jwtService.signAsync(payload, {
-        expiresIn: this.configService.get<string>(
+        expiresIn: this.configService.getOrThrow<string>(
           ENV.JWT_REFRESH_EXPIRES_IN,
-          ENV_DEFAULTS.JWT_REFRESH_EXPIRES_IN,
-        ),
+        ) as StringValue,
         secret: this.configService.getOrThrow<string>(ENV.JWT_REFRESH_SECRET),
       }),
     ]);
@@ -533,7 +537,7 @@ export class AuthService {
         ipAddress,
         userAgent,
         expiresAt: new Date(
-          Date.now() + this.parseDurationToMs(this.getRefreshTokenExpiry()),
+          Date.now() + parseDurationToMs(this.getRefreshTokenExpiry()),
         ),
       },
     });
@@ -621,30 +625,6 @@ export class AuthService {
       ENV.PASSWORD_RESET_EXPIRY_MINUTES,
       ENV_DEFAULTS.PASSWORD_RESET_EXPIRY_MINUTES,
     );
-  }
-
-  private parseDurationToMs(duration: string) {
-    const match = /^(\d+)([smhd])$/.exec(duration.trim());
-
-    if (!match) {
-      throw new Error(`Invalid duration configuration: ${duration}`);
-    }
-
-    const value = Number(match[1]);
-    const unit = match[2];
-
-    switch (unit) {
-      case 's':
-        return value * 1000;
-      case 'm':
-        return value * 60 * 1000;
-      case 'h':
-        return value * 60 * 60 * 1000;
-      case 'd':
-        return value * 24 * 60 * 60 * 1000;
-      default:
-        throw new Error(`Unsupported duration unit: ${unit}`);
-    }
   }
 
   private toAuditJson(

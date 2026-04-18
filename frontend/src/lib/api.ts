@@ -1,4 +1,8 @@
-import axios from 'axios';
+import axios, {
+  AxiosError,
+  AxiosRequestConfig,
+  InternalAxiosRequestConfig,
+} from 'axios';
 import {
   LoginResponse,
   ApiResponse,
@@ -23,7 +27,16 @@ import {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 type ApiObject = Record<string, unknown>;
-type LogoutPayload = { refreshToken?: string };
+type AuthRequestConfig = AxiosRequestConfig & {
+  skipAuthRefresh?: boolean;
+  skipAuthRedirect?: boolean;
+  _retry?: boolean;
+};
+type AuthInternalRequestConfig = InternalAxiosRequestConfig & {
+  skipAuthRefresh?: boolean;
+  skipAuthRedirect?: boolean;
+  _retry?: boolean;
+};
 type AnnouncementRecord = {
   id: string;
   title: string;
@@ -152,36 +165,111 @@ type SectionDetail = Section & {
   >;
 };
 
+const CSRF_COOKIE_NAME = 'cc_csrf';
+const CSRF_HEADER_NAME = 'X-CSRF-Token';
+const AUTH_REFRESH_ROUTE_PATTERN = /^\/auth\/(login|register|refresh|logout|forgot-password|reset-password|verify-email|resend-verification)(?:\/|$)/;
+const MUTATING_METHODS = new Set(['post', 'put', 'patch', 'delete']);
+
+function isBrowser() {
+  return typeof window !== 'undefined' && typeof document !== 'undefined';
+}
+
+function getCookie(name: string): string | undefined {
+  if (!isBrowser()) {
+    return undefined;
+  }
+
+  const escapedName = name.replace(/([.*+?^${}()|[\]\\])/g, '\\$1');
+  const match = document.cookie.match(
+    new RegExp(`(?:^|; )${escapedName}=([^;]*)`),
+  );
+
+  return match ? decodeURIComponent(match[1]) : undefined;
+}
+
+function isMutatingRequest(config?: AxiosRequestConfig) {
+  const method = (config?.method ?? 'get').toLowerCase();
+  return MUTATING_METHODS.has(method);
+}
+
+function getRequestPath(config?: AxiosRequestConfig) {
+  const url = config?.url ?? '';
+  const baseURL = config?.baseURL ?? API_BASE_URL;
+
+  try {
+    return new URL(url, baseURL || (isBrowser() ? window.location.origin : '')).pathname;
+  } catch {
+    return url;
+  }
+}
+
+function shouldAttemptSessionRefresh(config?: AuthRequestConfig) {
+  if (!config || config.skipAuthRefresh) {
+    return false;
+  }
+
+  return !AUTH_REFRESH_ROUTE_PATTERN.test(getRequestPath(config));
+}
+
+function applyCsrfHeader(config: AuthInternalRequestConfig) {
+  if (!isBrowser() || !isMutatingRequest(config)) {
+    return config;
+  }
+
+  const csrfToken = getCookie(CSRF_COOKIE_NAME);
+  if (!csrfToken) {
+    return config;
+  }
+
+  config.headers.set(CSRF_HEADER_NAME, csrfToken);
+  return config;
+}
+
 const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Add auth token to requests
 api.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-  }
-  return config;
+  return applyCsrfHeader(config as AuthInternalRequestConfig);
 });
 
-// Handle 401 errors
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    if (error.response?.status === 401) {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
+  async (error: AxiosError) => {
+    const originalConfig = error.config as AuthRequestConfig | undefined;
+    const unauthorized = error.response?.status === 401;
+
+    if (unauthorized && originalConfig && shouldAttemptSessionRefresh(originalConfig) && !originalConfig._retry) {
+      originalConfig._retry = true;
+
+      try {
+        await api.post<LoginResponse>(
+          '/auth/refresh',
+          {},
+          {
+            skipAuthRefresh: true,
+            skipAuthRedirect: true,
+          } as AuthRequestConfig,
+        );
+
+        return api(originalConfig);
+      } catch (refreshError) {
+        if (isBrowser() && !originalConfig.skipAuthRedirect) {
+          window.location.href = '/login';
+        }
+
+        return Promise.reject(refreshError);
       }
     }
+
+    if (unauthorized && isBrowser() && originalConfig && !originalConfig.skipAuthRedirect) {
+      window.location.href = '/login';
+    }
+
     return Promise.reject(error);
   },
 );
@@ -189,10 +277,17 @@ api.interceptors.response.use(
 // Auth API
 export const authApi = {
   login: async (email: string, password: string): Promise<LoginResponse> => {
-    const response = await api.post<LoginResponse>('/auth/login', {
-      email,
-      password,
-    });
+    const response = await api.post<LoginResponse>(
+      '/auth/login',
+      {
+        email,
+        password,
+      },
+      {
+        skipAuthRefresh: true,
+        skipAuthRedirect: true,
+      } as AuthRequestConfig,
+    );
     return response.data;
   },
 
@@ -202,12 +297,17 @@ export const authApi = {
     firstName: string;
     lastName: string;
   }): Promise<LoginResponse> => {
-    const response = await api.post<LoginResponse>('/auth/register', data);
+    const response = await api.post<LoginResponse>('/auth/register', data, {
+      skipAuthRefresh: true,
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
     return response.data;
   },
 
   me: async (): Promise<User> => {
-    const response = await api.get<User>('/auth/me');
+    const response = await api.get<User>('/auth/me', {
+      skipAuthRedirect: true,
+    } as AuthRequestConfig);
     return response.data;
   },
 
@@ -223,14 +323,19 @@ export const authApi = {
   },
 
   logout: async (): Promise<void> => {
-    const refreshToken =
-      typeof window !== 'undefined'
-        ? localStorage.getItem('refreshToken')
-        : null;
-    await api.post(
-      '/auth/logout',
-      refreshToken ? ({ refreshToken } satisfies LogoutPayload) : {},
+    await api.post('/auth/logout', {});
+  },
+
+  refresh: async (): Promise<LoginResponse> => {
+    const response = await api.post<LoginResponse>(
+      '/auth/refresh',
+      {},
+      {
+        skipAuthRefresh: true,
+        skipAuthRedirect: true,
+      } as AuthRequestConfig,
     );
+    return response.data;
   },
 
   changePassword: async (

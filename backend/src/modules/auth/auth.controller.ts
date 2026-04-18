@@ -8,11 +8,14 @@ import {
   Post,
   Put,
   Query,
+  Res,
   Request,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
+import { Request as ExpressRequest, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
@@ -26,17 +29,31 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LocalAuthGuard } from './guards/local-auth.guard';
+import {
+  clearSessionCookies,
+  extractRefreshTokenFromRequest,
+  issueSessionCookies,
+} from './auth-session.util';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private configService: ConfigService,
+  ) {}
 
   @Post('register')
   @Throttle({ short: { limit: 3, ttl: 60_000 } })
   @ApiOperation({ summary: 'Register a new user' })
-  async register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
+  async register(
+    @Body() registerDto: RegisterDto,
+    @Request() req: ExpressRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.register(registerDto);
+    issueSessionCookies(res, this.configService, result, req);
+    return result;
   }
 
   @Post('login')
@@ -44,8 +61,18 @@ export class AuthController {
   @UseGuards(LocalAuthGuard)
   @Throttle({ short: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'User login' })
-  async login(@Request() req: any, @Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto, req.ip, req.headers['user-agent']);
+  async login(
+    @Request() req: ExpressRequest & { user?: { sub?: string } },
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(
+      loginDto,
+      req.ip,
+      req.headers['user-agent'],
+    );
+    issueSessionCookies(res, this.configService, result, req);
+    return result;
   }
 
   @Post('logout')
@@ -54,8 +81,16 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ short: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'User logout' })
-  async logout(@Request() req: any, @Body() body: LogoutDto) {
-    await this.authService.logout(req.user.sub, body?.refreshToken);
+  async logout(
+    @Request() req: ExpressRequest & { user: { sub: string } },
+    @Body() body: LogoutDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.authService.logout(
+      req.user.sub,
+      body?.refreshToken ?? extractRefreshTokenFromRequest(req),
+    );
+    clearSessionCookies(res, this.configService, req);
     return { message: 'Logged out successfully' };
   }
 
@@ -63,8 +98,20 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Throttle({ short: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Refresh access token' })
-  async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
-    return this.authService.refreshToken(refreshTokenDto);
+  async refresh(
+    @Body() refreshTokenDto: RefreshTokenDto,
+    @Request() req: ExpressRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = extractRefreshTokenFromRequest(req);
+    if (!refreshToken) {
+      throw new BadRequestException('Refresh token is required');
+    }
+    const result = await this.authService.refreshToken({
+      refreshToken: refreshTokenDto?.refreshToken ?? refreshToken,
+    });
+    issueSessionCookies(res, this.configService, result, req);
+    return result;
   }
 
   @Post('change-password')
