@@ -1,70 +1,99 @@
-﻿# Phát hành
+# Phát hành CampusCore v2
 
-CampusCore dùng release policy theo hướng **semver-only public publishing**.
+CampusCore dùng release policy theo hướng **semver-only public publishing**. Mục tiêu là bảo đảm public registry chỉ nhận image đã đi qua verification của stack nhiều service.
 
-## 1. Nguyên tắc chung
+## 1. Nguyên tắc phát hành
 
-- `master` và `main` chỉ chạy CI
+- branch `master` hoặc `main` chỉ chạy CI
 - public registry chỉ publish khi push tag `vX.Y.Z`
-- CD phải chờ đúng `quality-gate` của commit đó xanh
-- mỗi release publish đủ 3 image ứng dụng
+- `latest` chỉ di chuyển cùng một semver release
+- mỗi release public phải mang đủ 4 image ứng dụng
 
-## 2. Image contract
+## 2. Public images
 
 ### Docker Hub
 
 - `nguyenson1710/campuscore-backend`
 - `nguyenson1710/campuscore-notification-service`
+- `nguyenson1710/campuscore-finance-service`
 - `nguyenson1710/campuscore-frontend`
 
 ### GHCR
 
 - `ghcr.io/jasontm17/campuscore-backend`
 - `ghcr.io/jasontm17/campuscore-notification-service`
+- `ghcr.io/jasontm17/campuscore-finance-service`
 - `ghcr.io/jasontm17/campuscore-frontend`
 
 ## 3. Tag strategy
 
-Mỗi release semver publish:
+Mỗi semver release publish:
 
 - `vX.Y.Z`
 - short SHA immutable
 - `latest`
 
-`latest` chỉ cập nhật khi có release semver. Branch push không được phép di chuyển `latest`.
+`latest` không được di chuyển bởi branch push thông thường.
 
-## 4. CI/CD workflow
+## 4. Release contents
 
-### CI Build and Test
+Mỗi release của CampusCore v2 phải bao gồm:
 
-Lane bắt buộc:
+- `core-api`
+- `notification-service`
+- `finance-service`
+- `frontend`
 
-- `core-quality`
-- `core-integration`
-- `notification-quality`
-- `notification-integration`
-- `frontend-quality`
-- `frontend-fast-e2e`
-- `compose-contract`
-- `image-smoke`
-- `edge-e2e`
-- `security-scan`
-- `dependency-review`
-- `quality-gate`
+Public edge `nginx` vẫn là thành phần runtime, nhưng không phải public application image của portfolio.
 
-`quality-gate` là status duy nhất nên được dùng cho branch protection.
+## 5. Điều kiện trước khi tag
 
-### CD - Gated Registry Publish
+Trước khi tạo tag phát hành, nên xác nhận:
 
-Workflow CD chỉ trigger khi push tag `v*.*.*` và sẽ:
+- `core-api` pass quality và integration
+- `notification-service` pass quality và integration
+- `finance-service` pass quality và integration
+- `frontend` pass quality, build và fast E2E
+- edge E2E pass
+- image smoke pass
+- compose contract pass
+- security sweep pass
 
-1. resolve release plan
-2. chờ CI matching commit thành công
-3. publish Docker Hub nếu có đủ secret
-4. publish GHCR
-5. ghi release summary với digest, tags, source SHA và provenance/SBOM
+Checklist local tham chiếu:
 
-## 5. Docker Hub secrets
+```bash
+cd backend && npm run lint && npm run lint:format && npm run typecheck && npm run build && npm run test:unit -- --runInBand && npm run test:integration -- --runInBand
+cd ../notification-service && npm run lint && npm run lint:format && npm run typecheck && npm run build && npm run test:unit -- --runInBand && npm run test:integration -- --runInBand
+cd ../finance-service && npm run lint && npm run lint:format && npm run typecheck && npm run build && npm run test:unit -- --runInBand && npm run test:integration -- --runInBand
+cd ../frontend && npm run lint && npm run typecheck && npm test && npm run build && npm run test:e2e
+cd .. && node scripts/run-image-smoke.mjs
+cd frontend && npm run test:e2e:edge
+cd .. && node scripts/run-security-local.mjs
+docker compose -f docker-compose.yml config
+docker compose -f docker-compose.production.yml config
+docker compose -f docker-compose.e2e.yml config
+git diff --check
+```
+
+## 6. Bootstrap trước first deploy
+
+Production-like stack không tự chạy migration trong app container. Trước first deploy, cần bootstrap:
+
+```bash
+export DOCKERHUB_NAMESPACE=<namespace>
+export IMAGE_TAG=v1.0.0
+docker compose -f docker-compose.production.yml --profile bootstrap run --rm core-api-init
+docker compose -f docker-compose.production.yml --profile bootstrap run --rm notification-service-init
+docker compose -f docker-compose.production.yml --profile bootstrap run --rm finance-service-init
+```
+
+Sau đó mới khởi động runtime:
+
+```bash
+docker compose -f docker-compose.production.yml up -d
+```
+
+## 7. Docker Hub secrets
 
 Bắt buộc:
 
@@ -75,30 +104,43 @@ Khuyến nghị:
 
 - `DOCKERHUB_NAMESPACE`
 
-`DOCKERHUB_NAMESPACE` là tên được ưu tiên. `DOCKERHUB_USERNAME` được giữ làm legacy alias để tương thích workflow cũ.
+`DOCKERHUB_NAMESPACE` là tên ưu tiên. `DOCKERHUB_USERNAME` được giữ như legacy alias để tương thích.
 
-## 6. Manual publish helper
+## 8. Manual publish helper
 
-Script local:
+Ví dụ helper local:
 
 ```bash
 DOCKERHUB_NAMESPACE=<namespace> ./scripts/docker-publish.sh v1.0.0
 ```
 
-Script sẽ build và push:
+Một release helper hoàn chỉnh phải build và push đủ:
 
 - `campuscore-backend`
 - `campuscore-notification-service`
+- `campuscore-finance-service`
 - `campuscore-frontend`
 - semver tag
 - short SHA tag
-- `latest` cùng với đúng semver release đó
+- `latest`
 
-## 7. Rollback
+## 9. Rollback
 
 Ưu tiên rollback bằng:
 
-- digest immutable từ registry
+- digest immutable
 - short SHA tag immutable
 
-Không nên rollback bằng `latest` vì đó là moving tag.
+Không dùng `latest` làm rollback target chính.
+
+## 10. Ghi chú release v2
+
+Ở trạng thái này, CampusCore là một portfolio microservices với:
+
+- một `core-api` làm system of record cho auth và academic domain
+- một `notification-service` làm owner của notifications và realtime
+- một `finance-service` làm owner của finance domain
+- một `frontend`
+- một `nginx gateway`
+
+Điều này giúp release narrative khớp với runtime thật, thay vì mô tả monolith trá hình.

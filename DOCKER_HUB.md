@@ -1,82 +1,115 @@
-﻿# Docker Hub Guide
+# Docker Hub và Public Registry
 
-CampusCore public images hiện gồm 3 image ứng dụng:
+Tài liệu này mô tả contract phát hành public image của CampusCore ở trạng thái **Microservices Portfolio v2**.
+
+## Public images
+
+CampusCore hiện có 4 image ứng dụng được phát hành công khai:
 
 - `campuscore-backend`
 - `campuscore-notification-service`
+- `campuscore-finance-service`
 - `campuscore-frontend`
 
-Namespace hiện tại: `nguyenson1710`.
+Namespace Docker Hub hiện tại:
 
-## Namespace rule
+- `nguyenson1710`
 
-- `DOCKERHUB_NAMESPACE` là input được ưu tiên
+## Vai trò của từng image
+
+| Image | Port nội bộ | Vai trò |
+| --- | --- | --- |
+| `campuscore-backend` | `4000` | `core-api` cho auth, academic domain, announcements, internal finance context và public health |
+| `campuscore-notification-service` | `4001` | notification inbox, unread count, websocket `/notifications`, realtime consumer |
+| `campuscore-finance-service` | `4002` | invoices, payments, scholarships, finance event publishing |
+| `campuscore-frontend` | `3000` | Next.js 15 standalone runtime |
+
+`nginx` không được publish như public application image của portfolio. Nó vẫn là public edge trong runtime compose.
+
+## Namespace và biến môi trường
+
+Quy ước ưu tiên:
+
+- `DOCKERHUB_NAMESPACE` là input ưu tiên
 - `DOCKERHUB_USERNAME` được giữ như legacy alias
-- khi cả hai cùng có mặt, workflow và script phải ưu tiên `DOCKERHUB_NAMESPACE`
+
+Khi cả hai cùng có mặt, script và workflow nên ưu tiên `DOCKERHUB_NAMESPACE`.
 
 ## Release policy
 
-Public release chỉ publish từ tag semver `vX.Y.Z`.
+CampusCore dùng policy **semver-only public publishing**:
 
-Mỗi release đẩy:
+- chỉ publish khi push tag `vX.Y.Z`
+- branch `master` hoặc `main` chỉ chạy CI
+- `latest` chỉ di chuyển cùng một semver release
+- mỗi release công khai phải đẩy đủ cả 4 image
+
+Mỗi image được publish với:
 
 - semver tag, ví dụ `v1.0.0`
 - short SHA immutable
 - `latest`
 
-`latest` chỉ đổi khi có semver release. Push lên branch không được phép publish public tag mới.
+## Docker Hub repositories
 
-## Image contract
+- `nguyenson1710/campuscore-backend`
+- `nguyenson1710/campuscore-notification-service`
+- `nguyenson1710/campuscore-finance-service`
+- `nguyenson1710/campuscore-frontend`
 
-| Image                             | Internal port | Vai trò                                                            |
-| --------------------------------- | ------------- | ------------------------------------------------------------------ |
-| `campuscore-backend`              | `4000`        | `core-api` cho auth, học vụ, public health, Swagger                |
-| `campuscore-notification-service` | `4001`        | inbox notifications, websocket `/notifications`, RabbitMQ consumer |
-| `campuscore-frontend`             | `3000`        | Next.js 15 standalone runtime                                      |
+## GHCR mirror
 
-Các image này không bao gồm `nginx`. Public edge trong compose vẫn là `nginx`.
+Pipeline phát hành cũng mirror tương ứng lên GitHub Container Registry:
 
-## Pull example
+- `ghcr.io/jasontm17/campuscore-backend`
+- `ghcr.io/jasontm17/campuscore-notification-service`
+- `ghcr.io/jasontm17/campuscore-finance-service`
+- `ghcr.io/jasontm17/campuscore-frontend`
+
+Nếu muốn anonymous pull từ GHCR, package có thể cần được chuyển visibility sang `Public` một lần.
+
+## Ví dụ pull image
 
 ```bash
 docker pull nguyenson1710/campuscore-backend:v1.0.0
 docker pull nguyenson1710/campuscore-notification-service:v1.0.0
+docker pull nguyenson1710/campuscore-finance-service:v1.0.0
 docker pull nguyenson1710/campuscore-frontend:v1.0.0
 ```
 
-## GHCR mirror
-
-Release pipeline cũng push tương ứng lên GHCR:
-
-- `ghcr.io/jasontm17/campuscore-backend`
-- `ghcr.io/jasontm17/campuscore-notification-service`
-- `ghcr.io/jasontm17/campuscore-frontend`
-
-GHCR package có thể cần đặt visibility sang `Public` một lần nếu muốn anonymous pull.
-
 ## Manual publish helper
+
+Ví dụ chạy helper local:
 
 ```bash
 DOCKERHUB_NAMESPACE=nguyenson1710 ./scripts/docker-publish.sh v1.0.0
 ```
 
-Script local chỉ nhận semver tag rõ ràng, ví dụ `v1.0.0`, rồi tự gắn thêm short SHA và `latest` cho đúng release đó.
+Ở một release đầy đủ, script phát hành cần build và push:
+
+- `campuscore-backend`
+- `campuscore-notification-service`
+- `campuscore-finance-service`
+- `campuscore-frontend`
+- semver tag
+- short SHA tag
+- `latest` của đúng semver release đó
 
 ## Rollback
 
-Rollback nên dùng:
+Rollback nên dựa trên:
 
 - digest immutable
-- SHA tag immutable
+- short SHA tag immutable
 
-Không dùng `latest` làm rollback target chính.
+Không nên dùng `latest` làm rollback target chính.
 
-## Description updates
+## Repository description updates
 
-Nếu có `DOCKERHUB_TOKEN`, có thể cập nhật description bằng script repo:
+Nếu có `DOCKERHUB_TOKEN`, có thể cập nhật description Docker Hub bằng script repo:
 
 ```bash
 DOCKERHUB_TOKEN=... DOCKERHUB_NAMESPACE=nguyenson1710 ./scripts/update-hub-description.sh
 ```
 
-Nếu chưa có token, image vẫn publish bình thường, còn description có thể cập nhật thủ công sau.
+Nếu chưa có token, việc publish image vẫn thực hiện được; description có thể cập nhật thủ công sau.
