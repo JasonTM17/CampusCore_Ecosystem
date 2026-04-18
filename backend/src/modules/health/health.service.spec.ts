@@ -67,15 +67,26 @@ describe('HealthService', () => {
     mockCacheRuntimeStatus.fallbackToMemory = false;
   });
 
-  describe('check', () => {
-    it('should return health status with database and redis', async () => {
+  describe('liveness', () => {
+    it('should return the public liveness payload without dependency details', () => {
+      const result = service.liveness();
+
+      expect(result.status).toBe('ok');
+      expect(result.service).toBe('campuscore-api');
+      expect(result.timestamp).toBeDefined();
+      expect((result as { services?: unknown }).services).toBeUndefined();
+    });
+  });
+
+  describe('readiness', () => {
+    it('should return readiness status with database and redis', async () => {
       mockCachingService.set.mockResolvedValue(undefined);
       mockCachingService.get.mockResolvedValue('ok');
       mockCachingService.del.mockResolvedValue(undefined);
       mockRabbitMQService.isConfigured.mockReturnValue(true);
       mockRabbitMQService.isConnected.mockReturnValue(true);
 
-      const result = await service.check();
+      const result = await service.readiness();
 
       expect(result.status).toBeDefined();
       expect(result.services.database).toBeDefined();
@@ -86,7 +97,7 @@ describe('HealthService', () => {
     it('should return degraded status when database is down', async () => {
       mockPrisma.$queryRaw.mockRejectedValueOnce(new Error('DB Error'));
 
-      const result = await service.check();
+      const result = await service.readiness();
 
       expect(result.status).toBe('degraded');
       expect(result.services.database.status).toBe('down');
@@ -97,7 +108,7 @@ describe('HealthService', () => {
       mockRabbitMQService.isConfigured.mockReturnValue(true);
       mockRabbitMQService.isConnected.mockReturnValue(true);
 
-      const result = await service.check();
+      const result = await service.readiness();
 
       expect(result.status).toBe('degraded');
       expect(result.services.redis.status).toBe('down');
@@ -109,7 +120,7 @@ describe('HealthService', () => {
       mockRabbitMQService.isConfigured.mockReturnValue(true);
       mockRabbitMQService.isConnected.mockReturnValue(true);
 
-      const result = await service.check();
+      const result = await service.readiness();
 
       expect(result.status).toBe('degraded');
       expect(result.services.redis.status).toBe('down');
@@ -122,7 +133,7 @@ describe('HealthService', () => {
       mockRabbitMQService.isConfigured.mockReturnValue(true);
       mockRabbitMQService.isConnected.mockReturnValue(true);
 
-      const result = await service.check();
+      const result = await service.readiness();
 
       expect(result.status).toBe('ok');
       expect(result.services.redis.status).toBe('not_configured');
@@ -136,7 +147,7 @@ describe('HealthService', () => {
       mockRabbitMQService.isConfigured.mockReturnValue(true);
       mockRabbitMQService.isConnected.mockReturnValue(false);
 
-      const result = await service.check();
+      const result = await service.readiness();
 
       expect(result.status).toBe('degraded');
       expect(result.services.rabbitmq.status).toBe('down');
@@ -148,11 +159,22 @@ describe('HealthService', () => {
       mockCachingService.del.mockResolvedValue(undefined);
       mockRabbitMQService.isConfigured.mockReturnValue(false);
 
-      const result = await service.check();
+      const result = await service.readiness();
 
       expect(result.status).toBe('ok');
       expect(result.services.rabbitmq.status).toBe('not_configured');
       expect(mockRabbitMQService.isConnected).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('check', () => {
+    it('should keep the legacy readiness alias', async () => {
+      const result = await service.check();
+      const readiness = await service.readiness();
+
+      expect(result.status).toBe(readiness.status);
+      expect(result.services).toEqual(readiness.services);
+      expect(result.timestamp).toBeDefined();
     });
   });
 });

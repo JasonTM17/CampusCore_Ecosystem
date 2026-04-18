@@ -15,6 +15,8 @@ const baseURL = `http://127.0.0.1${edgePort === 80 ? '' : `:${edgePort}`}`;
 const apiURL = `${baseURL}/api/v1`;
 const keepStack = process.env.E2E_KEEP_STACK === '1';
 const playwrightCli = path.join(frontendDir, 'node_modules', 'playwright', 'cli.js');
+const readinessKey =
+  process.env.HEALTH_READINESS_KEY ?? 'edge-e2e-readiness-key-12345';
 
 const composeBaseArgs = ['compose', '-p', projectName, '-f', composeFile];
 const servicesForLogs = [
@@ -38,12 +40,7 @@ async function main() {
     await compose(['up', '-d', '--build']);
 
     await waitForResponse(`${baseURL}/health`, (payload) => {
-      return (
-        payload?.status === 'ok' &&
-        payload?.services?.database?.status === 'up' &&
-        payload?.services?.redis?.status === 'up' &&
-        payload?.services?.rabbitmq?.status === 'up'
-      );
+      return payload?.status === 'ok' && payload?.service === 'campuscore-api';
     });
 
     await waitForResponse(`${baseURL}/login`, (_, response) => response.ok, {
@@ -55,8 +52,13 @@ async function main() {
     });
 
     await writeFile(
-      path.join(logsDir, 'health.json'),
+      path.join(logsDir, 'liveness.json'),
       JSON.stringify(await getJson(`${baseURL}/health`), null, 2),
+      'utf8',
+    );
+    await writeFile(
+      path.join(logsDir, 'readiness.json'),
+      JSON.stringify(await getInternalReadiness(), null, 2),
       'utf8',
     );
 
@@ -144,9 +146,40 @@ async function compose(args, options = {}) {
       ...process.env,
       E2E_EDGE_PORT: String(edgePort),
       E2E_FRONTEND_URL: baseURL,
+      HEALTH_READINESS_KEY: readinessKey,
     },
     ...options,
   });
+}
+
+async function getInternalReadiness() {
+  const command = [
+    'exec',
+    '-T',
+    'backend',
+    'node',
+    '-e',
+    `
+      fetch('http://127.0.0.1:4000/api/v1/health/readiness', {
+        headers: { 'X-Health-Key': ${JSON.stringify(readinessKey)} },
+      })
+        .then(async (response) => {
+          const body = await response.text();
+          if (!response.ok) {
+            console.error(body);
+            process.exit(1);
+          }
+          process.stdout.write(body);
+        })
+        .catch((error) => {
+          console.error(error);
+          process.exit(1);
+        });
+    `,
+  ];
+  const output = await compose(command, { captureOutput: true });
+
+  return JSON.parse(output.trim());
 }
 
 function run(command, args, options = {}) {

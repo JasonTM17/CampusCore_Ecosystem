@@ -1,15 +1,50 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Headers } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ENV } from '../../config/env.constants';
 import { HealthService } from './health.service';
 
 @ApiTags('Health')
 @Controller('health')
 export class HealthController {
-  constructor(private healthService: HealthService) {}
+  constructor(
+    private readonly healthService: HealthService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  @Get('liveness')
+  @ApiOperation({ summary: 'Public liveness probe' })
+  liveness() {
+    return this.healthService.liveness();
+  }
+
+  @Get('readiness')
+  @ApiOperation({ summary: 'Internal readiness probe' })
+  readiness(@Headers('x-health-key') healthKey?: string) {
+    this.assertReadinessAccess(healthKey);
+    return this.healthService.readiness();
+  }
 
   @Get()
-  @ApiOperation({ summary: 'Check health status' })
-  check() {
-    return this.healthService.check();
+  @ApiOperation({ summary: 'Legacy readiness alias' })
+  check(@Headers('x-health-key') healthKey?: string) {
+    this.assertReadinessAccess(healthKey);
+    return this.healthService.readiness();
+  }
+
+  private assertReadinessAccess(providedKey?: string) {
+    const nodeEnv = this.configService.get<string>(ENV.NODE_ENV, 'development');
+    if (nodeEnv !== 'production') {
+      return;
+    }
+
+    const expectedKey = this.configService.get<string | undefined>(
+      ENV.HEALTH_READINESS_KEY,
+    );
+    if (!expectedKey || providedKey !== expectedKey) {
+      throw new ForbiddenException(
+        'Readiness probe requires a valid X-Health-Key header',
+      );
+    }
   }
 }

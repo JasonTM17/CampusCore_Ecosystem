@@ -13,6 +13,8 @@ const projectName = process.env.IMAGE_SMOKE_COMPOSE_PROJECT ?? 'campuscore-image
 const edgePort = Number(process.env.IMAGE_SMOKE_EDGE_PORT ?? '8080');
 const baseURL = `http://127.0.0.1:${edgePort}`;
 const keepStack = process.env.IMAGE_SMOKE_KEEP_STACK === '1';
+const readinessKey =
+  process.env.HEALTH_READINESS_KEY ?? 'image-smoke-readiness-key-12345';
 const servicesForLogs = [
   'backend-init',
   'backend',
@@ -35,13 +37,10 @@ async function main() {
     await compose(['down', '-v', '--remove-orphans'], { allowFailure: true });
     await compose(['up', '-d', '--build']);
 
-    const health = await waitForJson(`${baseURL}/health`, (payload) => {
-      return (
-        payload?.services?.database?.status === 'up' &&
-        payload?.services?.redis?.status === 'up' &&
-        payload?.services?.rabbitmq?.status
-      );
+    const liveness = await waitForJson(`${baseURL}/health`, (payload) => {
+      return payload?.status === 'ok' && payload?.service === 'campuscore-api';
     });
+    const readiness = await getInternalReadiness();
 
     await waitForResponse(`${baseURL}/`, (_, response) => response.ok, {
       parseJson: false,
@@ -69,8 +68,13 @@ async function main() {
     }
 
     await writeFile(
-      path.join(logsDir, 'health.json'),
-      JSON.stringify(health, null, 2),
+      path.join(logsDir, 'liveness.json'),
+      JSON.stringify(liveness, null, 2),
+      'utf8',
+    );
+    await writeFile(
+      path.join(logsDir, 'readiness.json'),
+      JSON.stringify(readiness, null, 2),
       'utf8',
     );
     await writeFile(
@@ -184,9 +188,42 @@ async function compose(args, options = {}) {
       ...process.env,
       E2E_EDGE_PORT: String(edgePort),
       E2E_FRONTEND_URL: baseURL,
+      HEALTH_READINESS_KEY: readinessKey,
     },
     ...options,
   });
+}
+
+async function getInternalReadiness() {
+  const output = await compose(
+    [
+      'exec',
+      '-T',
+      'backend',
+      'node',
+      '-e',
+      `
+        fetch('http://127.0.0.1:4000/api/v1/health/readiness', {
+          headers: { 'X-Health-Key': ${JSON.stringify(readinessKey)} },
+        })
+          .then(async (response) => {
+            const body = await response.text();
+            if (!response.ok) {
+              console.error(body);
+              process.exit(1);
+            }
+            process.stdout.write(body);
+          })
+          .catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+      `,
+    ],
+    { captureOutput: true },
+  );
+
+  return JSON.parse(output.trim());
 }
 
 function run(command, args, options = {}) {

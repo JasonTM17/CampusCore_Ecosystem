@@ -43,7 +43,10 @@ async function main() {
     await waitForPostgres();
     await prepareDatabase();
     await startApplicationServers();
-    await waitForResponse(`${apiBaseURL}/health`, (_, response) => response.ok);
+    await waitForResponse(
+      `${apiBaseURL}/health/liveness`,
+      (_, response) => response.ok,
+    );
     await waitForResponse(frontendBaseURL, (_, response) => response.ok);
 
     await run(process.execPath, [playwrightCli, 'test'], {
