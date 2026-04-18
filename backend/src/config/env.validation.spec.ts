@@ -35,6 +35,24 @@ describe('validateEnvironment', () => {
     expect(result.JAEGER_AGENT_PORT).toBe(6831);
   });
 
+  it('parses COOKIE_SECURE=false as false', () => {
+    const result = validateEnvironment({
+      ...baseEnv,
+      COOKIE_SECURE: 'false',
+    });
+
+    expect(result.COOKIE_SECURE).toBe(false);
+  });
+
+  it('parses COOKIE_SECURE=true as true', () => {
+    const result = validateEnvironment({
+      ...baseEnv,
+      COOKIE_SECURE: 'true',
+    });
+
+    expect(result.COOKIE_SECURE).toBe(true);
+  });
+
   it('rejects invalid JWT duration formats', () => {
     expect(() =>
       validateEnvironment({

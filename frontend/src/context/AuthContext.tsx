@@ -1,6 +1,13 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
+import React, {
+  ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import { User } from '@/types/api';
 import { authApi } from '@/lib/api';
@@ -28,33 +35,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const userData = await authApi.me();
       setUser(userData);
-      localStorage.setItem('user', JSON.stringify(userData));
     } catch {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
       setUser(null);
     }
   }, []);
 
   useEffect(() => {
     const initAuth = async () => {
-      const token = localStorage.getItem('accessToken');
-      const storedUser = localStorage.getItem('user');
-
-      if (token && storedUser) {
-        try {
-          setUser(JSON.parse(storedUser));
-          await refreshUser();
-        } catch {
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
-          localStorage.removeItem('user');
-          setUser(null);
-        }
+      try {
+        await refreshUser();
+      } finally {
+        setIsLoading(false);
       }
-
-      setIsLoading(false);
     };
 
     void initAuth();
@@ -62,9 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const response = await authApi.login(email, password);
-    localStorage.setItem('accessToken', response.accessToken);
-    localStorage.setItem('refreshToken', response.refreshToken);
-    localStorage.setItem('user', JSON.stringify(response.user));
     setUser(response.user);
     return response.user;
   }, []);
@@ -73,11 +62,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await authApi.logout();
     } catch {
-      // Ignore logout API errors and continue clearing local state.
+      // Ignore logout API failures and still clear the client session.
     } finally {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
       setUser(null);
       router.replace('/login');
     }
@@ -115,7 +101,9 @@ export function useAuth() {
   return context;
 }
 
-export function useRequireAuth(requiredRoles?: ('STUDENT' | 'LECTURER' | 'ADMIN' | 'SUPER_ADMIN')[]) {
+export function useRequireAuth(
+  requiredRoles?: ('STUDENT' | 'LECTURER' | 'ADMIN' | 'SUPER_ADMIN')[],
+) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const [hasAccess, setHasAccess] = useState(false);
@@ -134,7 +122,9 @@ export function useRequireAuth(requiredRoles?: ('STUDENT' | 'LECTURER' | 'ADMIN'
 
     if (requiredRoles && requiredRoles.length > 0) {
       const hasRole = requiredRoles.some((role) => {
-        if (role === 'ADMIN') return user.roles?.includes('ADMIN') || user.roles?.includes('SUPER_ADMIN');
+        if (role === 'ADMIN') {
+          return user.roles?.includes('ADMIN') || user.roles?.includes('SUPER_ADMIN');
+        }
         return user.roles?.includes(role);
       });
 
