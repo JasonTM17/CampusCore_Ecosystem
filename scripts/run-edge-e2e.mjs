@@ -14,14 +14,24 @@ const edgePort = Number(process.env.E2E_EDGE_PORT ?? '80');
 const baseURL = `http://127.0.0.1${edgePort === 80 ? '' : `:${edgePort}`}`;
 const apiURL = `${baseURL}/api/v1`;
 const keepStack = process.env.E2E_KEEP_STACK === '1';
+const usePrebuiltImages = process.env.E2E_USE_PREBUILT_IMAGES === '1';
 const playwrightCli = path.join(frontendDir, 'node_modules', 'playwright', 'cli.js');
 const readinessKey =
   process.env.HEALTH_READINESS_KEY ?? 'edge-e2e-readiness-key-12345';
+const coreApiImage =
+  process.env.E2E_CORE_API_IMAGE ?? 'campuscore-backend:e2e-local';
+const notificationServiceImage =
+  process.env.E2E_NOTIFICATION_SERVICE_IMAGE ??
+  'campuscore-notification-service:e2e-local';
+const frontendImage =
+  process.env.E2E_FRONTEND_IMAGE ?? 'campuscore-frontend:e2e-local';
 
 const composeBaseArgs = ['compose', '-p', projectName, '-f', composeFile];
 const servicesForLogs = [
-  'backend-init',
-  'backend',
+  'core-api-init',
+  'core-api',
+  'notification-service-init',
+  'notification-service',
   'frontend',
   'nginx',
   'postgres',
@@ -37,7 +47,12 @@ async function main() {
 
   try {
     await compose(['down', '-v', '--remove-orphans'], { allowFailure: true });
-    await compose(['up', '-d', '--build']);
+    if (usePrebuiltImages) {
+      await compose(['pull', 'core-api', 'notification-service', 'frontend']);
+      await compose(['up', '-d']);
+    } else {
+      await compose(['up', '-d', '--build']);
+    }
 
     await waitForResponse(`${baseURL}/health`, (payload) => {
       return payload?.status === 'ok' && payload?.service === 'campuscore-api';
@@ -58,7 +73,31 @@ async function main() {
     );
     await writeFile(
       path.join(logsDir, 'readiness.json'),
-      JSON.stringify(await getInternalReadiness(), null, 2),
+      JSON.stringify(
+        {
+          coreApi: await getInternalReadiness('core-api', 4000),
+          notificationService: await getInternalReadiness(
+            'notification-service',
+            4001,
+          ),
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    await writeFile(
+      path.join(logsDir, 'image-mode.json'),
+      JSON.stringify(
+        {
+          usePrebuiltImages,
+          coreApiImage,
+          notificationServiceImage,
+          frontendImage,
+        },
+        null,
+        2,
+      ),
       'utf8',
     );
 
@@ -147,20 +186,23 @@ async function compose(args, options = {}) {
       E2E_EDGE_PORT: String(edgePort),
       E2E_FRONTEND_URL: baseURL,
       HEALTH_READINESS_KEY: readinessKey,
+      E2E_CORE_API_IMAGE: coreApiImage,
+      E2E_NOTIFICATION_SERVICE_IMAGE: notificationServiceImage,
+      E2E_FRONTEND_IMAGE: frontendImage,
     },
     ...options,
   });
 }
 
-async function getInternalReadiness() {
+async function getInternalReadiness(serviceName, port) {
   const command = [
     'exec',
     '-T',
-    'backend',
+    serviceName,
     'node',
     '-e',
     `
-      fetch('http://127.0.0.1:4000/api/v1/health/readiness', {
+      fetch('http://127.0.0.1:${port}/api/v1/health/readiness', {
         headers: { 'X-Health-Key': ${JSON.stringify(readinessKey)} },
       })
         .then(async (response) => {

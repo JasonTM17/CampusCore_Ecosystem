@@ -159,7 +159,12 @@ export default function AdminLecturersPage() {
             <nav className="bg-slate-800 text-white shadow-sm">
                 <div className="container mx-auto px-4 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <Link href="/admin" className="flex items-center gap-2 text-gray-300 hover:text-white">
+                        <Link
+                            href="/admin"
+                            className="flex items-center gap-2 text-gray-300 hover:text-white"
+                            aria-label="Back to admin dashboard"
+                            title="Back to admin dashboard"
+                        >
                             <ArrowLeft className="h-4 w-4" />
                         </Link>
                         <h1 className="text-xl font-bold">CampusCore Admin</h1>

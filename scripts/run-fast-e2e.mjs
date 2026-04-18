@@ -32,6 +32,9 @@ const frontendBaseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3100';
 const apiBaseURL = process.env.E2E_API_URL ?? 'http://127.0.0.1:4100/api/v1';
 const keepPostgres = process.env.E2E_KEEP_POSTGRES === '1';
 const managedProcesses = [];
+const frontendNodeOptions = [process.env.NODE_OPTIONS, '--max-old-space-size=4096']
+  .filter(Boolean)
+  .join(' ');
 
 async function main() {
   await rm(logsDir, { recursive: true, force: true });
@@ -99,6 +102,7 @@ async function startApplicationServers() {
       env: {
         ...process.env,
         NEXT_PUBLIC_API_URL: apiBaseURL,
+        NODE_OPTIONS: frontendNodeOptions,
       },
     },
   );

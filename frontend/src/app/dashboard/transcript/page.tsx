@@ -144,6 +144,9 @@ export default function TranscriptPage() {
         return summaries;
     }, [groupedRecords, transcriptData]);
 
+    const transcriptRecords = transcriptData?.records ?? [];
+    const hasTranscriptRecords = transcriptRecords.length > 0;
+
     if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -219,7 +222,7 @@ export default function TranscriptPage() {
                 )}
 
                 {/* Empty State */}
-                {!error && (!transcriptData || transcriptData.records.length === 0) && (
+                {!error && (!transcriptData || !hasTranscriptRecords) && (
                     <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
                         <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                         <h3 className="text-lg font-semibold text-gray-700 mb-2">No Transcript Available</h3>
@@ -235,7 +238,7 @@ export default function TranscriptPage() {
                 )}
 
                 {/* Content - Transcript Summary + Records */}
-                {!error && transcriptData && transcriptData.records.length > 0 && (
+                {!error && transcriptData && hasTranscriptRecords && (
                     <>
                         {/* Summary Cards */}
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">

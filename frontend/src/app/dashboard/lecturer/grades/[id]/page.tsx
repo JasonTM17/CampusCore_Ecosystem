@@ -198,7 +198,12 @@ export default function SectionGradingPage({ params }: { params: Promise<{ id: s
             <nav className="bg-white shadow-sm border-b">
                 <div className="container mx-auto px-4 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <Link href="/dashboard/lecturer/grades" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
+                        <Link
+                            href="/dashboard/lecturer/grades"
+                            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+                            aria-label="Back to grade management"
+                            title="Back to grade management"
+                        >
                             <ArrowLeft className="h-4 w-4" />
                         </Link>
                         <div>

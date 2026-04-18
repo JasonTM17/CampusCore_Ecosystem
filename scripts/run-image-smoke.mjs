@@ -13,11 +13,21 @@ const projectName = process.env.IMAGE_SMOKE_COMPOSE_PROJECT ?? 'campuscore-image
 const edgePort = Number(process.env.IMAGE_SMOKE_EDGE_PORT ?? '8080');
 const baseURL = `http://127.0.0.1:${edgePort}`;
 const keepStack = process.env.IMAGE_SMOKE_KEEP_STACK === '1';
+const usePrebuiltImages = process.env.E2E_USE_PREBUILT_IMAGES === '1';
 const readinessKey =
   process.env.HEALTH_READINESS_KEY ?? 'image-smoke-readiness-key-12345';
+const coreApiImage =
+  process.env.E2E_CORE_API_IMAGE ?? 'campuscore-backend:e2e-local';
+const notificationServiceImage =
+  process.env.E2E_NOTIFICATION_SERVICE_IMAGE ??
+  'campuscore-notification-service:e2e-local';
+const frontendImage =
+  process.env.E2E_FRONTEND_IMAGE ?? 'campuscore-frontend:e2e-local';
 const servicesForLogs = [
-  'backend-init',
-  'backend',
+  'core-api-init',
+  'core-api',
+  'notification-service-init',
+  'notification-service',
   'frontend',
   'nginx',
   'postgres',
@@ -35,12 +45,21 @@ async function main() {
 
   try {
     await compose(['down', '-v', '--remove-orphans'], { allowFailure: true });
-    await compose(['up', '-d', '--build']);
+    if (usePrebuiltImages) {
+      await compose(['pull', 'core-api', 'notification-service', 'frontend']);
+      await compose(['up', '-d']);
+    } else {
+      await compose(['up', '-d', '--build']);
+    }
 
     const liveness = await waitForJson(`${baseURL}/health`, (payload) => {
       return payload?.status === 'ok' && payload?.service === 'campuscore-api';
     });
-    const readiness = await getInternalReadiness();
+    const coreReadiness = await getInternalReadiness('core-api', 4000);
+    const notificationReadiness = await getInternalReadiness(
+      'notification-service',
+      4001,
+    );
 
     await waitForResponse(`${baseURL}/`, (_, response) => response.ok, {
       parseJson: false,
@@ -52,12 +71,21 @@ async function main() {
       parseJson: false,
     });
 
-    const backendCmd = await inspectServiceCommand('backend');
+    const coreApiCmd = await inspectServiceCommand('core-api');
+    const notificationCmd = await inspectServiceCommand(
+      'notification-service',
+    );
     const frontendCmd = await inspectServiceCommand('frontend');
 
-    if (!backendCmd.some((part) => part.includes('dist/src/main.js'))) {
+    if (!coreApiCmd.some((part) => part.includes('dist/src/main.js'))) {
       throw new Error(
-        `Backend runtime is not using dist/src/main.js: ${backendCmd.join(' ')}`,
+        `Core API runtime is not using dist/src/main.js: ${coreApiCmd.join(' ')}`,
+      );
+    }
+
+    if (!notificationCmd.some((part) => part.includes('dist/src/main.js'))) {
+      throw new Error(
+        `Notification service runtime is not using dist/src/main.js: ${notificationCmd.join(' ')}`,
       );
     }
 
@@ -74,15 +102,37 @@ async function main() {
     );
     await writeFile(
       path.join(logsDir, 'readiness.json'),
-      JSON.stringify(readiness, null, 2),
+      JSON.stringify(
+        {
+          coreApi: coreReadiness,
+          notificationService: notificationReadiness,
+        },
+        null,
+        2,
+      ),
       'utf8',
     );
     await writeFile(
       path.join(logsDir, 'runtime-commands.json'),
       JSON.stringify(
         {
-          backend: backendCmd,
+          coreApi: coreApiCmd,
+          notificationService: notificationCmd,
           frontend: frontendCmd,
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    await writeFile(
+      path.join(logsDir, 'image-mode.json'),
+      JSON.stringify(
+        {
+          usePrebuiltImages,
+          coreApiImage,
+          notificationServiceImage,
+          frontendImage,
         },
         null,
         2,
@@ -189,21 +239,24 @@ async function compose(args, options = {}) {
       E2E_EDGE_PORT: String(edgePort),
       E2E_FRONTEND_URL: baseURL,
       HEALTH_READINESS_KEY: readinessKey,
+      E2E_CORE_API_IMAGE: coreApiImage,
+      E2E_NOTIFICATION_SERVICE_IMAGE: notificationServiceImage,
+      E2E_FRONTEND_IMAGE: frontendImage,
     },
     ...options,
   });
 }
 
-async function getInternalReadiness() {
+async function getInternalReadiness(serviceName, port) {
   const output = await compose(
     [
       'exec',
       '-T',
-      'backend',
+      serviceName,
       'node',
       '-e',
       `
-        fetch('http://127.0.0.1:4000/api/v1/health/readiness', {
+        fetch('http://127.0.0.1:${port}/api/v1/health/readiness', {
           headers: { 'X-Health-Key': ${JSON.stringify(readinessKey)} },
         })
           .then(async (response) => {
