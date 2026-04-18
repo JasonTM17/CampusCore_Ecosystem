@@ -55,13 +55,19 @@ test('homepage copy avoids demo placeholders and dead hrefs', () => {
   assert.match(source, /href=\{user \? '\/dashboard' : '\/login'\}/);
 });
 
-test('logout sends the refresh token when available', () => {
-  const source = read('src/lib/api.ts');
+test('auth client uses cookie sessions and CSRF headers', () => {
+  const apiSource = read('src/lib/api.ts');
+  const authContextSource = read('src/context/AuthContext.tsx');
 
-  assert.match(source, /localStorage\.getItem\('refreshToken'\)/);
-  assert.match(
-    source,
-    /refreshToken \? \(\{ refreshToken \} satisfies LogoutPayload\) : \{\}/,
+  assert.match(apiSource, /withCredentials:\s*true/);
+  assert.match(apiSource, /cc_csrf/);
+  assert.match(apiSource, /X-CSRF-Token/);
+  assert.match(apiSource, /await api\.post\(\s*'\/auth\/logout',\s*\{\}\s*\);/s);
+  assert.match(apiSource, /skipAuthRefresh:\s*true/);
+  assert.doesNotMatch(apiSource, /localStorage\.(getItem|setItem|removeItem)/);
+  assert.doesNotMatch(
+    authContextSource,
+    /localStorage\.(getItem|setItem|removeItem)/,
   );
 });
 

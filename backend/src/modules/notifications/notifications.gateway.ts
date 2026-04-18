@@ -7,9 +7,13 @@ import {
   ConnectedSocket,
   MessageBody,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
+import { Namespace, Server, Socket } from 'socket.io';
 import { IncomingMessage } from 'http';
-import { Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  Logger,
+  OnApplicationShutdown,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth/auth.service';
@@ -51,10 +55,10 @@ interface AuthenticatedSocket extends Socket {
   },
 })
 export class NotificationsGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
+  implements OnGatewayConnection, OnGatewayDisconnect, OnApplicationShutdown
 {
   @WebSocketServer()
-  server: Server;
+  server: Server | Namespace;
 
   private readonly logger = new Logger(NotificationsGateway.name);
   private connectedClients: Map<string, AuthenticatedSocket> = new Map();
@@ -100,7 +104,7 @@ export class NotificationsGateway
       this.logger.log(
         `Client connected: ${client.id} authenticated as ${user.id}`,
       );
-    } catch (error) {
+    } catch {
       this.logger.warn(
         `Rejected socket ${client.id}: invalid authentication token`,
       );
@@ -111,6 +115,20 @@ export class NotificationsGateway
   handleDisconnect(client: AuthenticatedSocket) {
     this.logger.log(`Client disconnected: ${client.id}`);
     this.connectedClients.delete(client.id);
+  }
+
+  async onApplicationShutdown() {
+    this.connectedClients.clear();
+
+    if (this.server && typeof (this.server as Server).close === 'function') {
+      await (this.server as Server).close();
+      return;
+    }
+
+    const namespaceServer = this.server as Namespace | undefined;
+    if (namespaceServer?.server) {
+      await namespaceServer.server.close();
+    }
   }
 
   @SubscribeMessage('authenticate')
@@ -259,7 +277,7 @@ export class NotificationsGateway
       }
 
       return user;
-    } catch (error) {
+    } catch {
       this.logger.warn(
         `Rejected socket ${client.id}: invalid authentication token`,
       );
