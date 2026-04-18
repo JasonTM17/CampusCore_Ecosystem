@@ -134,6 +134,31 @@ docker compose -f docker-compose.production.yml up -d
 
 Frontend production-like dùng standalone runtime. Trong mode này, image không dựa vào `next start` như đường chạy chính.
 
+## Chọn Đúng Chế Độ Chạy
+
+Để tránh cảm giác "lệnh đứng im", repo này nên được chạy theo đúng mục tiêu:
+
+- **Debug nhanh local**
+  - backend: `cd backend && npm run start`
+  - frontend: `cd frontend && npm run dev -- --hostname 127.0.0.1 --port 3100`
+- **Fast verify**
+  - `cd frontend && npm run test:e2e`
+- **Production-like verify**
+  - `cd frontend && npm run test:e2e:edge`
+
+Không dùng `npm run dev` mơ hồ ở root. Nếu mục tiêu chỉ là kiểm tra app có boot được hay không, hãy chạy local smoke trước rồi mới nâng lên E2E.
+
+Mốc thời gian tham chiếu:
+
+- local dev: thường dưới 2-3 phút
+- fast E2E: thường dưới 6-8 phút
+- edge E2E: thường dưới 10-12 phút
+
+Khi bài test nặng cần debug, đọc log tại:
+
+- `frontend/test-results/fast-e2e-stack`
+- `frontend/test-results/edge-e2e-stack`
+
 ## Kiểm Thử Và Chất Lượng
 
 Repo hiện được khóa bằng các lớp kiểm tra sau:
@@ -171,7 +196,7 @@ Quy ước publish:
 
 ## Tác Giả
 
-Nguyen Tien Son
+Nguyễn Tiến Sơn
 
 - GitHub: [JasonTM17](https://github.com/JasonTM17)
 - Email: [jasonbmt06@gmail.com](mailto:jasonbmt06@gmail.com)

@@ -2,7 +2,7 @@
   "name": "campuscore-backend",
   "version": "1.0.0",
   "description": "CampusCore - Enterprise Academic Management Platform Backend",
-  "author": "Nguyễn Sơn <jasonbmt06@gmail.com>",
+  "author": "Nguyễn Tiến Sơn <jasonbmt06@gmail.com>",
   "private": true,
   "license": "MIT",
   "scripts": {

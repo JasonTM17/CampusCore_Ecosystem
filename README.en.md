@@ -134,6 +134,31 @@ docker compose -f docker-compose.production.yml up -d
 
 The production-like frontend uses the standalone runtime. It does not rely on `next start` as the primary runtime path.
 
+## Choosing The Right Run Mode
+
+To avoid the feeling that a command is "stuck", use the mode that matches the goal:
+
+- **Fast local debugging**
+  - backend: `cd backend && npm run start`
+  - frontend: `cd frontend && npm run dev -- --hostname 127.0.0.1 --port 3100`
+- **Fast verification**
+  - `cd frontend && npm run test:e2e`
+- **Production-like verification**
+  - `cd frontend && npm run test:e2e:edge`
+
+Do not use an ambiguous root-level `npm run dev`. If the goal is only to confirm that the apps boot, run the local smoke path first and move to E2E only when needed.
+
+Reference timing:
+
+- local dev: usually under 2-3 minutes
+- fast E2E: usually under 6-8 minutes
+- edge E2E: usually under 10-12 minutes
+
+When a heavier check needs debugging, inspect logs here:
+
+- `frontend/test-results/fast-e2e-stack`
+- `frontend/test-results/edge-e2e-stack`
+
 ## Verification
 
 The repository is gated by:
@@ -170,7 +195,7 @@ Release rules:
 
 ## Author
 
-Nguyen Tien Son
+Nguyễn Tiến Sơn
 
 - GitHub: [JasonTM17](https://github.com/JasonTM17)
 - Email: [jasonbmt06@gmail.com](mailto:jasonbmt06@gmail.com)
