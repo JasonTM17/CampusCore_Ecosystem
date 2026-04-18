@@ -11,6 +11,7 @@ const repoRoot = path.resolve(__dirname, '..');
 const backendDir = path.join(repoRoot, 'backend');
 const notificationDir = path.join(repoRoot, 'notification-service');
 const financeDir = path.join(repoRoot, 'finance-service');
+const academicDir = path.join(repoRoot, 'academic-service');
 const frontendDir = path.join(repoRoot, 'frontend');
 const logsDir = path.join(frontendDir, 'test-results', 'fast-e2e-stack');
 const playwrightCli = path.join(frontendDir, 'node_modules', 'playwright', 'cli.js');
@@ -30,6 +31,10 @@ const notificationsDatabaseUrl = publicDatabaseUrl.replace(
   'schema=notifications'
 );
 const financeDatabaseUrl = publicDatabaseUrl.replace('schema=public', 'schema=finance');
+const academicDatabaseUrl = publicDatabaseUrl.replace(
+  'schema=public',
+  'schema=academic'
+);
 
 const frontendBaseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3100';
 const proxyPort = Number(process.env.E2E_GATEWAY_PORT ?? '4180');
@@ -37,6 +42,7 @@ const apiBaseURL = process.env.E2E_API_URL ?? `http://127.0.0.1:${proxyPort}/api
 const backendPort = Number(process.env.E2E_CORE_API_PORT ?? '4100');
 const notificationPort = Number(process.env.E2E_NOTIFICATION_PORT ?? '4101');
 const financePort = Number(process.env.E2E_FINANCE_PORT ?? '4102');
+const academicPort = Number(process.env.E2E_ACADEMIC_PORT ?? '4103');
 const internalServiceToken =
   process.env.INTERNAL_SERVICE_TOKEN ?? 'local-fast-e2e-internal-token-12345';
 const keepPostgres = process.env.E2E_KEEP_POSTGRES === '1';
@@ -46,6 +52,21 @@ const frontendNodeOptions = [process.env.NODE_OPTIONS, '--max-old-space-size=409
   .join(' ');
 let gatewayServer;
 let gatewayLogStream;
+const academicApiPrefixes = [
+  '/api/v1/academic-years',
+  '/api/v1/attendance',
+  '/api/v1/classrooms',
+  '/api/v1/courses',
+  '/api/v1/curricula',
+  '/api/v1/departments',
+  '/api/v1/enrollments',
+  '/api/v1/faculties',
+  '/api/v1/grades',
+  '/api/v1/schedules',
+  '/api/v1/sections',
+  '/api/v1/semesters',
+  '/api/v1/waitlist'
+];
 
 async function main() {
   await rm(logsDir, { recursive: true, force: true });
@@ -57,6 +78,18 @@ async function main() {
     await waitForPostgres();
     await prepareDatabase();
     await startApplicationServers();
+    await waitForResponse(
+      `http://127.0.0.1:${notificationPort}/api/v1/health/liveness`,
+      (_, response) => response.ok
+    );
+    await waitForResponse(
+      `http://127.0.0.1:${financePort}/api/v1/health/liveness`,
+      (_, response) => response.ok
+    );
+    await waitForResponse(
+      `http://127.0.0.1:${academicPort}/api/v1/health/liveness`,
+      (_, response) => response.ok
+    );
     await waitForResponse(`${apiBaseURL}/health/liveness`, (_, response) => response.ok);
     await waitForResponse(frontendBaseURL, (_, response) => response.ok);
 
@@ -101,6 +134,10 @@ async function prepareDatabase() {
     cwd: financeDir,
     env: { ...process.env, DATABASE_URL: financeDatabaseUrl }
   });
+  await run('npm', ['run', 'prisma:generate'], {
+    cwd: academicDir,
+    env: { ...process.env, DATABASE_URL: academicDatabaseUrl }
+  });
   await run('npm', ['run', 'prisma:dbpush'], {
     cwd: notificationDir,
     env: { ...process.env, DATABASE_URL: notificationsDatabaseUrl }
@@ -108,6 +145,10 @@ async function prepareDatabase() {
   await run('npm', ['run', 'prisma:dbpush'], {
     cwd: financeDir,
     env: { ...process.env, DATABASE_URL: financeDatabaseUrl }
+  });
+  await run('npm', ['run', 'prisma:dbpush'], {
+    cwd: academicDir,
+    env: { ...process.env, DATABASE_URL: academicDatabaseUrl }
   });
   await run('npm', ['run', 'prisma:seed'], {
     cwd: backendDir,
@@ -132,6 +173,15 @@ async function prepareDatabase() {
       FRONTEND_URL: frontendBaseURL,
       CORE_API_INTERNAL_URL: `http://127.0.0.1:${backendPort}`,
       INTERNAL_SERVICE_TOKEN: internalServiceToken
+    }
+  });
+  await run('npm', ['run', 'data:migrate:legacy'], {
+    cwd: academicDir,
+    env: {
+      ...process.env,
+      DATABASE_URL: academicDatabaseUrl,
+      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+      FRONTEND_URL: frontendBaseURL
     }
   });
 }
@@ -181,6 +231,20 @@ async function startApplicationServers() {
       COOKIE_SECURE: 'false',
       CORE_API_INTERNAL_URL: `http://127.0.0.1:${backendPort}`,
       INTERNAL_SERVICE_TOKEN: internalServiceToken
+    }
+  });
+
+  await startManagedProcess('academic-service', 'npm', ['run', 'start'], {
+    cwd: academicDir,
+    env: {
+      ...process.env,
+      DATABASE_URL: academicDatabaseUrl,
+      PORT: String(academicPort),
+      FRONTEND_URL: frontendBaseURL,
+      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+      NODE_ENV: 'test',
+      RABBITMQ_URL: 'disabled',
+      COOKIE_SECURE: 'false'
     }
   });
 
@@ -260,6 +324,10 @@ async function startApiGateway() {
 function resolveProxyTarget(url) {
   if (url.startsWith('/api/v1/finance')) {
     return `http://127.0.0.1:${financePort}`;
+  }
+
+  if (academicApiPrefixes.some((prefix) => url.startsWith(prefix))) {
+    return `http://127.0.0.1:${academicPort}`;
   }
 
   if (url.startsWith('/api/v1/notifications') || url.startsWith('/socket.io/')) {

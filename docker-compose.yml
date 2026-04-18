@@ -181,6 +181,30 @@ services:
         condition: service_healthy
     restart: "no"
 
+  academic-service-init:
+    build:
+      context: .
+      dockerfile: academic-service/Dockerfile
+      target: build
+    working_dir: /app
+    command: sh -lc "npx prisma db push --skip-generate && npm run data:migrate:legacy"
+    environment:
+      DATABASE_URL: postgresql://campuscore:${POSTGRES_PASSWORD:-campuscore_password}@postgres:5432/campuscore?schema=academic
+      JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-rotate-before-shared-use}
+      FRONTEND_URL: http://localhost
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-local-dev-readiness-key-12345}
+      RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      core-api-init:
+        condition: service_completed_successfully
+    restart: "no"
+
   notification-service:
     build:
       context: .
@@ -251,6 +275,40 @@ services:
       retries: 3
       start_period: 40s
 
+  academic-service:
+    build:
+      context: .
+      dockerfile: academic-service/Dockerfile
+    image: campuscore-academic-service:local
+    container_name: campuscore-academic-service
+    environment:
+      DATABASE_URL: postgresql://campuscore:${POSTGRES_PASSWORD:-campuscore_password}@postgres:5432/campuscore?schema=academic
+      JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-rotate-before-shared-use}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-local-dev-readiness-key-12345}
+      RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
+      FRONTEND_URL: http://localhost
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      PORT: 4003
+      NODE_ENV: production
+    ports:
+      - "127.0.0.1:4003:4003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      academic-service-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --header=\"X-Health-Key: ${HEALTH_READINESS_KEY:-local-dev-readiness-key-12345}\" -O- http://localhost:4003/api/v1/health/readiness >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   frontend:
     build:
       context: .
@@ -265,6 +323,8 @@ services:
       notification-service:
         condition: service_healthy
       finance-service:
+        condition: service_healthy
+      academic-service:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -288,6 +348,8 @@ services:
       notification-service:
         condition: service_healthy
       finance-service:
+        condition: service_healthy
+      academic-service:
         condition: service_healthy
       frontend:
         condition: service_healthy
