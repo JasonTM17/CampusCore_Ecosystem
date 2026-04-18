@@ -41,7 +41,7 @@ export default defineConfig({
         {
           command: 'npm run start',
           cwd: path.resolve(__dirname, '../backend'),
-          url: `${apiBaseURL}/health`,
+          url: `${apiBaseURL}/health/liveness`,
           timeout: 120_000,
           reuseExistingServer: true,
           env: {

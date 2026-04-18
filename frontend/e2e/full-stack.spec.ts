@@ -108,6 +108,16 @@ test('backend API authenticates seeded student data', async ({ request }) => {
   expect(loginData.refreshToken).toBeTruthy();
   expect(loginData.user.email).toBe('student1@campuscore.edu');
   expect(loginData.user.roles).toContain('STUDENT');
+  expect(loginResponse.headers()['set-cookie'] ?? '').toContain('cc_access_token=');
+  expect(loginResponse.headers()['set-cookie'] ?? '').toContain('cc_refresh_token=');
+  expect(loginResponse.headers()['set-cookie'] ?? '').toContain('cc_csrf=');
+
+  const cookieMeResponse = await request.get(`${apiBaseURL}/auth/me`);
+  expect(cookieMeResponse.ok()).toBeTruthy();
+
+  const cookieMe = await cookieMeResponse.json();
+  expect(cookieMe.email).toBe('student1@campuscore.edu');
+  expect(cookieMe.roles).toContain('STUDENT');
 
   const meResponse = await request.get(`${apiBaseURL}/auth/me`, {
     headers: {
@@ -125,6 +135,31 @@ test('backend API authenticates seeded student data', async ({ request }) => {
 test('student can sign in and open the dashboard invoices flow', async ({ page }) => {
   await signIn(page, 'student1@campuscore.edu', 'password123');
 
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(
+    page.getByRole('heading', { name: /Welcome back, Michael/i }),
+  ).toBeVisible();
+  await expect.poll(async () => {
+      const cookies = await page.context().cookies();
+      return {
+        hasAccessCookie: cookies.some(
+          (cookie) => cookie.name === 'cc_access_token' && cookie.httpOnly,
+        ),
+        hasRefreshCookie: cookies.some(
+          (cookie) => cookie.name === 'cc_refresh_token' && cookie.httpOnly,
+        ),
+        hasCsrfCookie: cookies.some(
+          (cookie) => cookie.name === 'cc_csrf' && !cookie.httpOnly,
+        ),
+      };
+    })
+    .toEqual({
+      hasAccessCookie: true,
+      hasRefreshCookie: true,
+      hasCsrfCookie: true,
+    });
+
+  await page.reload();
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(
     page.getByRole('heading', { name: /Welcome back, Michael/i }),
@@ -210,9 +245,13 @@ test.describe('edge-only contract smoke', () => {
 
     const health = await healthResponse.json();
     expect(health.status).toBe('ok');
-    expect(health.services.database.status).toBe('up');
-    expect(health.services.redis.status).toBe('up');
-    expect(health.services.rabbitmq.status).toBe('up');
+    expect(health.service).toBe('campuscore-api');
+    expect(health.services).toBeUndefined();
+
+    const readinessResponse = await request.get(
+      `${frontendBaseURL}/api/v1/health/readiness`,
+    );
+    expect(readinessResponse.status()).toBe(403);
 
     const docsResponse = await request.get(`${frontendBaseURL}/api/docs`);
     expect(docsResponse.ok()).toBeTruthy();
