@@ -123,6 +123,28 @@ services:
         condition: service_started
     restart: "no"
 
+  academic-service-init:
+    build:
+      context: .
+      dockerfile: academic-service/Dockerfile
+      target: build
+    working_dir: /app
+    command: sh -lc "npx prisma db push --skip-generate && npm run data:migrate:legacy"
+    environment:
+      DATABASE_URL: postgresql://campuscore:${POSTGRES_PASSWORD:-campuscore_password}@postgres:5432/campuscore_e2e?schema=academic
+      JWT_SECRET: ${JWT_SECRET:-edge-e2e-jwt-secret}
+      FRONTEND_URL: ${E2E_FRONTEND_URL:-http://127.0.0.1}
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-edge-e2e-readiness-key-12345}
+      RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
+    depends_on:
+      core-api-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: "no"
+
   core-api:
     build:
       context: .
@@ -207,6 +229,28 @@ services:
       core-api:
         condition: service_healthy
 
+  academic-service:
+    build:
+      context: .
+      dockerfile: academic-service/Dockerfile
+    image: ${E2E_ACADEMIC_SERVICE_IMAGE:-campuscore-academic-service:e2e-local}
+    environment:
+      DATABASE_URL: postgresql://campuscore:${POSTGRES_PASSWORD:-campuscore_password}@postgres:5432/campuscore_e2e?schema=academic
+      JWT_SECRET: ${JWT_SECRET:-edge-e2e-jwt-secret}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-edge-e2e-readiness-key-12345}
+      RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
+      FRONTEND_URL: ${E2E_FRONTEND_URL:-http://127.0.0.1}
+      PORT: 4003
+      NODE_ENV: production
+    depends_on:
+      academic-service-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
   frontend:
     build:
       context: .
@@ -223,6 +267,8 @@ services:
         condition: service_healthy
       finance-service:
         condition: service_healthy
+      academic-service:
+        condition: service_healthy
 
   nginx:
     image: nginx:alpine
@@ -236,6 +282,8 @@ services:
       notification-service:
         condition: service_healthy
       finance-service:
+        condition: service_healthy
+      academic-service:
         condition: service_healthy
       frontend:
         condition: service_healthy

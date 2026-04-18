@@ -24,6 +24,9 @@ const notificationServiceImage =
 const financeServiceImage =
   process.env.E2E_FINANCE_SERVICE_IMAGE ??
   'campuscore-finance-service:e2e-local';
+const academicServiceImage =
+  process.env.E2E_ACADEMIC_SERVICE_IMAGE ??
+  'campuscore-academic-service:e2e-local';
 const frontendImage =
   process.env.E2E_FRONTEND_IMAGE ?? 'campuscore-frontend:e2e-local';
 const internalServiceToken =
@@ -35,6 +38,8 @@ const servicesForLogs = [
   'notification-service',
   'finance-service-init',
   'finance-service',
+  'academic-service-init',
+  'academic-service',
   'frontend',
   'nginx',
   'postgres',
@@ -58,6 +63,7 @@ async function main() {
         'core-api',
         'notification-service',
         'finance-service',
+        'academic-service',
         'frontend',
       ]);
       await compose(['up', '-d']);
@@ -75,6 +81,7 @@ async function main() {
       4001,
     );
     const financeReadiness = await getInternalReadiness('finance-service', 4002);
+    const academicReadiness = await getInternalReadiness('academic-service', 4003);
 
     await waitForResponse(`${baseURL}/`, (_, response) => response.ok, {
       parseJson: false,
@@ -91,6 +98,7 @@ async function main() {
       'notification-service',
     );
     const financeCmd = await inspectServiceCommand('finance-service');
+    const academicCmd = await inspectServiceCommand('academic-service');
     const frontendCmd = await inspectServiceCommand('frontend');
 
     if (!coreApiCmd.some((part) => part.includes('dist/src/main.js'))) {
@@ -108,6 +116,12 @@ async function main() {
     if (!financeCmd.some((part) => part.includes('dist/src/main.js'))) {
       throw new Error(
         `Finance service runtime is not using dist/src/main.js: ${financeCmd.join(' ')}`,
+      );
+    }
+
+    if (!academicCmd.some((part) => part.includes('dist/src/main.js'))) {
+      throw new Error(
+        `Academic service runtime is not using dist/src/main.js: ${academicCmd.join(' ')}`,
       );
     }
 
@@ -129,6 +143,7 @@ async function main() {
           coreApi: coreReadiness,
           notificationService: notificationReadiness,
           financeService: financeReadiness,
+          academicService: academicReadiness,
         },
         null,
         2,
@@ -142,6 +157,7 @@ async function main() {
           coreApi: coreApiCmd,
           notificationService: notificationCmd,
           financeService: financeCmd,
+          academicService: academicCmd,
           frontend: frontendCmd,
         },
         null,
@@ -157,6 +173,7 @@ async function main() {
           coreApiImage,
           notificationServiceImage,
           financeServiceImage,
+          academicServiceImage,
           frontendImage,
         },
         null,
@@ -267,6 +284,7 @@ async function compose(args, options = {}) {
       E2E_CORE_API_IMAGE: coreApiImage,
       E2E_NOTIFICATION_SERVICE_IMAGE: notificationServiceImage,
       E2E_FINANCE_SERVICE_IMAGE: financeServiceImage,
+      E2E_ACADEMIC_SERVICE_IMAGE: academicServiceImage,
       E2E_FRONTEND_IMAGE: frontendImage,
       INTERNAL_SERVICE_TOKEN: internalServiceToken,
     },
@@ -279,9 +297,11 @@ async function buildStackSequentially() {
     'core-api-init',
     'notification-service-init',
     'finance-service-init',
+    'academic-service-init',
     'core-api',
     'notification-service',
     'finance-service',
+    'academic-service',
     'frontend',
   ];
 
