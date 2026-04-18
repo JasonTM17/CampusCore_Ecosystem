@@ -2,7 +2,7 @@
   "name": "campuscore-notification-service",
   "version": "1.0.0",
   "description": "CampusCore Notification Service for realtime delivery and inbox ownership",
-  "author": "Nguyễn Tiến Sơn <jasonbmt06@gmail.com>",
+  "author": "Nguyen Tien Son <jasonbmt06@gmail.com>",
   "private": true,
   "license": "MIT",
   "scripts": {
@@ -88,4 +88,3 @@
     "testEnvironment": "node"
   }
 }
-

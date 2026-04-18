@@ -2,7 +2,7 @@
   "name": "campuscore-finance-service",
   "version": "1.0.0",
   "description": "CampusCore Finance Service for invoices, payments, and scholarship ownership",
-  "author": "Nguyễn Tiến Sơn <jasonbmt06@gmail.com>",
+  "author": "Nguyen Tien Son <jasonbmt06@gmail.com>",
   "private": true,
   "license": "MIT",
   "scripts": {

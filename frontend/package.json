@@ -1,7 +1,7 @@
 {
   "name": "campuscore-frontend",
   "version": "1.0.0",
-  "author": "Nguyễn Tiến Sơn <jasonbmt06@gmail.com>",
+  "author": "Nguyen Tien Son <jasonbmt06@gmail.com>",
   "private": true,
   "scripts": {
     "dev": "next dev",
