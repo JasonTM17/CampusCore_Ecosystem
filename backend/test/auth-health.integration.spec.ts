@@ -1,12 +1,16 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { io, Socket } from 'socket.io-client';
 import request = require('supertest');
 import type { Response as SupertestResponse } from 'supertest';
+import * as amqp from 'amqplib';
 import { AppModule } from '../src/app.module';
 import { configureHttpApp } from '../src/bootstrap';
 import { PrismaService } from '../src/modules/common/prisma/prisma.service';
+import {
+  NOTIFICATION_EVENTS_QUEUE,
+  NOTIFICATION_EVENT_TYPES,
+} from '../src/modules/rabbitmq/notification-events';
 
 type AuthCookies = {
   cookieHeader: string;
@@ -73,80 +77,12 @@ function toCookieHeader(setCookie: string[] | string | undefined) {
     .join('; ');
 }
 
-async function emitWithAck<T>(
-  socket: Socket,
-  event: string,
-  payload: Record<string, unknown>,
-) {
-  return socket.timeout(10_000).emitWithAck(event, payload) as Promise<T>;
-}
-
-async function connectNotificationsSocket(baseUrl: string, token: string) {
-  const frontendOrigin = process.env.FRONTEND_URL ?? 'http://127.0.0.1:3100';
-
-  const socket = io(new URL('/notifications', baseUrl).toString(), {
-    transports: ['websocket'],
-    auth: { token },
-    reconnection: false,
-    forceNew: true,
-    extraHeaders: {
-      Origin: frontendOrigin,
-    },
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      reject(new Error('Timed out waiting for websocket authentication'));
-    }, 10_000);
-
-    socket.once('connect', () => {
-      clearTimeout(timeoutId);
-      resolve();
-    });
-    socket.once('connect_error', (error) => {
-      clearTimeout(timeoutId);
-      reject(error);
-    });
-    socket.once('disconnect', (reason) => {
-      clearTimeout(timeoutId);
-      reject(
-        new Error(
-          `Socket disconnected before authentication finished: ${reason}`,
-        ),
-      );
-    });
-  });
-
-  return socket;
-}
-
-async function waitForRejectedSocket(socket: Socket) {
-  return new Promise<string>((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      reject(new Error('Expected invalid websocket token to be rejected'));
-    }, 10_000);
-
-    socket.once('connect_error', (error) => {
-      clearTimeout(timeoutId);
-      resolve(error.message);
-    });
-    socket.once('disconnect', (reason) => {
-      clearTimeout(timeoutId);
-      resolve(reason);
-    });
-    socket.once('connect', () => {
-      socket.once('disconnect', (reason) => {
-        clearTimeout(timeoutId);
-        resolve(reason);
-      });
-    });
-  });
-}
-
 describe('Auth and health integration', () => {
   let app: NestExpressApplication;
   let prisma: PrismaService;
   let baseUrl: string;
+  let rabbitConnection: amqp.ChannelModel;
+  let rabbitChannel: amqp.Channel;
 
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
@@ -157,6 +93,7 @@ describe('Auth and health integration', () => {
     getRequiredEnv('DATABASE_URL');
     getRequiredEnv('JWT_SECRET');
     getRequiredEnv('JWT_REFRESH_SECRET');
+    const rabbitmqUrl = getRequiredEnv('RABBITMQ_URL');
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -168,6 +105,11 @@ describe('Auth and health integration', () => {
 
     prisma = app.get(PrismaService);
     baseUrl = await app.getUrl();
+    rabbitConnection = await amqp.connect(rabbitmqUrl);
+    rabbitChannel = await rabbitConnection.createChannel();
+    await rabbitChannel.assertQueue(NOTIFICATION_EVENTS_QUEUE, {
+      durable: true,
+    });
   });
 
   beforeEach(async () => {
@@ -180,6 +122,12 @@ describe('Auth and health integration', () => {
 
   afterAll(async () => {
     await app.close();
+    if (rabbitChannel) {
+      await rabbitChannel.close();
+    }
+    if (rabbitConnection) {
+      await rabbitConnection.close();
+    }
   });
 
   it('supports both browser session cookies and legacy bearer auth', async () => {
@@ -352,55 +300,62 @@ describe('Auth and health integration', () => {
       });
   });
 
-  it('authenticates the notifications websocket and rejects invalid tokens', async () => {
+  it('publishes announcement.created events to RabbitMQ', async () => {
+    await rabbitChannel.purgeQueue(NOTIFICATION_EVENTS_QUEUE);
+
     const loginResponse = await request(baseUrl)
       .post('/api/v1/auth/login')
-      .send(SEEDED_USERS.student)
+      .send(SEEDED_USERS.admin)
       .expect(200);
 
-    const validSocket = await connectNotificationsSocket(
-      baseUrl,
-      loginResponse.body.accessToken,
-    );
+    const createResponse = await request(baseUrl)
+      .post('/api/v1/announcements')
+      .set('Authorization', `Bearer ${loginResponse.body.accessToken}`)
+      .send({
+        title: 'Microservices maintenance window',
+        content: 'Notification service cutover tonight.',
+        targetRoles: ['STUDENT'],
+        targetYears: [1, 2],
+        isGlobal: false,
+      })
+      .expect(201);
 
-    try {
-      const authResult = await emitWithAck<{
-        status: string;
-        userId: string;
-        roles: string[];
-      }>(validSocket, 'authenticate', { channel: 'announcements' });
-      expect(authResult.status).toBe('authenticated');
-      expect(authResult.roles).toContain('STUDENT');
+    const message = await waitForQueueMessage();
 
-      const subscribeResult = await emitWithAck<{
-        status: string;
-        channel: string;
-      }>(validSocket, 'subscribe', { channel: 'announcements' });
-      expect(subscribeResult).toEqual({
-        status: 'subscribed',
-        channel: 'announcements',
-      });
-    } finally {
-      validSocket.disconnect();
-    }
-
-    const invalidSocket = io(new URL('/notifications', baseUrl).toString(), {
-      transports: ['websocket'],
-      auth: { token: 'invalid-token' },
-      reconnection: false,
-      forceNew: true,
-      extraHeaders: {
-        Origin: process.env.FRONTEND_URL ?? 'http://127.0.0.1:3100',
+    expect(createResponse.body.id).toBeTruthy();
+    expect(message).toMatchObject({
+      type: NOTIFICATION_EVENT_TYPES.ANNOUNCEMENT_CREATED,
+      source: 'campuscore-core-api',
+      payload: {
+        announcement: expect.objectContaining({
+          id: createResponse.body.id,
+          title: 'Microservices maintenance window',
+          content: 'Notification service cutover tonight.',
+        }),
       },
     });
-
-    try {
-      const rejectionReason = await waitForRejectedSocket(invalidSocket);
-      expect(rejectionReason).toBeTruthy();
-    } finally {
-      invalidSocket.disconnect();
-    }
   });
+
+  async function waitForQueueMessage(timeoutMs = 10_000) {
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+      const message = await rabbitChannel.get(NOTIFICATION_EVENTS_QUEUE, {
+        noAck: false,
+      });
+
+      if (message) {
+        rabbitChannel.ack(message);
+        return JSON.parse(message.content.toString());
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+
+    throw new Error(
+      `Timed out waiting for message on ${NOTIFICATION_EVENTS_QUEUE}`,
+    );
+  }
 
   async function clearAuthArtifacts() {
     const users = await prisma.user.findMany({

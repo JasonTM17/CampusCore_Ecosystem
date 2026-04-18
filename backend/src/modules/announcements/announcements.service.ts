@@ -1,18 +1,33 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AuthUser } from '../auth/types/auth-user.type';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
 import { UpdateAnnouncementDto } from './dto/update-announcement.dto';
+import { RabbitMQService } from '../rabbitmq/rabbitmq.service';
+import {
+  NOTIFICATION_EVENTS_QUEUE,
+  NOTIFICATION_EVENT_TYPES,
+  NotificationEventEnvelope,
+} from '../rabbitmq/notification-events';
 
 @Injectable()
 export class AnnouncementsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(AnnouncementsService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private readonly rabbitMQService: RabbitMQService,
+  ) {}
 
   async create(data: CreateAnnouncementDto) {
-    return this.prisma.announcement.create({
+    const announcement = await this.prisma.announcement.create({
       data,
       include: { semester: true, section: true, lecturer: true },
     });
+
+    await this.publishAnnouncementCreated(announcement);
+
+    return announcement;
   }
 
   async findAll(
@@ -123,5 +138,67 @@ export class AnnouncementsService {
     await this.findOne(id);
     await this.prisma.announcement.delete({ where: { id } });
     return { message: 'Announcement deleted successfully' };
+  }
+
+  private async publishAnnouncementCreated(announcement: {
+    id: string;
+    title: string;
+    content: string;
+    priority: string;
+    targetRoles: string[];
+    targetYears: number[];
+    isGlobal: boolean;
+    publishAt: Date | null;
+    expiresAt: Date | null;
+    publishedBy: string | null;
+    semesterId: string | null;
+    sectionId: string | null;
+    lecturerId: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }) {
+    const event: NotificationEventEnvelope<{
+      announcement: {
+        id: string;
+        title: string;
+        content: string;
+        priority: string;
+        targetRoles: string[];
+        targetYears: number[];
+        isGlobal: boolean;
+        publishAt: string | null;
+        expiresAt: string | null;
+        publishedBy: string | null;
+        semesterId: string | null;
+        sectionId: string | null;
+        lecturerId: string | null;
+        createdAt: string;
+        updatedAt: string;
+      };
+    }> = {
+      type: NOTIFICATION_EVENT_TYPES.ANNOUNCEMENT_CREATED,
+      source: 'campuscore-core-api',
+      occurredAt: new Date().toISOString(),
+      payload: {
+        announcement: {
+          ...announcement,
+          publishAt: announcement.publishAt?.toISOString() ?? null,
+          expiresAt: announcement.expiresAt?.toISOString() ?? null,
+          createdAt: announcement.createdAt.toISOString(),
+          updatedAt: announcement.updatedAt.toISOString(),
+        },
+      },
+    };
+
+    const published = await this.rabbitMQService.publishMessage(
+      NOTIFICATION_EVENTS_QUEUE,
+      event,
+    );
+
+    if (!published) {
+      this.logger.warn(
+        `Announcement ${announcement.id} was created but notification event publish did not complete`,
+      );
+    }
   }
 }

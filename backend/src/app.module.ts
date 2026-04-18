@@ -24,7 +24,6 @@ import { FinanceModule } from './modules/finance/finance.module';
 import { GradesModule } from './modules/grades/grades.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AnnouncementsModule } from './modules/announcements/announcements.module';
-import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { SupportTicketsModule } from './modules/support-tickets/support-tickets.module';
 import { ClassroomsModule } from './modules/classrooms/classrooms.module';
@@ -82,7 +81,6 @@ import { validateEnvironment } from './config/env.validation';
     GradesModule,
     AttendanceModule,
     AnnouncementsModule,
-    NotificationsModule,
     AuditLogsModule,
     SupportTicketsModule,
     ClassroomsModule,
