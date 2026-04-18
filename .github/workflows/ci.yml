@@ -419,6 +419,129 @@ jobs:
             finance-service/coverage
             finance-service/test-results
 
+  academic-quality:
+    name: academic-quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: academic-service/package-lock.json
+
+      - name: Install dependencies
+        working-directory: academic-service
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: academic-service
+        run: npm run prisma:generate
+
+      - name: Lint
+        working-directory: academic-service
+        run: npm run lint
+
+      - name: Check formatting
+        working-directory: academic-service
+        run: npm run lint:format
+
+      - name: Typecheck
+        working-directory: academic-service
+        run: npm run typecheck
+
+      - name: Build
+        working-directory: academic-service
+        run: npm run build
+
+      - name: Unit tests
+        working-directory: academic-service
+        run: npm run test:unit -- --runInBand
+
+  academic-integration:
+    name: academic-integration
+    runs-on: ubuntu-latest
+    needs: academic-quality
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: campuscore
+          POSTGRES_USER: campuscore
+          POSTGRES_PASSWORD: ci-postgres-password
+        options: >-
+          --health-cmd "pg_isready -U campuscore -d campuscore"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: campuscore
+          RABBITMQ_DEFAULT_PASS: ci-rabbitmq-password
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: academic-service/package-lock.json
+
+      - name: Install dependencies
+        working-directory: academic-service
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: academic-service
+        run: npm run prisma:generate
+
+      - name: Push Prisma schema
+        working-directory: academic-service
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=academic
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+        run: npx prisma db push --skip-generate
+
+      - name: Integration tests
+        working-directory: academic-service
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=academic
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+        run: npm run test:integration -- --runInBand
+
+      - name: Upload academic integration logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: academic-integration-logs
+          path: |
+            academic-service/coverage
+            academic-service/test-results
+
   frontend-quality:
     name: frontend-quality
     runs-on: ubuntu-latest
@@ -462,6 +585,7 @@ jobs:
         core-quality,
         notification-quality,
         finance-quality,
+        academic-quality,
         frontend-quality,
       ]
 
@@ -478,6 +602,7 @@ jobs:
             backend/package-lock.json
             notification-service/package-lock.json
             finance-service/package-lock.json
+            academic-service/package-lock.json
             frontend/package-lock.json
 
       - name: Install backend dependencies
@@ -490,6 +615,10 @@ jobs:
 
       - name: Install finance service dependencies
         working-directory: finance-service
+        run: npm ci
+
+      - name: Install academic service dependencies
+        working-directory: academic-service
         run: npm ci
 
       - name: Install frontend dependencies
@@ -557,6 +686,8 @@ jobs:
         notification-integration,
         finance-quality,
         finance-integration,
+        academic-quality,
+        academic-integration,
         frontend-quality,
         frontend-fast-e2e,
         compose-contract,
@@ -592,6 +723,8 @@ jobs:
         notification-integration,
         finance-quality,
         finance-integration,
+        academic-quality,
+        academic-integration,
         frontend-quality,
         frontend-fast-e2e,
         compose-contract,
@@ -651,6 +784,10 @@ jobs:
         core-integration,
         notification-quality,
         notification-integration,
+        finance-quality,
+        finance-integration,
+        academic-quality,
+        academic-integration,
         frontend-quality,
         frontend-fast-e2e,
         compose-contract,
@@ -671,6 +808,7 @@ jobs:
             backend/package-lock.json
             notification-service/package-lock.json
             finance-service/package-lock.json
+            academic-service/package-lock.json
             frontend/package-lock.json
 
       - name: Prepare scan directory
@@ -703,6 +841,10 @@ jobs:
         working-directory: finance-service
         run: npm ci
 
+      - name: Install academic service dependencies
+        working-directory: academic-service
+        run: npm ci
+
       - name: Backend npm audit
         id: backend-npm-audit
         continue-on-error: true
@@ -727,6 +869,12 @@ jobs:
         working-directory: finance-service
         run: npm audit --audit-level=high --json > ../security-results/finance-npm-audit.json 2> ../security-results/finance-npm-audit.stderr.log
 
+      - name: Academic service npm audit
+        id: academic-npm-audit
+        continue-on-error: true
+        working-directory: academic-service
+        run: npm audit --audit-level=high --json > ../security-results/academic-npm-audit.json 2> ../security-results/academic-npm-audit.stderr.log
+
       - name: Filesystem scan
         id: trivy-fs
         continue-on-error: true
@@ -736,6 +884,18 @@ jobs:
           scan-ref: .
           format: sarif
           output: security-results/trivy-fs.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+
+      - name: Academic service filesystem scan
+        id: trivy-academic-fs
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: academic-service
+          format: sarif
+          output: security-results/trivy-academic-fs.sarif
           severity: HIGH,CRITICAL
           exit-code: '1'
 
@@ -750,6 +910,9 @@ jobs:
 
       - name: Build finance service image for scan
         run: docker build -f finance-service/Dockerfile -t campuscore-finance-service:security .
+
+      - name: Build academic service image for scan
+        run: docker build -f academic-service/Dockerfile -t campuscore-academic-service:security .
 
       - name: Backend image scan
         id: trivy-backend-image
@@ -799,6 +962,18 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: '1'
 
+      - name: Academic service image scan
+        id: trivy-academic-image
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: campuscore-academic-service:security
+          format: sarif
+          output: security-results/trivy-academic-image.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+
       - name: Upload gitleaks SARIF
         if: always() && hashFiles('security-results/gitleaks.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
         uses: github/codeql-action/upload-sarif@v3
@@ -841,6 +1016,20 @@ jobs:
           sarif_file: security-results/trivy-finance-image.sarif
           category: trivy-finance-image
 
+      - name: Upload academic filesystem SARIF
+        if: always() && hashFiles('security-results/trivy-academic-fs.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-results/trivy-academic-fs.sarif
+          category: trivy-academic-fs
+
+      - name: Upload academic image SARIF
+        if: always() && hashFiles('security-results/trivy-academic-image.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-results/trivy-academic-image.sarif
+          category: trivy-academic-image
+
       - name: Upload scan reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -856,11 +1045,14 @@ jobs:
              [ "${{ steps.frontend-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.notification-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.finance-npm-audit.outcome }}" != "success" ] || \
+             [ "${{ steps.academic-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-fs.outcome }}" != "success" ] || \
+             [ "${{ steps.trivy-academic-fs.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-backend-image.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-frontend-image.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-notification-image.outcome }}" != "success" ] || \
-             [ "${{ steps.trivy-finance-image.outcome }}" != "success" ]; then
+             [ "${{ steps.trivy-finance-image.outcome }}" != "success" ] || \
+             [ "${{ steps.trivy-academic-image.outcome }}" != "success" ]; then
             echo "Security scan failed. Review npm audit, gitleaks, and Trivy reports."
             exit 1
           fi
@@ -889,6 +1081,8 @@ jobs:
       - notification-integration
       - finance-quality
       - finance-integration
+      - academic-quality
+      - academic-integration
       - frontend-quality
       - frontend-fast-e2e
       - compose-contract
@@ -929,6 +1123,8 @@ jobs:
           check_required notification-integration "${{ needs.notification-integration.result }}"
           check_required finance-quality "${{ needs.finance-quality.result }}"
           check_required finance-integration "${{ needs.finance-integration.result }}"
+          check_required academic-quality "${{ needs.academic-quality.result }}"
+          check_required academic-integration "${{ needs.academic-integration.result }}"
           check_required frontend-quality "${{ needs.frontend-quality.result }}"
           check_required frontend-fast-e2e "${{ needs.frontend-fast-e2e.result }}"
           check_required compose-contract "${{ needs.compose-contract.result }}"
@@ -952,6 +1148,8 @@ jobs:
             echo "- notification-integration: ${{ needs.notification-integration.result }}"
             echo "- finance-quality: ${{ needs.finance-quality.result }}"
             echo "- finance-integration: ${{ needs.finance-integration.result }}"
+            echo "- academic-quality: ${{ needs.academic-quality.result }}"
+            echo "- academic-integration: ${{ needs.academic-integration.result }}"
             echo "- frontend-quality: ${{ needs.frontend-quality.result }}"
             echo "- frontend-fast-e2e: ${{ needs.frontend-fast-e2e.result }}"
             echo "- compose-contract: ${{ needs.compose-contract.result }}"
