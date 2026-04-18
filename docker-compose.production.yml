@@ -71,6 +71,7 @@ services:
       JWT_EXPIRATION: 15m
       JWT_REFRESH_EXPIRATION: 7d
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:?set HEALTH_READINESS_KEY}
       REDIS_URL: redis://redis:6379
       RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD}@rabbitmq:5672
       MINIO_ENDPOINT: minio
@@ -92,7 +93,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4000/api/v1/health"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --header=\"X-Health-Key: ${HEALTH_READINESS_KEY:?set HEALTH_READINESS_KEY}\" -O- http://localhost:4000/api/v1/health/readiness >/dev/null"]
       interval: 30s
       timeout: 10s
       retries: 3

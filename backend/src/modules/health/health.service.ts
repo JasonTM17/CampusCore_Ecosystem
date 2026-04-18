@@ -7,6 +7,11 @@ import {
   CacheRuntimeStatus,
 } from '../cache/cache.constants';
 
+type DependencyStatus = {
+  status: 'up' | 'down' | 'not_configured';
+  latency?: number;
+};
+
 @Injectable()
 export class HealthService {
   private readonly logger = new Logger(HealthService.name);
@@ -19,7 +24,15 @@ export class HealthService {
     private readonly cacheRuntimeStatus: CacheRuntimeStatus,
   ) {}
 
-  async check() {
+  liveness() {
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      service: 'campuscore-api',
+    };
+  }
+
+  async readiness() {
     const dbCheck = await this.checkDatabase();
     const redisCheck = await this.checkRedis();
     const rabbitmqCheck = await this.checkRabbitMQ();
@@ -45,7 +58,11 @@ export class HealthService {
     return health;
   }
 
-  private async checkDatabase(): Promise<{ status: string; latency?: number }> {
+  async check() {
+    return this.readiness();
+  }
+
+  private async checkDatabase(): Promise<DependencyStatus> {
     try {
       const start = Date.now();
       await this.prisma.$queryRaw`SELECT 1`;
@@ -58,7 +75,7 @@ export class HealthService {
     }
   }
 
-  private async checkRedis(): Promise<{ status: string; latency?: number }> {
+  private async checkRedis(): Promise<DependencyStatus> {
     if (this.cacheRuntimeStatus.backend !== 'redis') {
       return {
         status: this.cacheRuntimeStatus.redisConfigured
@@ -87,7 +104,7 @@ export class HealthService {
     }
   }
 
-  private async checkRabbitMQ(): Promise<{ status: string; latency?: number }> {
+  private async checkRabbitMQ(): Promise<DependencyStatus> {
     try {
       if (!this.rabbitMQService.isConfigured()) {
         return { status: 'not_configured' };
