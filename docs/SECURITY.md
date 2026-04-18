@@ -1,54 +1,94 @@
-# Bảo Mật
+﻿# Bảo mật
 
-CampusCore hiện được thiết kế theo hướng an toàn hơn ở tầng runtime và release, nhưng vẫn giữ tương thích cho client cũ trong giai đoạn chuyển tiếp.
+CampusCore được harden theo hướng tương thích: giữ contract đang dùng, nhưng chặn các bề mặt rủi ro rõ ràng ở browser auth, public health, public edge và release pipeline.
 
-## Auth
+## 1. Auth model
 
-Browser auth dùng cookie:
+Browser sessions dùng:
 
-- `cc_access_token`
-- `cc_refresh_token`
-- `cc_csrf`
+- `cc_access_token` (`HttpOnly`)
+- `cc_refresh_token` (`HttpOnly`)
+- `cc_csrf` (readable cookie)
+- `X-CSRF-Token` cho request mutating dùng cookie auth
 
-Các request mutating từ browser phải gửi `X-CSRF-Token`. Bearer token legacy vẫn được hỗ trợ để không làm gãy tích hợp cũ.
+JWT extraction ưu tiên:
 
-## Health
+1. `Authorization: Bearer ...`
+2. cookie `cc_access_token`
 
-- Public `GET /health` chỉ là liveness tối giản
-- Readiness chi tiết nằm ở `GET /api/v1/health/readiness`
-- Readiness có thể được bảo vệ bằng `HEALTH_READINESS_KEY`
+`POST /auth/refresh` và `POST /auth/logout` vẫn giữ legacy body contract để không làm gãy client cũ.
 
-Mục tiêu của tách này là không vô tình làm lộ trạng thái nội bộ cho public edge.
+## 2. Notification service boundary
 
-## Secrets
+`notification-service` không phụ thuộc trực tiếp vào bảng user của `core-api`.
 
-Không commit file secret vào repo. Các file local như `.env` và `backend/.env` phải được coi là chỉ dùng trên máy cá nhân và không được track.
+Nguyên tắc:
 
-## Image and Dependency Scanning
+- chỉ lưu `userId` dạng opaque string
+- không dùng foreign key chéo service
+- consume event từ RabbitMQ thay vì gọi trực tiếp database của `core-api`
 
-CI/CD dùng security scan cho:
+## 3. Public health vs internal readiness
 
-- source dependencies
-- built container images
+- `GET /health` là public liveness tối giản
+- `GET /api/v1/health/readiness` là internal readiness
+- readiness yêu cầu `X-Health-Key` ở môi trường production-like
+- `nginx` chặn readiness path ở public edge
 
-Pipeline release chỉ được đi tiếp khi các lane này đạt ngưỡng an toàn đã khóa.
+Điều này giảm rò rỉ trạng thái dependency ra ngoài internet.
 
-## Release Discipline
+## 4. Gateway và rate limiting
 
-Public release chỉ được publish từ semver tag `vX.Y.Z`.
+`nginx` là public edge duy nhất:
 
-- `latest` chỉ cập nhật khi có release semver
-- rollback nên dùng digest hoặc SHA tag bất biến
-- branch push chỉ chạy CI, không phát hành public
+- route auth và API được rate-limit riêng
+- traffic web/App Router được nới đủ cho burst hợp lệ
+- khi bị giới hạn sẽ trả `429`, không trả `503` giả gây hiểu nhầm runtime hỏng
+- `/socket.io/*` đi thẳng tới `notification-service`
 
-## Operational Risk Notes
+## 5. Queue và realtime
 
-- Docker Hub namespace nên cấu hình bằng `DOCKERHUB_NAMESPACE`
-- `DOCKERHUB_USERNAME` chỉ giữ làm alias cũ
-- Nếu đổi runtime contract, phải cập nhật docs, compose và release notes cùng lúc
+RabbitMQ được dùng làm ranh giới event giữa `core-api` và `notification-service`.
 
-## Tài Liệu Liên Quan
+Semantics v1:
 
-- [Kiến trúc](./ARCHITECTURE.md)
-- [Vận hành](./OPERATIONS.md)
-- [Phát hành](./RELEASE.md)
+- `announcement.created`: realtime-only
+- `notification.user.created`: persist + emit user room
+- `notification.role.created`: persist nếu có `userIds`, nếu không thì realtime-only
+
+Websocket auth:
+
+- chấp nhận token từ handshake auth/header
+- chấp nhận cookie access token trong handshake header
+- reject token sai ngay khi connect
+
+## 6. Security scans
+
+### Local
+
+`node scripts/run-security-local.mjs` chạy:
+
+- `npm audit` cho backend, notification-service, frontend
+- `gitleaks`
+- `Trivy fs` cho từng service
+- tùy chọn `Trivy config` cho phạm vi hạ tầng
+
+### CI
+
+Lane `security-scan` là bắt buộc trước release:
+
+- `npm audit` cho 3 package
+- `gitleaks`
+- `Trivy fs`
+- `Trivy image` cho 3 image runtime
+
+Release sẽ bị chặn nếu finding mức `HIGH` hoặc `CRITICAL` không đạt ngưỡng đã chốt.
+
+## 7. Known limitations
+
+- chưa có service-to-service auth độc lập ngoài shared JWT contract
+- chưa có outbox pattern đầy đủ cho mọi event domain
+- chưa tách hẳn mọi domain thành microservices riêng
+- cluster PostgreSQL vẫn là shared infrastructure, mới tách ở mức per-service schema
+
+Đây là trade-off có chủ đích của portfolio v1: ưu tiên ranh giới service thật, runtime thật và release gate thật trước khi mở rộng split domain sâu hơn.

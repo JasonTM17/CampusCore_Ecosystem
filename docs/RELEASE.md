@@ -1,67 +1,104 @@
-# Phát Hành
+﻿# Phát hành
 
-CampusCore hiện dùng chính sách phát hành công khai **semver-only**.
+CampusCore dùng release policy theo hướng **semver-only public publishing**.
 
-## Quy Tắc Release
+## 1. Nguyên tắc chung
 
-- Chỉ publish public image khi ref là tag `vX.Y.Z`
-- Nhánh `master` và `main` chỉ chạy CI
-- `latest` chỉ được cập nhật cùng release semver
-- Mỗi release phải có tag SHA bất biến để rollback dễ dàng
+- `master` và `main` chỉ chạy CI
+- public registry chỉ publish khi push tag `vX.Y.Z`
+- CD phải chờ đúng `quality-gate` của commit đó xanh
+- mỗi release publish đủ 3 image ứng dụng
 
-## Tags
-
-Mỗi release nên có:
-
-- `vX.Y.Z`
-- `latest`
-- tag SHA ngắn như `0f8bc44`
-
-## Registry
+## 2. Image contract
 
 ### Docker Hub
 
-- Namespace ưu tiên: `DOCKERHUB_NAMESPACE`
-- Alias cũ: `DOCKERHUB_USERNAME`
+- `nguyenson1710/campuscore-backend`
+- `nguyenson1710/campuscore-notification-service`
+- `nguyenson1710/campuscore-frontend`
 
-### GitHub Container Registry
+### GHCR
 
-- Dùng namespace của repository owner
-- Package mới có thể cần set visibility thành `Public` một lần nếu muốn anonymous pull
+- `ghcr.io/jasontm17/campuscore-backend`
+- `ghcr.io/jasontm17/campuscore-notification-service`
+- `ghcr.io/jasontm17/campuscore-frontend`
 
-## Gating
+## 3. Tag strategy
 
-Release chỉ được phép đi tiếp khi:
+Mỗi release semver publish:
 
-- backend quality pass
-- backend integration pass
-- frontend quality pass
-- fast E2E pass
-- compose contract pass
-- image smoke pass
-- edge E2E pass
-- security scan pass
+- `vX.Y.Z`
+- short SHA immutable
+- `latest`
 
-## Rollback
+`latest` chỉ cập nhật khi có release semver. Branch push không được phép di chuyển `latest`.
 
-Khi cần rollback, ưu tiên:
+## 4. CI/CD workflow
 
-1. digest image
-2. tag SHA bất biến
-3. chỉ dùng `latest` khi không còn lựa chọn khác
+### CI Build and Test
 
-## Release Notes
+Lane bắt buộc:
 
-Mỗi lần phát hành nên ghi rõ:
+- `core-quality`
+- `core-integration`
+- `notification-quality`
+- `notification-integration`
+- `frontend-quality`
+- `frontend-fast-e2e`
+- `compose-contract`
+- `image-smoke`
+- `edge-e2e`
+- `security-scan`
+- `dependency-review`
+- `quality-gate`
 
-- source SHA
-- CI run URL
-- image tags
-- digests
-- SBOM hoặc provenance nếu workflow đã tạo ra
+`quality-gate` là status duy nhất nên được dùng cho branch protection.
 
-## Tài Liệu Liên Quan
+### CD - Gated Registry Publish
 
-- [Kiến trúc](./ARCHITECTURE.md)
-- [Vận hành](./OPERATIONS.md)
-- [Bảo mật](./SECURITY.md)
+Workflow CD chỉ trigger khi push tag `v*.*.*` và sẽ:
+
+1. resolve release plan
+2. chờ CI matching commit thành công
+3. publish Docker Hub nếu có đủ secret
+4. publish GHCR
+5. ghi release summary với digest, tags, source SHA và provenance/SBOM
+
+## 5. Docker Hub secrets
+
+Bắt buộc:
+
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_PASSWORD`
+
+Khuyến nghị:
+
+- `DOCKERHUB_NAMESPACE`
+
+`DOCKERHUB_NAMESPACE` là tên được ưu tiên. `DOCKERHUB_USERNAME` được giữ làm legacy alias để tương thích workflow cũ.
+
+## 6. Manual publish helper
+
+Script local:
+
+```bash
+DOCKERHUB_NAMESPACE=<namespace> ./scripts/docker-publish.sh v1.0.0
+```
+
+Script sẽ build và push:
+
+- `campuscore-backend`
+- `campuscore-notification-service`
+- `campuscore-frontend`
+- semver tag
+- short SHA tag
+- `latest` cùng với đúng semver release đó
+
+## 7. Rollback
+
+Ưu tiên rollback bằng:
+
+- digest immutable từ registry
+- short SHA tag immutable
+
+Không nên rollback bằng `latest` vì đó là moving tag.

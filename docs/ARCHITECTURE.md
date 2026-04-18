@@ -1,77 +1,94 @@
-# Kiến Trúc
+﻿# Kiến trúc
 
-CampusCore được triển khai như **một backend NestJS 11 deployable duy nhất**, nhưng được verify theo phong cách **multi-service stack**. Mục tiêu của cách làm này là giữ vận hành gọn, trong khi vẫn kiểm chứng runtime gần với môi trường sản phẩm.
+CampusCore hiện được tổ chức theo hướng **microservices portfolio v1**. Hệ thống chưa tách toàn bộ domain thành nhiều service, nhưng đã có ranh giới triển khai thật giữa `core-api` và `notification-service`.
 
-## Sơ Đồ Runtime
+## Service boundary
+
+### core-api
+
+`core-api` là NestJS 11 service chính, sở hữu:
+
+- auth, session, cookie và CSRF contract
+- users, roles, permissions
+- announcements
+- enrollments, grades, schedules, finance, analytics
+- public liveness `GET /health`
+- internal readiness `GET /api/v1/health/readiness`
+- RabbitMQ publisher cho các event nghiệp vụ
+
+### notification-service
+
+`notification-service` là NestJS 11 service độc lập, sở hữu:
+
+- notification inbox data
+- REST API `GET /api/v1/notifications/*`
+- websocket namespace `/notifications`
+- RabbitMQ consumer cho realtime delivery
+- internal health riêng
+- Prisma schema `notifications` trong cùng cụm PostgreSQL
+
+## Runtime topology
 
 ```mermaid
 flowchart LR
-  U["Người dùng"] --> N["nginx gateway"]
-  N --> F["Frontend Next.js standalone"]
-  N --> B["Backend NestJS 11"]
-  B --> P["PostgreSQL"]
-  B --> R["Redis"]
-  B --> Q["RabbitMQ"]
-  B --> M["MinIO"]
+  U["Người dùng"] --> N["nginx"]
+  N --> F["frontend"]
+  N --> C["core-api"]
+  N --> S["notification-service"]
+  C --> P1["PostgreSQL / public"]
+  S --> P2["PostgreSQL / notifications"]
+  C --> R["Redis"]
+  C --> Q["RabbitMQ"]
+  S --> Q
+  C --> M["MinIO"]
 ```
 
-## Thành Phần Chính
+## Public routing
 
-- Frontend: Next.js 15, chạy production-like bằng standalone runtime trong Docker
-- Backend: NestJS 11, Prisma, JWT, Socket.IO, Swagger, CSRF cho browser flow
-- Data plane: PostgreSQL
-- Cache/session support: Redis
-- Queue/realtime support: RabbitMQ
-- Object storage contract: MinIO
-- Public edge: nginx
+`nginx` là public edge duy nhất:
 
-## Public Contract
+- `/` và route web đi tới `frontend`
+- `/api/docs`, `/api/v1/auth/*`, route học vụ còn lại đi tới `core-api`
+- `/api/v1/notifications/*` đi tới `notification-service`
+- `/socket.io/*` đi tới `notification-service`
+- `/health` đi tới public liveness của `core-api`
+- readiness path bị chặn ở public edge
 
-| URL | Mục đích |
-| --- | --- |
-| `http://localhost` | Điểm vào công khai |
-| `http://localhost/login` | Trang đăng nhập |
-| `http://localhost/health` | Liveness công khai, tối giản |
-| `http://localhost/api/docs` | Swagger UI |
-| `http://localhost/api/v1/health/readiness` | Readiness nội bộ |
+## Data ownership
 
-## Auth Contract
+CampusCore dùng **per-service schema** trong cùng một cụm PostgreSQL:
 
-Browser auth dùng cookie:
+- `core-api` dùng `schema=public`
+- `notification-service` dùng `schema=notifications`
 
-- `cc_access_token`
-- `cc_refresh_token`
-- `cc_csrf`
+Notification record chỉ lưu `userId` dạng opaque string và metadata cần thiết. Service này không dùng foreign key sang bảng user của `core-api`.
 
-Mọi request mutating từ browser phải gửi `X-CSRF-Token`. Legacy clients vẫn có thể dùng JSON token/Bearer trong giai đoạn chuyển tiếp.
+## Event contract v1
 
-## Health Contract
+`core-api` phát event qua RabbitMQ bằng envelope thống nhất:
 
-- `GET /health`: public liveness, chỉ trả thông tin tối thiểu
-- `GET /api/v1/health/readiness`: readiness chi tiết cho nội bộ và ops
-- `GET /api/v1/health`: alias tạm thời để giữ tương thích
+- `type`
+- `source`
+- `occurredAt`
+- `payload`
 
-Readiness phản ánh trạng thái `database`, `redis`, `rabbitmq` theo `up`, `down`, `not_configured`.
+Event hiện được chốt cho v1:
 
-## Production-Like Runtime
+- `announcement.created`
+- `notification.user.created`
+- `notification.role.created`
 
-Frontend production-like phải chạy bằng standalone runtime. Nginx là public edge, không truy cập trực tiếp backend hoặc frontend container từ bên ngoài stack.
+Semantics hiện tại:
 
-Backend vẫn là một deployable duy nhất, nhưng các kiểm thử runtime được thiết kế để nhìn hệ thống như một stack nhiều service thật:
+- `announcement.created`: chỉ broadcast realtime, không tự persist inbox
+- `notification.user.created`: persist một record rồi emit vào `user:{id}`
+- `notification.role.created`: persist khi có `userIds`, nếu không thì chỉ emit vào `role:{role}`
 
-- compose contract
-- backend integration
-- image smoke
-- edge E2E
+## Điều chưa làm trong v1
 
-## Những Gì Không Làm Trong Đợt Này
+- chưa tách `auth-service`
+- chưa tách database cluster riêng cho từng service
+- chưa đưa orchestration lên Kubernetes
+- chưa split toàn bộ domain học vụ thành nhiều deployable
 
-- Không tách backend thành nhiều microservice thật
-- Không mở thêm flow upload mới
-- Không đổi API business ngoài auth/health/runtime contract đã chốt
-
-## Tài Liệu Liên Quan
-
-- [Vận hành](./OPERATIONS.md)
-- [Bảo mật](./SECURITY.md)
-- [Phát hành](./RELEASE.md)
+V1 tập trung vào ranh giới service thật, pipeline thật, release thật và verification sát runtime thật.
