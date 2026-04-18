@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
   security-events: write
 
 concurrency:
@@ -38,7 +39,7 @@ jobs:
 
       - name: Generate Prisma Client
         working-directory: backend
-        run: npx prisma generate
+        run: npm run prisma:generate
 
       - name: Lint
         working-directory: backend
@@ -56,11 +57,116 @@ jobs:
         working-directory: backend
         run: npm run build
 
-      - name: Test
+      - name: Unit tests
         working-directory: backend
         env:
           NODE_OPTIONS: --max-old-space-size=4096
-        run: npm test -- --runInBand
+        run: npm run test:unit -- --runInBand
+
+  backend-integration:
+    name: backend-integration
+    runs-on: ubuntu-latest
+    needs: backend-quality
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: campuscore
+          POSTGRES_USER: campuscore
+          POSTGRES_PASSWORD: ci-postgres-password
+        options: >-
+          --health-cmd "pg_isready -U campuscore -d campuscore"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: campuscore
+          RABBITMQ_DEFAULT_PASS: ci-rabbitmq-password
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: backend
+        run: npm run prisma:generate
+
+      - name: Push Prisma schema
+        working-directory: backend
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=public
+          REDIS_URL: redis://redis:6379
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          JWT_REFRESH_SECRET: ci-refresh-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+        run: npx prisma db push --skip-generate
+
+      - name: Seed database
+        working-directory: backend
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=public
+          REDIS_URL: redis://redis:6379
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          JWT_REFRESH_SECRET: ci-refresh-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+        run: npm run prisma:seed
+
+      - name: Integration tests
+        working-directory: backend
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=public
+          REDIS_URL: redis://redis:6379
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          JWT_REFRESH_SECRET: ci-refresh-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+        run: npm run test:integration -- --runInBand
+
+      - name: Upload backend integration logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-integration-logs
+          path: |
+            backend/coverage
+            backend/test-results
 
   frontend-quality:
     name: frontend-quality
@@ -97,6 +203,49 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+  frontend-fast-e2e:
+    name: frontend-fast-e2e
+    runs-on: ubuntu-latest
+    needs: [backend-quality, frontend-quality]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run fast E2E
+        working-directory: frontend
+        run: npm run test:e2e
+
+      - name: Upload fast E2E artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fast-e2e-artifacts
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+
   compose-contract:
     name: compose-contract
     runs-on: ubuntu-latest
@@ -104,6 +253,7 @@ jobs:
       POSTGRES_PASSWORD: ci-postgres-password
       JWT_SECRET: ci-jwt-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
+      HEALTH_READINESS_KEY: ci-health-readiness-key
       RABBITMQ_USER: campuscore
       RABBITMQ_PASSWORD: ci-rabbitmq-password
       MINIO_USER: campuscore
@@ -131,7 +281,7 @@ jobs:
   image-smoke:
     name: image-smoke
     runs-on: ubuntu-latest
-    needs: [backend-quality, frontend-quality, compose-contract]
+    needs: [backend-quality, frontend-quality, backend-integration, frontend-fast-e2e, compose-contract]
 
     steps:
       - name: Checkout code
@@ -155,7 +305,7 @@ jobs:
   edge-e2e:
     name: edge-e2e
     runs-on: ubuntu-latest
-    needs: [backend-quality, frontend-quality, compose-contract]
+    needs: [backend-quality, frontend-quality, backend-integration, frontend-fast-e2e, compose-contract]
 
     steps:
       - name: Checkout code
@@ -205,7 +355,7 @@ jobs:
   security-scan:
     name: security-scan
     runs-on: ubuntu-latest
-    needs: [backend-quality, frontend-quality, compose-contract]
+    needs: [backend-quality, frontend-quality, backend-integration, frontend-fast-e2e, compose-contract]
 
     steps:
       - name: Checkout code
@@ -294,28 +444,71 @@ jobs:
             exit 1
           fi
 
+  dependency-review:
+    name: dependency-review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
   quality-gate:
     name: quality-gate
     runs-on: ubuntu-latest
     needs:
       - backend-quality
+      - backend-integration
       - frontend-quality
+      - frontend-fast-e2e
       - compose-contract
       - image-smoke
       - edge-e2e
       - security-scan
+      - dependency-review
     if: always()
 
     steps:
       - name: Assert all quality lanes passed
         run: |
-          if [ "${{ needs.backend-quality.result }}" != "success" ] || \
-             [ "${{ needs.frontend-quality.result }}" != "success" ] || \
-             [ "${{ needs.compose-contract.result }}" != "success" ] || \
-             [ "${{ needs.image-smoke.result }}" != "success" ] || \
-             [ "${{ needs.edge-e2e.result }}" != "success" ] || \
-             [ "${{ needs.security-scan.result }}" != "success" ]; then
-            echo "At least one quality lane failed."
+          failures=0
+
+          check_required() {
+            local lane_name="$1"
+            local lane_result="$2"
+
+            if [ "$lane_result" != "success" ]; then
+              echo "::error title=${lane_name} failed::${lane_name} result was ${lane_result}"
+              failures=1
+            fi
+          }
+
+          check_optional_pr_lane() {
+            local lane_name="$1"
+            local lane_result="$2"
+
+            if [ "$GITHUB_EVENT_NAME" = "pull_request" ] && [ "$lane_result" != "success" ]; then
+              echo "::error title=${lane_name} failed::${lane_name} result was ${lane_result}"
+              failures=1
+            fi
+          }
+
+          check_required backend-quality "${{ needs.backend-quality.result }}"
+          check_required backend-integration "${{ needs.backend-integration.result }}"
+          check_required frontend-quality "${{ needs.frontend-quality.result }}"
+          check_required frontend-fast-e2e "${{ needs.frontend-fast-e2e.result }}"
+          check_required compose-contract "${{ needs.compose-contract.result }}"
+          check_required image-smoke "${{ needs.image-smoke.result }}"
+          check_required edge-e2e "${{ needs.edge-e2e.result }}"
+          check_required security-scan "${{ needs.security-scan.result }}"
+          check_optional_pr_lane dependency-review "${{ needs.dependency-review.result }}"
+
+          if [ "$failures" -ne 0 ]; then
             exit 1
           fi
 
@@ -325,9 +518,12 @@ jobs:
             echo "## Quality gate"
             echo ""
             echo "- backend-quality: ${{ needs.backend-quality.result }}"
+            echo "- backend-integration: ${{ needs.backend-integration.result }}"
             echo "- frontend-quality: ${{ needs.frontend-quality.result }}"
+            echo "- frontend-fast-e2e: ${{ needs.frontend-fast-e2e.result }}"
             echo "- compose-contract: ${{ needs.compose-contract.result }}"
             echo "- image-smoke: ${{ needs.image-smoke.result }}"
             echo "- edge-e2e: ${{ needs.edge-e2e.result }}"
             echo "- security-scan: ${{ needs.security-scan.result }}"
+            echo "- dependency-review: ${{ needs.dependency-review.result }}"
           } >> "$GITHUB_STEP_SUMMARY"

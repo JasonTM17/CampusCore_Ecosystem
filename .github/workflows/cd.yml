@@ -2,15 +2,8 @@ name: CD - Gated Registry Publish
 
 on:
   push:
-    branches: [master, main]
     tags:
       - 'v*.*.*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Image tag to publish'
-        required: false
-        default: 'latest'
 
 env:
   BACKEND_IMAGE: campuscore-backend
@@ -44,26 +37,18 @@ jobs:
           DH_PASS: ${{ secrets.DOCKERHUB_PASSWORD }}
           DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           GH_OWNER: ${{ github.repository_owner }}
-          REQUESTED_TAG: ${{ github.event.inputs.tag }}
           SOURCE_SHA: ${{ github.sha }}
         run: |
           dockerhub_namespace="${DH_NAMESPACE:-$DH_USER}"
           ghcr_namespace="$(printf '%s' "${GH_OWNER}" | tr '[:upper:]' '[:lower:]')"
           short_sha="$(printf '%s' "${SOURCE_SHA}" | cut -c1-7)"
-
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            image_tag="${REQUESTED_TAG:-latest}"
-          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            image_tag="${GITHUB_REF_NAME}"
-          else
-            image_tag="latest"
-          fi
+          image_tag="${GITHUB_REF_NAME}"
 
           if [ -n "$DH_USER" ] && [ -n "$DH_PASS" ] && [ -n "$dockerhub_namespace" ]; then
             should_publish_dockerhub=true
           else
             should_publish_dockerhub=false
-            echo "::notice title=Docker Hub publish skipped::Add DOCKERHUB_USERNAME and DOCKERHUB_PASSWORD secrets. Optional DOCKERHUB_NAMESPACE can target an organization; when omitted, DOCKERHUB_USERNAME is used as the legacy namespace alias."
+            echo "::notice title=Docker Hub publish skipped::Add DOCKERHUB_USERNAME and DOCKERHUB_PASSWORD secrets. DOCKERHUB_NAMESPACE is preferred; when omitted, DOCKERHUB_USERNAME remains the legacy namespace alias."
           fi
 
           {
@@ -104,7 +89,6 @@ jobs:
             });
 
             const currentRunCreatedAt = new Date(currentRun.data.created_at);
-            const requireFreshCiRun = context.eventName === 'push';
             const minCreatedAt = new Date(currentRunCreatedAt.getTime() - 5 * 60 * 1000);
 
             const describeRun = (run) =>
@@ -123,11 +107,7 @@ jobs:
                 (run) => run.name === 'CI Build and Test',
               );
 
-              if (requireFreshCiRun) {
-                candidates = candidates.filter(
-                  (run) => new Date(run.created_at) >= minCreatedAt,
-                );
-              }
+              candidates = candidates.filter((run) => new Date(run.created_at) >= minCreatedAt);
 
               if (candidates.length > 0) {
                 candidates.sort(
@@ -199,11 +179,13 @@ jobs:
           tags: |
             type=raw,value=${{ needs.release-plan.outputs.image_tag }}
             type=raw,value=${{ needs.release-plan.outputs.short_sha }}
+            type=raw,value=latest
           labels: |
             org.opencontainers.image.title=CampusCore Backend API
             org.opencontainers.image.description=CampusCore NestJS API with JWT auth, Prisma, PostgreSQL, Redis, RabbitMQ, MinIO, health checks, and Swagger docs.
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
+            org.opencontainers.image.version=${{ needs.release-plan.outputs.image_tag }}
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.vendor=CampusCore
 
@@ -230,11 +212,13 @@ jobs:
           tags: |
             type=raw,value=${{ needs.release-plan.outputs.image_tag }}
             type=raw,value=${{ needs.release-plan.outputs.short_sha }}
+            type=raw,value=latest
           labels: |
             org.opencontainers.image.title=CampusCore Frontend Web
             org.opencontainers.image.description=CampusCore Next.js 15 standalone frontend for the nginx-backed academic management stack.
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
+            org.opencontainers.image.version=${{ needs.release-plan.outputs.image_tag }}
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.vendor=CampusCore
 
@@ -262,10 +246,13 @@ jobs:
             echo "- Source SHA: ${{ needs.release-plan.outputs.source_sha }}"
             echo "- Backend tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
             echo "- Backend SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Backend latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}:latest"
             echo "- Backend digest: ${{ steps.build-backend.outputs.digest }}"
             echo "- Frontend tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
             echo "- Frontend SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Frontend latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:latest"
             echo "- Frontend digest: ${{ steps.build-frontend.outputs.digest }}"
+            echo "- Provenance/SBOM: enabled via docker/build-push-action@v6"
           } >> "$GITHUB_STEP_SUMMARY"
 
   publish-ghcr:
@@ -296,11 +283,13 @@ jobs:
           tags: |
             type=raw,value=${{ needs.release-plan.outputs.image_tag }}
             type=raw,value=${{ needs.release-plan.outputs.short_sha }}
+            type=raw,value=latest
           labels: |
             org.opencontainers.image.title=CampusCore Backend API
             org.opencontainers.image.description=CampusCore NestJS API with JWT auth, Prisma, PostgreSQL, Redis, RabbitMQ, MinIO, health checks, and Swagger docs.
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
+            org.opencontainers.image.version=${{ needs.release-plan.outputs.image_tag }}
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.vendor=CampusCore
 
@@ -327,11 +316,13 @@ jobs:
           tags: |
             type=raw,value=${{ needs.release-plan.outputs.image_tag }}
             type=raw,value=${{ needs.release-plan.outputs.short_sha }}
+            type=raw,value=latest
           labels: |
             org.opencontainers.image.title=CampusCore Frontend Web
             org.opencontainers.image.description=CampusCore Next.js 15 standalone frontend for the nginx-backed academic management stack.
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
+            org.opencontainers.image.version=${{ needs.release-plan.outputs.image_tag }}
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.vendor=CampusCore
 
@@ -359,8 +350,11 @@ jobs:
             echo "- Source SHA: ${{ needs.release-plan.outputs.source_sha }}"
             echo "- Backend tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
             echo "- Backend SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Backend latest tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}:latest"
             echo "- Backend digest: ${{ steps.ghcr-build-backend.outputs.digest }}"
             echo "- Frontend tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
             echo "- Frontend SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Frontend latest tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:latest"
             echo "- Frontend digest: ${{ steps.ghcr-build-frontend.outputs.digest }}"
+            echo "- Provenance/SBOM: enabled via docker/build-push-action@v6"
           } >> "$GITHUB_STEP_SUMMARY"
