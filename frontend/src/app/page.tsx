@@ -228,16 +228,18 @@ export default function HomePage() {
                 </span>
               </h2>
               <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
-                CampusCore ships a NestJS 11 core API and a standalone
-                notification service behind nginx, then verifies the full
-                runtime contract across the web app, API edge, database, cache,
-                queue, and object storage.
+                CampusCore runs a NestJS 11 core API together with dedicated
+                notification, finance, and academic services behind nginx, then
+                verifies the full runtime contract across the web app, API
+                edge, database, cache, queue, and object storage.
               </p>
 
               <div className="space-y-4">
                 {[
                   'NestJS 11 core API with TypeScript',
-                  'Standalone notification service with Socket.IO',
+                  'Notification service for inbox and realtime delivery',
+                  'Finance service for invoices and payments',
+                  'Academic service for sections, enrollment, and grading',
                   'Next.js 15 frontend with React 18',
                   'PostgreSQL with Prisma ORM',
                   'Redis for caching and sessions',
@@ -281,6 +283,14 @@ export default function HomePage() {
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
                     <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    <span>Finance Service (Billing Domain)</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
+                    <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                    <span>Academic Service (Enrollment + Grades)</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
+                    <div className="w-3 h-3 rounded-full bg-sky-500"></div>
                     <span>Data Plane (PostgreSQL + Redis)</span>
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">

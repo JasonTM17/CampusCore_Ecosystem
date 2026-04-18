@@ -6,30 +6,33 @@
 ![Core API](https://img.shields.io/badge/core--api-NestJS%2011-e11d48)
 ![Notification Service](https://img.shields.io/badge/notification--service-NestJS%2011-7c3aed)
 ![Finance Service](https://img.shields.io/badge/finance--service-NestJS%2011-0f766e)
+![Academic Service](https://img.shields.io/badge/academic--service-NestJS%2011-0369a1)
 ![License](https://img.shields.io/badge/license-MIT-16a34a)
 
-CampusCore là dự án quản lý học vụ được phát triển theo hướng **Microservices Portfolio v2**. Ở trạng thái hiện tại, hệ thống có một `core-api` giữ vai trò system of record cho auth và học vụ, một `notification-service` phụ trách notification inbox cùng realtime delivery, một `finance-service` phụ trách toàn bộ finance domain, một `frontend` cho trải nghiệm người dùng, và một `nginx gateway` làm public edge thống nhất.
+CampusCore là một dự án quản lý học vụ được nâng cấp theo hướng **Microservices Portfolio v3**. Ở trạng thái hiện tại, hệ thống có một `core-api` giữ auth và identity, một `notification-service` cho notification inbox và realtime delivery, một `finance-service` cho domain tài chính, một `academic-service` cho domain học vụ công khai, một `frontend`, và một `nginx gateway` làm public edge duy nhất.
 
-README này là bản tiếng Việt đầy đủ, đồng bộ với [README.md](./README.md). Bản tiếng Anh đi kèm:
+README này là bản chính bằng **tiếng Việt có dấu**. Bản song ngữ đi kèm:
 
+- [README.vi.md](./README.vi.md)
 - [README.en.md](./README.en.md)
 
-## Tổng quan kiến trúc
+## Kiến trúc hiện tại
 
-CampusCore hiện có 4 deployable ứng dụng công khai trong pipeline phát hành:
+CampusCore hiện chạy như một stack nhiều service thật:
 
-- `frontend`: Next.js 15, production-like runtime bằng standalone mode
-- `core-api`: NestJS 11, sở hữu auth, session, users, roles, permissions, students, semesters, enrollments, sections, grades, schedules, announcements và public health
-- `notification-service`: NestJS 11, sở hữu notification inbox, websocket `/notifications`, RabbitMQ consumer và realtime fan-out
-- `finance-service`: NestJS 11, sở hữu invoices, invoice items, payments, scholarships, student scholarships và finance event publishing
+- `frontend`: Next.js 15, runtime production-like bằng standalone mode
+- `core-api`: NestJS 11, owner của auth, session, users, roles, permissions, students, lecturers, announcements, analytics, finance-context và public health
+- `notification-service`: NestJS 11, owner của notification inbox, unread count, websocket `/notifications`, RabbitMQ consumer và realtime fan-out
+- `finance-service`: NestJS 11, owner của invoices, invoice items, payments, scholarships, student scholarships và finance events
+- `academic-service`: NestJS 11, owner của faculties, departments, academic years, semesters, courses, curricula, classrooms, sections, enrollments, grades, waitlist, attendance và schedules
+- `nginx`: public gateway
 
 Hạ tầng dùng chung:
 
-- `nginx` làm gateway công khai duy nhất
-- PostgreSQL dùng chung cụm nhưng tách **schema theo service**
-- Redis cho cache và session phụ trợ
-- RabbitMQ cho event-driven integration
-- MinIO cho object storage contract ở tầng triển khai
+- PostgreSQL theo mô hình **một cluster, nhiều schema theo service**
+- Redis
+- RabbitMQ
+- MinIO
 
 ```mermaid
 flowchart LR
@@ -38,27 +41,33 @@ flowchart LR
   N --> C["core-api"]
   N --> NS["notification-service"]
   N --> FS["finance-service"]
+  N --> AS["academic-service"]
+
   C --> P1["PostgreSQL / public"]
   NS --> P2["PostgreSQL / notifications"]
   FS --> P3["PostgreSQL / finance"]
+  AS --> P4["PostgreSQL / academic"]
+
   C --> R["Redis"]
   C --> Q["RabbitMQ"]
   NS --> Q
   FS --> Q
+  AS --> Q
   C --> M["MinIO"]
 ```
 
-## Ownership theo domain
+## Boundary theo service
 
-| Thành phần | Sở hữu chính | Không sở hữu |
+| Thành phần | Sở hữu | Không sở hữu |
 | --- | --- | --- |
-| `core-api` | auth, session, identity, users, roles, permissions, students, semesters, enrollments, sections, grades, schedules, announcements, public `/health` | notification inbox, finance data |
-| `notification-service` | notification inbox, unread count, websocket `/notifications`, consume event để phát realtime hoặc persist inbox | auth source of truth, academic domain, finance tables |
-| `finance-service` | invoices, invoice items, payments, scholarships, student scholarships, finance event publishing | users, semesters, enrollments source of truth |
+| `core-api` | auth, session, users, roles, permissions, students, lecturers, announcements, analytics, finance-context, `/health` | notification inbox, finance tables, public academic APIs |
+| `notification-service` | notification inbox, unread count, websocket `/notifications`, realtime broadcast | auth source of truth, academic master-data, finance data |
+| `finance-service` | invoices, payments, scholarships, finance exports, finance events | users và dữ liệu học vụ source of truth |
+| `academic-service` | public academic APIs, faculties, departments, semesters, courses, sections, enrollments, grades, attendance, schedules | auth source of truth, public health, finance context |
 
 ## Public contract
 
-Public edge luôn đi qua `nginx`. Frontend không cần đổi path công khai khi hệ thống tách service.
+Public edge luôn đi qua `nginx`. Frontend giữ nguyên public path, chỉ đổi owner phía sau gateway:
 
 | URL | Mục đích | Owner phía sau gateway |
 | --- | --- | --- |
@@ -69,91 +78,63 @@ Public edge luôn đi qua `nginx`. Frontend không cần đổi path công khai 
 | `http://localhost/api/v1/notifications/*` | Notifications API | `notification-service` |
 | `http://localhost/socket.io/*` | Realtime gateway | `notification-service` |
 | `http://localhost/api/v1/finance/*` | Finance API | `finance-service` |
+| `http://localhost/api/v1/academic-years/*` và các route học vụ tương ứng | Academic API | `academic-service` |
 
-Các path sau **không public** qua `nginx`:
+Các path sau không public qua `nginx`:
 
-- `GET /api/v1/health/readiness`
 - `GET /api/v1/health/liveness`
-- `GET /internal/v1/finance-context/students/:studentId`
-- `GET /internal/v1/finance-context/semesters/:semesterId`
-- `GET /internal/v1/finance-context/semesters/:semesterId/billable-students`
+- `GET /api/v1/health/readiness`
+- `GET /internal/*`
 
-## Auth và session model
+## Auth và health model
 
-Browser flow dùng contract thống nhất giữa các service:
+Browser flow dùng contract chung trên các service:
 
-- cookie `cc_access_token`
-- cookie `cc_refresh_token`
-- cookie `cc_csrf`
-- header `X-CSRF-Token` cho request mutating khi auth bằng cookie
+- `cc_access_token`
+- `cc_refresh_token`
+- `cc_csrf`
+- `X-CSRF-Token` cho request mutating khi auth bằng cookie
 
 Tương thích legacy vẫn được giữ:
 
 - JSON `accessToken`, `refreshToken`, `user`
 - `Authorization: Bearer ...`
 
-Thứ tự đọc auth token:
+Health model:
 
-1. Bearer token
-2. Cookie `cc_access_token`
+- `GET /health`: public liveness của `core-api`
+- `GET /api/v1/health/readiness`: internal readiness, yêu cầu `X-Health-Key` ở production-like flow
 
-## Data model và service boundary
+## Dữ liệu và ownership
 
-CampusCore dùng chiến lược **per-service schema trên cùng cụm PostgreSQL**:
+CampusCore dùng chiến lược **per-service schema**:
 
-- `core-api` dùng `schema=public`
-- `notification-service` dùng `schema=notifications`
-- `finance-service` dùng `schema=finance`
+- `core-api` -> `schema=public`
+- `notification-service` -> `schema=notifications`
+- `finance-service` -> `schema=finance`
+- `academic-service` -> `schema=academic`
 
-Không service nào được join trực tiếp vào schema của service khác ở runtime path chính. Cross-service read cho finance đi qua **internal HTTP** từ `finance-service` sang `core-api` bằng header `X-Service-Token`, chỉ để:
+`academic-service` dùng **snapshot one-time** cho `User`, `Student`, `Lecturer` trong schema riêng để tự join dữ liệu học vụ. Ở v3, `students` và `lecturers` vẫn là identity/profile owner của `core-api`.
 
-- xác thực `studentId`
-- xác thực `semesterId`
-- lấy danh sách billable students
-- lấy snapshot hiển thị để đóng băng vào invoice
-
-`finance-service` lưu snapshot cần thiết ngay trên invoice:
-
-- `studentDisplayName`
-- `studentEmail`
-- `studentCode`
-- `semesterName`
-
-## Event flow chính
-
-Envelope event chuẩn của repo gồm:
-
-- `type`
-- `source`
-- `occurredAt`
-- `payload`
-
-Các luồng đáng chú ý trong v2:
-
-- `core-api` publish `announcement.created`
-- `core-api` có thể publish `notification.user.created` và `notification.role.created`
-- `finance-service` publish:
-  - `invoice.created`
-  - `invoice.status.changed`
-  - `payment.completed`
-- `notification-service` consume event để tạo inbox hoặc phát realtime billing notification
+`finance-service` tiếp tục đọc internal finance context từ `core-api` qua `X-Service-Token`. Vòng này chưa chuyển finance read-through sang `academic-service`.
 
 ## Khởi động nhanh
 
-### Local full stack
+### Dev stack
 
 ```bash
 cp .env.example .env
 docker compose up -d --build
 ```
 
-Trình tự boot ở dev compose:
+Trình tự boot ở dev:
 
 1. `postgres`, `redis`, `rabbitmq`, `minio`
-2. `core-api-init` để push schema `public` và seed dữ liệu
-3. `notification-service-init` để push schema `notifications` và migrate notification legacy
-4. `finance-service-init` để push schema `finance` và migrate finance legacy
-5. `core-api`, `notification-service`, `finance-service`, `frontend`, `nginx`
+2. `core-api-init`
+3. `notification-service-init`
+4. `finance-service-init`
+5. `academic-service-init`
+6. `core-api`, `notification-service`, `finance-service`, `academic-service`, `frontend`, `nginx`
 
 ### Production-like stack
 
@@ -163,27 +144,21 @@ export IMAGE_TAG=v1.0.0
 docker compose -f docker-compose.production.yml --profile bootstrap run --rm core-api-init
 docker compose -f docker-compose.production.yml --profile bootstrap run --rm notification-service-init
 docker compose -f docker-compose.production.yml --profile bootstrap run --rm finance-service-init
+docker compose -f docker-compose.production.yml --profile bootstrap run --rm academic-service-init
 docker compose -f docker-compose.production.yml up -d
 ```
 
-Ở production compose, app container không tự chạy migration. Bootstrap schema là bước vận hành bắt buộc trước first deploy.
+Ở production-like flow, runtime container không tự chạy migration. Bootstrap schema là bước vận hành bắt buộc trước first deploy.
 
-## Verification ở mức portfolio
+## Verification matrix
 
-Một vòng kiểm tra đầy đủ nên bao phủ cả 4 ứng dụng:
+Tối thiểu nên verify đủ:
 
 - `backend/core-api`: lint, format, typecheck, build, unit test, integration test
 - `notification-service`: lint, format, typecheck, build, unit test, integration test
 - `finance-service`: lint, format, typecheck, build, unit test, integration test
+- `academic-service`: lint, format, typecheck, build, unit test, integration test
 - `frontend`: lint, typecheck, test, build, fast E2E
-- stack runtime: image smoke, edge E2E, compose contract, security sweep
-
-Local verification tham chiếu:
-
-- `cd backend && npm run lint && npm run lint:format && npm run typecheck && npm run build && npm run test:unit -- --runInBand && npm run test:integration -- --runInBand`
-- `cd notification-service && npm run lint && npm run lint:format && npm run typecheck && npm run build && npm run test:unit -- --runInBand && npm run test:integration -- --runInBand`
-- `cd finance-service && npm run lint && npm run lint:format && npm run typecheck && npm run build && npm run test:unit -- --runInBand && npm run test:integration -- --runInBand`
-- `cd frontend && npm run lint && npm run typecheck && npm test && npm run build && npm run test:e2e`
 - `node scripts/run-image-smoke.mjs`
 - `cd frontend && npm run test:e2e:edge`
 - `node scripts/run-security-local.mjs`
@@ -196,13 +171,14 @@ Local verification tham chiếu:
 
 CampusCore dùng policy **semver-only public release**:
 
-- public registry chỉ publish khi push tag `vX.Y.Z`
 - branch `master` hoặc `main` chỉ chạy CI
+- public registry chỉ publish khi push tag `vX.Y.Z`
 - `latest` chỉ di chuyển cùng một semver release
-- public release phải mang đủ 4 image:
+- mỗi release phải publish đủ **5 image**:
   - `campuscore-backend`
   - `campuscore-notification-service`
   - `campuscore-finance-service`
+  - `campuscore-academic-service`
   - `campuscore-frontend`
 
 ## Registry
@@ -212,6 +188,7 @@ CampusCore dùng policy **semver-only public release**:
 - `nguyenson1710/campuscore-backend`
 - `nguyenson1710/campuscore-notification-service`
 - `nguyenson1710/campuscore-finance-service`
+- `nguyenson1710/campuscore-academic-service`
 - `nguyenson1710/campuscore-frontend`
 
 ### GitHub Container Registry
@@ -219,11 +196,12 @@ CampusCore dùng policy **semver-only public release**:
 - `ghcr.io/jasontm17/campuscore-backend`
 - `ghcr.io/jasontm17/campuscore-notification-service`
 - `ghcr.io/jasontm17/campuscore-finance-service`
+- `ghcr.io/jasontm17/campuscore-academic-service`
 - `ghcr.io/jasontm17/campuscore-frontend`
 
 ## Tài liệu bổ sung
 
-- [README.md](./README.md)
+- [README.vi.md](./README.vi.md)
 - [README.en.md](./README.en.md)
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - [docs/OPERATIONS.md](./docs/OPERATIONS.md)

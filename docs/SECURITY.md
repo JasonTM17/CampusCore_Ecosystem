@@ -1,6 +1,6 @@
-# Bảo mật CampusCore v2
+# Bảo mật CampusCore v3
 
-CampusCore được harden theo hướng tương thích: giữ public contract ổn định cho frontend và client cũ, nhưng siết chặt các bề mặt rủi ro ở browser auth, internal service boundary, public health, gateway và release pipeline.
+CampusCore được harden theo hướng tương thích: giữ public contract ổn định cho frontend và legacy clients, đồng thời siết chặt browser auth, internal boundaries, public health, gateway, CI/CD và release posture.
 
 ## 1. Browser auth và session contract
 
@@ -9,33 +9,33 @@ Browser session dùng cùng một contract trên các service:
 - `cc_access_token` (`HttpOnly`)
 - `cc_refresh_token` (`HttpOnly`)
 - `cc_csrf`
-- `X-CSRF-Token` cho request mutating khi request được xác thực bằng cookie
+- `X-CSRF-Token` cho request mutating khi auth bằng cookie
 
-Bearer legacy vẫn được giữ để tương thích:
+Legacy compatibility vẫn được giữ:
 
 - `Authorization: Bearer ...`
 - JSON `accessToken`, `refreshToken`, `user`
 
-Thứ tự trích xuất auth token:
+Thứ tự trích xuất token:
 
 1. Bearer token
-2. cookie `cc_access_token`
+2. Cookie `cc_access_token`
 
 ## 2. CSRF policy
 
-CSRF chỉ được áp khi request dùng browser cookie auth.
+CSRF chỉ áp khi request dùng cookie auth.
 
 Nguyên tắc:
 
 - request mutating qua cookie phải có `X-CSRF-Token`
 - request mutating qua Bearer không bị áp CSRF
-- logout và refresh vẫn giữ legacy body contract để không làm gãy client cũ
+- logout và refresh vẫn giữ contract legacy để không làm gãy client cũ
 
 ## 3. Public health và internal readiness
 
 ### Public
 
-- `GET /health` là liveness tối giản của `core-api`
+- `GET /health` là public liveness tối giản của `core-api`
 
 ### Internal
 
@@ -45,33 +45,33 @@ Nguyên tắc:
 Readiness nội bộ:
 
 - không public qua `nginx`
-- yêu cầu `X-Health-Key` ở môi trường production-like
+- yêu cầu `X-Health-Key` trong môi trường production-like
 
-Điều này giúp không lộ trạng thái dependency chi tiết ra public edge.
+Điều này giúp không lộ trạng thái chi tiết của database, Redis, RabbitMQ ra public edge.
 
-## 4. Internal service-to-service boundary
+## 4. Internal service boundary
 
-Finance context API là interface nội bộ mới trong `core-api`:
+CampusCore hiện có internal contract nổi bật:
 
-- `GET /internal/v1/finance-context/students/:studentId`
-- `GET /internal/v1/finance-context/semesters/:semesterId`
-- `GET /internal/v1/finance-context/semesters/:semesterId/billable-students`
+- `X-Service-Token`
+- `/internal/v1/finance-context/*`
 
-Các endpoint này:
+Các endpoint finance-context:
 
 - không public qua `nginx`
-- được bảo vệ bởi header `X-Service-Token`
-- dùng shared secret `INTERNAL_SERVICE_TOKEN`
+- được bảo vệ bằng shared secret `INTERNAL_SERVICE_TOKEN`
+- chỉ phục vụ `finance-service`
 
-`finance-service` chỉ dùng các endpoint này để đọc context cần thiết, không đọc trực tiếp schema `public`.
+Ở v3, finance read-through vẫn đi từ `finance-service` sang `core-api`. Chưa chuyển contract này sang `academic-service`.
 
-## 5. Data boundary giữa services
+## 5. Data boundary giữa các service
 
-CampusCore dùng per-service schema trong một PostgreSQL cluster:
+CampusCore dùng per-service schema trong cùng một PostgreSQL cluster:
 
 - `core-api` -> `public`
 - `notification-service` -> `notifications`
 - `finance-service` -> `finance`
+- `academic-service` -> `academic`
 
 Nguyên tắc bảo mật và ownership:
 
@@ -79,37 +79,47 @@ Nguyên tắc bảo mật và ownership:
 - không join runtime trực tiếp sang schema khác
 - ID ngoài service được giữ dạng opaque reference
 
-### Snapshot trong finance
+### Snapshot trong academic-service
 
-`finance-service` lưu snapshot hiển thị trên invoice:
+`academic-service` lưu snapshot one-time của:
+
+- `User`
+- `Student`
+- `Lecturer`
+
+Điều này cho phép academic joins chạy trong schema của chính service. Ở v3, `students` và `lecturers` vẫn là identity/profile owner trong `core-api`.
+
+### Snapshot trong finance-service
+
+`finance-service` lưu snapshot hiển thị ngay trên invoice:
 
 - `studentDisplayName`
 - `studentEmail`
 - `studentCode`
 - `semesterName`
 
-Việc này giảm nhu cầu đọc chéo service khi phục vụ request người dùng.
+Việc này giảm nhu cầu đọc chéo service trên request path phục vụ người dùng.
 
 ## 6. Gateway hardening
 
 `nginx` là public edge duy nhất:
 
-- route public traffic đến đúng service
+- route request đến đúng service
 - chặn `/internal/*`
 - chặn readiness nội bộ
 - áp rate limiting
-- trả `429` khi bị rate-limit thay vì `503` gây hiểu nhầm runtime hỏng
+- trả `429` khi bị rate-limit thay vì `503`
 
-Public route split chính:
+Public route split hiện tại:
 
-- `/api/v1/notifications/*` -> `notification-service`
-- `/socket.io/*` -> `notification-service`
+- `/api/v1/notifications/*` và `/socket.io/*` -> `notification-service`
 - `/api/v1/finance/*` -> `finance-service`
-- auth, Swagger, health và route học vụ còn lại -> `core-api`
+- public academic routes -> `academic-service`
+- auth, docs, health, students, lecturers, announcements, analytics -> `core-api`
 
 ## 7. Queue và event-driven integration
 
-RabbitMQ là ranh giới tích hợp giữa service.
+RabbitMQ là ranh giới tích hợp chính giữa các service.
 
 ### Event từ `core-api`
 
@@ -129,38 +139,39 @@ RabbitMQ là ranh giới tích hợp giữa service.
 - tạo inbox khi payload phù hợp
 - phát realtime billing notification
 
-Điểm quan trọng là service consumer không truy cập database của producer để “tự suy luận” dữ liệu.
+Không service nào được dựa vào database của service khác để “tự suy luận” event state.
 
-## 8. Security scans
+## 8. Security scan và release gate
 
 ### Local baseline
 
-Một vòng quét local nên bao gồm:
+`node scripts/run-security-local.mjs` hiện quét:
 
 - `npm audit` cho `backend`
 - `npm audit` cho `notification-service`
 - `npm audit` cho `finance-service`
+- `npm audit` cho `academic-service`
 - `npm audit` cho `frontend`
 - `gitleaks`
 - `Trivy fs`
 
 ### CI gate
 
-Lane bảo mật của pipeline nên chặn release khi có finding blocker ở:
+Lane `security-scan` phải chặn release khi có finding blocker ở:
 
 - dependency scan
 - secret scan
 - filesystem scan
-- image scan cho cả 4 image ứng dụng
+- image scan cho cả 5 image public
 
 ## 9. Known limitations
 
-CampusCore v2 vẫn có một số trade-off có chủ đích:
+Một số trade-off hiện vẫn có chủ đích:
 
 - chưa có `auth-service` riêng
-- chưa có `academic-service` riêng
-- chưa dùng outbox pattern đầy đủ cho toàn bộ domain
-- vẫn dùng shared PostgreSQL cluster, mới tách ở mức schema
-- service-to-service auth hiện dùng shared secret header cho internal finance context, chưa phải service identity độc lập
+- `students` và `lecturers` vẫn ở `core-api`
+- `academic-service` mới dùng snapshot one-time, chưa có sync runtime
+- `core-api` vẫn giữ analytics và finance-context
+- shared PostgreSQL cluster mới tách ở mức schema, chưa tách cluster
 
-Đây là trạng thái phù hợp cho một portfolio ở mức microservices thật nhưng vẫn giữ phạm vi triển khai có kiểm soát.
+Đây là trạng thái phù hợp cho một portfolio microservices thật, nhưng vẫn giữ scope triển khai có kiểm soát.
