@@ -1,5 +1,6 @@
 import { createWriteStream } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -8,15 +9,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const backendDir = path.join(repoRoot, 'backend');
+const notificationDir = path.join(repoRoot, 'notification-service');
+const financeDir = path.join(repoRoot, 'finance-service');
 const frontendDir = path.join(repoRoot, 'frontend');
 const logsDir = path.join(frontendDir, 'test-results', 'fast-e2e-stack');
 const playwrightCli = path.join(frontendDir, 'node_modules', 'playwright', 'cli.js');
-const prismaCli = path.join(
-  backendDir,
-  'node_modules',
-  '.bin',
-  process.platform === 'win32' ? 'prisma.cmd' : 'prisma',
-);
 
 const postgresContainer =
   process.env.E2E_POSTGRES_CONTAINER ?? 'campuscore-fast-e2e-postgres';
@@ -25,16 +22,30 @@ const postgresUser = process.env.E2E_POSTGRES_USER ?? 'campuscore';
 const postgresPassword =
   process.env.E2E_POSTGRES_PASSWORD ?? 'campuscore_password';
 const postgresDatabase = process.env.E2E_POSTGRES_DB ?? 'campuscore_e2e';
-const databaseUrl =
+const publicDatabaseUrl =
   process.env.E2E_DATABASE_URL ??
   `postgresql://${postgresUser}:${postgresPassword}@127.0.0.1:${postgresPort}/${postgresDatabase}?schema=public`;
+const notificationsDatabaseUrl = publicDatabaseUrl.replace(
+  'schema=public',
+  'schema=notifications'
+);
+const financeDatabaseUrl = publicDatabaseUrl.replace('schema=public', 'schema=finance');
+
 const frontendBaseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3100';
-const apiBaseURL = process.env.E2E_API_URL ?? 'http://127.0.0.1:4100/api/v1';
+const proxyPort = Number(process.env.E2E_GATEWAY_PORT ?? '4180');
+const apiBaseURL = process.env.E2E_API_URL ?? `http://127.0.0.1:${proxyPort}/api/v1`;
+const backendPort = Number(process.env.E2E_CORE_API_PORT ?? '4100');
+const notificationPort = Number(process.env.E2E_NOTIFICATION_PORT ?? '4101');
+const financePort = Number(process.env.E2E_FINANCE_PORT ?? '4102');
+const internalServiceToken =
+  process.env.INTERNAL_SERVICE_TOKEN ?? 'local-fast-e2e-internal-token-12345';
 const keepPostgres = process.env.E2E_KEEP_POSTGRES === '1';
 const managedProcesses = [];
 const frontendNodeOptions = [process.env.NODE_OPTIONS, '--max-old-space-size=4096']
   .filter(Boolean)
   .join(' ');
+let gatewayServer;
+let gatewayLogStream;
 
 async function main() {
   await rm(logsDir, { recursive: true, force: true });
@@ -46,10 +57,7 @@ async function main() {
     await waitForPostgres();
     await prepareDatabase();
     await startApplicationServers();
-    await waitForResponse(
-      `${apiBaseURL}/health/liveness`,
-      (_, response) => response.ok,
-    );
+    await waitForResponse(`${apiBaseURL}/health/liveness`, (_, response) => response.ok);
     await waitForResponse(frontendBaseURL, (_, response) => response.ok);
 
     await run(process.execPath, [playwrightCli, 'test'], {
@@ -59,10 +67,10 @@ async function main() {
         E2E_SKIP_WEBSERVER: '1',
         E2E_BASE_URL: frontendBaseURL,
         E2E_API_URL: apiBaseURL,
-        E2E_DATABASE_URL: databaseUrl,
+        E2E_DATABASE_URL: publicDatabaseUrl,
         E2E_REDIS_URL: 'disabled',
-        E2E_RABBITMQ_URL: 'disabled',
-      },
+        E2E_RABBITMQ_URL: 'disabled'
+      }
     });
   } catch (error) {
     await collectArtifacts();
@@ -76,13 +84,65 @@ async function main() {
   }
 }
 
+async function prepareDatabase() {
+  await run('npm', ['run', 'prisma:generate'], {
+    cwd: backendDir,
+    env: { ...process.env, DATABASE_URL: publicDatabaseUrl }
+  });
+  await run('npm', ['exec', '--', 'prisma', 'db', 'push', '--skip-generate'], {
+    cwd: backendDir,
+    env: { ...process.env, DATABASE_URL: publicDatabaseUrl }
+  });
+  await run('npm', ['run', 'prisma:generate'], {
+    cwd: notificationDir,
+    env: { ...process.env, DATABASE_URL: notificationsDatabaseUrl }
+  });
+  await run('npm', ['run', 'prisma:generate'], {
+    cwd: financeDir,
+    env: { ...process.env, DATABASE_URL: financeDatabaseUrl }
+  });
+  await run('npm', ['run', 'prisma:dbpush'], {
+    cwd: notificationDir,
+    env: { ...process.env, DATABASE_URL: notificationsDatabaseUrl }
+  });
+  await run('npm', ['run', 'prisma:dbpush'], {
+    cwd: financeDir,
+    env: { ...process.env, DATABASE_URL: financeDatabaseUrl }
+  });
+  await run('npm', ['run', 'prisma:seed'], {
+    cwd: backendDir,
+    env: { ...process.env, DATABASE_URL: publicDatabaseUrl }
+  });
+  await run('npm', ['run', 'data:migrate:legacy'], {
+    cwd: notificationDir,
+    env: {
+      ...process.env,
+      DATABASE_URL: notificationsDatabaseUrl,
+      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+      FRONTEND_URL: frontendBaseURL,
+      INTERNAL_SERVICE_TOKEN: internalServiceToken
+    }
+  });
+  await run('npm', ['run', 'data:migrate:legacy'], {
+    cwd: financeDir,
+    env: {
+      ...process.env,
+      DATABASE_URL: financeDatabaseUrl,
+      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+      FRONTEND_URL: frontendBaseURL,
+      CORE_API_INTERNAL_URL: `http://127.0.0.1:${backendPort}`,
+      INTERNAL_SERVICE_TOKEN: internalServiceToken
+    }
+  });
+}
+
 async function startApplicationServers() {
   await startManagedProcess('backend', 'npm', ['run', 'start'], {
     cwd: backendDir,
     env: {
       ...process.env,
-      DATABASE_URL: databaseUrl,
-      PORT: '4100',
+      DATABASE_URL: publicDatabaseUrl,
+      PORT: String(backendPort),
       FRONTEND_URL: frontendBaseURL,
       JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
       JWT_REFRESH_SECRET:
@@ -90,8 +150,41 @@ async function startApplicationServers() {
       NODE_ENV: 'test',
       REDIS_URL: 'disabled',
       RABBITMQ_URL: 'disabled',
-    },
+      INTERNAL_SERVICE_TOKEN: internalServiceToken
+    }
   });
+
+  await startManagedProcess('notification-service', 'npm', ['run', 'start'], {
+    cwd: notificationDir,
+    env: {
+      ...process.env,
+      DATABASE_URL: notificationsDatabaseUrl,
+      PORT: String(notificationPort),
+      FRONTEND_URL: frontendBaseURL,
+      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+      NODE_ENV: 'test',
+      RABBITMQ_URL: 'disabled',
+      COOKIE_SECURE: 'false'
+    }
+  });
+
+  await startManagedProcess('finance-service', 'npm', ['run', 'start'], {
+    cwd: financeDir,
+    env: {
+      ...process.env,
+      DATABASE_URL: financeDatabaseUrl,
+      PORT: String(financePort),
+      FRONTEND_URL: frontendBaseURL,
+      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+      NODE_ENV: 'test',
+      RABBITMQ_URL: 'disabled',
+      COOKIE_SECURE: 'false',
+      CORE_API_INTERNAL_URL: `http://127.0.0.1:${backendPort}`,
+      INTERNAL_SERVICE_TOKEN: internalServiceToken
+    }
+  });
+
+  await startApiGateway();
 
   await startManagedProcess(
     'frontend',
@@ -102,15 +195,83 @@ async function startApplicationServers() {
       env: {
         ...process.env,
         NEXT_PUBLIC_API_URL: apiBaseURL,
-        NODE_OPTIONS: frontendNodeOptions,
-      },
-    },
+        NODE_OPTIONS: frontendNodeOptions
+      }
+    }
   );
+}
+
+async function startApiGateway() {
+  gatewayLogStream = createWriteStream(path.join(logsDir, 'gateway.log'), {
+    flags: 'a'
+  });
+
+  gatewayServer = createServer(async (req, res) => {
+    try {
+      const url = req.url ?? '/';
+      const targetBase = resolveProxyTarget(url);
+      const targetUrl = `${targetBase}${url}`;
+      const method = req.method ?? 'GET';
+      const headers = { ...req.headers };
+      delete headers.host;
+      delete headers.connection;
+
+      const response = await fetch(targetUrl, {
+        method,
+        headers,
+        body: ['GET', 'HEAD'].includes(method.toUpperCase()) ? undefined : req,
+        duplex: ['GET', 'HEAD'].includes(method.toUpperCase()) ? undefined : 'half'
+      });
+
+      const outgoingHeaders = Object.fromEntries(response.headers.entries());
+      delete outgoingHeaders['transfer-encoding'];
+      delete outgoingHeaders['content-encoding'];
+
+      for (const [name, value] of Object.entries(outgoingHeaders)) {
+        res.setHeader(name, value);
+      }
+
+      const setCookies = response.headers.getSetCookie?.() ?? [];
+      if (setCookies.length > 0) {
+        res.setHeader('set-cookie', setCookies);
+      }
+
+      res.statusCode = response.status;
+      const buffer = Buffer.from(await response.arrayBuffer());
+      res.end(buffer);
+    } catch (error) {
+      gatewayLogStream.write(
+        `[gateway] ${req.method ?? 'GET'} ${req.url ?? '/'} -> ${
+          error instanceof Error ? error.stack ?? error.message : String(error)
+        }\n`
+      );
+      res.statusCode = 502;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ message: 'Gateway error' }));
+    }
+  });
+
+  await new Promise((resolve, reject) => {
+    gatewayServer.once('error', reject);
+    gatewayServer.listen(proxyPort, '127.0.0.1', resolve);
+  });
+}
+
+function resolveProxyTarget(url) {
+  if (url.startsWith('/api/v1/finance')) {
+    return `http://127.0.0.1:${financePort}`;
+  }
+
+  if (url.startsWith('/api/v1/notifications') || url.startsWith('/socket.io/')) {
+    return `http://127.0.0.1:${notificationPort}`;
+  }
+
+  return `http://127.0.0.1:${backendPort}`;
 }
 
 async function startManagedProcess(name, command, args, options) {
   const logStream = createWriteStream(path.join(logsDir, `${name}.log`), {
-    flags: 'a',
+    flags: 'a'
   });
   const resolvedCommand = resolveCommand(command);
   const spawnCommand =
@@ -126,14 +287,14 @@ async function startManagedProcess(name, command, args, options) {
     cwd: options.cwd,
     env: options.env,
     stdio: ['ignore', 'pipe', 'pipe'],
-    shell: false,
+    shell: false
   });
 
   child.stdout.pipe(logStream, { end: false });
   child.stderr.pipe(logStream, { end: false });
   child.once('exit', (code, signal) => {
     logStream.write(
-      `\n[${name}] exited with code ${code ?? 'null'} signal ${signal ?? 'null'}\n`,
+      `\n[${name}] exited with code ${code ?? 'null'} signal ${signal ?? 'null'}\n`
     );
   });
 
@@ -146,6 +307,16 @@ async function startManagedProcess(name, command, args, options) {
 }
 
 async function stopApplicationServers() {
+  if (gatewayServer) {
+    await new Promise((resolve) => gatewayServer.close(resolve));
+    gatewayServer = undefined;
+  }
+
+  if (gatewayLogStream) {
+    await new Promise((resolve) => gatewayLogStream.end(resolve));
+    gatewayLogStream = undefined;
+  }
+
   for (const processInfo of managedProcesses.reverse()) {
     const { child, logStream } = processInfo;
 
@@ -153,7 +324,7 @@ async function stopApplicationServers() {
       if (process.platform === 'win32') {
         await run('taskkill', ['/pid', String(child.pid), '/t', '/f'], {
           allowFailure: true,
-          captureOutput: true,
+          captureOutput: true
         });
       } else {
         child.kill('SIGTERM');
@@ -208,7 +379,7 @@ async function startPostgres() {
     `POSTGRES_DB=${postgresDatabase}`,
     '-p',
     `${postgresPort}:5432`,
-    'postgres:15-alpine',
+    'postgres:15-alpine'
   ]);
 }
 
@@ -225,7 +396,7 @@ async function waitForPostgres(timeoutMs = 180_000, intervalMs = 2_000) {
   }
 
   throw new Error(
-    `Timed out waiting for postgres container ${postgresContainer} to become healthy`,
+    `Timed out waiting for postgres container ${postgresContainer} to become healthy`
   );
 }
 
@@ -236,45 +407,28 @@ async function inspectPostgresHealth() {
       'inspect',
       '-f',
       '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}',
-      postgresContainer,
+      postgresContainer
     ],
     {
       allowFailure: true,
-      captureOutput: true,
-    },
+      captureOutput: true
+    }
   );
 
   return output?.trim() ?? 'unknown';
 }
 
-async function prepareDatabase() {
-  const env = {
-    ...process.env,
-    DATABASE_URL: databaseUrl,
-  };
-
-  await run(prismaCli, ['db', 'push', '--skip-generate'], {
-    cwd: backendDir,
-    env,
-  });
-
-  await run('npm', ['run', 'prisma:seed'], {
-    cwd: backendDir,
-    env,
-  });
-}
-
 async function cleanupPostgres() {
   await run('docker', ['rm', '-f', postgresContainer], {
     allowFailure: true,
-    captureOutput: true,
+    captureOutput: true
   });
 }
 
 async function waitForResponse(
   url,
   predicate,
-  options = { timeoutMs: 120_000, intervalMs: 1_000 },
+  options = { timeoutMs: 120_000, intervalMs: 1_000 }
 ) {
   const timeoutMs = options.timeoutMs ?? 120_000;
   const intervalMs = options.intervalMs ?? 1_000;
@@ -290,7 +444,7 @@ async function waitForResponse(
       }
 
       lastError = new Error(
-        `Received unexpected response from ${url}: ${response.status}`,
+        `Received unexpected response from ${url}: ${response.status}`
       );
     } catch (error) {
       lastError = error;
@@ -305,7 +459,7 @@ async function waitForResponse(
 async function collectArtifacts() {
   const postgresLog = await run('docker', ['logs', postgresContainer], {
     allowFailure: true,
-    captureOutput: true,
+    captureOutput: true
   });
 
   await writeFile(path.join(logsDir, 'postgres.log'), postgresLog ?? '', 'utf8');
@@ -316,7 +470,7 @@ function run(command, args, options = {}) {
     cwd = repoRoot,
     env = process.env,
     allowFailure = false,
-    captureOutput = false,
+    captureOutput = false
   } = options;
 
   return new Promise((resolve, reject) => {
@@ -334,7 +488,7 @@ function run(command, args, options = {}) {
       cwd,
       env,
       stdio: captureOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit',
-      shell: false,
+      shell: false
     });
 
     let stdout = '';
@@ -364,44 +518,32 @@ function run(command, args, options = {}) {
   });
 }
 
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 function resolveCommand(command) {
-  if (process.platform !== 'win32') {
-    return command;
-  }
-
-  if (command === 'npm') {
+  if (process.platform === 'win32' && command === 'npm') {
     return 'npm.cmd';
-  }
-
-  if (command === 'npx') {
-    return 'npx.cmd';
   }
 
   return command;
 }
 
 function shouldUseCmdWrapper(command) {
-  return command.toLowerCase().endsWith('.cmd');
+  return /\.cmd$/iu.test(command) || /\.bat$/iu.test(command);
 }
 
 function buildWindowsCommand(command, args) {
-  return [command, ...args].map(quoteWindowsArg).join(' ');
+  return [command, ...args].map((part) => quoteWindowsArg(part)).join(' ');
 }
 
 function quoteWindowsArg(value) {
-  if (value.length === 0) {
-    return '""';
-  }
-
   if (!/[\s"]/u.test(value)) {
     return value;
   }
 
-  return `"${value.replace(/"/g, '""')}"`;
+  return `"${value.replace(/"/gu, '\\"')}"`;
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 await main();

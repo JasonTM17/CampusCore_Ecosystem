@@ -96,6 +96,7 @@ services:
       JWT_REFRESH_EXPIRATION: 7d
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
       HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-local-dev-readiness-key-12345}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-dev-internal-service-token-12345}
       REDIS_URL: redis://redis:6379
       RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
       MINIO_ENDPOINT: minio
@@ -154,6 +155,32 @@ services:
         condition: service_completed_successfully
     restart: "no"
 
+  finance-service-init:
+    build:
+      context: .
+      dockerfile: finance-service/Dockerfile
+      target: build
+    working_dir: /app
+    command: sh -lc "npx prisma db push --skip-generate && npm run data:migrate:legacy"
+    environment:
+      DATABASE_URL: postgresql://campuscore:${POSTGRES_PASSWORD:-campuscore_password}@postgres:5432/campuscore?schema=finance
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-dev-internal-service-token-12345}
+      CORE_API_INTERNAL_URL: http://core-api:4000
+      JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-rotate-before-shared-use}
+      FRONTEND_URL: http://localhost
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-local-dev-readiness-key-12345}
+      RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      core-api-init:
+        condition: service_completed_successfully
+      core-api:
+        condition: service_healthy
+    restart: "no"
+
   notification-service:
     build:
       context: .
@@ -186,6 +213,44 @@ services:
       retries: 3
       start_period: 40s
 
+  finance-service:
+    build:
+      context: .
+      dockerfile: finance-service/Dockerfile
+    image: campuscore-finance-service:local
+    container_name: campuscore-finance-service
+    environment:
+      DATABASE_URL: postgresql://campuscore:${POSTGRES_PASSWORD:-campuscore_password}@postgres:5432/campuscore?schema=finance
+      JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-rotate-before-shared-use}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-local-dev-readiness-key-12345}
+      RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
+      FRONTEND_URL: http://localhost
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-dev-internal-service-token-12345}
+      CORE_API_INTERNAL_URL: http://core-api:4000
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      PORT: 4002
+      NODE_ENV: production
+    ports:
+      - "127.0.0.1:4002:4002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      finance-service-init:
+        condition: service_completed_successfully
+      core-api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --header=\"X-Health-Key: ${HEALTH_READINESS_KEY:-local-dev-readiness-key-12345}\" -O- http://localhost:4002/api/v1/health/readiness >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   frontend:
     build:
       context: .
@@ -198,6 +263,8 @@ services:
       core-api:
         condition: service_healthy
       notification-service:
+        condition: service_healthy
+      finance-service:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -219,6 +286,8 @@ services:
       core-api:
         condition: service_healthy
       notification-service:
+        condition: service_healthy
+      finance-service:
         condition: service_healthy
       frontend:
         condition: service_healthy

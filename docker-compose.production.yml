@@ -1,6 +1,7 @@
 # Production deployment using semver-tagged release images
 # Bootstrap once: docker compose -f docker-compose.production.yml --profile bootstrap run --rm core-api-init
 # Bootstrap once: docker compose -f docker-compose.production.yml --profile bootstrap run --rm notification-service-init
+# Bootstrap once: docker compose -f docker-compose.production.yml --profile bootstrap run --rm finance-service-init
 # Runtime stack: IMAGE_TAG=v1.0.0 docker compose -f docker-compose.production.yml up -d
 
 services:
@@ -89,6 +90,7 @@ services:
       JWT_REFRESH_EXPIRATION: 7d
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
       HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:?set HEALTH_READINESS_KEY}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set INTERNAL_SERVICE_TOKEN}
       REDIS_URL: redis://redis:6379
       RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD}@rabbitmq:5672
       MINIO_ENDPOINT: minio
@@ -131,6 +133,31 @@ services:
         condition: service_healthy
     restart: "no"
 
+  finance-service-init:
+    profiles: ["bootstrap"]
+    image: ${DOCKERHUB_NAMESPACE:-your-dockerhub-namespace}/campuscore-finance-service:${IMAGE_TAG:?set IMAGE_TAG to a semver release tag such as v1.0.0}
+    container_name: campuscore-finance-service-init
+    command:
+      - sh
+      - -lc
+      - npx prisma@5.8.1 db push --schema prisma/schema.prisma --skip-generate && npx tsx@4.21.0 prisma/migrate-legacy-finance.ts
+    environment:
+      DATABASE_URL: postgresql://campuscore:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/campuscore?schema=finance
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:?set HEALTH_READINESS_KEY}
+      RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD}@rabbitmq:5672
+      CORE_API_INTERNAL_URL: http://core-api:4000
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set INTERNAL_SERVICE_TOKEN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      core-api:
+        condition: service_healthy
+    restart: "no"
+
   notification-service:
     image: ${DOCKERHUB_NAMESPACE:-your-dockerhub-namespace}/campuscore-notification-service:${IMAGE_TAG:?set IMAGE_TAG to a semver release tag such as v1.0.0}
     container_name: campuscore-notification-service
@@ -156,6 +183,42 @@ services:
       retries: 3
       start_period: 40s
 
+  finance-service:
+    image: ${DOCKERHUB_NAMESPACE:-your-dockerhub-namespace}/campuscore-finance-service:${IMAGE_TAG:?set IMAGE_TAG to a semver release tag such as v1.0.0}
+    container_name: campuscore-finance-service
+    environment:
+      DATABASE_URL: postgresql://campuscore:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/campuscore?schema=finance
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:?set HEALTH_READINESS_KEY}
+      RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD}@rabbitmq:5672
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      CORE_API_INTERNAL_URL: http://core-api:4000
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set INTERNAL_SERVICE_TOKEN}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@campuscore.edu}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-CampusCore Administration}
+      PORT: 4002
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      core-api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --header=\"X-Health-Key: ${HEALTH_READINESS_KEY:?set HEALTH_READINESS_KEY}\" -O- http://localhost:4002/api/v1/health/readiness >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   frontend:
     image: ${DOCKERHUB_NAMESPACE:-your-dockerhub-namespace}/campuscore-frontend:${IMAGE_TAG:?set IMAGE_TAG to a semver release tag such as v1.0.0}
     container_name: campuscore-web
@@ -165,6 +228,8 @@ services:
       core-api:
         condition: service_healthy
       notification-service:
+        condition: service_healthy
+      finance-service:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
@@ -185,6 +250,8 @@ services:
       core-api:
         condition: service_healthy
       notification-service:
+        condition: service_healthy
+      finance-service:
         condition: service_healthy
       frontend:
         condition: service_healthy
