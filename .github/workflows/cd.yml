@@ -8,6 +8,7 @@ on:
 env:
   BACKEND_IMAGE: campuscore-backend
   NOTIFICATION_IMAGE: campuscore-notification-service
+  FINANCE_IMAGE: campuscore-finance-service
   FRONTEND_IMAGE: campuscore-frontend
 
 permissions:
@@ -275,6 +276,39 @@ jobs:
           provenance: true
           sbom: true
 
+      - name: Docker metadata (finance service)
+        id: meta-finance
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FINANCE_IMAGE }}
+          tags: |
+            type=raw,value=${{ needs.release-plan.outputs.image_tag }}
+            type=raw,value=${{ needs.release-plan.outputs.short_sha }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=CampusCore Finance Service
+            org.opencontainers.image.description=CampusCore finance service for invoices, payments, scholarships, and billing events.
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
+            org.opencontainers.image.version=${{ needs.release-plan.outputs.image_tag }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.vendor=CampusCore
+
+      - name: Build and push finance service
+        id: build-finance
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./finance-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta-finance.outputs.tags }}
+          labels: ${{ steps.meta-finance.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          provenance: true
+          sbom: true
+
       - name: Summary
         run: |
           {
@@ -290,6 +324,10 @@ jobs:
             echo "- Notification SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
             echo "- Notification latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}:latest"
             echo "- Notification digest: ${{ steps.build-notification.outputs.digest }}"
+            echo "- Finance tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FINANCE_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Finance SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FINANCE_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Finance latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FINANCE_IMAGE }}:latest"
+            echo "- Finance digest: ${{ steps.build-finance.outputs.digest }}"
             echo "- Frontend tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
             echo "- Frontend SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
             echo "- Frontend latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:latest"
@@ -416,6 +454,39 @@ jobs:
           provenance: true
           sbom: true
 
+      - name: Docker metadata (finance service)
+        id: ghcr-meta-finance
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FINANCE_IMAGE }}
+          tags: |
+            type=raw,value=${{ needs.release-plan.outputs.image_tag }}
+            type=raw,value=${{ needs.release-plan.outputs.short_sha }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=CampusCore Finance Service
+            org.opencontainers.image.description=CampusCore finance service for invoices, payments, scholarships, and billing events.
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
+            org.opencontainers.image.version=${{ needs.release-plan.outputs.image_tag }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.vendor=CampusCore
+
+      - name: Build and push finance service
+        id: ghcr-build-finance
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./finance-service/Dockerfile
+          push: true
+          tags: ${{ steps.ghcr-meta-finance.outputs.tags }}
+          labels: ${{ steps.ghcr-meta-finance.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          provenance: true
+          sbom: true
+
       - name: Summary
         run: |
           {
@@ -431,6 +502,10 @@ jobs:
             echo "- Notification SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
             echo "- Notification latest tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}:latest"
             echo "- Notification digest: ${{ steps.ghcr-build-notification.outputs.digest }}"
+            echo "- Finance tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FINANCE_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Finance SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FINANCE_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Finance latest tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FINANCE_IMAGE }}:latest"
+            echo "- Finance digest: ${{ steps.ghcr-build-finance.outputs.digest }}"
             echo "- Frontend tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
             echo "- Frontend SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
             echo "- Frontend latest tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:latest"
@@ -488,6 +563,7 @@ jobs:
           images=(
             "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}"
             "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}"
+            "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FINANCE_IMAGE }}"
             "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}"
           )
           tags=(
@@ -509,6 +585,7 @@ jobs:
           images=(
             "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}"
             "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}"
+            "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FINANCE_IMAGE }}"
             "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}"
           )
           tags=(
@@ -527,6 +604,7 @@ jobs:
           E2E_USE_PREBUILT_IMAGES: '1'
           E2E_CORE_API_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
           E2E_NOTIFICATION_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
+          E2E_FINANCE_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FINANCE_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
           E2E_FRONTEND_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
         run: node scripts/run-image-smoke.mjs
 
@@ -536,6 +614,7 @@ jobs:
           E2E_USE_PREBUILT_IMAGES: '1'
           E2E_CORE_API_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
           E2E_NOTIFICATION_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
+          E2E_FINANCE_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FINANCE_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
           E2E_FRONTEND_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
         run: npm run test:e2e:edge
 

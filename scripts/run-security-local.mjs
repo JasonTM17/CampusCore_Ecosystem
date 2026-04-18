@@ -31,7 +31,7 @@ async function main() {
   console.log('[security-local] Bắt đầu quét bảo mật cục bộ cho CampusCore');
   console.log(`[security-local] Thư mục kết quả: ${resultsDir}`);
   console.log(
-    '[security-local] Trình tự: backend npm audit -> notification-service npm audit -> frontend npm audit -> gitleaks -> trivy fs',
+    '[security-local] Trình tự: backend npm audit -> notification-service npm audit -> finance-service npm audit -> frontend npm audit -> gitleaks -> trivy fs',
   );
 
   await runStep('backend-npm-audit', async () => {
@@ -45,6 +45,13 @@ async function main() {
     await runNpmAudit(
       path.join(repoRoot, 'notification-service'),
       path.join(resultsDir, 'notification-service-npm-audit.json'),
+    );
+  });
+
+  await runStep('finance-service-npm-audit', async () => {
+    await runNpmAudit(
+      path.join(repoRoot, 'finance-service'),
+      path.join(resultsDir, 'finance-service-npm-audit.json'),
     );
   });
 
@@ -113,6 +120,19 @@ async function main() {
     });
   });
 
+  await runStep('trivy-finance-service-fs', async () => {
+    await runTrivyFs({
+      targetPath: '/repo/finance-service',
+      outputPath:
+        '/repo/frontend/test-results/security-local/trivy-finance-service-fs.sarif',
+      skipDirs: [
+        '/repo/finance-service/node_modules',
+        '/repo/finance-service/dist',
+        '/repo/finance-service/coverage',
+      ],
+    });
+  });
+
   if (includeConfigScan) {
     console.log(
       '[security-local] Đã bật thêm Trivy config cho phạm vi hạ tầng',
@@ -143,6 +163,7 @@ async function main() {
           '/repo/docker-compose.e2e.yml',
           '/repo/backend/Dockerfile',
           '/repo/notification-service/Dockerfile',
+          '/repo/finance-service/Dockerfile',
           '/repo/frontend/Dockerfile',
         ],
         { timeoutMs: trivyTimeoutMs },

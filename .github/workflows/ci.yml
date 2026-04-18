@@ -129,6 +129,7 @@ jobs:
           JWT_REFRESH_SECRET: ci-refresh-secret
           HEALTH_READINESS_KEY: ci-health-readiness-key
           COOKIE_SECURE: 'false'
+          INTERNAL_SERVICE_TOKEN: ci-internal-service-token
         run: npx prisma db push --skip-generate
 
       - name: Seed database
@@ -143,6 +144,7 @@ jobs:
           JWT_REFRESH_SECRET: ci-refresh-secret
           HEALTH_READINESS_KEY: ci-health-readiness-key
           COOKIE_SECURE: 'false'
+          INTERNAL_SERVICE_TOKEN: ci-internal-service-token
         run: npm run prisma:seed
 
       - name: Integration tests
@@ -157,6 +159,7 @@ jobs:
           JWT_REFRESH_SECRET: ci-refresh-secret
           HEALTH_READINESS_KEY: ci-health-readiness-key
           COOKIE_SECURE: 'false'
+          INTERNAL_SERVICE_TOKEN: ci-internal-service-token
         run: npm run test:integration -- --runInBand
 
       - name: Upload core integration logs
@@ -291,6 +294,131 @@ jobs:
             notification-service/coverage
             notification-service/test-results
 
+  finance-quality:
+    name: finance-quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: finance-service/package-lock.json
+
+      - name: Install dependencies
+        working-directory: finance-service
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: finance-service
+        run: npm run prisma:generate
+
+      - name: Lint
+        working-directory: finance-service
+        run: npm run lint
+
+      - name: Check formatting
+        working-directory: finance-service
+        run: npm run lint:format
+
+      - name: Typecheck
+        working-directory: finance-service
+        run: npm run typecheck
+
+      - name: Build
+        working-directory: finance-service
+        run: npm run build
+
+      - name: Unit tests
+        working-directory: finance-service
+        run: npm run test:unit -- --runInBand
+
+  finance-integration:
+    name: finance-integration
+    runs-on: ubuntu-latest
+    needs: finance-quality
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: campuscore
+          POSTGRES_USER: campuscore
+          POSTGRES_PASSWORD: ci-postgres-password
+        options: >-
+          --health-cmd "pg_isready -U campuscore -d campuscore"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: campuscore
+          RABBITMQ_DEFAULT_PASS: ci-rabbitmq-password
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: finance-service/package-lock.json
+
+      - name: Install dependencies
+        working-directory: finance-service
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: finance-service
+        run: npm run prisma:generate
+
+      - name: Push Prisma schema
+        working-directory: finance-service
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=finance
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+          INTERNAL_SERVICE_TOKEN: ci-internal-service-token
+        run: npx prisma db push --skip-generate
+
+      - name: Integration tests
+        working-directory: finance-service
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=finance
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+          INTERNAL_SERVICE_TOKEN: ci-internal-service-token
+        run: npm run test:integration -- --runInBand
+
+      - name: Upload finance integration logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: finance-integration-logs
+          path: |
+            finance-service/coverage
+            finance-service/test-results
+
   frontend-quality:
     name: frontend-quality
     runs-on: ubuntu-latest
@@ -329,7 +457,13 @@ jobs:
   frontend-fast-e2e:
     name: frontend-fast-e2e
     runs-on: ubuntu-latest
-    needs: [core-quality, frontend-quality]
+    needs:
+      [
+        core-quality,
+        notification-quality,
+        finance-quality,
+        frontend-quality,
+      ]
 
     steps:
       - name: Checkout code
@@ -342,10 +476,20 @@ jobs:
           cache: npm
           cache-dependency-path: |
             backend/package-lock.json
+            notification-service/package-lock.json
+            finance-service/package-lock.json
             frontend/package-lock.json
 
       - name: Install backend dependencies
         working-directory: backend
+        run: npm ci
+
+      - name: Install notification service dependencies
+        working-directory: notification-service
+        run: npm ci
+
+      - name: Install finance service dependencies
+        working-directory: finance-service
         run: npm ci
 
       - name: Install frontend dependencies
@@ -377,6 +521,7 @@ jobs:
       JWT_SECRET: ci-jwt-secret
       JWT_REFRESH_SECRET: ci-refresh-secret
       HEALTH_READINESS_KEY: ci-health-readiness-key
+      INTERNAL_SERVICE_TOKEN: ci-internal-service-token
       RABBITMQ_USER: campuscore
       RABBITMQ_PASSWORD: ci-rabbitmq-password
       MINIO_USER: campuscore
@@ -410,6 +555,8 @@ jobs:
         core-integration,
         notification-quality,
         notification-integration,
+        finance-quality,
+        finance-integration,
         frontend-quality,
         frontend-fast-e2e,
         compose-contract,
@@ -443,6 +590,8 @@ jobs:
         core-integration,
         notification-quality,
         notification-integration,
+        finance-quality,
+        finance-integration,
         frontend-quality,
         frontend-fast-e2e,
         compose-contract,
@@ -521,6 +670,7 @@ jobs:
           cache-dependency-path: |
             backend/package-lock.json
             notification-service/package-lock.json
+            finance-service/package-lock.json
             frontend/package-lock.json
 
       - name: Prepare scan directory
@@ -549,6 +699,10 @@ jobs:
         working-directory: notification-service
         run: npm ci
 
+      - name: Install finance service dependencies
+        working-directory: finance-service
+        run: npm ci
+
       - name: Backend npm audit
         id: backend-npm-audit
         continue-on-error: true
@@ -566,6 +720,12 @@ jobs:
         continue-on-error: true
         working-directory: notification-service
         run: npm audit --audit-level=high --json > ../security-results/notification-npm-audit.json 2> ../security-results/notification-npm-audit.stderr.log
+
+      - name: Finance service npm audit
+        id: finance-npm-audit
+        continue-on-error: true
+        working-directory: finance-service
+        run: npm audit --audit-level=high --json > ../security-results/finance-npm-audit.json 2> ../security-results/finance-npm-audit.stderr.log
 
       - name: Filesystem scan
         id: trivy-fs
@@ -587,6 +747,9 @@ jobs:
 
       - name: Build notification service image for scan
         run: docker build -f notification-service/Dockerfile -t campuscore-notification-service:security .
+
+      - name: Build finance service image for scan
+        run: docker build -f finance-service/Dockerfile -t campuscore-finance-service:security .
 
       - name: Backend image scan
         id: trivy-backend-image
@@ -621,6 +784,18 @@ jobs:
           image-ref: campuscore-notification-service:security
           format: sarif
           output: security-results/trivy-notification-image.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+
+      - name: Finance service image scan
+        id: trivy-finance-image
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: campuscore-finance-service:security
+          format: sarif
+          output: security-results/trivy-finance-image.sarif
           severity: HIGH,CRITICAL
           exit-code: '1'
 
@@ -659,6 +834,13 @@ jobs:
           sarif_file: security-results/trivy-notification-image.sarif
           category: trivy-notification-image
 
+      - name: Upload finance image SARIF
+        if: always() && hashFiles('security-results/trivy-finance-image.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-results/trivy-finance-image.sarif
+          category: trivy-finance-image
+
       - name: Upload scan reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -673,10 +855,12 @@ jobs:
              [ "${{ steps.backend-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.frontend-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.notification-npm-audit.outcome }}" != "success" ] || \
+             [ "${{ steps.finance-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-fs.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-backend-image.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-frontend-image.outcome }}" != "success" ] || \
-             [ "${{ steps.trivy-notification-image.outcome }}" != "success" ]; then
+             [ "${{ steps.trivy-notification-image.outcome }}" != "success" ] || \
+             [ "${{ steps.trivy-finance-image.outcome }}" != "success" ]; then
             echo "Security scan failed. Review npm audit, gitleaks, and Trivy reports."
             exit 1
           fi
@@ -703,6 +887,8 @@ jobs:
       - core-integration
       - notification-quality
       - notification-integration
+      - finance-quality
+      - finance-integration
       - frontend-quality
       - frontend-fast-e2e
       - compose-contract
@@ -741,6 +927,8 @@ jobs:
           check_required core-integration "${{ needs.core-integration.result }}"
           check_required notification-quality "${{ needs.notification-quality.result }}"
           check_required notification-integration "${{ needs.notification-integration.result }}"
+          check_required finance-quality "${{ needs.finance-quality.result }}"
+          check_required finance-integration "${{ needs.finance-integration.result }}"
           check_required frontend-quality "${{ needs.frontend-quality.result }}"
           check_required frontend-fast-e2e "${{ needs.frontend-fast-e2e.result }}"
           check_required compose-contract "${{ needs.compose-contract.result }}"
@@ -762,6 +950,8 @@ jobs:
             echo "- core-integration: ${{ needs.core-integration.result }}"
             echo "- notification-quality: ${{ needs.notification-quality.result }}"
             echo "- notification-integration: ${{ needs.notification-integration.result }}"
+            echo "- finance-quality: ${{ needs.finance-quality.result }}"
+            echo "- finance-integration: ${{ needs.finance-integration.result }}"
             echo "- frontend-quality: ${{ needs.frontend-quality.result }}"
             echo "- frontend-fast-e2e: ${{ needs.frontend-fast-e2e.result }}"
             echo "- compose-contract: ${{ needs.compose-contract.result }}"
