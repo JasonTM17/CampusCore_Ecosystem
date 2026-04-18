@@ -4,6 +4,9 @@ export const NOTIFICATION_EVENT_TYPES = {
   ANNOUNCEMENT_CREATED: 'announcement.created',
   NOTIFICATION_USER_CREATED: 'notification.user.created',
   NOTIFICATION_ROLE_CREATED: 'notification.role.created',
+  INVOICE_CREATED: 'invoice.created',
+  INVOICE_STATUS_CHANGED: 'invoice.status.changed',
+  PAYMENT_COMPLETED: 'payment.completed',
 } as const;
 
 export type NotificationEventType =

@@ -20,7 +20,7 @@ import { CurriculaModule } from './modules/curricula/curricula.module';
 import { SectionsModule } from './modules/sections/sections.module';
 import { EnrollmentsModule } from './modules/enrollments/enrollments.module';
 import { WaitlistModule } from './modules/waitlist/waitlist.module';
-import { FinanceModule } from './modules/finance/finance.module';
+import { FinanceContextModule } from './modules/finance-context/finance-context.module';
 import { GradesModule } from './modules/grades/grades.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AnnouncementsModule } from './modules/announcements/announcements.module';
@@ -77,7 +77,7 @@ import { validateEnvironment } from './config/env.validation';
     SectionsModule,
     EnrollmentsModule,
     WaitlistModule,
-    FinanceModule,
+    FinanceContextModule,
     GradesModule,
     AttendanceModule,
     AnnouncementsModule,

@@ -49,6 +49,7 @@ const environmentSchema = z.object({
   [ENV.SWAGGER_ENABLED]: z.coerce.boolean().optional(),
   [ENV.COOKIE_SECURE]: booleanLike.optional(),
   [ENV.HEALTH_READINESS_KEY]: z.string().min(16).optional(),
+  [ENV.INTERNAL_SERVICE_TOKEN]: z.string().min(16).optional(),
   [ENV.JWT_SECRET]: z.string().min(1),
   [ENV.JWT_REFRESH_SECRET]: z.string().min(1),
   [ENV.JWT_EXPIRES_IN]: durationString.default(ENV_DEFAULTS.JWT_EXPIRES_IN),
@@ -140,6 +141,9 @@ export function validateEnvironment(env: Record<string, unknown>) {
   return {
     ...parsed.data,
     [ENV.FRONTEND_URL]: frontendUrl ?? ENV_DEFAULTS.FRONTEND_URL,
+    [ENV.INTERNAL_SERVICE_TOKEN]:
+      parsed.data[ENV.INTERNAL_SERVICE_TOKEN] ??
+      ENV_DEFAULTS.INTERNAL_SERVICE_TOKEN,
     [ENV.SWAGGER_ENABLED]:
       parsed.data[ENV.SWAGGER_ENABLED] ?? ENV_DEFAULTS.SWAGGER_ENABLED,
   };

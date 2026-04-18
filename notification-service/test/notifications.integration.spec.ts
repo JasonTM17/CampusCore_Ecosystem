@@ -288,7 +288,7 @@ describe('Notification service integration', () => {
     }
   });
 
-  it('consumes RabbitMQ events for announcements and user notifications', async () => {
+  it('consumes RabbitMQ events for announcements, user notifications, and finance events', async () => {
     const auth = await issueAuth(studentUser);
     const socket = await connectNotificationsSocket({
       token: auth.token,
@@ -353,6 +353,42 @@ describe('Notification service integration', () => {
         where: { id: 'event-notification-1' },
       });
       expect(saved?.userId).toBe(studentUser.id);
+
+      const financeNotificationPromise = waitForSocketEvent(
+        socket,
+        'notification',
+      );
+      rabbitChannel.sendToQueue(
+        NOTIFICATION_EVENTS_QUEUE,
+        Buffer.from(
+          JSON.stringify({
+            type: NOTIFICATION_EVENT_TYPES.INVOICE_CREATED,
+            source: 'campuscore-finance-service',
+            occurredAt: new Date().toISOString(),
+            payload: {
+              userId: studentUser.id,
+              notification: {
+                id: 'invoice-notification-1',
+                title: 'Invoice created',
+                message: 'A new invoice is available.',
+                type: 'INFO',
+                link: '/dashboard/invoices',
+              },
+              invoice: {
+                id: 'invoice-1',
+                invoiceNumber: 'INV-2026-00001',
+              },
+            },
+          }),
+        ),
+        { persistent: true },
+      );
+
+      await expect(financeNotificationPromise).resolves.toMatchObject({
+        id: 'invoice-notification-1',
+        userId: studentUser.id,
+        title: 'Invoice created',
+      });
     } finally {
       socket.disconnect();
     }
