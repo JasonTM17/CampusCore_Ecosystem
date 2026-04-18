@@ -23,8 +23,13 @@ const coreApiImage =
 const notificationServiceImage =
   process.env.E2E_NOTIFICATION_SERVICE_IMAGE ??
   'campuscore-notification-service:e2e-local';
+const financeServiceImage =
+  process.env.E2E_FINANCE_SERVICE_IMAGE ??
+  'campuscore-finance-service:e2e-local';
 const frontendImage =
   process.env.E2E_FRONTEND_IMAGE ?? 'campuscore-frontend:e2e-local';
+const internalServiceToken =
+  process.env.INTERNAL_SERVICE_TOKEN ?? 'edge-e2e-internal-service-token-12345';
 
 const composeBaseArgs = ['compose', '-p', projectName, '-f', composeFile];
 const servicesForLogs = [
@@ -32,6 +37,8 @@ const servicesForLogs = [
   'core-api',
   'notification-service-init',
   'notification-service',
+  'finance-service-init',
+  'finance-service',
   'frontend',
   'nginx',
   'postgres',
@@ -48,10 +55,17 @@ async function main() {
   try {
     await compose(['down', '-v', '--remove-orphans'], { allowFailure: true });
     if (usePrebuiltImages) {
-      await compose(['pull', 'core-api', 'notification-service', 'frontend']);
+      await compose([
+        'pull',
+        'core-api',
+        'notification-service',
+        'finance-service',
+        'frontend',
+      ]);
       await compose(['up', '-d']);
     } else {
-      await compose(['up', '-d', '--build']);
+      await buildStackSequentially();
+      await compose(['up', '-d']);
     }
 
     await waitForResponse(`${baseURL}/health`, (payload) => {
@@ -80,6 +94,7 @@ async function main() {
             'notification-service',
             4001,
           ),
+          financeService: await getInternalReadiness('finance-service', 4002),
         },
         null,
         2,
@@ -93,6 +108,7 @@ async function main() {
           usePrebuiltImages,
           coreApiImage,
           notificationServiceImage,
+          financeServiceImage,
           frontendImage,
         },
         null,
@@ -188,10 +204,28 @@ async function compose(args, options = {}) {
       HEALTH_READINESS_KEY: readinessKey,
       E2E_CORE_API_IMAGE: coreApiImage,
       E2E_NOTIFICATION_SERVICE_IMAGE: notificationServiceImage,
+      E2E_FINANCE_SERVICE_IMAGE: financeServiceImage,
       E2E_FRONTEND_IMAGE: frontendImage,
+      INTERNAL_SERVICE_TOKEN: internalServiceToken,
     },
     ...options,
   });
+}
+
+async function buildStackSequentially() {
+  const buildOrder = [
+    'core-api-init',
+    'notification-service-init',
+    'finance-service-init',
+    'core-api',
+    'notification-service',
+    'finance-service',
+    'frontend',
+  ];
+
+  for (const service of buildOrder) {
+    await compose(['build', service]);
+  }
 }
 
 async function getInternalReadiness(serviceName, port) {

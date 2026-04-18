@@ -97,6 +97,32 @@ services:
         condition: service_healthy
     restart: "no"
 
+  finance-service-init:
+    build:
+      context: .
+      dockerfile: finance-service/Dockerfile
+      target: build
+    working_dir: /app
+    command: sh -lc "npx prisma db push --skip-generate && npm run data:migrate:legacy"
+    environment:
+      DATABASE_URL: postgresql://campuscore:${POSTGRES_PASSWORD:-campuscore_password}@postgres:5432/campuscore_e2e?schema=finance
+      JWT_SECRET: ${JWT_SECRET:-edge-e2e-jwt-secret}
+      FRONTEND_URL: ${E2E_FRONTEND_URL:-http://127.0.0.1}
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-edge-e2e-readiness-key-12345}
+      RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
+      CORE_API_INTERNAL_URL: http://core-api:4000
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-edge-e2e-internal-service-token-12345}
+    depends_on:
+      core-api-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      core-api:
+        condition: service_started
+    restart: "no"
+
   core-api:
     build:
       context: .
@@ -110,6 +136,7 @@ services:
       JWT_REFRESH_EXPIRATION: 7d
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
       HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-edge-e2e-readiness-key-12345}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-edge-e2e-internal-service-token-12345}
       REDIS_URL: redis://redis:6379
       RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
       MINIO_ENDPOINT: minio
@@ -154,6 +181,32 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  finance-service:
+    build:
+      context: .
+      dockerfile: finance-service/Dockerfile
+    image: ${E2E_FINANCE_SERVICE_IMAGE:-campuscore-finance-service:e2e-local}
+    environment:
+      DATABASE_URL: postgresql://campuscore:${POSTGRES_PASSWORD:-campuscore_password}@postgres:5432/campuscore_e2e?schema=finance
+      JWT_SECRET: ${JWT_SECRET:-edge-e2e-jwt-secret}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-edge-e2e-readiness-key-12345}
+      RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
+      FRONTEND_URL: ${E2E_FRONTEND_URL:-http://127.0.0.1}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-edge-e2e-internal-service-token-12345}
+      CORE_API_INTERNAL_URL: http://core-api:4000
+      PORT: 4002
+      NODE_ENV: production
+    depends_on:
+      finance-service-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      core-api:
+        condition: service_healthy
+
   frontend:
     build:
       context: .
@@ -168,6 +221,8 @@ services:
         condition: service_healthy
       notification-service:
         condition: service_healthy
+      finance-service:
+        condition: service_healthy
 
   nginx:
     image: nginx:alpine
@@ -179,6 +234,8 @@ services:
       core-api:
         condition: service_healthy
       notification-service:
+        condition: service_healthy
+      finance-service:
         condition: service_healthy
       frontend:
         condition: service_healthy
