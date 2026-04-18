@@ -89,6 +89,7 @@ describe('Auth and health integration', () => {
     process.env.FRONTEND_URL ??= 'http://127.0.0.1:3100';
     process.env.HEALTH_READINESS_KEY ??= 'integration-readiness-key';
     process.env.COOKIE_SECURE ??= 'false';
+    process.env.INTERNAL_SERVICE_TOKEN ??= 'integration-service-token';
 
     getRequiredEnv('DATABASE_URL');
     getRequiredEnv('JWT_SECRET');
@@ -297,6 +298,62 @@ describe('Auth and health integration', () => {
       .expect(200)
       .expect(({ body }: SupertestResponse) => {
         expect(body.services.database.status).toBe('up');
+      });
+  });
+
+  it('exposes internal finance context only with a valid service token', async () => {
+    const student = await prisma.student.findFirstOrThrow({
+      include: { user: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    const semester = await prisma.semester.findFirstOrThrow({
+      orderBy: { createdAt: 'asc' },
+    });
+
+    await request(baseUrl)
+      .get(`/internal/v1/finance-context/students/${student.id}`)
+      .expect(403);
+
+    await request(baseUrl)
+      .get(`/internal/v1/finance-context/students/${student.id}`)
+      .set(
+        'X-Service-Token',
+        process.env.INTERNAL_SERVICE_TOKEN ?? 'integration-service-token',
+      )
+      .expect(200)
+      .expect(({ body }: SupertestResponse) => {
+        expect(body).toMatchObject({
+          id: student.id,
+          userId: student.userId,
+          studentCode: student.studentId,
+          email: student.user.email,
+        });
+      });
+
+    await request(baseUrl)
+      .get(`/internal/v1/finance-context/semesters/${semester.id}`)
+      .set(
+        'X-Service-Token',
+        process.env.INTERNAL_SERVICE_TOKEN ?? 'integration-service-token',
+      )
+      .expect(200)
+      .expect(({ body }: SupertestResponse) => {
+        expect(body).toMatchObject({
+          id: semester.id,
+          name: semester.name,
+        });
+      });
+
+    await request(baseUrl)
+      .get(`/internal/v1/finance-context/semesters/${semester.id}/billable-students`)
+      .set(
+        'X-Service-Token',
+        process.env.INTERNAL_SERVICE_TOKEN ?? 'integration-service-token',
+      )
+      .expect(200)
+      .expect(({ body }: SupertestResponse) => {
+        expect(body.semesterId).toBe(semester.id);
+        expect(Array.isArray(body.students)).toBe(true);
       });
   });
 

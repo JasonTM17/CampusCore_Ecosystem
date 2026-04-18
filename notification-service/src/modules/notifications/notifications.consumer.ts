@@ -21,6 +21,8 @@ type NotificationEventPayload = {
     createdAt?: string;
   };
   announcement?: Record<string, unknown>;
+  invoice?: Record<string, unknown>;
+  payment?: Record<string, unknown>;
 };
 
 @Injectable()
@@ -62,6 +64,11 @@ export class NotificationsConsumer implements OnModuleInit {
 
       case NOTIFICATION_EVENT_TYPES.NOTIFICATION_ROLE_CREATED:
         await this.handleRoleNotification(event.payload);
+        return;
+
+      case NOTIFICATION_EVENT_TYPES.INVOICE_CREATED:
+      case NOTIFICATION_EVENT_TYPES.PAYMENT_COMPLETED:
+        await this.handleUserNotification(event.payload);
         return;
 
       default:

@@ -173,7 +173,16 @@ describe('HealthService', () => {
       const readiness = await service.readiness();
 
       expect(result.status).toBe(readiness.status);
-      expect(result.services).toEqual(readiness.services);
+      expect(result.services).toMatchObject({
+        database: { status: readiness.services.database.status },
+        redis: { status: readiness.services.redis.status },
+        rabbitmq: { status: readiness.services.rabbitmq.status },
+      });
+      for (const serviceStatus of Object.values(result.services)) {
+        if (serviceStatus.status === 'up') {
+          expect(serviceStatus.latency).toEqual(expect.any(Number));
+        }
+      }
       expect(result.timestamp).toBeDefined();
     });
   });

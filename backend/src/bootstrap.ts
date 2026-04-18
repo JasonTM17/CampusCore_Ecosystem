@@ -1,4 +1,9 @@
-import { Logger, ValidationPipe, ForbiddenException } from '@nestjs/common';
+import {
+  Logger,
+  ValidationPipe,
+  ForbiddenException,
+  RequestMethod,
+} from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
@@ -97,7 +102,18 @@ export function configureHttpApp(app: NestExpressApplication) {
     }),
   );
   app.useGlobalFilters(new GlobalExceptionFilter());
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix('api/v1', {
+    exclude: [
+      {
+        path: 'internal/v1/finance-context',
+        method: RequestMethod.ALL,
+      },
+      {
+        path: 'internal/v1/finance-context/(.*)',
+        method: RequestMethod.ALL,
+      },
+    ],
+  });
 
   if (swaggerEnabled) {
     const config = new DocumentBuilder()
