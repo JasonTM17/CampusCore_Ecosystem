@@ -106,6 +106,8 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+        ports:
+          - 5432:5432
       redis:
         image: redis:7-alpine
         options: >-
@@ -113,6 +115,8 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+        ports:
+          - 6379:6379
       rabbitmq:
         image: rabbitmq:3-management-alpine
         env:
@@ -123,6 +127,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 30
+        ports:
+          - 5672:5672
 
     steps:
       - name: Checkout code
@@ -147,9 +153,9 @@ jobs:
         working-directory: backend
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=public
-          REDIS_URL: redis://redis:6379
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=public
+          REDIS_URL: redis://127.0.0.1:6379
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           JWT_REFRESH_SECRET: ci-refresh-secret
@@ -162,9 +168,9 @@ jobs:
         working-directory: backend
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=public
-          REDIS_URL: redis://redis:6379
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=public
+          REDIS_URL: redis://127.0.0.1:6379
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           JWT_REFRESH_SECRET: ci-refresh-secret
@@ -177,9 +183,9 @@ jobs:
         working-directory: backend
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=public
-          REDIS_URL: redis://redis:6379
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=public
+          REDIS_URL: redis://127.0.0.1:6379
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           JWT_REFRESH_SECRET: ci-refresh-secret
@@ -259,6 +265,8 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+        ports:
+          - 5432:5432
       redis:
         image: redis:7-alpine
         options: >-
@@ -266,6 +274,8 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+        ports:
+          - 6379:6379
       rabbitmq:
         image: rabbitmq:3-management-alpine
         env:
@@ -276,6 +286,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 30
+        ports:
+          - 5672:5672
 
     steps:
       - name: Checkout code
@@ -310,9 +322,9 @@ jobs:
         working-directory: backend
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=public
-          REDIS_URL: redis://redis:6379
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=public
+          REDIS_URL: redis://127.0.0.1:6379
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           JWT_REFRESH_SECRET: ci-refresh-secret
@@ -325,9 +337,9 @@ jobs:
         working-directory: backend
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=public
-          REDIS_URL: redis://redis:6379
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=public
+          REDIS_URL: redis://127.0.0.1:6379
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           JWT_REFRESH_SECRET: ci-refresh-secret
@@ -340,9 +352,9 @@ jobs:
         working-directory: auth-service
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=auth
-          REDIS_URL: redis://redis:6379
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=auth
+          REDIS_URL: redis://127.0.0.1:6379
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           JWT_REFRESH_SECRET: ci-refresh-secret
@@ -355,9 +367,9 @@ jobs:
         working-directory: auth-service
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=auth
-          REDIS_URL: redis://redis:6379
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=auth
+          REDIS_URL: redis://127.0.0.1:6379
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           JWT_REFRESH_SECRET: ci-refresh-secret
@@ -370,9 +382,9 @@ jobs:
         working-directory: auth-service
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=auth
-          REDIS_URL: redis://redis:6379
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=auth
+          REDIS_URL: redis://127.0.0.1:6379
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           JWT_REFRESH_SECRET: ci-refresh-secret
@@ -450,6 +462,8 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+        ports:
+          - 5432:5432
       rabbitmq:
         image: rabbitmq:3-management-alpine
         env:
@@ -460,6 +474,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 30
+        ports:
+          - 5672:5672
 
     steps:
       - name: Checkout code
@@ -484,8 +500,8 @@ jobs:
         working-directory: notification-service
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=notifications
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=notifications
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           HEALTH_READINESS_KEY: ci-health-readiness-key
@@ -496,8 +512,8 @@ jobs:
         working-directory: notification-service
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=notifications
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=notifications
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           HEALTH_READINESS_KEY: ci-health-readiness-key
@@ -573,6 +589,8 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+        ports:
+          - 5432:5432
       rabbitmq:
         image: rabbitmq:3-management-alpine
         env:
@@ -583,6 +601,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 30
+        ports:
+          - 5672:5672
 
     steps:
       - name: Checkout code
@@ -607,8 +627,8 @@ jobs:
         working-directory: finance-service
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=finance
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=finance
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           HEALTH_READINESS_KEY: ci-health-readiness-key
@@ -620,8 +640,8 @@ jobs:
         working-directory: finance-service
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=finance
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=finance
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           HEALTH_READINESS_KEY: ci-health-readiness-key
@@ -698,6 +718,8 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+        ports:
+          - 5432:5432
       rabbitmq:
         image: rabbitmq:3-management-alpine
         env:
@@ -708,6 +730,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 30
+        ports:
+          - 5672:5672
 
     steps:
       - name: Checkout code
@@ -732,8 +756,8 @@ jobs:
         working-directory: academic-service
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=academic
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=academic
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           HEALTH_READINESS_KEY: ci-health-readiness-key
@@ -744,8 +768,8 @@ jobs:
         working-directory: academic-service
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=academic
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=academic
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           HEALTH_READINESS_KEY: ci-health-readiness-key
@@ -821,6 +845,8 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+        ports:
+          - 5432:5432
       rabbitmq:
         image: rabbitmq:3-management-alpine
         env:
@@ -831,6 +857,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 30
+        ports:
+          - 5672:5672
 
     steps:
       - name: Checkout code
@@ -855,8 +883,8 @@ jobs:
         working-directory: engagement-service
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=engagement
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=engagement
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           HEALTH_READINESS_KEY: ci-health-readiness-key
@@ -867,8 +895,8 @@ jobs:
         working-directory: engagement-service
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=engagement
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=engagement
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           HEALTH_READINESS_KEY: ci-health-readiness-key
@@ -944,6 +972,8 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+        ports:
+          - 5432:5432
       rabbitmq:
         image: rabbitmq:3-management-alpine
         env:
@@ -954,6 +984,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 30
+        ports:
+          - 5672:5672
 
     steps:
       - name: Checkout code
@@ -978,8 +1010,8 @@ jobs:
         working-directory: people-service
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=people
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=people
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           HEALTH_READINESS_KEY: ci-health-readiness-key
@@ -991,8 +1023,8 @@ jobs:
         working-directory: people-service
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=people
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=people
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           HEALTH_READINESS_KEY: ci-health-readiness-key
@@ -1069,6 +1101,8 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+        ports:
+          - 5432:5432
       rabbitmq:
         image: rabbitmq:3-management-alpine
         env:
@@ -1079,6 +1113,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 30
+        ports:
+          - 5672:5672
 
     steps:
       - name: Checkout code
@@ -1113,7 +1149,7 @@ jobs:
         working-directory: backend
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=public
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=public
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           HEALTH_READINESS_KEY: ci-health-readiness-key
@@ -1124,15 +1160,15 @@ jobs:
         working-directory: backend
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=public
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=public
         run: npm run prisma:seed
 
       - name: Integration tests
         working-directory: analytics-service
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=public
-          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=public
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@127.0.0.1:5672
           FRONTEND_URL: http://127.0.0.1
           JWT_SECRET: ci-jwt-secret
           HEALTH_READINESS_KEY: ci-health-readiness-key
