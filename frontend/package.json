@@ -1,7 +1,9 @@
 {
   "name": "campuscore-frontend",
   "version": "1.0.0",
+  "description": "CampusCore web frontend for the microservices portfolio v5",
   "author": "Nguyen Tien Son <jasonbmt06@gmail.com>",
+  "homepage": "https://github.com/JasonTM17/CampusCore_FullStack_Individual",
   "private": true,
   "scripts": {
     "dev": "next dev",

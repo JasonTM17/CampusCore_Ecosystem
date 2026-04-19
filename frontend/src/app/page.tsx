@@ -36,9 +36,9 @@ const features = [
   },
   {
     icon: BarChart3,
-    title: 'Analytics Dashboard',
+    title: 'Analytics Ownership',
     description:
-      'Track enrollment and grading trends as data becomes available.',
+      'Serve operational reporting through a dedicated analytics service boundary.',
     color: 'from-emerald-500 to-teal-500',
   },
   {
@@ -56,9 +56,9 @@ const features = [
   },
   {
     icon: Users,
-    title: 'Institution Structure',
+    title: 'People Ownership',
     description:
-      'Organize students, lecturers, departments, and sections cleanly.',
+      'Manage student and lecturer records through a dedicated service boundary.',
     color: 'from-rose-500 to-pink-500',
   },
 ];
@@ -137,8 +137,8 @@ export default function HomePage() {
             </h1>
 
             <p className="text-xl text-gray-600 dark:text-gray-400 mb-10 max-w-2xl mx-auto leading-relaxed">
-              A focused academic portal for registrations, schedules, grades,
-              and campus operations.
+              A production-like campus platform for identity, academic flows,
+              finance, engagement, and people operations.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -187,8 +187,8 @@ export default function HomePage() {
               Everything You Need
             </h2>
             <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-              Academic operations, identity, and verification flows aligned in
-              one production-like stack
+              Service boundaries, runtime verification, and campus workflows
+              aligned in one production-like stack
             </p>
           </div>
 
@@ -229,9 +229,10 @@ export default function HomePage() {
               </h2>
               <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
                 CampusCore runs a NestJS 11 core API together with dedicated
-                notification, finance, and academic services behind nginx, then
-                verifies the full runtime contract across the web app, API
-                edge, database, cache, queue, and object storage.
+                notification, finance, academic, engagement, people, and
+                analytics services behind nginx, then verifies the full runtime
+                contract across the web app, API edge, database, cache, queue,
+                and object storage.
               </p>
 
               <div className="space-y-4">
@@ -240,6 +241,9 @@ export default function HomePage() {
                   'Notification service for inbox and realtime delivery',
                   'Finance service for invoices and payments',
                   'Academic service for sections, enrollment, and grading',
+                  'Engagement service for announcements and support tickets',
+                  'People service for students and lecturers ownership',
+                  'Analytics service for dashboards and operational reporting',
                   'Next.js 15 frontend with React 18',
                   'PostgreSQL with Prisma ORM',
                   'Redis for caching and sessions',
@@ -288,6 +292,18 @@ export default function HomePage() {
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
                     <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
                     <span>Academic Service (Enrollment + Grades)</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
+                    <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                    <span>Engagement Service (Announcements + Support)</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
+                    <div className="w-3 h-3 rounded-full bg-lime-500"></div>
+                    <span>People Service (Students + Lecturers)</span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
+                    <div className="w-3 h-3 rounded-full bg-teal-500"></div>
+                    <span>Analytics Service (Dashboards + Reporting)</span>
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
                     <div className="w-3 h-3 rounded-full bg-sky-500"></div>
