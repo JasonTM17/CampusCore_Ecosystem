@@ -9,14 +9,11 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
-import { StudentsModule } from './modules/students/students.module';
-import { LecturersModule } from './modules/lecturers/lecturers.module';
 import { FinanceContextModule } from './modules/finance-context/finance-context.module';
-import { AnnouncementsModule } from './modules/announcements/announcements.module';
+import { PeopleContextModule } from './modules/people-context/people-context.module';
+import { PeopleShadowModule } from './modules/people-shadow/people-shadow.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
-import { SupportTicketsModule } from './modules/support-tickets/support-tickets.module';
 import { HealthModule } from './modules/health/health.module';
-import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { validateEnvironment } from './config/env.validation';
 
 @Module({
@@ -53,14 +50,11 @@ import { validateEnvironment } from './config/env.validation';
     UsersModule,
     RolesModule,
     PermissionsModule,
-    StudentsModule,
-    LecturersModule,
     FinanceContextModule,
-    AnnouncementsModule,
+    PeopleContextModule,
+    PeopleShadowModule,
     AuditLogsModule,
-    SupportTicketsModule,
     HealthModule,
-    AnalyticsModule,
   ],
   providers: [
     {

@@ -9,6 +9,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { RabbitMQModule } from './modules/rabbitmq/rabbitmq.module';
 import { HealthModule } from './modules/health/health.module';
 import { AcademicYearsModule } from './modules/academic-years/academic-years.module';
+import { AcademicContextModule } from './modules/academic-context/academic-context.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { ClassroomsModule } from './modules/classrooms/classrooms.module';
 import { CoursesModule } from './modules/courses/courses.module';
@@ -44,6 +45,7 @@ import { WaitlistModule } from './modules/waitlist/waitlist.module';
     AuthModule,
     RabbitMQModule,
     HealthModule,
+    AcademicContextModule,
     FacultiesModule,
     DepartmentsModule,
     AcademicYearsModule,

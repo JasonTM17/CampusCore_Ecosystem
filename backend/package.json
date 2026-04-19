@@ -1,7 +1,7 @@
 {
   "name": "campuscore-backend",
   "version": "1.0.0",
-  "description": "CampusCore Core API for auth, academic operations, and public health",
+  "description": "CampusCore core API for auth, platform operations, internal contexts, and public health",
   "author": "Nguyen Tien Son <jasonbmt06@gmail.com>",
   "private": true,
   "license": "MIT",
@@ -15,7 +15,7 @@
     "lint": "eslint \"src/**/*.ts\" \"prisma/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" \"prisma/**/*.ts\" --fix",
     "lint:format": "prettier --check \"src/**/*.ts\" \"prisma/**/*.ts\" \"*.js\"",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
