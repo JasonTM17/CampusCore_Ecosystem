@@ -145,6 +145,66 @@ services:
         condition: service_healthy
     restart: "no"
 
+  engagement-service-init:
+    build:
+      context: .
+      dockerfile: engagement-service/Dockerfile
+      target: build
+    working_dir: /app
+    command: sh -lc "npx prisma db push --skip-generate && npm run data:migrate:legacy"
+    environment:
+      DATABASE_URL: postgresql://campuscore:${POSTGRES_PASSWORD:-campuscore_password}@postgres:5432/campuscore_e2e?schema=engagement
+      JWT_SECRET: ${JWT_SECRET:-edge-e2e-jwt-secret}
+      FRONTEND_URL: ${E2E_FRONTEND_URL:-http://127.0.0.1}
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-edge-e2e-readiness-key-12345}
+      RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
+    depends_on:
+      core-api-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: "no"
+
+  people-service-init:
+    build:
+      context: .
+      dockerfile: people-service/Dockerfile
+      target: build
+    working_dir: /app
+    command: sh -lc "npx prisma db push --skip-generate && npm run data:migrate:legacy"
+    environment:
+      DATABASE_URL: postgresql://campuscore:${POSTGRES_PASSWORD:-campuscore_password}@postgres:5432/campuscore_e2e?schema=people
+    depends_on:
+      core-api-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  analytics-service-init:
+    build:
+      context: .
+      dockerfile: analytics-service/Dockerfile
+      target: build
+    working_dir: /app
+    command: sh -lc "npx prisma db push --skip-generate"
+    environment:
+      DATABASE_URL: postgresql://campuscore:${POSTGRES_PASSWORD:-campuscore_password}@postgres:5432/campuscore_e2e?schema=public
+      JWT_SECRET: ${JWT_SECRET:-edge-e2e-jwt-secret}
+      FRONTEND_URL: ${E2E_FRONTEND_URL:-http://127.0.0.1}
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-edge-e2e-readiness-key-12345}
+      RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
+    depends_on:
+      core-api-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: "no"
+
   core-api:
     build:
       context: .
@@ -239,12 +299,86 @@ services:
       JWT_SECRET: ${JWT_SECRET:-edge-e2e-jwt-secret}
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
       HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-edge-e2e-readiness-key-12345}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-edge-e2e-internal-service-token-12345}
       RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
       FRONTEND_URL: ${E2E_FRONTEND_URL:-http://127.0.0.1}
       PORT: 4003
       NODE_ENV: production
     depends_on:
       academic-service-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  engagement-service:
+    build:
+      context: .
+      dockerfile: engagement-service/Dockerfile
+    image: ${E2E_ENGAGEMENT_SERVICE_IMAGE:-campuscore-engagement-service:e2e-local}
+    environment:
+      DATABASE_URL: postgresql://campuscore:${POSTGRES_PASSWORD:-campuscore_password}@postgres:5432/campuscore_e2e?schema=engagement
+      JWT_SECRET: ${JWT_SECRET:-edge-e2e-jwt-secret}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-edge-e2e-readiness-key-12345}
+      RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
+      FRONTEND_URL: ${E2E_FRONTEND_URL:-http://127.0.0.1}
+      PORT: 4004
+      NODE_ENV: production
+    depends_on:
+      engagement-service-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  people-service:
+    build:
+      context: .
+      dockerfile: people-service/Dockerfile
+    image: ${E2E_PEOPLE_SERVICE_IMAGE:-campuscore-people-service:e2e-local}
+    environment:
+      DATABASE_URL: postgresql://campuscore:${POSTGRES_PASSWORD:-campuscore_password}@postgres:5432/campuscore_e2e?schema=people
+      JWT_SECRET: ${JWT_SECRET:-edge-e2e-jwt-secret}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-edge-e2e-readiness-key-12345}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-edge-e2e-internal-service-token-12345}
+      CORE_API_INTERNAL_URL: http://core-api:4000
+      ACADEMIC_SERVICE_INTERNAL_URL: http://academic-service:4003
+      RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
+      FRONTEND_URL: ${E2E_FRONTEND_URL:-http://127.0.0.1}
+      PORT: 4005
+      NODE_ENV: production
+    depends_on:
+      people-service-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      core-api:
+        condition: service_healthy
+      academic-service:
+        condition: service_healthy
+
+  analytics-service:
+    build:
+      context: .
+      dockerfile: analytics-service/Dockerfile
+    image: ${E2E_ANALYTICS_SERVICE_IMAGE:-campuscore-analytics-service:e2e-local}
+    environment:
+      DATABASE_URL: postgresql://campuscore:${POSTGRES_PASSWORD:-campuscore_password}@postgres:5432/campuscore_e2e?schema=public
+      JWT_SECRET: ${JWT_SECRET:-edge-e2e-jwt-secret}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
+      HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-edge-e2e-readiness-key-12345}
+      RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
+      FRONTEND_URL: ${E2E_FRONTEND_URL:-http://127.0.0.1}
+      PORT: 4006
+      NODE_ENV: production
+    depends_on:
+      analytics-service-init:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy
@@ -269,6 +403,12 @@ services:
         condition: service_healthy
       academic-service:
         condition: service_healthy
+      engagement-service:
+        condition: service_healthy
+      people-service:
+        condition: service_healthy
+      analytics-service:
+        condition: service_healthy
 
   nginx:
     image: nginx:alpine
@@ -284,6 +424,12 @@ services:
       finance-service:
         condition: service_healthy
       academic-service:
+        condition: service_healthy
+      engagement-service:
+        condition: service_healthy
+      people-service:
+        condition: service_healthy
+      analytics-service:
         condition: service_healthy
       frontend:
         condition: service_healthy

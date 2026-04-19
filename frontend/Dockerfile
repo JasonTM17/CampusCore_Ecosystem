@@ -34,6 +34,9 @@ COPY --from=build /app/public ./.next/standalone/public
 COPY --from=build /app/.next/standalone ./.next/standalone
 COPY --from=build /app/.next/static ./.next/standalone/.next/static
 
+RUN rm -rf /usr/local/lib/node_modules/npm && \
+    rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+
 RUN chown -R nodejs:nodejs /app
 
 USER nodejs
