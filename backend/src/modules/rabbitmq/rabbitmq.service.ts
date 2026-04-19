@@ -37,10 +37,16 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     try {
       this.connection = await amqp.connect(url);
       this.channel = await this.connection.createChannel();
+      this.connection.on('error', (error) => {
+        this.logger.error('RabbitMQ connection error', error);
+      });
+      this.channel.on('error', (error) => {
+        this.logger.error('RabbitMQ channel error', error);
+      });
 
-      await this.channel.assertQueue('notifications', { durable: true });
-      await this.channel.assertQueue('emails', { durable: true });
-      await this.channel.assertQueue('analytics', { durable: true });
+      for (const queue of RABBITMQ_ALLOWED_QUEUES) {
+        await this.channel.assertQueue(queue, { durable: true });
+      }
 
       this.logger.log('Connected to RabbitMQ');
     } catch (error) {
@@ -80,18 +86,27 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
 
   async consumeMessages(
     queue: string,
-    callback: (message: any) => void,
+    callback: (message: any) => Promise<void> | void,
   ): Promise<void> {
     if (!this.channel) {
       this.logger.warn('Channel not initialized');
       return;
     }
 
-    await this.channel.consume(queue, (msg) => {
+    if (RABBITMQ_ALLOWED_QUEUES.includes(queue as RabbitMQAllowedQueue)) {
+      await this.channel.assertQueue(queue, { durable: true });
+    }
+
+    await this.channel.consume(queue, async (msg) => {
       if (msg) {
-        const content = JSON.parse(msg.content.toString());
-        callback(content);
-        this.channel.ack(msg);
+        try {
+          const content = JSON.parse(msg.content.toString());
+          await callback(content);
+          this.channel.ack(msg);
+        } catch (error) {
+          this.logger.error(`Failed to consume message from ${queue}`, error);
+          this.channel.nack(msg, false, false);
+        }
       }
     });
   }

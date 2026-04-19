@@ -46,13 +46,13 @@ export class CoreFinanceContextService {
 
   async getStudent(studentId: string): Promise<FinanceContextStudent> {
     return this.fetchJson<FinanceContextStudent>(
-      `/internal/v1/finance-context/students/${studentId}`,
+      `/api/v1/internal/finance-context/students/${studentId}`,
     );
   }
 
   async getSemester(semesterId: string): Promise<FinanceContextSemester> {
     return this.fetchJson<FinanceContextSemester>(
-      `/internal/v1/finance-context/semesters/${semesterId}`,
+      `/api/v1/internal/finance-context/semesters/${semesterId}`,
     );
   }
 
@@ -63,7 +63,7 @@ export class CoreFinanceContextService {
       semesterId: string;
       students: FinanceBillableStudent[];
     }>(
-      `/internal/v1/finance-context/semesters/${semesterId}/billable-students`,
+      `/api/v1/internal/finance-context/semesters/${semesterId}/billable-students`,
     );
   }
 

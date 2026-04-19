@@ -79,6 +79,7 @@ describe('Academic service integration', () => {
     process.env.FRONTEND_URL ??= 'http://127.0.0.1:3100';
     process.env.HEALTH_READINESS_KEY ??= 'academic-readiness-key-12345';
     process.env.COOKIE_SECURE ??= 'false';
+    process.env.INTERNAL_SERVICE_TOKEN ??= 'academic-internal-token-12345';
 
     const { AppModule } = await import('../src/app.module');
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -202,6 +203,8 @@ describe('Academic service integration', () => {
 
   it('supports admin academic CRUD and readiness', async () => {
     const auth = await issueAuth(adminUser);
+    const readinessKey =
+      process.env.HEALTH_READINESS_KEY ?? 'academic-readiness-key-12345';
 
     await supertest(baseUrl)
       .post('/api/v1/faculties')
@@ -294,7 +297,7 @@ describe('Academic service integration', () => {
 
     await supertest(baseUrl)
       .get('/api/v1/health/readiness')
-      .set('X-Health-Key', 'academic-readiness-key-12345')
+      .set('X-Health-Key', readinessKey)
       .expect(200)
       .expect(({ body }) => {
         expect(body.status).toMatch(/ok|degraded/);
@@ -302,6 +305,59 @@ describe('Academic service integration', () => {
         expect(['up', 'not_configured', 'down']).toContain(
           body.services.rabbitmq.status,
         );
+      });
+  });
+
+  it('exposes academic internal context only with a valid service token', async () => {
+    const serviceToken =
+      process.env.INTERNAL_SERVICE_TOKEN ?? 'academic-internal-token-12345';
+
+    await supertest(baseUrl)
+      .get(`/api/v1/internal/academic-context/curricula/${IDS.curriculum}`)
+      .expect(403);
+
+    await supertest(baseUrl)
+      .get(`/api/v1/internal/academic-context/curricula/${IDS.curriculum}`)
+      .set('X-Service-Token', serviceToken)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          id: IDS.curriculum,
+          code: 'CS2026',
+          name: 'Computer Science 2026',
+          department: {
+            id: IDS.department,
+            code: 'CSE',
+            name: 'Computer Science',
+          },
+        });
+      });
+
+    await supertest(baseUrl)
+      .get(`/api/v1/internal/academic-context/departments/${IDS.department}`)
+      .set('X-Service-Token', serviceToken)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          id: IDS.department,
+          code: 'CSE',
+          name: 'Computer Science',
+        });
+      });
+
+    await supertest(baseUrl)
+      .get(
+        `/api/v1/internal/academic-context/students/${IDS.studentProfile}/enrollments`,
+      )
+      .set('X-Service-Token', serviceToken)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toHaveLength(1);
+        expect(body[0]).toMatchObject({
+          id: IDS.completedEnrollment,
+          studentId: IDS.studentProfile,
+        });
+        expect(body[0].section.course.code).toBe('COMP101');
       });
   });
 

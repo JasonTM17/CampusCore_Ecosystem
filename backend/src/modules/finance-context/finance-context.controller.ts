@@ -4,7 +4,7 @@ import { FinanceContextService } from './finance-context.service';
 import { ServiceTokenGuard } from './guards/service-token.guard';
 
 @ApiExcludeController()
-@Controller('internal/v1/finance-context')
+@Controller('internal/finance-context')
 @UseGuards(ServiceTokenGuard)
 export class FinanceContextController {
   constructor(private readonly financeContextService: FinanceContextService) {}

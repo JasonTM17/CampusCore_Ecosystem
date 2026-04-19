@@ -1,16 +1,12 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import * as amqp from 'amqplib';
 import request = require('supertest');
 import type { Response as SupertestResponse } from 'supertest';
-import * as amqp from 'amqplib';
 import { AppModule } from '../src/app.module';
 import { configureHttpApp } from '../src/bootstrap';
 import { PrismaService } from '../src/modules/common/prisma/prisma.service';
-import {
-  NOTIFICATION_EVENTS_QUEUE,
-  NOTIFICATION_EVENT_TYPES,
-} from '../src/modules/rabbitmq/notification-events';
 
 type AuthCookies = {
   cookieHeader: string;
@@ -108,9 +104,7 @@ describe('Auth and health integration', () => {
     baseUrl = await app.getUrl();
     rabbitConnection = await amqp.connect(rabbitmqUrl);
     rabbitChannel = await rabbitConnection.createChannel();
-    await rabbitChannel.assertQueue(NOTIFICATION_EVENTS_QUEUE, {
-      durable: true,
-    });
+    await rabbitChannel.assertQueue('people-shadow', { durable: true });
   });
 
   beforeEach(async () => {
@@ -311,11 +305,11 @@ describe('Auth and health integration', () => {
     });
 
     await request(baseUrl)
-      .get(`/internal/v1/finance-context/students/${student.id}`)
+      .get(`/api/v1/internal/finance-context/students/${student.id}`)
       .expect(403);
 
     await request(baseUrl)
-      .get(`/internal/v1/finance-context/students/${student.id}`)
+      .get(`/api/v1/internal/finance-context/students/${student.id}`)
       .set(
         'X-Service-Token',
         process.env.INTERNAL_SERVICE_TOKEN ?? 'integration-service-token',
@@ -331,7 +325,7 @@ describe('Auth and health integration', () => {
       });
 
     await request(baseUrl)
-      .get(`/internal/v1/finance-context/semesters/${semester.id}`)
+      .get(`/api/v1/internal/finance-context/semesters/${semester.id}`)
       .set(
         'X-Service-Token',
         process.env.INTERNAL_SERVICE_TOKEN ?? 'integration-service-token',
@@ -345,7 +339,9 @@ describe('Auth and health integration', () => {
       });
 
     await request(baseUrl)
-      .get(`/internal/v1/finance-context/semesters/${semester.id}/billable-students`)
+      .get(
+        `/api/v1/internal/finance-context/semesters/${semester.id}/billable-students`,
+      )
       .set(
         'X-Service-Token',
         process.env.INTERNAL_SERVICE_TOKEN ?? 'integration-service-token',
@@ -357,62 +353,100 @@ describe('Auth and health integration', () => {
       });
   });
 
-  it('publishes announcement.created events to RabbitMQ', async () => {
-    await rabbitChannel.purgeQueue(NOTIFICATION_EVENTS_QUEUE);
+  it('exposes internal people context and keeps jwt claims stable through people shadow sync', async () => {
+    const serviceToken =
+      process.env.INTERNAL_SERVICE_TOKEN ?? 'integration-service-token';
 
-    const loginResponse = await request(baseUrl)
-      .post('/api/v1/auth/login')
-      .send(SEEDED_USERS.admin)
-      .expect(200);
-
-    const createResponse = await request(baseUrl)
-      .post('/api/v1/announcements')
-      .set('Authorization', `Bearer ${loginResponse.body.accessToken}`)
-      .send({
-        title: 'Microservices maintenance window',
-        content: 'Notification service cutover tonight.',
-        targetRoles: ['STUDENT'],
-        targetYears: [1, 2],
-        isGlobal: false,
-      })
-      .expect(201);
-
-    const message = await waitForQueueMessage();
-
-    expect(createResponse.body.id).toBeTruthy();
-    expect(message).toMatchObject({
-      type: NOTIFICATION_EVENT_TYPES.ANNOUNCEMENT_CREATED,
-      source: 'campuscore-core-api',
-      payload: {
-        announcement: expect.objectContaining({
-          id: createResponse.body.id,
-          title: 'Microservices maintenance window',
-          content: 'Notification service cutover tonight.',
-        }),
-      },
+    const studentUser = await prisma.user.findUniqueOrThrow({
+      where: { email: SEEDED_USERS.student.email },
+      include: { student: true },
     });
-  });
+    const lecturerUser = await prisma.user.findUniqueOrThrow({
+      where: { email: SEEDED_USERS.lecturer.email },
+      include: { lecturer: true },
+    });
 
-  async function waitForQueueMessage(timeoutMs = 10_000) {
-    const deadline = Date.now() + timeoutMs;
+    expect(studentUser.student).toBeTruthy();
+    expect(lecturerUser.lecturer).toBeTruthy();
 
-    while (Date.now() < deadline) {
-      const message = await rabbitChannel.get(NOTIFICATION_EVENTS_QUEUE, {
-        noAck: false,
+    await request(baseUrl)
+      .get(`/api/v1/internal/people-context/users/${studentUser.id}`)
+      .expect(403);
+
+    await request(baseUrl)
+      .get(`/api/v1/internal/people-context/users/${studentUser.id}`)
+      .set('X-Service-Token', serviceToken)
+      .expect(200)
+      .expect(({ body }: SupertestResponse) => {
+        expect(body).toMatchObject({
+          id: studentUser.id,
+          email: SEEDED_USERS.student.email,
+        });
       });
 
-      if (message) {
-        rabbitChannel.ack(message);
-        return JSON.parse(message.content.toString());
-      }
+    const shadowStudent = studentUser.student!;
+    const shadowLecturer = lecturerUser.lecturer!;
 
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
+    await prisma.student.delete({
+      where: { id: shadowStudent.id },
+    });
+    await prisma.lecturer.delete({
+      where: { id: shadowLecturer.id },
+    });
 
-    throw new Error(
-      `Timed out waiting for message on ${NOTIFICATION_EVENTS_QUEUE}`,
-    );
-  }
+    await publishPeopleShadowEvent({
+      type: 'student.upserted',
+      source: 'campuscore-people-service',
+      occurredAt: new Date().toISOString(),
+      payload: {
+        id: shadowStudent.id,
+        userId: shadowStudent.userId,
+        studentId: shadowStudent.studentId,
+        curriculumId: shadowStudent.curriculumId,
+        year: shadowStudent.year,
+        status: shadowStudent.status,
+        admissionDate: shadowStudent.admissionDate.toISOString(),
+      },
+    });
+
+    await publishPeopleShadowEvent({
+      type: 'lecturer.upserted',
+      source: 'campuscore-people-service',
+      occurredAt: new Date().toISOString(),
+      payload: {
+        id: shadowLecturer.id,
+        userId: shadowLecturer.userId,
+        departmentId: shadowLecturer.departmentId,
+        employeeId: shadowLecturer.employeeId,
+        title: shadowLecturer.title,
+        specialization: shadowLecturer.specialization,
+        office: shadowLecturer.office,
+        phone: shadowLecturer.phone,
+        isActive: shadowLecturer.isActive,
+      },
+    });
+
+    await waitForCondition(async () => {
+      const [student, lecturer] = await Promise.all([
+        prisma.student.findUnique({ where: { id: shadowStudent.id } }),
+        prisma.lecturer.findUnique({ where: { id: shadowLecturer.id } }),
+      ]);
+
+      return Boolean(student && lecturer);
+    });
+
+    const studentLogin = await request(baseUrl)
+      .post('/api/v1/auth/login')
+      .send(SEEDED_USERS.student)
+      .expect(200);
+    expect(studentLogin.body.user.studentId).toBe(shadowStudent.id);
+
+    const lecturerLogin = await request(baseUrl)
+      .post('/api/v1/auth/login')
+      .send(SEEDED_USERS.lecturer)
+      .expect(200);
+    expect(lecturerLogin.body.user.lecturerId).toBe(shadowLecturer.id);
+  });
 
   async function clearAuthArtifacts() {
     const users = await prisma.user.findMany({
@@ -435,5 +469,31 @@ describe('Auth and health integration', () => {
         },
       },
     });
+  }
+
+  async function publishPeopleShadowEvent(event: Record<string, unknown>) {
+    await rabbitChannel.sendToQueue(
+      'people-shadow',
+      Buffer.from(JSON.stringify(event)),
+      { persistent: false },
+    );
+  }
+
+  async function waitForCondition(
+    predicate: () => Promise<boolean>,
+    timeoutMs = 10_000,
+    intervalMs = 250,
+  ) {
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+      if (await predicate()) {
+        return;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+
+    throw new Error('Timed out waiting for asynchronous condition');
   }
 });

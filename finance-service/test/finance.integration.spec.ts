@@ -241,7 +241,8 @@ describe('Finance service integration', () => {
       const url = req.url ?? '';
 
       if (
-        url === `/internal/v1/finance-context/students/${STUDENT_PROFILE_ID}`
+        url ===
+        `/api/v1/internal/finance-context/students/${STUDENT_PROFILE_ID}`
       ) {
         respondJson(res, {
           id: STUDENT_PROFILE_ID,
@@ -253,7 +254,7 @@ describe('Finance service integration', () => {
         return;
       }
 
-      if (url === `/internal/v1/finance-context/semesters/${SEMESTER_ID}`) {
+      if (url === `/api/v1/internal/finance-context/semesters/${SEMESTER_ID}`) {
         respondJson(res, {
           id: SEMESTER_ID,
           name: 'Fall 2026',
@@ -264,7 +265,7 @@ describe('Finance service integration', () => {
 
       if (
         url ===
-        `/internal/v1/finance-context/semesters/${SEMESTER_ID}/billable-students`
+        `/api/v1/internal/finance-context/semesters/${SEMESTER_ID}/billable-students`
       ) {
         respondJson(res, {
           semesterId: SEMESTER_ID,
