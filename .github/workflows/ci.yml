@@ -1628,7 +1628,7 @@ jobs:
       - name: Platform auth filesystem scan
         id: trivy-platform-auth-fs
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: fs
           scan-ref: packages/platform-auth
@@ -1640,7 +1640,7 @@ jobs:
       - name: Filesystem scan
         id: trivy-fs
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: fs
           scan-ref: .
@@ -1652,7 +1652,7 @@ jobs:
       - name: Auth service filesystem scan
         id: trivy-auth-fs
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: fs
           scan-ref: auth-service
@@ -1664,7 +1664,7 @@ jobs:
       - name: Academic service filesystem scan
         id: trivy-academic-fs
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: fs
           scan-ref: academic-service
@@ -1676,7 +1676,7 @@ jobs:
       - name: Engagement service filesystem scan
         id: trivy-engagement-fs
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: fs
           scan-ref: engagement-service
@@ -1688,7 +1688,7 @@ jobs:
       - name: People service filesystem scan
         id: trivy-people-fs
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: fs
           scan-ref: people-service
@@ -1700,7 +1700,7 @@ jobs:
       - name: Analytics service filesystem scan
         id: trivy-analytics-fs
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: fs
           scan-ref: analytics-service
@@ -1739,7 +1739,7 @@ jobs:
       - name: Backend image scan
         id: trivy-backend-image
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: image
           image-ref: campuscore-backend:security
@@ -1752,7 +1752,7 @@ jobs:
       - name: Auth service image scan
         id: trivy-auth-image
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: image
           image-ref: campuscore-auth-service:security
@@ -1765,7 +1765,7 @@ jobs:
       - name: Frontend image scan
         id: trivy-frontend-image
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: image
           image-ref: campuscore-frontend:security
@@ -1778,7 +1778,7 @@ jobs:
       - name: Notification service image scan
         id: trivy-notification-image
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: image
           image-ref: campuscore-notification-service:security
@@ -1791,7 +1791,7 @@ jobs:
       - name: Finance service image scan
         id: trivy-finance-image
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: image
           image-ref: campuscore-finance-service:security
@@ -1804,7 +1804,7 @@ jobs:
       - name: Academic service image scan
         id: trivy-academic-image
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: image
           image-ref: campuscore-academic-service:security
@@ -1817,7 +1817,7 @@ jobs:
       - name: Engagement service image scan
         id: trivy-engagement-image
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: image
           image-ref: campuscore-engagement-service:security
@@ -1830,7 +1830,7 @@ jobs:
       - name: People service image scan
         id: trivy-people-image
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: image
           image-ref: campuscore-people-service:security
@@ -1843,7 +1843,7 @@ jobs:
       - name: Analytics service image scan
         id: trivy-analytics-image
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: image
           image-ref: campuscore-analytics-service:security
