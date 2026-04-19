@@ -1,12 +1,59 @@
 const { randomBytes } = require('crypto');
+const path = require('path');
+const { createRequire } = require('module');
+
+function createConsumerRequire() {
+  const candidates = [
+    module.parent?.filename,
+    process.env.INIT_CWD ? path.join(process.env.INIT_CWD, 'package.json') : null,
+    path.join(process.cwd(), 'package.json'),
+    path.join(__dirname, 'package.json'),
+    __filename,
+  ].filter(Boolean);
+
+  const attempted = new Set();
+
+  for (const candidate of candidates) {
+    if (attempted.has(candidate)) {
+      continue;
+    }
+
+    attempted.add(candidate);
+
+    try {
+      return createRequire(candidate);
+    } catch (error) {
+      if (error?.code !== 'MODULE_NOT_FOUND') {
+        throw error;
+      }
+    }
+  }
+
+  return require;
+}
+
+const consumerRequire = createConsumerRequire();
+
+function loadSharedDependency(moduleName) {
+  try {
+    return consumerRequire(moduleName);
+  } catch (error) {
+    if (error?.code !== 'MODULE_NOT_FOUND') {
+      throw error;
+    }
+
+    return require(moduleName);
+  }
+}
+
 const {
   createParamDecorator,
   ForbiddenException,
   SetMetadata,
   UnauthorizedException,
-} = require('@nestjs/common');
-const { Reflector } = require('@nestjs/core');
-const { AuthGuard } = require('@nestjs/passport');
+} = loadSharedDependency('@nestjs/common');
+const { Reflector } = loadSharedDependency('@nestjs/core');
+const { AuthGuard } = loadSharedDependency('@nestjs/passport');
 
 const ACCESS_TOKEN_COOKIE = 'cc_access_token';
 const REFRESH_TOKEN_COOKIE = 'cc_refresh_token';
