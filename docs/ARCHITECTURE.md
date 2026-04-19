@@ -1,199 +1,54 @@
-# Kiến trúc CampusCore v3
+# Architecture
 
-CampusCore hiện được tổ chức theo hướng **microservices portfolio v3**. Mục tiêu của pha này không phải tách mọi domain cùng lúc, mà là tạo ra boundary rõ ràng, deployable thật, release pipeline thật và public edge thống nhất.
+CampusCore v6 chạy như một stack microservices production-like với một `core-api`, sáu domain service, một `frontend`, và một `nginx gateway`.
 
-## 1. Thành phần chính
+## Runtime boundary
 
-- `core-api`
-- `notification-service`
-- `finance-service`
-- `academic-service`
-- `frontend`
-- `nginx gateway`
+| Thành phần | Ownership chính |
+| --- | --- |
+| `core-api` | auth, users, roles, permissions, audit logs, finance-context, public `/health` |
+| `notification-service` | notification inbox, unread count, realtime `/notifications` |
+| `finance-service` | invoices, payments, scholarships, billing events |
+| `academic-service` | faculties, departments, semesters, courses, sections, enrollments, grades, attendance, schedules |
+| `engagement-service` | announcements, support tickets |
+| `people-service` | `students`, `lecturers`, shadow-sync outbound events |
+| `analytics-service` | `/api/v1/analytics/*`, dashboards, lecturer reporting, finance-academic reporting |
+| `frontend` | Next.js standalone web app |
+| `nginx` | single public edge and path router |
 
-Shared infra:
+## Data layout
 
-- PostgreSQL
-- Redis
-- RabbitMQ
-- MinIO
+- PostgreSQL dùng một cluster chung nhưng tách schema theo service.
+- `core-api` dùng `public`.
+- `notification-service` dùng `notifications`.
+- `finance-service` dùng `finance`.
+- `academic-service` dùng `academic`.
+- `engagement-service` dùng `engagement`.
+- `people-service` dùng `people`.
+- `analytics-service` hiện đọc từ `public` theo hướng low-risk.
 
-## 2. Runtime topology
+## Public routing
 
-```mermaid
-flowchart LR
-  U["Người dùng"] --> N["nginx gateway"]
-  N --> F["frontend"]
-  N --> C["core-api"]
-  N --> NS["notification-service"]
-  N --> FS["finance-service"]
-  N --> AS["academic-service"]
-
-  C --> P1["PostgreSQL / public"]
-  NS --> P2["PostgreSQL / notifications"]
-  FS --> P3["PostgreSQL / finance"]
-  AS --> P4["PostgreSQL / academic"]
-
-  C --> R["Redis"]
-  C --> Q["RabbitMQ"]
-  NS --> Q
-  FS --> Q
-  AS --> Q
-  C --> M["MinIO"]
-```
-
-## 3. Ownership theo service
-
-### `core-api`
-
-Owner của:
-
-- auth, session, cookie, CSRF contract
-- users, roles, permissions
-- students, lecturers
-- announcements
-- analytics
-- internal finance-context API
-- public `/health`
-
-Không còn owner public của:
-
-- notifications
-- finance domain
-- public academic APIs
-
-### `notification-service`
-
-Owner của:
-
-- notification inbox
-- unread count
-- REST notifications API
-- websocket `/notifications`
-- realtime fan-out từ event queue
-
-Không join trực tiếp sang schema `public`. `userId` được lưu như opaque reference.
-
-### `finance-service`
-
-Owner của:
-
-- invoices
-- invoice items
-- payments
-- scholarships
-- student scholarships
-- finance exports
-- finance events
-
-Read-through context hiện tại vẫn đi từ `finance-service` sang `core-api` qua internal HTTP và `X-Service-Token`.
-
-### `academic-service`
-
-Owner của public academic APIs:
-
-- faculties
-- departments
-- academic years
-- semesters
-- courses
-- curricula
-- classrooms
-- sections
-- enrollments
-- grades
-- waitlist
-- attendance
-- schedules
-
-`academic-service` dùng schema riêng `academic` và snapshot one-time cho:
-
-- `User`
-- `Student`
-- `Lecturer`
-
-Điều này cho phép service tự join dữ liệu học vụ trong schema của chính nó, nhưng chưa cần đồng bộ runtime phức tạp ở v3.
-
-### `frontend`
-
-Frontend không đổi public path. Sự thay đổi nằm ở owner phía sau gateway.
-
-## 4. Public routing
-
-`nginx` route theo boundary sau:
-
-- `/` và route web -> `frontend`
-- `/health` -> `core-api`
-- `/api/docs` -> `core-api`
-- `/api/v1/auth/*`, `/api/v1/users/*`, `/api/v1/students/*`, `/api/v1/lecturers/*`, `/api/v1/announcements/*`, `/api/v1/analytics/*` -> `core-api`
-- `/api/v1/notifications/*` và `/socket.io/*` -> `notification-service`
+- `/api/v1/auth/*`, `/api/v1/users/*`, `/api/v1/roles/*`, `/api/v1/permissions/*`, `/health` -> `core-api`
+- `/api/v1/notifications/*`, `/socket.io/*` -> `notification-service`
 - `/api/v1/finance/*` -> `finance-service`
-- public academic paths như `/api/v1/semesters/*`, `/api/v1/courses/*`, `/api/v1/sections/*`, `/api/v1/enrollments/*`, `/api/v1/grades/*`, `/api/v1/attendance/*` -> `academic-service`
+- public academic routes -> `academic-service`
+- `/api/v1/announcements/*`, `/api/v1/support-tickets/*` -> `engagement-service`
+- `/api/v1/students/*`, `/api/v1/lecturers/*` -> `people-service`
+- `/api/v1/analytics/*` -> `analytics-service`
 
-Public edge chặn:
+## Internal contracts
 
-- `/api/v1/health/liveness`
-- `/api/v1/health/readiness`
-- `/internal/*`
+Canonical internal paths:
 
-## 5. Dữ liệu và schema
+- `/api/v1/internal/academic-context/*`
+- `/api/v1/internal/people-context/*`
+- `/api/v1/internal/finance-context/*`
 
-CampusCore dùng **per-service schema trong cùng một PostgreSQL cluster**:
+Các path này không public qua `nginx` và yêu cầu `X-Service-Token`.
 
-- `core-api` -> `public`
-- `notification-service` -> `notifications`
-- `finance-service` -> `finance`
-- `academic-service` -> `academic`
+## Transitional constraints
 
-Nguyên tắc:
-
-- không foreign key chéo service
-- không join runtime trực tiếp sang schema khác
-- ID ngoài service được lưu dạng opaque reference
-
-## 6. Event flow
-
-Envelope sự kiện chuẩn:
-
-- `type`
-- `source`
-- `occurredAt`
-- `payload`
-
-Event chính hiện tại:
-
-- `core-api`
-  - `announcement.created`
-  - `notification.user.created`
-  - `notification.role.created`
-- `finance-service`
-  - `invoice.created`
-  - `invoice.status.changed`
-  - `payment.completed`
-
-`notification-service` consume các event cần thiết để tạo inbox hoặc phát realtime billing updates.
-
-## 7. Health model
-
-### Public
-
-- `GET /health` là public liveness tối giản của `core-api`
-
-### Internal
-
-- `GET /api/v1/health/liveness`
-- `GET /api/v1/health/readiness`
-
-Readiness không public qua gateway và yêu cầu `X-Health-Key` ở production-like path.
-
-## 8. Điều v3 chưa làm
-
-V3 vẫn có chủ đích giữ một số phần ở `core-api`:
-
-- `students`
-- `lecturers`
-- auth source of truth
-- analytics
-- finance-context
-
-Pha tiếp theo chỉ nên cân nhắc khi boundary nội bộ đủ cứng. Nếu tiếp tục tách học vụ sâu hơn, hướng hợp lý là thu nhỏ `core-api` thêm thay vì tạo ownership chồng chéo.
+- `core-api` vẫn giữ auth và identity platform.
+- `people-service` dùng mô hình hybrid một release với shadow sync để giữ JWT claims `studentId` và `lecturerId`.
+- `analytics-service` chưa có schema riêng ở v6 để tránh refactor ownership sâu hơn trong cùng đợt phát hành.

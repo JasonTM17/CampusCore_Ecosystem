@@ -1,149 +1,63 @@
-# Phát hành CampusCore v3
+# Release
 
-CampusCore dùng policy **semver-only public publishing**. Mục tiêu là chỉ phát hành public image sau khi stack nhiều service đã qua đủ quality gate, runtime smoke, edge E2E và security scan.
+## Release policy
 
-## 1. Nguyên tắc phát hành
+- Branch push chỉ chạy CI.
+- Public registry chỉ publish từ tag semver `vX.Y.Z`.
+- `latest` chỉ được cập nhật khi có semver release.
 
-- branch `master` hoặc `main` chỉ chạy CI
-- public registry chỉ publish khi push tag `vX.Y.Z`
-- `latest` chỉ di chuyển cùng một semver release
-- mỗi release phải mang đủ **5 image**
+Release mục tiêu của đợt này là **`v1.1.0`**.
 
-## 2. Public images
+## Required quality gate
 
-### Docker Hub
+Một tag release chỉ hợp lệ khi `quality-gate` xanh trên đúng SHA đó.
 
-- `nguyenson1710/campuscore-backend`
-- `nguyenson1710/campuscore-notification-service`
-- `nguyenson1710/campuscore-finance-service`
-- `nguyenson1710/campuscore-academic-service`
-- `nguyenson1710/campuscore-frontend`
+Lanes bắt buộc của v6:
 
-### GHCR
+- `core-quality`
+- `core-integration`
+- `notification-quality`
+- `notification-integration`
+- `finance-quality`
+- `finance-integration`
+- `academic-quality`
+- `academic-integration`
+- `engagement-quality`
+- `engagement-integration`
+- `people-quality`
+- `people-integration`
+- `analytics-quality`
+- `analytics-integration`
+- `frontend-quality`
+- `frontend-fast-e2e`
+- `compose-contract`
+- `image-smoke`
+- `edge-e2e`
+- `security-scan`
+- `quality-gate`
 
-- `ghcr.io/jasontm17/campuscore-backend`
-- `ghcr.io/jasontm17/campuscore-notification-service`
-- `ghcr.io/jasontm17/campuscore-finance-service`
-- `ghcr.io/jasontm17/campuscore-academic-service`
-- `ghcr.io/jasontm17/campuscore-frontend`
+## Public images
 
-## 3. Tag strategy
+Release v6 phải publish đủ 8 image:
 
-Mỗi semver release publish:
+1. `campuscore-backend`
+2. `campuscore-notification-service`
+3. `campuscore-finance-service`
+4. `campuscore-academic-service`
+5. `campuscore-engagement-service`
+6. `campuscore-people-service`
+7. `campuscore-analytics-service`
+8. `campuscore-frontend`
 
-- `vX.Y.Z`
-- short SHA immutable
+Tag strategy:
+
+- `v1.1.0`
+- short SHA immutable tag
 - `latest`
 
-`latest` không bao giờ được đẩy từ push thường trên branch.
+## Post-publish verification
 
-## 4. Release contents
-
-Một release v3 đầy đủ phải bao gồm:
-
-- `core-api`
-- `notification-service`
-- `finance-service`
-- `academic-service`
-- `frontend`
-
-`nginx` vẫn là public runtime edge, nhưng không được coi là application image chính của portfolio.
-
-## 5. Điều kiện trước khi tag
-
-Trước khi tạo tag phát hành, cần xác nhận:
-
-- `core-api` pass quality và integration
-- `notification-service` pass quality và integration
-- `finance-service` pass quality và integration
-- `academic-service` pass quality và integration
-- `frontend` pass quality, build và fast E2E
-- edge E2E pass
-- image smoke pass
-- compose contract pass
-- security sweep pass
-
-Checklist local tham chiếu:
-
-```bash
-cd backend && npm run lint && npm run lint:format && npm run typecheck && npm run build && npm run test:unit -- --runInBand && npm run test:integration -- --runInBand
-cd ../notification-service && npm run lint && npm run lint:format && npm run typecheck && npm run build && npm run test:unit -- --runInBand && npm run test:integration -- --runInBand
-cd ../finance-service && npm run lint && npm run lint:format && npm run typecheck && npm run build && npm run test:unit -- --runInBand && npm run test:integration -- --runInBand
-cd ../academic-service && npm run lint && npm run lint:format && npm run typecheck && npm run build && npm run test:unit -- --runInBand && npm run test:integration -- --runInBand
-cd ../frontend && npm run lint && npm run typecheck && npm test && npm run build && npm run test:e2e
-cd .. && node scripts/run-image-smoke.mjs
-cd frontend && npm run test:e2e:edge
-cd .. && node scripts/run-security-local.mjs
-docker compose -f docker-compose.yml config
-docker compose -f docker-compose.production.yml config
-docker compose -f docker-compose.e2e.yml config
-git diff --check
-```
-
-## 6. Bootstrap trước first deploy
-
-Production-like stack không tự chạy migration trong app container. Trước first deploy:
-
-```bash
-export DOCKERHUB_NAMESPACE=<namespace>
-export IMAGE_TAG=v1.0.0
-docker compose -f docker-compose.production.yml --profile bootstrap run --rm core-api-init
-docker compose -f docker-compose.production.yml --profile bootstrap run --rm notification-service-init
-docker compose -f docker-compose.production.yml --profile bootstrap run --rm finance-service-init
-docker compose -f docker-compose.production.yml --profile bootstrap run --rm academic-service-init
-docker compose -f docker-compose.production.yml up -d
-```
-
-## 7. Docker Hub secrets
-
-Bắt buộc:
-
-- `DOCKERHUB_USERNAME`
-- `DOCKERHUB_PASSWORD`
-
-Khuyến nghị:
-
-- `DOCKERHUB_NAMESPACE`
-
-`DOCKERHUB_NAMESPACE` là tên ưu tiên. `DOCKERHUB_USERNAME` được giữ như legacy alias để tương thích.
-
-## 8. Manual publish helper
-
-Ví dụ helper local:
-
-```bash
-DOCKERHUB_NAMESPACE=<namespace> ./scripts/docker-publish.sh v1.0.0
-```
-
-Script helper phải build và push đủ:
-
-- `campuscore-backend`
-- `campuscore-notification-service`
-- `campuscore-finance-service`
-- `campuscore-academic-service`
-- `campuscore-frontend`
-- semver tag
-- short SHA tag
-- `latest`
-
-## 9. Rollback
-
-Ưu tiên rollback bằng:
-
-- digest immutable
-- short SHA tag immutable
-
-Không dùng `latest` làm rollback target chính.
-
-## 10. Narrative phát hành v3
-
-Ở trạng thái này, CampusCore là một portfolio microservices với:
-
-- một `core-api` giữ auth và identity
-- một `notification-service` làm owner của notifications và realtime
-- một `finance-service` làm owner của finance domain
-- một `academic-service` làm owner của public academic APIs
-- một `frontend`
-- một `nginx gateway`
-
-Release narrative phải phản ánh đúng boundary này, không mô tả monolith trá hình và cũng không overclaim rằng mọi domain đã được tách hoàn toàn.
+- verify manifest của đủ 8 image
+- verify digest và SBOM/provenance trong release summary
+- smoke published images qua GHCR
+- smoke published images qua Docker Hub nếu credentials đã cấu hình

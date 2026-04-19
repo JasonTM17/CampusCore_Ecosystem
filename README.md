@@ -7,25 +7,29 @@
 ![Notification Service](https://img.shields.io/badge/notification--service-NestJS%2011-7c3aed)
 ![Finance Service](https://img.shields.io/badge/finance--service-NestJS%2011-0f766e)
 ![Academic Service](https://img.shields.io/badge/academic--service-NestJS%2011-0369a1)
+![Engagement Service](https://img.shields.io/badge/engagement--service-NestJS%2011-f59e0b)
+![People Service](https://img.shields.io/badge/people--service-NestJS%2011-15803d)
+![Analytics Service](https://img.shields.io/badge/analytics--service-NestJS%2011-0f766e)
 ![License](https://img.shields.io/badge/license-MIT-16a34a)
 
-CampusCore là một dự án quản lý học vụ được nâng cấp theo hướng **Microservices Portfolio v3**. Ở trạng thái hiện tại, hệ thống có một `core-api` giữ auth và identity, một `notification-service` cho notification inbox và realtime delivery, một `finance-service` cho domain tài chính, một `academic-service` cho domain học vụ công khai, một `frontend`, và một `nginx gateway` làm public edge duy nhất.
+CampusCore là một **microservices portfolio production-like** cho bài toán quản lý học vụ đại học. Ở trạng thái v6, hệ thống chạy với một `core-api` giữ auth và năng lực nền tảng, sáu domain service tách riêng là `notification-service`, `finance-service`, `academic-service`, `engagement-service`, `people-service`, `analytics-service`, một `frontend`, và một `nginx gateway` làm public edge duy nhất.
 
-README này là bản chính bằng **tiếng Việt có dấu**. Bản song ngữ đi kèm:
+`README.md` là **bản chính bằng tiếng Việt có dấu**. Bản song ngữ đi kèm:
 
 - [README.vi.md](./README.vi.md)
 - [README.en.md](./README.en.md)
 
-## Kiến trúc hiện tại
+## Tổng quan v6
 
-CampusCore hiện chạy như một stack nhiều service thật:
-
-- `frontend`: Next.js 15, runtime production-like bằng standalone mode
-- `core-api`: NestJS 11, owner của auth, session, users, roles, permissions, students, lecturers, announcements, analytics, finance-context và public health
-- `notification-service`: NestJS 11, owner của notification inbox, unread count, websocket `/notifications`, RabbitMQ consumer và realtime fan-out
-- `finance-service`: NestJS 11, owner của invoices, invoice items, payments, scholarships, student scholarships và finance events
-- `academic-service`: NestJS 11, owner của faculties, departments, academic years, semesters, courses, curricula, classrooms, sections, enrollments, grades, waitlist, attendance và schedules
-- `nginx`: public gateway
+- `core-api`: auth, session, users, roles, permissions, finance-context, audit logs, public health
+- `notification-service`: notification inbox, unread count, websocket `/notifications`, realtime fan-out
+- `finance-service`: invoices, invoice items, payments, scholarships, export và billing events
+- `academic-service`: faculties, departments, academic years, semesters, courses, curricula, classrooms, sections, enrollments, grades, waitlist, attendance, schedules
+- `engagement-service`: announcements, support tickets, workflows tương tác
+- `people-service`: service công khai sở hữu `students` và `lecturers`
+- `analytics-service`: service công khai sở hữu `/api/v1/analytics/*`
+- `frontend`: Next.js 15, production-like runtime bằng standalone build
+- `nginx`: gateway công khai duy nhất
 
 Hạ tầng dùng chung:
 
@@ -34,172 +38,198 @@ Hạ tầng dùng chung:
 - RabbitMQ
 - MinIO
 
+## Kiến trúc runtime
+
 ```mermaid
 flowchart LR
   U["Người dùng"] --> N["nginx gateway"]
-  N --> F["frontend"]
-  N --> C["core-api"]
-  N --> NS["notification-service"]
-  N --> FS["finance-service"]
-  N --> AS["academic-service"]
+  N --> FE["frontend"]
+  N --> CORE["core-api"]
+  N --> NOTI["notification-service"]
+  N --> FIN["finance-service"]
+  N --> ACAD["academic-service"]
+  N --> ENG["engagement-service"]
+  N --> PEOPLE["people-service"]
+  N --> ANALYTICS["analytics-service"]
 
-  C --> P1["PostgreSQL / public"]
-  NS --> P2["PostgreSQL / notifications"]
-  FS --> P3["PostgreSQL / finance"]
-  AS --> P4["PostgreSQL / academic"]
+  CORE --> P0["PostgreSQL schema public"]
+  NOTI --> P1["PostgreSQL schema notifications"]
+  FIN --> P2["PostgreSQL schema finance"]
+  ACAD --> P3["PostgreSQL schema academic"]
+  ENG --> P4["PostgreSQL schema engagement"]
+  PEOPLE --> P5["PostgreSQL schema people"]
+  ANALYTICS --> P0
 
-  C --> R["Redis"]
-  C --> Q["RabbitMQ"]
-  NS --> Q
-  FS --> Q
-  AS --> Q
-  C --> M["MinIO"]
+  CORE --> R["Redis"]
+  CORE --> MQ["RabbitMQ"]
+  NOTI --> MQ
+  FIN --> MQ
+  ENG --> MQ
+  PEOPLE --> MQ
+  ANALYTICS --> MQ
 ```
 
-## Boundary theo service
+## Boundary dịch vụ
 
-| Thành phần | Sở hữu | Không sở hữu |
-| --- | --- | --- |
-| `core-api` | auth, session, users, roles, permissions, students, lecturers, announcements, analytics, finance-context, `/health` | notification inbox, finance tables, public academic APIs |
-| `notification-service` | notification inbox, unread count, websocket `/notifications`, realtime broadcast | auth source of truth, academic master-data, finance data |
-| `finance-service` | invoices, payments, scholarships, finance exports, finance events | users và dữ liệu học vụ source of truth |
-| `academic-service` | public academic APIs, faculties, departments, semesters, courses, sections, enrollments, grades, attendance, schedules | auth source of truth, public health, finance context |
+### `core-api`
 
-## Public contract
+`core-api` vẫn là lõi hệ thống, nhưng không còn giữ quyền sở hữu công khai cho `students`, `lecturers`, hay `analytics`. Trách nhiệm hiện tại:
 
-Public edge luôn đi qua `nginx`. Frontend giữ nguyên public path, chỉ đổi owner phía sau gateway:
+- `/api/v1/auth/*`
+- `/api/v1/users/*`
+- `/api/v1/roles/*`
+- `/api/v1/permissions/*`
+- `/health`
+- `/api/v1/health/readiness`
+- internal contexts như `finance-context` và `people-context`
 
-| URL | Mục đích | Owner phía sau gateway |
-| --- | --- | --- |
-| `http://localhost/` | Web app | `frontend` |
-| `http://localhost/login` | Đăng nhập | `frontend` |
-| `http://localhost/health` | Public liveness tối giản | `core-api` |
-| `http://localhost/api/docs` | Swagger public | `core-api` |
-| `http://localhost/api/v1/notifications/*` | Notifications API | `notification-service` |
-| `http://localhost/socket.io/*` | Realtime gateway | `notification-service` |
-| `http://localhost/api/v1/finance/*` | Finance API | `finance-service` |
-| `http://localhost/api/v1/academic-years/*` và các route học vụ tương ứng | Academic API | `academic-service` |
+`auth`, `users`, `roles`, `permissions` vẫn nằm ở `core-api` trong v6.
 
-Các path sau không public qua `nginx`:
+### `people-service`
 
-- `GET /api/v1/health/liveness`
-- `GET /api/v1/health/readiness`
-- `GET /internal/*`
+`people-service` là service công khai sở hữu:
 
-## Auth và health model
+- `/api/v1/students/*`
+- `/api/v1/lecturers/*`
 
-Browser flow dùng contract chung trên các service:
+Service này lưu dữ liệu ở schema `people` theo mô hình snapshot cục bộ. Trong một release chuyển tiếp, `core-api` vẫn giữ shadow `Student` và `Lecturer` để JWT claims `studentId` và `lecturerId` không bị gãy, đồng thời để `finance-context` cũ tiếp tục hoạt động ổn định.
 
-- `cc_access_token`
-- `cc_refresh_token`
-- `cc_csrf`
-- `X-CSRF-Token` cho request mutating khi auth bằng cookie
+### `analytics-service`
 
-Tương thích legacy vẫn được giữ:
+`analytics-service` là service công khai sở hữu:
 
-- JSON `accessToken`, `refreshToken`, `user`
-- `Authorization: Bearer ...`
+- `/api/v1/analytics/*`
 
-Health model:
+Đợt v6 giữ hướng low-risk: analytics đọc từ dữ liệu legacy và shadow hiện có trong schema `public`, nhưng public edge đã cắt hẳn khỏi `core-api`.
 
-- `GET /health`: public liveness của `core-api`
-- `GET /api/v1/health/readiness`: internal readiness, yêu cầu `X-Health-Key` ở production-like flow
+### Các service domain còn lại
 
-## Dữ liệu và ownership
+- `notification-service`: `/api/v1/notifications/*`, `/socket.io/*`
+- `finance-service`: `/api/v1/finance/*`
+- `academic-service`: public academic APIs
+- `engagement-service`: announcements, support tickets, và các route tương tác
 
-CampusCore dùng chiến lược **per-service schema**:
+## Routing công khai
 
-- `core-api` -> `schema=public`
-- `notification-service` -> `schema=notifications`
-- `finance-service` -> `schema=finance`
-- `academic-service` -> `schema=academic`
+`nginx` là public edge duy nhất. Routing v6 được chốt như sau:
 
-`academic-service` dùng **snapshot one-time** cho `User`, `Student`, `Lecturer` trong schema riêng để tự join dữ liệu học vụ. Ở v3, `students` và `lecturers` vẫn là identity/profile owner của `core-api`.
+- `/` và các route ứng dụng web -> `frontend`
+- `/health` -> `core-api`
+- `/api/docs` -> `core-api`
+- `/api/v1/auth/*`, `/api/v1/users/*`, `/api/v1/roles/*`, `/api/v1/permissions/*` -> `core-api`
+- `/api/v1/notifications/*`, `/socket.io/*` -> `notification-service`
+- `/api/v1/finance/*` -> `finance-service`
+- public academic routes -> `academic-service`
+- `/api/v1/announcements/*`, `/api/v1/support-tickets/*` -> `engagement-service`
+- `/api/v1/students/*`, `/api/v1/lecturers/*` -> `people-service`
+- `/api/v1/analytics/*` -> `analytics-service`
 
-`finance-service` tiếp tục đọc internal finance context từ `core-api` qua `X-Service-Token`. Vòng này chưa chuyển finance read-through sang `academic-service`.
+Không public qua `nginx`:
 
-## Khởi động nhanh
+- `/internal/*`
+- `/api/v1/internal/*`
+- readiness nội bộ của các service
 
-### Dev stack
+## Auth và tương thích
+
+Browser auth contract dùng thống nhất trên toàn stack:
+
+- cookie `cc_access_token`
+- cookie `cc_refresh_token`
+- cookie `cc_csrf`
+- header `X-CSRF-Token`
+
+Các service backend đọc được cả:
+
+1. `Authorization: Bearer ...`
+2. cookie access token
+
+Frontend không phải đổi path API khi các service được tách.
+
+## Internal contracts
+
+Canonical internal contract của v6 là:
+
+- `/api/v1/internal/academic-context/*`
+- `/api/v1/internal/people-context/*`
+- `/api/v1/internal/finance-context/*`
+
+Các route này chỉ dùng cho service-to-service và yêu cầu `X-Service-Token`. Public edge chặn toàn bộ các path này.
+
+## Release và registry
+
+CampusCore dùng chính sách **semver-only public release**:
+
+- push vào `master` hoặc `main` chỉ chạy CI
+- chỉ publish public registry khi push tag `vX.Y.Z`
+- `latest` chỉ cập nhật cùng một semver release
+
+Từ v6, release công khai phải có đủ **8 image**:
+
+1. `campuscore-backend`
+2. `campuscore-notification-service`
+3. `campuscore-finance-service`
+4. `campuscore-academic-service`
+5. `campuscore-engagement-service`
+6. `campuscore-people-service`
+7. `campuscore-analytics-service`
+8. `campuscore-frontend`
+
+Chi tiết registry và tag strategy nằm tại [DOCKER_HUB.md](./DOCKER_HUB.md) và [docs/RELEASE.md](./docs/RELEASE.md).
+
+## Chạy nhanh cục bộ
 
 ```bash
 cp .env.example .env
 docker compose up -d --build
 ```
 
-Trình tự boot ở dev:
+Workflow verify:
 
-1. `postgres`, `redis`, `rabbitmq`, `minio`
-2. `core-api-init`
-3. `notification-service-init`
-4. `finance-service-init`
-5. `academic-service-init`
-6. `core-api`, `notification-service`, `finance-service`, `academic-service`, `frontend`, `nginx`
+- fast UI/E2E: `node scripts/run-fast-e2e.mjs`
+- edge E2E qua `nginx`: `node scripts/run-edge-e2e.mjs`
+- image smoke: `node scripts/run-image-smoke.mjs`
+- security local: `node scripts/run-security-local.mjs`
 
-### Production-like stack
+Trình tự bootstrap one-shot hiện tại:
 
-```bash
-export DOCKERHUB_NAMESPACE=<namespace>
-export IMAGE_TAG=v1.0.0
-docker compose -f docker-compose.production.yml --profile bootstrap run --rm core-api-init
-docker compose -f docker-compose.production.yml --profile bootstrap run --rm notification-service-init
-docker compose -f docker-compose.production.yml --profile bootstrap run --rm finance-service-init
-docker compose -f docker-compose.production.yml --profile bootstrap run --rm academic-service-init
-docker compose -f docker-compose.production.yml up -d
-```
+1. `core-api-init`
+2. `notification-service-init`
+3. `finance-service-init`
+4. `academic-service-init`
+5. `engagement-service-init`
+6. `people-service-init`
+7. `analytics-service-init`
+8. runtime services
 
-Ở production-like flow, runtime container không tự chạy migration. Bootstrap schema là bước vận hành bắt buộc trước first deploy.
+## Quality gate
 
-## Verification matrix
+Mỗi release semver chỉ hợp lệ khi toàn bộ quality lanes xanh trên cùng một SHA. Ở v6, các lane bắt buộc bao gồm tối thiểu:
 
-Tối thiểu nên verify đủ:
+- `core-quality`
+- `core-integration`
+- `notification-quality`
+- `notification-integration`
+- `finance-quality`
+- `finance-integration`
+- `academic-quality`
+- `academic-integration`
+- `engagement-quality`
+- `engagement-integration`
+- `people-quality`
+- `people-integration`
+- `analytics-quality`
+- `analytics-integration`
+- `frontend-quality`
+- `frontend-fast-e2e`
+- `compose-contract`
+- `image-smoke`
+- `edge-e2e`
+- `security-scan`
+- `dependency-review`
+- `quality-gate`
 
-- `backend/core-api`: lint, format, typecheck, build, unit test, integration test
-- `notification-service`: lint, format, typecheck, build, unit test, integration test
-- `finance-service`: lint, format, typecheck, build, unit test, integration test
-- `academic-service`: lint, format, typecheck, build, unit test, integration test
-- `frontend`: lint, typecheck, test, build, fast E2E
-- `node scripts/run-image-smoke.mjs`
-- `cd frontend && npm run test:e2e:edge`
-- `node scripts/run-security-local.mjs`
-- `docker compose -f docker-compose.yml config`
-- `docker compose -f docker-compose.production.yml config`
-- `docker compose -f docker-compose.e2e.yml config`
-- `git diff --check`
-
-## Release policy
-
-CampusCore dùng policy **semver-only public release**:
-
-- branch `master` hoặc `main` chỉ chạy CI
-- public registry chỉ publish khi push tag `vX.Y.Z`
-- `latest` chỉ di chuyển cùng một semver release
-- mỗi release phải publish đủ **5 image**:
-  - `campuscore-backend`
-  - `campuscore-notification-service`
-  - `campuscore-finance-service`
-  - `campuscore-academic-service`
-  - `campuscore-frontend`
-
-## Registry
-
-### Docker Hub
-
-- `nguyenson1710/campuscore-backend`
-- `nguyenson1710/campuscore-notification-service`
-- `nguyenson1710/campuscore-finance-service`
-- `nguyenson1710/campuscore-academic-service`
-- `nguyenson1710/campuscore-frontend`
-
-### GitHub Container Registry
-
-- `ghcr.io/jasontm17/campuscore-backend`
-- `ghcr.io/jasontm17/campuscore-notification-service`
-- `ghcr.io/jasontm17/campuscore-finance-service`
-- `ghcr.io/jasontm17/campuscore-academic-service`
-- `ghcr.io/jasontm17/campuscore-frontend`
-
-## Tài liệu bổ sung
+## Tài liệu vận hành
 
 - [README.vi.md](./README.vi.md)
 - [README.en.md](./README.en.md)
@@ -209,9 +239,10 @@ CampusCore dùng policy **semver-only public release**:
 - [docs/RELEASE.md](./docs/RELEASE.md)
 - [DOCKER_HUB.md](./DOCKER_HUB.md)
 
-## Tác giả
+## Ghi chú trung thực về v6
 
-Nguyễn Tiến Sơn
-
-- GitHub: [JasonTM17](https://github.com/JasonTM17)
-- Email: [jasonbmt06@gmail.com](mailto:jasonbmt06@gmail.com)
+- `people-service` đã là service công khai sở hữu `students` và `lecturers`.
+- `analytics-service` đã là service công khai sở hữu `/api/v1/analytics/*`.
+- `auth`, `users`, `roles`, `permissions` vẫn ở `core-api`.
+- JWT hiện vẫn ổn định nhờ cơ chế **đồng bộ shadow trong một release chuyển tiếp** giữa `people-service` và `core-api`.
+- Hệ thống là microservices thật ở mức runtime và release, nhưng vẫn dùng PostgreSQL cluster dùng chung với schema tách riêng cho từng service.
