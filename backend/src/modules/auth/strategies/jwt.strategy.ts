@@ -3,16 +3,17 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
-import { AuthService } from '../auth.service';
+import {
+  extractAccessTokenFromRequest,
+  normalizeJwtPayload,
+  type JwtPayloadLike,
+} from '@campuscore/platform-auth';
 import { ENV } from '../../../config/env.constants';
-import { extractAccessTokenFromRequest } from '../auth-session.util';
+import { AuthUser } from '../types/auth-user.type';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(
-    private configService: ConfigService,
-    private authService: AuthService,
-  ) {
+  constructor(private readonly configService: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -23,15 +24,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: any) {
-    const user = await this.authService.validateUser(payload.sub);
-    if (!user) {
+  async validate(payload: JwtPayloadLike): Promise<AuthUser> {
+    if (!payload?.sub || !payload?.email) {
       throw new UnauthorizedException();
     }
-    // Return the full user object including studentId and lecturerId
-    return {
-      ...payload,
-      ...user,
-    };
+
+    return normalizeJwtPayload(payload) as AuthUser;
   }
 }

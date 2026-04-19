@@ -6,12 +6,9 @@ import { PrismaModule } from './modules/common/prisma/prisma.module';
 import { CacheModule } from './modules/cache/cache.module';
 import { RabbitMQModule } from './modules/rabbitmq/rabbitmq.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { UsersModule } from './modules/users/users.module';
-import { RolesModule } from './modules/roles/roles.module';
-import { PermissionsModule } from './modules/permissions/permissions.module';
 import { FinanceContextModule } from './modules/finance-context/finance-context.module';
-import { PeopleContextModule } from './modules/people-context/people-context.module';
 import { PeopleShadowModule } from './modules/people-shadow/people-shadow.module';
+import { AuthShadowModule } from './modules/auth-shadow/auth-shadow.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { HealthModule } from './modules/health/health.module';
 import { validateEnvironment } from './config/env.validation';
@@ -47,12 +44,9 @@ import { validateEnvironment } from './config/env.validation';
     CacheModule,
     RabbitMQModule,
     AuthModule,
-    UsersModule,
-    RolesModule,
-    PermissionsModule,
     FinanceContextModule,
-    PeopleContextModule,
     PeopleShadowModule,
+    AuthShadowModule,
     AuditLogsModule,
     HealthModule,
   ],

@@ -6,7 +6,7 @@ import {
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { AcademicContextService } from '../people-context/academic-context.service';
-import { CoreUserContextService } from '../people-context/core-user-context.service';
+import { AuthUserContextService } from '../people-context/auth-user-context.service';
 import { RabbitMQService } from '../rabbitmq/rabbitmq.service';
 import {
   PEOPLE_EVENT_TYPES,
@@ -38,7 +38,7 @@ export class StudentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly academicContextService: AcademicContextService,
-    private readonly coreUserContextService: CoreUserContextService,
+    private readonly authUserContextService: AuthUserContextService,
     private readonly rabbitMQService: RabbitMQService,
   ) {}
 
@@ -57,7 +57,7 @@ export class StudentsService {
     }
 
     const [userSnapshot, curriculumSnapshot] = await Promise.all([
-      this.coreUserContextService.getUser(createStudentDto.userId),
+      this.authUserContextService.getUser(createStudentDto.userId),
       this.academicContextService.getCurriculum(createStudentDto.curriculumId),
     ]);
 
@@ -130,7 +130,7 @@ export class StudentsService {
 
     const [userSnapshot, curriculumSnapshot] = await Promise.all([
       updateData.userId && updateData.userId !== existing.userId
-        ? this.coreUserContextService.getUser(updateData.userId)
+        ? this.authUserContextService.getUser(updateData.userId)
         : Promise.resolve({
             id: existing.userId,
             email: existing.email,

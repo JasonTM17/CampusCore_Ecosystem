@@ -17,6 +17,7 @@ Legacy alias: DOCKERHUB_USERNAME
 
 Builds and pushes:
   - <namespace>/campuscore-backend:<tag>
+  - <namespace>/campuscore-auth-service:<tag>
   - <namespace>/campuscore-notification-service:<tag>
   - <namespace>/campuscore-finance-service:<tag>
   - <namespace>/campuscore-academic-service:<tag>
@@ -59,6 +60,7 @@ fi
 
 IMAGES=(
   "campuscore-backend|backend/Dockerfile"
+  "campuscore-auth-service|auth-service/Dockerfile"
   "campuscore-notification-service|notification-service/Dockerfile"
   "campuscore-finance-service|finance-service/Dockerfile"
   "campuscore-academic-service|academic-service/Dockerfile"

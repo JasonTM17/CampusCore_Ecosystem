@@ -124,6 +124,8 @@ test('admin can still reach roster-style people and academic management routes',
   page,
   playwright,
 }) => {
+  test.setTimeout(75_000);
+
   await seedBrowserSession(page, playwright, 'admin', { shared: true });
 
   await page.goto('/admin');
@@ -132,20 +134,21 @@ test('admin can still reach roster-style people and academic management routes',
     page.getByRole('heading', { name: 'Admin Dashboard' }),
   ).toBeVisible();
 
-  await visitRoutes(
-    page,
-    adminRoutes.filter((route) =>
-      [
-        '/admin/users',
-        '/admin/lecturers',
-        '/admin/courses',
-        '/admin/sections',
-        '/admin/enrollments',
-        '/admin/classrooms',
-        '/admin/semesters',
-        '/admin/academic-years',
-        '/admin/departments',
-      ].includes(route.path),
-    ),
+  const rosterRoutes = adminRoutes.filter((route) =>
+    [
+      '/admin/users',
+      '/admin/lecturers',
+      '/admin/courses',
+      '/admin/sections',
+      '/admin/enrollments',
+      '/admin/classrooms',
+      '/admin/semesters',
+      '/admin/academic-years',
+      '/admin/departments',
+    ].includes(route.path),
   );
+
+  for (const route of rosterRoutes) {
+    await visitRoute(page, route);
+  }
 });

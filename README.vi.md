@@ -1,10 +1,11 @@
 # CampusCore (Tiếng Việt)
 
-CampusCore là một microservices portfolio cho bài toán quản lý học vụ đại học. Repo hiện chạy với một `core-api`, sáu domain service (`notification-service`, `finance-service`, `academic-service`, `engagement-service`, `people-service`, `analytics-service`), một `frontend`, và một `nginx gateway`.
+CampusCore là một microservices portfolio cho bài toán quản lý học vụ đại học. Repo hiện chạy với một `core-api`, một `auth-service`, sáu domain service (`notification-service`, `finance-service`, `academic-service`, `engagement-service`, `people-service`, `analytics-service`), một `frontend`, và một `nginx gateway`.
 
 ## Stack hiện tại
 
-- `core-api`: auth, users, roles, permissions, audit logs, finance-context, public health
+- `core-api`: audit logs, finance-context, compatibility shadow, public health
+- `auth-service`: auth, sessions, users, roles, permissions, JWT cookie + CSRF contract
 - `notification-service`: inbox, unread count, websocket `/notifications`
 - `finance-service`: invoices, payments, scholarships, finance events
 - `academic-service`: public academic APIs và academic master-data
@@ -25,7 +26,8 @@ Public path phía frontend không đổi:
 - public academic routes -> `academic-service`
 - announcements và support tickets -> `engagement-service`
 - `/api/v1/analytics/*` -> `analytics-service`
-- `/api/v1/auth/*`, `/api/v1/users/*`, `/api/v1/roles/*`, `/api/v1/permissions/*`, `/health` -> `core-api`
+- `/api/v1/auth/*`, `/api/v1/users/*`, `/api/v1/roles/*`, `/api/v1/permissions/*` -> `auth-service`
+- `/health` -> `core-api`
 
 Không public:
 
@@ -49,7 +51,7 @@ Legacy bearer vẫn được giữ để tương thích.
 Internal service contract canonical hiện tại là:
 
 - `/api/v1/internal/academic-context/*`
-- `/api/v1/internal/people-context/*`
+- `/api/v1/internal/auth-context/*`
 - `/api/v1/internal/finance-context/*`
 
 ## Shared auth contract
@@ -73,13 +75,14 @@ Các route này chỉ dùng cho service-to-service với `X-Service-Token`.
 Các image public hiện tại:
 
 1. `campuscore-backend`
-2. `campuscore-notification-service`
-3. `campuscore-finance-service`
-4. `campuscore-academic-service`
-5. `campuscore-engagement-service`
-6. `campuscore-people-service`
-7. `campuscore-analytics-service`
-8. `campuscore-frontend`
+2. `campuscore-auth-service`
+3. `campuscore-notification-service`
+4. `campuscore-finance-service`
+5. `campuscore-academic-service`
+6. `campuscore-engagement-service`
+7. `campuscore-people-service`
+8. `campuscore-analytics-service`
+9. `campuscore-frontend`
 
 ## Tài liệu liên quan
 

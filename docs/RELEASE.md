@@ -6,7 +6,7 @@
 - Public registry chỉ publish từ tag semver `vX.Y.Z`.
 - `latest` chỉ được cập nhật khi có semver release.
 
-Nhánh hardening hiện tại nhắm tới **`v1.2.0`**.
+Nhánh hardening hiện tại nhắm tới **`v1.3.0`**.
 
 ## Required quality gate
 
@@ -16,6 +16,8 @@ Lanes bắt buộc hiện tại:
 
 - `core-quality`
 - `core-integration`
+- `auth-quality`
+- `auth-integration`
 - `notification-quality`
 - `notification-integration`
 - `finance-quality`
@@ -38,26 +40,27 @@ Lanes bắt buộc hiện tại:
 
 ## Public images
 
-Release hiện tại phải publish đủ 8 image:
+Release hiện tại phải publish đủ 9 image:
 
 1. `campuscore-backend`
-2. `campuscore-notification-service`
-3. `campuscore-finance-service`
-4. `campuscore-academic-service`
-5. `campuscore-engagement-service`
-6. `campuscore-people-service`
-7. `campuscore-analytics-service`
-8. `campuscore-frontend`
+2. `campuscore-auth-service`
+3. `campuscore-notification-service`
+4. `campuscore-finance-service`
+5. `campuscore-academic-service`
+6. `campuscore-engagement-service`
+7. `campuscore-people-service`
+8. `campuscore-analytics-service`
+9. `campuscore-frontend`
 
 Tag strategy:
 
-- `v1.2.0`
+- `v1.3.0`
 - short SHA immutable tag
 - `latest`
 
 ## Post-publish verification
 
-- verify manifest của đủ 8 image
+- verify manifest của đủ 9 image
 - verify digest và SBOM/provenance trong release summary
 - smoke published images qua GHCR
 - smoke published images qua Docker Hub nếu credentials đã cấu hình

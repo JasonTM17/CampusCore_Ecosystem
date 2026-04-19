@@ -47,7 +47,7 @@ const schema = z.object({
   [ENV.HEALTH_READINESS_KEY]: z.string().min(16).optional(),
   [ENV.JWT_SECRET]: z.string().min(1),
   [ENV.RABBITMQ_URL]: z.string().min(1).optional(),
-  [ENV.CORE_API_INTERNAL_URL]: z.string().url().optional(),
+  [ENV.AUTH_SERVICE_INTERNAL_URL]: z.string().url().optional(),
   [ENV.ACADEMIC_SERVICE_INTERNAL_URL]: z.string().url().optional(),
   [ENV.INTERNAL_SERVICE_TOKEN]: z.string().min(16).optional(),
   [ENV.SMTP_HOST]: z.string().min(1).optional(),
@@ -95,9 +95,9 @@ export function validateEnvironment(env: Record<string, unknown>) {
   return {
     ...parsed.data,
     [ENV.FRONTEND_URL]: frontendUrl ?? ENV_DEFAULTS.FRONTEND_URL,
-    [ENV.CORE_API_INTERNAL_URL]:
-      parsed.data[ENV.CORE_API_INTERNAL_URL] ??
-      ENV_DEFAULTS.CORE_API_INTERNAL_URL,
+    [ENV.AUTH_SERVICE_INTERNAL_URL]:
+      parsed.data[ENV.AUTH_SERVICE_INTERNAL_URL] ??
+      ENV_DEFAULTS.AUTH_SERVICE_INTERNAL_URL,
     [ENV.ACADEMIC_SERVICE_INTERNAL_URL]:
       parsed.data[ENV.ACADEMIC_SERVICE_INTERNAL_URL] ??
       ENV_DEFAULTS.ACADEMIC_SERVICE_INTERNAL_URL,

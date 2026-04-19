@@ -76,7 +76,7 @@ export default function LoginPage() {
               CampusCore
             </h1>
             <p className="text-xl text-blue-200 max-w-md">
-              Enterprise Academic Management Platform
+              Production-like Campus Operations Workspace
             </p>
           </div>
           
@@ -104,8 +104,8 @@ export default function LoginPage() {
                 <span className="text-emerald-400 font-bold">03</span>
               </div>
               <div>
-                <h3 className="font-semibold text-white mb-1">Secure Authentication</h3>
-                <p className="text-blue-200/70 text-sm">Role-based access control</p>
+                <h3 className="font-semibold text-white mb-1">Hardened Sessions</h3>
+                <p className="text-blue-200/70 text-sm">Cookie-based auth with CSRF protection</p>
               </div>
             </div>
           </div>

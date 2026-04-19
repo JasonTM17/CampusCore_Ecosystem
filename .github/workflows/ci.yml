@@ -197,6 +197,199 @@ jobs:
             backend/coverage
             backend/test-results
 
+  auth-quality:
+    name: auth-quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: auth-service/package-lock.json
+
+      - name: Install dependencies
+        working-directory: auth-service
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: auth-service
+        run: npm run prisma:generate
+
+      - name: Lint
+        working-directory: auth-service
+        run: npm run lint
+
+      - name: Check formatting
+        working-directory: auth-service
+        run: npm run lint:format
+
+      - name: Typecheck
+        working-directory: auth-service
+        run: npm run typecheck
+
+      - name: Build
+        working-directory: auth-service
+        run: npm run build
+
+      - name: Unit tests
+        working-directory: auth-service
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npm run test:unit -- --runInBand
+
+  auth-integration:
+    name: auth-integration
+    runs-on: ubuntu-latest
+    needs: auth-quality
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: campuscore
+          POSTGRES_USER: campuscore
+          POSTGRES_PASSWORD: ci-postgres-password
+        options: >-
+          --health-cmd "pg_isready -U campuscore -d campuscore"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: campuscore
+          RABBITMQ_DEFAULT_PASS: ci-rabbitmq-password
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            auth-service/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install auth-service dependencies
+        working-directory: auth-service
+        run: npm ci
+
+      - name: Generate backend Prisma Client
+        working-directory: backend
+        run: npm run prisma:generate
+
+      - name: Generate auth-service Prisma Client
+        working-directory: auth-service
+        run: npm run prisma:generate
+
+      - name: Push core public schema
+        working-directory: backend
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=public
+          REDIS_URL: redis://redis:6379
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          JWT_REFRESH_SECRET: ci-refresh-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+          INTERNAL_SERVICE_TOKEN: ci-internal-service-token
+        run: npx prisma db push --skip-generate
+
+      - name: Seed core public schema
+        working-directory: backend
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=public
+          REDIS_URL: redis://redis:6379
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          JWT_REFRESH_SECRET: ci-refresh-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+          INTERNAL_SERVICE_TOKEN: ci-internal-service-token
+        run: npm run prisma:seed
+
+      - name: Push auth schema
+        working-directory: auth-service
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=auth
+          REDIS_URL: redis://redis:6379
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          JWT_REFRESH_SECRET: ci-refresh-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+          INTERNAL_SERVICE_TOKEN: ci-internal-service-token
+        run: npx prisma db push --skip-generate
+
+      - name: Migrate legacy auth data into auth schema
+        working-directory: auth-service
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=auth
+          REDIS_URL: redis://redis:6379
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          JWT_REFRESH_SECRET: ci-refresh-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+          INTERNAL_SERVICE_TOKEN: ci-internal-service-token
+        run: npm run data:migrate:legacy
+
+      - name: Integration tests
+        working-directory: auth-service
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=auth
+          REDIS_URL: redis://redis:6379
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          JWT_REFRESH_SECRET: ci-refresh-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+          INTERNAL_SERVICE_TOKEN: ci-internal-service-token
+        run: npm run test:integration -- --runInBand
+
+      - name: Upload auth integration logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-integration-logs
+          path: |
+            auth-service/coverage
+            auth-service/test-results
+
   notification-quality:
     name: notification-quality
     runs-on: ubuntu-latest
@@ -996,6 +1189,7 @@ jobs:
     needs:
       [
         core-quality,
+        auth-quality,
         notification-quality,
         finance-quality,
         academic-quality,
@@ -1016,6 +1210,7 @@ jobs:
           cache: npm
           cache-dependency-path: |
             backend/package-lock.json
+            auth-service/package-lock.json
             notification-service/package-lock.json
             finance-service/package-lock.json
             academic-service/package-lock.json
@@ -1026,6 +1221,10 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: backend
+        run: npm ci
+
+      - name: Install auth-service dependencies
+        working-directory: auth-service
         run: npm ci
 
       - name: Install notification service dependencies
@@ -1113,6 +1312,8 @@ jobs:
       [
         core-quality,
         core-integration,
+        auth-quality,
+        auth-integration,
         notification-quality,
         notification-integration,
         finance-quality,
@@ -1156,6 +1357,8 @@ jobs:
       [
         core-quality,
         core-integration,
+        auth-quality,
+        auth-integration,
         notification-quality,
         notification-integration,
         finance-quality,
@@ -1229,6 +1432,8 @@ jobs:
       [
         core-quality,
         core-integration,
+        auth-quality,
+        auth-integration,
         notification-quality,
         notification-integration,
         finance-quality,
@@ -1258,7 +1463,9 @@ jobs:
           node-version: '20'
           cache: npm
           cache-dependency-path: |
+            packages/platform-auth/package-lock.json
             backend/package-lock.json
+            auth-service/package-lock.json
             notification-service/package-lock.json
             finance-service/package-lock.json
             academic-service/package-lock.json
@@ -1281,8 +1488,16 @@ jobs:
         if: always() && steps.gitleaks.outputs.sarif != ''
         run: cp "${{ steps.gitleaks.outputs.sarif }}" security-results/gitleaks.sarif
 
+      - name: Install shared auth package dependencies
+        working-directory: packages/platform-auth
+        run: npm ci
+
       - name: Install backend dependencies
         working-directory: backend
+        run: npm ci
+
+      - name: Install auth-service dependencies
+        working-directory: auth-service
         run: npm ci
 
       - name: Install frontend dependencies
@@ -1330,6 +1545,12 @@ jobs:
         continue-on-error: true
         working-directory: frontend
         run: npm audit --audit-level=high --json > ../security-results/frontend-npm-audit.json 2> ../security-results/frontend-npm-audit.stderr.log
+
+      - name: Auth service npm audit
+        id: auth-npm-audit
+        continue-on-error: true
+        working-directory: auth-service
+        run: npm audit --audit-level=high --json > ../security-results/auth-npm-audit.json 2> ../security-results/auth-npm-audit.stderr.log
 
       - name: Notification service npm audit
         id: notification-npm-audit
@@ -1391,6 +1612,18 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: '1'
 
+      - name: Auth service filesystem scan
+        id: trivy-auth-fs
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: auth-service
+          format: sarif
+          output: security-results/trivy-auth-fs.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+
       - name: Academic service filesystem scan
         id: trivy-academic-fs
         continue-on-error: true
@@ -1442,6 +1675,9 @@ jobs:
       - name: Build backend image for scan
         run: docker build -f backend/Dockerfile -t campuscore-backend:security .
 
+      - name: Build auth service image for scan
+        run: docker build -f auth-service/Dockerfile -t campuscore-auth-service:security .
+
       - name: Build frontend image for scan
         run: docker build -f frontend/Dockerfile -t campuscore-frontend:security .
 
@@ -1472,6 +1708,19 @@ jobs:
           image-ref: campuscore-backend:security
           format: sarif
           output: security-results/trivy-backend-image.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Auth service image scan
+        id: trivy-auth-image
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: campuscore-auth-service:security
+          format: sarif
+          output: security-results/trivy-auth-image.sarif
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
@@ -1595,6 +1844,20 @@ jobs:
           sarif_file: security-results/trivy-backend-image.sarif
           category: trivy-backend-image
 
+      - name: Upload auth service filesystem SARIF
+        if: always() && hashFiles('security-results/trivy-auth-fs.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-results/trivy-auth-fs.sarif
+          category: trivy-auth-fs
+
+      - name: Upload auth service image SARIF
+        if: always() && hashFiles('security-results/trivy-auth-image.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-results/trivy-auth-image.sarif
+          category: trivy-auth-image
+
       - name: Upload frontend image SARIF
         if: always() && hashFiles('security-results/trivy-frontend-image.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
         uses: github/codeql-action/upload-sarif@v3
@@ -1685,6 +1948,7 @@ jobs:
           if [ "${{ steps.gitleaks.outcome }}" != "success" ] || \
              [ "${{ steps.platform-auth-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.backend-npm-audit.outcome }}" != "success" ] || \
+             [ "${{ steps.auth-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.frontend-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.notification-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.finance-npm-audit.outcome }}" != "success" ] || \
@@ -1694,11 +1958,13 @@ jobs:
              [ "${{ steps.analytics-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-platform-auth-fs.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-fs.outcome }}" != "success" ] || \
+             [ "${{ steps.trivy-auth-fs.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-academic-fs.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-engagement-fs.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-people-fs.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-analytics-fs.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-backend-image.outcome }}" != "success" ] || \
+             [ "${{ steps.trivy-auth-image.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-frontend-image.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-notification-image.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-finance-image.outcome }}" != "success" ] || \
@@ -1731,6 +1997,8 @@ jobs:
       - architecture-guard
       - core-quality
       - core-integration
+      - auth-quality
+      - auth-integration
       - notification-quality
       - notification-integration
       - finance-quality
@@ -1780,6 +2048,8 @@ jobs:
           check_required architecture-guard "${{ needs.architecture-guard.result }}"
           check_required core-quality "${{ needs.core-quality.result }}"
           check_required core-integration "${{ needs.core-integration.result }}"
+          check_required auth-quality "${{ needs.auth-quality.result }}"
+          check_required auth-integration "${{ needs.auth-integration.result }}"
           check_required notification-quality "${{ needs.notification-quality.result }}"
           check_required notification-integration "${{ needs.notification-integration.result }}"
           check_required finance-quality "${{ needs.finance-quality.result }}"
@@ -1812,6 +2082,8 @@ jobs:
             echo "- architecture-guard: ${{ needs.architecture-guard.result }}"
             echo "- core-quality: ${{ needs.core-quality.result }}"
             echo "- core-integration: ${{ needs.core-integration.result }}"
+            echo "- auth-quality: ${{ needs.auth-quality.result }}"
+            echo "- auth-integration: ${{ needs.auth-integration.result }}"
             echo "- notification-quality: ${{ needs.notification-quality.result }}"
             echo "- notification-integration: ${{ needs.notification-integration.result }}"
             echo "- finance-quality: ${{ needs.finance-quality.result }}"

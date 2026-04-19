@@ -20,6 +20,8 @@ const readinessKey =
   process.env.HEALTH_READINESS_KEY ?? 'edge-e2e-readiness-key-12345';
 const coreApiImage =
   process.env.E2E_CORE_API_IMAGE ?? 'campuscore-backend:e2e-local';
+const authServiceImage =
+  process.env.E2E_AUTH_SERVICE_IMAGE ?? 'campuscore-auth-service:e2e-local';
 const notificationServiceImage =
   process.env.E2E_NOTIFICATION_SERVICE_IMAGE ??
   'campuscore-notification-service:e2e-local';
@@ -47,6 +49,8 @@ const composeBaseArgs = ['compose', '-p', projectName, '-f', composeFile];
 const servicesForLogs = [
   'core-api-init',
   'core-api',
+  'auth-service-init',
+  'auth-service',
   'notification-service-init',
   'notification-service',
   'finance-service-init',
@@ -78,6 +82,7 @@ async function main() {
       await compose([
         'pull',
         'core-api',
+        'auth-service',
         'notification-service',
         'finance-service',
         'academic-service',
@@ -114,6 +119,7 @@ async function main() {
       JSON.stringify(
         {
           coreApi: await getInternalReadiness('core-api', 4000),
+          authService: await getInternalReadiness('auth-service', 4007),
           notificationService: await getInternalReadiness(
             'notification-service',
             4001,
@@ -138,6 +144,7 @@ async function main() {
         {
           usePrebuiltImages,
           coreApiImage,
+          authServiceImage,
           notificationServiceImage,
           financeServiceImage,
           academicServiceImage,
@@ -238,6 +245,7 @@ async function compose(args, options = {}) {
       E2E_FRONTEND_URL: baseURL,
       HEALTH_READINESS_KEY: readinessKey,
       E2E_CORE_API_IMAGE: coreApiImage,
+      E2E_AUTH_SERVICE_IMAGE: authServiceImage,
       E2E_NOTIFICATION_SERVICE_IMAGE: notificationServiceImage,
       E2E_FINANCE_SERVICE_IMAGE: financeServiceImage,
       E2E_ACADEMIC_SERVICE_IMAGE: academicServiceImage,
@@ -254,6 +262,7 @@ async function compose(args, options = {}) {
 async function buildStackSequentially() {
   const buildOrder = [
     'core-api-init',
+    'auth-service-init',
     'notification-service-init',
     'finance-service-init',
     'academic-service-init',
@@ -261,6 +270,7 @@ async function buildStackSequentially() {
     'people-service-init',
     'analytics-service-init',
     'core-api',
+    'auth-service',
     'notification-service',
     'finance-service',
     'academic-service',
