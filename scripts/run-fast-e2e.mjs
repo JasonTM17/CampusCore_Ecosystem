@@ -555,7 +555,8 @@ async function startManagedProcess(name, command, args, options) {
     cwd: options.cwd,
     env: options.env,
     stdio: ['ignore', 'pipe', 'pipe'],
-    shell: false
+    shell: false,
+    detached: process.platform !== 'win32'
   });
 
   child.stdout.pipe(logStream, { end: false });
@@ -589,19 +590,7 @@ async function stopApplicationServers() {
     const { child, logStream } = processInfo;
 
     if (child.exitCode === null && child.signalCode === null) {
-      if (process.platform === 'win32') {
-        await run('taskkill', ['/pid', String(child.pid), '/t', '/f'], {
-          allowFailure: true,
-          captureOutput: true
-        });
-      } else {
-        child.kill('SIGTERM');
-        await waitForExit(child, 5_000);
-
-        if (child.exitCode === null && child.signalCode === null) {
-          child.kill('SIGKILL');
-        }
-      }
+      await terminateManagedProcess(child);
     }
 
     await new Promise((resolve) => logStream.end(resolve));
@@ -623,6 +612,36 @@ function waitForExit(child, timeoutMs) {
       resolve();
     });
   });
+}
+
+async function terminateManagedProcess(child) {
+  if (process.platform === 'win32') {
+    await run('taskkill', ['/pid', String(child.pid), '/t', '/f'], {
+      allowFailure: true,
+      captureOutput: true
+    });
+    return;
+  }
+
+  signalUnixProcessTree(child.pid, 'SIGTERM');
+  await waitForExit(child, 5_000);
+
+  if (child.exitCode === null && child.signalCode === null) {
+    signalUnixProcessTree(child.pid, 'SIGKILL');
+    await waitForExit(child, 5_000);
+  }
+}
+
+function signalUnixProcessTree(pid, signal) {
+  try {
+    process.kill(-pid, signal);
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ESRCH') {
+      return;
+    }
+
+    throw error;
+  }
 }
 
 async function startPostgres() {
