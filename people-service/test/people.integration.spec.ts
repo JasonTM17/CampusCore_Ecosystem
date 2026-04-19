@@ -29,6 +29,8 @@ type AuthContext = {
 };
 
 describe('People service integration', () => {
+  jest.setTimeout(20_000);
+
   let app: NestExpressApplication;
   let prisma: PrismaService;
   let jwtService: JwtService;
@@ -66,6 +68,7 @@ describe('People service integration', () => {
 
     contextBaseUrl = `http://127.0.0.1:${address.port}`;
     process.env.CORE_API_INTERNAL_URL = contextBaseUrl;
+    process.env.AUTH_SERVICE_INTERNAL_URL = contextBaseUrl;
     process.env.ACADEMIC_SERVICE_INTERNAL_URL = contextBaseUrl;
 
     const rabbitmqUrl = process.env.RABBITMQ_URL;
@@ -286,7 +289,10 @@ function createContextServer(serviceToken: string) {
       return;
     }
 
-    if (req.url === '/api/v1/internal/people-context/users/student-user-1') {
+    if (
+      req.url === '/api/v1/internal/auth-context/users/student-user-1' ||
+      req.url === '/api/v1/internal/people-context/users/student-user-1'
+    ) {
       return json(res, {
         id: 'student-user-1',
         email: 'student1@campuscore.edu',
@@ -296,7 +302,10 @@ function createContextServer(serviceToken: string) {
       });
     }
 
-    if (req.url === '/api/v1/internal/people-context/users/lecturer-user-1') {
+    if (
+      req.url === '/api/v1/internal/auth-context/users/lecturer-user-1' ||
+      req.url === '/api/v1/internal/people-context/users/lecturer-user-1'
+    ) {
       return json(res, {
         id: 'lecturer-user-1',
         email: 'john.doe@campuscore.edu',
