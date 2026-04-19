@@ -13,9 +13,10 @@ import {
   CSRF_COOKIE,
   CSRF_HEADER,
   REFRESH_TOKEN_COOKIE,
+  extractAccessTokenFromRequest,
   hasBearerAuthorization,
   hasSessionCookie,
-} from './modules/auth/auth-session.util';
+} from '@campuscore/platform-auth';
 import { GlobalExceptionFilter } from './modules/common/filters/global-exception.filter';
 
 const logger = new Logger('Bootstrap');

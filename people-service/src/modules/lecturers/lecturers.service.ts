@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AcademicContextService } from '../people-context/academic-context.service';
-import { CoreUserContextService } from '../people-context/core-user-context.service';
+import { AuthUserContextService } from '../people-context/auth-user-context.service';
 import { RabbitMQService } from '../rabbitmq/rabbitmq.service';
 import {
   PEOPLE_EVENT_TYPES,
@@ -36,7 +36,7 @@ export class LecturersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly academicContextService: AcademicContextService,
-    private readonly coreUserContextService: CoreUserContextService,
+    private readonly authUserContextService: AuthUserContextService,
     private readonly rabbitMQService: RabbitMQService,
   ) {}
 
@@ -55,7 +55,7 @@ export class LecturersService {
     }
 
     const [userSnapshot, departmentSnapshot] = await Promise.all([
-      this.coreUserContextService.getUser(String(data.userId)),
+      this.authUserContextService.getUser(String(data.userId)),
       this.academicContextService.getDepartment(String(data.departmentId)),
     ]);
 
@@ -123,7 +123,7 @@ export class LecturersService {
 
     const [userSnapshot, departmentSnapshot] = await Promise.all([
       data.userId && String(data.userId) !== existing.userId
-        ? this.coreUserContextService.getUser(String(data.userId))
+        ? this.authUserContextService.getUser(String(data.userId))
         : Promise.resolve({
             id: existing.userId,
             email: existing.email,

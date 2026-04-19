@@ -35,7 +35,7 @@ test.describe('edge-only contract smoke', () => {
     expect(readinessResponse.status()).toBe(403);
 
     const internalResponse = await request.get(
-      `${frontendBaseURL}/api/v1/internal/people-context/users/test-user`,
+      `${frontendBaseURL}/api/v1/internal/auth-context/users/test-user`,
     );
     expect(internalResponse.status()).toBe(403);
   });
@@ -68,7 +68,10 @@ test.describe('edge-only contract smoke', () => {
     let adminAccessToken: string | undefined;
 
     try {
-      const studentSession = await getSharedSessionArtifacts(playwright, 'student');
+      const studentSession = await getSharedSessionArtifacts(
+        playwright,
+        'student',
+      );
       const adminSession = await getSharedSessionArtifacts(playwright, 'admin');
       const studentData = studentSession.authData;
       adminAccessToken = adminSession.authData.accessToken;
@@ -148,11 +151,14 @@ test.describe('edge-only contract smoke', () => {
       }
     } finally {
       if (createdAnnouncementId && adminAccessToken) {
-        await adminApi.delete(`/api/v1/announcements/${createdAnnouncementId}`, {
-          headers: {
-            Authorization: `Bearer ${adminAccessToken}`,
+        await adminApi.delete(
+          `/api/v1/announcements/${createdAnnouncementId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${adminAccessToken}`,
+            },
           },
-        });
+        );
       }
       await adminApi.dispose();
     }

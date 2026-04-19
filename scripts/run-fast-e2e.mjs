@@ -9,6 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const backendDir = path.join(repoRoot, 'backend');
+const authDir = path.join(repoRoot, 'auth-service');
 const notificationDir = path.join(repoRoot, 'notification-service');
 const financeDir = path.join(repoRoot, 'finance-service');
 const academicDir = path.join(repoRoot, 'academic-service');
@@ -33,6 +34,7 @@ const notificationsDatabaseUrl = publicDatabaseUrl.replace(
   'schema=public',
   'schema=notifications'
 );
+const authDatabaseUrl = publicDatabaseUrl.replace('schema=public', 'schema=auth');
 const financeDatabaseUrl = publicDatabaseUrl.replace('schema=public', 'schema=finance');
 const academicDatabaseUrl = publicDatabaseUrl.replace(
   'schema=public',
@@ -49,6 +51,7 @@ const frontendBaseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3100';
 const proxyPort = Number(process.env.E2E_GATEWAY_PORT ?? '4180');
 const apiBaseURL = process.env.E2E_API_URL ?? `http://127.0.0.1:${proxyPort}/api/v1`;
 const backendPort = Number(process.env.E2E_CORE_API_PORT ?? '4100');
+const authPort = Number(process.env.E2E_AUTH_PORT ?? '4107');
 const notificationPort = Number(process.env.E2E_NOTIFICATION_PORT ?? '4101');
 const financePort = Number(process.env.E2E_FINANCE_PORT ?? '4102');
 const academicPort = Number(process.env.E2E_ACADEMIC_PORT ?? '4103');
@@ -90,6 +93,10 @@ async function main() {
     await waitForPostgres();
     await prepareDatabase();
     await startApplicationServers();
+    await waitForResponse(
+      `http://127.0.0.1:${authPort}/api/v1/health/liveness`,
+      (_, response) => response.ok
+    );
     await waitForResponse(
       `http://127.0.0.1:${notificationPort}/api/v1/health/liveness`,
       (_, response) => response.ok
@@ -152,6 +159,14 @@ async function prepareDatabase() {
     env: { ...process.env, DATABASE_URL: publicDatabaseUrl }
   });
   await run('npm', ['run', 'prisma:generate'], {
+    cwd: authDir,
+    env: { ...process.env, DATABASE_URL: authDatabaseUrl }
+  });
+  await run('npm', ['exec', '--', 'prisma', 'db', 'push', '--skip-generate'], {
+    cwd: authDir,
+    env: { ...process.env, DATABASE_URL: authDatabaseUrl }
+  });
+  await run('npm', ['run', 'prisma:generate'], {
     cwd: notificationDir,
     env: { ...process.env, DATABASE_URL: notificationsDatabaseUrl }
   });
@@ -204,6 +219,20 @@ async function prepareDatabase() {
     env: { ...process.env, DATABASE_URL: publicDatabaseUrl }
   });
   await run('npm', ['run', 'data:migrate:legacy'], {
+    cwd: authDir,
+    env: {
+      ...process.env,
+      DATABASE_URL: authDatabaseUrl,
+      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+      JWT_REFRESH_SECRET:
+        process.env.E2E_JWT_REFRESH_SECRET ?? 'e2e-jwt-refresh-secret',
+      FRONTEND_URL: frontendBaseURL,
+      INTERNAL_SERVICE_TOKEN: internalServiceToken,
+      RABBITMQ_URL: 'disabled',
+      REDIS_URL: 'disabled'
+    }
+  });
+  await run('npm', ['run', 'data:migrate:legacy'], {
     cwd: notificationDir,
     env: {
       ...process.env,
@@ -250,7 +279,7 @@ async function prepareDatabase() {
       DATABASE_URL: peopleDatabaseUrl,
       JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
       FRONTEND_URL: frontendBaseURL,
-      CORE_API_INTERNAL_URL: `http://127.0.0.1:${backendPort}`,
+      AUTH_SERVICE_INTERNAL_URL: `http://127.0.0.1:${authPort}`,
       ACADEMIC_SERVICE_INTERNAL_URL: `http://127.0.0.1:${academicPort}`,
       INTERNAL_SERVICE_TOKEN: internalServiceToken,
       RABBITMQ_URL: 'disabled'
@@ -272,6 +301,24 @@ async function startApplicationServers() {
       NODE_ENV: 'test',
       REDIS_URL: 'disabled',
       RABBITMQ_URL: 'disabled',
+      INTERNAL_SERVICE_TOKEN: internalServiceToken
+    }
+  });
+
+  await startManagedProcess('auth-service', 'npm', ['run', 'start'], {
+    cwd: authDir,
+    env: {
+      ...process.env,
+      DATABASE_URL: authDatabaseUrl,
+      PORT: String(authPort),
+      FRONTEND_URL: frontendBaseURL,
+      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+      JWT_REFRESH_SECRET:
+        process.env.E2E_JWT_REFRESH_SECRET ?? 'e2e-jwt-refresh-secret',
+      NODE_ENV: 'test',
+      REDIS_URL: 'disabled',
+      RABBITMQ_URL: 'disabled',
+      COOKIE_SECURE: 'false',
       INTERNAL_SERVICE_TOKEN: internalServiceToken
     }
   });
@@ -346,7 +393,7 @@ async function startApplicationServers() {
       NODE_ENV: 'test',
       RABBITMQ_URL: 'disabled',
       COOKIE_SECURE: 'false',
-      CORE_API_INTERNAL_URL: `http://127.0.0.1:${backendPort}`,
+      AUTH_SERVICE_INTERNAL_URL: `http://127.0.0.1:${authPort}`,
       ACADEMIC_SERVICE_INTERNAL_URL: `http://127.0.0.1:${academicPort}`,
       INTERNAL_SERVICE_TOKEN: internalServiceToken
     }
@@ -440,6 +487,19 @@ async function startApiGateway() {
 }
 
 function resolveProxyTarget(url) {
+  if (
+    url.startsWith('/api/v1/auth') ||
+    url.startsWith('/api/v1/users') ||
+    url.startsWith('/api/v1/roles') ||
+    url.startsWith('/api/v1/permissions') ||
+    url.startsWith('/auth') ||
+    url.startsWith('/users') ||
+    url.startsWith('/roles') ||
+    url.startsWith('/permissions')
+  ) {
+    return `http://127.0.0.1:${authPort}`;
+  }
+
   if (url.startsWith('/api/v1/analytics') || url.startsWith('/analytics')) {
     return `http://127.0.0.1:${analyticsPort}`;
   }

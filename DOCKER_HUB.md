@@ -10,19 +10,20 @@
 ## Public image set hiện tại
 
 1. `campuscore-backend`
-2. `campuscore-notification-service`
-3. `campuscore-finance-service`
-4. `campuscore-academic-service`
-5. `campuscore-engagement-service`
-6. `campuscore-people-service`
-7. `campuscore-analytics-service`
-8. `campuscore-frontend`
+2. `campuscore-auth-service`
+3. `campuscore-notification-service`
+4. `campuscore-finance-service`
+5. `campuscore-academic-service`
+6. `campuscore-engagement-service`
+7. `campuscore-people-service`
+8. `campuscore-analytics-service`
+9. `campuscore-frontend`
 
 ## Tag strategy
 
 Mỗi image public được publish với:
 
-- semver tag, ví dụ `v1.1.0`
+- semver tag, ví dụ `v1.3.0`
 - short SHA immutable tag
 - `latest`
 

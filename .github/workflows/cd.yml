@@ -7,6 +7,7 @@ on:
 
 env:
   BACKEND_IMAGE: campuscore-backend
+  AUTH_IMAGE: campuscore-auth-service
   NOTIFICATION_IMAGE: campuscore-notification-service
   FINANCE_IMAGE: campuscore-finance-service
   ACADEMIC_IMAGE: campuscore-academic-service
@@ -208,6 +209,39 @@ jobs:
           push: true
           tags: ${{ steps.meta-backend.outputs.tags }}
           labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          provenance: true
+          sbom: true
+
+      - name: Docker metadata (auth service)
+        id: meta-auth
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.AUTH_IMAGE }}
+          tags: |
+            type=raw,value=${{ needs.release-plan.outputs.image_tag }}
+            type=raw,value=${{ needs.release-plan.outputs.short_sha }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=CampusCore Auth Service
+            org.opencontainers.image.description=CampusCore auth and IAM service for sessions, users, roles, permissions, JWT cookies, and CSRF protection.
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
+            org.opencontainers.image.version=${{ needs.release-plan.outputs.image_tag }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.vendor=CampusCore
+
+      - name: Build and push auth service
+        id: build-auth
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./auth-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta-auth.outputs.tags }}
+          labels: ${{ steps.meta-auth.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
@@ -456,6 +490,10 @@ jobs:
             echo "- Backend SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
             echo "- Backend latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}:latest"
             echo "- Backend digest: ${{ steps.build-backend.outputs.digest }}"
+            echo "- Auth tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.AUTH_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Auth SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.AUTH_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Auth latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.AUTH_IMAGE }}:latest"
+            echo "- Auth digest: ${{ steps.build-auth.outputs.digest }}"
             echo "- Notification tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
             echo "- Notification SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
             echo "- Notification latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}:latest"
@@ -534,6 +572,39 @@ jobs:
           push: true
           tags: ${{ steps.ghcr-meta-backend.outputs.tags }}
           labels: ${{ steps.ghcr-meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          provenance: true
+          sbom: true
+
+      - name: Docker metadata (auth service)
+        id: ghcr-meta-auth
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.AUTH_IMAGE }}
+          tags: |
+            type=raw,value=${{ needs.release-plan.outputs.image_tag }}
+            type=raw,value=${{ needs.release-plan.outputs.short_sha }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=CampusCore Auth Service
+            org.opencontainers.image.description=CampusCore auth and IAM service for sessions, users, roles, permissions, JWT cookies, and CSRF protection.
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
+            org.opencontainers.image.version=${{ needs.release-plan.outputs.image_tag }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.vendor=CampusCore
+
+      - name: Build and push auth service
+        id: ghcr-build-auth
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./auth-service/Dockerfile
+          push: true
+          tags: ${{ steps.ghcr-meta-auth.outputs.tags }}
+          labels: ${{ steps.ghcr-meta-auth.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
@@ -782,6 +853,10 @@ jobs:
             echo "- Backend SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
             echo "- Backend latest tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}:latest"
             echo "- Backend digest: ${{ steps.ghcr-build-backend.outputs.digest }}"
+            echo "- Auth tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.AUTH_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Auth SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.AUTH_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Auth latest tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.AUTH_IMAGE }}:latest"
+            echo "- Auth digest: ${{ steps.ghcr-build-auth.outputs.digest }}"
             echo "- Notification tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
             echo "- Notification SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
             echo "- Notification latest tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}:latest"
@@ -862,6 +937,7 @@ jobs:
           set -euo pipefail
           images=(
             "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}"
+            "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.AUTH_IMAGE }}"
             "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}"
             "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FINANCE_IMAGE }}"
             "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ACADEMIC_IMAGE }}"
@@ -888,6 +964,7 @@ jobs:
           set -euo pipefail
           images=(
             "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}"
+            "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.AUTH_IMAGE }}"
             "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}"
             "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FINANCE_IMAGE }}"
             "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ACADEMIC_IMAGE }}"
@@ -911,6 +988,7 @@ jobs:
         env:
           E2E_USE_PREBUILT_IMAGES: '1'
           E2E_CORE_API_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
+          E2E_AUTH_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.AUTH_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
           E2E_NOTIFICATION_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
           E2E_FINANCE_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FINANCE_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
           E2E_ACADEMIC_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ACADEMIC_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
@@ -925,6 +1003,7 @@ jobs:
         env:
           E2E_USE_PREBUILT_IMAGES: '1'
           E2E_CORE_API_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
+          E2E_AUTH_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.AUTH_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
           E2E_NOTIFICATION_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
           E2E_FINANCE_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FINANCE_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
           E2E_ACADEMIC_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ACADEMIC_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}

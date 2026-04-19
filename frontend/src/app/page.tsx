@@ -43,8 +43,9 @@ const features = [
   },
   {
     icon: Shield,
-    title: 'Role-Based Security',
-    description: 'Keep each role on the right set of tools.',
+    title: 'Auth Service Boundary',
+    description:
+      'Handle sessions, users, roles, and permissions through a dedicated service boundary.',
     color: 'from-orange-500 to-red-500',
   },
   {
@@ -138,7 +139,8 @@ export default function HomePage() {
 
             <p className="text-xl text-gray-600 dark:text-gray-400 mb-10 max-w-2xl mx-auto leading-relaxed">
               A production-like campus platform for identity, academic flows,
-              finance, engagement, and people operations.
+              finance, engagement, people operations, and hardened identity
+              workflows.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -229,7 +231,7 @@ export default function HomePage() {
               </h2>
               <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
                 CampusCore runs a NestJS 11 core API together with dedicated
-                notification, finance, academic, engagement, people, and
+                auth, notification, finance, academic, engagement, people, and
                 analytics services behind nginx, then verifies the full runtime
                 contract across the web app, API edge, database, cache, queue,
                 and object storage.
@@ -238,6 +240,7 @@ export default function HomePage() {
               <div className="space-y-4">
                 {[
                   'NestJS 11 core API with TypeScript',
+                  'Auth service for sessions, users, roles, and permissions',
                   'Notification service for inbox and realtime delivery',
                   'Finance service for invoices and payments',
                   'Academic service for sections, enrollment, and grading',

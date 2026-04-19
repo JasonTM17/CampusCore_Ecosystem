@@ -12,16 +12,13 @@ const nginxConfigPath = path.join(repoRoot, 'nginx', 'nginx.conf');
 const allowedBackendModules = new Set([
   'audit-logs',
   'auth',
+  'auth-shadow',
   'cache',
   'common',
   'finance-context',
   'health',
-  'people-context',
   'people-shadow',
-  'permissions',
   'rabbitmq',
-  'roles',
-  'users',
 ]);
 
 const excludedDirectoryNames = new Set([
@@ -145,9 +142,9 @@ function assertNginxBoundaries(errors) {
         /location ~ \^\/api\/v1\/\(academic-years\|attendance\|classrooms\|courses\|curricula\|departments\|enrollments\|faculties\|grades\|schedules\|sections\|semesters\|waitlist\)\(\/\|\$\) \{[\s\S]*?proxy_pass http:\/\/academic_service_upstream;/u,
     },
     {
-      description: 'keep auth under core-api',
+      description: 'route auth and iam domains to auth-service',
       pattern:
-        /location \^~ \/api\/v1\/auth\/ \{[\s\S]*?proxy_pass http:\/\/core_api_upstream;/u,
+        /location ~ \^\/api\/v1\/\(auth\|users\|roles\|permissions\)\(\/\|\$\) \{[\s\S]*?proxy_pass http:\/\/auth_service_upstream;/u,
     },
     {
       description: 'keep /api/docs under core-api',
@@ -158,7 +155,9 @@ function assertNginxBoundaries(errors) {
 
   for (const { description, pattern } of requiredPatterns) {
     if (!pattern.test(nginxConfig)) {
-      errors.push(`nginx.conf is missing the expected boundary rule to ${description}`);
+      errors.push(
+        `nginx.conf is missing the expected boundary rule to ${description}`,
+      );
     }
   }
 }

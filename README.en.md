@@ -1,10 +1,11 @@
 # CampusCore (English)
 
-CampusCore is a production-like university operations microservices portfolio. The repository currently runs with one `core-api`, six domain services (`notification-service`, `finance-service`, `academic-service`, `engagement-service`, `people-service`, `analytics-service`), one `frontend`, and one `nginx gateway`.
+CampusCore is a production-like university operations microservices portfolio. The repository currently runs with one `core-api`, one `auth-service`, six domain services (`notification-service`, `finance-service`, `academic-service`, `engagement-service`, `people-service`, `analytics-service`), one `frontend`, and one `nginx gateway`.
 
 ## Current stack
 
-- `core-api`: auth, users, roles, permissions, audit logs, finance-context, public health
+- `core-api`: audit logs, finance-context, compatibility shadow, public health
+- `auth-service`: auth, sessions, users, roles, permissions, JWT cookie + CSRF contract
 - `notification-service`: inbox, unread count, websocket `/notifications`
 - `finance-service`: invoices, payments, scholarships, finance events
 - `academic-service`: public academic APIs and academic master data
@@ -25,7 +26,8 @@ Frontend-facing paths stay stable:
 - public academic routes -> `academic-service`
 - announcements and support tickets -> `engagement-service`
 - `/api/v1/analytics/*` -> `analytics-service`
-- `/api/v1/auth/*`, `/api/v1/users/*`, `/api/v1/roles/*`, `/api/v1/permissions/*`, `/health` -> `core-api`
+- `/api/v1/auth/*`, `/api/v1/users/*`, `/api/v1/roles/*`, `/api/v1/permissions/*` -> `auth-service`
+- `/health` -> `core-api`
 
 Not public:
 
@@ -49,7 +51,7 @@ Legacy bearer support remains for compatibility.
 The canonical internal service paths are:
 
 - `/api/v1/internal/academic-context/*`
-- `/api/v1/internal/people-context/*`
+- `/api/v1/internal/auth-context/*`
 - `/api/v1/internal/finance-context/*`
 
 ## Shared auth contract
@@ -73,13 +75,14 @@ These routes are service-to-service only and require `X-Service-Token`.
 Current public images:
 
 1. `campuscore-backend`
-2. `campuscore-notification-service`
-3. `campuscore-finance-service`
-4. `campuscore-academic-service`
-5. `campuscore-engagement-service`
-6. `campuscore-people-service`
-7. `campuscore-analytics-service`
-8. `campuscore-frontend`
+2. `campuscore-auth-service`
+3. `campuscore-notification-service`
+4. `campuscore-finance-service`
+5. `campuscore-academic-service`
+6. `campuscore-engagement-service`
+7. `campuscore-people-service`
+8. `campuscore-analytics-service`
+9. `campuscore-frontend`
 
 ## Related docs
 

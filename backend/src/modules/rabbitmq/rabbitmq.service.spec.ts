@@ -25,6 +25,24 @@ describe('RabbitMQService', () => {
     const sendToQueue = jest.fn().mockReturnValue(true);
     (
       service as unknown as {
+        configured: boolean;
+        rabbitMqUrl: string;
+        connection: unknown;
+        channel: { sendToQueue: jest.Mock<boolean, unknown[]> };
+      }
+    ).configured = true;
+    (
+      service as unknown as {
+        rabbitMqUrl: string;
+      }
+    ).rabbitMqUrl = 'amqp://test';
+    (
+      service as unknown as {
+        connection: unknown;
+      }
+    ).connection = {};
+    (
+      service as unknown as {
         channel: { sendToQueue: jest.Mock<boolean, unknown[]> };
       }
     ).channel = { sendToQueue };
@@ -42,6 +60,24 @@ describe('RabbitMQService', () => {
 
   it('rejects publish attempts to unsupported queues', async () => {
     const sendToQueue = jest.fn().mockReturnValue(true);
+    (
+      service as unknown as {
+        configured: boolean;
+        rabbitMqUrl: string;
+        connection: unknown;
+        channel: { sendToQueue: jest.Mock<boolean, unknown[]> };
+      }
+    ).configured = true;
+    (
+      service as unknown as {
+        rabbitMqUrl: string;
+      }
+    ).rabbitMqUrl = 'amqp://test';
+    (
+      service as unknown as {
+        connection: unknown;
+      }
+    ).connection = {};
     (
       service as unknown as {
         channel: { sendToQueue: jest.Mock<boolean, unknown[]> };

@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { StudentsService } from './students.service';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { AcademicContextService } from '../people-context/academic-context.service';
-import { CoreUserContextService } from '../people-context/core-user-context.service';
+import { AuthUserContextService } from '../people-context/auth-user-context.service';
 import { RabbitMQService } from '../rabbitmq/rabbitmq.service';
 
 describe('StudentsService', () => {
@@ -39,7 +39,7 @@ describe('StudentsService', () => {
         StudentsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: AcademicContextService, useValue: mockAcademicContext },
-        { provide: CoreUserContextService, useValue: mockCoreUserContext },
+        { provide: AuthUserContextService, useValue: mockCoreUserContext },
         { provide: RabbitMQService, useValue: mockRabbitMq },
       ],
     }).compile();

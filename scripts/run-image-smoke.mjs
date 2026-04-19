@@ -18,6 +18,8 @@ const readinessKey =
   process.env.HEALTH_READINESS_KEY ?? 'image-smoke-readiness-key-12345';
 const coreApiImage =
   process.env.E2E_CORE_API_IMAGE ?? 'campuscore-backend:e2e-local';
+const authServiceImage =
+  process.env.E2E_AUTH_SERVICE_IMAGE ?? 'campuscore-auth-service:e2e-local';
 const notificationServiceImage =
   process.env.E2E_NOTIFICATION_SERVICE_IMAGE ??
   'campuscore-notification-service:e2e-local';
@@ -43,6 +45,8 @@ const internalServiceToken =
 const servicesForLogs = [
   'core-api-init',
   'core-api',
+  'auth-service-init',
+  'auth-service',
   'notification-service-init',
   'notification-service',
   'finance-service-init',
@@ -76,6 +80,7 @@ async function main() {
       await compose([
         'pull',
         'core-api',
+        'auth-service',
         'notification-service',
         'finance-service',
         'academic-service',
@@ -94,6 +99,7 @@ async function main() {
       return payload?.status === 'ok' && payload?.service === 'campuscore-api';
     });
     const coreReadiness = await getInternalReadiness('core-api', 4000);
+    const authReadiness = await getInternalReadiness('auth-service', 4007);
     const notificationReadiness = await getInternalReadiness(
       'notification-service',
       4001,
@@ -130,6 +136,11 @@ async function main() {
       { parseJson: false },
     );
     await waitForResponse(
+      `${baseURL}/api/v1/internal/auth-context/users/test-user`,
+      (_, response) => response.status === 403,
+      { parseJson: false },
+    );
+    await waitForResponse(
       `${baseURL}/api/v1/students`,
       (_, response) => [401, 403].includes(response.status),
       { parseJson: false },
@@ -146,6 +157,7 @@ async function main() {
     );
 
     const coreApiCmd = await inspectServiceCommand('core-api');
+    const authCmd = await inspectServiceCommand('auth-service');
     const notificationCmd = await inspectServiceCommand(
       'notification-service',
     );
@@ -159,6 +171,12 @@ async function main() {
     if (!coreApiCmd.some((part) => part.includes('dist/src/main.js'))) {
       throw new Error(
         `Core API runtime is not using dist/src/main.js: ${coreApiCmd.join(' ')}`,
+      );
+    }
+
+    if (!authCmd.some((part) => part.includes('dist/src/main.js'))) {
+      throw new Error(
+        `Auth service runtime is not using dist/src/main.js: ${authCmd.join(' ')}`,
       );
     }
 
@@ -214,6 +232,7 @@ async function main() {
       JSON.stringify(
         {
           coreApi: coreReadiness,
+          authService: authReadiness,
           notificationService: notificationReadiness,
           financeService: financeReadiness,
           academicService: academicReadiness,
@@ -231,6 +250,7 @@ async function main() {
       JSON.stringify(
         {
           coreApi: coreApiCmd,
+          authService: authCmd,
           notificationService: notificationCmd,
           financeService: financeCmd,
           academicService: academicCmd,
@@ -250,6 +270,7 @@ async function main() {
         {
           usePrebuiltImages,
           coreApiImage,
+          authServiceImage,
           notificationServiceImage,
           financeServiceImage,
           academicServiceImage,
@@ -364,6 +385,7 @@ async function compose(args, options = {}) {
       E2E_FRONTEND_URL: baseURL,
       HEALTH_READINESS_KEY: readinessKey,
       E2E_CORE_API_IMAGE: coreApiImage,
+      E2E_AUTH_SERVICE_IMAGE: authServiceImage,
       E2E_NOTIFICATION_SERVICE_IMAGE: notificationServiceImage,
       E2E_FINANCE_SERVICE_IMAGE: financeServiceImage,
       E2E_ACADEMIC_SERVICE_IMAGE: academicServiceImage,
@@ -380,6 +402,7 @@ async function compose(args, options = {}) {
 async function buildStackSequentially() {
   const buildOrder = [
     'core-api-init',
+    'auth-service-init',
     'notification-service-init',
     'finance-service-init',
     'academic-service-init',
@@ -387,6 +410,7 @@ async function buildStackSequentially() {
     'people-service-init',
     'analytics-service-init',
     'core-api',
+    'auth-service',
     'notification-service',
     'finance-service',
     'academic-service',

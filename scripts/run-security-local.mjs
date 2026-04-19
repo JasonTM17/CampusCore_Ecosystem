@@ -26,6 +26,7 @@ const summary = [];
 const npmAuditTargets = [
   { id: 'platform-auth', cwd: path.join(repoRoot, 'packages', 'platform-auth') },
   { id: 'backend', cwd: path.join(repoRoot, 'backend') },
+  { id: 'auth-service', cwd: path.join(repoRoot, 'auth-service') },
   { id: 'notification-service', cwd: path.join(repoRoot, 'notification-service') },
   { id: 'finance-service', cwd: path.join(repoRoot, 'finance-service') },
   { id: 'academic-service', cwd: path.join(repoRoot, 'academic-service') },
@@ -47,6 +48,15 @@ const fsScanTargets = [
       '/repo/backend/node_modules',
       '/repo/backend/dist',
       '/repo/backend/coverage',
+    ],
+  },
+  {
+    id: 'auth-service',
+    targetPath: '/repo/auth-service',
+    skipDirs: [
+      '/repo/auth-service/node_modules',
+      '/repo/auth-service/dist',
+      '/repo/auth-service/coverage',
     ],
   },
   {
@@ -120,6 +130,12 @@ const imageScanTargets = [
     dockerfile: 'backend/Dockerfile',
     imageTag: 'campuscore-backend:security-local',
     archiveName: 'campuscore-backend-security-local.tar',
+  },
+  {
+    id: 'auth-service',
+    dockerfile: 'auth-service/Dockerfile',
+    imageTag: 'campuscore-auth-service:security-local',
+    archiveName: 'campuscore-auth-service-security-local.tar',
   },
   {
     id: 'notification-service',
@@ -251,6 +267,7 @@ async function main() {
           '/repo/docker-compose.production.yml',
           '/repo/docker-compose.e2e.yml',
           '/repo/backend/Dockerfile',
+          '/repo/auth-service/Dockerfile',
           '/repo/notification-service/Dockerfile',
           '/repo/finance-service/Dockerfile',
           '/repo/academic-service/Dockerfile',
