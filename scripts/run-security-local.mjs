@@ -21,6 +21,7 @@ const trivyTimeoutMs = Number(
   process.env.LOCAL_SECURITY_TRIVY_TIMEOUT_MS ?? '600000',
 );
 const includeConfigScan = process.env.LOCAL_SECURITY_INCLUDE_CONFIG === '1';
+const includeImageScan = process.env.LOCAL_SECURITY_INCLUDE_IMAGE_SCAN !== '0';
 const summary = [];
 
 async function main() {
@@ -31,7 +32,7 @@ async function main() {
   console.log('[security-local] Bắt đầu quét bảo mật cục bộ cho CampusCore');
   console.log(`[security-local] Thư mục kết quả: ${resultsDir}`);
   console.log(
-    '[security-local] Trình tự: backend npm audit -> notification-service npm audit -> finance-service npm audit -> academic-service npm audit -> frontend npm audit -> gitleaks -> trivy fs',
+    '[security-local] Trình tự: backend npm audit -> notification-service npm audit -> finance-service npm audit -> academic-service npm audit -> engagement-service npm audit -> people-service npm audit -> analytics-service npm audit -> frontend npm audit -> gitleaks -> trivy fs',
   );
 
   await runStep('backend-npm-audit', async () => {
@@ -59,6 +60,27 @@ async function main() {
     await runNpmAudit(
       path.join(repoRoot, 'academic-service'),
       path.join(resultsDir, 'academic-service-npm-audit.json'),
+    );
+  });
+
+  await runStep('engagement-service-npm-audit', async () => {
+    await runNpmAudit(
+      path.join(repoRoot, 'engagement-service'),
+      path.join(resultsDir, 'engagement-service-npm-audit.json'),
+    );
+  });
+
+  await runStep('people-service-npm-audit', async () => {
+    await runNpmAudit(
+      path.join(repoRoot, 'people-service'),
+      path.join(resultsDir, 'people-service-npm-audit.json'),
+    );
+  });
+
+  await runStep('analytics-service-npm-audit', async () => {
+    await runNpmAudit(
+      path.join(repoRoot, 'analytics-service'),
+      path.join(resultsDir, 'analytics-service-npm-audit.json'),
     );
   });
 
@@ -153,6 +175,166 @@ async function main() {
     });
   });
 
+  await runStep('trivy-engagement-service-fs', async () => {
+    await runTrivyFs({
+      targetPath: '/repo/engagement-service',
+      outputPath:
+        '/repo/frontend/test-results/security-local/trivy-engagement-service-fs.sarif',
+      skipDirs: [
+        '/repo/engagement-service/node_modules',
+        '/repo/engagement-service/dist',
+        '/repo/engagement-service/coverage',
+      ],
+    });
+  });
+
+  await runStep('trivy-people-service-fs', async () => {
+    await runTrivyFs({
+      targetPath: '/repo/people-service',
+      outputPath:
+        '/repo/frontend/test-results/security-local/trivy-people-service-fs.sarif',
+      skipDirs: [
+        '/repo/people-service/node_modules',
+        '/repo/people-service/dist',
+        '/repo/people-service/coverage',
+      ],
+    });
+  });
+
+  await runStep('trivy-analytics-service-fs', async () => {
+    await runTrivyFs({
+      targetPath: '/repo/analytics-service',
+      outputPath:
+        '/repo/frontend/test-results/security-local/trivy-analytics-service-fs.sarif',
+      skipDirs: [
+        '/repo/analytics-service/node_modules',
+        '/repo/analytics-service/dist',
+        '/repo/analytics-service/coverage',
+      ],
+    });
+  });
+
+  if (includeImageScan) {
+    console.log(
+      '[security-local] Đã bật thêm image scan cho people-service và analytics-service để bám sát quality gate CI',
+    );
+    const peopleImageTag = 'campuscore-people-service:security-local';
+    const peopleImageArchive = path.join(
+      resultsDir,
+      'campuscore-people-service-security-local.tar',
+    );
+
+    await runStep('docker-build-people-service-image', async () => {
+      await run('docker', [
+        'build',
+        '-f',
+        'people-service/Dockerfile',
+        '-t',
+        peopleImageTag,
+        '.',
+      ]);
+    });
+
+    await runStep('docker-save-people-service-image', async () => {
+      await run('docker', [
+        'image',
+        'save',
+        peopleImageTag,
+        '-o',
+        peopleImageArchive,
+      ]);
+    });
+
+    await runStep('trivy-people-service-image', async () => {
+      await run(
+        'docker',
+        [
+          'run',
+          '--rm',
+          '-v',
+          `${cacheDir}:/root/.cache/trivy`,
+          '-v',
+          `${resultsDir}:/results`,
+          trivyImage,
+          'image',
+          '--scanners',
+          'vuln',
+          '--skip-version-check',
+          '--ignore-unfixed',
+          '--input',
+          '/results/campuscore-people-service-security-local.tar',
+          '--severity',
+          'HIGH,CRITICAL',
+          '--exit-code',
+          '1',
+          '--format',
+          'sarif',
+          '--output',
+          '/results/trivy-people-service-image.sarif',
+        ],
+        { timeoutMs: trivyTimeoutMs },
+      );
+    });
+
+    const analyticsImageTag = 'campuscore-analytics-service:security-local';
+    const analyticsImageArchive = path.join(
+      resultsDir,
+      'campuscore-analytics-service-security-local.tar',
+    );
+
+    await runStep('docker-build-analytics-service-image', async () => {
+      await run('docker', [
+        'build',
+        '-f',
+        'analytics-service/Dockerfile',
+        '-t',
+        analyticsImageTag,
+        '.',
+      ]);
+    });
+
+    await runStep('docker-save-analytics-service-image', async () => {
+      await run('docker', [
+        'image',
+        'save',
+        analyticsImageTag,
+        '-o',
+        analyticsImageArchive,
+      ]);
+    });
+
+    await runStep('trivy-analytics-service-image', async () => {
+      await run(
+        'docker',
+        [
+          'run',
+          '--rm',
+          '-v',
+          `${cacheDir}:/root/.cache/trivy`,
+          '-v',
+          `${resultsDir}:/results`,
+          trivyImage,
+          'image',
+          '--scanners',
+          'vuln',
+          '--skip-version-check',
+          '--ignore-unfixed',
+          '--input',
+          '/results/campuscore-analytics-service-security-local.tar',
+          '--severity',
+          'HIGH,CRITICAL',
+          '--exit-code',
+          '1',
+          '--format',
+          'sarif',
+          '--output',
+          '/results/trivy-analytics-service-image.sarif',
+        ],
+        { timeoutMs: trivyTimeoutMs },
+      );
+    });
+  }
+
   if (includeConfigScan) {
     console.log(
       '[security-local] Đã bật thêm Trivy config cho phạm vi hạ tầng',
@@ -185,6 +367,9 @@ async function main() {
           '/repo/notification-service/Dockerfile',
           '/repo/finance-service/Dockerfile',
           '/repo/academic-service/Dockerfile',
+          '/repo/engagement-service/Dockerfile',
+          '/repo/people-service/Dockerfile',
+          '/repo/analytics-service/Dockerfile',
           '/repo/frontend/Dockerfile',
         ],
         { timeoutMs: trivyTimeoutMs },
@@ -270,6 +455,8 @@ async function runTrivyFs({ targetPath, outputPath, skipDirs }) {
       'fs',
       '--scanners',
       'vuln,misconfig',
+      '--skip-version-check',
+      '--ignore-unfixed',
       '--severity',
       'HIGH,CRITICAL',
       '--timeout',

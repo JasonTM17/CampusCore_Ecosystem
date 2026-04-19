@@ -20,6 +20,9 @@ Builds and pushes:
   - <namespace>/campuscore-notification-service:<tag>
   - <namespace>/campuscore-finance-service:<tag>
   - <namespace>/campuscore-academic-service:<tag>
+  - <namespace>/campuscore-engagement-service:<tag>
+  - <namespace>/campuscore-people-service:<tag>
+  - <namespace>/campuscore-analytics-service:<tag>
   - <namespace>/campuscore-frontend:<tag>
   - matching commit-SHA tags
   - latest automatically when <tag> is a semver release such as v1.0.0
@@ -59,6 +62,9 @@ IMAGES=(
   "campuscore-notification-service|notification-service/Dockerfile"
   "campuscore-finance-service|finance-service/Dockerfile"
   "campuscore-academic-service|academic-service/Dockerfile"
+  "campuscore-engagement-service|engagement-service/Dockerfile"
+  "campuscore-people-service|people-service/Dockerfile"
+  "campuscore-analytics-service|analytics-service/Dockerfile"
   "campuscore-frontend|frontend/Dockerfile"
 )
 

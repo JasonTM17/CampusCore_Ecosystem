@@ -34,6 +34,9 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/prisma ./prisma
 
+RUN rm -rf /usr/local/lib/node_modules/npm && \
+    rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+
 RUN chown -R nodejs:nodejs /app
 
 USER nodejs

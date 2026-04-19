@@ -27,6 +27,15 @@ const financeServiceImage =
 const academicServiceImage =
   process.env.E2E_ACADEMIC_SERVICE_IMAGE ??
   'campuscore-academic-service:e2e-local';
+const engagementServiceImage =
+  process.env.E2E_ENGAGEMENT_SERVICE_IMAGE ??
+  'campuscore-engagement-service:e2e-local';
+const peopleServiceImage =
+  process.env.E2E_PEOPLE_SERVICE_IMAGE ??
+  'campuscore-people-service:e2e-local';
+const analyticsServiceImage =
+  process.env.E2E_ANALYTICS_SERVICE_IMAGE ??
+  'campuscore-analytics-service:e2e-local';
 const frontendImage =
   process.env.E2E_FRONTEND_IMAGE ?? 'campuscore-frontend:e2e-local';
 const internalServiceToken =
@@ -40,6 +49,12 @@ const servicesForLogs = [
   'finance-service',
   'academic-service-init',
   'academic-service',
+  'engagement-service-init',
+  'engagement-service',
+  'people-service-init',
+  'people-service',
+  'analytics-service-init',
+  'analytics-service',
   'frontend',
   'nginx',
   'postgres',
@@ -64,6 +79,9 @@ async function main() {
         'notification-service',
         'finance-service',
         'academic-service',
+        'engagement-service',
+        'people-service',
+        'analytics-service',
         'frontend',
       ]);
       await compose(['up', '-d']);
@@ -82,6 +100,15 @@ async function main() {
     );
     const financeReadiness = await getInternalReadiness('finance-service', 4002);
     const academicReadiness = await getInternalReadiness('academic-service', 4003);
+    const engagementReadiness = await getInternalReadiness(
+      'engagement-service',
+      4004,
+    );
+    const peopleReadiness = await getInternalReadiness('people-service', 4005);
+    const analyticsReadiness = await getInternalReadiness(
+      'analytics-service',
+      4006,
+    );
 
     await waitForResponse(`${baseURL}/`, (_, response) => response.ok, {
       parseJson: false,
@@ -99,6 +126,9 @@ async function main() {
     );
     const financeCmd = await inspectServiceCommand('finance-service');
     const academicCmd = await inspectServiceCommand('academic-service');
+    const engagementCmd = await inspectServiceCommand('engagement-service');
+    const peopleCmd = await inspectServiceCommand('people-service');
+    const analyticsCmd = await inspectServiceCommand('analytics-service');
     const frontendCmd = await inspectServiceCommand('frontend');
 
     if (!coreApiCmd.some((part) => part.includes('dist/src/main.js'))) {
@@ -125,6 +155,24 @@ async function main() {
       );
     }
 
+    if (!engagementCmd.some((part) => part.includes('dist/src/main.js'))) {
+      throw new Error(
+        `Engagement service runtime is not using dist/src/main.js: ${engagementCmd.join(' ')}`,
+      );
+    }
+
+    if (!peopleCmd.some((part) => part.includes('dist/src/main.js'))) {
+      throw new Error(
+        `People service runtime is not using dist/src/main.js: ${peopleCmd.join(' ')}`,
+      );
+    }
+
+    if (!analyticsCmd.some((part) => part.includes('dist/src/main.js'))) {
+      throw new Error(
+        `Analytics service runtime is not using dist/src/main.js: ${analyticsCmd.join(' ')}`,
+      );
+    }
+
     if (!frontendCmd.some((part) => part.includes('.next/standalone/server.js'))) {
       throw new Error(
         `Frontend runtime is not using standalone server.js: ${frontendCmd.join(' ')}`,
@@ -144,6 +192,9 @@ async function main() {
           notificationService: notificationReadiness,
           financeService: financeReadiness,
           academicService: academicReadiness,
+          engagementService: engagementReadiness,
+          peopleService: peopleReadiness,
+          analyticsService: analyticsReadiness,
         },
         null,
         2,
@@ -158,6 +209,9 @@ async function main() {
           notificationService: notificationCmd,
           financeService: financeCmd,
           academicService: academicCmd,
+          engagementService: engagementCmd,
+          peopleService: peopleCmd,
+          analyticsService: analyticsCmd,
           frontend: frontendCmd,
         },
         null,
@@ -174,6 +228,9 @@ async function main() {
           notificationServiceImage,
           financeServiceImage,
           academicServiceImage,
+          engagementServiceImage,
+          peopleServiceImage,
+          analyticsServiceImage,
           frontendImage,
         },
         null,
@@ -285,6 +342,9 @@ async function compose(args, options = {}) {
       E2E_NOTIFICATION_SERVICE_IMAGE: notificationServiceImage,
       E2E_FINANCE_SERVICE_IMAGE: financeServiceImage,
       E2E_ACADEMIC_SERVICE_IMAGE: academicServiceImage,
+      E2E_ENGAGEMENT_SERVICE_IMAGE: engagementServiceImage,
+      E2E_PEOPLE_SERVICE_IMAGE: peopleServiceImage,
+      E2E_ANALYTICS_SERVICE_IMAGE: analyticsServiceImage,
       E2E_FRONTEND_IMAGE: frontendImage,
       INTERNAL_SERVICE_TOKEN: internalServiceToken,
     },
@@ -298,10 +358,16 @@ async function buildStackSequentially() {
     'notification-service-init',
     'finance-service-init',
     'academic-service-init',
+    'engagement-service-init',
+    'people-service-init',
+    'analytics-service-init',
     'core-api',
     'notification-service',
     'finance-service',
     'academic-service',
+    'engagement-service',
+    'people-service',
+    'analytics-service',
     'frontend',
   ];
 

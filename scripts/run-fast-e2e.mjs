@@ -12,6 +12,9 @@ const backendDir = path.join(repoRoot, 'backend');
 const notificationDir = path.join(repoRoot, 'notification-service');
 const financeDir = path.join(repoRoot, 'finance-service');
 const academicDir = path.join(repoRoot, 'academic-service');
+const engagementDir = path.join(repoRoot, 'engagement-service');
+const peopleDir = path.join(repoRoot, 'people-service');
+const analyticsDir = path.join(repoRoot, 'analytics-service');
 const frontendDir = path.join(repoRoot, 'frontend');
 const logsDir = path.join(frontendDir, 'test-results', 'fast-e2e-stack');
 const playwrightCli = path.join(frontendDir, 'node_modules', 'playwright', 'cli.js');
@@ -35,6 +38,12 @@ const academicDatabaseUrl = publicDatabaseUrl.replace(
   'schema=public',
   'schema=academic'
 );
+const engagementDatabaseUrl = publicDatabaseUrl.replace(
+  'schema=public',
+  'schema=engagement'
+);
+const peopleDatabaseUrl = publicDatabaseUrl.replace('schema=public', 'schema=people');
+const analyticsDatabaseUrl = publicDatabaseUrl;
 
 const frontendBaseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3100';
 const proxyPort = Number(process.env.E2E_GATEWAY_PORT ?? '4180');
@@ -43,6 +52,9 @@ const backendPort = Number(process.env.E2E_CORE_API_PORT ?? '4100');
 const notificationPort = Number(process.env.E2E_NOTIFICATION_PORT ?? '4101');
 const financePort = Number(process.env.E2E_FINANCE_PORT ?? '4102');
 const academicPort = Number(process.env.E2E_ACADEMIC_PORT ?? '4103');
+const engagementPort = Number(process.env.E2E_ENGAGEMENT_PORT ?? '4104');
+const peoplePort = Number(process.env.E2E_PEOPLE_PORT ?? '4105');
+const analyticsPort = Number(process.env.E2E_ANALYTICS_PORT ?? '4106');
 const internalServiceToken =
   process.env.INTERNAL_SERVICE_TOKEN ?? 'local-fast-e2e-internal-token-12345';
 const keepPostgres = process.env.E2E_KEEP_POSTGRES === '1';
@@ -88,6 +100,18 @@ async function main() {
     );
     await waitForResponse(
       `http://127.0.0.1:${academicPort}/api/v1/health/liveness`,
+      (_, response) => response.ok
+    );
+    await waitForResponse(
+      `http://127.0.0.1:${engagementPort}/api/v1/health/liveness`,
+      (_, response) => response.ok
+    );
+    await waitForResponse(
+      `http://127.0.0.1:${peoplePort}/api/v1/health/liveness`,
+      (_, response) => response.ok
+    );
+    await waitForResponse(
+      `http://127.0.0.1:${analyticsPort}/api/v1/health/liveness`,
       (_, response) => response.ok
     );
     await waitForResponse(`${apiBaseURL}/health/liveness`, (_, response) => response.ok);
@@ -138,6 +162,18 @@ async function prepareDatabase() {
     cwd: academicDir,
     env: { ...process.env, DATABASE_URL: academicDatabaseUrl }
   });
+  await run('npm', ['run', 'prisma:generate'], {
+    cwd: engagementDir,
+    env: { ...process.env, DATABASE_URL: engagementDatabaseUrl }
+  });
+  await run('npm', ['run', 'prisma:generate'], {
+    cwd: peopleDir,
+    env: { ...process.env, DATABASE_URL: peopleDatabaseUrl }
+  });
+  await run('npm', ['run', 'prisma:generate'], {
+    cwd: analyticsDir,
+    env: { ...process.env, DATABASE_URL: analyticsDatabaseUrl }
+  });
   await run('npm', ['run', 'prisma:dbpush'], {
     cwd: notificationDir,
     env: { ...process.env, DATABASE_URL: notificationsDatabaseUrl }
@@ -149,6 +185,18 @@ async function prepareDatabase() {
   await run('npm', ['run', 'prisma:dbpush'], {
     cwd: academicDir,
     env: { ...process.env, DATABASE_URL: academicDatabaseUrl }
+  });
+  await run('npm', ['run', 'prisma:dbpush'], {
+    cwd: engagementDir,
+    env: { ...process.env, DATABASE_URL: engagementDatabaseUrl }
+  });
+  await run('npm', ['run', 'prisma:dbpush'], {
+    cwd: peopleDir,
+    env: { ...process.env, DATABASE_URL: peopleDatabaseUrl }
+  });
+  await run('npm', ['run', 'prisma:dbpush'], {
+    cwd: analyticsDir,
+    env: { ...process.env, DATABASE_URL: analyticsDatabaseUrl }
   });
   await run('npm', ['run', 'prisma:seed'], {
     cwd: backendDir,
@@ -182,6 +230,29 @@ async function prepareDatabase() {
       DATABASE_URL: academicDatabaseUrl,
       JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
       FRONTEND_URL: frontendBaseURL
+    }
+  });
+  await run('npm', ['run', 'data:migrate:legacy'], {
+    cwd: engagementDir,
+    env: {
+      ...process.env,
+      DATABASE_URL: engagementDatabaseUrl,
+      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+      FRONTEND_URL: frontendBaseURL,
+      RABBITMQ_URL: 'disabled'
+    }
+  });
+  await run('npm', ['run', 'data:migrate:legacy'], {
+    cwd: peopleDir,
+    env: {
+      ...process.env,
+      DATABASE_URL: peopleDatabaseUrl,
+      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+      FRONTEND_URL: frontendBaseURL,
+      CORE_API_INTERNAL_URL: `http://127.0.0.1:${backendPort}`,
+      ACADEMIC_SERVICE_INTERNAL_URL: `http://127.0.0.1:${academicPort}`,
+      INTERNAL_SERVICE_TOKEN: internalServiceToken,
+      RABBITMQ_URL: 'disabled'
     }
   });
 }
@@ -240,6 +311,51 @@ async function startApplicationServers() {
       ...process.env,
       DATABASE_URL: academicDatabaseUrl,
       PORT: String(academicPort),
+      FRONTEND_URL: frontendBaseURL,
+      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+      NODE_ENV: 'test',
+      RABBITMQ_URL: 'disabled',
+      COOKIE_SECURE: 'false'
+    }
+  });
+
+  await startManagedProcess('engagement-service', 'npm', ['run', 'start'], {
+    cwd: engagementDir,
+    env: {
+      ...process.env,
+      DATABASE_URL: engagementDatabaseUrl,
+      PORT: String(engagementPort),
+      FRONTEND_URL: frontendBaseURL,
+      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+      NODE_ENV: 'test',
+      RABBITMQ_URL: 'disabled',
+      COOKIE_SECURE: 'false'
+    }
+  });
+
+  await startManagedProcess('people-service', 'npm', ['run', 'start'], {
+    cwd: peopleDir,
+    env: {
+      ...process.env,
+      DATABASE_URL: peopleDatabaseUrl,
+      PORT: String(peoplePort),
+      FRONTEND_URL: frontendBaseURL,
+      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+      NODE_ENV: 'test',
+      RABBITMQ_URL: 'disabled',
+      COOKIE_SECURE: 'false',
+      CORE_API_INTERNAL_URL: `http://127.0.0.1:${backendPort}`,
+      ACADEMIC_SERVICE_INTERNAL_URL: `http://127.0.0.1:${academicPort}`,
+      INTERNAL_SERVICE_TOKEN: internalServiceToken
+    }
+  });
+
+  await startManagedProcess('analytics-service', 'npm', ['run', 'start'], {
+    cwd: analyticsDir,
+    env: {
+      ...process.env,
+      DATABASE_URL: analyticsDatabaseUrl,
+      PORT: String(analyticsPort),
       FRONTEND_URL: frontendBaseURL,
       JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
       NODE_ENV: 'test',
@@ -322,8 +438,30 @@ async function startApiGateway() {
 }
 
 function resolveProxyTarget(url) {
+  if (url.startsWith('/api/v1/analytics') || url.startsWith('/analytics')) {
+    return `http://127.0.0.1:${analyticsPort}`;
+  }
+
   if (url.startsWith('/api/v1/finance')) {
     return `http://127.0.0.1:${financePort}`;
+  }
+
+  if (
+    url.startsWith('/api/v1/students') ||
+    url.startsWith('/api/v1/lecturers') ||
+    url.startsWith('/students') ||
+    url.startsWith('/lecturers')
+  ) {
+    return `http://127.0.0.1:${peoplePort}`;
+  }
+
+  if (
+    url.startsWith('/api/v1/announcements') ||
+    url.startsWith('/api/v1/support-tickets') ||
+    url.startsWith('/announcements') ||
+    url.startsWith('/support-tickets')
+  ) {
+    return `http://127.0.0.1:${engagementPort}`;
   }
 
   if (academicApiPrefixes.some((prefix) => url.startsWith(prefix))) {
