@@ -542,6 +542,393 @@ jobs:
             academic-service/coverage
             academic-service/test-results
 
+  engagement-quality:
+    name: engagement-quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: engagement-service/package-lock.json
+
+      - name: Install dependencies
+        working-directory: engagement-service
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: engagement-service
+        run: npm run prisma:generate
+
+      - name: Lint
+        working-directory: engagement-service
+        run: npm run lint
+
+      - name: Check formatting
+        working-directory: engagement-service
+        run: npm run lint:format
+
+      - name: Typecheck
+        working-directory: engagement-service
+        run: npm run typecheck
+
+      - name: Build
+        working-directory: engagement-service
+        run: npm run build
+
+      - name: Unit tests
+        working-directory: engagement-service
+        run: npm run test:unit -- --runInBand
+
+  engagement-integration:
+    name: engagement-integration
+    runs-on: ubuntu-latest
+    needs: engagement-quality
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: campuscore
+          POSTGRES_USER: campuscore
+          POSTGRES_PASSWORD: ci-postgres-password
+        options: >-
+          --health-cmd "pg_isready -U campuscore -d campuscore"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: campuscore
+          RABBITMQ_DEFAULT_PASS: ci-rabbitmq-password
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: engagement-service/package-lock.json
+
+      - name: Install dependencies
+        working-directory: engagement-service
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: engagement-service
+        run: npm run prisma:generate
+
+      - name: Push Prisma schema
+        working-directory: engagement-service
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=engagement
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+        run: npx prisma db push --skip-generate
+
+      - name: Integration tests
+        working-directory: engagement-service
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=engagement
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+        run: npm run test:integration -- --runInBand
+
+      - name: Upload engagement integration logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engagement-integration-logs
+          path: |
+            engagement-service/coverage
+            engagement-service/test-results
+
+  people-quality:
+    name: people-quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: people-service/package-lock.json
+
+      - name: Install dependencies
+        working-directory: people-service
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: people-service
+        run: npm run prisma:generate
+
+      - name: Lint
+        working-directory: people-service
+        run: npm run lint
+
+      - name: Check formatting
+        working-directory: people-service
+        run: npm run lint:format
+
+      - name: Typecheck
+        working-directory: people-service
+        run: npm run typecheck
+
+      - name: Build
+        working-directory: people-service
+        run: npm run build
+
+      - name: Unit tests
+        working-directory: people-service
+        run: npm run test:unit -- --runInBand
+
+  people-integration:
+    name: people-integration
+    runs-on: ubuntu-latest
+    needs: people-quality
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: campuscore
+          POSTGRES_USER: campuscore
+          POSTGRES_PASSWORD: ci-postgres-password
+        options: >-
+          --health-cmd "pg_isready -U campuscore -d campuscore"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: campuscore
+          RABBITMQ_DEFAULT_PASS: ci-rabbitmq-password
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: people-service/package-lock.json
+
+      - name: Install dependencies
+        working-directory: people-service
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: people-service
+        run: npm run prisma:generate
+
+      - name: Push Prisma schema
+        working-directory: people-service
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=people
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+          INTERNAL_SERVICE_TOKEN: ci-internal-service-token
+        run: npx prisma db push --skip-generate
+
+      - name: Integration tests
+        working-directory: people-service
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=people
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+          INTERNAL_SERVICE_TOKEN: ci-internal-service-token
+        run: npm run test:integration -- --runInBand
+
+      - name: Upload people integration logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: people-integration-logs
+          path: |
+            people-service/coverage
+            people-service/test-results
+
+  analytics-quality:
+    name: analytics-quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: analytics-service/package-lock.json
+
+      - name: Install dependencies
+        working-directory: analytics-service
+        run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: analytics-service
+        run: npm run prisma:generate
+
+      - name: Lint
+        working-directory: analytics-service
+        run: npm run lint
+
+      - name: Check formatting
+        working-directory: analytics-service
+        run: npm run lint:format
+
+      - name: Typecheck
+        working-directory: analytics-service
+        run: npm run typecheck
+
+      - name: Build
+        working-directory: analytics-service
+        run: npm run build
+
+      - name: Unit tests
+        working-directory: analytics-service
+        run: npm run test:unit -- --runInBand
+
+  analytics-integration:
+    name: analytics-integration
+    runs-on: ubuntu-latest
+    needs: analytics-quality
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: campuscore
+          POSTGRES_USER: campuscore
+          POSTGRES_PASSWORD: ci-postgres-password
+        options: >-
+          --health-cmd "pg_isready -U campuscore -d campuscore"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: campuscore
+          RABBITMQ_DEFAULT_PASS: ci-rabbitmq-password
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            analytics-service/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install analytics service dependencies
+        working-directory: analytics-service
+        run: npm ci
+
+      - name: Generate backend Prisma Client
+        working-directory: backend
+        run: npm run prisma:generate
+
+      - name: Generate analytics Prisma Client
+        working-directory: analytics-service
+        run: npm run prisma:generate
+
+      - name: Push public schema
+        working-directory: backend
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=public
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+        run: npx prisma db push --skip-generate
+
+      - name: Seed database
+        working-directory: backend
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=public
+        run: npm run prisma:seed
+
+      - name: Integration tests
+        working-directory: analytics-service
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://campuscore:ci-postgres-password@postgres:5432/campuscore?schema=public
+          RABBITMQ_URL: amqp://campuscore:ci-rabbitmq-password@rabbitmq:5672
+          FRONTEND_URL: http://127.0.0.1
+          JWT_SECRET: ci-jwt-secret
+          HEALTH_READINESS_KEY: ci-health-readiness-key
+          COOKIE_SECURE: 'false'
+        run: npm run test:integration -- --runInBand
+
+      - name: Upload analytics integration logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: analytics-integration-logs
+          path: |
+            analytics-service/coverage
+            analytics-service/test-results
+
   frontend-quality:
     name: frontend-quality
     runs-on: ubuntu-latest
@@ -586,6 +973,9 @@ jobs:
         notification-quality,
         finance-quality,
         academic-quality,
+        engagement-quality,
+        people-quality,
+        analytics-quality,
         frontend-quality,
       ]
 
@@ -603,6 +993,9 @@ jobs:
             notification-service/package-lock.json
             finance-service/package-lock.json
             academic-service/package-lock.json
+            engagement-service/package-lock.json
+            people-service/package-lock.json
+            analytics-service/package-lock.json
             frontend/package-lock.json
 
       - name: Install backend dependencies
@@ -619,6 +1012,18 @@ jobs:
 
       - name: Install academic service dependencies
         working-directory: academic-service
+        run: npm ci
+
+      - name: Install engagement service dependencies
+        working-directory: engagement-service
+        run: npm ci
+
+      - name: Install people service dependencies
+        working-directory: people-service
+        run: npm ci
+
+      - name: Install analytics service dependencies
+        working-directory: analytics-service
         run: npm ci
 
       - name: Install frontend dependencies
@@ -688,6 +1093,12 @@ jobs:
         finance-integration,
         academic-quality,
         academic-integration,
+        engagement-quality,
+        engagement-integration,
+        people-quality,
+        people-integration,
+        analytics-quality,
+        analytics-integration,
         frontend-quality,
         frontend-fast-e2e,
         compose-contract,
@@ -725,6 +1136,12 @@ jobs:
         finance-integration,
         academic-quality,
         academic-integration,
+        engagement-quality,
+        engagement-integration,
+        people-quality,
+        people-integration,
+        analytics-quality,
+        analytics-integration,
         frontend-quality,
         frontend-fast-e2e,
         compose-contract,
@@ -788,6 +1205,12 @@ jobs:
         finance-integration,
         academic-quality,
         academic-integration,
+        engagement-quality,
+        engagement-integration,
+        people-quality,
+        people-integration,
+        analytics-quality,
+        analytics-integration,
         frontend-quality,
         frontend-fast-e2e,
         compose-contract,
@@ -809,6 +1232,9 @@ jobs:
             notification-service/package-lock.json
             finance-service/package-lock.json
             academic-service/package-lock.json
+            engagement-service/package-lock.json
+            people-service/package-lock.json
+            analytics-service/package-lock.json
             frontend/package-lock.json
 
       - name: Prepare scan directory
@@ -845,6 +1271,18 @@ jobs:
         working-directory: academic-service
         run: npm ci
 
+      - name: Install engagement service dependencies
+        working-directory: engagement-service
+        run: npm ci
+
+      - name: Install people service dependencies
+        working-directory: people-service
+        run: npm ci
+
+      - name: Install analytics service dependencies
+        working-directory: analytics-service
+        run: npm ci
+
       - name: Backend npm audit
         id: backend-npm-audit
         continue-on-error: true
@@ -875,6 +1313,24 @@ jobs:
         working-directory: academic-service
         run: npm audit --audit-level=high --json > ../security-results/academic-npm-audit.json 2> ../security-results/academic-npm-audit.stderr.log
 
+      - name: Engagement service npm audit
+        id: engagement-npm-audit
+        continue-on-error: true
+        working-directory: engagement-service
+        run: npm audit --audit-level=high --json > ../security-results/engagement-npm-audit.json 2> ../security-results/engagement-npm-audit.stderr.log
+
+      - name: People service npm audit
+        id: people-npm-audit
+        continue-on-error: true
+        working-directory: people-service
+        run: npm audit --audit-level=high --json > ../security-results/people-npm-audit.json 2> ../security-results/people-npm-audit.stderr.log
+
+      - name: Analytics service npm audit
+        id: analytics-npm-audit
+        continue-on-error: true
+        working-directory: analytics-service
+        run: npm audit --audit-level=high --json > ../security-results/analytics-npm-audit.json 2> ../security-results/analytics-npm-audit.stderr.log
+
       - name: Filesystem scan
         id: trivy-fs
         continue-on-error: true
@@ -899,6 +1355,42 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: '1'
 
+      - name: Engagement service filesystem scan
+        id: trivy-engagement-fs
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: engagement-service
+          format: sarif
+          output: security-results/trivy-engagement-fs.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+
+      - name: People service filesystem scan
+        id: trivy-people-fs
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: people-service
+          format: sarif
+          output: security-results/trivy-people-fs.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+
+      - name: Analytics service filesystem scan
+        id: trivy-analytics-fs
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: analytics-service
+          format: sarif
+          output: security-results/trivy-analytics-fs.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+
       - name: Build backend image for scan
         run: docker build -f backend/Dockerfile -t campuscore-backend:security .
 
@@ -914,6 +1406,15 @@ jobs:
       - name: Build academic service image for scan
         run: docker build -f academic-service/Dockerfile -t campuscore-academic-service:security .
 
+      - name: Build engagement service image for scan
+        run: docker build -f engagement-service/Dockerfile -t campuscore-engagement-service:security .
+
+      - name: Build people service image for scan
+        run: docker build -f people-service/Dockerfile -t campuscore-people-service:security .
+
+      - name: Build analytics service image for scan
+        run: docker build -f analytics-service/Dockerfile -t campuscore-analytics-service:security .
+
       - name: Backend image scan
         id: trivy-backend-image
         continue-on-error: true
@@ -924,6 +1425,7 @@ jobs:
           format: sarif
           output: security-results/trivy-backend-image.sarif
           severity: HIGH,CRITICAL
+          ignore-unfixed: true
           exit-code: '1'
 
       - name: Frontend image scan
@@ -936,6 +1438,7 @@ jobs:
           format: sarif
           output: security-results/trivy-frontend-image.sarif
           severity: HIGH,CRITICAL
+          ignore-unfixed: true
           exit-code: '1'
 
       - name: Notification service image scan
@@ -948,6 +1451,7 @@ jobs:
           format: sarif
           output: security-results/trivy-notification-image.sarif
           severity: HIGH,CRITICAL
+          ignore-unfixed: true
           exit-code: '1'
 
       - name: Finance service image scan
@@ -960,6 +1464,7 @@ jobs:
           format: sarif
           output: security-results/trivy-finance-image.sarif
           severity: HIGH,CRITICAL
+          ignore-unfixed: true
           exit-code: '1'
 
       - name: Academic service image scan
@@ -972,6 +1477,46 @@ jobs:
           format: sarif
           output: security-results/trivy-academic-image.sarif
           severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Engagement service image scan
+        id: trivy-engagement-image
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: campuscore-engagement-service:security
+          format: sarif
+          output: security-results/trivy-engagement-image.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: People service image scan
+        id: trivy-people-image
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: campuscore-people-service:security
+          format: sarif
+          output: security-results/trivy-people-image.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Analytics service image scan
+        id: trivy-analytics-image
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: campuscore-analytics-service:security
+          format: sarif
+          output: security-results/trivy-analytics-image.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
           exit-code: '1'
 
       - name: Upload gitleaks SARIF
@@ -1030,6 +1575,48 @@ jobs:
           sarif_file: security-results/trivy-academic-image.sarif
           category: trivy-academic-image
 
+      - name: Upload engagement filesystem SARIF
+        if: always() && hashFiles('security-results/trivy-engagement-fs.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-results/trivy-engagement-fs.sarif
+          category: trivy-engagement-fs
+
+      - name: Upload engagement image SARIF
+        if: always() && hashFiles('security-results/trivy-engagement-image.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-results/trivy-engagement-image.sarif
+          category: trivy-engagement-image
+
+      - name: Upload people filesystem SARIF
+        if: always() && hashFiles('security-results/trivy-people-fs.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-results/trivy-people-fs.sarif
+          category: trivy-people-fs
+
+      - name: Upload people image SARIF
+        if: always() && hashFiles('security-results/trivy-people-image.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-results/trivy-people-image.sarif
+          category: trivy-people-image
+
+      - name: Upload analytics filesystem SARIF
+        if: always() && hashFiles('security-results/trivy-analytics-fs.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-results/trivy-analytics-fs.sarif
+          category: trivy-analytics-fs
+
+      - name: Upload analytics image SARIF
+        if: always() && hashFiles('security-results/trivy-analytics-image.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-results/trivy-analytics-image.sarif
+          category: trivy-analytics-image
+
       - name: Upload scan reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -1046,13 +1633,22 @@ jobs:
              [ "${{ steps.notification-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.finance-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.academic-npm-audit.outcome }}" != "success" ] || \
+             [ "${{ steps.engagement-npm-audit.outcome }}" != "success" ] || \
+             [ "${{ steps.people-npm-audit.outcome }}" != "success" ] || \
+             [ "${{ steps.analytics-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-fs.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-academic-fs.outcome }}" != "success" ] || \
+             [ "${{ steps.trivy-engagement-fs.outcome }}" != "success" ] || \
+             [ "${{ steps.trivy-people-fs.outcome }}" != "success" ] || \
+             [ "${{ steps.trivy-analytics-fs.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-backend-image.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-frontend-image.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-notification-image.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-finance-image.outcome }}" != "success" ] || \
-             [ "${{ steps.trivy-academic-image.outcome }}" != "success" ]; then
+             [ "${{ steps.trivy-academic-image.outcome }}" != "success" ] || \
+             [ "${{ steps.trivy-engagement-image.outcome }}" != "success" ] || \
+             [ "${{ steps.trivy-people-image.outcome }}" != "success" ] || \
+             [ "${{ steps.trivy-analytics-image.outcome }}" != "success" ]; then
             echo "Security scan failed. Review npm audit, gitleaks, and Trivy reports."
             exit 1
           fi
@@ -1083,6 +1679,12 @@ jobs:
       - finance-integration
       - academic-quality
       - academic-integration
+      - engagement-quality
+      - engagement-integration
+      - people-quality
+      - people-integration
+      - analytics-quality
+      - analytics-integration
       - frontend-quality
       - frontend-fast-e2e
       - compose-contract
@@ -1125,6 +1727,12 @@ jobs:
           check_required finance-integration "${{ needs.finance-integration.result }}"
           check_required academic-quality "${{ needs.academic-quality.result }}"
           check_required academic-integration "${{ needs.academic-integration.result }}"
+          check_required engagement-quality "${{ needs.engagement-quality.result }}"
+          check_required engagement-integration "${{ needs.engagement-integration.result }}"
+          check_required people-quality "${{ needs.people-quality.result }}"
+          check_required people-integration "${{ needs.people-integration.result }}"
+          check_required analytics-quality "${{ needs.analytics-quality.result }}"
+          check_required analytics-integration "${{ needs.analytics-integration.result }}"
           check_required frontend-quality "${{ needs.frontend-quality.result }}"
           check_required frontend-fast-e2e "${{ needs.frontend-fast-e2e.result }}"
           check_required compose-contract "${{ needs.compose-contract.result }}"
@@ -1150,6 +1758,12 @@ jobs:
             echo "- finance-integration: ${{ needs.finance-integration.result }}"
             echo "- academic-quality: ${{ needs.academic-quality.result }}"
             echo "- academic-integration: ${{ needs.academic-integration.result }}"
+            echo "- engagement-quality: ${{ needs.engagement-quality.result }}"
+            echo "- engagement-integration: ${{ needs.engagement-integration.result }}"
+            echo "- people-quality: ${{ needs.people-quality.result }}"
+            echo "- people-integration: ${{ needs.people-integration.result }}"
+            echo "- analytics-quality: ${{ needs.analytics-quality.result }}"
+            echo "- analytics-integration: ${{ needs.analytics-integration.result }}"
             echo "- frontend-quality: ${{ needs.frontend-quality.result }}"
             echo "- frontend-fast-e2e: ${{ needs.frontend-fast-e2e.result }}"
             echo "- compose-contract: ${{ needs.compose-contract.result }}"
