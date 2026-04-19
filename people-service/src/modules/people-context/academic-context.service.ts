@@ -5,6 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  INTERNAL_API_PREFIX,
+  INTERNAL_SERVICE_TOKEN_HEADER_NAME,
+} from '@campuscore/platform-auth';
 import { ENV, ENV_DEFAULTS } from '../../config/env.constants';
 
 export type AcademicDepartmentSnapshot = {
@@ -41,7 +45,7 @@ export class AcademicContextService {
     curriculumId: string,
   ): Promise<AcademicCurriculumSnapshot> {
     return this.fetchJson<AcademicCurriculumSnapshot>(
-      `/api/v1/internal/academic-context/curricula/${curriculumId}`,
+      `${INTERNAL_API_PREFIX}/academic-context/curricula/${curriculumId}`,
     );
   }
 
@@ -49,7 +53,7 @@ export class AcademicContextService {
     departmentId: string,
   ): Promise<AcademicDepartmentSnapshot> {
     return this.fetchJson<AcademicDepartmentSnapshot>(
-      `/api/v1/internal/academic-context/departments/${departmentId}`,
+      `${INTERNAL_API_PREFIX}/academic-context/departments/${departmentId}`,
     );
   }
 
@@ -57,14 +61,14 @@ export class AcademicContextService {
     studentId: string,
   ): Promise<StudentEnrollmentHistory> {
     return this.fetchJson<StudentEnrollmentHistory>(
-      `/api/v1/internal/academic-context/students/${studentId}/enrollments`,
+      `${INTERNAL_API_PREFIX}/academic-context/students/${studentId}/enrollments`,
     );
   }
 
   private async fetchJson<T>(pathname: string): Promise<T> {
     const response = await fetch(`${this.baseUrl}${pathname}`, {
       headers: {
-        'X-Service-Token': this.serviceToken,
+        [INTERNAL_SERVICE_TOKEN_HEADER_NAME]: this.serviceToken,
       },
     });
 

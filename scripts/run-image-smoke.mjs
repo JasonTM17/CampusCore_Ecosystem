@@ -119,6 +119,31 @@ async function main() {
     await waitForResponse(`${baseURL}/api/docs`, (_, response) => response.ok, {
       parseJson: false,
     });
+    await waitForResponse(
+      `${baseURL}/api/v1/health/readiness`,
+      (_, response) => response.status === 403,
+      { parseJson: false },
+    );
+    await waitForResponse(
+      `${baseURL}/api/v1/internal/people-context/users/test-user`,
+      (_, response) => response.status === 403,
+      { parseJson: false },
+    );
+    await waitForResponse(
+      `${baseURL}/api/v1/students`,
+      (_, response) => [401, 403].includes(response.status),
+      { parseJson: false },
+    );
+    await waitForResponse(
+      `${baseURL}/api/v1/announcements`,
+      (_, response) => [401, 403].includes(response.status),
+      { parseJson: false },
+    );
+    await waitForResponse(
+      `${baseURL}/api/v1/analytics/overview`,
+      (_, response) => [401, 403].includes(response.status),
+      { parseJson: false },
+    );
 
     const coreApiCmd = await inspectServiceCommand('core-api');
     const notificationCmd = await inspectServiceCommand(

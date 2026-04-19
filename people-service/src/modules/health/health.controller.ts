@@ -1,6 +1,10 @@
 import { Controller, ForbiddenException, Get, Headers } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import {
+  HEALTH_READINESS_HEADER,
+  HEALTH_READINESS_HEADER_NAME,
+} from '@campuscore/platform-auth';
 import { HealthService } from './health.service';
 import { ENV } from '../../config/env.constants';
 
@@ -20,7 +24,7 @@ export class HealthController {
 
   @Get('readiness')
   @ApiOperation({ summary: 'Internal readiness probe' })
-  readiness(@Headers('x-health-key') healthKey?: string) {
+  readiness(@Headers(HEALTH_READINESS_HEADER) healthKey?: string) {
     this.assertReadinessAccess(healthKey);
     return this.healthService.readiness();
   }
@@ -36,7 +40,7 @@ export class HealthController {
     );
     if (!expectedKey || providedKey !== expectedKey) {
       throw new ForbiddenException(
-        'Readiness probe requires a valid X-Health-Key header',
+        `Readiness probe requires a valid ${HEALTH_READINESS_HEADER_NAME} header`,
       );
     }
   }

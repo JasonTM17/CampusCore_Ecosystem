@@ -88,7 +88,7 @@ export class AuthController {
   ) {
     await this.authService.logout(
       req.user.sub,
-      body?.refreshToken ?? extractRefreshTokenFromRequest(req),
+      body?.refreshToken ?? extractRefreshTokenFromRequest(req) ?? null,
     );
     clearSessionCookies(res, this.configService, req);
     return { message: 'Logged out successfully' };

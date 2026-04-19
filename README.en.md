@@ -46,11 +46,21 @@ Legacy bearer support remains for compatibility.
 
 ## Canonical internal contract
 
-As of v6, the canonical internal service paths are:
+The canonical internal service paths are:
 
 - `/api/v1/internal/academic-context/*`
 - `/api/v1/internal/people-context/*`
 - `/api/v1/internal/finance-context/*`
+
+## Shared auth contract
+
+All backend services now share `packages/platform-auth` as the internal source of truth for:
+
+- `cc_access_token`, `cc_refresh_token`, `cc_csrf`
+- `X-CSRF-Token`
+- `X-Service-Token`
+- `X-Health-Key`
+- shared cookie helpers, JWT claim normalization, and auth wrappers
 
 These routes are service-to-service only and require `X-Service-Token`.
 

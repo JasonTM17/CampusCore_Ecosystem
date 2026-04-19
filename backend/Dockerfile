@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
+COPY packages/platform-auth /packages/platform-auth
+RUN cd /packages/platform-auth && npm ci
+
 # Copy package files
 COPY backend/package*.json ./
 
@@ -39,6 +42,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create non-root user
 RUN groupadd -g 1001 nodejs && \
     useradd -r -u 1001 -g nodejs nodejs
+
+COPY packages/platform-auth /packages/platform-auth
+RUN cd /packages/platform-auth && npm ci --omit=dev
 
 # Copy package files
 COPY backend/package*.json ./

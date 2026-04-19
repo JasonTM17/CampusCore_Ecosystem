@@ -1,6 +1,6 @@
 # Architecture
 
-CampusCore v6 chạy như một stack microservices production-like với một `core-api`, sáu domain service, một `frontend`, và một `nginx gateway`.
+CampusCore hiện chạy như một stack microservices production-like với một `core-api`, sáu domain service, một `frontend`, và một `nginx gateway`.
 
 ## Runtime boundary
 
@@ -26,6 +26,7 @@ CampusCore v6 chạy như một stack microservices production-like với một 
 - `engagement-service` dùng `engagement`.
 - `people-service` dùng `people`.
 - `analytics-service` hiện đọc từ `public` theo hướng low-risk.
+- Shared auth contract được gom về `packages/platform-auth` để giảm lặp lại cookie/JWT/CSRF logic giữa các service.
 
 ## Public routing
 
@@ -51,4 +52,4 @@ Các path này không public qua `nginx` và yêu cầu `X-Service-Token`.
 
 - `core-api` vẫn giữ auth và identity platform.
 - `people-service` dùng mô hình hybrid một release với shadow sync để giữ JWT claims `studentId` và `lecturerId`.
-- `analytics-service` chưa có schema riêng ở v6 để tránh refactor ownership sâu hơn trong cùng đợt phát hành.
+- `analytics-service` chưa có schema riêng để tránh refactor ownership sâu hơn trong cùng đợt hardening này.

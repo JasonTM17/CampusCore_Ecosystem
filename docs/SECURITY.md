@@ -20,7 +20,7 @@
 
 ## Security verification
 
-Quality gate v6 bắt buộc:
+Quality gate hiện tại bắt buộc:
 
 - `npm audit` cho toàn bộ package
 - `gitleaks`
@@ -37,9 +37,10 @@ Quality gate v6 bắt buộc:
 - `people-service`
 - `analytics-service`
 - `frontend`
+- `packages/platform-auth`
 
 ## Known transitional limitations
 
 - `people-service` vẫn cần shadow sync về `core-api` trong một release chuyển tiếp để không làm gãy JWT claims.
-- `analytics-service` ở v6 vẫn đọc dữ liệu legacy/shadow trong `public` schema để giữ low-risk.
+- `analytics-service` vẫn đọc dữ liệu legacy/shadow trong `public` schema để giữ low-risk.
 - PostgreSQL vẫn là shared cluster theo mô hình multi-schema, chưa tách cluster độc lập theo service.
