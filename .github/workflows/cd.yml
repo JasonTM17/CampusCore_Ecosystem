@@ -10,6 +10,9 @@ env:
   NOTIFICATION_IMAGE: campuscore-notification-service
   FINANCE_IMAGE: campuscore-finance-service
   ACADEMIC_IMAGE: campuscore-academic-service
+  ENGAGEMENT_IMAGE: campuscore-engagement-service
+  PEOPLE_IMAGE: campuscore-people-service
+  ANALYTICS_IMAGE: campuscore-analytics-service
   FRONTEND_IMAGE: campuscore-frontend
 
 permissions:
@@ -277,6 +280,72 @@ jobs:
           provenance: true
           sbom: true
 
+      - name: Docker metadata (engagement service)
+        id: meta-engagement
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ENGAGEMENT_IMAGE }}
+          tags: |
+            type=raw,value=${{ needs.release-plan.outputs.image_tag }}
+            type=raw,value=${{ needs.release-plan.outputs.short_sha }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=CampusCore Engagement Service
+            org.opencontainers.image.description=CampusCore engagement service for announcements and support ticket ownership.
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
+            org.opencontainers.image.version=${{ needs.release-plan.outputs.image_tag }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.vendor=CampusCore
+
+      - name: Build and push engagement service
+        id: build-engagement
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./engagement-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta-engagement.outputs.tags }}
+          labels: ${{ steps.meta-engagement.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          provenance: true
+          sbom: true
+
+      - name: Docker metadata (people service)
+        id: meta-people
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.PEOPLE_IMAGE }}
+          tags: |
+            type=raw,value=${{ needs.release-plan.outputs.image_tag }}
+            type=raw,value=${{ needs.release-plan.outputs.short_sha }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=CampusCore People Service
+            org.opencontainers.image.description=CampusCore people service for student and lecturer ownership with JWT-safe shadow sync events.
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
+            org.opencontainers.image.version=${{ needs.release-plan.outputs.image_tag }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.vendor=CampusCore
+
+      - name: Build and push people service
+        id: build-people
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./people-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta-people.outputs.tags }}
+          labels: ${{ steps.meta-people.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          provenance: true
+          sbom: true
+
       - name: Docker metadata (finance service)
         id: meta-finance
         uses: docker/metadata-action@v5
@@ -343,6 +412,39 @@ jobs:
           provenance: true
           sbom: true
 
+      - name: Docker metadata (analytics service)
+        id: meta-analytics
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ANALYTICS_IMAGE }}
+          tags: |
+            type=raw,value=${{ needs.release-plan.outputs.image_tag }}
+            type=raw,value=${{ needs.release-plan.outputs.short_sha }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=CampusCore Analytics Service
+            org.opencontainers.image.description=CampusCore analytics service for operational dashboards, enrollment trends, lecturer reporting, and finance-academic overview APIs.
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
+            org.opencontainers.image.version=${{ needs.release-plan.outputs.image_tag }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.vendor=CampusCore
+
+      - name: Build and push analytics service
+        id: build-analytics
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./analytics-service/Dockerfile
+          push: true
+          tags: ${{ steps.meta-analytics.outputs.tags }}
+          labels: ${{ steps.meta-analytics.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          provenance: true
+          sbom: true
+
       - name: Summary
         run: |
           {
@@ -366,6 +468,18 @@ jobs:
             echo "- Academic SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ACADEMIC_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
             echo "- Academic latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ACADEMIC_IMAGE }}:latest"
             echo "- Academic digest: ${{ steps.build-academic.outputs.digest }}"
+            echo "- Analytics tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ANALYTICS_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Analytics SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ANALYTICS_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Analytics latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ANALYTICS_IMAGE }}:latest"
+            echo "- Analytics digest: ${{ steps.build-analytics.outputs.digest }}"
+            echo "- Engagement tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ENGAGEMENT_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Engagement SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ENGAGEMENT_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Engagement latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ENGAGEMENT_IMAGE }}:latest"
+            echo "- Engagement digest: ${{ steps.build-engagement.outputs.digest }}"
+            echo "- People tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.PEOPLE_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- People SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.PEOPLE_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- People latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.PEOPLE_IMAGE }}:latest"
+            echo "- People digest: ${{ steps.build-people.outputs.digest }}"
             echo "- Frontend tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
             echo "- Frontend SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
             echo "- Frontend latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:latest"
@@ -492,6 +606,72 @@ jobs:
           provenance: true
           sbom: true
 
+      - name: Docker metadata (engagement service)
+        id: ghcr-meta-engagement
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ENGAGEMENT_IMAGE }}
+          tags: |
+            type=raw,value=${{ needs.release-plan.outputs.image_tag }}
+            type=raw,value=${{ needs.release-plan.outputs.short_sha }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=CampusCore Engagement Service
+            org.opencontainers.image.description=CampusCore engagement service for announcements and support ticket ownership.
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
+            org.opencontainers.image.version=${{ needs.release-plan.outputs.image_tag }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.vendor=CampusCore
+
+      - name: Build and push engagement service
+        id: ghcr-build-engagement
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./engagement-service/Dockerfile
+          push: true
+          tags: ${{ steps.ghcr-meta-engagement.outputs.tags }}
+          labels: ${{ steps.ghcr-meta-engagement.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          provenance: true
+          sbom: true
+
+      - name: Docker metadata (people service)
+        id: ghcr-meta-people
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.PEOPLE_IMAGE }}
+          tags: |
+            type=raw,value=${{ needs.release-plan.outputs.image_tag }}
+            type=raw,value=${{ needs.release-plan.outputs.short_sha }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=CampusCore People Service
+            org.opencontainers.image.description=CampusCore people service for student and lecturer ownership with JWT-safe shadow sync events.
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
+            org.opencontainers.image.version=${{ needs.release-plan.outputs.image_tag }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.vendor=CampusCore
+
+      - name: Build and push people service
+        id: ghcr-build-people
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./people-service/Dockerfile
+          push: true
+          tags: ${{ steps.ghcr-meta-people.outputs.tags }}
+          labels: ${{ steps.ghcr-meta-people.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          provenance: true
+          sbom: true
+
       - name: Docker metadata (finance service)
         id: ghcr-meta-finance
         uses: docker/metadata-action@v5
@@ -558,6 +738,39 @@ jobs:
           provenance: true
           sbom: true
 
+      - name: Docker metadata (analytics service)
+        id: ghcr-meta-analytics
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ANALYTICS_IMAGE }}
+          tags: |
+            type=raw,value=${{ needs.release-plan.outputs.image_tag }}
+            type=raw,value=${{ needs.release-plan.outputs.short_sha }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=CampusCore Analytics Service
+            org.opencontainers.image.description=CampusCore analytics service for operational dashboards, enrollment trends, lecturer reporting, and finance-academic overview APIs.
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.release-plan.outputs.source_sha }}
+            org.opencontainers.image.version=${{ needs.release-plan.outputs.image_tag }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.vendor=CampusCore
+
+      - name: Build and push analytics service
+        id: ghcr-build-analytics
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./analytics-service/Dockerfile
+          push: true
+          tags: ${{ steps.ghcr-meta-analytics.outputs.tags }}
+          labels: ${{ steps.ghcr-meta-analytics.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          provenance: true
+          sbom: true
+
       - name: Summary
         run: |
           {
@@ -581,6 +794,18 @@ jobs:
             echo "- Academic SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ACADEMIC_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
             echo "- Academic latest tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ACADEMIC_IMAGE }}:latest"
             echo "- Academic digest: ${{ steps.ghcr-build-academic.outputs.digest }}"
+            echo "- Analytics tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ANALYTICS_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Analytics SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ANALYTICS_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Analytics latest tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ANALYTICS_IMAGE }}:latest"
+            echo "- Analytics digest: ${{ steps.ghcr-build-analytics.outputs.digest }}"
+            echo "- Engagement tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ENGAGEMENT_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Engagement SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ENGAGEMENT_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Engagement latest tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ENGAGEMENT_IMAGE }}:latest"
+            echo "- Engagement digest: ${{ steps.ghcr-build-engagement.outputs.digest }}"
+            echo "- People tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.PEOPLE_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- People SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.PEOPLE_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- People latest tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.PEOPLE_IMAGE }}:latest"
+            echo "- People digest: ${{ steps.ghcr-build-people.outputs.digest }}"
             echo "- Frontend tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
             echo "- Frontend SHA tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
             echo "- Frontend latest tag: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:latest"
@@ -640,6 +865,9 @@ jobs:
             "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}"
             "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FINANCE_IMAGE }}"
             "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ACADEMIC_IMAGE }}"
+            "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ANALYTICS_IMAGE }}"
+            "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ENGAGEMENT_IMAGE }}"
+            "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.PEOPLE_IMAGE }}"
             "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}"
           )
           tags=(
@@ -663,6 +891,9 @@ jobs:
             "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}"
             "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FINANCE_IMAGE }}"
             "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ACADEMIC_IMAGE }}"
+            "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ANALYTICS_IMAGE }}"
+            "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ENGAGEMENT_IMAGE }}"
+            "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.PEOPLE_IMAGE }}"
             "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}"
           )
           tags=(
@@ -683,6 +914,9 @@ jobs:
           E2E_NOTIFICATION_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
           E2E_FINANCE_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FINANCE_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
           E2E_ACADEMIC_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ACADEMIC_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
+          E2E_ANALYTICS_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ANALYTICS_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
+          E2E_ENGAGEMENT_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ENGAGEMENT_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
+          E2E_PEOPLE_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.PEOPLE_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
           E2E_FRONTEND_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
         run: node scripts/run-image-smoke.mjs
 
@@ -694,6 +928,9 @@ jobs:
           E2E_NOTIFICATION_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
           E2E_FINANCE_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FINANCE_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
           E2E_ACADEMIC_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ACADEMIC_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
+          E2E_ANALYTICS_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ANALYTICS_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
+          E2E_ENGAGEMENT_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ENGAGEMENT_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
+          E2E_PEOPLE_SERVICE_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.PEOPLE_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
           E2E_FRONTEND_IMAGE: ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}
         run: npm run test:e2e:edge
 
