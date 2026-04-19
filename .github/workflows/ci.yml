@@ -18,6 +18,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  architecture-guard:
+    name: architecture-guard
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: packages/platform-auth/package-lock.json
+
+      - name: Install shared auth package dependencies
+        working-directory: packages/platform-auth
+        run: npm ci
+
+      - name: Test shared auth package
+        working-directory: packages/platform-auth
+        run: npm test
+
+      - name: Enforce architecture guard
+        run: node scripts/check-architecture.mjs
+
   core-quality:
     name: core-quality
     runs-on: ubuntu-latest
@@ -1164,6 +1190,10 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      - name: Install shared auth package dependencies
+        working-directory: packages/platform-auth
+        run: npm ci
+
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
@@ -1283,6 +1313,12 @@ jobs:
         working-directory: analytics-service
         run: npm ci
 
+      - name: Platform auth npm audit
+        id: platform-auth-npm-audit
+        continue-on-error: true
+        working-directory: packages/platform-auth
+        run: npm audit --audit-level=high --json > ../../security-results/platform-auth-npm-audit.json 2> ../../security-results/platform-auth-npm-audit.stderr.log
+
       - name: Backend npm audit
         id: backend-npm-audit
         continue-on-error: true
@@ -1330,6 +1366,18 @@ jobs:
         continue-on-error: true
         working-directory: analytics-service
         run: npm audit --audit-level=high --json > ../security-results/analytics-npm-audit.json 2> ../security-results/analytics-npm-audit.stderr.log
+
+      - name: Platform auth filesystem scan
+        id: trivy-platform-auth-fs
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: packages/platform-auth
+          format: sarif
+          output: security-results/trivy-platform-auth-fs.sarif
+          severity: HIGH,CRITICAL
+          exit-code: '1'
 
       - name: Filesystem scan
         id: trivy-fs
@@ -1526,6 +1574,13 @@ jobs:
           sarif_file: security-results/gitleaks.sarif
           category: gitleaks
 
+      - name: Upload platform auth filesystem SARIF
+        if: always() && hashFiles('security-results/trivy-platform-auth-fs.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-results/trivy-platform-auth-fs.sarif
+          category: trivy-platform-auth-fs
+
       - name: Upload filesystem SARIF
         if: always() && hashFiles('security-results/trivy-fs.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
         uses: github/codeql-action/upload-sarif@v3
@@ -1628,6 +1683,7 @@ jobs:
         if: always()
         run: |
           if [ "${{ steps.gitleaks.outcome }}" != "success" ] || \
+             [ "${{ steps.platform-auth-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.backend-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.frontend-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.notification-npm-audit.outcome }}" != "success" ] || \
@@ -1636,6 +1692,7 @@ jobs:
              [ "${{ steps.engagement-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.people-npm-audit.outcome }}" != "success" ] || \
              [ "${{ steps.analytics-npm-audit.outcome }}" != "success" ] || \
+             [ "${{ steps.trivy-platform-auth-fs.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-fs.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-academic-fs.outcome }}" != "success" ] || \
              [ "${{ steps.trivy-engagement-fs.outcome }}" != "success" ] || \
@@ -1671,6 +1728,7 @@ jobs:
     name: quality-gate
     runs-on: ubuntu-latest
     needs:
+      - architecture-guard
       - core-quality
       - core-integration
       - notification-quality
@@ -1719,6 +1777,7 @@ jobs:
             fi
           }
 
+          check_required architecture-guard "${{ needs.architecture-guard.result }}"
           check_required core-quality "${{ needs.core-quality.result }}"
           check_required core-integration "${{ needs.core-integration.result }}"
           check_required notification-quality "${{ needs.notification-quality.result }}"
@@ -1750,6 +1809,7 @@ jobs:
           {
             echo "## Quality gate"
             echo ""
+            echo "- architecture-guard: ${{ needs.architecture-guard.result }}"
             echo "- core-quality: ${{ needs.core-quality.result }}"
             echo "- core-integration: ${{ needs.core-integration.result }}"
             echo "- notification-quality: ${{ needs.notification-quality.result }}"

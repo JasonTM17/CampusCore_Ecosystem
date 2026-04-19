@@ -7,7 +7,7 @@
 - `DOCKERHUB_NAMESPACE` là biến ưu tiên.
 - `DOCKERHUB_USERNAME` vẫn được hỗ trợ như legacy alias khi namespace không được set.
 
-## Public image set for v6
+## Public image set hiện tại
 
 1. `campuscore-backend`
 2. `campuscore-notification-service`

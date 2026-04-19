@@ -5,6 +5,10 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  INTERNAL_SERVICE_TOKEN_HEADER,
+  INTERNAL_SERVICE_TOKEN_HEADER_NAME,
+} from '@campuscore/platform-auth';
 import { ENV, ENV_DEFAULTS } from '../../../config/env.constants';
 
 @Injectable()
@@ -13,7 +17,7 @@ export class ServiceTokenGuard implements CanActivate {
 
   canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest();
-    const providedToken = request.headers['x-service-token'];
+    const providedToken = request.headers[INTERNAL_SERVICE_TOKEN_HEADER];
     const expectedToken =
       this.configService.get<string>(ENV.INTERNAL_SERVICE_TOKEN) ??
       ENV_DEFAULTS.INTERNAL_SERVICE_TOKEN;
@@ -24,7 +28,7 @@ export class ServiceTokenGuard implements CanActivate {
       providedToken !== expectedToken
     ) {
       throw new ForbiddenException(
-        'Internal endpoint requires a valid X-Service-Token header',
+        `Internal endpoint requires a valid ${INTERNAL_SERVICE_TOKEN_HEADER_NAME} header`,
       );
     }
 

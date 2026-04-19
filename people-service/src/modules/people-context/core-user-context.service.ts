@@ -5,6 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  INTERNAL_API_PREFIX,
+  INTERNAL_SERVICE_TOKEN_HEADER_NAME,
+} from '@campuscore/platform-auth';
 import { ENV, ENV_DEFAULTS } from '../../config/env.constants';
 
 export type CoreUserSnapshot = {
@@ -32,14 +36,14 @@ export class CoreUserContextService {
 
   async getUser(userId: string): Promise<CoreUserSnapshot> {
     return this.fetchJson<CoreUserSnapshot>(
-      `/api/v1/internal/people-context/users/${userId}`,
+      `${INTERNAL_API_PREFIX}/people-context/users/${userId}`,
     );
   }
 
   private async fetchJson<T>(pathname: string): Promise<T> {
     const response = await fetch(`${this.baseUrl}${pathname}`, {
       headers: {
-        'X-Service-Token': this.serviceToken,
+        [INTERNAL_SERVICE_TOKEN_HEADER_NAME]: this.serviceToken,
       },
     });
 

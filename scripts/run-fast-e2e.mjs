@@ -126,7 +126,8 @@ async function main() {
         E2E_API_URL: apiBaseURL,
         E2E_DATABASE_URL: publicDatabaseUrl,
         E2E_REDIS_URL: 'disabled',
-        E2E_RABBITMQ_URL: 'disabled'
+        E2E_RABBITMQ_URL: 'disabled',
+        NODE_OPTIONS: frontendNodeOptions
       }
     });
   } catch (error) {
@@ -315,7 +316,8 @@ async function startApplicationServers() {
       JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
       NODE_ENV: 'test',
       RABBITMQ_URL: 'disabled',
-      COOKIE_SECURE: 'false'
+      COOKIE_SECURE: 'false',
+      INTERNAL_SERVICE_TOKEN: internalServiceToken
     }
   });
 

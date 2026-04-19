@@ -46,11 +46,21 @@ Legacy bearer vẫn được giữ để tương thích.
 
 ## Internal contract canonical
 
-Từ v6, internal service contract canonical là:
+Internal service contract canonical hiện tại là:
 
 - `/api/v1/internal/academic-context/*`
 - `/api/v1/internal/people-context/*`
 - `/api/v1/internal/finance-context/*`
+
+## Shared auth contract
+
+Toàn bộ service backend đang dùng chung package nội bộ `packages/platform-auth` làm nguồn chuẩn cho:
+
+- cookie `cc_access_token`, `cc_refresh_token`, `cc_csrf`
+- header `X-CSRF-Token`
+- header `X-Service-Token`
+- header `X-Health-Key`
+- helper parse cookie, JWT claims, và wrapper auth dùng chung
 
 Các route này chỉ dùng cho service-to-service với `X-Service-Token`.
 

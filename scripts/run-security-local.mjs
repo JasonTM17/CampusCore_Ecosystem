@@ -23,6 +23,147 @@ const trivyTimeoutMs = Number(
 const includeConfigScan = process.env.LOCAL_SECURITY_INCLUDE_CONFIG === '1';
 const includeImageScan = process.env.LOCAL_SECURITY_INCLUDE_IMAGE_SCAN !== '0';
 const summary = [];
+const npmAuditTargets = [
+  { id: 'platform-auth', cwd: path.join(repoRoot, 'packages', 'platform-auth') },
+  { id: 'backend', cwd: path.join(repoRoot, 'backend') },
+  { id: 'notification-service', cwd: path.join(repoRoot, 'notification-service') },
+  { id: 'finance-service', cwd: path.join(repoRoot, 'finance-service') },
+  { id: 'academic-service', cwd: path.join(repoRoot, 'academic-service') },
+  { id: 'engagement-service', cwd: path.join(repoRoot, 'engagement-service') },
+  { id: 'people-service', cwd: path.join(repoRoot, 'people-service') },
+  { id: 'analytics-service', cwd: path.join(repoRoot, 'analytics-service') },
+  { id: 'frontend', cwd: path.join(repoRoot, 'frontend') },
+];
+const fsScanTargets = [
+  {
+    id: 'platform-auth',
+    targetPath: '/repo/packages/platform-auth',
+    skipDirs: ['/repo/packages/platform-auth/node_modules'],
+  },
+  {
+    id: 'backend',
+    targetPath: '/repo/backend',
+    skipDirs: [
+      '/repo/backend/node_modules',
+      '/repo/backend/dist',
+      '/repo/backend/coverage',
+    ],
+  },
+  {
+    id: 'notification-service',
+    targetPath: '/repo/notification-service',
+    skipDirs: [
+      '/repo/notification-service/node_modules',
+      '/repo/notification-service/dist',
+      '/repo/notification-service/coverage',
+    ],
+  },
+  {
+    id: 'finance-service',
+    targetPath: '/repo/finance-service',
+    skipDirs: [
+      '/repo/finance-service/node_modules',
+      '/repo/finance-service/dist',
+      '/repo/finance-service/coverage',
+    ],
+  },
+  {
+    id: 'academic-service',
+    targetPath: '/repo/academic-service',
+    skipDirs: [
+      '/repo/academic-service/node_modules',
+      '/repo/academic-service/dist',
+      '/repo/academic-service/coverage',
+    ],
+  },
+  {
+    id: 'engagement-service',
+    targetPath: '/repo/engagement-service',
+    skipDirs: [
+      '/repo/engagement-service/node_modules',
+      '/repo/engagement-service/dist',
+      '/repo/engagement-service/coverage',
+    ],
+  },
+  {
+    id: 'people-service',
+    targetPath: '/repo/people-service',
+    skipDirs: [
+      '/repo/people-service/node_modules',
+      '/repo/people-service/dist',
+      '/repo/people-service/coverage',
+    ],
+  },
+  {
+    id: 'analytics-service',
+    targetPath: '/repo/analytics-service',
+    skipDirs: [
+      '/repo/analytics-service/node_modules',
+      '/repo/analytics-service/dist',
+      '/repo/analytics-service/coverage',
+    ],
+  },
+  {
+    id: 'frontend',
+    targetPath: '/repo/frontend',
+    skipDirs: [
+      '/repo/frontend/node_modules',
+      '/repo/frontend/.next',
+      '/repo/frontend/dist',
+      '/repo/frontend/test-results',
+    ],
+  },
+];
+const imageScanTargets = [
+  {
+    id: 'backend',
+    dockerfile: 'backend/Dockerfile',
+    imageTag: 'campuscore-backend:security-local',
+    archiveName: 'campuscore-backend-security-local.tar',
+  },
+  {
+    id: 'notification-service',
+    dockerfile: 'notification-service/Dockerfile',
+    imageTag: 'campuscore-notification-service:security-local',
+    archiveName: 'campuscore-notification-service-security-local.tar',
+  },
+  {
+    id: 'finance-service',
+    dockerfile: 'finance-service/Dockerfile',
+    imageTag: 'campuscore-finance-service:security-local',
+    archiveName: 'campuscore-finance-service-security-local.tar',
+  },
+  {
+    id: 'academic-service',
+    dockerfile: 'academic-service/Dockerfile',
+    imageTag: 'campuscore-academic-service:security-local',
+    archiveName: 'campuscore-academic-service-security-local.tar',
+  },
+  {
+    id: 'engagement-service',
+    dockerfile: 'engagement-service/Dockerfile',
+    imageTag: 'campuscore-engagement-service:security-local',
+    archiveName: 'campuscore-engagement-service-security-local.tar',
+  },
+  {
+    id: 'people-service',
+    dockerfile: 'people-service/Dockerfile',
+    imageTag: 'campuscore-people-service:security-local',
+    archiveName: 'campuscore-people-service-security-local.tar',
+  },
+  {
+    id: 'analytics-service',
+    dockerfile: 'analytics-service/Dockerfile',
+    imageTag: 'campuscore-analytics-service:security-local',
+    archiveName: 'campuscore-analytics-service-security-local.tar',
+  },
+  {
+    id: 'frontend',
+    dockerfile: 'frontend/Dockerfile',
+    imageTag: 'campuscore-frontend:security-local',
+    archiveName: 'campuscore-frontend-security-local.tar',
+  },
+];
 
 async function main() {
   await rm(resultsDir, { recursive: true, force: true });
@@ -32,64 +173,17 @@ async function main() {
   console.log('[security-local] Bắt đầu quét bảo mật cục bộ cho CampusCore');
   console.log(`[security-local] Thư mục kết quả: ${resultsDir}`);
   console.log(
-    '[security-local] Trình tự: backend npm audit -> notification-service npm audit -> finance-service npm audit -> academic-service npm audit -> engagement-service npm audit -> people-service npm audit -> analytics-service npm audit -> frontend npm audit -> gitleaks -> trivy fs',
+    '[security-local] Trình tự: npm audit cho toàn bộ package/service -> gitleaks -> Trivy fs -> Trivy image',
   );
 
-  await runStep('backend-npm-audit', async () => {
-    await runNpmAudit(
-      path.join(repoRoot, 'backend'),
-      path.join(resultsDir, 'backend-npm-audit.json'),
-    );
-  });
-
-  await runStep('notification-service-npm-audit', async () => {
-    await runNpmAudit(
-      path.join(repoRoot, 'notification-service'),
-      path.join(resultsDir, 'notification-service-npm-audit.json'),
-    );
-  });
-
-  await runStep('finance-service-npm-audit', async () => {
-    await runNpmAudit(
-      path.join(repoRoot, 'finance-service'),
-      path.join(resultsDir, 'finance-service-npm-audit.json'),
-    );
-  });
-
-  await runStep('academic-service-npm-audit', async () => {
-    await runNpmAudit(
-      path.join(repoRoot, 'academic-service'),
-      path.join(resultsDir, 'academic-service-npm-audit.json'),
-    );
-  });
-
-  await runStep('engagement-service-npm-audit', async () => {
-    await runNpmAudit(
-      path.join(repoRoot, 'engagement-service'),
-      path.join(resultsDir, 'engagement-service-npm-audit.json'),
-    );
-  });
-
-  await runStep('people-service-npm-audit', async () => {
-    await runNpmAudit(
-      path.join(repoRoot, 'people-service'),
-      path.join(resultsDir, 'people-service-npm-audit.json'),
-    );
-  });
-
-  await runStep('analytics-service-npm-audit', async () => {
-    await runNpmAudit(
-      path.join(repoRoot, 'analytics-service'),
-      path.join(resultsDir, 'analytics-service-npm-audit.json'),
-    );
-  });
-
-  await runStep('frontend-npm-audit', async () => {
-    await runNpmAudit(
-      path.join(repoRoot, 'frontend'),
-      path.join(resultsDir, 'frontend-npm-audit.json'),
-    );
-  });
+  for (const target of npmAuditTargets) {
+    await runStep(`${target.id}-npm-audit`, async () => {
+      await runNpmAudit(
+        target.cwd,
+        path.join(resultsDir, `${target.id}-npm-audit.json`),
+      );
+    });
+  }
 
   await runStep('gitleaks', async () => {
     await run('docker', [
@@ -109,230 +203,23 @@ async function main() {
     ]);
   });
 
-  await runStep('trivy-backend-fs', async () => {
-    await runTrivyFs({
-      targetPath: '/repo/backend',
-      outputPath:
-        '/repo/frontend/test-results/security-local/trivy-backend-fs.sarif',
-      skipDirs: [
-        '/repo/backend/node_modules',
-        '/repo/backend/dist',
-        '/repo/backend/coverage',
-      ],
+  for (const target of fsScanTargets) {
+    await runStep(`trivy-${target.id}-fs`, async () => {
+      await runTrivyFs({
+        targetPath: target.targetPath,
+        outputPath: `/repo/frontend/test-results/security-local/trivy-${target.id}-fs.sarif`,
+        skipDirs: target.skipDirs,
+      });
     });
-  });
-
-  await runStep('trivy-notification-service-fs', async () => {
-    await runTrivyFs({
-      targetPath: '/repo/notification-service',
-      outputPath:
-        '/repo/frontend/test-results/security-local/trivy-notification-service-fs.sarif',
-      skipDirs: [
-        '/repo/notification-service/node_modules',
-        '/repo/notification-service/dist',
-        '/repo/notification-service/coverage',
-      ],
-    });
-  });
-
-  await runStep('trivy-frontend-fs', async () => {
-    await runTrivyFs({
-      targetPath: '/repo/frontend',
-      outputPath:
-        '/repo/frontend/test-results/security-local/trivy-frontend-fs.sarif',
-      skipDirs: [
-        '/repo/frontend/node_modules',
-        '/repo/frontend/.next',
-        '/repo/frontend/dist',
-        '/repo/frontend/test-results',
-      ],
-    });
-  });
-
-  await runStep('trivy-finance-service-fs', async () => {
-    await runTrivyFs({
-      targetPath: '/repo/finance-service',
-      outputPath:
-        '/repo/frontend/test-results/security-local/trivy-finance-service-fs.sarif',
-      skipDirs: [
-        '/repo/finance-service/node_modules',
-        '/repo/finance-service/dist',
-        '/repo/finance-service/coverage',
-      ],
-    });
-  });
-
-  await runStep('trivy-academic-service-fs', async () => {
-    await runTrivyFs({
-      targetPath: '/repo/academic-service',
-      outputPath:
-        '/repo/frontend/test-results/security-local/trivy-academic-service-fs.sarif',
-      skipDirs: [
-        '/repo/academic-service/node_modules',
-        '/repo/academic-service/dist',
-        '/repo/academic-service/coverage',
-      ],
-    });
-  });
-
-  await runStep('trivy-engagement-service-fs', async () => {
-    await runTrivyFs({
-      targetPath: '/repo/engagement-service',
-      outputPath:
-        '/repo/frontend/test-results/security-local/trivy-engagement-service-fs.sarif',
-      skipDirs: [
-        '/repo/engagement-service/node_modules',
-        '/repo/engagement-service/dist',
-        '/repo/engagement-service/coverage',
-      ],
-    });
-  });
-
-  await runStep('trivy-people-service-fs', async () => {
-    await runTrivyFs({
-      targetPath: '/repo/people-service',
-      outputPath:
-        '/repo/frontend/test-results/security-local/trivy-people-service-fs.sarif',
-      skipDirs: [
-        '/repo/people-service/node_modules',
-        '/repo/people-service/dist',
-        '/repo/people-service/coverage',
-      ],
-    });
-  });
-
-  await runStep('trivy-analytics-service-fs', async () => {
-    await runTrivyFs({
-      targetPath: '/repo/analytics-service',
-      outputPath:
-        '/repo/frontend/test-results/security-local/trivy-analytics-service-fs.sarif',
-      skipDirs: [
-        '/repo/analytics-service/node_modules',
-        '/repo/analytics-service/dist',
-        '/repo/analytics-service/coverage',
-      ],
-    });
-  });
+  }
 
   if (includeImageScan) {
     console.log(
-      '[security-local] Đã bật thêm image scan cho people-service và analytics-service để bám sát quality gate CI',
+      '[security-local] Đã bật image scan cho toàn bộ image trong quality gate CI',
     );
-    const peopleImageTag = 'campuscore-people-service:security-local';
-    const peopleImageArchive = path.join(
-      resultsDir,
-      'campuscore-people-service-security-local.tar',
-    );
-
-    await runStep('docker-build-people-service-image', async () => {
-      await run('docker', [
-        'build',
-        '-f',
-        'people-service/Dockerfile',
-        '-t',
-        peopleImageTag,
-        '.',
-      ]);
-    });
-
-    await runStep('docker-save-people-service-image', async () => {
-      await run('docker', [
-        'image',
-        'save',
-        peopleImageTag,
-        '-o',
-        peopleImageArchive,
-      ]);
-    });
-
-    await runStep('trivy-people-service-image', async () => {
-      await run(
-        'docker',
-        [
-          'run',
-          '--rm',
-          '-v',
-          `${cacheDir}:/root/.cache/trivy`,
-          '-v',
-          `${resultsDir}:/results`,
-          trivyImage,
-          'image',
-          '--scanners',
-          'vuln',
-          '--skip-version-check',
-          '--ignore-unfixed',
-          '--input',
-          '/results/campuscore-people-service-security-local.tar',
-          '--severity',
-          'HIGH,CRITICAL',
-          '--exit-code',
-          '1',
-          '--format',
-          'sarif',
-          '--output',
-          '/results/trivy-people-service-image.sarif',
-        ],
-        { timeoutMs: trivyTimeoutMs },
-      );
-    });
-
-    const analyticsImageTag = 'campuscore-analytics-service:security-local';
-    const analyticsImageArchive = path.join(
-      resultsDir,
-      'campuscore-analytics-service-security-local.tar',
-    );
-
-    await runStep('docker-build-analytics-service-image', async () => {
-      await run('docker', [
-        'build',
-        '-f',
-        'analytics-service/Dockerfile',
-        '-t',
-        analyticsImageTag,
-        '.',
-      ]);
-    });
-
-    await runStep('docker-save-analytics-service-image', async () => {
-      await run('docker', [
-        'image',
-        'save',
-        analyticsImageTag,
-        '-o',
-        analyticsImageArchive,
-      ]);
-    });
-
-    await runStep('trivy-analytics-service-image', async () => {
-      await run(
-        'docker',
-        [
-          'run',
-          '--rm',
-          '-v',
-          `${cacheDir}:/root/.cache/trivy`,
-          '-v',
-          `${resultsDir}:/results`,
-          trivyImage,
-          'image',
-          '--scanners',
-          'vuln',
-          '--skip-version-check',
-          '--ignore-unfixed',
-          '--input',
-          '/results/campuscore-analytics-service-security-local.tar',
-          '--severity',
-          'HIGH,CRITICAL',
-          '--exit-code',
-          '1',
-          '--format',
-          'sarif',
-          '--output',
-          '/results/trivy-analytics-service-image.sarif',
-        ],
-        { timeoutMs: trivyTimeoutMs },
-      );
-    });
+    for (const target of imageScanTargets) {
+      await buildAndScanImage(target);
+    }
   }
 
   if (includeConfigScan) {
@@ -472,6 +359,49 @@ async function runTrivyFs({ targetPath, outputPath, skipDirs }) {
     ],
     { timeoutMs: trivyTimeoutMs },
   );
+}
+
+async function buildAndScanImage({ id, dockerfile, imageTag, archiveName }) {
+  const archivePath = path.join(resultsDir, archiveName);
+
+  await runStep(`docker-build-${id}-image`, async () => {
+    await run('docker', ['build', '-f', dockerfile, '-t', imageTag, '.']);
+  });
+
+  await runStep(`docker-save-${id}-image`, async () => {
+    await run('docker', ['image', 'save', imageTag, '-o', archivePath]);
+  });
+
+  await runStep(`trivy-${id}-image`, async () => {
+    await run(
+      'docker',
+      [
+        'run',
+        '--rm',
+        '-v',
+        `${cacheDir}:/root/.cache/trivy`,
+        '-v',
+        `${resultsDir}:/results`,
+        trivyImage,
+        'image',
+        '--scanners',
+        'vuln',
+        '--skip-version-check',
+        '--ignore-unfixed',
+        '--input',
+        `/results/${archiveName}`,
+        '--severity',
+        'HIGH,CRITICAL',
+        '--exit-code',
+        '1',
+        '--format',
+        'sarif',
+        '--output',
+        `/results/trivy-${id}-image.sarif`,
+      ],
+      { timeoutMs: trivyTimeoutMs },
+    );
+  });
 }
 
 async function run(command, args, options = {}) {

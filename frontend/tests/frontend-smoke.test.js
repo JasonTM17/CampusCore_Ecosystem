@@ -320,18 +320,26 @@ function collectImplementedAppRoutes() {
 }
 
 function collectCoveredE2ERoutes() {
-  const source = read('e2e/full-stack.spec.ts');
   const coveredRoutes = new Set(['/admin', '/dashboard/lecturer/grades/[id]']);
 
-  const publicRoutesMatch = source.match(/const publicRoutes = \[([\s\S]*?)\];/);
-  if (publicRoutesMatch) {
-    for (const match of publicRoutesMatch[1].matchAll(/'([^']+)'/g)) {
+  const e2eFiles = walkFiles(path.join(root, 'e2e'), (filePath) =>
+    filePath.endsWith('.ts'),
+  );
+
+  for (const filePath of e2eFiles) {
+    const source = fs.readFileSync(filePath, 'utf8');
+    const publicRoutesMatch = source.match(
+      /const publicRoutes = \[([\s\S]*?)\];/,
+    );
+    if (publicRoutesMatch) {
+      for (const match of publicRoutesMatch[1].matchAll(/'([^']+)'/g)) {
+        coveredRoutes.add(match[1]);
+      }
+    }
+
+    for (const match of source.matchAll(/path:\s*'([^']+)'/g)) {
       coveredRoutes.add(match[1]);
     }
-  }
-
-  for (const match of source.matchAll(/path:\s*'([^']+)'/g)) {
-    coveredRoutes.add(match[1]);
   }
 
   return [...coveredRoutes].sort();

@@ -4,6 +4,11 @@ backend/node_modules
 frontend/node_modules
 notification-service/node_modules
 finance-service/node_modules
+academic-service/node_modules
+engagement-service/node_modules
+people-service/node_modules
+analytics-service/node_modules
+packages/platform-auth/node_modules
 npm-debug.log
 
 # Build outputs
@@ -21,6 +26,18 @@ notification-service/test-results
 finance-service/dist
 finance-service/coverage
 finance-service/test-results
+academic-service/dist
+academic-service/coverage
+academic-service/test-results
+engagement-service/dist
+engagement-service/coverage
+engagement-service/test-results
+people-service/dist
+people-service/coverage
+people-service/test-results
+analytics-service/dist
+analytics-service/coverage
+analytics-service/test-results
 
 # Environment files
 .env

@@ -6,13 +6,13 @@
 - Public registry chỉ publish từ tag semver `vX.Y.Z`.
 - `latest` chỉ được cập nhật khi có semver release.
 
-Release mục tiêu của đợt này là **`v1.1.0`**.
+Nhánh hardening hiện tại nhắm tới **`v1.2.0`**.
 
 ## Required quality gate
 
 Một tag release chỉ hợp lệ khi `quality-gate` xanh trên đúng SHA đó.
 
-Lanes bắt buộc của v6:
+Lanes bắt buộc hiện tại:
 
 - `core-quality`
 - `core-integration`
@@ -38,7 +38,7 @@ Lanes bắt buộc của v6:
 
 ## Public images
 
-Release v6 phải publish đủ 8 image:
+Release hiện tại phải publish đủ 8 image:
 
 1. `campuscore-backend`
 2. `campuscore-notification-service`
@@ -51,7 +51,7 @@ Release v6 phải publish đủ 8 image:
 
 Tag strategy:
 
-- `v1.1.0`
+- `v1.2.0`
 - short SHA immutable tag
 - `latest`
 

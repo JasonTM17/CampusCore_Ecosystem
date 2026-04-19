@@ -22,6 +22,7 @@
     "test:integration": "jest --config ./test/jest-integration.json"
   },
   "dependencies": {
+    "@campuscore/platform-auth": "file:../packages/platform-auth",
     "@nestjs/common": "^11.1.19",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.19",
@@ -79,7 +80,7 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
+      "^.+\\.ts$": "ts-jest"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
