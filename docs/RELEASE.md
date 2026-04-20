@@ -6,7 +6,7 @@
 - Public registry chỉ publish từ tag semver `vX.Y.Z`.
 - `latest` chỉ được cập nhật khi có semver release.
 
-Nhánh hardening hiện tại nhắm tới **`v1.3.0`**.
+Nhánh hardening hiện tại nhắm tới **`v1.3.1`**.
 
 ## Required quality gate
 
@@ -54,7 +54,7 @@ Release hiện tại phải publish đủ 9 image:
 
 Tag strategy:
 
-- `v1.3.0`
+- `v1.3.1`
 - short SHA immutable tag
 - `latest`
 
