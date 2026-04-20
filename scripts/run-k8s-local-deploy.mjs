@@ -48,7 +48,8 @@ async function main() {
       runtimeState,
       nextSteps: {
         dockerDesktopNamespace: namespace,
-        portForward: `kubectl -n ${namespace} port-forward service/campuscore-nginx 8080:80`,
+        startEdgeHelper: 'node scripts/run-k8s-local-edge.mjs',
+        stopEdgeHelper: 'node scripts/stop-k8s-local-edge.mjs',
       },
     });
 

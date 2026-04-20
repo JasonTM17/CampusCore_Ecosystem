@@ -65,6 +65,8 @@ const managedProcesses = [];
 const frontendNodeOptions = [process.env.NODE_OPTIONS, '--max-old-space-size=4096']
   .filter(Boolean)
   .join(' ');
+const sessionCacheNamespace =
+  process.env.E2E_SESSION_CACHE_NAMESPACE ?? `fast-e2e-${Date.now()}`;
 let gatewayServer;
 let gatewayLogStream;
 const academicApiPrefixes = [
@@ -134,7 +136,8 @@ async function main() {
         E2E_DATABASE_URL: publicDatabaseUrl,
         E2E_REDIS_URL: 'disabled',
         E2E_RABBITMQ_URL: 'disabled',
-        NODE_OPTIONS: frontendNodeOptions
+        NODE_OPTIONS: frontendNodeOptions,
+        E2E_SESSION_CACHE_NAMESPACE: sessionCacheNamespace
       }
     });
   } catch (error) {

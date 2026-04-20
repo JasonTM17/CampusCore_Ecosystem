@@ -3,6 +3,8 @@ import {
   type APIRequestContext,
   type Page,
 } from '@playwright/test';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { io, type Socket } from 'socket.io-client';
 
 export const isExternalStack = process.env.E2E_EXTERNAL_STACK === '1';
@@ -238,6 +240,19 @@ const sharedRoleSessionCache = new Map<
   keyof typeof SEEDED_USERS,
   Promise<SessionArtifacts>
 >();
+const sharedSessionCacheNamespace = sanitizeFileSegment(
+  process.env.E2E_SESSION_CACHE_NAMESPACE ?? 'default',
+);
+const sharedSessionCacheDir = path.join(
+  process.cwd(),
+  'test-results',
+  'playwright',
+  'shared-sessions',
+  sharedSessionCacheNamespace,
+);
+const sharedSessionTtlMs = Number(
+  process.env.E2E_SHARED_SESSION_TTL_MS ?? '900000',
+);
 
 type RequestFactory = {
   request: {
@@ -305,6 +320,55 @@ function cloneSessionArtifacts(session: SessionArtifacts): SessionArtifacts {
     cookieHeader: session.cookieHeader,
     csrfToken: session.csrfToken,
   };
+}
+
+function sanitizeFileSegment(value: string) {
+  return value.replace(/[^a-z0-9._-]+/giu, '-').replace(/^-+|-+$/gu, '') || 'default';
+}
+
+function getSharedSessionCachePath(user: keyof typeof SEEDED_USERS) {
+  return path.join(sharedSessionCacheDir, `${user}.json`);
+}
+
+async function readSharedSessionArtifactsFromDisk(
+  user: keyof typeof SEEDED_USERS,
+): Promise<SessionArtifacts | null> {
+  try {
+    const payload = JSON.parse(
+      await readFile(getSharedSessionCachePath(user), 'utf8'),
+    ) as {
+      createdAt: string;
+      session: SessionArtifacts;
+    };
+    const createdAt = Date.parse(payload.createdAt);
+
+    if (Number.isNaN(createdAt) || Date.now() - createdAt > sharedSessionTtlMs) {
+      return null;
+    }
+
+    return payload.session;
+  } catch {
+    return null;
+  }
+}
+
+async function writeSharedSessionArtifactsToDisk(
+  user: keyof typeof SEEDED_USERS,
+  session: SessionArtifacts,
+) {
+  await mkdir(sharedSessionCacheDir, { recursive: true });
+  await writeFile(
+    getSharedSessionCachePath(user),
+    JSON.stringify(
+      {
+        createdAt: new Date().toISOString(),
+        session,
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
 }
 
 function mapSameSite(value: string | undefined): 'Strict' | 'Lax' | 'None' {
@@ -594,12 +658,16 @@ export async function loginThroughApi(
   user: keyof typeof SEEDED_USERS,
 ) {
   loginAttemptCounter += 1;
-  const octetA = ((Date.now() + loginAttemptCounter) % 200) + 1;
-  const octetB = ((Math.floor(Math.random() * 10_000) + loginAttemptCounter) % 200) + 1;
+  const forwardedForByUser = {
+    admin: '198.51.100.10',
+    student: '198.51.100.11',
+    lecturer: '198.51.100.12',
+  } as const;
   const response = await request.post(`${apiBaseURL}/auth/login`, {
     data: SEEDED_USERS[user],
     headers: {
-      'X-Forwarded-For': `198.51.${octetA}.${octetB}`,
+      'X-Forwarded-For': forwardedForByUser[user],
+      'X-E2E-Login-Attempt': String(loginAttemptCounter),
     },
   });
   await expectOkResponse(response, `Login for ${user}`);
@@ -622,12 +690,19 @@ export async function getSharedSessionArtifacts(
     sharedRoleSessionCache.set(
       user,
       (async () => {
+        const cachedSession = await readSharedSessionArtifactsFromDisk(user);
+        if (cachedSession) {
+          return cachedSession;
+        }
+
         const api = await playwright.request.newContext({
           baseURL: apiOrigin,
         });
 
         try {
-          return await createSessionArtifacts(api, user);
+          const session = await createSessionArtifacts(api, user);
+          await writeSharedSessionArtifactsToDisk(user, session);
+          return session;
         } finally {
           await api.dispose();
         }

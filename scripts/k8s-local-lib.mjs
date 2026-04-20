@@ -1,7 +1,8 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+import { closeSync, openSync } from 'node:fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,6 +13,12 @@ export const localPort = Number(process.env.K8S_LOCAL_EDGE_PORT ?? '8080');
 export const baseURL = `http://127.0.0.1:${localPort}`;
 export const overlayDir = path.join(repoRoot, 'k8s', 'overlays', 'docker-desktop');
 export const bootstrapDir = path.join(repoRoot, 'k8s', 'bootstrap');
+export const edgeStatePath = path.join(
+  repoRoot,
+  'frontend',
+  'test-results',
+  'k8s-local-edge-state.json',
+);
 
 export const infraDeployments = ['postgres', 'redis', 'rabbitmq', 'minio'];
 export const runtimeDeployments = [
@@ -69,6 +76,27 @@ export async function ensureClusterAvailable() {
   } catch {
     throw new Error(
       'Kubernetes cluster is not reachable. Enable Docker Desktop Kubernetes and make sure kubectl points to docker-desktop before running the local K8s scripts.',
+    );
+  }
+}
+
+export async function assertNamespaceHasRuntimeStack() {
+  if (!(await namespaceExists())) {
+    throw new Error(
+      `Namespace ${namespace} does not exist. Run node scripts/run-k8s-local-deploy.mjs first, then reopen the local edge.`,
+    );
+  }
+
+  const state = await summarizeRuntimeState();
+  const missingDeployments = runtimeDeployments.filter(
+    (deployment) => !state.deployments.includes(`deployment.apps/${deployment}`),
+  );
+
+  if (missingDeployments.length > 0) {
+    throw new Error(
+      `Namespace ${namespace} is missing runtime deployments: ${missingDeployments.join(
+        ', ',
+      )}. Run node scripts/run-k8s-local-deploy.mjs before opening the local edge.`,
     );
   }
 }
@@ -228,6 +256,63 @@ export function startPortForward(logsDir) {
   };
 }
 
+export async function startDetachedPortForward(logsDir) {
+  await mkdir(logsDir, { recursive: true });
+  const stdoutPath = path.join(logsDir, 'port-forward.out.log');
+  const stderrPath = path.join(logsDir, 'port-forward.err.log');
+
+  if (process.platform === 'win32') {
+    const child = spawn(
+      'kubectl',
+      ['-n', namespace, 'port-forward', 'service/campuscore-nginx', `${localPort}:80`],
+      {
+        cwd: repoRoot,
+        detached: true,
+        windowsHide: true,
+        stdio: 'ignore',
+        shell: false,
+      },
+    );
+
+    child.unref();
+
+    if (!Number.isFinite(child.pid) || child.pid <= 0) {
+      throw new Error('Failed to start detached kubectl port-forward on Windows.');
+    }
+
+    return {
+      pid: child.pid,
+      stdoutPath: null,
+      stderrPath: null,
+    };
+  }
+
+  const stdoutFd = openSync(stdoutPath, 'a');
+  const stderrFd = openSync(stderrPath, 'a');
+
+  const child = spawn(
+    'kubectl',
+    ['-n', namespace, 'port-forward', 'service/campuscore-nginx', `${localPort}:80`],
+    {
+      cwd: repoRoot,
+      detached: true,
+      windowsHide: true,
+      stdio: ['ignore', stdoutFd, stderrFd],
+      shell: false,
+    },
+  );
+
+  closeSync(stdoutFd);
+  closeSync(stderrFd);
+  child.unref();
+
+  return {
+    pid: child.pid,
+    stdoutPath,
+    stderrPath,
+  };
+}
+
 export async function stopPortForward(handle) {
   if (!handle) {
     return;
@@ -270,6 +355,30 @@ export async function stopPortForward(handle) {
     );
     await Promise.race([closedPromise, delay(5000)]);
   }
+}
+
+export async function stopDetachedProcess(pid) {
+  if (!pid || !(await isProcessRunning(pid))) {
+    return;
+  }
+
+  if (process.platform === 'win32') {
+    await run(
+      'taskkill',
+      ['/PID', String(pid), '/T', '/F'],
+      { allowFailure: true, captureOutput: true, timeoutMs: 15000 },
+    );
+    await delay(2000);
+    return;
+  }
+
+  try {
+    process.kill(-pid, 'SIGTERM');
+  } catch {
+    process.kill(pid, 'SIGTERM');
+  }
+
+  await delay(2000);
 }
 
 export async function runEdgeSmokeChecks() {
@@ -328,6 +437,66 @@ export async function writeJsonSummary(logsDir, fileName, payload) {
   );
 }
 
+export async function readEdgeState() {
+  try {
+    const raw = await readFile(edgeStatePath, 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export async function writeEdgeState(payload) {
+  await mkdir(path.dirname(edgeStatePath), { recursive: true });
+  await writeFile(edgeStatePath, JSON.stringify(payload, null, 2), 'utf8');
+}
+
+export async function removeEdgeState() {
+  await unlink(edgeStatePath).catch(() => undefined);
+}
+
+export async function isProcessRunning(pid) {
+  if (!pid) {
+    return false;
+  }
+
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function cleanupStaleEdgeState() {
+  const state = await readEdgeState();
+
+  if (!state) {
+    return null;
+  }
+
+  if (await isProcessRunning(state.pid)) {
+    return state;
+  }
+
+  await removeEdgeState();
+  return null;
+}
+
+export async function waitForLocalEdgeHealthy() {
+  const health = await runEdgeSmokeChecks();
+  return {
+    namespace,
+    baseURL,
+    health,
+    urls: {
+      health: `${baseURL}/health`,
+      login: `${baseURL}/login`,
+      docs: `${baseURL}/api/docs`,
+    },
+  };
+}
+
 export async function collectArtifacts(logsDir) {
   const commands = [
     {
@@ -383,7 +552,10 @@ export function printDeployInstructions() {
     '[k8s-deploy] In Docker Desktop Kubernetes UI, switch Namespace from "default" to "campuscore" to see the stack.',
   );
   console.log(
-    `[k8s-deploy] To open the edge locally: kubectl -n ${namespace} port-forward service/campuscore-nginx ${localPort}:80`,
+    `[k8s-deploy] To open the edge locally: node scripts/run-k8s-local-edge.mjs`,
+  );
+  console.log(
+    `[k8s-deploy] To stop the helper later: node scripts/stop-k8s-local-edge.mjs`,
   );
   console.log(`[k8s-deploy] Then open ${baseURL}/login or ${baseURL}/api/docs`);
   console.log('');
@@ -475,13 +647,21 @@ async function getResourceNames(kind) {
   return normalizeOutputLines(output);
 }
 
-async function waitForHttp(url, predicate, timeoutMs = 180000, intervalMs = 2000) {
+async function waitForHttp(
+  url,
+  predicate,
+  timeoutMs = 180000,
+  intervalMs = 2000,
+  requestTimeoutMs = 10000,
+) {
   const deadline = Date.now() + timeoutMs;
   let lastError;
 
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(requestTimeoutMs),
+      });
       if (await predicate(response)) {
         return;
       }
@@ -497,8 +677,10 @@ async function waitForHttp(url, predicate, timeoutMs = 180000, intervalMs = 2000
   throw lastError ?? new Error(`Timed out waiting for ${url}`);
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url);
+async function fetchJson(url, timeoutMs = 10000) {
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(timeoutMs),
+  });
   if (!response.ok) {
     throw new Error(`Failed to fetch ${url}: ${response.status}`);
   }

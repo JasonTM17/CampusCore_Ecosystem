@@ -8,7 +8,7 @@
 - GitHub Actions ưu tiên `DOCKERHUB_TOKEN`; `DOCKERHUB_PASSWORD` chỉ còn là legacy fallback.
 - Badge CD trong `README.md` phải trỏ tới tag release mới nhất vì workflow CD chỉ chạy từ semver tag.
 
-Baseline release công khai hiện tại là **`v1.3.4`**.
+Release công khai mới nhất của vòng hardening/Kubernetes này được chốt là **`v1.3.6`**. `v1.3.4` vẫn là baseline public trước đó, còn `v1.3.5` được giữ như patch trung gian đã tồn tại trên origin.
 
 ## Required quality gate
 
@@ -54,9 +54,9 @@ Release hiện tại phải publish đủ 9 image:
 8. `campuscore-analytics-service`
 9. `campuscore-frontend`
 
-Tag strategy:
+Tag strategy cho mỗi release:
 
-- `v1.3.4`
+- semver tag, ví dụ `v1.3.6`
 - short SHA immutable tag
 - `latest`
 
@@ -70,8 +70,8 @@ Tag strategy:
 Kiểm tra local sau release:
 
 ```powershell
-$env:RELEASE_TAG='v1.3.4'
-$env:RELEASE_SHORT_SHA='f3e7de8'
+$env:RELEASE_TAG='v1.3.6'
+$env:RELEASE_SHORT_SHA=(git rev-parse --short HEAD).Trim()
 node scripts/verify-release-manifests.mjs
 ```
 
@@ -89,3 +89,4 @@ Script này kiểm GHCR và Docker Hub cho đủ 9 image với tag semver, short
   - đổi namespace UI từ `default` sang `campuscore`
   - khi dọn local cluster state, chạy `node scripts/run-k8s-local-destroy.mjs`
 - Khi cần chuyển sang Docker Hub, chỉ cần override image names trong Kustomize thay vì đổi runtime topology.
+- Checklist handoff staging/prod generic cho ingress/TLS/secrets nằm tại `docs/K8S_HANDOFF.md`.

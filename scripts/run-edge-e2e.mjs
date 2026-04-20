@@ -44,6 +44,9 @@ const frontendImage =
   process.env.E2E_FRONTEND_IMAGE ?? 'campuscore-frontend:e2e-local';
 const internalServiceToken =
   process.env.INTERNAL_SERVICE_TOKEN ?? 'edge-e2e-internal-service-token-12345';
+const sessionCacheNamespace =
+  process.env.E2E_SESSION_CACHE_NAMESPACE ??
+  `${projectName}-${Date.now()}`;
 
 const composeBaseArgs = ['compose', '-p', projectName, '-f', composeFile];
 const servicesForLogs = [
@@ -166,6 +169,7 @@ async function main() {
         E2E_EXTERNAL_STACK: '1',
         E2E_BASE_URL: baseURL,
         E2E_API_URL: apiURL,
+        E2E_SESSION_CACHE_NAMESPACE: sessionCacheNamespace,
       },
     });
   } catch (error) {

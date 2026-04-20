@@ -95,7 +95,28 @@ K8S_REUSE_NAMESPACE=1 K8S_FORCE_BOOTSTRAP_REPLAY=1 node scripts/run-k8s-local-de
 Sau khi script deploy hoàn tất:
 
 1. Trong Docker Desktop Kubernetes UI, đổi namespace từ `default` sang `campuscore`
-2. Nếu muốn mở edge bằng browser:
+2. Nếu muốn mở edge bằng browser hoặc IAB mà không cần nhớ lệnh `kubectl port-forward`, dùng helper:
+
+```bash
+node scripts/run-k8s-local-edge.mjs
+```
+
+Helper này sẽ:
+
+- kiểm tra cluster và namespace `campuscore`
+- mở `kubectl port-forward` ở background
+- đợi `/health` sẵn sàng rồi ghi lại local edge state
+- ghi state file để có thể dừng gọn bằng script đối ứng
+
+Các bài contract check sâu hơn như `/login`, `/api/docs`, và deny `/api/v1/internal/*` vẫn được khóa ở `run-k8s-local-smoke.mjs` và `run-k8s-local-deploy.mjs`.
+
+Khi muốn dừng helper:
+
+```bash
+node scripts/stop-k8s-local-edge.mjs
+```
+
+3. Nếu cần fallback thủ công, vẫn có thể mở edge bằng:
 
 ```bash
 kubectl -n campuscore port-forward service/campuscore-nginx 8080:80
@@ -114,6 +135,8 @@ Nếu cần dọn stack local này đi sau khi kiểm tra xong:
 ```bash
 node scripts/run-k8s-local-destroy.mjs
 ```
+
+Script destroy cũng sẽ dọn state của edge helper nếu đang tồn tại.
 
 ## Manual flow nếu cần tự điều khiển
 
@@ -158,6 +181,33 @@ thay vì apply raw file trực tiếp, để image tags luôn khớp release đa
 ```bash
 kubectl -n campuscore port-forward service/campuscore-nginx 8080:80
 ```
+
+Với local Docker Desktop, cách dùng khuyến nghị là:
+
+```bash
+node scripts/run-k8s-local-edge.mjs
+```
+
+để browser/IAB luôn có local listener ổn định tại `http://127.0.0.1:8080`.
+
+## Cloud-agnostic overlays
+
+Repo đã có sẵn hai overlay generic cho pha vận hành kế tiếp:
+
+- `k8s/overlays/staging-generic`
+- `k8s/overlays/prod-generic`
+
+Hai overlay này:
+
+- giữ nguyên topology 9 image và boundary hiện tại
+- thêm `Ingress` chuẩn Kubernetes
+- dùng hostname placeholder và TLS secret name placeholder
+- không commit secret thật
+- không hard-code `ingressClassName`, để cluster chọn default ingress class hoặc để operator vá bằng private overlay nếu cần
+
+Điểm chèn Cloudflare, nếu dùng sau này, sẽ nằm ở lớp DNS/WAF/CDN phía trước ingress chứ không thay runtime cluster.
+
+Checklist ingress/TLS/secrets chi tiết hơn cho pha staging/prod generic nằm tại [../docs/K8S_HANDOFF.md](../docs/K8S_HANDOFF.md).
 
 ## Đổi sang Docker Hub
 

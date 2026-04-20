@@ -1,7 +1,7 @@
 # CampusCore
 
 [![CI](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/ci.yml/badge.svg)](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/ci.yml)
-[![CD](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml/badge.svg?branch=v1.3.4)](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml?query=branch%3Av1.3.4)
+[![CD](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml/badge.svg?branch=v1.3.6)](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml?query=branch%3Av1.3.6)
 ![Frontend](https://img.shields.io/badge/frontend-Next.js%2015-111827)
 ![Core API](https://img.shields.io/badge/core--api-NestJS%2011-e11d48)
 ![Auth Service](https://img.shields.io/badge/auth--service-NestJS%2011-991b1b)
@@ -192,7 +192,7 @@ Chi tiết registry và tag strategy nằm tại [DOCKER_HUB.md](./DOCKER_HUB.md
 
 ## Kubernetes
 
-Repo hiện có bộ manifest Kustomize tại [k8s/README.md](./k8s/README.md) cho cùng topology 9 image, với `k8s/base` + `k8s/bootstrap` làm canonical deploy target và `k8s/overlays/docker-desktop` làm đường local-first cho Docker Desktop Kubernetes. Runtime này giữ nguyên boundary service, public routing, và security contract đang dùng ở Docker Compose. Để verify nhanh có cleanup mặc định, dùng `node scripts/run-k8s-local-smoke.mjs`; để giữ nguyên resources cho Docker Desktop UI, dùng `node scripts/run-k8s-local-deploy.mjs` rồi chuyển namespace sang `campuscore`.
+Repo hiện có bộ manifest Kustomize tại [k8s/README.md](./k8s/README.md) cho cùng topology 9 image, với `k8s/base` + `k8s/bootstrap` làm canonical deploy target, `k8s/overlays/docker-desktop` làm đường local-first cho Docker Desktop Kubernetes, và `k8s/overlays/staging-generic` / `k8s/overlays/prod-generic` làm khung cloud-agnostic cho pha vận hành kế tiếp. Runtime này giữ nguyên boundary service, public routing, và security contract đang dùng ở Docker Compose. Để verify nhanh có cleanup mặc định, dùng `node scripts/run-k8s-local-smoke.mjs`; để giữ nguyên resources cho Docker Desktop UI, dùng `node scripts/run-k8s-local-deploy.mjs` rồi chuyển namespace sang `campuscore`; để mở edge local cho browser/IAB mà không cần gõ `kubectl port-forward` thủ công, dùng `node scripts/run-k8s-local-edge.mjs`. Chi tiết handoff ingress/TLS/secrets cho staging/prod generic nằm tại [docs/K8S_HANDOFF.md](./docs/K8S_HANDOFF.md).
 
 ## Chạy nhanh cục bộ
 
