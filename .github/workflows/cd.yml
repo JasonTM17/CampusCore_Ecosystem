@@ -169,6 +169,8 @@ jobs:
     needs: [release-plan, wait-for-quality-gate]
     if: needs.release-plan.outputs.should_publish_dockerhub == 'true'
     timeout-minutes: 45
+    env:
+      DOCKERHUB_NAMESPACE_EFFECTIVE: ${{ secrets.DOCKERHUB_NAMESPACE != '' && secrets.DOCKERHUB_NAMESPACE || secrets.DOCKERHUB_USERNAME }}
 
     steps:
       - name: Checkout
@@ -187,7 +189,7 @@ jobs:
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}
+          images: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.BACKEND_IMAGE }}
           tags: |
             type=raw,value=${{ needs.release-plan.outputs.image_tag }}
             type=raw,value=${{ needs.release-plan.outputs.short_sha }}
@@ -220,7 +222,7 @@ jobs:
         id: meta-auth
         uses: docker/metadata-action@v5
         with:
-          images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.AUTH_IMAGE }}
+          images: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.AUTH_IMAGE }}
           tags: |
             type=raw,value=${{ needs.release-plan.outputs.image_tag }}
             type=raw,value=${{ needs.release-plan.outputs.short_sha }}
@@ -253,7 +255,7 @@ jobs:
         id: meta-notification
         uses: docker/metadata-action@v5
         with:
-          images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}
+          images: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.NOTIFICATION_IMAGE }}
           tags: |
             type=raw,value=${{ needs.release-plan.outputs.image_tag }}
             type=raw,value=${{ needs.release-plan.outputs.short_sha }}
@@ -286,7 +288,7 @@ jobs:
         id: meta-frontend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}
+          images: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.FRONTEND_IMAGE }}
           tags: |
             type=raw,value=${{ needs.release-plan.outputs.image_tag }}
             type=raw,value=${{ needs.release-plan.outputs.short_sha }}
@@ -319,7 +321,7 @@ jobs:
         id: meta-engagement
         uses: docker/metadata-action@v5
         with:
-          images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ENGAGEMENT_IMAGE }}
+          images: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ENGAGEMENT_IMAGE }}
           tags: |
             type=raw,value=${{ needs.release-plan.outputs.image_tag }}
             type=raw,value=${{ needs.release-plan.outputs.short_sha }}
@@ -352,7 +354,7 @@ jobs:
         id: meta-people
         uses: docker/metadata-action@v5
         with:
-          images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.PEOPLE_IMAGE }}
+          images: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.PEOPLE_IMAGE }}
           tags: |
             type=raw,value=${{ needs.release-plan.outputs.image_tag }}
             type=raw,value=${{ needs.release-plan.outputs.short_sha }}
@@ -385,7 +387,7 @@ jobs:
         id: meta-finance
         uses: docker/metadata-action@v5
         with:
-          images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FINANCE_IMAGE }}
+          images: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.FINANCE_IMAGE }}
           tags: |
             type=raw,value=${{ needs.release-plan.outputs.image_tag }}
             type=raw,value=${{ needs.release-plan.outputs.short_sha }}
@@ -418,7 +420,7 @@ jobs:
         id: meta-academic
         uses: docker/metadata-action@v5
         with:
-          images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ACADEMIC_IMAGE }}
+          images: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ACADEMIC_IMAGE }}
           tags: |
             type=raw,value=${{ needs.release-plan.outputs.image_tag }}
             type=raw,value=${{ needs.release-plan.outputs.short_sha }}
@@ -451,7 +453,7 @@ jobs:
         id: meta-analytics
         uses: docker/metadata-action@v5
         with:
-          images: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ANALYTICS_IMAGE }}
+          images: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ANALYTICS_IMAGE }}
           tags: |
             type=raw,value=${{ needs.release-plan.outputs.image_tag }}
             type=raw,value=${{ needs.release-plan.outputs.short_sha }}
@@ -487,41 +489,41 @@ jobs:
             echo ""
             echo "- CI gate run: ${{ needs.wait-for-quality-gate.outputs.ci_run_url }}"
             echo "- Source SHA: ${{ needs.release-plan.outputs.source_sha }}"
-            echo "- Backend tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
-            echo "- Backend SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
-            echo "- Backend latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}:latest"
+            echo "- Backend tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Backend SHA tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.BACKEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Backend latest tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.BACKEND_IMAGE }}:latest"
             echo "- Backend digest: ${{ steps.build-backend.outputs.digest }}"
-            echo "- Auth tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.AUTH_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
-            echo "- Auth SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.AUTH_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
-            echo "- Auth latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.AUTH_IMAGE }}:latest"
+            echo "- Auth tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.AUTH_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Auth SHA tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.AUTH_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Auth latest tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.AUTH_IMAGE }}:latest"
             echo "- Auth digest: ${{ steps.build-auth.outputs.digest }}"
-            echo "- Notification tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
-            echo "- Notification SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
-            echo "- Notification latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}:latest"
+            echo "- Notification tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Notification SHA tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.NOTIFICATION_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Notification latest tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.NOTIFICATION_IMAGE }}:latest"
             echo "- Notification digest: ${{ steps.build-notification.outputs.digest }}"
-            echo "- Finance tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FINANCE_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
-            echo "- Finance SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FINANCE_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
-            echo "- Finance latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FINANCE_IMAGE }}:latest"
+            echo "- Finance tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.FINANCE_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Finance SHA tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.FINANCE_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Finance latest tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.FINANCE_IMAGE }}:latest"
             echo "- Finance digest: ${{ steps.build-finance.outputs.digest }}"
-            echo "- Academic tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ACADEMIC_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
-            echo "- Academic SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ACADEMIC_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
-            echo "- Academic latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ACADEMIC_IMAGE }}:latest"
+            echo "- Academic tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ACADEMIC_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Academic SHA tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ACADEMIC_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Academic latest tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ACADEMIC_IMAGE }}:latest"
             echo "- Academic digest: ${{ steps.build-academic.outputs.digest }}"
-            echo "- Analytics tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ANALYTICS_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
-            echo "- Analytics SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ANALYTICS_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
-            echo "- Analytics latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ANALYTICS_IMAGE }}:latest"
+            echo "- Analytics tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ANALYTICS_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Analytics SHA tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ANALYTICS_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Analytics latest tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ANALYTICS_IMAGE }}:latest"
             echo "- Analytics digest: ${{ steps.build-analytics.outputs.digest }}"
-            echo "- Engagement tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ENGAGEMENT_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
-            echo "- Engagement SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ENGAGEMENT_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
-            echo "- Engagement latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ENGAGEMENT_IMAGE }}:latest"
+            echo "- Engagement tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ENGAGEMENT_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Engagement SHA tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ENGAGEMENT_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Engagement latest tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ENGAGEMENT_IMAGE }}:latest"
             echo "- Engagement digest: ${{ steps.build-engagement.outputs.digest }}"
-            echo "- People tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.PEOPLE_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
-            echo "- People SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.PEOPLE_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
-            echo "- People latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.PEOPLE_IMAGE }}:latest"
+            echo "- People tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.PEOPLE_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- People SHA tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.PEOPLE_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- People latest tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.PEOPLE_IMAGE }}:latest"
             echo "- People digest: ${{ steps.build-people.outputs.digest }}"
-            echo "- Frontend tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
-            echo "- Frontend SHA tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
-            echo "- Frontend latest tag: ${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}:latest"
+            echo "- Frontend tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.image_tag }}"
+            echo "- Frontend SHA tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.FRONTEND_IMAGE }}:${{ needs.release-plan.outputs.short_sha }}"
+            echo "- Frontend latest tag: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.FRONTEND_IMAGE }}:latest"
             echo "- Frontend digest: ${{ steps.build-frontend.outputs.digest }}"
             echo "- Provenance/SBOM: enabled via docker/build-push-action@v6"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -898,6 +900,8 @@ jobs:
       needs.publish-ghcr.result == 'success' &&
       (needs.release-plan.outputs.should_publish_dockerhub != 'true' || needs.publish-dockerhub.result == 'success')
     timeout-minutes: 45
+    env:
+      DOCKERHUB_NAMESPACE_EFFECTIVE: ${{ secrets.DOCKERHUB_NAMESPACE != '' && secrets.DOCKERHUB_NAMESPACE || secrets.DOCKERHUB_USERNAME }}
 
     steps:
       - name: Checkout
@@ -964,15 +968,15 @@ jobs:
         run: |
           set -euo pipefail
           images=(
-            "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.BACKEND_IMAGE }}"
-            "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.AUTH_IMAGE }}"
-            "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.NOTIFICATION_IMAGE }}"
-            "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FINANCE_IMAGE }}"
-            "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ACADEMIC_IMAGE }}"
-            "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ANALYTICS_IMAGE }}"
-            "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.ENGAGEMENT_IMAGE }}"
-            "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.PEOPLE_IMAGE }}"
-            "${{ needs.release-plan.outputs.dockerhub_namespace }}/${{ env.FRONTEND_IMAGE }}"
+            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.BACKEND_IMAGE }}"
+            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.AUTH_IMAGE }}"
+            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.NOTIFICATION_IMAGE }}"
+            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.FINANCE_IMAGE }}"
+            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ACADEMIC_IMAGE }}"
+            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ANALYTICS_IMAGE }}"
+            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ENGAGEMENT_IMAGE }}"
+            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.PEOPLE_IMAGE }}"
+            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.FRONTEND_IMAGE }}"
           )
           tags=(
             "${{ needs.release-plan.outputs.image_tag }}"
