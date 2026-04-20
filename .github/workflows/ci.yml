@@ -2038,16 +2038,27 @@ jobs:
   dependency-review:
     name: dependency-review
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
 
     steps:
       - name: Checkout code
+        if: github.event_name == 'pull_request'
         uses: actions/checkout@v4
 
       - name: Review dependency changes
+        if: github.event_name == 'pull_request'
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
+
+      - name: Document push coverage
+        if: github.event_name != 'pull_request'
+        run: |
+          {
+            echo "## Dependency review"
+            echo ""
+            echo "Dependency Review compares dependency changes on pull requests only."
+            echo "For push and semver tag runs, npm audit and Trivy coverage are enforced by the security-scan lane."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   quality-gate:
     name: quality-gate
@@ -2095,16 +2106,6 @@ jobs:
             fi
           }
 
-          check_optional_pr_lane() {
-            local lane_name="$1"
-            local lane_result="$2"
-
-            if [ "$GITHUB_EVENT_NAME" = "pull_request" ] && [ "$lane_result" != "success" ]; then
-              echo "::error title=${lane_name} failed::${lane_name} result was ${lane_result}"
-              failures=1
-            fi
-          }
-
           check_required architecture-guard "${{ needs.architecture-guard.result }}"
           check_required core-quality "${{ needs.core-quality.result }}"
           check_required core-integration "${{ needs.core-integration.result }}"
@@ -2129,7 +2130,7 @@ jobs:
           check_required image-smoke "${{ needs.image-smoke.result }}"
           check_required edge-e2e "${{ needs.edge-e2e.result }}"
           check_required security-scan "${{ needs.security-scan.result }}"
-          check_optional_pr_lane dependency-review "${{ needs.dependency-review.result }}"
+          check_required dependency-review "${{ needs.dependency-review.result }}"
 
           if [ "$failures" -ne 0 ]; then
             exit 1
