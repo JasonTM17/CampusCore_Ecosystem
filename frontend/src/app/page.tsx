@@ -52,7 +52,7 @@ const features = [
     icon: Cloud,
     title: 'Deployment Ready',
     description:
-      'Built for containerized development and production deployment.',
+      'Built for containerized development, semver image releases, and Kubernetes-ready deployment.',
     color: 'from-indigo-500 to-blue-500',
   },
   {
@@ -139,8 +139,8 @@ export default function HomePage() {
 
             <p className="text-xl text-gray-600 dark:text-gray-400 mb-10 max-w-2xl mx-auto leading-relaxed">
               A production-like campus platform for identity, academic flows,
-              finance, engagement, people operations, and hardened identity
-              workflows.
+              finance, engagement, people operations, hardened identity
+              workflows, and Kubernetes-ready delivery.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -234,7 +234,7 @@ export default function HomePage() {
                 auth, notification, finance, academic, engagement, people, and
                 analytics services behind nginx, then verifies the full runtime
                 contract across the web app, API edge, database, cache, queue,
-                and object storage.
+                object storage, and Kubernetes-ready deployment manifests.
               </p>
 
               <div className="space-y-4">
@@ -251,7 +251,7 @@ export default function HomePage() {
                   'PostgreSQL with Prisma ORM',
                   'Redis for caching and sessions',
                   'RabbitMQ for async messaging',
-                  'Docker-based deployment',
+                  'Docker Compose and Kustomize deployment targets',
                 ].map((item, index) => (
                   <div key={index} className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-emerald-500" />

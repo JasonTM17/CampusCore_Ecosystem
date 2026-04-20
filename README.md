@@ -190,6 +190,10 @@ CampusCore dùng chính sách **semver-only public release**:
 
 Chi tiết registry và tag strategy nằm tại [DOCKER_HUB.md](./DOCKER_HUB.md) và [docs/RELEASE.md](./docs/RELEASE.md).
 
+## Kubernetes
+
+Repo hiện có thêm bộ manifest Kustomize tại [k8s/README.md](./k8s/README.md) cho cùng topology 9 image. Hướng này phù hợp khi bạn muốn đưa stack lên Docker Desktop Kubernetes hoặc cluster thật mà vẫn giữ nguyên boundary service, public routing, và security contract đang dùng ở Docker Compose.
+
 ## Chạy nhanh cục bộ
 
 ```bash

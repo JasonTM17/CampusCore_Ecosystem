@@ -88,6 +88,7 @@ Current public images:
 
 - [README.md](./README.md)
 - [README.vi.md](./README.vi.md)
+- [k8s/README.md](./k8s/README.md)
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - [docs/OPERATIONS.md](./docs/OPERATIONS.md)
 - [docs/SECURITY.md](./docs/SECURITY.md)

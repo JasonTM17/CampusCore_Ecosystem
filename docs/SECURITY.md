@@ -30,6 +30,7 @@ Quality gate hiện tại bắt buộc:
 `security-scan` phải bao phủ đủ:
 
 - `core-api`
+- `auth-service`
 - `notification-service`
 - `finance-service`
 - `academic-service`
@@ -44,3 +45,4 @@ Quality gate hiện tại bắt buộc:
 - `people-service` vẫn cần shadow sync về `core-api` trong một release chuyển tiếp để không làm gãy JWT claims.
 - `analytics-service` vẫn đọc dữ liệu legacy/shadow trong `public` schema để giữ low-risk.
 - PostgreSQL vẫn là shared cluster theo mô hình multi-schema, chưa tách cluster độc lập theo service.
+- Docker Hub publish nên dùng PAT qua `DOCKERHUB_TOKEN`; không nên dùng account password thật trong CI/CD.

@@ -6,6 +6,16 @@
 - `latest` chỉ cập nhật cùng semver release.
 - `DOCKERHUB_NAMESPACE` là biến ưu tiên.
 - `DOCKERHUB_USERNAME` vẫn được hỗ trợ như legacy alias khi namespace không được set.
+- GitHub Actions nên dùng `DOCKERHUB_TOKEN` cho đăng nhập publish.
+- `DOCKERHUB_PASSWORD` chỉ còn là legacy fallback trong workflow hiện tại.
+
+## Recommended GitHub secrets
+
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+- `DOCKERHUB_NAMESPACE` nếu namespace khác username
+
+Docker Desktop giúp bạn đăng nhập và thử kéo/push image cục bộ, nhưng publish tự động trên GitHub-hosted runner vẫn cần repo secrets ở GitHub.
 
 ## Public image set hiện tại
 
@@ -23,7 +33,7 @@
 
 Mỗi image public được publish với:
 
-- semver tag, ví dụ `v1.3.1`
+- semver tag, ví dụ `v1.3.2`
 - short SHA immutable tag
 - `latest`
 

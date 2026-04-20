@@ -5,8 +5,9 @@
 - Branch push chỉ chạy CI.
 - Public registry chỉ publish từ tag semver `vX.Y.Z`.
 - `latest` chỉ được cập nhật khi có semver release.
+- GitHub Actions ưu tiên `DOCKERHUB_TOKEN`; `DOCKERHUB_PASSWORD` chỉ còn là legacy fallback.
 
-Nhánh hardening hiện tại nhắm tới **`v1.3.1`**.
+Nhánh hardening hiện tại nhắm tới **`v1.3.2`**.
 
 ## Required quality gate
 
@@ -54,7 +55,7 @@ Release hiện tại phải publish đủ 9 image:
 
 Tag strategy:
 
-- `v1.3.1`
+- `v1.3.2`
 - short SHA immutable tag
 - `latest`
 
@@ -64,3 +65,9 @@ Tag strategy:
 - verify digest và SBOM/provenance trong release summary
 - smoke published images qua GHCR
 - smoke published images qua Docker Hub nếu credentials đã cấu hình
+
+## Kubernetes hand-off
+
+- Repo hiện có thêm manifests Kustomize dưới `k8s/` cho topology 9 image.
+- Base deploy target mặc định dùng GHCR public images của release hiện tại.
+- Khi cần chuyển sang Docker Hub, chỉ cần override image names trong Kustomize thay vì đổi runtime topology.

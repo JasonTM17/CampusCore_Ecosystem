@@ -9,13 +9,14 @@
 One-shot init hiện tại:
 
 1. `core-api-init`
-2. `notification-service-init`
-3. `finance-service-init`
-4. `academic-service-init`
-5. `engagement-service-init`
-6. `people-service-init`
-7. `analytics-service-init`
-8. runtime services
+2. `auth-service-init`
+3. `notification-service-init`
+4. `finance-service-init`
+5. `academic-service-init`
+6. `engagement-service-init`
+7. `people-service-init`
+8. `analytics-service-init`
+9. runtime services
 
 ## Verify workflows
 
@@ -38,6 +39,7 @@ One-shot init hiện tại:
 - MinIO
 - `core-api`
 - `notification-service`
+- `auth-service`
 - `finance-service`
 - `academic-service`
 - `engagement-service`
@@ -50,4 +52,12 @@ One-shot init hiện tại:
 
 - `DOCKERHUB_NAMESPACE` là biến ưu tiên cho publish image.
 - `DOCKERHUB_USERNAME` vẫn được chấp nhận như legacy alias.
+- `DOCKERHUB_TOKEN` là secret đăng nhập ưu tiên cho Docker Hub publish từ CI/CD.
 - `latest` chỉ cập nhật khi có semver release.
+
+## Kubernetes deployment target
+
+- Repo hiện có Kustomize manifests tại `k8s/base`.
+- Bộ manifest này giữ nguyên boundary runtime hiện tại: `core-api`, `auth-service`, `notification-service`, `finance-service`, `academic-service`, `engagement-service`, `people-service`, `analytics-service`, `frontend`, `nginx`, cùng PostgreSQL, Redis, RabbitMQ, MinIO.
+- Với Docker Desktop, bật Kubernetes rồi dùng `kubectl kustomize k8s/base` để render và `kubectl apply -k k8s/base` để triển khai.
+- Bootstrap schema/migration vẫn là bước operator-managed riêng, giống policy production compose hiện tại.
