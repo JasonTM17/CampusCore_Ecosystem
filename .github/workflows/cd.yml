@@ -114,8 +114,7 @@ jobs:
               let candidates = response.data.workflow_runs.filter(
                 (run) =>
                   run.name === 'CI Build and Test' &&
-                  run.event === 'push' &&
-                  !run.head_branch,
+                  run.event === 'push',
               );
 
               candidates = candidates.filter((run) => new Date(run.created_at) >= minCreatedAt);
