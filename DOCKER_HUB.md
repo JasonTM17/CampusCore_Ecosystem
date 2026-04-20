@@ -4,8 +4,8 @@
 
 - Public publish chỉ chạy từ tag semver `vX.Y.Z`.
 - `latest` chỉ cập nhật cùng semver release.
-- `DOCKERHUB_NAMESPACE` là biến ưu tiên.
-- `DOCKERHUB_USERNAME` vẫn được hỗ trợ như legacy alias khi namespace không được set.
+- `DOCKERHUB_USERNAME` là secret bắt buộc để publish Docker Hub.
+- `DOCKERHUB_NAMESPACE` chỉ là optional override khi namespace khác username.
 - GitHub Actions nên dùng `DOCKERHUB_TOKEN` cho đăng nhập publish.
 - `DOCKERHUB_PASSWORD` chỉ còn là legacy fallback trong workflow hiện tại.
 

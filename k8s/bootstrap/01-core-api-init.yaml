@@ -14,7 +14,7 @@ spec:
           command:
             - sh
             - -lc
-            - npx prisma@5.8.1 db push --schema prisma/schema.prisma --skip-generate && npx tsx@4.21.0 prisma/seed.ts
+            - ./node_modules/.bin/prisma db push --schema prisma/schema.prisma --skip-generate && node -e 'const bcrypt = require("bcrypt"); bcrypt.default = bcrypt; require("./dist/prisma/seed.js")'
           env:
             - name: POSTGRES_PASSWORD
               valueFrom:

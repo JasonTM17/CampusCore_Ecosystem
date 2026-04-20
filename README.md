@@ -192,7 +192,7 @@ Chi tiết registry và tag strategy nằm tại [DOCKER_HUB.md](./DOCKER_HUB.md
 
 ## Kubernetes
 
-Repo hiện có thêm bộ manifest Kustomize tại [k8s/README.md](./k8s/README.md) cho cùng topology 9 image. Hướng này phù hợp khi bạn muốn đưa stack lên Docker Desktop Kubernetes hoặc cluster thật mà vẫn giữ nguyên boundary service, public routing, và security contract đang dùng ở Docker Compose.
+Repo hiện có bộ manifest Kustomize tại [k8s/README.md](./k8s/README.md) cho cùng topology 9 image, với `k8s/base` + `k8s/bootstrap` làm canonical deploy target và `k8s/overlays/docker-desktop` làm đường local-first cho Docker Desktop Kubernetes. Runtime này giữ nguyên boundary service, public routing, và security contract đang dùng ở Docker Compose. Để verify nhanh có cleanup mặc định, dùng `node scripts/run-k8s-local-smoke.mjs`; để giữ nguyên resources cho Docker Desktop UI, dùng `node scripts/run-k8s-local-deploy.mjs` rồi chuyển namespace sang `campuscore`.
 
 ## Chạy nhanh cục bộ
 

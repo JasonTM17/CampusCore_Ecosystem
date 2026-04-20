@@ -12,6 +12,14 @@ spec:
       labels:
         app: notification-service
     spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -lc
+            - until pg_isready -h postgres -p 5432 -U campuscore -d campuscore; do sleep 2; done
       containers:
         - name: notification-service
           image: campuscore-notification-service
@@ -54,15 +62,26 @@ spec:
               command:
                 - sh
                 - -lc
-                - wget --no-verbose --tries=1 --header="X-Health-Key: $HEALTH_READINESS_KEY" -O- http://127.0.0.1:4001/api/v1/health/readiness >/dev/null
+                - 'wget --no-verbose --tries=1 --header="X-Health-Key: $HEALTH_READINESS_KEY" -O- http://127.0.0.1:4001/api/v1/health/readiness >/dev/null'
             initialDelaySeconds: 20
             periodSeconds: 15
+            timeoutSeconds: 5
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -lc
+                - 'wget --no-verbose --tries=1 --header="X-Health-Key: $HEALTH_READINESS_KEY" -O- http://127.0.0.1:4001/api/v1/health/readiness >/dev/null'
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 36
           livenessProbe:
             httpGet:
               path: /api/v1/health/liveness
               port: 4001
             initialDelaySeconds: 30
             periodSeconds: 30
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 200m
