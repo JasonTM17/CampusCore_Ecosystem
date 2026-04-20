@@ -1375,6 +1375,12 @@ jobs:
       - name: Render production generic Kubernetes overlay
         run: kubectl kustomize k8s/overlays/prod-generic > /dev/null
 
+      - name: Render staging operator Kubernetes overlay
+        run: kubectl kustomize k8s/overlays/staging-operator > /dev/null
+
+      - name: Render production operator Kubernetes overlay
+        run: kubectl kustomize k8s/overlays/prod-operator > /dev/null
+
       - name: Run Kubernetes preflight guard
         run: node scripts/run-k8s-preflight.mjs
 

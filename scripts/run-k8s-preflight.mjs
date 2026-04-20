@@ -26,6 +26,18 @@ const prodGenericOverlayDir = path.join(
   'overlays',
   'prod-generic',
 );
+const stagingOperatorOverlayDir = path.join(
+  repoRoot,
+  'k8s',
+  'overlays',
+  'staging-operator',
+);
+const prodOperatorOverlayDir = path.join(
+  repoRoot,
+  'k8s',
+  'overlays',
+  'prod-operator',
+);
 
 const runtimeImages = [
   'campuscore-backend',
@@ -70,12 +82,43 @@ const genericOverlayExpectations = [
   },
 ];
 
+const operatorOverlayExpectations = [
+  {
+    label: 'k8s/overlays/staging-operator',
+    dir: stagingOperatorOverlayDir,
+    host: 'staging.campuscore.example.com',
+    tlsSecret: 'campuscore-staging-tls',
+    frontendUrl: 'https://staging.campuscore.example.com',
+    placeholderPrefix: 'replace-me-with-staging-',
+    clusterIssuer: 'replace-with-staging-cluster-issuer',
+    secretStoreName: 'replace-with-staging-cluster-secret-store',
+    remoteSecretKey: 'replace-with-staging/campuscore/runtime',
+  },
+  {
+    label: 'k8s/overlays/prod-operator',
+    dir: prodOperatorOverlayDir,
+    host: 'campuscore.example.com',
+    tlsSecret: 'campuscore-prod-tls',
+    frontendUrl: 'https://campuscore.example.com',
+    placeholderPrefix: 'replace-me-with-prod-',
+    clusterIssuer: 'replace-with-prod-cluster-issuer',
+    secretStoreName: 'replace-with-prod-cluster-secret-store',
+    remoteSecretKey: 'replace-with-prod/campuscore/runtime',
+  },
+];
+
 async function main() {
   const baseRender = await kubectlKustomize(baseDir);
   const bootstrapRender = await kubectlKustomize(bootstrapDir);
   const dockerDesktopRender = await kubectlKustomize(dockerDesktopOverlayDir);
   const genericRenders = await Promise.all(
     genericOverlayExpectations.map(async (overlay) => ({
+      ...overlay,
+      renderedYaml: await kubectlKustomize(overlay.dir),
+    })),
+  );
+  const operatorRenders = await Promise.all(
+    operatorOverlayExpectations.map(async (overlay) => ({
       ...overlay,
       renderedYaml: await kubectlKustomize(overlay.dir),
     })),
@@ -87,16 +130,20 @@ async function main() {
   const genericTags = genericRenders.map((overlay) =>
     getResolvedTag(overlay.renderedYaml, runtimeImages),
   );
+  const operatorTags = operatorRenders.map((overlay) =>
+    getResolvedTag(overlay.renderedYaml, runtimeImages),
+  );
 
   if (
     baseTag !== bootstrapTag ||
     baseTag !== overlayTag ||
-    genericTags.some((tag) => tag !== baseTag)
+    genericTags.some((tag) => tag !== baseTag) ||
+    operatorTags.some((tag) => tag !== baseTag)
   ) {
     throw new Error(
       `Kustomize image tags drifted across base/bootstrap/overlays: base=${baseTag}, bootstrap=${bootstrapTag}, docker-desktop=${overlayTag}, generic=${genericTags.join(
         ', ',
-      )}`,
+      )}, operator=${operatorTags.join(', ')}`,
     );
   }
 
@@ -116,6 +163,15 @@ async function main() {
       overlay.label,
     );
     assertGenericOverlay(overlay);
+  }
+  for (const overlay of operatorRenders) {
+    assertGhcrImages(
+      overlay.renderedYaml,
+      runtimeImages,
+      baseTag,
+      overlay.label,
+    );
+    assertOperatorOverlay(overlay);
   }
 
   if (dockerDesktopRender.includes('replace-me-before-apply')) {
@@ -153,11 +209,19 @@ async function main() {
       `[k8s-preflight] ${overlay.label} renders clean with release tag ${baseTag}.`,
     );
   }
+  for (const overlay of operatorRenders) {
+    console.log(
+      `[k8s-preflight] ${overlay.label} renders clean with release tag ${baseTag}.`,
+    );
+  }
   console.log(
     '[k8s-preflight] Local overlay sets Swagger on, secure cookies off, and localhost frontend URL for browser-safe local validation.',
   );
   console.log(
     '[k8s-preflight] Generic overlays stay cloud-agnostic: ingress host/TLS placeholders are present, nginx stays behind ClusterIP, and ingressClassName is intentionally unset.',
+  );
+  console.log(
+    '[k8s-preflight] Operator overlays replace static placeholder secrets with ExternalSecret and Certificate resources for cert-manager/external-secrets handoff.',
   );
 }
 
@@ -228,8 +292,86 @@ function extractDocument(renderedYaml, kind, name) {
 }
 
 function assertGenericOverlay(overlay) {
-  const { frontendUrl, host, label, placeholderPrefix, renderedYaml, tlsSecret } =
-    overlay;
+  const { label, placeholderPrefix, renderedYaml } = overlay;
+
+  assertSharedClusterIngressContract(overlay);
+
+  if (!renderedYaml.includes(`${placeholderPrefix}postgres-password`)) {
+    throw new Error(`${label} is missing environment-specific secret placeholders.`);
+  }
+}
+
+function assertOperatorOverlay(overlay) {
+  const {
+    clusterIssuer,
+    label,
+    placeholderPrefix,
+    remoteSecretKey,
+    renderedYaml,
+    secretStoreName,
+    tlsSecret,
+    host,
+  } = overlay;
+
+  assertSharedClusterIngressContract(overlay);
+
+  if (renderedYaml.includes(`${placeholderPrefix}postgres-password`)) {
+    throw new Error(
+      `${label} must delete the static placeholder Secret before layering operator-managed secrets.`,
+    );
+  }
+
+  if (hasDocument(renderedYaml, 'Secret', 'campuscore-secrets')) {
+    throw new Error(
+      `${label} still renders a plain Secret named campuscore-secrets. Operator overlays must hand secret ownership to ExternalSecret.`,
+    );
+  }
+
+  const certificateDoc = extractDocument(renderedYaml, 'Certificate', 'campuscore-tls');
+  for (const expected of [
+    `secretName: ${tlsSecret}`,
+    `name: ${clusterIssuer}`,
+    `- ${host}`,
+  ]) {
+    if (!certificateDoc.includes(expected)) {
+      throw new Error(
+        `${label} is missing the expected cert-manager setting: ${expected}`,
+      );
+    }
+  }
+
+  const externalSecretDoc = extractDocument(
+    renderedYaml,
+    'ExternalSecret',
+    'campuscore-secrets',
+  );
+  for (const expected of [
+    'kind: ClusterSecretStore',
+    `name: ${secretStoreName}`,
+    'name: campuscore-secrets',
+    'creationPolicy: Owner',
+    `key: ${remoteSecretKey}`,
+    'secretKey: POSTGRES_PASSWORD',
+    'secretKey: JWT_SECRET',
+    'secretKey: JWT_REFRESH_SECRET',
+    'secretKey: HEALTH_READINESS_KEY',
+    'secretKey: INTERNAL_SERVICE_TOKEN',
+    'secretKey: RABBITMQ_PASSWORD',
+    'secretKey: MINIO_USER',
+    'secretKey: MINIO_PASSWORD',
+    'secretKey: SMTP_USER',
+    'secretKey: SMTP_PASSWORD',
+  ]) {
+    if (!externalSecretDoc.includes(expected)) {
+      throw new Error(
+        `${label} is missing the expected external-secrets setting: ${expected}`,
+      );
+    }
+  }
+}
+
+function assertSharedClusterIngressContract(overlay) {
+  const { frontendUrl, host, label, renderedYaml, tlsSecret } = overlay;
 
   if (renderedYaml.includes('campuscore-local-readiness-key-12345')) {
     throw new Error(`${label} must not leak Docker Desktop local secrets.`);
@@ -237,10 +379,6 @@ function assertGenericOverlay(overlay) {
 
   if (renderedYaml.includes('replace-me-before-apply')) {
     throw new Error(`${label} still renders base placeholder secrets.`);
-  }
-
-  if (!renderedYaml.includes(`${placeholderPrefix}postgres-password`)) {
-    throw new Error(`${label} is missing environment-specific secret placeholders.`);
   }
 
   for (const expected of [
@@ -273,6 +411,15 @@ function assertGenericOverlay(overlay) {
     if (!ingressDoc.includes(expected)) {
       throw new Error(`${label} is missing the expected ingress setting: ${expected}`);
     }
+  }
+}
+
+function hasDocument(renderedYaml, kind, name) {
+  try {
+    extractDocument(renderedYaml, kind, name);
+    return true;
+  } catch {
+    return false;
   }
 }
 

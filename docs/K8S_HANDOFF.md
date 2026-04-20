@@ -5,6 +5,11 @@ Tài liệu này chốt handoff cho hai overlay cloud-agnostic:
 - `k8s/overlays/staging-generic`
 - `k8s/overlays/prod-generic`
 
+và hai overlay operator kế thừa từ lớp generic:
+
+- `k8s/overlays/staging-operator`
+- `k8s/overlays/prod-operator`
+
 Mục tiêu là giữ nguyên topology 9 image và boundary service hiện tại, nhưng để operator có đủ thông tin triển khai lên một cluster staging/prod bất kỳ mà không khóa repo vào một ingress controller, secret manager, hay cloud vendor cụ thể.
 
 ## Boundary vận hành
@@ -17,6 +22,7 @@ Mục tiêu là giữ nguyên topology 9 image và boundary service hiện tại
   - `Secret` placeholders
   - `Ingress`
   - `campuscore-nginx` kiểu `ClusterIP`
+- `staging-operator` và `prod-operator` giữ nguyên các override đó nhưng thay `Secret` placeholder bằng `ExternalSecret` và thêm `Certificate` để handoff cho operator rõ hơn
 
 `campuscore-nginx` phải tiếp tục đứng sau `Ingress`; public edge contract của repo không đổi.
 
@@ -70,6 +76,33 @@ Các giá trị này phải được operator thay bằng giá trị thật trư
 
 Operator nên xem `stringData` trong overlay generic là **placeholder contract**, không phải giá trị mặc định có thể dùng thật.
 
+## Operator overlays
+
+Nếu cluster đã có các CRD/operator sau:
+
+- `external-secrets.io/v1beta1`
+- `cert-manager.io/v1`
+
+thì operator có thể bắt đầu luôn từ:
+
+- `k8s/overlays/staging-operator`
+- `k8s/overlays/prod-operator`
+
+Hai overlay này kế thừa toàn bộ ingress/config/service shape từ lớp generic, nhưng thay cơ chế secrets/TLS như sau:
+
+- xóa `Secret campuscore-secrets` placeholder ra khỏi render cuối
+- thêm `ExternalSecret campuscore-secrets`
+- thêm `Certificate campuscore-tls`
+
+Các placeholder mới trong lớp operator:
+
+| Overlay | ClusterSecretStore placeholder | ClusterIssuer placeholder | Remote secret key placeholder |
+| --- | --- | --- | --- |
+| `staging-operator` | `replace-with-staging-cluster-secret-store` | `replace-with-staging-cluster-issuer` | `replace-with-staging/campuscore/runtime` |
+| `prod-operator` | `replace-with-prod-cluster-secret-store` | `replace-with-prod-cluster-issuer` | `replace-with-prod/campuscore/runtime` |
+
+Các overlay này vẫn cố ý **không** hard-code `ingressClassName`. Nếu cluster yêu cầu ingress class hoặc annotations riêng, operator vẫn nên thêm private patch bên ngoài repo public.
+
 ## Private overlay pattern
 
 Repo public chỉ giữ placeholder generic. Nếu môi trường thật dùng:
@@ -109,8 +142,19 @@ Private overlay đó là nơi hợp lệ để:
    - deny `/api/v1/internal/*`
    - auth/session/browser flow
 
+Nếu cluster đã có `ExternalSecret` + `cert-manager`, checklist thực tế gọn hơn sẽ là:
+
+1. Chọn `staging-operator` hoặc `prod-operator`
+2. Thay `ClusterSecretStore`, `ClusterIssuer`, hostname, TLS secret name nếu cần
+3. Xác nhận remote secret key path khớp secret manager thật
+4. Thêm ingress class/annotations bằng private patch nếu cluster yêu cầu
+5. Apply overlay runtime
+6. Chạy bootstrap jobs theo đúng thứ tự
+7. Verify `/health`, deny `/api/v1/internal/*`, login/session, và `/api/docs` nếu môi trường cho phép
+
 ## Release interaction
 
 - Local-first path vẫn dùng `k8s/overlays/docker-desktop`
-- Generic overlays là handoff cho staging/prod, không thay quy trình local smoke/deploy
+- Generic overlays là handoff công khai cho staging/prod
+- Operator overlays là handoff kế tiếp cho cluster đã có secret/TLS operators, không thay quy trình local smoke/deploy
 - Base Kustomize tiếp tục trỏ tới GHCR public images của release hiện hành; Docker Hub là đường override nếu operator muốn dùng registry đó
