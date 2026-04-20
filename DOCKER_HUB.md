@@ -33,7 +33,7 @@ Docker Desktop giúp bạn đăng nhập và thử kéo/push image cục bộ, n
 
 Mỗi image public được publish với:
 
-- semver tag, ví dụ `v1.3.4`
+- semver tag, ví dụ `v1.3.6`
 - short SHA immutable tag
 - `latest`
 
@@ -52,8 +52,8 @@ Không dùng `latest` làm mốc rollback.
 Sau khi CD publish xong, có thể kiểm lại đủ 9 image trên GHCR và Docker Hub bằng script có timeout/retry:
 
 ```powershell
-$env:RELEASE_TAG='v1.3.4'
-$env:RELEASE_SHORT_SHA='f3e7de8'
+$env:RELEASE_TAG='v1.3.6'
+$env:RELEASE_SHORT_SHA=(git rev-parse --short HEAD).Trim()
 node scripts/verify-release-manifests.mjs
 ```
 
@@ -63,4 +63,4 @@ Nếu Docker Hub namespace khác username, set thêm:
 $env:DOCKERHUB_NAMESPACE='your-namespace'
 ```
 
-Script mặc định kiểm đủ `v1.3.4`, short SHA và `latest` cho cả hai registry. Khi Docker Hub trả rate-limit `429` cho manifest inspect trên máy local, script sẽ fallback sang Docker Hub tag API để xác nhận tag public vẫn tồn tại. Nếu local network hoặc Docker Desktop làm lệnh verify timeout nhưng job CD `Verify published release artifacts` đã xanh, kết quả trên GitHub Actions là nguồn xác nhận release chính.
+Script mặc định kiểm đủ release tag hiện hành, short SHA và `latest` cho cả hai registry. Khi Docker Hub trả rate-limit `429` cho manifest inspect trên máy local, script sẽ fallback sang Docker Hub tag API để xác nhận tag public vẫn tồn tại. Nếu local network hoặc Docker Desktop làm lệnh verify timeout nhưng job CD `Verify published release artifacts` đã xanh, kết quả trên GitHub Actions là nguồn xác nhận release chính.

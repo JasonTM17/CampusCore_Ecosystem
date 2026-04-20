@@ -14,6 +14,18 @@ const dockerDesktopOverlayDir = path.join(
   'overlays',
   'docker-desktop',
 );
+const stagingGenericOverlayDir = path.join(
+  repoRoot,
+  'k8s',
+  'overlays',
+  'staging-generic',
+);
+const prodGenericOverlayDir = path.join(
+  repoRoot,
+  'k8s',
+  'overlays',
+  'prod-generic',
+);
 
 const runtimeImages = [
   'campuscore-backend',
@@ -39,18 +51,52 @@ const localOverlayExpectations = [
   'campuscore-local-internal-service-token-12345',
 ];
 
+const genericOverlayExpectations = [
+  {
+    label: 'k8s/overlays/staging-generic',
+    dir: stagingGenericOverlayDir,
+    host: 'staging.campuscore.example.com',
+    tlsSecret: 'campuscore-staging-tls',
+    frontendUrl: 'https://staging.campuscore.example.com',
+    placeholderPrefix: 'replace-me-with-staging-',
+  },
+  {
+    label: 'k8s/overlays/prod-generic',
+    dir: prodGenericOverlayDir,
+    host: 'campuscore.example.com',
+    tlsSecret: 'campuscore-prod-tls',
+    frontendUrl: 'https://campuscore.example.com',
+    placeholderPrefix: 'replace-me-with-prod-',
+  },
+];
+
 async function main() {
   const baseRender = await kubectlKustomize(baseDir);
   const bootstrapRender = await kubectlKustomize(bootstrapDir);
   const dockerDesktopRender = await kubectlKustomize(dockerDesktopOverlayDir);
+  const genericRenders = await Promise.all(
+    genericOverlayExpectations.map(async (overlay) => ({
+      ...overlay,
+      renderedYaml: await kubectlKustomize(overlay.dir),
+    })),
+  );
 
   const baseTag = getResolvedTag(baseRender, runtimeImages);
   const bootstrapTag = getResolvedTag(bootstrapRender, bootstrapImages);
   const overlayTag = getResolvedTag(dockerDesktopRender, runtimeImages);
+  const genericTags = genericRenders.map((overlay) =>
+    getResolvedTag(overlay.renderedYaml, runtimeImages),
+  );
 
-  if (baseTag !== bootstrapTag || baseTag !== overlayTag) {
+  if (
+    baseTag !== bootstrapTag ||
+    baseTag !== overlayTag ||
+    genericTags.some((tag) => tag !== baseTag)
+  ) {
     throw new Error(
-      `Kustomize image tags drifted across base/bootstrap/overlay: base=${baseTag}, bootstrap=${bootstrapTag}, overlay=${overlayTag}`,
+      `Kustomize image tags drifted across base/bootstrap/overlays: base=${baseTag}, bootstrap=${bootstrapTag}, docker-desktop=${overlayTag}, generic=${genericTags.join(
+        ', ',
+      )}`,
     );
   }
 
@@ -62,6 +108,15 @@ async function main() {
     baseTag,
     'k8s/overlays/docker-desktop',
   );
+  for (const overlay of genericRenders) {
+    assertGhcrImages(
+      overlay.renderedYaml,
+      runtimeImages,
+      baseTag,
+      overlay.label,
+    );
+    assertGenericOverlay(overlay);
+  }
 
   if (dockerDesktopRender.includes('replace-me-before-apply')) {
     throw new Error(
@@ -93,8 +148,16 @@ async function main() {
   console.log(
     `[k8s-preflight] Docker Desktop overlay renders clean with release tag ${baseTag}.`,
   );
+  for (const overlay of genericRenders) {
+    console.log(
+      `[k8s-preflight] ${overlay.label} renders clean with release tag ${baseTag}.`,
+    );
+  }
   console.log(
     '[k8s-preflight] Local overlay sets Swagger on, secure cookies off, and localhost frontend URL for browser-safe local validation.',
+  );
+  console.log(
+    '[k8s-preflight] Generic overlays stay cloud-agnostic: ingress host/TLS placeholders are present, nginx stays behind ClusterIP, and ingressClassName is intentionally unset.',
   );
 }
 
@@ -162,6 +225,55 @@ function extractDocument(renderedYaml, kind, name) {
   }
 
   return matched;
+}
+
+function assertGenericOverlay(overlay) {
+  const { frontendUrl, host, label, placeholderPrefix, renderedYaml, tlsSecret } =
+    overlay;
+
+  if (renderedYaml.includes('campuscore-local-readiness-key-12345')) {
+    throw new Error(`${label} must not leak Docker Desktop local secrets.`);
+  }
+
+  if (renderedYaml.includes('replace-me-before-apply')) {
+    throw new Error(`${label} still renders base placeholder secrets.`);
+  }
+
+  if (!renderedYaml.includes(`${placeholderPrefix}postgres-password`)) {
+    throw new Error(`${label} is missing environment-specific secret placeholders.`);
+  }
+
+  for (const expected of [
+    'COOKIE_SECURE: "true"',
+    'SWAGGER_ENABLED: "false"',
+    `FRONTEND_URL: ${frontendUrl}`,
+  ]) {
+    if (!renderedYaml.includes(expected)) {
+      throw new Error(`${label} is missing the expected override: ${expected}`);
+    }
+  }
+
+  if (/ingressClassName:/u.test(renderedYaml)) {
+    throw new Error(
+      `${label} must stay cloud-agnostic and therefore must not hard-code ingressClassName.`,
+    );
+  }
+
+  const nginxServiceDoc = extractDocument(renderedYaml, 'Service', 'campuscore-nginx');
+  if (!/type:\s*ClusterIP/u.test(nginxServiceDoc)) {
+    throw new Error(`${label} must keep campuscore-nginx behind a ClusterIP service.`);
+  }
+
+  const ingressDoc = extractDocument(renderedYaml, 'Ingress', 'campuscore');
+  for (const expected of [
+    `- ${host}`,
+    `host: ${host}`,
+    `secretName: ${tlsSecret}`,
+  ]) {
+    if (!ingressDoc.includes(expected)) {
+      throw new Error(`${label} is missing the expected ingress setting: ${expected}`);
+    }
+  }
 }
 
 async function kubectlKustomize(targetDir) {

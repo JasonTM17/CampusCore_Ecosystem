@@ -1330,11 +1330,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Validate docker-compose.yml
         run: docker compose -f docker-compose.yml config > /dev/null
 
-      - name: Validate docker-compose.production.yml
-        run: docker compose -f docker-compose.production.yml config > /dev/null
+      - name: Validate docker-compose.production.yml with preflight
+        run: node scripts/check-production-compose-config.mjs
 
       - name: Validate docker-compose.e2e.yml
         run: docker compose -f docker-compose.e2e.yml config > /dev/null
@@ -1363,6 +1368,12 @@ jobs:
 
       - name: Render Docker Desktop Kubernetes overlay
         run: kubectl kustomize k8s/overlays/docker-desktop > /dev/null
+
+      - name: Render staging generic Kubernetes overlay
+        run: kubectl kustomize k8s/overlays/staging-generic > /dev/null
+
+      - name: Render production generic Kubernetes overlay
+        run: kubectl kustomize k8s/overlays/prod-generic > /dev/null
 
       - name: Run Kubernetes preflight guard
         run: node scripts/run-k8s-preflight.mjs

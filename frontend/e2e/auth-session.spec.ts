@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   SEEDED_USERS,
+  applySessionCookiesToPage,
   apiUrl,
   buildSessionArtifactsFromResponse,
   buildCookieHeaders,
@@ -11,7 +12,6 @@ import {
   frontendBaseURL,
   getSharedSessionArtifacts,
   publicRoutes,
-  signIn,
 } from './helpers';
 
 test('public pages respond successfully', async ({ request }) => {
@@ -65,6 +65,7 @@ test('backend API authenticates seeded student data with cookies and bearer toke
 });
 
 test('cookie session refresh and logout require CSRF and clear the browser session', async ({
+  page,
   playwright,
 }) => {
   const api = await playwright.request.newContext();
@@ -93,42 +94,45 @@ test('cookie session refresh and logout require CSRF and clear the browser sessi
     });
     expect(logoutWithoutCsrf.status()).toBe(403);
 
-    const logoutWithCsrf = await api.post(apiUrl('/auth/logout'), {
+    await applySessionCookiesToPage(page, nextSession.setCookieHeaders);
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expectSessionCookies(page);
+
+    await page.reload();
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Toggle profile menu' }).click();
+    await page.getByRole('button', { name: 'Logout' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(
+      page.getByRole('heading', { name: /Welcome Back/i }),
+    ).toBeVisible();
+
+    await expect
+      .poll(async () => {
+        const cookies = await page.context().cookies();
+        return {
+          hasAccessCookie: cookies.some(
+            (cookie) => cookie.name === 'cc_access_token',
+          ),
+          hasRefreshCookie: cookies.some(
+            (cookie) => cookie.name === 'cc_refresh_token',
+          ),
+        };
+      })
+      .toEqual({
+        hasAccessCookie: false,
+        hasRefreshCookie: false,
+      });
+
+    const refreshAfterLogout = await api.post(apiUrl('/auth/refresh'), {
       data: {},
       headers: buildMutatingSessionHeaders(nextSession),
     });
-    await expectOkResponse(logoutWithCsrf, 'POST /auth/logout with CSRF');
-
-    const logoutCookies = logoutWithCsrf
-      .headersArray?.()
-      ?.filter((header) => header.name.toLowerCase() === 'set-cookie')
-      .map((header) => header.value)
-      .join('\n');
-    expect(logoutCookies ?? '').toContain('cc_access_token=');
-    expect(logoutCookies ?? '').toContain('cc_refresh_token=');
-
-    const meAfterLogout = await api.get(apiUrl('/auth/me'));
-    expect(meAfterLogout.status()).toBe(401);
+    expect(refreshAfterLogout.status()).toBe(401);
   } finally {
     await api.dispose();
   }
-});
-
-test('browser session survives reload and logout returns the user to login', async ({
-  page,
-}) => {
-  await signIn(page, SEEDED_USERS.student.email, SEEDED_USERS.student.password);
-  await expect(page).toHaveURL(/\/dashboard$/);
-  await expectSessionCookies(page);
-
-  await page.reload();
-  await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible();
-
-  await page.getByRole('button', { name: 'Toggle profile menu' }).click();
-  await page.getByRole('button', { name: 'Logout' }).click();
-  await expect(page).toHaveURL(/\/login$/);
-  await expect(
-    page.getByRole('heading', { name: /Welcome Back/i }),
-  ).toBeVisible();
 });
