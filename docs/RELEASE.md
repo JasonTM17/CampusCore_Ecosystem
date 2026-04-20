@@ -6,6 +6,7 @@
 - Public registry chỉ publish từ tag semver `vX.Y.Z`.
 - `latest` chỉ được cập nhật khi có semver release.
 - GitHub Actions ưu tiên `DOCKERHUB_TOKEN`; `DOCKERHUB_PASSWORD` chỉ còn là legacy fallback.
+- Badge CD trong `README.md` phải trỏ tới tag release mới nhất vì workflow CD chỉ chạy từ semver tag.
 
 Nhánh hardening hiện tại nhắm tới **`v1.3.4`**.
 

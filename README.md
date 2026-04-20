@@ -1,7 +1,7 @@
 # CampusCore
 
 [![CI](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/ci.yml/badge.svg)](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/ci.yml)
-[![CD](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml/badge.svg)](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml)
+[![CD](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml/badge.svg?branch=v1.3.4)](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml?query=branch%3Av1.3.4)
 ![Frontend](https://img.shields.io/badge/frontend-Next.js%2015-111827)
 ![Core API](https://img.shields.io/badge/core--api-NestJS%2011-e11d48)
 ![Auth Service](https://img.shields.io/badge/auth--service-NestJS%2011-991b1b)
