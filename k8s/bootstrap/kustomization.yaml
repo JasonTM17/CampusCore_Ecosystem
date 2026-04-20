@@ -21,25 +21,25 @@ resources:
 images:
   - name: campuscore-backend
     newName: ghcr.io/jasontm17/campuscore-backend
-    newTag: v1.3.2
+    newTag: v1.3.3
   - name: campuscore-auth-service
     newName: ghcr.io/jasontm17/campuscore-auth-service
-    newTag: v1.3.2
+    newTag: v1.3.3
   - name: campuscore-notification-service
     newName: ghcr.io/jasontm17/campuscore-notification-service
-    newTag: v1.3.2
+    newTag: v1.3.3
   - name: campuscore-finance-service
     newName: ghcr.io/jasontm17/campuscore-finance-service
-    newTag: v1.3.2
+    newTag: v1.3.3
   - name: campuscore-academic-service
     newName: ghcr.io/jasontm17/campuscore-academic-service
-    newTag: v1.3.2
+    newTag: v1.3.3
   - name: campuscore-engagement-service
     newName: ghcr.io/jasontm17/campuscore-engagement-service
-    newTag: v1.3.2
+    newTag: v1.3.3
   - name: campuscore-people-service
     newName: ghcr.io/jasontm17/campuscore-people-service
-    newTag: v1.3.2
+    newTag: v1.3.3
   - name: campuscore-analytics-service
     newName: ghcr.io/jasontm17/campuscore-analytics-service
-    newTag: v1.3.2
+    newTag: v1.3.3
