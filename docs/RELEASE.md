@@ -8,7 +8,7 @@
 - GitHub Actions ưu tiên `DOCKERHUB_TOKEN`; `DOCKERHUB_PASSWORD` chỉ còn là legacy fallback.
 - Badge CD trong `README.md` phải trỏ tới tag release mới nhất vì workflow CD chỉ chạy từ semver tag.
 
-Nhánh hardening hiện tại nhắm tới **`v1.3.4`**.
+Baseline release công khai hiện tại là **`v1.3.4`**.
 
 ## Required quality gate
 
@@ -79,6 +79,13 @@ Script này kiểm GHCR và Docker Hub cho đủ 9 image với tag semver, short
 
 ## Kubernetes hand-off
 
-- Repo hiện có thêm manifests Kustomize dưới `k8s/` cho topology 9 image.
+- Repo hiện có manifests Kustomize dưới `k8s/` cho topology 9 image.
 - Base deploy target mặc định dùng GHCR public images của release hiện tại.
+- Local-first path dùng `k8s/overlays/docker-desktop` cùng:
+  - `node scripts/run-k8s-preflight.mjs`
+  - `node scripts/run-k8s-local-smoke.mjs`
+- Nếu cần giữ nguyên stack để kiểm trực tiếp bằng Docker Desktop Kubernetes UI:
+  - `node scripts/run-k8s-local-deploy.mjs`
+  - đổi namespace UI từ `default` sang `campuscore`
+  - khi dọn local cluster state, chạy `node scripts/run-k8s-local-destroy.mjs`
 - Khi cần chuyển sang Docker Hub, chỉ cần override image names trong Kustomize thay vì đổi runtime topology.

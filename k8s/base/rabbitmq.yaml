@@ -54,14 +54,28 @@ spec:
                 - ping
             initialDelaySeconds: 15
             periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 6
+          startupProbe:
+            exec:
+              command:
+                - rabbitmq-diagnostics
+                - -q
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 10
+            failureThreshold: 36
           livenessProbe:
             exec:
               command:
                 - rabbitmq-diagnostics
                 - -q
                 - ping
-            initialDelaySeconds: 30
+            initialDelaySeconds: 60
             periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
           resources:
             requests:
               cpu: 200m

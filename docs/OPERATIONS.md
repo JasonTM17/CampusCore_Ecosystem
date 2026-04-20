@@ -24,6 +24,10 @@ One-shot init hiện tại:
 - Edge E2E qua `nginx`: `node scripts/run-edge-e2e.mjs`
 - Production-like image smoke: `node scripts/run-image-smoke.mjs`
 - Local security sweep: `node scripts/run-security-local.mjs`
+- Kubernetes preflight: `node scripts/run-k8s-preflight.mjs`
+- Kubernetes local smoke: `node scripts/run-k8s-local-smoke.mjs`
+- Kubernetes local deploy giữ nguyên resources: `node scripts/run-k8s-local-deploy.mjs`
+- Kubernetes local destroy: `node scripts/run-k8s-local-destroy.mjs`
 
 ## Health model
 
@@ -50,14 +54,25 @@ One-shot init hiện tại:
 
 ## Operational defaults
 
-- `DOCKERHUB_NAMESPACE` là biến ưu tiên cho publish image.
-- `DOCKERHUB_USERNAME` vẫn được chấp nhận như legacy alias.
+- `DOCKERHUB_USERNAME` là secret bắt buộc để publish Docker Hub.
+- `DOCKERHUB_NAMESPACE` chỉ cần set khi namespace khác username.
 - `DOCKERHUB_TOKEN` là secret đăng nhập ưu tiên cho Docker Hub publish từ CI/CD.
 - `latest` chỉ cập nhật khi có semver release.
 
 ## Kubernetes deployment target
 
-- Repo hiện có Kustomize manifests tại `k8s/base`.
-- Bộ manifest này giữ nguyên boundary runtime hiện tại: `core-api`, `auth-service`, `notification-service`, `finance-service`, `academic-service`, `engagement-service`, `people-service`, `analytics-service`, `frontend`, `nginx`, cùng PostgreSQL, Redis, RabbitMQ, MinIO.
-- Với Docker Desktop, bật Kubernetes rồi dùng `kubectl kustomize k8s/base` để render và `kubectl apply -k k8s/base` để triển khai.
+- Repo hiện có Kustomize manifests tại `k8s/base` và `k8s/bootstrap`, cùng overlay local-first tại `k8s/overlays/docker-desktop`.
+- Topology K8s giữ nguyên boundary runtime hiện tại: `core-api`, `auth-service`, `notification-service`, `finance-service`, `academic-service`, `engagement-service`, `people-service`, `analytics-service`, `frontend`, `nginx`, cùng PostgreSQL, Redis, RabbitMQ, MinIO.
+- Với Docker Desktop, đường chuẩn là:
+  - `node scripts/run-k8s-preflight.mjs`
+  - `node scripts/run-k8s-local-smoke.mjs`
+- Nếu muốn giữ stack chạy để Docker Desktop UI nhìn thấy tài nguyên:
+  - `node scripts/run-k8s-local-deploy.mjs`
+  - sau đó đổi namespace từ `default` sang `campuscore` trong Docker Desktop Kubernetes UI
+  - mở edge bằng `kubectl -n campuscore port-forward service/campuscore-nginx 8080:80`
+  - lệnh `port-forward` sẽ giữ terminal mở cho tới khi tự dừng bằng `Ctrl+C`
+  - khi cần dọn, chạy `node scripts/run-k8s-local-destroy.mjs`
+  - nếu chỉ muốn reconcile lại runtime trên namespace đang tồn tại, dùng `K8S_REUSE_NAMESPACE=1 node scripts/run-k8s-local-deploy.mjs`
+  - bootstrap jobs chỉ được replay khi chủ động set `K8S_FORCE_BOOTSTRAP_REPLAY=1`
+- Overlay Docker Desktop bật Swagger local, tắt secure cookie flag cho HTTP local, và dùng `ClusterIP` + port-forward cho `campuscore-nginx`.
 - Bootstrap schema/migration vẫn là bước operator-managed riêng, giống policy production compose hiện tại.

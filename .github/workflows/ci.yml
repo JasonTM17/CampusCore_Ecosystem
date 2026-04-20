@@ -1361,6 +1361,12 @@ jobs:
       - name: Render bootstrap Kustomize base
         run: kubectl kustomize k8s/bootstrap > /dev/null
 
+      - name: Render Docker Desktop Kubernetes overlay
+        run: kubectl kustomize k8s/overlays/docker-desktop > /dev/null
+
+      - name: Run Kubernetes preflight guard
+        run: node scripts/run-k8s-preflight.mjs
+
   image-smoke:
     name: image-smoke
     runs-on: ubuntu-latest
