@@ -23,7 +23,7 @@
 
 Mỗi image public được publish với:
 
-- semver tag, ví dụ `v1.3.0`
+- semver tag, ví dụ `v1.3.1`
 - short SHA immutable tag
 - `latest`
 
