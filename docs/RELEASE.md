@@ -7,7 +7,7 @@
 - `latest` chỉ được cập nhật khi có semver release.
 - GitHub Actions ưu tiên `DOCKERHUB_TOKEN`; `DOCKERHUB_PASSWORD` chỉ còn là legacy fallback.
 
-Nhánh hardening hiện tại nhắm tới **`v1.3.3`**.
+Nhánh hardening hiện tại nhắm tới **`v1.3.4`**.
 
 ## Required quality gate
 
@@ -55,7 +55,7 @@ Release hiện tại phải publish đủ 9 image:
 
 Tag strategy:
 
-- `v1.3.3`
+- `v1.3.4`
 - short SHA immutable tag
 - `latest`
 
