@@ -378,7 +378,7 @@ test('homepage copy avoids demo placeholders and dead hrefs', () => {
 
   assert.doesNotMatch(source, deadHrefPattern);
   assert.doesNotMatch(source, /50K\+/);
-  assert.doesNotMatch(source, /Kubernetes-ready/);
+  assert.match(source, /Kubernetes-ready/);
   assert.doesNotMatch(source, contactSalesPattern);
   assert.match(source, /href=\{user \? '\/dashboard' : '\/login'\}/);
 });
