@@ -33,7 +33,7 @@ Docker Desktop giúp bạn đăng nhập và thử kéo/push image cục bộ, n
 
 Mỗi image public được publish với:
 
-- semver tag, ví dụ `v1.3.3`
+- semver tag, ví dụ `v1.3.4`
 - short SHA immutable tag
 - `latest`
 
