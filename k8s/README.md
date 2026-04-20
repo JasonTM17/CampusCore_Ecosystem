@@ -205,9 +205,21 @@ Hai overlay này:
 - không commit secret thật
 - không hard-code `ingressClassName`, để cluster chọn default ingress class hoặc để operator vá bằng private overlay nếu cần
 
+Repo cũng có hai overlay operator kế thừa trực tiếp từ generic overlays:
+
+- `k8s/overlays/staging-operator`
+- `k8s/overlays/prod-operator`
+
+Hai overlay này vẫn giữ `Ingress` từ lớp generic, nhưng:
+
+- xóa `Secret campuscore-secrets` placeholder khỏi public overlay
+- thay nó bằng `ExternalSecret` để operator bind secret manager thật
+- thêm `Certificate` để TLS secret được cấp bởi `cert-manager`
+- vẫn không hard-code `ingressClassName`, để cluster giữ quyền chọn ingress class mặc định hoặc để operator vá bằng private patch nếu cần
+
 Điểm chèn Cloudflare, nếu dùng sau này, sẽ nằm ở lớp DNS/WAF/CDN phía trước ingress chứ không thay runtime cluster.
 
-Checklist ingress/TLS/secrets chi tiết hơn cho pha staging/prod generic nằm tại [../docs/K8S_HANDOFF.md](../docs/K8S_HANDOFF.md).
+Checklist ingress/TLS/secrets chi tiết hơn cho pha staging/prod generic và operator overlays nằm tại [../docs/K8S_HANDOFF.md](../docs/K8S_HANDOFF.md).
 
 ## Đổi sang Docker Hub
 

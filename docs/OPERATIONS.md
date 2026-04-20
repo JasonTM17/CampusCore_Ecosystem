@@ -81,6 +81,8 @@ One-shot init hiện tại:
   - nếu chỉ muốn reconcile lại runtime trên namespace đang tồn tại, dùng `K8S_REUSE_NAMESPACE=1 node scripts/run-k8s-local-deploy.mjs`
   - bootstrap jobs chỉ được replay khi chủ động set `K8S_FORCE_BOOTSTRAP_REPLAY=1`
 - Overlay Docker Desktop bật Swagger local, tắt secure cookie flag cho HTTP local, và dùng `ClusterIP` + port-forward cho `campuscore-nginx`.
-- Repo cũng đã có `k8s/overlays/staging-generic` và `k8s/overlays/prod-generic` làm khung cloud-agnostic cho staging/prod; Cloudflare nếu dùng sau này chỉ đứng trước ingress.
-- Checklist ingress/TLS/secrets cho hai overlay generic nằm tại `docs/K8S_HANDOFF.md`.
+- Repo cũng đã có `k8s/overlays/staging-generic` và `k8s/overlays/prod-generic` làm khung cloud-agnostic cho staging/prod.
+- Nếu cluster dùng `ExternalSecret` + `cert-manager`, có thể bắt đầu từ `k8s/overlays/staging-operator` hoặc `k8s/overlays/prod-operator` để thay static secret placeholder bằng operator-managed resources.
+- Cloudflare nếu dùng sau này chỉ đứng trước ingress.
+- Checklist ingress/TLS/secrets cho generic overlays và operator overlays nằm tại `docs/K8S_HANDOFF.md`.
 - Bootstrap schema/migration vẫn là bước operator-managed riêng, giống policy production compose hiện tại.

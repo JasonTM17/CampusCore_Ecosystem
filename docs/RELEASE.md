@@ -89,4 +89,7 @@ Script này kiểm GHCR và Docker Hub cho đủ 9 image với tag semver, short
   - đổi namespace UI từ `default` sang `campuscore`
   - khi dọn local cluster state, chạy `node scripts/run-k8s-local-destroy.mjs`
 - Khi cần chuyển sang Docker Hub, chỉ cần override image names trong Kustomize thay vì đổi runtime topology.
-- Checklist handoff staging/prod generic cho ingress/TLS/secrets nằm tại `docs/K8S_HANDOFF.md`.
+- Handoff staging/prod tiếp tục đi theo hai lớp:
+  - `k8s/overlays/staging-generic` / `k8s/overlays/prod-generic` cho lớp cloud-agnostic công khai
+  - `k8s/overlays/staging-operator` / `k8s/overlays/prod-operator` cho cluster đã có `ExternalSecret` + `cert-manager`
+- Checklist ingress/TLS/secrets nằm tại `docs/K8S_HANDOFF.md`.
