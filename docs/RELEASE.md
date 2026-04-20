@@ -61,10 +61,20 @@ Tag strategy:
 
 ## Post-publish verification
 
-- verify manifest của đủ 9 image
+- verify manifest của đủ 9 image bằng `node scripts/verify-release-manifests.mjs`
 - verify digest và SBOM/provenance trong release summary
 - smoke published images qua GHCR
 - smoke published images qua Docker Hub nếu credentials đã cấu hình
+
+Kiểm tra local sau release:
+
+```powershell
+$env:RELEASE_TAG='v1.3.4'
+$env:RELEASE_SHORT_SHA='f3e7de8'
+node scripts/verify-release-manifests.mjs
+```
+
+Script này kiểm GHCR và Docker Hub cho đủ 9 image với tag semver, short SHA và `latest`. Mặc định script dùng concurrency `4`, timeout `45s` cho mỗi manifest và retry `2` lần để tránh lỗi mạng cục bộ làm hỏng kết luận. Nếu Docker Hub trả rate-limit `429` khi verify cục bộ, script fallback sang Docker Hub tag API để xác nhận tag public vẫn tồn tại. Nếu verify local bị timeout nhưng job CD `Verify published release artifacts` đã xanh trên GitHub runner, release vẫn được coi là hợp lệ.
 
 ## Kubernetes hand-off
 

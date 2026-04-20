@@ -33,7 +33,6 @@ jobs:
       image_tag: ${{ steps.gate.outputs.image_tag }}
       short_sha: ${{ steps.gate.outputs.short_sha }}
       source_sha: ${{ steps.gate.outputs.source_sha }}
-      dockerhub_namespace: ${{ steps.gate.outputs.dockerhub_namespace }}
       ghcr_namespace: ${{ steps.gate.outputs.ghcr_namespace }}
       should_publish_dockerhub: ${{ steps.gate.outputs.should_publish_dockerhub }}
     steps:
@@ -57,14 +56,13 @@ jobs:
             should_publish_dockerhub=true
           else
             should_publish_dockerhub=false
-            echo "::notice title=Docker Hub publish skipped::Add DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets. DOCKERHUB_PASSWORD remains a legacy fallback. DOCKERHUB_NAMESPACE is preferred; when omitted, DOCKERHUB_USERNAME remains the legacy namespace alias."
+            echo "::notice title=Docker Hub publish skipped::Add DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets. DOCKERHUB_PASSWORD remains a legacy fallback. DOCKERHUB_NAMESPACE is only needed when the Docker Hub namespace differs from the username."
           fi
 
           {
             echo "image_tag=${image_tag}"
             echo "short_sha=${short_sha}"
             echo "source_sha=${SOURCE_SHA}"
-            echo "dockerhub_namespace=${dockerhub_namespace}"
             echo "ghcr_namespace=${ghcr_namespace}"
             echo "should_publish_dockerhub=${should_publish_dockerhub}"
           } >> "$GITHUB_OUTPUT"
@@ -936,58 +934,14 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN != '' && secrets.DOCKERHUB_TOKEN || secrets.DOCKERHUB_PASSWORD }}
 
-      - name: Verify GHCR manifests
-        shell: bash
-        run: |
-          set -euo pipefail
-          images=(
-            "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.BACKEND_IMAGE }}"
-            "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.AUTH_IMAGE }}"
-            "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.NOTIFICATION_IMAGE }}"
-            "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FINANCE_IMAGE }}"
-            "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ACADEMIC_IMAGE }}"
-            "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ANALYTICS_IMAGE }}"
-            "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.ENGAGEMENT_IMAGE }}"
-            "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.PEOPLE_IMAGE }}"
-            "ghcr.io/${{ needs.release-plan.outputs.ghcr_namespace }}/${{ env.FRONTEND_IMAGE }}"
-          )
-          tags=(
-            "${{ needs.release-plan.outputs.image_tag }}"
-            "${{ needs.release-plan.outputs.short_sha }}"
-            "latest"
-          )
-          for image in "${images[@]}"; do
-            for tag in "${tags[@]}"; do
-              docker manifest inspect "${image}:${tag}" > /dev/null
-            done
-          done
-
-      - name: Verify Docker Hub manifests
-        if: needs.release-plan.outputs.should_publish_dockerhub == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          images=(
-            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.BACKEND_IMAGE }}"
-            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.AUTH_IMAGE }}"
-            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.NOTIFICATION_IMAGE }}"
-            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.FINANCE_IMAGE }}"
-            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ACADEMIC_IMAGE }}"
-            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ANALYTICS_IMAGE }}"
-            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.ENGAGEMENT_IMAGE }}"
-            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.PEOPLE_IMAGE }}"
-            "${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}/${{ env.FRONTEND_IMAGE }}"
-          )
-          tags=(
-            "${{ needs.release-plan.outputs.image_tag }}"
-            "${{ needs.release-plan.outputs.short_sha }}"
-            "latest"
-          )
-          for image in "${images[@]}"; do
-            for tag in "${tags[@]}"; do
-              docker manifest inspect "${image}:${tag}" > /dev/null
-            done
-          done
+      - name: Verify published manifests
+        env:
+          DOCKERHUB_NAMESPACE: ${{ env.DOCKERHUB_NAMESPACE_EFFECTIVE }}
+          GHCR_NAMESPACE: ${{ needs.release-plan.outputs.ghcr_namespace }}
+          RELEASE_SHORT_SHA: ${{ needs.release-plan.outputs.short_sha }}
+          RELEASE_TAG: ${{ needs.release-plan.outputs.image_tag }}
+          VERIFY_RELEASE_REGISTRIES: ${{ needs.release-plan.outputs.should_publish_dockerhub == 'true' && 'ghcr,dockerhub' || 'ghcr' }}
+        run: node scripts/verify-release-manifests.mjs
 
       - name: Smoke published GHCR images
         env:

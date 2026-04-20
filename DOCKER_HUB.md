@@ -13,7 +13,7 @@
 
 - `DOCKERHUB_USERNAME`
 - `DOCKERHUB_TOKEN`
-- `DOCKERHUB_NAMESPACE` nếu namespace khác username
+- `DOCKERHUB_NAMESPACE` chỉ khi namespace khác username
 
 Docker Desktop giúp bạn đăng nhập và thử kéo/push image cục bộ, nhưng publish tự động trên GitHub-hosted runner vẫn cần repo secrets ở GitHub.
 
@@ -46,3 +46,21 @@ Mỗi image public được publish với:
 3. semver tag cũ
 
 Không dùng `latest` làm mốc rollback.
+
+## Local manifest verification
+
+Sau khi CD publish xong, có thể kiểm lại đủ 9 image trên GHCR và Docker Hub bằng script có timeout/retry:
+
+```powershell
+$env:RELEASE_TAG='v1.3.4'
+$env:RELEASE_SHORT_SHA='f3e7de8'
+node scripts/verify-release-manifests.mjs
+```
+
+Nếu Docker Hub namespace khác username, set thêm:
+
+```powershell
+$env:DOCKERHUB_NAMESPACE='your-namespace'
+```
+
+Script mặc định kiểm đủ `v1.3.4`, short SHA và `latest` cho cả hai registry. Khi Docker Hub trả rate-limit `429` cho manifest inspect trên máy local, script sẽ fallback sang Docker Hub tag API để xác nhận tag public vẫn tồn tại. Nếu local network hoặc Docker Desktop làm lệnh verify timeout nhưng job CD `Verify published release artifacts` đã xanh, kết quả trên GitHub Actions là nguồn xác nhận release chính.
