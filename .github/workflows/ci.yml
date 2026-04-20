@@ -1342,6 +1342,25 @@ jobs:
       - name: Check diff whitespace
         run: git diff --check
 
+  k8s-contract:
+    name: k8s-contract
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.31.0
+
+      - name: Render runtime Kustomize base
+        run: kubectl kustomize k8s/base > /dev/null
+
+      - name: Render bootstrap Kustomize base
+        run: kubectl kustomize k8s/bootstrap > /dev/null
+
   image-smoke:
     name: image-smoke
     runs-on: ubuntu-latest
@@ -1366,6 +1385,7 @@ jobs:
         frontend-quality,
         frontend-fast-e2e,
         compose-contract,
+        k8s-contract,
       ]
 
     steps:
@@ -1411,6 +1431,7 @@ jobs:
         frontend-quality,
         frontend-fast-e2e,
         compose-contract,
+        k8s-contract,
       ]
 
     steps:
@@ -1486,6 +1507,7 @@ jobs:
         frontend-quality,
         frontend-fast-e2e,
         compose-contract,
+        k8s-contract,
       ]
 
     steps:
@@ -2051,6 +2073,7 @@ jobs:
       - frontend-quality
       - frontend-fast-e2e
       - compose-contract
+      - k8s-contract
       - image-smoke
       - edge-e2e
       - security-scan
@@ -2102,6 +2125,7 @@ jobs:
           check_required frontend-quality "${{ needs.frontend-quality.result }}"
           check_required frontend-fast-e2e "${{ needs.frontend-fast-e2e.result }}"
           check_required compose-contract "${{ needs.compose-contract.result }}"
+          check_required k8s-contract "${{ needs.k8s-contract.result }}"
           check_required image-smoke "${{ needs.image-smoke.result }}"
           check_required edge-e2e "${{ needs.edge-e2e.result }}"
           check_required security-scan "${{ needs.security-scan.result }}"
@@ -2136,6 +2160,7 @@ jobs:
             echo "- frontend-quality: ${{ needs.frontend-quality.result }}"
             echo "- frontend-fast-e2e: ${{ needs.frontend-fast-e2e.result }}"
             echo "- compose-contract: ${{ needs.compose-contract.result }}"
+            echo "- k8s-contract: ${{ needs.k8s-contract.result }}"
             echo "- image-smoke: ${{ needs.image-smoke.result }}"
             echo "- edge-e2e: ${{ needs.edge-e2e.result }}"
             echo "- security-scan: ${{ needs.security-scan.result }}"

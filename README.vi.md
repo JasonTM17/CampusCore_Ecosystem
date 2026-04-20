@@ -88,6 +88,7 @@ Các image public hiện tại:
 
 - [README.md](./README.md)
 - [README.en.md](./README.en.md)
+- [k8s/README.md](./k8s/README.md)
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - [docs/OPERATIONS.md](./docs/OPERATIONS.md)
 - [docs/SECURITY.md](./docs/SECURITY.md)

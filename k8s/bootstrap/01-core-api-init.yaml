@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: core-api-init
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: core-api-init
+          image: campuscore-backend
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -lc
+            - npx prisma@5.8.1 db push --schema prisma/schema.prisma --skip-generate && npx tsx@4.21.0 prisma/seed.ts
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: campuscore-secrets
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: postgresql://campuscore:$(POSTGRES_PASSWORD)@postgres:5432/campuscore?schema=public
