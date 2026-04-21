@@ -1,13 +1,31 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Bell, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { announcementsApi, semestersApi } from '@/lib/api';
+import { AdminFrame } from '@/components/admin/AdminFrame';
+import {
+  AdminDialogFooter,
+  AdminFormField,
+  AdminPaginationFooter,
+  AdminRowActions,
+  AdminTableCard,
+  AdminToolbarCard,
+} from '@/components/admin/AdminSurface';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
-import { ArrowLeft, AlertCircle, Bell, Plus, Trash2, RefreshCw, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Modal } from '@/components/ui/modal';
+import { Select } from '@/components/ui/select';
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@/components/ui/state-block';
+import { Textarea } from '@/components/ui/textarea';
+import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 
 type Semester = { id: string; name: string };
 
@@ -28,19 +46,16 @@ const priorities = ['LOW', 'NORMAL', 'HIGH', 'URGENT'] as const;
 const roleOptions = ['STUDENT', 'LECTURER', 'ADMIN', 'SUPER_ADMIN'] as const;
 
 export default function AdminAnnouncementsPage() {
-  const { user, logout, isAdmin, isSuperAdmin } = useAuth();
+  const { user, isAdmin, isSuperAdmin } = useAuth();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
+  const [error, setError] = useState('');
   const [items, setItems] = useState<Announcement[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-
-  const [filters, setFilters] = useState({ semesterId: '', priority: '' });
-
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [filters, setFilters] = useState({ semesterId: '', priority: '' });
   const [draft, setDraft] = useState({
     title: '',
     content: '',
@@ -48,65 +63,127 @@ export default function AdminAnnouncementsPage() {
     isGlobal: true,
     semesterId: '',
     targetRoles: [] as string[],
-    targetYears: '' as string, // comma-separated
+    targetYears: '' as string,
   });
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
+  const { confirm, confirmationDialog } = useConfirmationDialog();
 
   useEffect(() => {
-    if (user && !isAdmin && !isSuperAdmin) router.push('/dashboard');
+    if (user && !isAdmin && !isSuperAdmin) {
+      router.push('/dashboard');
+    }
   }, [user, isAdmin, isSuperAdmin, router]);
 
   const fetchSemesters = useCallback(async () => {
     try {
-      const res = await semestersApi.getAll();
-      setSemesters(res.data || []);
+      const response = await semestersApi.getAll();
+      setSemesters(response.data || []);
     } catch {
-      // ignore
+      // Optional filter data.
     }
   }, []);
 
   const fetchAnnouncements = useCallback(async () => {
     setIsLoading(true);
-    setError(null);
+    setError('');
+
     try {
-      const res = await announcementsApi.getAll({
+      const response = await announcementsApi.getAll({
         page,
         limit: 20,
         semesterId: filters.semesterId || undefined,
         priority: filters.priority || undefined,
       });
-      setItems(res.data || []);
-      setTotalPages(res.meta?.totalPages || 1);
+      setItems(response.data || []);
+      setTotalPages(response.meta?.totalPages || 1);
     } catch {
-      setError('Failed to load announcements');
-      toast.error('Failed to load announcements');
+      setError('Announcements could not be loaded.');
     } finally {
       setIsLoading(false);
     }
   }, [filters.priority, filters.semesterId, page]);
 
   useEffect(() => {
-    if (!canAccess) return;
-    void fetchSemesters();
-  }, [canAccess, fetchSemesters]);
+    if (canAccess) {
+      void fetchSemesters();
+      void fetchAnnouncements();
+    }
+  }, [canAccess, fetchAnnouncements, fetchSemesters]);
 
-  useEffect(() => {
-    if (!canAccess) return;
-    void fetchAnnouncements();
-  }, [canAccess, fetchAnnouncements]);
+  const semesterOptions = useMemo(
+    () => [
+      { value: '', label: 'All semesters' },
+      ...semesters.map((semester) => ({
+        value: semester.id,
+        label: semester.name,
+      })),
+    ],
+    [semesters],
+  );
+
+  const createSemesterOptions = useMemo(
+    () => [
+      { value: '', label: 'No semester' },
+      ...semesters.map((semester) => ({
+        value: semester.id,
+        label: semester.name,
+      })),
+    ],
+    [semesters],
+  );
+
+  const priorityOptions = useMemo(
+    () => [
+      { value: '', label: 'All priorities' },
+      ...priorities.map((priority) => ({
+        value: priority,
+        label: priority,
+      })),
+    ],
+    [],
+  );
+
+  const pageSummary = useMemo(() => {
+    if (items.length === 0) {
+      return 'No matching records';
+    }
+
+    return `Page ${page} of ${totalPages}`;
+  }, [items.length, page, totalPages]);
+
+  if (!canAccess) {
+    return <LoadingState label="Loading announcements" className="m-8" />;
+  }
+
+  const resetDraft = () => {
+    setDraft({
+      title: '',
+      content: '',
+      priority: 'NORMAL',
+      isGlobal: true,
+      semesterId: '',
+      targetRoles: [],
+      targetYears: '',
+    });
+  };
+
+  const closeCreateModal = () => {
+    setIsCreateOpen(false);
+    resetDraft();
+  };
 
   const handleCreate = async () => {
     if (!draft.title.trim() || !draft.content.trim()) {
-      toast.error('Title and content are required');
+      toast.error('Title and content are required.');
       return;
     }
 
     const targetYears = draft.targetYears
       .split(',')
-      .map((x) => x.trim())
+      .map((value) => value.trim())
       .filter(Boolean)
-      .map((x) => Number(x))
-      .filter((n) => Number.isFinite(n));
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value));
 
     try {
       await announcementsApi.create({
@@ -119,347 +196,312 @@ export default function AdminAnnouncementsPage() {
         targetYears: draft.isGlobal ? [] : targetYears,
       });
       toast.success('Announcement created');
-      setIsCreateOpen(false);
-      setDraft({
-        title: '',
-        content: '',
-        priority: 'NORMAL',
-        isGlobal: true,
-        semesterId: '',
-        targetRoles: [],
-        targetYears: '',
-      });
+      closeCreateModal();
       setPage(1);
-      fetchAnnouncements();
+      await fetchAnnouncements();
     } catch {
-      toast.error('Failed to create announcement');
+      toast.error('The announcement could not be created.');
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this announcement?')) return;
+  const handleDelete = async (announcement: Announcement) => {
+    const shouldDelete = await confirm({
+      title: 'Delete announcement',
+      message: `Delete ${announcement.title}? This removes the announcement from the current admin view.`,
+      confirmText: 'Delete announcement',
+      variant: 'destructive',
+    });
+
+    if (!shouldDelete) {
+      return;
+    }
+
     try {
-      await announcementsApi.delete(id);
+      await announcementsApi.delete(announcement.id);
       toast.success('Announcement deleted');
-      fetchAnnouncements();
+      await fetchAnnouncements();
     } catch {
-      toast.error('Failed to delete announcement');
+      toast.error('We could not delete that announcement.');
     }
   };
-
-  if (!canAccess) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-slate-800 text-white shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/admin"
-              className="flex items-center gap-2 text-gray-300 hover:text-white"
-              aria-label="Back to admin dashboard"
-              title="Back to admin dashboard"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-            <h1 className="text-xl font-bold">CampusCore Admin</h1>
-            <span className="text-gray-500">|</span>
-            <span className="text-gray-300">Announcements</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              className="text-white border-gray-600 hover:bg-gray-700"
-              onClick={fetchAnnouncements}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-            <span className="text-gray-300">Welcome, {user?.firstName}</span>
-            <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>
-              Logout
-            </Button>
-          </div>
-        </div>
-      </nav>
-
-      <main className="container mx-auto px-4 py-8">
-        <div className="flex items-start sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              <Bell className="h-7 w-7 text-primary" />
-              Announcements
-            </h2>
-            <p className="text-gray-500 mt-1">Create and manage announcements for platform users</p>
-          </div>
+    <AdminFrame
+      title="Announcements"
+      description="Publish clear updates without leaving fragmented messages scattered across the platform."
+      backLabel="Back to admin dashboard"
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => void fetchAnnouncements()}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
           <Button onClick={() => setIsCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Announcement
+            <Plus className="mr-2 h-4 w-4" />
+            New announcement
           </Button>
         </div>
-
-        <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
-          <div className="flex flex-wrap items-end gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
-              <select
+      }
+    >
+      <div className="space-y-6">
+        <AdminToolbarCard>
+            <div className="grid gap-4 md:grid-cols-3">
+              <Select
+                label="Semester"
                 value={filters.semesterId}
-                onChange={(e) => {
-                  setFilters((p) => ({ ...p, semesterId: e.target.value }));
+                onChange={(event) => {
+                  setFilters((current) => ({
+                    ...current,
+                    semesterId: event.target.value,
+                  }));
                   setPage(1);
                 }}
-                className="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary min-w-[180px]"
-              >
-                <option value="">All Semesters</option>
-                {semesters.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-              <select
+                options={semesterOptions}
+              />
+              <Select
+                label="Priority"
                 value={filters.priority}
-                onChange={(e) => {
-                  setFilters((p) => ({ ...p, priority: e.target.value }));
+                onChange={(event) => {
+                  setFilters((current) => ({
+                    ...current,
+                    priority: event.target.value,
+                  }));
                   setPage(1);
                 }}
-                className="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary min-w-[160px]"
-              >
-                <option value="">All</option>
-                {priorities.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <Button
-              variant="outline"
-              onClick={() => {
-                setFilters({ semesterId: '', priority: '' });
-                setPage(1);
-              }}
-            >
-              Clear Filters
-            </Button>
-          </div>
-        </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center mb-6">
-            <AlertCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
-            <p className="text-red-600 font-medium mb-2">{error}</p>
-            <Button variant="outline" onClick={fetchAnnouncements}>
-              Try Again
-            </Button>
-          </div>
-        )}
-
-        {!error && (
-          <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-            {isLoading ? (
-              <div className="p-10 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                options={priorityOptions}
+              />
+              <div className="flex items-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setFilters({ semesterId: '', priority: '' });
+                    setPage(1);
+                  }}
+                >
+                  Clear filters
+                </Button>
+                <div className="text-sm text-muted-foreground">{pageSummary}</div>
               </div>
-            ) : items.length === 0 ? (
-              <div className="p-10 text-center text-gray-500">No announcements found.</div>
-            ) : (
-              <div className="divide-y">
-                {items.map((a) => (
-                  <div key={a.id} className="p-5 hover:bg-gray-50">
-                    <div className="flex items-start justify-between gap-6">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
-                            {a.priority}
+            </div>
+        </AdminToolbarCard>
+
+        {error ? (
+          <ErrorState
+            title="Announcements unavailable"
+            description={error}
+            onRetry={() => void fetchAnnouncements()}
+          />
+        ) : isLoading ? (
+          <LoadingState label="Loading announcements" />
+        ) : items.length === 0 ? (
+          <EmptyState
+            icon={Bell}
+            title="No matching announcements"
+            description="Create an announcement to keep students, lecturers, and admins aligned on the latest campus updates."
+            action={<Button onClick={() => setIsCreateOpen(true)}>New announcement</Button>}
+          />
+        ) : (
+          <AdminTableCard
+            title="Announcement feed"
+            contentClassName="space-y-4"
+            footer={
+              <AdminPaginationFooter
+                summary={pageSummary}
+                page={page}
+                totalPages={totalPages}
+                onPrevious={() => setPage((current) => current - 1)}
+                onNext={() => setPage((current) => current + 1)}
+                className="mt-0"
+              />
+            }
+          >
+              {items.map((announcement) => (
+                <div
+                  key={announcement.id}
+                  className="rounded-lg border border-border/70 bg-background/70 p-5"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
+                          {announcement.priority}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {announcement.isGlobal
+                            ? 'Global audience'
+                            : `Targeted: ${(announcement.targetRoles || []).join(', ') || 'Selected roles'}`}
+                        </span>
+                        {announcement.semester?.name ? (
+                          <span className="text-xs text-muted-foreground">
+                            Semester: {announcement.semester.name}
                           </span>
-                          <span className="text-xs text-gray-500">
-                            {a.isGlobal ? 'Global' : `Targeted (${a.targetRoles?.join(', ') || 'roles'})`}
-                          </span>
-                          {a.semester?.name ? <span className="text-xs text-gray-500">• {a.semester.name}</span> : null}
-                        </div>
-                        <h3 className="font-semibold text-gray-900 mt-1 truncate">{a.title}</h3>
-                        <p className="text-sm text-gray-600 mt-2 whitespace-pre-line">{a.content}</p>
-                        <p className="text-xs text-gray-500 mt-3">{new Date(a.createdAt).toLocaleString()}</p>
+                        ) : null}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-red-600 hover:text-red-700"
-                          onClick={() => handleDelete(a.id)}
-                          aria-label={`Delete announcement ${a.title}`}
-                          title={`Delete announcement ${a.title}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                      <div>
+                        <h3 className="text-base font-semibold text-foreground">
+                          {announcement.title}
+                        </h3>
+                        <p className="mt-2 whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                          {announcement.content}
+                        </p>
                       </div>
+                      <p className="text-xs text-muted-foreground">
+                        Published {new Date(announcement.createdAt).toLocaleString()}
+                      </p>
                     </div>
+                    <AdminRowActions className="shrink-0">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => void handleDelete(announcement)}
+                        aria-label={`Delete announcement ${announcement.title}`}
+                        title={`Delete announcement ${announcement.title}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AdminRowActions>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {totalPages > 1 && !isLoading && (
-              <div className="border-t px-4 py-3 flex justify-between items-center">
-                <span className="text-sm text-gray-500">
-                  Page {page} of {totalPages}
-                </span>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
-                    Previous
-                  </Button>
-                  <Button size="sm" variant="outline" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>
-                    Next
-                  </Button>
                 </div>
-              </div>
-            )}
-          </div>
+              ))}
+          </AdminTableCard>
         )}
-      </main>
+      </div>
 
-      {isCreateOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl p-6 my-8 mx-4">
-            <div className="flex justify-between items-start mb-4">
-              <h3 className="text-lg font-semibold">New Announcement</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsCreateOpen(false)}
-                aria-label="Close new announcement form"
-                title="Close new announcement form"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+      <Modal
+        isOpen={isCreateOpen}
+        onClose={closeCreateModal}
+        title="New announcement"
+        closeLabel="Close new announcement form"
+        className="max-w-2xl"
+      >
+        <div className="space-y-4">
+          <AdminFormField label="Title">
+            <Input
+              value={draft.title}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  title: event.target.value,
+                }))
+              }
+              placeholder="Announcement title"
+            />
+          </AdminFormField>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                <input
-                  value={draft.title}
-                  onChange={(e) => setDraft((p) => ({ ...p, title: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="Announcement title"
-                />
-              </div>
+          <AdminFormField label="Content">
+            <Textarea
+              value={draft.content}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  content: event.target.value,
+                }))
+              }
+              className="min-h-[160px]"
+              placeholder="Write the update clearly and directly."
+            />
+          </AdminFormField>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
-                <textarea
-                  value={draft.content}
-                  onChange={(e) => setDraft((p) => ({ ...p, content: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary min-h-[140px]"
-                  placeholder="Write the announcement..."
-                />
-              </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Select
+              label="Priority"
+              value={draft.priority}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  priority: event.target.value,
+                }))
+              }
+              options={priorities.map((priority) => ({
+                value: priority,
+                label: priority,
+              }))}
+            />
+            <Select
+              label="Semester"
+              value={draft.semesterId}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  semesterId: event.target.value,
+                }))
+              }
+              options={createSemesterOptions}
+            />
+          </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-                  <select
-                    value={draft.priority}
-                    onChange={(e) => setDraft((p) => ({ ...p, priority: e.target.value }))}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    {priorities.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Semester (optional)</label>
-                  <select
-                    value={draft.semesterId}
-                    onChange={(e) => setDraft((p) => ({ ...p, semesterId: e.target.value }))}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="">None</option>
-                    {semesters.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            <input
+              id="isGlobal"
+              type="checkbox"
+              checked={draft.isGlobal}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  isGlobal: event.target.checked,
+                }))
+              }
+            />
+            Global audience
+          </label>
 
-              <div className="flex items-center gap-2">
-                <input
-                  id="isGlobal"
-                  type="checkbox"
-                  checked={draft.isGlobal}
-                  onChange={(e) => setDraft((p) => ({ ...p, isGlobal: e.target.checked }))}
-                />
-                <label htmlFor="isGlobal" className="text-sm text-gray-700">
-                  Global (visible to all authenticated users)
+          {!draft.isGlobal ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Target roles
                 </label>
+                <div className="flex flex-wrap gap-3 rounded-lg border border-border/70 bg-background/70 p-3 text-sm">
+                  {roleOptions.map((role) => (
+                    <label key={role} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={draft.targetRoles.includes(role)}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            targetRoles: event.target.checked
+                              ? Array.from(new Set([...current.targetRoles, role]))
+                              : current.targetRoles.filter((entry) => entry !== role),
+                          }))
+                        }
+                      />
+                      {role}
+                    </label>
+                  ))}
+                </div>
               </div>
 
-              {!draft.isGlobal && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Target roles</label>
-                    <div className="flex flex-wrap gap-2">
-                      {roleOptions.map((r) => (
-                        <label key={r} className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={draft.targetRoles.includes(r)}
-                            onChange={(e) => {
-                              setDraft((p) => ({
-                                ...p,
-                                targetRoles: e.target.checked
-                                  ? Array.from(new Set([...p.targetRoles, r]))
-                                  : p.targetRoles.filter((x) => x !== r),
-                              }));
-                            }}
-                          />
-                          {r}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Target years (students)</label>
-                    <input
-                      value={draft.targetYears}
-                      onChange={(e) => setDraft((p) => ({ ...p, targetYears: e.target.value }))}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                      placeholder="e.g. 1,2,3"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Leave empty to target all years.</p>
-                  </div>
-                </div>
-              )}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Target years
+                </label>
+                <Input
+                  value={draft.targetYears}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      targetYears: event.target.value,
+                    }))
+                  }
+                  placeholder="e.g. 1,2,3"
+                  hint="Leave empty to target every matching year."
+                />
+              </div>
             </div>
+          ) : null}
 
-            <div className="mt-6 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleCreate}>Create</Button>
-            </div>
-          </div>
+          <AdminDialogFooter>
+            <Button type="button" variant="outline" onClick={closeCreateModal}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleCreate()}>Create announcement</Button>
+          </AdminDialogFooter>
         </div>
-      )}
-    </div>
+      </Modal>
+
+      {confirmationDialog}
+    </AdminFrame>
   );
 }
-

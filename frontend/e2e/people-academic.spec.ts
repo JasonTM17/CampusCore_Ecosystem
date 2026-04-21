@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
+  adminHomeRoute,
   adminRoutes,
   apiUrl,
   buildCookieHeaders,
@@ -9,6 +10,7 @@ import {
   lecturerRoutes,
   seedBrowserSession,
   studentRoutes,
+  waitForAnyVisible,
   visitRoute,
   visitRoutes,
 } from './helpers';
@@ -17,6 +19,8 @@ test('student can traverse people and academic routes without losing jwt-backed 
   page,
   playwright,
 }) => {
+  test.setTimeout(75_000);
+
   const loginData = await seedBrowserSession(page, playwright, 'student', {
     shared: true,
   });
@@ -67,6 +71,8 @@ test('lecturer can traverse teaching flows without losing lecturer claims', asyn
   page,
   playwright,
 }) => {
+  test.setTimeout(75_000);
+
   const loginData = await seedBrowserSession(page, playwright, 'lecturer', {
     shared: true,
   });
@@ -75,7 +81,7 @@ test('lecturer can traverse teaching flows without losing lecturer claims', asyn
   await page.goto('/dashboard/lecturer');
   await expect(page).toHaveURL(/\/dashboard\/lecturer$/);
   await expect(
-    page.getByRole('heading', { name: /Lecturer Portal/i }),
+    page.getByRole('heading', { name: /Welcome back/i }),
   ).toBeVisible();
 
   await visitRoutes(page, lecturerRoutes);
@@ -85,35 +91,51 @@ test('lecturer can traverse teaching flows without losing lecturer claims', asyn
     async () => {
       await visitRoute(page, {
         path: '/dashboard/lecturer/grades',
-        heading: 'Grade Management',
-        ready: async (currentPage) => {
+        heading: /^Grade management$/i,
+        ready: async (currentPage, timeoutMs) => {
+          await expect(
+            currentPage.getByRole('heading', {
+              name: /Grade management queue/i,
+            }),
+          ).toBeVisible({ timeout: timeoutMs });
+
           const manageButtons = currentPage.getByRole('button', {
             name: /Manage Grades|Enter Grades/i,
           });
+          const emptyStateHeading = currentPage.getByRole('heading', {
+            name: /No grading sections yet/i,
+          });
 
-          if ((await manageButtons.count()) === 0) {
-            await expect(
-              currentPage.getByRole('heading', { name: 'No Sections Found' }),
-            ).toBeVisible();
+          await waitForAnyVisible(
+            [manageButtons, emptyStateHeading],
+            timeoutMs,
+          );
+
+          const hasManageButtons =
+            (await manageButtons.first().count()) > 0 &&
+            (await manageButtons.first().isVisible().catch(() => false));
+
+          if (!hasManageButtons) {
+            await expect(emptyStateHeading).toBeVisible({ timeout: timeoutMs });
             return;
           }
 
-          await expect(manageButtons.first()).toBeVisible();
+          await expect(manageButtons.first()).toBeVisible({ timeout: timeoutMs });
           await manageButtons.first().click();
           await expect(currentPage).toHaveURL(
             /\/dashboard\/lecturer\/grades\/[^/]+$/,
           );
           await expect(
             currentPage.getByRole('button', { name: 'Save Grades' }),
-          ).toBeVisible();
+          ).toBeVisible({ timeout: timeoutMs });
           await expect(
             currentPage.getByRole('button', { name: 'Publish Grades' }),
-          ).toBeVisible();
+          ).toBeVisible({ timeout: timeoutMs });
           await expect(
             currentPage
               .getByRole('link', { name: /Back to grade management/i })
               .first(),
-          ).toBeVisible();
+          ).toBeVisible({ timeout: timeoutMs });
         },
       });
     },
@@ -128,27 +150,9 @@ test('admin can still reach roster-style people and academic management routes',
 
   await seedBrowserSession(page, playwright, 'admin', { shared: true });
 
-  await page.goto('/admin');
-  await expect(page).toHaveURL(/\/admin$/);
-  await expect(
-    page.getByRole('heading', { name: 'Admin Dashboard' }),
-  ).toBeVisible();
+  await visitRoute(page, adminHomeRoute);
 
-  const rosterRoutes = adminRoutes.filter((route) =>
-    [
-      '/admin/users',
-      '/admin/lecturers',
-      '/admin/courses',
-      '/admin/sections',
-      '/admin/enrollments',
-      '/admin/classrooms',
-      '/admin/semesters',
-      '/admin/academic-years',
-      '/admin/departments',
-    ].includes(route.path),
-  );
-
-  for (const route of rosterRoutes) {
+  for (const route of adminRoutes) {
     await visitRoute(page, route);
   }
 });

@@ -1,27 +1,19 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { Bell, BookMarked, BookOpen, Calendar, ClipboardList, CreditCard, FileText, GraduationCap, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { enrollmentsApi, gradesApi, semestersApi } from '@/lib/api';
+import { enrollmentsApi, semestersApi } from '@/lib/api';
 import { pickPreferredSemesterId } from '@/lib/semesters';
 import { Button } from '@/components/ui/button';
-import { 
-  ClipboardList, 
-  BookOpen, 
-  Calendar, 
-  GraduationCap,
-  CreditCard,
-  Bell,
-  FileText,
-  ArrowRight,
-  Clock,
-  TrendingUp,
-  BookMarked,
-  Award,
-  CalendarDays,
-  ChevronRight
-} from 'lucide-react';
+import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
+import {
+  WorkspaceActionTile,
+  WorkspaceMetricCard,
+  WorkspacePanel,
+} from '@/components/dashboard/WorkspaceSurface';
 
 interface Enrollment {
   id: string;
@@ -41,307 +33,286 @@ interface Semester {
   status: string;
 }
 
-interface GradeRecord {
-  id: string;
-  letterGrade?: string;
-}
+const quickActions = [
+  {
+    href: '/dashboard/register',
+    icon: ClipboardList,
+    label: 'Register courses',
+    description: 'Browse available sections and make enrollment decisions.',
+    tone: 'bg-blue-500/12 text-blue-600 dark:text-blue-400',
+  },
+  {
+    href: '/dashboard/schedule',
+    icon: Calendar,
+    label: 'Open schedule',
+    description: 'Check what is on the calendar this week.',
+    tone: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400',
+  },
+  {
+    href: '/dashboard/grades',
+    icon: TrendingUp,
+    label: 'Review grades',
+    description: 'See published results and academic standing.',
+    tone: 'bg-violet-500/12 text-violet-600 dark:text-violet-400',
+  },
+  {
+    href: '/dashboard/invoices',
+    icon: CreditCard,
+    label: 'Check invoices',
+    description: 'Keep track of outstanding balances and payment status.',
+    tone: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
+  },
+];
 
-const menuItems = [
-  { 
-    href: '/dashboard/register', 
-    icon: ClipboardList, 
-    label: 'Course Registration', 
-    description: 'Browse and enroll in courses',
-    color: 'from-blue-500 to-cyan-500'
+const portalLinks = [
+  {
+    href: '/dashboard/enrollments',
+    icon: BookOpen,
+    label: 'My courses',
+    description: 'Current registrations, section details, and status.',
+    tone: 'bg-cyan-500/12 text-cyan-600 dark:text-cyan-400',
   },
-  { 
-    href: '/dashboard/enrollments', 
-    icon: BookOpen, 
-    label: 'My Courses', 
-    description: 'View your enrolled courses',
-    color: 'from-emerald-500 to-teal-500'
+  {
+    href: '/dashboard/transcript',
+    icon: FileText,
+    label: 'Transcript',
+    description: 'Semester history and cumulative academic outcomes.',
+    tone: 'bg-indigo-500/12 text-indigo-600 dark:text-indigo-400',
   },
-  { 
-    href: '/dashboard/schedule', 
-    icon: Calendar, 
-    label: 'Schedule', 
-    description: 'View your weekly timetable',
-    color: 'from-purple-500 to-pink-500'
-  },
-  { 
-    href: '/dashboard/grades', 
-    icon: GraduationCap, 
-    label: 'Grades', 
-    description: 'View your grades and GPA',
-    color: 'from-amber-500 to-orange-500'
-  },
-  { 
-    href: '/dashboard/transcript', 
-    icon: FileText, 
-    label: 'Transcript', 
-    description: 'View official transcript',
-    color: 'from-indigo-500 to-violet-500'
-  },
-  { 
-    href: '/dashboard/invoices', 
-    icon: CreditCard, 
-    label: 'Invoices', 
-    description: 'View and pay invoices',
-    color: 'from-rose-500 to-pink-500'
-  },
-  { 
-    href: '/dashboard/announcements', 
-    icon: Bell, 
-    label: 'Announcements', 
-    description: 'Latest university updates',
-    color: 'from-cyan-500 to-blue-500'
+  {
+    href: '/dashboard/announcements',
+    icon: Bell,
+    label: 'Announcements',
+    description: 'Shared updates from the university and course teams.',
+    tone: 'bg-pink-500/12 text-pink-600 dark:text-pink-400',
   },
 ];
 
 export default function DashboardPage() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [currentSemester, setCurrentSemester] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+
   const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
+
     try {
-      const [semestersRes] = await Promise.all([
-        semestersApi.getAll(),
-      ]);
+      const semestersRes = await semestersApi.getAll();
       setSemesters(semestersRes.data);
 
       const preferredSemesterId = pickPreferredSemesterId(semestersRes.data);
       if (preferredSemesterId) {
         setCurrentSemester(preferredSemesterId);
+        const enrollmentData = await enrollmentsApi.getMyEnrollments(preferredSemesterId);
+        setEnrollments(enrollmentData);
+      } else {
+        setEnrollments([]);
       }
-    } catch (error) {
-      console.error('Failed to fetch semesters:', error);
-    }
-  }, []);
-
-  const fetchEnrollments = useCallback(async () => {
-    try {
-      const data = await enrollmentsApi.getMyEnrollments(currentSemester || undefined);
-      setEnrollments(data);
-    } catch (error) {
-      console.error('Failed to fetch enrollments:', error);
+    } catch {
+      setError('Your dashboard data could not be loaded.');
     } finally {
       setIsLoading(false);
     }
-  }, [currentSemester]);
+  }, []);
 
   useEffect(() => {
     void fetchData();
   }, [fetchData]);
 
-  useEffect(() => {
-    if (currentSemester) {
-      void fetchEnrollments();
-    }
-  }, [currentSemester, fetchEnrollments]);
+  const currentSemesterName = useMemo(() => {
+    return semesters.find((semester) => semester.id === currentSemester)?.name || 'No active term';
+  }, [currentSemester, semesters]);
 
-  const upcomingCourses = enrollments
-    .filter(e => e.status === 'CONFIRMED' || e.status === 'PENDING')
-    .slice(0, 3);
+  const confirmedCourses = enrollments.filter(
+    (enrollment) => enrollment.status === 'CONFIRMED',
+  );
+  const pendingCourses = enrollments.filter(
+    (enrollment) => enrollment.status === 'PENDING',
+  );
+  const highlightedCourses = confirmedCourses.slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Hero Header */}
-      <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-700 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-medium backdrop-blur-sm">
-                  Student Portal
-                </span>
-              </div>
-              <h1 className="text-3xl md:text-4xl font-bold">
-                Welcome back, {user?.firstName}! 👋
-              </h1>
-              <p className="text-blue-100 mt-2 text-lg">
-                {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-              </p>
-            </div>
-            
-            {/* Quick Stats */}
-            <div className="flex gap-4">
-              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 min-w-[120px]">
-                <div className="text-3xl font-bold">{enrollments.length}</div>
-                <div className="text-blue-100 text-sm">Courses</div>
-              </div>
-              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 min-w-[120px]">
-                <div className="text-3xl font-bold">
-                  {enrollments.filter(e => e.status === 'CONFIRMED').length}
-                </div>
-                <div className="text-blue-100 text-sm">Enrolled</div>
-              </div>
-            </div>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow={<SectionEyebrow>Student workspace</SectionEyebrow>}
+        title={`Welcome back, ${user?.firstName ?? 'student'}`}
+        description={`The current term is ${currentSemesterName}. Move between registration, coursework, billing, and profile updates without leaving the student shell.`}
+        actions={
+          <div className="inline-flex rounded-full border border-border/70 bg-secondary/35 px-3.5 py-2 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            {new Intl.DateTimeFormat('en-US', {
+              weekday: 'long',
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric',
+            }).format(new Date())}
           </div>
-        </div>
-      </div>
+        }
+      />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 -mt-6">
-        {/* Quick Actions */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <Link href="/dashboard/register" className="group">
-            <div className="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl p-5 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all group-hover:scale-105">
-              <ClipboardList className="w-7 h-7 mb-2" />
-              <div className="font-semibold">Register Courses</div>
-              <div className="text-blue-100 text-sm">Enroll now</div>
-            </div>
-          </Link>
-          <Link href="/dashboard/schedule" className="group">
-            <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl p-5 text-white shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 transition-all group-hover:scale-105">
-              <Calendar className="w-7 h-7 mb-2" />
-                <div className="font-semibold">View Schedule</div>
-              <div className="text-purple-100 text-sm">Today&apos;s classes</div>
-            </div>
-          </Link>
-          <Link href="/dashboard/grades" className="group">
-            <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-5 text-white shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 transition-all group-hover:scale-105">
-              <TrendingUp className="w-7 h-7 mb-2" />
-              <div className="font-semibold">Check Grades</div>
-              <div className="text-amber-100 text-sm">View GPA</div>
-            </div>
-          </Link>
-          <Link href="/dashboard/invoices" className="group">
-            <div className="bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl p-5 text-white shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all group-hover:scale-105">
-              <CreditCard className="w-7 h-7 mb-2" />
-              <div className="font-semibold">Pay Invoices</div>
-              <div className="text-emerald-100 text-sm">View bills</div>
-            </div>
-          </Link>
-        </div>
+      {error ? (
+        <ErrorState
+          title="Dashboard unavailable"
+          description={error}
+          onRetry={() => void fetchData()}
+        />
+      ) : isLoading ? (
+        <LoadingState label="Loading dashboard" />
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <WorkspaceMetricCard
+              label="Courses in scope"
+              value={enrollments.length.toLocaleString()}
+              icon={<BookOpen className="h-5 w-5" />}
+              detail="Registration, section context, and current coursework remain visible from the same student shell."
+              toneClassName="bg-blue-500/12 text-blue-600 dark:text-blue-400"
+            />
+            <WorkspaceMetricCard
+              label="Confirmed enrollments"
+              value={confirmedCourses.length.toLocaleString()}
+              icon={<GraduationCap className="h-5 w-5" />}
+              detail="Confirmed sections stay close so you can move into schedules, grades, and transcript work without losing context."
+              toneClassName="bg-emerald-500/12 text-emerald-600 dark:text-emerald-400"
+            />
+            <WorkspaceMetricCard
+              label="Pending decisions"
+              value={pendingCourses.length.toLocaleString()}
+              icon={<ClipboardList className="h-5 w-5" />}
+              detail="Anything that still needs attention stays visible before it turns into a registration surprise."
+              toneClassName="bg-amber-500/12 text-amber-600 dark:text-amber-400"
+            />
+            <WorkspaceMetricCard
+              label="Current semester"
+              value={currentSemesterName}
+              icon={<Calendar className="h-5 w-5" />}
+              detail="The dashboard keeps one active academic context so the rest of the student tools stay aligned."
+              toneClassName="bg-violet-500/12 text-violet-600 dark:text-violet-400"
+            />
+          </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Menu Cards */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Quick Access</h2>
-              <div className="grid sm:grid-cols-2 gap-4">
-                {menuItems.map((item, index) => (
-                  <Link 
-                    key={index} 
-                    href={item.href}
-                    className="group"
-                  >
-                    <div className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all">
-                      <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${item.color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`}>
-                        <item.icon className="w-6 h-6 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                          {item.label}
-                        </h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                          {item.description}
-                        </p>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-1 transition-all" />
-                    </div>
-                  </Link>
+          <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+            <WorkspacePanel
+              title="Next actions"
+              description="Open the student tools that usually need attention first during the current term."
+              variant="muted"
+              contentClassName="grid gap-4 sm:grid-cols-2"
+            >
+                {quickActions.map((action) => (
+                  <WorkspaceActionTile
+                    key={action.href}
+                    href={action.href}
+                    icon={<action.icon className="h-5 w-5" />}
+                    title={action.label}
+                    description={action.description}
+                    toneClassName={action.tone}
+                    ctaLabel="Open tool"
+                  />
                 ))}
-              </div>
-            </div>
+            </WorkspacePanel>
 
-            {/* Current Courses */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Current Courses</h2>
-                <Link href="/dashboard/enrollments" className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1">
-                  View All <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
-              
-              {isLoading ? (
-                <div className="space-y-4">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="animate-pulse flex items-center gap-4 p-4">
-                      <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-xl"></div>
-                      <div className="flex-1">
-                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-2"></div>
-                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+            <WorkspacePanel
+              title="Current courses"
+              description="Confirmed enrollments stay visible here so you can check course context before moving deeper into the workspace."
+              variant="muted"
+            >
+                {highlightedCourses.length === 0 ? (
+                  <EmptyState
+                    icon={BookMarked}
+                    title="No confirmed courses yet"
+                    description="Once enrollment is confirmed, your current courses will appear here."
+                    action={
+                      <Link href="/dashboard/register">
+                        <Button>Browse sections</Button>
+                      </Link>
+                    }
+                    className="min-h-[280px] border-none bg-transparent px-0 py-0"
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    {highlightedCourses.map((enrollment) => (
+                      <div
+                        key={enrollment.id}
+                        className="flex items-center gap-4 rounded-lg border border-border/70 bg-card px-4 py-4"
+                      >
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-foreground">
+                          <BookMarked className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium text-foreground">
+                            {enrollment.section?.course?.code} - {enrollment.section?.course?.name}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Section {enrollment.section?.sectionNumber}
+                          </div>
+                        </div>
+                        <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
+                          {enrollment.status}
+                        </span>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : upcomingCourses.length === 0 ? (
-                <div className="text-center py-8">
-                  <BookOpen className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-                  <p className="text-gray-500 dark:text-gray-400">No courses enrolled yet</p>
-                  <Link href="/dashboard/register">
-                    <Button className="mt-4">Register Courses</Button>
-                  </Link>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {upcomingCourses.map((enrollment) => (
-                    <div 
-                      key={enrollment.id}
-                      className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-                        <BookMarked className="w-6 h-6 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-gray-900 dark:text-white">
-                          {enrollment.section?.course?.code} - {enrollment.section?.course?.name}
-                        </h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Section {enrollment.section?.sectionNumber}
-                        </p>
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        enrollment.status === 'CONFIRMED' 
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                          : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                      }`}>
-                        {enrollment.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+            </WorkspacePanel>
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Upcoming Events */}
-              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Upcoming</h2>
-              <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 p-4 text-sm text-gray-500 dark:text-gray-400">
-                No upcoming reminders are loaded yet.
-              </div>
-            </div>
+          <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <WorkspacePanel
+              title="Reference links"
+              description="Keep the supporting student views close without leaving the same session-backed shell."
+              contentClassName="grid gap-4 md:grid-cols-3"
+            >
+                {portalLinks.map((item) => (
+                  <WorkspaceActionTile
+                    key={item.href}
+                    href={item.href}
+                    icon={<item.icon className="h-5 w-5" />}
+                    title={item.label}
+                    description={item.description}
+                    toneClassName={item.tone}
+                    ctaLabel="Open view"
+                    className="bg-secondary/35 hover:bg-secondary/60"
+                  />
+                ))}
+            </WorkspacePanel>
 
-            {/* Announcements Preview */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Announcements</h2>
-                <Link href="/dashboard/announcements" className="text-blue-600 hover:text-blue-700 text-sm">
-                  View All
+            <WorkspacePanel
+              title="Current status"
+              description="A quick read on the active academic context and any follow-up that still needs attention."
+              contentClassName="space-y-4"
+            >
+                <div className="rounded-lg border border-border/70 bg-secondary/30 px-4 py-4">
+                  <div className="text-sm font-semibold text-foreground">
+                    Semester selection
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {currentSemester
+                      ? `The dashboard is using ${currentSemesterName} for the current academic context.`
+                      : 'No preferred semester is active yet.'}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border/70 bg-secondary/30 px-4 py-4">
+                  <div className="text-sm font-semibold text-foreground">
+                    Enrollment health
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {pendingCourses.length > 0
+                      ? `${pendingCourses.length} registration item(s) still need attention.`
+                      : 'No pending registration issues are blocking the current view.'}
+                  </p>
+                </div>
+                <Link href="/dashboard/profile">
+                  <Button variant="outline" className="w-full">
+                    Review profile settings
+                  </Button>
                 </Link>
-              </div>
-              <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 p-4 text-sm text-gray-500 dark:text-gray-400">
-                No announcements loaded yet.
-              </div>
-            </div>
-
-            {/* Help & Support */}
-            <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 text-white">
-              <h3 className="font-semibold mb-2">Need Help?</h3>
-              <p className="text-gray-400 text-sm mb-4">Contact the academic office for assistance</p>
-              <Button variant="outline" className="w-full border-white/20 text-white hover:bg-white/10">
-                Contact Support
-              </Button>
-            </div>
+            </WorkspacePanel>
           </div>
-        </div>
-      </main>
+        </>
+      )}
     </div>
   );
 }

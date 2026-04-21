@@ -1,360 +1,449 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
-import { lecturersApi, departmentsApi } from '@/lib/api';
-import { Button } from '@/components/ui/button';
+import { GraduationCap, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/context/AuthContext';
+import { departmentsApi, lecturersApi } from '@/lib/api';
+import { AdminFrame } from '@/components/admin/AdminFrame';
 import {
-    GraduationCap,
-    Plus,
-    Pencil,
-    Trash2,
-    ArrowLeft,
-    AlertCircle,
-    Search,
-} from 'lucide-react';
+  AdminDialogFooter,
+  AdminFormField,
+  AdminPaginationFooter,
+  AdminRowActions,
+  AdminTableCard,
+  AdminTableScroll,
+  AdminToolbarCard,
+  AdminToolbarMeta,
+} from '@/components/admin/AdminSurface';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Modal } from '@/components/ui/modal';
+import { Select } from '@/components/ui/select';
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@/components/ui/state-block';
+import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 
 interface Lecturer {
-    id: string;
-    employeeId: string;
-    userId: string;
-    departmentId: string;
-    specialization?: string;
-    isActive: boolean;
-    createdAt: string;
-    user?: { firstName: string; lastName: string; email: string };
-    department?: { name: string };
+  id: string;
+  employeeId: string;
+  userId: string;
+  departmentId: string;
+  specialization?: string;
+  isActive: boolean;
+  user?: { firstName: string; lastName: string; email: string };
+  department?: { name: string };
+}
+
+interface Department {
+  id: string;
+  name: string;
 }
 
 export default function AdminLecturersPage() {
-    const { user, logout, isAdmin, isSuperAdmin } = useAuth();
-    const router = useRouter();
-    const [lecturers, setLecturers] = useState<Lecturer[]>([]);
-    const [departments, setDepartments] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [search, setSearch] = useState('');
-    const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [showModal, setShowModal] = useState(false);
-    const [editingLecturer, setEditingLecturer] = useState<Lecturer | null>(null);
-    const [formData, setFormData] = useState({
-        employeeId: '',
-        userId: '',
-        departmentId: '',
-        specialization: '',
-    });
-    const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
+  const { user, isAdmin, isSuperAdmin } = useAuth();
+  const router = useRouter();
+  const [lecturers, setLecturers] = useState<Lecturer[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingLecturer, setEditingLecturer] = useState<Lecturer | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    employeeId: '',
+    userId: '',
+    departmentId: '',
+    specialization: '',
+  });
+  const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
+  const { confirm, confirmationDialog } = useConfirmationDialog();
 
-    useEffect(() => {
-        if (user && !isAdmin && !isSuperAdmin) {
-            router.push('/dashboard');
-        }
-    }, [user, isAdmin, isSuperAdmin, router]);
+  useEffect(() => {
+    if (user && !isAdmin && !isSuperAdmin) {
+      router.push('/dashboard');
+    }
+  }, [user, isAdmin, isSuperAdmin, router]);
 
-    const fetchDepartments = useCallback(async () => {
-        try {
-            const response = await departmentsApi.getAll({ limit: 1000 });
-            setDepartments(response.data);
-        } catch {
-            // Ignore error
-        }
-    }, []);
+  const fetchDepartments = useCallback(async () => {
+    try {
+      const response = await departmentsApi.getAll({ limit: 1000 });
+      setDepartments(response.data || []);
+    } catch {
+      // Department lookup is optional for the table shell.
+    }
+  }, []);
 
-    const fetchLecturers = useCallback(async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const response = await lecturersApi.getAll({ page, limit: 20 });
-            let filteredData = response.data;
-            if (search) {
-                filteredData = response.data.filter((l: Lecturer) =>
-                    l.employeeId.toLowerCase().includes(search.toLowerCase()) ||
-                    l.user?.firstName?.toLowerCase().includes(search.toLowerCase()) ||
-                    l.user?.lastName?.toLowerCase().includes(search.toLowerCase()) ||
-                    l.user?.email?.toLowerCase().includes(search.toLowerCase())
-                );
-            }
-            setLecturers(filteredData);
-            setTotalPages(response.meta?.totalPages || 1);
-        } catch {
-            setError('Failed to load lecturers');
-            toast.error('Failed to load lecturers');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [page, search]);
+  const fetchLecturers = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
 
-    useEffect(() => {
-        if (!canAccess) return;
-        void fetchDepartments();
-    }, [canAccess, fetchDepartments]);
+    try {
+      const response = await lecturersApi.getAll({ page, limit: 20 });
+      const filteredLecturers = search
+        ? response.data.filter((lecturer: Lecturer) => {
+            const fullName = `${lecturer.user?.firstName || ''} ${lecturer.user?.lastName || ''}`
+              .trim()
+              .toLowerCase();
+            const query = search.toLowerCase();
 
-    useEffect(() => {
-        if (!canAccess) return;
-        void fetchLecturers();
-    }, [canAccess, fetchLecturers]);
+            return (
+              lecturer.employeeId.toLowerCase().includes(query) ||
+              lecturer.user?.email?.toLowerCase().includes(query) ||
+              fullName.includes(query)
+            );
+          })
+        : response.data;
 
-    if (!canAccess) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
+      setLecturers(filteredLecturers);
+      setTotalPages(response.meta?.totalPages || 1);
+    } catch {
+      setError('Lecturers could not be loaded.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [page, search]);
+
+  useEffect(() => {
+    if (canAccess) {
+      void fetchDepartments();
+      void fetchLecturers();
+    }
+  }, [canAccess, fetchDepartments, fetchLecturers]);
+
+  const pageSummary = useMemo(() => {
+    if (lecturers.length === 0) {
+      return 'No matching records';
     }
 
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault();
-        setPage(1);
-        fetchLecturers();
-    };
+    return `Page ${page} of ${totalPages}`;
+  }, [lecturers.length, page, totalPages]);
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this lecturer?')) return;
-        
-        try {
-            await lecturersApi.delete(id);
-            toast.success('Lecturer deleted successfully');
-            fetchLecturers();
-        } catch {
-            toast.error('Failed to delete lecturer');
-        }
-    };
+  const departmentOptions = useMemo(
+    () => [
+      { value: '', label: 'Select department' },
+      ...departments.map((department) => ({
+        value: department.id,
+        label: department.name,
+      })),
+    ],
+    [departments],
+  );
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            if (editingLecturer) {
-                await lecturersApi.update(editingLecturer.id, formData);
-                toast.success('Lecturer updated successfully');
-            } else {
-                await lecturersApi.create(formData);
-                toast.success('Lecturer created successfully');
+  if (!canAccess) {
+    return <LoadingState label="Loading lecturers" className="m-8" />;
+  }
+
+  const resetForm = () => {
+    setEditingLecturer(null);
+    setFormData({
+      employeeId: '',
+      userId: '',
+      departmentId: '',
+      specialization: '',
+    });
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const openEdit = (lecturer: Lecturer) => {
+    setEditingLecturer(lecturer);
+    setFormData({
+      employeeId: lecturer.employeeId,
+      userId: lecturer.userId,
+      departmentId: lecturer.departmentId,
+      specialization: lecturer.specialization || '',
+    });
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetForm();
+  };
+
+  const handleSearch = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setPage(1);
+    await fetchLecturers();
+  };
+
+  const handleDelete = async (lecturer: Lecturer) => {
+    const shouldDelete = await confirm({
+      title: 'Delete lecturer',
+      message: `Delete ${lecturer.employeeId}? This removes the lecturer from the current admin view.`,
+      confirmText: 'Delete lecturer',
+      variant: 'destructive',
+    });
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      await lecturersApi.delete(lecturer.id);
+      toast.success('Lecturer deleted');
+      await fetchLecturers();
+    } catch {
+      toast.error('We could not delete that lecturer.');
+    }
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsSaving(true);
+
+    try {
+      if (editingLecturer) {
+        await lecturersApi.update(editingLecturer.id, formData);
+        toast.success('Lecturer updated');
+      } else {
+        await lecturersApi.create(formData);
+        toast.success('Lecturer created');
+      }
+
+      closeModal();
+      await fetchLecturers();
+    } catch (requestError: any) {
+      toast.error(
+        requestError.response?.data?.message ??
+          'The lecturer profile could not be saved.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <AdminFrame
+      title="Lecturers"
+      description="Keep teaching assignments tied to the right people, departments, and profile metadata."
+      backLabel="Back to admin dashboard"
+      actions={
+        <Button onClick={openCreate}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create lecturer
+        </Button>
+      }
+    >
+      <div className="space-y-6">
+        <AdminToolbarCard>
+            <form
+              onSubmit={handleSearch}
+              className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"
+            >
+              <div className="w-full max-w-xl">
+                <label className="mb-2 block text-sm font-medium text-foreground">
+                  Search lecturers
+                </label>
+                <Input
+                  type="text"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by name, email, or employee ID"
+                  icon={<Search className="h-4 w-4" />}
+                />
+              </div>
+              <AdminToolbarMeta
+                summary={pageSummary}
+                actions={
+                  <Button type="submit" variant="outline">
+                    Search
+                  </Button>
+                }
+              />
+            </form>
+        </AdminToolbarCard>
+
+        {error ? (
+          <ErrorState
+            title="Lecturers unavailable"
+            description={error}
+            onRetry={() => void fetchLecturers()}
+          />
+        ) : isLoading ? (
+          <LoadingState label="Loading lecturers" />
+        ) : lecturers.length === 0 ? (
+          <EmptyState
+            icon={GraduationCap}
+            title="No matching lecturers"
+            description="Create a lecturer profile to keep schedules, sections, and grading ownership aligned."
+            action={<Button onClick={openCreate}>Create lecturer</Button>}
+          />
+        ) : (
+          <AdminTableCard
+            title="Lecturer records"
+            footer={
+              <AdminPaginationFooter
+                summary={pageSummary}
+                page={page}
+                totalPages={totalPages}
+                onPrevious={() => setPage((current) => current - 1)}
+                onNext={() => setPage((current) => current + 1)}
+              />
             }
-            setShowModal(false);
-            setEditingLecturer(null);
-            setFormData({ employeeId: '', userId: '', departmentId: '', specialization: '' });
-            fetchLecturers();
-        } catch (err: any) {
-            toast.error(err.response?.data?.message || 'Operation failed');
-        }
-    };
+          >
+              <AdminTableScroll>
+                <table className="w-full min-w-[860px] text-sm">
+                  <thead>
+                    <tr className="border-b border-border/70 text-left text-muted-foreground">
+                      <th className="px-2 py-3 font-medium">Employee ID</th>
+                      <th className="px-2 py-3 font-medium">Lecturer</th>
+                      <th className="px-2 py-3 font-medium">Email</th>
+                      <th className="px-2 py-3 font-medium">Department</th>
+                      <th className="px-2 py-3 font-medium">Specialization</th>
+                      <th className="px-2 py-3 font-medium">Status</th>
+                      <th className="px-2 py-3 text-right font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {lecturers.map((lecturer) => (
+                      <tr key={lecturer.id}>
+                        <td className="px-2 py-4 font-medium text-foreground">
+                          {lecturer.employeeId}
+                        </td>
+                        <td className="px-2 py-4 text-foreground">
+                          {lecturer.user
+                            ? `${lecturer.user.firstName} ${lecturer.user.lastName}`
+                            : 'Unlinked account'}
+                        </td>
+                        <td className="px-2 py-4 text-muted-foreground">
+                          {lecturer.user?.email || 'No email'}
+                        </td>
+                        <td className="px-2 py-4 text-muted-foreground">
+                          {lecturer.department?.name || 'Unassigned'}
+                        </td>
+                        <td className="px-2 py-4 text-muted-foreground">
+                          {lecturer.specialization || 'Not provided'}
+                        </td>
+                        <td className="px-2 py-4">
+                          <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
+                            {lecturer.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-2 py-4">
+                          <AdminRowActions>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => openEdit(lecturer)}
+                              aria-label={`Edit lecturer ${lecturer.employeeId}`}
+                              title={`Edit lecturer ${lecturer.employeeId}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => void handleDelete(lecturer)}
+                              aria-label={`Delete lecturer ${lecturer.employeeId}`}
+                              title={`Delete lecturer ${lecturer.employeeId}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AdminRowActions>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </AdminTableScroll>
+          </AdminTableCard>
+        )}
+      </div>
 
-    const openEdit = (lecturer: Lecturer) => {
-        setEditingLecturer(lecturer);
-        setFormData({
-            employeeId: lecturer.employeeId,
-            userId: lecturer.userId,
-            departmentId: lecturer.departmentId,
-            specialization: lecturer.specialization || '',
-        });
-        setShowModal(true);
-    };
+      <Modal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        title={editingLecturer ? 'Edit lecturer' : 'Create lecturer'}
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <AdminFormField label="Employee ID">
+              <Input
+                type="text"
+                value={formData.employeeId}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    employeeId: event.target.value,
+                  }))
+                }
+                disabled={Boolean(editingLecturer)}
+                required
+              />
+            </AdminFormField>
+            <AdminFormField label="Linked user ID">
+              <Input
+                type="text"
+                value={formData.userId}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    userId: event.target.value,
+                  }))
+                }
+                disabled={Boolean(editingLecturer)}
+                placeholder="Existing user account ID"
+                required
+              />
+            </AdminFormField>
+          </div>
 
-    return (
-        <div className="min-h-screen bg-gray-50">
-            <nav className="bg-slate-800 text-white shadow-sm">
-                <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                        <Link
-                            href="/admin"
-                            className="flex items-center gap-2 text-gray-300 hover:text-white"
-                            aria-label="Back to admin dashboard"
-                            title="Back to admin dashboard"
-                        >
-                            <ArrowLeft className="h-4 w-4" />
-                        </Link>
-                        <h1 className="text-xl font-bold">CampusCore Admin</h1>
-                        <span className="text-gray-500">|</span>
-                        <span className="text-gray-300">Lecturer Management</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <span className="text-gray-300">Welcome, {user?.firstName}</span>
-                        <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>Logout</Button>
-                    </div>
-                </div>
-            </nav>
+          <Select
+            label="Department"
+            value={formData.departmentId}
+            onChange={(event) =>
+              setFormData((current) => ({
+                ...current,
+                departmentId: event.target.value,
+              }))
+            }
+            options={departmentOptions}
+            required
+          />
 
-            <main className="container mx-auto px-4 py-8">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                    <div>
-                        <h2 className="text-2xl font-bold flex items-center gap-2">
-                            <GraduationCap className="h-7 w-7 text-primary" />
-                            Lecturer Management
-                        </h2>
-                        <p className="text-gray-500 mt-1">Manage lecturer profiles</p>
-                    </div>
-                    <Button onClick={() => { setEditingLecturer(null); setFormData({ employeeId: '', userId: '', departmentId: '', specialization: '' }); setShowModal(true); }}>
-                        <Plus className="h-4 w-4 mr-2" /> Create Lecturer
-                    </Button>
-                </div>
+          <AdminFormField label="Specialization">
+            <Input
+              type="text"
+              value={formData.specialization}
+              onChange={(event) =>
+                setFormData((current) => ({
+                  ...current,
+                  specialization: event.target.value,
+                }))
+              }
+              placeholder="Optional subject or field focus"
+            />
+          </AdminFormField>
 
-                <form onSubmit={handleSearch} className="mb-6 flex gap-2">
-                    <div className="relative flex-1 max-w-md">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder="Search by name, email, or employee ID..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                    </div>
-                    <Button type="submit">Search</Button>
-                </form>
+          <AdminDialogFooter>
+            <Button type="button" variant="outline" onClick={closeModal}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSaving}>
+              {isSaving
+                ? 'Saving...'
+                : editingLecturer
+                  ? 'Save changes'
+                  : 'Create lecturer'}
+            </Button>
+          </AdminDialogFooter>
+        </form>
+      </Modal>
 
-                {error && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center mb-6">
-                        <AlertCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
-                        <p className="text-red-600 font-medium mb-2">{error}</p>
-                        <Button variant="outline" onClick={fetchLecturers}>Try Again</Button>
-                    </div>
-                )}
-
-                {!error && (
-                    <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="bg-gray-50 border-b">
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Employee ID</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Name</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Email</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Department</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Specialization</th>
-                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Status</th>
-                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y">
-                                    {lecturers.map((lecturer) => (
-                                        <tr key={lecturer.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-4 py-3 font-medium text-gray-900">{lecturer.employeeId}</td>
-                                            <td className="px-4 py-3 text-gray-600">
-                                                {lecturer.user ? `${lecturer.user.firstName} ${lecturer.user.lastName}` : '-'}
-                                            </td>
-                                            <td className="px-4 py-3 text-gray-600">{lecturer.user?.email || '-'}</td>
-                                            <td className="px-4 py-3 text-gray-600">{lecturer.department?.name || '-'}</td>
-                                            <td className="px-4 py-3 text-gray-600">{lecturer.specialization || '-'}</td>
-                                            <td className="px-4 py-3 text-center">
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                                    lecturer.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                                                }`}>
-                                                    {lecturer.isActive ? 'Active' : 'Inactive'}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3 text-center">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        onClick={() => openEdit(lecturer)}
-                                                        aria-label={`Edit lecturer ${lecturer.employeeId}`}
-                                                        title={`Edit lecturer ${lecturer.employeeId}`}
-                                                    >
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="text-red-600 hover:text-red-700"
-                                                        onClick={() => handleDelete(lecturer.id)}
-                                                        aria-label={`Delete lecturer ${lecturer.employeeId}`}
-                                                        title={`Delete lecturer ${lecturer.employeeId}`}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {lecturers.length === 0 && !isLoading && (
-                            <div className="p-8 text-center">
-                                <GraduationCap className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                                <p className="text-gray-500">No lecturers found</p>
-                            </div>
-                        )}
-
-                        {totalPages > 1 && (
-                            <div className="border-t px-4 py-3 flex justify-between items-center">
-                                <span className="text-sm text-gray-500">Page {page} of {totalPages}</span>
-                                <div className="flex gap-2">
-                                    <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
-                                    <Button size="sm" variant="outline" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </main>
-
-            {showModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
-                        <h3 className="text-lg font-semibold mb-4">{editingLecturer ? 'Edit Lecturer' : 'Create Lecturer'}</h3>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Employee ID *</label>
-                                <input
-                                    type="text"
-                                    value={formData.employeeId}
-                                    onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                                    disabled={!!editingLecturer}
-                                    className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">User ID *</label>
-                                <input
-                                    type="text"
-                                    value={formData.userId}
-                                    onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
-                                    disabled={!!editingLecturer}
-                                    className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100"
-                                    placeholder="Existing user ID to link"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Department *</label>
-                                <select
-                                    value={formData.departmentId}
-                                    onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
-                                    className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                                    required
-                                >
-                                    <option value="">Select Department</option>
-                                    {departments.map(d => (
-                                        <option key={d.id} value={d.id}>{d.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Specialization</label>
-                                <input
-                                    type="text"
-                                    value={formData.specialization}
-                                    onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
-                                    className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                                    placeholder="e.g., Computer Science"
-                                />
-                            </div>
-                            <div className="flex justify-end gap-3 pt-4">
-                                <Button type="button" variant="outline" onClick={() => { setShowModal(false); setEditingLecturer(null); }}>Cancel</Button>
-                                <Button type="submit">{editingLecturer ? 'Update' : 'Create'}</Button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
+      {confirmationDialog}
+    </AdminFrame>
+  );
 }

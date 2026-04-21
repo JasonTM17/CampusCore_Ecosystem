@@ -220,7 +220,7 @@ export interface StudentGradeRecord {
   semesterId: string;
   finalGrade: number | null;
   letterGrade: string | null;
-  gradePoint: number | null;
+  gradePoint?: number | null;
   gradeStatus: 'DRAFT' | 'PUBLISHED' | 'APPEALED';
   enrollmentStatus: 'PENDING' | 'CONFIRMED' | 'DROPPED' | 'COMPLETED' | 'CANCELLED';
 }
@@ -297,16 +297,7 @@ export interface LecturerSection {
   }[];
 }
 
-export interface TranscriptResponse {
-  records: StudentGradeRecord[];
-  summary: {
-    cumulativeGPA: number;
-    totalEarnedCredits: number;
-    totalAttemptedCredits: number;
-    totalCourses: number;
-    gradeCount: number;
-  };
-}
+export type TranscriptResponse = StudentTranscript;
 
 export interface SectionGrades {
   sectionId: string;

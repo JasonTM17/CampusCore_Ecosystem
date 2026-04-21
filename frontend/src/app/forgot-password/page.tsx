@@ -2,15 +2,33 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { ArrowLeft, Mail, RotateCcw } from 'lucide-react';
 import { authApi } from '@/lib/api';
+import { AuthShell } from '@/components/auth/AuthShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { SectionEyebrow } from '@/components/ui/page-header';
 import { toast } from 'sonner';
-import { Mail, ArrowLeft, KeyRound } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
+
+const recoveryFeatures = [
+  {
+    label: 'Verified handoff',
+    description:
+      'Password recovery stays on the same browser contract as sign-in and session refresh.',
+  },
+  {
+    label: 'Clear next steps',
+    description:
+      'The screen keeps recovery guidance visible instead of dropping you into a dead end.',
+  },
+  {
+    label: 'Safer messaging',
+    description:
+      'Responses stay intentionally vague so the flow does not confirm whether an email exists.',
+  },
+];
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -20,83 +38,99 @@ export default function ForgotPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+
     try {
-      await authApi.forgotPassword(email);
+      await authApi.forgotPassword(email.trim());
       setEmailSent(true);
-      toast.success('If the email exists, a reset link has been sent');
-    } catch (error) {
-      toast.error('Failed to send reset email');
+      toast.success('If the email exists, a reset link has been sent.');
+    } catch {
+      toast.error('We could not start password recovery right now.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
-      <div className="absolute top-4 right-4">
-        <ThemeToggle />
-      </div>
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <KeyRound className="h-6 w-6 text-primary" />
+    <AuthShell
+      eyebrow="Password recovery"
+      title="Recover account access without guessing."
+      description="Use your campus email to request a reset link. The response stays consistent whether the account exists or not."
+      features={recoveryFeatures}
+      className="max-w-md"
+    >
+      <div className="space-y-6">
+        <div className="space-y-3">
+          <SectionEyebrow>Recovery flow</SectionEyebrow>
+          <div className="space-y-2">
+            <h2 className="text-3xl font-semibold tracking-tight text-foreground">
+              Forgot password
+            </h2>
+            <p className="text-sm leading-6 text-muted-foreground">
+              {emailSent
+                ? 'The next step is in your email inbox.'
+                : 'Enter your email and we will send password reset instructions.'}
+            </p>
           </div>
-          <CardTitle className="text-xl">Forgot Password</CardTitle>
-          <CardDescription>
-            {emailSent 
-              ? 'Check your email for password reset instructions'
-              : 'Enter your email address and we will send you a link to reset your password'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {emailSent ? (
-            <div className="text-center space-y-4">
-              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <p className="text-sm text-green-700 dark:text-green-400">
-                  We have sent a password reset link to <strong>{email}</strong>
-                </p>
-              </div>
-              <p className="text-sm text-gray-500">
-                Did not receive the email? Check your spam folder or{' '}
-                <button 
-                  onClick={() => setEmailSent(false)} 
-                  className="text-primary hover:underline"
-                >
-                  try again
-                </button>
-              </p>
-              <Link href="/login">
-                <Button variant="outline" className="w-full">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back to Login
+        </div>
+
+        {emailSent ? (
+          <div className="space-y-4 rounded-lg border border-border/70 bg-card/80 p-5">
+            <div className="rounded-lg border border-[hsl(var(--success))/0.3] bg-[hsl(var(--success))/0.08] px-4 py-3 text-sm text-foreground">
+              If an account matches <strong>{email}</strong>, a reset link is on
+              the way.
+            </div>
+            <p className="text-sm leading-6 text-muted-foreground">
+              Check spam or promotions if you do not see the message right away.
+              You can also start over with another address.
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEmailSent(false)}
+                className="sm:flex-1"
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Try another email
+              </Button>
+              <Link href="/login" className="sm:flex-1">
+                <Button variant="default" className="w-full">
+                  Back to sign in
                 </Button>
               </Link>
             </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Email Address</label>
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  required
-                  icon={<Mail className="h-4 w-4" />}
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Sending...' : 'Send Reset Link'}
-              </Button>
-              <p className="text-center text-sm text-gray-500">
-                <Link href="/login" className="text-primary hover:underline">
-                  Back to Login
-                </Link>
-              </p>
-            </form>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Email address
+              </label>
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@university.edu"
+                autoComplete="email"
+                required
+                icon={<Mail className="h-4 w-4" />}
+                hint="Use the address tied to your campus account."
+              />
+            </div>
+
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? 'Sending reset instructions' : 'Send reset link'}
+            </Button>
+          </form>
+        )}
+
+        <p className="text-sm text-muted-foreground">
+          <Link href="/login" className="inline-flex items-center gap-2 font-medium text-primary hover:underline">
+            <ArrowLeft className="h-4 w-4" />
+            Back to sign in
+          </Link>
+        </p>
+      </div>
+    </AuthShell>
   );
 }

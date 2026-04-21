@@ -1,211 +1,296 @@
 'use client';
 
 import { useState } from 'react';
+import { Calendar, KeyRound, Mail, MapPin, Phone, Save, User } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { authApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
+import { WorkspacePanel } from '@/components/dashboard/WorkspaceSurface';
 import { toast } from 'sonner';
-import { User, Mail, Phone, Calendar, MapPin, Camera, Save } from 'lucide-react';
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [formData, setFormData] = useState({
     firstName: user?.firstName || '',
     lastName: user?.lastName || '',
     phone: user?.phone || '',
-    dateOfBirth: user?.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : '',
+    dateOfBirth: user?.dateOfBirth
+      ? new Date(user.dateOfBirth).toISOString().split('T')[0]
+      : '',
     address: user?.address || '',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setProfileError('');
     setIsLoading(true);
+
     try {
       await authApi.updateProfile({
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        phone: formData.phone,
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        phone: formData.phone.trim(),
         dateOfBirth: formData.dateOfBirth || undefined,
-        address: formData.address,
+        address: formData.address.trim(),
       });
-      toast.success('Profile updated successfully');
+      toast.success('Profile updated');
       await refreshUser();
-    } catch (error) {
-      toast.error('Failed to update profile');
+    } catch {
+      const message = 'We could not save your profile changes.';
+      setProfileError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handlePasswordSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setPasswordError('');
+    setIsUpdatingPassword(true);
+
+    const form = e.currentTarget;
+    const oldPassword = (form.elements.namedItem('oldPassword') as HTMLInputElement).value;
+    const newPassword = (form.elements.namedItem('newPassword') as HTMLInputElement).value;
+    const confirmPassword = (form.elements.namedItem('confirmPassword') as HTMLInputElement).value;
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('The new password and confirmation must match.');
+      setIsUpdatingPassword(false);
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordError('Choose a password with at least 8 characters.');
+      setIsUpdatingPassword(false);
+      return;
+    }
+
+    try {
+      await authApi.changePassword(oldPassword, newPassword);
+      toast.success('Password updated');
+      form.reset();
+    } catch (error: any) {
+      const message =
+        error.response?.data?.message || 'We could not update your password.';
+      setPasswordError(message);
+      toast.error(message);
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold dark:text-white">Profile Settings</h1>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow={<SectionEyebrow>Account settings</SectionEyebrow>}
+        title="Profile settings"
+        description="Update personal details, keep contact information current, and rotate credentials without leaving the workspace shell."
+      />
+
+      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <WorkspacePanel
+          title="Account profile"
+          description="Keep the account record aligned with the information your campus teams rely on."
+          contentClassName="space-y-6"
+        >
+            <div className="flex flex-col gap-4 rounded-lg border border-border/70 bg-secondary/35 p-5 sm:flex-row sm:items-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-xl font-semibold text-primary-foreground">
+                {user?.firstName?.[0]}
+                {user?.lastName?.[0]}
+              </div>
+              <div className="space-y-1">
+                <div className="text-lg font-semibold text-foreground">
+                  {user?.firstName} {user?.lastName}
+                </div>
+                <div className="text-sm text-muted-foreground">{user?.email}</div>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {user?.roles?.map((role) => (
+                    <span
+                      key={role}
+                      className="rounded-full bg-card px-2.5 py-1 text-xs font-medium text-foreground"
+                    >
+                      {role}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {profileError ? (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                {profileError}
+              </div>
+            ) : null}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    First name
+                  </label>
+                  <Input
+                    type="text"
+                    value={formData.firstName}
+                    onChange={(e) =>
+                      setFormData((current) => ({ ...current, firstName: e.target.value }))
+                    }
+                    icon={<User className="h-4 w-4" />}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Last name
+                  </label>
+                  <Input
+                    type="text"
+                    value={formData.lastName}
+                    onChange={(e) =>
+                      setFormData((current) => ({ ...current, lastName: e.target.value }))
+                    }
+                    icon={<User className="h-4 w-4" />}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Email</label>
+                  <Input
+                    type="email"
+                    value={user?.email || ''}
+                    disabled
+                    icon={<Mail className="h-4 w-4" />}
+                    hint="Email is managed through your campus account owner."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Phone</label>
+                  <Input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) =>
+                      setFormData((current) => ({ ...current, phone: e.target.value }))
+                    }
+                    placeholder="+66..."
+                    icon={<Phone className="h-4 w-4" />}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Date of birth
+                  </label>
+                  <Input
+                    type="date"
+                    value={formData.dateOfBirth}
+                    onChange={(e) =>
+                      setFormData((current) => ({ ...current, dateOfBirth: e.target.value }))
+                    }
+                    icon={<Calendar className="h-4 w-4" />}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Address</label>
+                  <Input
+                    type="text"
+                    value={formData.address}
+                    onChange={(e) =>
+                      setFormData((current) => ({ ...current, address: e.target.value }))
+                    }
+                    placeholder="Street, city, region"
+                    icon={<MapPin className="h-4 w-4" />}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button type="submit" disabled={isLoading}>
+                  <Save className="mr-2 h-4 w-4" />
+                  {isLoading ? 'Saving changes' : 'Save changes'}
+                </Button>
+              </div>
+            </form>
+        </WorkspacePanel>
+
+        <div className="space-y-6">
+          <WorkspacePanel
+            title="Password and session safety"
+            description="Use a strong password and expect to sign in again after a successful change."
+            variant="muted"
+            contentClassName="space-y-4"
+          >
+              {passwordError ? (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                  {passwordError}
+                </div>
+              ) : null}
+              <form className="space-y-4" onSubmit={handlePasswordSubmit}>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Current password
+                  </label>
+                  <Input
+                    name="oldPassword"
+                    type="password"
+                    placeholder="Enter your current password"
+                    required
+                    icon={<KeyRound className="h-4 w-4" />}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    New password
+                  </label>
+                  <Input
+                    name="newPassword"
+                    type="password"
+                    placeholder="Choose a new password"
+                    required
+                    minLength={8}
+                    hint="Minimum 8 characters. Use something unique to this account."
+                    icon={<KeyRound className="h-4 w-4" />}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Confirm new password
+                  </label>
+                  <Input
+                    name="confirmPassword"
+                    type="password"
+                    placeholder="Confirm the new password"
+                    required
+                    minLength={8}
+                    icon={<KeyRound className="h-4 w-4" />}
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <Button type="submit" disabled={isUpdatingPassword}>
+                    {isUpdatingPassword ? 'Updating password' : 'Update password'}
+                  </Button>
+                </div>
+              </form>
+          </WorkspacePanel>
+
+          <WorkspacePanel
+            title="What changes here"
+            variant="muted"
+            contentClassName="space-y-3 text-sm leading-6 text-muted-foreground"
+          >
+              <p>
+                Profile edits update the browser session view after a successful save.
+              </p>
+              <p>
+                Password rotation stays on the same authenticated route and uses the shared auth contract.
+              </p>
+              <p>
+                Sensitive account ownership fields, such as your email, stay controlled by the service owner instead of an inline edit field.
+              </p>
+          </WorkspacePanel>
+        </div>
       </div>
-
-      {/* Profile Avatar Card */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-6">
-            <div className="relative">
-              <div className="h-32 w-32 rounded-full bg-primary flex items-center justify-center text-white text-3xl font-bold">
-                {user?.firstName?.[0]}{user?.lastName?.[0]}
-              </div>
-              <button
-                type="button"
-                className="absolute bottom-0 right-0 p-2 bg-white dark:bg-gray-800 rounded-full shadow-lg border border-gray-200 dark:border-gray-700"
-                aria-label="Upload profile photo"
-                title="Upload profile photo"
-              >
-                <Camera className="h-4 w-4 dark:text-white" />
-              </button>
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold dark:text-white">{user?.firstName} {user?.lastName}</h2>
-              <p className="text-gray-500 dark:text-gray-400">{user?.email}</p>
-              <div className="flex gap-2 mt-2">
-                {user?.roles?.map((role) => (
-                  <span key={role} className="px-2 py-1 text-xs font-medium bg-primary/10 text-primary rounded">
-                    {role}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Profile Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Personal Information</CardTitle>
-          <CardDescription>Update your personal details</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium dark:text-gray-200">First Name</label>
-                <Input
-                  type="text"
-                  value={formData.firstName}
-                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                  icon={<User className="h-4 w-4" />}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium dark:text-gray-200">Last Name</label>
-                <Input
-                  type="text"
-                  value={formData.lastName}
-                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                  icon={<User className="h-4 w-4" />}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium dark:text-gray-200">Email</label>
-                <Input
-                  type="email"
-                  value={user?.email || ''}
-                  disabled
-                  icon={<Mail className="h-4 w-4" />}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium dark:text-gray-200">Phone</label>
-                <Input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+1234567890"
-                  icon={<Phone className="h-4 w-4" />}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium dark:text-gray-200">Date of Birth</label>
-                <Input
-                  type="date"
-                  value={formData.dateOfBirth}
-                  onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                  icon={<Calendar className="h-4 w-4" />}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium dark:text-gray-200">Address</label>
-                <Input
-                  type="text"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  placeholder="123 Main St, City"
-                  icon={<MapPin className="h-4 w-4" />}
-                />
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <Button type="submit" disabled={isLoading}>
-                <Save className="h-4 w-4 mr-2" />
-                {isLoading ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* Change Password Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Change Password</CardTitle>
-          <CardDescription>Update your password</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={async (e) => {
-            e.preventDefault();
-            const form = e.target as HTMLFormElement;
-            const oldPassword = (form.elements.namedItem('oldPassword') as HTMLInputElement).value;
-            const newPassword = (form.elements.namedItem('newPassword') as HTMLInputElement).value;
-            const confirmPassword = (form.elements.namedItem('confirmPassword') as HTMLInputElement).value;
-
-            if (newPassword !== confirmPassword) {
-              toast.error('New passwords do not match');
-              return;
-            }
-
-            if (newPassword.length < 6) {
-              toast.error('Password must be at least 6 characters');
-              return;
-            }
-
-            try {
-              await authApi.changePassword(oldPassword, newPassword);
-              toast.success('Password updated successfully');
-              form.reset();
-            } catch (error: any) {
-              toast.error(error.response?.data?.message || 'Failed to update password');
-            }
-          }}>
-            <div className="space-y-2">
-              <label className="text-sm font-medium dark:text-gray-200">Current Password</label>
-              <Input name="oldPassword" type="password" placeholder="Enter current password" required />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium dark:text-gray-200">New Password</label>
-              <Input name="newPassword" type="password" placeholder="Enter new password" required minLength={6} />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium dark:text-gray-200">Confirm New Password</label>
-              <Input name="confirmPassword" type="password" placeholder="Confirm new password" required minLength={6} />
-            </div>
-            <div className="flex justify-end">
-              <Button type="submit">
-                Update Password
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
     </div>
   );
 }

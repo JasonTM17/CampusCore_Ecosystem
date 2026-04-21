@@ -1,559 +1,614 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
-import { enrollmentsApi, semestersApi, coursesApi, sectionsApi } from '@/lib/api';
-import { Button } from '@/components/ui/button';
+import { Download, Eye, FileText, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/context/AuthContext';
 import {
-    FileText,
-    Search,
-    ArrowLeft,
-    AlertCircle,
-    Eye,
-    Pencil,
-    Trash2,
-    X,
-    Download,
-} from 'lucide-react';
+  coursesApi,
+  enrollmentsApi,
+  sectionsApi,
+  semestersApi,
+} from '@/lib/api';
+import { AdminFrame } from '@/components/admin/AdminFrame';
+import {
+  AdminDialogFooter,
+  AdminPaginationFooter,
+  AdminRowActions,
+  AdminTableCard,
+  AdminTableScroll,
+  AdminToolbarCard,
+} from '@/components/admin/AdminSurface';
+import { Button } from '@/components/ui/button';
+import { Modal } from '@/components/ui/modal';
+import { Select } from '@/components/ui/select';
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@/components/ui/state-block';
+import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 
 interface Enrollment {
-    id: string;
-    studentId: string;
-    sectionId: string;
-    semesterId: string;
-    status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'DROPPED' | 'CANCELLED';
-    enrolledAt: string;
-    droppedAt?: string;
-    finalGrade?: number;
-    letterGrade?: string;
-    student?: { 
-        user?: { firstName?: string; lastName?: string; email?: string }; 
-        studentCode?: string 
-    };
-    section?: { 
-        sectionNumber: string; 
-        course?: { code?: string; name?: string };
-        lecturer?: { user?: { firstName?: string; lastName?: string } };
-    };
-    semester?: { name: string };
+  id: string;
+  studentId: string;
+  sectionId: string;
+  semesterId: string;
+  status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'DROPPED' | 'CANCELLED';
+  enrolledAt: string;
+  droppedAt?: string;
+  finalGrade?: number;
+  letterGrade?: string;
+  student?: {
+    user?: { firstName?: string; lastName?: string; email?: string };
+    studentCode?: string;
+  };
+  section?: {
+    sectionNumber: string;
+    course?: { code?: string; name?: string };
+    lecturer?: { user?: { firstName?: string; lastName?: string } };
+  };
+  semester?: { name: string };
 }
 
 interface Semester {
-    id: string;
-    name: string;
+  id: string;
+  name: string;
 }
 
 interface Course {
-    id: string;
-    code: string;
-    name: string;
+  id: string;
+  code: string;
+  name: string;
 }
 
 interface Section {
-    id: string;
-    sectionNumber: string;
+  id: string;
+  sectionNumber: string;
 }
 
 const statusColors: Record<string, string> = {
-    'PENDING': 'bg-yellow-100 text-yellow-700',
-    'CONFIRMED': 'bg-blue-100 text-blue-700',
-    'COMPLETED': 'bg-green-100 text-green-700',
-    'DROPPED': 'bg-red-100 text-red-700',
-    'CANCELLED': 'bg-gray-100 text-gray-600',
+  PENDING: 'bg-yellow-100 text-yellow-700',
+  CONFIRMED: 'bg-blue-100 text-blue-700',
+  COMPLETED: 'bg-green-100 text-green-700',
+  DROPPED: 'bg-red-100 text-red-700',
+  CANCELLED: 'bg-muted text-muted-foreground',
 };
 
 export default function AdminEnrollmentsPage() {
-    const { user, logout, isAdmin, isSuperAdmin } = useAuth();
-    const router = useRouter();
-    const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
-    const [semesters, setSemesters] = useState<Semester[]>([]);
-    const [courses, setCourses] = useState<Course[]>([]);
-    const [sections, setSections] = useState<Section[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    
-    const [filters, setFilters] = useState({
-        semesterId: '',
-        courseId: '',
-        sectionId: '',
-        status: '',
-    });
-    
-    const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [total, setTotal] = useState(0);
-    const [selectedEnrollment, setSelectedEnrollment] = useState<Enrollment | null>(null);
-    const [isDetailOpen, setIsDetailOpen] = useState(false);
-    const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
+  const { user, isAdmin, isSuperAdmin } = useAuth();
+  const router = useRouter();
+  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [semesters, setSemesters] = useState<Semester[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [sections, setSections] = useState<Section[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [filters, setFilters] = useState({
+    semesterId: '',
+    courseId: '',
+    sectionId: '',
+    status: '',
+  });
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [selectedEnrollment, setSelectedEnrollment] = useState<Enrollment | null>(
+    null,
+  );
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
+  const { confirm, confirmationDialog } = useConfirmationDialog();
 
-    // Redirect non-admins
-    useEffect(() => {
-        if (user && !isAdmin && !isSuperAdmin) {
-            router.push('/dashboard');
-        }
-    }, [user, isAdmin, isSuperAdmin, router]);
+  useEffect(() => {
+    if (user && !isAdmin && !isSuperAdmin) {
+      router.push('/dashboard');
+    }
+  }, [user, isAdmin, isSuperAdmin, router]);
 
-    const fetchDropdownData = useCallback(async () => {
-        try {
-            const [semestersRes, coursesRes] = await Promise.all([
-                semestersApi.getAll(),
-                coursesApi.getAll({ limit: 1000 }),
-            ]);
-            setSemesters(semestersRes.data);
-            setCourses(coursesRes.data);
-        } catch (err) {
-            console.error('Failed to fetch dropdown data:', err);
-        }
-    }, []);
+  const fetchDropdownData = useCallback(async () => {
+    try {
+      const [semestersResponse, coursesResponse] = await Promise.all([
+        semestersApi.getAll(),
+        coursesApi.getAll({ limit: 1000 }),
+      ]);
+      setSemesters(semestersResponse.data || []);
+      setCourses(coursesResponse.data || []);
+    } catch {
+      // Optional filter data.
+    }
+  }, []);
 
-    const fetchSectionsForCourse = useCallback(async (courseId: string) => {
-        if (!courseId) {
-            setSections([]);
-            return;
-        }
-        try {
-            const res = await sectionsApi.getAll({ courseId, limit: 100 });
-            setSections(res.data);
-        } catch (err) {
-            console.error('Failed to fetch sections:', err);
-        }
-    }, []);
-
-    const fetchEnrollments = useCallback(async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const params: {
-                page: number;
-                limit: number;
-                semesterId?: string;
-                courseId?: string;
-                sectionId?: string;
-                status?: string;
-            } = { page, limit: 20 };
-            if (filters.semesterId) params.semesterId = filters.semesterId;
-            if (filters.courseId) params.courseId = filters.courseId;
-            if (filters.sectionId) params.sectionId = filters.sectionId;
-            if (filters.status) params.status = filters.status;
-
-            const response = await enrollmentsApi.getAll(params);
-            setEnrollments(response.data);
-            setTotalPages(response.meta?.totalPages || 1);
-            setTotal(response.meta?.total || 0);
-        } catch (err) {
-            setError('Failed to load enrollments');
-            toast.error('Failed to load enrollments');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [filters.courseId, filters.sectionId, filters.semesterId, filters.status, page]);
-
-    useEffect(() => {
-        if (!canAccess) return;
-        void fetchDropdownData();
-    }, [canAccess, fetchDropdownData]);
-
-    useEffect(() => {
-        if (!canAccess) return;
-        void fetchEnrollments();
-    }, [canAccess, fetchEnrollments]);
-
-    useEffect(() => {
-        if (!canAccess) return;
-        if (filters.courseId) {
-            void fetchSectionsForCourse(filters.courseId);
-        } else {
-            setSections([]);
-        }
-    }, [canAccess, fetchSectionsForCourse, filters.courseId]);
-
-    if (!canAccess) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
+  const fetchSectionsForCourse = useCallback(async (courseId: string) => {
+    if (!courseId) {
+      setSections([]);
+      return;
     }
 
-    const handleFilterChange = (key: string, value: string) => {
-        setFilters(prev => ({ ...prev, [key]: value }));
-        if (key !== 'courseId' && key !== 'sectionId') {
-            setPage(1);
-        }
-        if (key === 'courseId') {
-            setFilters(prev => ({ ...prev, sectionId: '' }));
-        }
-    };
+    try {
+      const response = await sectionsApi.getAll({ courseId, limit: 100 });
+      setSections(response.data || []);
+    } catch {
+      setSections([]);
+    }
+  }, []);
 
-    const handleClearFilters = () => {
-        setFilters({ semesterId: '', courseId: '', sectionId: '', status: '' });
-        setPage(1);
-    };
+  const fetchEnrollments = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
 
-    const handleViewDetail = async (enrollment: Enrollment) => {
-        try {
-            const fullEnrollment = await enrollmentsApi.getById(enrollment.id);
-            setSelectedEnrollment(fullEnrollment);
-            setIsDetailOpen(true);
-        } catch (err) {
-            toast.error('Failed to load enrollment details');
-        }
-    };
+    try {
+      const params: {
+        page: number;
+        limit: number;
+        semesterId?: string;
+        courseId?: string;
+        sectionId?: string;
+        status?: string;
+      } = { page, limit: 20 };
+      if (filters.semesterId) params.semesterId = filters.semesterId;
+      if (filters.courseId) params.courseId = filters.courseId;
+      if (filters.sectionId) params.sectionId = filters.sectionId;
+      if (filters.status) params.status = filters.status;
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this enrollment? This action cannot be undone.')) return;
-        
-        try {
-            await enrollmentsApi.delete(id);
-            toast.success('Enrollment deleted successfully');
-            fetchEnrollments();
-        } catch (err) {
-            toast.error('Failed to delete enrollment');
-        }
-    };
+      const response = await enrollmentsApi.getAll(params);
+      setEnrollments(response.data || []);
+      setTotalPages(response.meta?.totalPages || 1);
+      setTotal(response.meta?.total || 0);
+    } catch {
+      setError('Enrollments could not be loaded.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [filters.courseId, filters.sectionId, filters.semesterId, filters.status, page]);
 
-    const handleExportCsv = async () => {
-        try {
-            const csvData = await enrollmentsApi.exportCsv(filters);
-            const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `enrollments_${new Date().toISOString().split('T')[0]}.csv`;
-            link.click();
-            toast.success('Export successful');
-        } catch (err) {
-            toast.error('Failed to export enrollments');
-        }
-    };
+  useEffect(() => {
+    if (canAccess) {
+      void fetchDropdownData();
+      void fetchEnrollments();
+    }
+  }, [canAccess, fetchDropdownData, fetchEnrollments]);
 
-    return (
-        <div className="min-h-screen bg-gray-50">
-            <nav className="bg-slate-800 text-white shadow-sm">
-                <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                        <Link
-                            href="/admin"
-                            className="flex items-center gap-2 text-gray-300 hover:text-white"
-                            aria-label="Back to admin dashboard"
-                            title="Back to admin dashboard"
-                        >
-                            <ArrowLeft className="h-4 w-4" />
-                        </Link>
-                        <h1 className="text-xl font-bold">CampusCore Admin</h1>
-                        <span className="text-gray-500">|</span>
-                        <span className="text-gray-300">Enrollment Management</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <span className="text-gray-300">Welcome, {user?.firstName}</span>
-                        <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>Logout</Button>
-                    </div>
+  useEffect(() => {
+    if (canAccess) {
+      void fetchSectionsForCourse(filters.courseId);
+    }
+  }, [canAccess, fetchSectionsForCourse, filters.courseId]);
+
+  const semesterOptions = useMemo(
+    () => [
+      { value: '', label: 'All semesters' },
+      ...semesters.map((semester) => ({
+        value: semester.id,
+        label: semester.name,
+      })),
+    ],
+    [semesters],
+  );
+
+  const courseOptions = useMemo(
+    () => [
+      { value: '', label: 'All courses' },
+      ...courses.map((course) => ({
+        value: course.id,
+        label: `${course.code} - ${course.name}`,
+      })),
+    ],
+    [courses],
+  );
+
+  const sectionOptions = useMemo(
+    () => [
+      { value: '', label: 'All sections' },
+      ...sections.map((section) => ({
+        value: section.id,
+        label: section.sectionNumber,
+      })),
+    ],
+    [sections],
+  );
+
+  const statusOptions = useMemo(
+    () => [
+      { value: '', label: 'All statuses' },
+      { value: 'PENDING', label: 'Pending' },
+      { value: 'CONFIRMED', label: 'Confirmed' },
+      { value: 'COMPLETED', label: 'Completed' },
+      { value: 'DROPPED', label: 'Dropped' },
+      { value: 'CANCELLED', label: 'Cancelled' },
+    ],
+    [],
+  );
+
+  if (!canAccess) {
+    return <LoadingState label="Loading enrollments" className="m-8" />;
+  }
+
+  const handleClearFilters = () => {
+    setFilters({ semesterId: '', courseId: '', sectionId: '', status: '' });
+    setPage(1);
+  };
+
+  const handleViewDetail = async (enrollment: Enrollment) => {
+    try {
+      const fullEnrollment = await enrollmentsApi.getById(enrollment.id);
+      setSelectedEnrollment(fullEnrollment);
+      setIsDetailOpen(true);
+    } catch {
+      toast.error('Enrollment details could not be loaded.');
+    }
+  };
+
+  const handleDelete = async (enrollment: Enrollment) => {
+    const learnerLabel = enrollment.student?.user
+      ? `${enrollment.student.user.firstName} ${enrollment.student.user.lastName}`
+      : enrollment.studentId;
+
+    const shouldDelete = await confirm({
+      title: 'Delete enrollment',
+      message: `Delete ${learnerLabel}'s enrollment? This action cannot be undone.`,
+      confirmText: 'Delete enrollment',
+      variant: 'destructive',
+    });
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      await enrollmentsApi.delete(enrollment.id);
+      toast.success('Enrollment deleted');
+      await fetchEnrollments();
+    } catch {
+      toast.error('We could not delete that enrollment.');
+    }
+  };
+
+  const handleExportCsv = async () => {
+    try {
+      const csvData = await enrollmentsApi.exportCsv(filters);
+      const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `enrollments_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      toast.success('Enrollment export started');
+    } catch {
+      toast.error('Enrollments could not be exported.');
+    }
+  };
+
+  return (
+    <AdminFrame
+      title="Enrollments"
+      description="Track registration flow, identify status drift, and review section-level enrollment details from one place."
+      backLabel="Back to admin dashboard"
+      actions={
+        <Button variant="outline" onClick={() => void handleExportCsv()}>
+          <Download className="mr-2 h-4 w-4" />
+          Export CSV
+        </Button>
+      }
+    >
+      <div className="space-y-6">
+        <AdminToolbarCard>
+            <div className="grid gap-4 xl:grid-cols-5">
+              <Select
+                label="Semester"
+                value={filters.semesterId}
+                onChange={(event) => {
+                  setFilters((current) => ({
+                    ...current,
+                    semesterId: event.target.value,
+                  }));
+                  setPage(1);
+                }}
+                options={semesterOptions}
+              />
+              <Select
+                label="Course"
+                value={filters.courseId}
+                onChange={(event) => {
+                  setFilters((current) => ({
+                    ...current,
+                    courseId: event.target.value,
+                    sectionId: '',
+                  }));
+                  setPage(1);
+                }}
+                options={courseOptions}
+              />
+              <Select
+                label="Section"
+                value={filters.sectionId}
+                onChange={(event) => {
+                  setFilters((current) => ({
+                    ...current,
+                    sectionId: event.target.value,
+                  }));
+                  setPage(1);
+                }}
+                options={sectionOptions}
+                disabled={!filters.courseId}
+              />
+              <Select
+                label="Status"
+                value={filters.status}
+                onChange={(event) => {
+                  setFilters((current) => ({
+                    ...current,
+                    status: event.target.value,
+                  }));
+                  setPage(1);
+                }}
+                options={statusOptions}
+              />
+              <div className="flex items-end gap-2">
+                <Button variant="outline" onClick={handleClearFilters}>
+                  Clear filters
+                </Button>
+                <div className="text-sm text-muted-foreground">
+                  {total} enrollments
                 </div>
-            </nav>
+              </div>
+            </div>
+        </AdminToolbarCard>
 
-            <main className="container mx-auto px-4 py-8">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                    <div>
-                        <h2 className="text-2xl font-bold flex items-center gap-2">
-                            <FileText className="h-7 w-7 text-primary" />
-                            Enrollment Management
-                        </h2>
-                        <p className="text-gray-500 mt-1">View and manage course enrollments</p>
-                    </div>
-                    <div className="text-sm text-gray-500">
-                        Total: {total} enrollments
-                    </div>
-                    <Button variant="outline" onClick={handleExportCsv}>
-                        <Download className="h-4 w-4 mr-2" />
-                        Export CSV
-                    </Button>
-                </div>
+        {error ? (
+          <ErrorState
+            title="Enrollments unavailable"
+            description={error}
+            onRetry={() => void fetchEnrollments()}
+          />
+        ) : isLoading ? (
+          <LoadingState label="Loading enrollments" />
+        ) : enrollments.length === 0 ? (
+          <EmptyState
+            icon={FileText}
+            title="No matching enrollments"
+            description="When students start registering, this view will show course, section, semester, and final status in one place."
+          />
+        ) : (
+          <AdminTableCard
+            title="Enrollment records"
+            footer={
+              <AdminPaginationFooter
+                summary={`Page ${page} of ${totalPages}`}
+                page={page}
+                totalPages={totalPages}
+                onPrevious={() => setPage((current) => current - 1)}
+                onNext={() => setPage((current) => current + 1)}
+              />
+            }
+          >
+              <AdminTableScroll>
+                <table className="w-full min-w-[1100px] text-sm">
+                  <thead>
+                    <tr className="border-b border-border/70 text-left text-muted-foreground">
+                      <th className="px-2 py-3 font-medium">Student</th>
+                      <th className="px-2 py-3 font-medium">Course</th>
+                      <th className="px-2 py-3 font-medium">Section</th>
+                      <th className="px-2 py-3 font-medium">Semester</th>
+                      <th className="px-2 py-3 font-medium">Lecturer</th>
+                      <th className="px-2 py-3 font-medium">Status</th>
+                      <th className="px-2 py-3 font-medium">Enrolled date</th>
+                      <th className="px-2 py-3 text-right font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {enrollments.map((enrollment) => {
+                      const learnerLabel = enrollment.student?.user
+                        ? `${enrollment.student.user.firstName} ${enrollment.student.user.lastName}`
+                        : enrollment.studentId;
 
-                {/* Filters */}
-                <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
-                    <div className="flex flex-wrap items-end gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
-                            <select
-                                value={filters.semesterId}
-                                onChange={(e) => handleFilterChange('semesterId', e.target.value)}
-                                className="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary min-w-[180px]"
-                            >
-                                <option value="">All Semesters</option>
-                                {semesters.map(s => (
-                                    <option key={s.id} value={s.id}>{s.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Course</label>
-                            <select
-                                value={filters.courseId}
-                                onChange={(e) => handleFilterChange('courseId', e.target.value)}
-                                className="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary min-w-[180px]"
-                            >
-                                <option value="">All Courses</option>
-                                {courses.map(c => (
-                                    <option key={c.id} value={c.id}>{c.code} - {c.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
-                            <select
-                                value={filters.sectionId}
-                                onChange={(e) => handleFilterChange('sectionId', e.target.value)}
-                                className="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary min-w-[120px]"
-                                disabled={!filters.courseId}
-                            >
-                                <option value="">All Sections</option>
-                                {sections.map(s => (
-                                    <option key={s.id} value={s.id}>{s.sectionNumber}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                            <select
-                                value={filters.status}
-                                onChange={(e) => handleFilterChange('status', e.target.value)}
-                                className="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary min-w-[140px]"
-                            >
-                                <option value="">All Statuses</option>
-                                <option value="PENDING">Pending</option>
-                                <option value="CONFIRMED">Confirmed</option>
-                                <option value="COMPLETED">Completed</option>
-                                <option value="DROPPED">Dropped</option>
-                                <option value="CANCELLED">Cancelled</option>
-                            </select>
-                        </div>
-                        <Button variant="outline" onClick={handleClearFilters}>
-                            Clear Filters
-                        </Button>
-                    </div>
-                </div>
-
-                {/* Error State */}
-                {error && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center mb-6">
-                        <AlertCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
-                        <p className="text-red-600 font-medium mb-2">{error}</p>
-                        <Button variant="outline" onClick={fetchEnrollments}>Try Again</Button>
-                    </div>
-                )}
-
-                {/* Enrollments Table */}
-                {!error && (
-                    <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="bg-gray-50 border-b">
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Student</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Course</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Section</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Semester</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Lecturer</th>
-                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Status</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Enrolled Date</th>
-                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y">
-                                    {enrollments.map((enrollment) => (
-                                        <tr key={enrollment.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-4 py-3">
-                                                <div>
-                                                    <p className="font-medium text-gray-900">
-                                                        {enrollment.student?.user ? 
-                `${enrollment.student.user?.firstName} ${enrollment.student.user?.lastName}`
-                                                            : enrollment.studentId}
-                                                    </p>
-                                                    <p className="text-gray-500 text-xs">{enrollment.student?.user?.email}</p>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <div>
-                                                    <p className="font-medium text-gray-900">{enrollment.section?.course?.code}</p>
-                                                    <p className="text-gray-500 text-xs">{enrollment.section?.course?.name}</p>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3 text-gray-600">{enrollment.section?.sectionNumber}</td>
-                                            <td className="px-4 py-3 text-gray-600">{enrollment.semester?.name || '-'}</td>
-                                            <td className="px-4 py-3 text-gray-600">
-                                                {enrollment.section?.lecturer?.user ? 
-                `${enrollment.section.lecturer.user?.firstName} ${enrollment.section.lecturer.user?.lastName}`
-                                                    : '-'}
-                                            </td>
-                                            <td className="px-4 py-3 text-center">
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[enrollment.status] || 'bg-gray-100 text-gray-600'}`}>
-                                                    {enrollment.status}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3 text-gray-600">
-                                                {new Date(enrollment.enrolledAt).toLocaleDateString()}
-                                            </td>
-                                            <td className="px-4 py-3 text-center">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        onClick={() => handleViewDetail(enrollment)}
-                                                        aria-label={`View enrollment details for ${enrollment.student?.user ? `${enrollment.student.user?.firstName} ${enrollment.student.user?.lastName}` : enrollment.studentId}`}
-                                                        title={`View enrollment details for ${enrollment.student?.user ? `${enrollment.student.user?.firstName} ${enrollment.student.user?.lastName}` : enrollment.studentId}`}
-                                                    >
-                                                        <Eye className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="text-red-600 hover:text-red-700"
-                                                        onClick={() => handleDelete(enrollment.id)}
-                                                        aria-label={`Delete enrollment for ${enrollment.student?.user ? `${enrollment.student.user?.firstName} ${enrollment.student.user?.lastName}` : enrollment.studentId}`}
-                                                        title={`Delete enrollment for ${enrollment.student?.user ? `${enrollment.student.user?.firstName} ${enrollment.student.user?.lastName}` : enrollment.studentId}`}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Empty state */}
-                        {enrollments.length === 0 && !isLoading && (
-                            <div className="p-8 text-center">
-                                <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                                <p className="text-gray-500">No enrollments found</p>
+                      return (
+                        <tr key={enrollment.id}>
+                          <td className="px-2 py-4">
+                            <div className="space-y-1">
+                              <p className="font-medium text-foreground">
+                                {learnerLabel}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {enrollment.student?.user?.email || 'No email'}
+                              </p>
                             </div>
-                        )}
-
-                        {/* Loading */}
-                        {isLoading && (
-                            <div className="p-8 text-center">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                          </td>
+                          <td className="px-2 py-4">
+                            <div className="space-y-1">
+                              <p className="font-medium text-foreground">
+                                {enrollment.section?.course?.code || 'Unknown course'}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {enrollment.section?.course?.name || 'No course name'}
+                              </p>
                             </div>
-                        )}
-
-                        {/* Pagination */}
-                        {totalPages > 1 && !isLoading && (
-                            <div className="border-t px-4 py-3 flex justify-between items-center">
-                                <span className="text-sm text-gray-500">Page {page} of {totalPages}</span>
-                                <div className="flex gap-2">
-                                    <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
-                                    <Button size="sm" variant="outline" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </main>
-
-            {/* Detail Modal */}
-            {isDetailOpen && selectedEnrollment && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto">
-                    <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl p-6 my-8 mx-4">
-                        <div className="flex justify-between items-start mb-4">
-                            <h3 className="text-lg font-semibold">Enrollment Details</h3>
-                            <Button
+                          </td>
+                          <td className="px-2 py-4 text-muted-foreground">
+                            {enrollment.section?.sectionNumber || 'Unknown section'}
+                          </td>
+                          <td className="px-2 py-4 text-muted-foreground">
+                            {enrollment.semester?.name || 'Unassigned'}
+                          </td>
+                          <td className="px-2 py-4 text-muted-foreground">
+                            {enrollment.section?.lecturer?.user
+                              ? `${enrollment.section.lecturer.user.firstName} ${enrollment.section.lecturer.user.lastName}`
+                              : 'Unassigned'}
+                          </td>
+                          <td className="px-2 py-4">
+                            <span
+                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusColors[enrollment.status] || 'bg-secondary text-foreground'}`}
+                            >
+                              {enrollment.status}
+                            </span>
+                          </td>
+                          <td className="px-2 py-4 text-muted-foreground">
+                            {new Date(enrollment.enrolledAt).toLocaleDateString()}
+                          </td>
+                          <td className="px-2 py-4">
+                            <AdminRowActions>
+                              <Button
+                                size="icon"
                                 variant="ghost"
-                                size="sm"
-                                onClick={() => setIsDetailOpen(false)}
-                                aria-label="Close enrollment details"
-                                title="Close enrollment details"
-                            >
-                                <X className="h-4 w-4" />
-                            </Button>
-                        </div>
-                        
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-500">Student</label>
-                                    <p className="text-gray-900">
-                                        {selectedEnrollment.student?.user?.firstName} {selectedEnrollment.student?.user?.lastName}
-                                    </p>
-                                    <p className="text-sm text-gray-500">{selectedEnrollment.student?.user?.email}</p>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-500">Status</label>
-                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[selectedEnrollment.status] || 'bg-gray-100 text-gray-600'}`}>
-                                        {selectedEnrollment.status}
-                                    </span>
-                                </div>
-                            </div>
+                                onClick={() => void handleViewDetail(enrollment)}
+                                aria-label={`View enrollment details for ${learnerLabel}`}
+                                title={`View enrollment details for ${learnerLabel}`}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                onClick={() => void handleDelete(enrollment)}
+                                aria-label={`Delete enrollment for ${learnerLabel}`}
+                                title={`Delete enrollment for ${learnerLabel}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AdminRowActions>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </AdminTableScroll>
+          </AdminTableCard>
+        )}
+      </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-500">Course</label>
-                                    <p className="text-gray-900">
-                                        {selectedEnrollment.section?.course?.code} - {selectedEnrollment.section?.course?.name}
-                                    </p>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-500">Section</label>
-                                    <p className="text-gray-900">{selectedEnrollment.section?.sectionNumber}</p>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-500">Semester</label>
-                                    <p className="text-gray-900">{selectedEnrollment.semester?.name || '-'}</p>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-500">Lecturer</label>
-                                    <p className="text-gray-900">
-                                        {selectedEnrollment.section?.lecturer?.user ? 
-                `${selectedEnrollment.section.lecturer.user?.firstName} ${selectedEnrollment.section.lecturer.user?.lastName}`
-                                            : '-'}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-500">Enrolled Date</label>
-                                    <p className="text-gray-900">
-                                        {new Date(selectedEnrollment.enrolledAt).toLocaleString()}
-                                    </p>
-                                </div>
-                                {selectedEnrollment.droppedAt && (
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-500">Dropped Date</label>
-                                        <p className="text-gray-900">
-                                            {new Date(selectedEnrollment.droppedAt).toLocaleString()}
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-
-                            {selectedEnrollment.finalGrade && (
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-500">Final Grade</label>
-                                        <p className="text-gray-900">{selectedEnrollment.finalGrade}</p>
-                                    </div>
-                                    {selectedEnrollment.letterGrade && (
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-500">Letter Grade</label>
-                                            <p className="text-gray-900">{selectedEnrollment.letterGrade}</p>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="mt-6 flex justify-end">
-                            <Button variant="outline" onClick={() => setIsDetailOpen(false)}>Close</Button>
-                        </div>
-                    </div>
+      <Modal
+        isOpen={isDetailOpen}
+        onClose={() => setIsDetailOpen(false)}
+        title="Enrollment details"
+        closeLabel="Close enrollment details"
+        className="max-w-2xl"
+      >
+        {selectedEnrollment ? (
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  Student
+                </label>
+                <p className="mt-1 text-foreground">
+                  {selectedEnrollment.student?.user?.firstName}{' '}
+                  {selectedEnrollment.student?.user?.lastName}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedEnrollment.student?.user?.email || 'No email'}
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  Status
+                </label>
+                <div className="mt-1">
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusColors[selectedEnrollment.status] || 'bg-secondary text-foreground'}`}
+                  >
+                    {selectedEnrollment.status}
+                  </span>
                 </div>
-            )}
-        </div>
-    );
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  Course
+                </label>
+                <p className="mt-1 text-foreground">
+                  {selectedEnrollment.section?.course?.code} -{' '}
+                  {selectedEnrollment.section?.course?.name}
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  Section
+                </label>
+                <p className="mt-1 text-foreground">
+                  {selectedEnrollment.section?.sectionNumber}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  Semester
+                </label>
+                <p className="mt-1 text-foreground">
+                  {selectedEnrollment.semester?.name || 'Unassigned'}
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  Lecturer
+                </label>
+                <p className="mt-1 text-foreground">
+                  {selectedEnrollment.section?.lecturer?.user
+                    ? `${selectedEnrollment.section.lecturer.user.firstName} ${selectedEnrollment.section.lecturer.user.lastName}`
+                    : 'Unassigned'}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  Enrolled at
+                </label>
+                <p className="mt-1 text-foreground">
+                  {new Date(selectedEnrollment.enrolledAt).toLocaleString()}
+                </p>
+              </div>
+              {selectedEnrollment.droppedAt ? (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Dropped at
+                  </label>
+                  <p className="mt-1 text-foreground">
+                    {new Date(selectedEnrollment.droppedAt).toLocaleString()}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+
+            {selectedEnrollment.finalGrade ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Final grade
+                  </label>
+                  <p className="mt-1 text-foreground">
+                    {selectedEnrollment.finalGrade}
+                  </p>
+                </div>
+                {selectedEnrollment.letterGrade ? (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">
+                      Letter grade
+                    </label>
+                    <p className="mt-1 text-foreground">
+                      {selectedEnrollment.letterGrade}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            <AdminDialogFooter className="pt-0">
+              <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
+                Close
+              </Button>
+            </AdminDialogFooter>
+          </div>
+        ) : null}
+      </Modal>
+
+      {confirmationDialog}
+    </AdminFrame>
+  );
 }

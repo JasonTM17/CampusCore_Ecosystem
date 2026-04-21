@@ -25,7 +25,7 @@ import {
   SectionSchedule,
 } from '@/types/api';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 type ApiObject = Record<string, unknown>;
 type AuthRequestConfig = AxiosRequestConfig & {
   skipAuthRefresh?: boolean;
@@ -174,6 +174,16 @@ function isBrowser() {
   return typeof window !== 'undefined' && typeof document !== 'undefined';
 }
 
+function redirectToLogin(reason: 'session-expired' | 'unauthorized') {
+  if (!isBrowser()) {
+    return;
+  }
+
+  const loginUrl = new URL('/login', window.location.origin);
+  loginUrl.searchParams.set('reason', reason);
+  window.location.href = loginUrl.toString();
+}
+
 function getCookie(name: string): string | undefined {
   if (!isBrowser()) {
     return undefined;
@@ -259,7 +269,7 @@ api.interceptors.response.use(
         return api(originalConfig);
       } catch (refreshError) {
         if (isBrowser() && !originalConfig.skipAuthRedirect) {
-          window.location.href = '/login';
+          redirectToLogin('session-expired');
         }
 
         return Promise.reject(refreshError);
@@ -267,7 +277,7 @@ api.interceptors.response.use(
     }
 
     if (unauthorized && isBrowser() && originalConfig && !originalConfig.skipAuthRedirect) {
-      window.location.href = '/login';
+      redirectToLogin('unauthorized');
     }
 
     return Promise.reject(error);
@@ -323,7 +333,14 @@ export const authApi = {
   },
 
   logout: async (): Promise<void> => {
-    await api.post('/auth/logout', {});
+    await api.post(
+      '/auth/logout',
+      {},
+      {
+        skipAuthRefresh: true,
+        skipAuthRedirect: true,
+      } as AuthRequestConfig,
+    );
   },
 
   refresh: async (): Promise<LoginResponse> => {
@@ -603,8 +620,8 @@ export const gradesApi = {
     return response.data;
   },
 
-  getMyTranscript: async (semesterId?: string): Promise<TranscriptResponse> => {
-    const response = await api.get<TranscriptResponse>(
+  getMyTranscript: async (semesterId?: string): Promise<StudentTranscript> => {
+    const response = await api.get<StudentTranscript>(
       '/enrollments/my/transcript',
       { params: { semesterId } },
     );

@@ -19,6 +19,7 @@ const analyticsDir = path.join(repoRoot, 'analytics-service');
 const frontendDir = path.join(repoRoot, 'frontend');
 const logsDir = path.join(frontendDir, 'test-results', 'fast-e2e-stack');
 const playwrightCli = path.join(frontendDir, 'node_modules', 'playwright', 'cli.js');
+const nextCli = path.join(frontendDir, 'node_modules', 'next', 'dist', 'bin', 'next');
 
 const postgresContainer =
   process.env.E2E_POSTGRES_CONTAINER ?? 'campuscore-fast-e2e-postgres';
@@ -85,6 +86,14 @@ const academicApiPrefixes = [
   '/api/v1/waitlist'
 ];
 
+function nestStartArgs(serviceDir) {
+  return [path.join(serviceDir, 'node_modules', '@nestjs', 'cli', 'bin', 'nest.js'), 'start'];
+}
+
+function frontendDevArgs() {
+  return [nextCli, 'dev', '--hostname', '127.0.0.1', '--port', '3100'];
+}
+
 async function main() {
   await rm(logsDir, { recursive: true, force: true });
   await mkdir(logsDir, { recursive: true });
@@ -145,6 +154,7 @@ async function main() {
     throw error;
   } finally {
     await stopApplicationServers();
+    await cleanupManagedPortListeners();
 
     if (!keepPostgres) {
       await cleanupPostgres();
@@ -291,7 +301,7 @@ async function prepareDatabase() {
 }
 
 async function startApplicationServers() {
-  await startManagedProcess('backend', 'npm', ['run', 'start'], {
+  await startManagedProcess('backend', process.execPath, nestStartArgs(backendDir), {
     cwd: backendDir,
     env: {
       ...process.env,
@@ -308,7 +318,7 @@ async function startApplicationServers() {
     }
   });
 
-  await startManagedProcess('auth-service', 'npm', ['run', 'start'], {
+  await startManagedProcess('auth-service', process.execPath, nestStartArgs(authDir), {
     cwd: authDir,
     env: {
       ...process.env,
@@ -326,7 +336,11 @@ async function startApplicationServers() {
     }
   });
 
-  await startManagedProcess('notification-service', 'npm', ['run', 'start'], {
+  await startManagedProcess(
+    'notification-service',
+    process.execPath,
+    nestStartArgs(notificationDir),
+    {
     cwd: notificationDir,
     env: {
       ...process.env,
@@ -340,7 +354,7 @@ async function startApplicationServers() {
     }
   });
 
-  await startManagedProcess('finance-service', 'npm', ['run', 'start'], {
+  await startManagedProcess('finance-service', process.execPath, nestStartArgs(financeDir), {
     cwd: financeDir,
     env: {
       ...process.env,
@@ -356,7 +370,11 @@ async function startApplicationServers() {
     }
   });
 
-  await startManagedProcess('academic-service', 'npm', ['run', 'start'], {
+  await startManagedProcess(
+    'academic-service',
+    process.execPath,
+    nestStartArgs(academicDir),
+    {
     cwd: academicDir,
     env: {
       ...process.env,
@@ -371,7 +389,11 @@ async function startApplicationServers() {
     }
   });
 
-  await startManagedProcess('engagement-service', 'npm', ['run', 'start'], {
+  await startManagedProcess(
+    'engagement-service',
+    process.execPath,
+    nestStartArgs(engagementDir),
+    {
     cwd: engagementDir,
     env: {
       ...process.env,
@@ -385,7 +407,7 @@ async function startApplicationServers() {
     }
   });
 
-  await startManagedProcess('people-service', 'npm', ['run', 'start'], {
+  await startManagedProcess('people-service', process.execPath, nestStartArgs(peopleDir), {
     cwd: peopleDir,
     env: {
       ...process.env,
@@ -402,7 +424,11 @@ async function startApplicationServers() {
     }
   });
 
-  await startManagedProcess('analytics-service', 'npm', ['run', 'start'], {
+  await startManagedProcess(
+    'analytics-service',
+    process.execPath,
+    nestStartArgs(analyticsDir),
+    {
     cwd: analyticsDir,
     env: {
       ...process.env,
@@ -420,8 +446,8 @@ async function startApplicationServers() {
 
   await startManagedProcess(
     'frontend',
-    'npm',
-    ['run', 'dev', '--', '--hostname', '127.0.0.1', '--port', '3100'],
+    process.execPath,
+    frontendDevArgs(),
     {
       cwd: frontendDir,
       env: {
@@ -619,10 +645,14 @@ function waitForExit(child, timeoutMs) {
 
 async function terminateManagedProcess(child) {
   if (process.platform === 'win32') {
-    await run('taskkill', ['/pid', String(child.pid), '/t', '/f'], {
-      allowFailure: true,
-      captureOutput: true
-    });
+    killProcess(child.pid);
+    await waitForExit(child, 5_000);
+
+    if (child.exitCode === null && child.signalCode === null) {
+      killProcess(child.pid);
+      await waitForExit(child, 5_000);
+    }
+
     return;
   }
 
@@ -632,6 +662,71 @@ async function terminateManagedProcess(child) {
   if (child.exitCode === null && child.signalCode === null) {
     signalUnixProcessTree(child.pid, 'SIGKILL');
     await waitForExit(child, 5_000);
+  }
+}
+
+function killProcess(pid) {
+  if (!pid) {
+    return;
+  }
+
+  try {
+    process.kill(pid, 'SIGKILL');
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ESRCH') {
+      return;
+    }
+
+    throw error;
+  }
+}
+
+async function cleanupManagedPortListeners() {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  const managedPorts = new Set([
+    backendPort,
+    authPort,
+    notificationPort,
+    financePort,
+    academicPort,
+    engagementPort,
+    peoplePort,
+    analyticsPort,
+    proxyPort,
+    Number(new URL(frontendBaseURL).port || '80')
+  ]);
+  const output = await run('netstat', ['-ano'], {
+    allowFailure: true,
+    captureOutput: true
+  });
+  const listenerPids = new Set();
+
+  for (const line of (output ?? '').split(/\r?\n/u)) {
+    if (!/\bLISTENING\b/u.test(line)) {
+      continue;
+    }
+
+    const parts = line.trim().split(/\s+/u);
+    const localAddress = parts[1] ?? '';
+    const pid = Number(parts[parts.length - 1]);
+    const portMatch = localAddress.match(/:(\d+)$/u);
+
+    if (!portMatch || Number.isNaN(pid) || pid <= 0) {
+      continue;
+    }
+
+    if (managedPorts.has(Number(portMatch[1]))) {
+      listenerPids.add(pid);
+    }
+  }
+
+  for (const pid of listenerPids) {
+    if (pid !== process.pid) {
+      killProcess(pid);
+    }
   }
 }
 

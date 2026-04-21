@@ -1,29 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { ArrowRight, BarChart3, Bell, BookMarked, BookOpen, Building2, CreditCard, DoorOpen, FileText, GraduationCap, School, TrendingUp, UserPlus, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { analyticsApi } from '@/lib/api';
+import { AdminFrame } from '@/components/admin/AdminFrame';
+import { AdminMetricCard, AdminTableCard } from '@/components/admin/AdminSurface';
 import { Button } from '@/components/ui/button';
-import { 
-  Users, 
-  BookOpen, 
-  GraduationCap,
-  Calendar,
-  FileText,
-  CreditCard,
-  Bell,
-  BarChart3,
-  Building2,
-  DoorOpen,
-  School,
-  ArrowRight,
-  TrendingUp,
-  UserPlus,
-  BookMarked,
-  Clock
-} from 'lucide-react';
+import { ErrorState, LoadingState } from '@/components/ui/state-block';
 
 interface QuickStats {
   totalStudents: number;
@@ -33,106 +19,96 @@ interface QuickStats {
 }
 
 const menuItems = [
-  { 
-    href: '/admin/users', 
-    icon: Users, 
-    label: 'User Management', 
-    description: 'Manage user accounts, roles, and permissions',
-    color: 'from-blue-500 to-blue-600',
-    bgColor: 'bg-blue-50 dark:bg-blue-900/20'
+  {
+    href: '/admin/users',
+    icon: Users,
+    label: 'User management',
+    description: 'Review campus accounts, statuses, and role assignments.',
+    tone: 'bg-blue-500/12 text-blue-600 dark:text-blue-400',
   },
-  { 
-    href: '/admin/lecturers', 
-    icon: School, 
-    label: 'Lecturers', 
-    description: 'Manage lecturer profiles and assignments',
-    color: 'from-purple-500 to-purple-600',
-    bgColor: 'bg-purple-50 dark:bg-purple-900/20'
+  {
+    href: '/admin/lecturers',
+    icon: School,
+    label: 'Lecturers',
+    description: 'Manage lecturer records and academic ownership data.',
+    tone: 'bg-violet-500/12 text-violet-600 dark:text-violet-400',
   },
-  { 
-    href: '/admin/courses', 
-    icon: BookOpen, 
-    label: 'Courses', 
-    description: 'Create and manage courses and curricula',
-    color: 'from-amber-500 to-amber-600',
-    bgColor: 'bg-amber-50 dark:bg-amber-900/20'
+  {
+    href: '/admin/courses',
+    icon: BookOpen,
+    label: 'Courses',
+    description: 'Maintain catalog structure, codes, and course metadata.',
+    tone: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400',
   },
-  { 
-    href: '/admin/sections', 
-    icon: BookMarked, 
-    label: 'Sections', 
-    description: 'Manage class sections and capacity',
-    color: 'from-cyan-500 to-cyan-600',
-    bgColor: 'bg-cyan-50 dark:bg-cyan-900/20'
+  {
+    href: '/admin/sections',
+    icon: BookMarked,
+    label: 'Sections',
+    description: 'Watch capacity, section ownership, and classroom attachment.',
+    tone: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
   },
-  { 
-    href: '/admin/enrollments', 
-    icon: FileText, 
-    label: 'Enrollments', 
-    description: 'View and manage course enrollments',
-    color: 'from-indigo-500 to-indigo-600',
-    bgColor: 'bg-indigo-50 dark:bg-indigo-900/20'
+  {
+    href: '/admin/enrollments',
+    icon: FileText,
+    label: 'Enrollments',
+    description: 'Inspect registration outcomes and enrollment-level actions.',
+    tone: 'bg-cyan-500/12 text-cyan-600 dark:text-cyan-400',
   },
-  { 
-    href: '/admin/semesters', 
-    icon: Calendar, 
-    label: 'Semesters', 
-    description: 'Manage academic semesters and years',
-    color: 'from-rose-500 to-rose-600',
-    bgColor: 'bg-rose-50 dark:bg-rose-900/20'
+  {
+    href: '/admin/semesters',
+    icon: GraduationCap,
+    label: 'Semesters',
+    description: 'Control the academic timeline and current registration window.',
+    tone: 'bg-pink-500/12 text-pink-600 dark:text-pink-400',
   },
-  { 
-    href: '/admin/departments', 
-    icon: Building2, 
-    label: 'Departments', 
-    description: 'Manage academic departments',
-    color: 'from-teal-500 to-teal-600',
-    bgColor: 'bg-teal-50 dark:bg-teal-900/20'
+  {
+    href: '/admin/departments',
+    icon: Building2,
+    label: 'Departments',
+    description: 'Manage departmental structure and faculty mappings.',
+    tone: 'bg-teal-500/12 text-teal-600 dark:text-teal-400',
   },
-  { 
-    href: '/admin/classrooms', 
-    icon: DoorOpen, 
-    label: 'Classrooms', 
-    description: 'Manage rooms and facilities',
-    color: 'from-orange-500 to-orange-600',
-    bgColor: 'bg-orange-50 dark:bg-orange-900/20'
+  {
+    href: '/admin/classrooms',
+    icon: DoorOpen,
+    label: 'Classrooms',
+    description: 'Track rooms, buildings, and capacity readiness.',
+    tone: 'bg-orange-500/12 text-orange-600 dark:text-orange-400',
   },
-  { 
-    href: '/admin/analytics', 
-    icon: BarChart3, 
-    label: 'Analytics', 
-    description: 'View campus statistics and insights',
-    color: 'from-violet-500 to-violet-600',
-    bgColor: 'bg-violet-50 dark:bg-violet-900/20'
+  {
+    href: '/admin/analytics',
+    icon: BarChart3,
+    label: 'Analytics',
+    description: 'Review operational reporting and top-level data health.',
+    tone: 'bg-indigo-500/12 text-indigo-600 dark:text-indigo-400',
   },
-  { 
-    href: '/admin/invoices', 
-    icon: CreditCard, 
-    label: 'Invoices', 
-    description: 'Manage tuition invoices and payments',
-    color: 'from-green-500 to-green-600',
-    bgColor: 'bg-green-50 dark:bg-green-900/20'
+  {
+    href: '/admin/invoices',
+    icon: CreditCard,
+    label: 'Invoices',
+    description: 'Handle tuition invoicing, balances, and payment review.',
+    tone: 'bg-lime-500/12 text-lime-600 dark:text-lime-400',
   },
-  { 
-    href: '/admin/announcements', 
-    icon: Bell, 
-    label: 'Announcements', 
-    description: 'Create and manage announcements',
-    color: 'from-pink-500 to-pink-600',
-    bgColor: 'bg-pink-50 dark:bg-pink-900/20'
+  {
+    href: '/admin/announcements',
+    icon: Bell,
+    label: 'Announcements',
+    description: 'Publish updates that flow out to the rest of the campus.',
+    tone: 'bg-rose-500/12 text-rose-600 dark:text-rose-400',
   },
 ];
 
 export default function AdminDashboardPage() {
-  const { user, logout, isAdmin, isSuperAdmin } = useAuth();
+  const { user, isAdmin, isSuperAdmin } = useAuth();
   const router = useRouter();
   const [stats, setStats] = useState<QuickStats>({
     totalStudents: 0,
     totalLecturers: 0,
     totalCourses: 0,
-    totalEnrollments: 0
+    totalEnrollments: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (user && !isAdmin && !isSuperAdmin) {
@@ -140,146 +116,146 @@ export default function AdminDashboardPage() {
     }
   }, [user, isAdmin, isSuperAdmin, router]);
 
-  useEffect(() => {
-    if (user && (isAdmin || isSuperAdmin)) {
-      fetchStats();
-    }
-  }, [user, isAdmin, isSuperAdmin]);
+  const fetchStats = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
 
-  const fetchStats = async () => {
     try {
       const data = await analyticsApi.getOverview();
       setStats({
         totalStudents: data.totalStudents || 0,
         totalLecturers: data.totalLecturers || 0,
         totalCourses: data.totalCourses || 0,
-        totalEnrollments: data.totalEnrollments || 0
+        totalEnrollments: data.totalEnrollments || 0,
       });
-    } catch (error) {
-      console.error('Failed to fetch stats:', error);
+    } catch {
+      setError('Campus overview is not available right now.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!user || (!isAdmin && !isSuperAdmin)) {
+      return;
+    }
+
+    void fetchStats();
+  }, [fetchStats, isAdmin, isSuperAdmin, user]);
 
   if (!user || (!isAdmin && !isSuperAdmin)) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <LoadingState label="Loading admin workspace" className="m-8" />;
   }
 
   const statCards = [
-    { label: 'Total Students', value: stats.totalStudents, icon: GraduationCap, color: 'from-blue-500 to-cyan-500' },
-    { label: 'Total Lecturers', value: stats.totalLecturers, icon: School, color: 'from-purple-500 to-pink-500' },
-    { label: 'Total Courses', value: stats.totalCourses, icon: BookOpen, color: 'from-emerald-500 to-teal-500' },
-    { label: 'Total Enrollments', value: stats.totalEnrollments, icon: TrendingUp, color: 'from-amber-500 to-orange-500' },
+    {
+      label: 'Students',
+      value: stats.totalStudents,
+      icon: Users,
+      detail: 'People records reachable through the current ownership model.',
+      tone: 'bg-blue-500/12 text-blue-600 dark:text-blue-400',
+    },
+    {
+      label: 'Lecturers',
+      value: stats.totalLecturers,
+      icon: School,
+      detail: 'Active lecturer accounts and teaching-facing identities.',
+      tone: 'bg-violet-500/12 text-violet-600 dark:text-violet-400',
+    },
+    {
+      label: 'Courses',
+      value: stats.totalCourses,
+      icon: BookOpen,
+      detail: 'Catalog rows available for section planning and registration.',
+      tone: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400',
+    },
+    {
+      label: 'Enrollments',
+      value: stats.totalEnrollments,
+      icon: TrendingUp,
+      detail: 'Enrollment rows reflected across academic and analytics views.',
+      tone: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
+    },
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-slate-900 via-blue-900 to-slate-900 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-                <p className="text-blue-200 mt-1">Welcome back, {user?.firstName}! Campus overview is ready.</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button 
-                variant="outline" 
-                className="border-white/20 text-white hover:bg-white/10"
-                onClick={logout}
-              >
-                Logout
-              </Button>
-            </div>
-          </div>
-
-          {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
-            {statCards.map((stat, index) => (
-              <div 
-                key={index}
-                className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10 hover:bg-white/20 transition-all"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-blue-200 text-sm">{stat.label}</p>
-                    <p className="text-2xl font-bold mt-1">
-                      {isLoading ? '...' : stat.value.toLocaleString()}
-                    </p>
-                  </div>
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-lg`}>
-                    <stat.icon className="w-6 h-6 text-white" />
-                  </div>
-                </div>
-              </div>
+    <AdminFrame
+      title="Admin dashboard"
+      description="Keep the campus workspace aligned across people, academics, finance, and reporting without leaving the admin shell."
+      actions={
+        <>
+          <Button asChild variant="outline">
+            <Link href="/admin/users">
+              <UserPlus className="mr-2 h-4 w-4" />
+              Add user
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/admin/analytics">Open analytics</Link>
+          </Button>
+        </>
+      }
+    >
+      {error ? (
+        <ErrorState
+          title="Admin overview unavailable"
+          description={error}
+          onRetry={() => void fetchStats()}
+        />
+      ) : isLoading ? (
+        <LoadingState label="Loading campus overview" />
+      ) : (
+        <div className="space-y-8">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {statCards.map((stat) => (
+              <AdminMetricCard
+                key={stat.label}
+                label={stat.label}
+                value={stat.value.toLocaleString()}
+                icon={<stat.icon className="h-5 w-5" />}
+                detail={stat.detail}
+                toneClassName={stat.tone}
+              />
             ))}
           </div>
-        </div>
-      </div>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Management Console</h2>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Access all administration tools and features</p>
-        </div>
-
-        {/* Menu Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {menuItems.map((item, index) => (
-            <Link 
-              key={index} 
-              href={item.href}
-              className="group"
-            >
-              <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600 hover:shadow-xl hover:shadow-gray-500/10 transition-all duration-300">
-                <div className="flex items-start justify-between">
-                  <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${item.color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-                    <item.icon className="w-7 h-7 text-white" />
+          <AdminTableCard
+            title="Management console"
+            description="Jump straight into the workspace that needs attention. Each area keeps the same admin shell, confirmation flow, and route grammar."
+            contentClassName="space-y-0"
+          >
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {menuItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="group rounded-lg border border-border/70 bg-card px-5 py-5 transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <div className="flex h-full flex-col gap-4">
+                    <div
+                      className={`flex h-11 w-11 items-center justify-center rounded-lg ${item.tone}`}
+                    >
+                      <item.icon className="h-5 w-5" />
+                    </div>
+                    <div className="space-y-3">
+                      <h3 className="text-lg font-semibold text-foreground transition-colors group-hover:text-primary">
+                        {item.label}
+                      </h3>
+                      <p className="text-sm leading-6 text-muted-foreground">
+                        {item.description}
+                      </p>
+                    </div>
+                    <div className="mt-auto flex items-center gap-2 text-sm font-medium text-primary">
+                      <span>Open workspace</span>
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                    </div>
                   </div>
-                  <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-1 transition-all" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-4 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                  {item.label}
-                </h3>
-                <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-                  {item.description}
-                </p>
-              </div>
-            </Link>
-          ))}
+                </Link>
+              ))}
+            </div>
+          </AdminTableCard>
         </div>
-
-        {/* Quick Actions */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link href="/admin/users" className="group">
-            <div className="bg-gradient-to-r from-blue-600 to-cyan-600 rounded-2xl p-6 text-white hover:shadow-xl hover:shadow-blue-500/25 transition-all">
-              <UserPlus className="w-8 h-8 mb-3" />
-              <h3 className="font-semibold text-lg">Add New User</h3>
-              <p className="text-blue-100 text-sm mt-1">Create new student, lecturer, or admin accounts</p>
-            </div>
-          </Link>
-          <Link href="/admin/analytics" className="group">
-            <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl p-6 text-white hover:shadow-xl hover:shadow-purple-500/25 transition-all">
-              <BarChart3 className="w-8 h-8 mb-3" />
-              <h3 className="font-semibold text-lg">View Reports</h3>
-              <p className="text-purple-100 text-sm mt-1">Access detailed analytics and insights</p>
-            </div>
-          </Link>
-          <Link href="/admin/announcements" className="group">
-            <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-6 text-white hover:shadow-xl hover:shadow-emerald-500/25 transition-all">
-              <Bell className="w-8 h-8 mb-3" />
-              <h3 className="font-semibold text-lg">Post Announcement</h3>
-              <p className="text-emerald-100 text-sm mt-1">Broadcast messages to users</p>
-            </div>
-          </Link>
-        </div>
-      </main>
-    </div>
+      )}
+    </AdminFrame>
   );
 }

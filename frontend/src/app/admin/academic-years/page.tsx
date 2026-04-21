@@ -1,320 +1,383 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { CalendarRange, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { academicYearsApi } from '@/lib/api';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { AdminFrame } from '@/components/admin/AdminFrame';
 import {
-    CalendarRange,
-    Plus,
-    Pencil,
-    Trash2,
-    ArrowLeft,
-    AlertCircle,
-    Search,
-} from 'lucide-react';
+  AdminDialogFooter,
+  AdminFormField,
+  AdminPaginationFooter,
+  AdminRowActions,
+  AdminTableCard,
+  AdminTableScroll,
+  AdminToolbarCard,
+  AdminToolbarMeta,
+} from '@/components/admin/AdminSurface';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Modal } from '@/components/ui/modal';
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@/components/ui/state-block';
+import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
+import { toast } from 'sonner';
 
 interface AcademicYear {
-    id: string;
-    year: number;
-    startDate: string;
-    endDate: string;
-    isActive?: boolean;
-    isCurrent?: boolean;
-    createdAt?: string;
+  id: string;
+  year: number;
+  startDate: string;
+  endDate: string;
+  isActive?: boolean;
+  isCurrent?: boolean;
 }
 
 export default function AdminAcademicYearsPage() {
-    const { user, logout, isAdmin, isSuperAdmin } = useAuth();
-    const router = useRouter();
-    const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [search, setSearch] = useState('');
-    const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [showModal, setShowModal] = useState(false);
-    const [editingYear, setEditingYear] = useState<AcademicYear | null>(null);
-    const [formData, setFormData] = useState({
-        year: new Date().getFullYear(),
-        startDate: '',
-        endDate: '',
-    });
-    const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
+  const { user, isAdmin, isSuperAdmin } = useAuth();
+  const router = useRouter();
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingYear, setEditingYear] = useState<AcademicYear | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    year: new Date().getFullYear(),
+    startDate: '',
+    endDate: '',
+  });
+  const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
+  const { confirm, confirmationDialog } = useConfirmationDialog();
 
-    useEffect(() => {
-        if (user && !isAdmin && !isSuperAdmin) {
-            router.push('/dashboard');
-        }
-    }, [user, isAdmin, isSuperAdmin, router]);
+  useEffect(() => {
+    if (user && !isAdmin && !isSuperAdmin) {
+      router.push('/dashboard');
+    }
+  }, [user, isAdmin, isSuperAdmin, router]);
 
-    const fetchAcademicYears = useCallback(async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const response = await academicYearsApi.getAll({ page, limit: 20 });
-            let filteredData = response.data;
-            if (search) {
-                filteredData = response.data.filter((y: AcademicYear) =>
-                    y.year.toString().includes(search)
-                );
-            }
-            setAcademicYears(filteredData);
-            setTotalPages(response.meta?.totalPages || 1);
-        } catch {
-            setError('Failed to load academic years');
-            toast.error('Failed to load academic years');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [page, search]);
+  const fetchAcademicYears = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
 
-    useEffect(() => {
-        if (canAccess) {
-            void fetchAcademicYears();
-        }
-    }, [canAccess, fetchAcademicYears]);
+    try {
+      const response = await academicYearsApi.getAll({ page, limit: 20 });
+      const filteredYears = search
+        ? response.data.filter((entry) =>
+            entry.year.toString().includes(search.trim()),
+          )
+        : response.data;
 
-    if (!canAccess) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
+      setAcademicYears(filteredYears);
+      setTotalPages(response.meta?.totalPages || 1);
+    } catch {
+      setError('Academic years could not be loaded.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [page, search]);
+
+  useEffect(() => {
+    if (canAccess) {
+      void fetchAcademicYears();
+    }
+  }, [canAccess, fetchAcademicYears]);
+
+  const pageSummary = useMemo(() => {
+    if (academicYears.length === 0) {
+      return 'No matching records';
     }
 
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault();
-        setPage(1);
-        fetchAcademicYears();
-    };
+    return `Page ${page} of ${totalPages}`;
+  }, [academicYears.length, page, totalPages]);
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this academic year?')) return;
-        
-        try {
-            await academicYearsApi.delete(id);
-            toast.success('Academic year deleted successfully');
-            fetchAcademicYears();
-        } catch {
-            toast.error('Failed to delete academic year');
-        }
-    };
+  if (!canAccess) {
+    return <LoadingState label="Loading academic years" className="m-8" />;
+  }
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            if (editingYear) {
-                await academicYearsApi.update(editingYear.id, formData);
-                toast.success('Academic year updated successfully');
-            } else {
-                await academicYearsApi.create(formData);
-                toast.success('Academic year created successfully');
+  const resetForm = () => {
+    setEditingYear(null);
+    setFormData({
+      year: new Date().getFullYear(),
+      startDate: '',
+      endDate: '',
+    });
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const openEdit = (year: AcademicYear) => {
+    setEditingYear(year);
+    setFormData({
+      year: year.year,
+      startDate: year.startDate.split('T')[0],
+      endDate: year.endDate.split('T')[0],
+    });
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetForm();
+  };
+
+  const handleSearch = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setPage(1);
+    await fetchAcademicYears();
+  };
+
+  const handleDelete = async (record: AcademicYear) => {
+    const shouldDelete = await confirm({
+      title: 'Delete academic year',
+      message: `Delete ${record.year}? This removes the academic year from the current admin view.`,
+      confirmText: 'Delete academic year',
+      variant: 'destructive',
+    });
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      await academicYearsApi.delete(record.id);
+      toast.success('Academic year deleted');
+      await fetchAcademicYears();
+    } catch {
+      toast.error('We could not delete that academic year.');
+    }
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsSaving(true);
+
+    try {
+      if (editingYear) {
+        await academicYearsApi.update(editingYear.id, formData);
+        toast.success('Academic year updated');
+      } else {
+        await academicYearsApi.create(formData);
+        toast.success('Academic year created');
+      }
+
+      closeModal();
+      await fetchAcademicYears();
+    } catch (requestError: any) {
+      toast.error(
+        requestError.response?.data?.message ??
+          'The academic year could not be saved.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <AdminFrame
+      title="Academic years"
+      description="Keep the academic calendar clean, searchable, and deliberate before semesters and registration windows build on top of it."
+      backLabel="Back to admin dashboard"
+      actions={
+        <Button onClick={openCreate}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create academic year
+        </Button>
+      }
+    >
+      <div className="space-y-6">
+        <AdminToolbarCard>
+            <form
+              onSubmit={handleSearch}
+              className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"
+            >
+              <div className="w-full max-w-xl">
+                <label className="mb-2 block text-sm font-medium text-foreground">
+                  Search academic years
+                </label>
+                <Input
+                  type="text"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by year"
+                  icon={<Search className="h-4 w-4" />}
+                />
+              </div>
+              <AdminToolbarMeta
+                summary={pageSummary}
+                actions={
+                  <Button type="submit" variant="outline">
+                    Search
+                  </Button>
+                }
+              />
+            </form>
+        </AdminToolbarCard>
+
+        {error ? (
+          <ErrorState
+            title="Academic years unavailable"
+            description={error}
+            onRetry={() => void fetchAcademicYears()}
+          />
+        ) : isLoading ? (
+          <LoadingState label="Loading academic years" />
+        ) : academicYears.length === 0 ? (
+          <EmptyState
+            icon={CalendarRange}
+            title="No matching academic years"
+            description="Create a new academic year to give semester planning a clean anchor."
+            action={<Button onClick={openCreate}>Create academic year</Button>}
+          />
+        ) : (
+          <AdminTableCard
+            title="Academic year records"
+            footer={
+              <AdminPaginationFooter
+                summary={pageSummary}
+                page={page}
+                totalPages={totalPages}
+                onPrevious={() => setPage((current) => current - 1)}
+                onNext={() => setPage((current) => current + 1)}
+              />
             }
-            setShowModal(false);
-            setEditingYear(null);
-            setFormData({ year: new Date().getFullYear(), startDate: '', endDate: '' });
-            fetchAcademicYears();
-        } catch (err: any) {
-            toast.error(err.response?.data?.message || 'Operation failed');
-        }
-    };
+          >
+              <AdminTableScroll>
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead>
+                    <tr className="border-b border-border/70 text-left text-muted-foreground">
+                      <th className="px-2 py-3 font-medium">Year</th>
+                      <th className="px-2 py-3 font-medium">Start date</th>
+                      <th className="px-2 py-3 font-medium">End date</th>
+                      <th className="px-2 py-3 font-medium">Status</th>
+                      <th className="px-2 py-3 text-right font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {academicYears.map((record) => (
+                      <tr key={record.id}>
+                        <td className="px-2 py-4 font-medium text-foreground">
+                          {record.year}
+                        </td>
+                        <td className="px-2 py-4 text-muted-foreground">
+                          {new Date(record.startDate).toLocaleDateString()}
+                        </td>
+                        <td className="px-2 py-4 text-muted-foreground">
+                          {new Date(record.endDate).toLocaleDateString()}
+                        </td>
+                        <td className="px-2 py-4">
+                          <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
+                            {record.isActive || record.isCurrent ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-2 py-4">
+                          <AdminRowActions>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => openEdit(record)}
+                              aria-label={`Edit academic year ${record.year}`}
+                              title={`Edit academic year ${record.year}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => void handleDelete(record)}
+                              aria-label={`Delete academic year ${record.year}`}
+                              title={`Delete academic year ${record.year}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AdminRowActions>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </AdminTableScroll>
+          </AdminTableCard>
+        )}
+      </div>
 
-    const openEdit = (year: AcademicYear) => {
-        setEditingYear(year);
-        setFormData({
-            year: year.year,
-            startDate: year.startDate.split('T')[0],
-            endDate: year.endDate.split('T')[0],
-        });
-        setShowModal(true);
-    };
+      <Modal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        title={editingYear ? 'Edit academic year' : 'Create academic year'}
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <AdminFormField label="Year">
+            <Input
+              type="number"
+              min="2000"
+              max="2100"
+              value={formData.year}
+              onChange={(event) =>
+                setFormData((current) => ({
+                  ...current,
+                  year: Number(event.target.value) || new Date().getFullYear(),
+                }))
+              }
+              required
+              />
+          </AdminFormField>
 
-    return (
-        <div className="min-h-screen bg-gray-50">
-            <nav className="bg-slate-800 text-white shadow-sm">
-                <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                        <Link
-                            href="/admin"
-                            className="flex items-center gap-2 text-gray-300 hover:text-white"
-                            aria-label="Back to admin dashboard"
-                            title="Back to admin dashboard"
-                        >
-                            <ArrowLeft className="h-4 w-4" />
-                        </Link>
-                        <h1 className="text-xl font-bold">CampusCore Admin</h1>
-                        <span className="text-gray-500">|</span>
-                        <span className="text-gray-300">Academic Year Management</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <span className="text-gray-300">Welcome, {user?.firstName}</span>
-                        <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>Logout</Button>
-                    </div>
-                </div>
-            </nav>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <AdminFormField label="Start date">
+              <Input
+                type="date"
+                value={formData.startDate}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    startDate: event.target.value,
+                  }))
+                }
+                required
+              />
+            </AdminFormField>
+            <AdminFormField label="End date">
+              <Input
+                type="date"
+                value={formData.endDate}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    endDate: event.target.value,
+                  }))
+                }
+                required
+              />
+            </AdminFormField>
+          </div>
 
-            <main className="container mx-auto px-4 py-8">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                    <div>
-                        <h2 className="text-2xl font-bold flex items-center gap-2">
-                            <CalendarRange className="h-7 w-7 text-primary" />
-                            Academic Year Management
-                        </h2>
-                        <p className="text-gray-500 mt-1">Manage academic years</p>
-                    </div>
-                    <Button onClick={() => { setEditingYear(null); setFormData({ year: new Date().getFullYear(), startDate: '', endDate: '' }); setShowModal(true); }}>
-                        <Plus className="h-4 w-4 mr-2" /> Create Academic Year
-                    </Button>
-                </div>
+          <AdminDialogFooter>
+            <Button type="button" variant="outline" onClick={closeModal}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSaving}>
+              {isSaving
+                ? 'Saving...'
+                : editingYear
+                  ? 'Save changes'
+                  : 'Create academic year'}
+            </Button>
+          </AdminDialogFooter>
+        </form>
+      </Modal>
 
-                <form onSubmit={handleSearch} className="mb-6 flex gap-2">
-                    <div className="relative flex-1 max-w-md">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder="Search by year (e.g., 2026)..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                    </div>
-                    <Button type="submit">Search</Button>
-                </form>
-
-                {error && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center mb-6">
-                        <AlertCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
-                        <p className="text-red-600 font-medium mb-2">{error}</p>
-                        <Button variant="outline" onClick={fetchAcademicYears}>Try Again</Button>
-                    </div>
-                )}
-
-                {!error && (
-                    <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="bg-gray-50 border-b">
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Year</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Start Date</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">End Date</th>
-                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Status</th>
-                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y">
-                                    {academicYears.map((year) => (
-                                        <tr key={year.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-4 py-3 font-medium text-gray-900">{year.year}</td>
-                                            <td className="px-4 py-3 text-gray-600">{new Date(year.startDate).toLocaleDateString()}</td>
-                                            <td className="px-4 py-3 text-gray-600">{new Date(year.endDate).toLocaleDateString()}</td>
-                                            <td className="px-4 py-3 text-center">
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                                    (year.isActive ?? year.isCurrent) ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                                                }`}>
-                                                    {(year.isActive ?? year.isCurrent) ? 'Active' : 'Inactive'}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3 text-center">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        onClick={() => openEdit(year)}
-                                                        aria-label={`Edit academic year ${year.year}`}
-                                                        title={`Edit academic year ${year.year}`}
-                                                    >
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="text-red-600 hover:text-red-700"
-                                                        onClick={() => handleDelete(year.id)}
-                                                        aria-label={`Delete academic year ${year.year}`}
-                                                        title={`Delete academic year ${year.year}`}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {academicYears.length === 0 && !isLoading && (
-                            <div className="p-8 text-center">
-                                <CalendarRange className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                                <p className="text-gray-500">No academic years found</p>
-                            </div>
-                        )}
-
-                        {totalPages > 1 && (
-                            <div className="border-t px-4 py-3 flex justify-between items-center">
-                                <span className="text-sm text-gray-500">Page {page} of {totalPages}</span>
-                                <div className="flex gap-2">
-                                    <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
-                                    <Button size="sm" variant="outline" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </main>
-
-            {showModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
-                        <h3 className="text-lg font-semibold mb-4">{editingYear ? 'Edit Academic Year' : 'Create Academic Year'}</h3>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Year *</label>
-                                <input
-                                    type="number"
-                                    min="2000"
-                                    max="2100"
-                                    value={formData.year}
-                                    onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
-                                    className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                                    required
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Start Date *</label>
-                                    <input
-                                        type="date"
-                                        value={formData.startDate}
-                                        onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                                        className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">End Date *</label>
-                                    <input
-                                        type="date"
-                                        value={formData.endDate}
-                                        onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                                        className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            <div className="flex justify-end gap-3 pt-4">
-                                <Button type="button" variant="outline" onClick={() => { setShowModal(false); setEditingYear(null); }}>Cancel</Button>
-                                <Button type="submit">{editingYear ? 'Update' : 'Create'}</Button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
+      {confirmationDialog}
+    </AdminFrame>
+  );
 }
