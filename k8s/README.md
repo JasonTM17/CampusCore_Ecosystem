@@ -225,7 +225,7 @@ Hai overlay này vẫn giữ `Ingress` từ lớp generic, nhưng:
 - thêm `Certificate` để TLS secret được cấp bởi `cert-manager`
 - vẫn không hard-code `ingressClassName`, để cluster giữ quyền chọn ingress class mặc định hoặc để operator vá bằng private patch nếu cần
 
-Điểm chèn Cloudflare, nếu dùng sau này, sẽ nằm ở lớp DNS/WAF/CDN phía trước ingress chứ không thay runtime cluster.
+Điểm chèn Cloudflare, nếu dùng sau này, sẽ nằm ở lớp DNS/WAF/CDN phía trước ingress chứ không thay runtime cluster. Runbook từng bước nằm tại [../docs/CLOUDFLARE.md](../docs/CLOUDFLARE.md).
 
 ## Private operator template pack
 
@@ -254,7 +254,7 @@ kubectl kustomize k8s/templates/private-operator/prod
 kubectl kustomize k8s/templates/private-operator/prod/bootstrap
 ```
 
-Checklist ingress/TLS/secrets chi tiết hơn cho pha staging/prod generic và operator overlays nằm tại [../docs/K8S_HANDOFF.md](../docs/K8S_HANDOFF.md).
+Checklist ingress/TLS/secrets chi tiết hơn cho pha staging/prod generic và operator overlays nằm tại [../docs/K8S_HANDOFF.md](../docs/K8S_HANDOFF.md). Nếu dùng domain qua Cloudflare, đi theo [../docs/CLOUDFLARE.md](../docs/CLOUDFLARE.md) sau khi private overlay đã có hostname, ingress class/annotations, `ClusterIssuer`, `ClusterSecretStore`, và remote secret path thật.
 
 ## Đổi sang Docker Hub
 

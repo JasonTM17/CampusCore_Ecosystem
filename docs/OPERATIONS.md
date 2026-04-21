@@ -91,6 +91,6 @@ One-shot init hiện tại:
   - `kubectl kustomize k8s/templates/private-operator/staging/bootstrap`
   - `kubectl kustomize k8s/templates/private-operator/prod`
   - `kubectl kustomize k8s/templates/private-operator/prod/bootstrap`
-- Cloudflare nếu dùng sau này chỉ đứng trước ingress.
+- Cloudflare nếu dùng sau này chỉ đứng trước ingress; checklist domain/DNS/TLS nằm tại `docs/CLOUDFLARE.md`.
 - Checklist ingress/TLS/secrets cho generic overlays và operator overlays nằm tại `docs/K8S_HANDOFF.md`.
 - Bootstrap schema/migration vẫn là bước operator-managed riêng, giống policy production compose hiện tại.
