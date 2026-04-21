@@ -31,6 +31,8 @@ One-shot init hiện tại:
 - Kubernetes local edge helper: `node scripts/run-k8s-local-edge.mjs`
 - Kubernetes local edge stop: `node scripts/stop-k8s-local-edge.mjs`
 - Kubernetes local destroy: `node scripts/run-k8s-local-destroy.mjs`
+- Cloudflare local tunnel: `node scripts/run-cloudflare-tunnel-local.mjs`
+- Cloudflare local tunnel stop: `node scripts/stop-cloudflare-tunnel-local.mjs`
 
 ## Health model
 
@@ -93,4 +95,5 @@ One-shot init hiện tại:
   - `kubectl kustomize k8s/templates/private-operator/prod/bootstrap`
 - Cloudflare nếu dùng sau này chỉ đứng trước ingress; checklist domain/DNS/TLS nằm tại `docs/CLOUDFLARE.md`.
 - Checklist ingress/TLS/secrets cho generic overlays và operator overlays nằm tại `docs/K8S_HANDOFF.md`.
+- Nếu chưa có IP public/cloud Kubernetes thật, có thể expose local Docker Desktop Kubernetes qua Cloudflare Tunnel bằng `node scripts/run-cloudflare-tunnel-local.mjs`. Với Docker connector, Public Hostname service URL trong Cloudflare là `http://host.docker.internal:8080`.
 - Bootstrap schema/migration vẫn là bước operator-managed riêng, giống policy production compose hiện tại.

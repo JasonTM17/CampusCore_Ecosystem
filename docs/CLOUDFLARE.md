@@ -34,6 +34,97 @@ Cloudflare Tunnel là lựa chọn tốt nếu cluster không có public LoadBal
 
 Với CampusCore, Tunnel chưa phải đường mặc định của repo public vì handoff hiện tại đang chuẩn hóa theo Ingress cloud-agnostic. Nếu chọn Tunnel, hãy làm trong private overlay riêng và vẫn giữ `campuscore-nginx` là service edge nội bộ.
 
+## Local tunnel nhanh cho Docker Desktop
+
+Khi bạn chưa có IP public hoặc cloud Kubernetes thật, có thể expose Docker Desktop Kubernetes local qua Cloudflare Tunnel. Repo đã có helper:
+
+```bash
+node scripts/run-cloudflare-tunnel-local.mjs
+```
+
+Script này sẽ:
+
+1. gọi `node scripts/run-k8s-local-edge.mjs` để đảm bảo app đang mở tại `http://127.0.0.1:8080`;
+2. nếu máy có `cloudflared` native thì dùng native connector;
+3. nếu chưa có `cloudflared`, dùng Docker image `cloudflare/cloudflared:latest`;
+4. nếu chưa set `CLOUDFLARE_TUNNEL_TOKEN`, tạo quick tunnel tạm thời dạng `https://*.trycloudflare.com`;
+5. nếu đã set `CLOUDFLARE_TUNNEL_TOKEN`, chạy named tunnel để bạn gắn hostname thật trong Cloudflare.
+
+Stop Docker connector nếu cần:
+
+```bash
+node scripts/stop-cloudflare-tunnel-local.mjs
+```
+
+### Quick tunnel không cần domain
+
+Dùng để kiểm demo ngay:
+
+```bash
+node scripts/run-cloudflare-tunnel-local.mjs
+```
+
+Chờ terminal in ra URL dạng:
+
+```text
+https://something.trycloudflare.com
+```
+
+Rồi mở:
+
+- `https://something.trycloudflare.com/health`
+- `https://something.trycloudflare.com/login`
+- `https://something.trycloudflare.com/api/docs`
+
+Quick tunnel chỉ nên dùng demo/test. URL tạm sẽ đổi khi tunnel dừng.
+
+### Named tunnel với domain thật
+
+Để dùng hostname như `campuscore.tienson.io.vn`, làm trong Cloudflare dashboard:
+
+1. Vào **Zero Trust**.
+2. Vào **Networks** -> **Tunnels**.
+3. Chọn **Create a tunnel**.
+4. Chọn connector **Cloudflared**.
+5. Đặt tên, ví dụ `campuscore-local`.
+6. Chọn environment **Docker**.
+7. Copy **token value**. Không paste token vào chat hoặc commit vào repo.
+8. Trong PowerShell tại repo:
+
+```powershell
+$env:CLOUDFLARE_TUNNEL_TOKEN = "paste-token-vua-copy-o-day"
+node scripts/run-cloudflare-tunnel-local.mjs
+```
+
+9. Ở bước **Public Hostname** trong Cloudflare:
+
+| Field | Giá trị khuyến nghị |
+| --- | --- |
+| Subdomain | `campuscore` |
+| Domain | `tienson.io.vn` |
+| Type | `HTTP` |
+| URL | `host.docker.internal:8080` |
+
+Vì script mặc định chạy connector bằng Docker, container phải đi qua `host.docker.internal` để gọi local edge trên máy Windows. Nếu bạn cài `cloudflared` native và chạy với `CLOUDFLARE_TUNNEL_CONNECTOR=native`, Service URL trong Cloudflare đổi thành `http://127.0.0.1:8080`.
+
+Sau đó verify:
+
+```bash
+curl -i https://campuscore.tienson.io.vn/health
+curl -i https://campuscore.tienson.io.vn/login
+curl -i https://campuscore.tienson.io.vn/api/docs
+curl -i https://campuscore.tienson.io.vn/api/v1/internal/auth-context/users/test
+curl -i https://campuscore.tienson.io.vn/api/v1/health/readiness
+```
+
+Expected:
+
+- `/health` trả `200`
+- `/login` trả `200`
+- `/api/docs` trả `200` khi local overlay đang bật Swagger
+- `/api/v1/internal/*` trả `403`
+- `/api/v1/health/readiness` trả `403`
+
 ## Các file cần điền trong private overlay
 
 Copy một template ra private repo hoặc private folder ngoài repo public:
