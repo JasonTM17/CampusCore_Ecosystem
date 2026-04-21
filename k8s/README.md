@@ -227,6 +227,33 @@ Hai overlay này vẫn giữ `Ingress` từ lớp generic, nhưng:
 
 Điểm chèn Cloudflare, nếu dùng sau này, sẽ nằm ở lớp DNS/WAF/CDN phía trước ingress chứ không thay runtime cluster.
 
+## Private operator template pack
+
+Repo cũng có tracked template pack để operator copy ra private overlay:
+
+- `k8s/templates/private-operator/staging`
+- `k8s/templates/private-operator/prod`
+
+Hai template này kế thừa từ lớp operator công khai tương ứng, rồi thêm đúng các patch cần điền bằng giá trị thật ở môi trường riêng:
+
+- `patch-ingress.yaml`: hostname thật, TLS secret thật, ingress class nếu cluster yêu cầu, và annotations riêng của ingress controller/DNS
+- `patch-external-secret.yaml`: `ClusterSecretStore` thật và remote secret key/path thật
+- `patch-certificate.yaml`: `ClusterIssuer` thật và DNS names thật
+- `patch-configmap.yaml`: `FRONTEND_URL` theo hostname thật của môi trường
+- `patch-runtime-overrides.yaml`: ví dụ cho replicas/resources/rolling update của stateless app runtime
+- `bootstrap/kustomization.yaml`: render bootstrap jobs vào namespace `campuscore-staging` hoặc `campuscore-prod`
+
+Đây là **template copy-out**, không phải manifest chứa secret thật. Khi triển khai staging/prod thật, hãy copy folder phù hợp sang repo hoặc overlay private, thay toàn bộ placeholder `replace-with-real-*` / `replace-with-private-*`, render lại, rồi mới apply.
+
+Render kiểm tra:
+
+```bash
+kubectl kustomize k8s/templates/private-operator/staging
+kubectl kustomize k8s/templates/private-operator/staging/bootstrap
+kubectl kustomize k8s/templates/private-operator/prod
+kubectl kustomize k8s/templates/private-operator/prod/bootstrap
+```
+
 Checklist ingress/TLS/secrets chi tiết hơn cho pha staging/prod generic và operator overlays nằm tại [../docs/K8S_HANDOFF.md](../docs/K8S_HANDOFF.md).
 
 ## Đổi sang Docker Hub

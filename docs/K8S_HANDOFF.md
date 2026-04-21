@@ -105,7 +105,7 @@ Các overlay này vẫn cố ý **không** hard-code `ingressClassName`. Nếu c
 
 ## Private overlay pattern
 
-Repo public chỉ giữ placeholder generic. Nếu môi trường thật dùng:
+Repo public chỉ giữ placeholder generic và một template pack an toàn để copy ra private overlay. Nếu môi trường thật dùng:
 
 - External Secrets
 - Sealed Secrets
@@ -114,10 +114,10 @@ Repo public chỉ giữ placeholder generic. Nếu môi trường thật dùng:
 - hostnames thật
 - requests/limits hoặc rollout policy riêng
 
-thì nên tạo thêm private overlay nội bộ kế thừa từ:
+thì nên tạo thêm private overlay nội bộ bằng cách copy từ:
 
-- `k8s/overlays/staging-generic`, hoặc
-- `k8s/overlays/prod-generic`
+- `k8s/templates/private-operator/staging`, hoặc
+- `k8s/templates/private-operator/prod`
 
 Private overlay đó là nơi hợp lệ để:
 
@@ -126,6 +126,24 @@ Private overlay đó là nơi hợp lệ để:
 - thay hostname thật
 - thêm annotations của ingress/load balancer
 - override resources/replicas/rollout strategy
+
+Template pack này đã có sẵn:
+
+- `patch-ingress.yaml` cho hostname, TLS secret, ingress class, và annotations thật
+- `patch-external-secret.yaml` cho `ClusterSecretStore` và remote secret key thật
+- `patch-certificate.yaml` cho `ClusterIssuer` và DNS names thật
+- `patch-configmap.yaml` cho `FRONTEND_URL`
+- `patch-runtime-overrides.yaml` cho ví dụ stateless app replicas/resources/rolling update
+- `bootstrap/kustomization.yaml` để bootstrap jobs render vào namespace môi trường tương ứng
+
+Render kiểm tra trước khi apply:
+
+```bash
+kubectl kustomize k8s/templates/private-operator/staging
+kubectl kustomize k8s/templates/private-operator/staging/bootstrap
+kubectl kustomize k8s/templates/private-operator/prod
+kubectl kustomize k8s/templates/private-operator/prod/bootstrap
+```
 
 ## Operator checklist
 
@@ -144,10 +162,10 @@ Private overlay đó là nơi hợp lệ để:
 
 Nếu cluster đã có `ExternalSecret` + `cert-manager`, checklist thực tế gọn hơn sẽ là:
 
-1. Chọn `staging-operator` hoặc `prod-operator`
-2. Thay `ClusterSecretStore`, `ClusterIssuer`, hostname, TLS secret name nếu cần
+1. Copy `k8s/templates/private-operator/staging` hoặc `k8s/templates/private-operator/prod` sang overlay private
+2. Thay `ClusterSecretStore`, `ClusterIssuer`, hostname, TLS secret name, ingress class, và annotations thật
 3. Xác nhận remote secret key path khớp secret manager thật
-4. Thêm ingress class/annotations bằng private patch nếu cluster yêu cầu
+4. Review `patch-runtime-overrides.yaml` theo capacity thật của cluster
 5. Apply overlay runtime
 6. Chạy bootstrap jobs theo đúng thứ tự
 7. Verify `/health`, deny `/api/v1/internal/*`, login/session, và `/api/docs` nếu môi trường cho phép

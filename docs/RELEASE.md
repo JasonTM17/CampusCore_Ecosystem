@@ -92,4 +92,10 @@ Script này kiểm GHCR và Docker Hub cho đủ 9 image với tag semver, short
 - Handoff staging/prod tiếp tục đi theo hai lớp:
   - `k8s/overlays/staging-generic` / `k8s/overlays/prod-generic` cho lớp cloud-agnostic công khai
   - `k8s/overlays/staging-operator` / `k8s/overlays/prod-operator` cho cluster đã có `ExternalSecret` + `cert-manager`
+- Template copy-out cho overlay private nằm tại `k8s/templates/private-operator/staging` và `k8s/templates/private-operator/prod`.
 - Checklist ingress/TLS/secrets nằm tại `docs/K8S_HANDOFF.md`.
+- Preflight release phải render sạch cả public overlays lẫn private operator template pack:
+  - `kubectl kustomize k8s/templates/private-operator/staging`
+  - `kubectl kustomize k8s/templates/private-operator/staging/bootstrap`
+  - `kubectl kustomize k8s/templates/private-operator/prod`
+  - `kubectl kustomize k8s/templates/private-operator/prod/bootstrap`
