@@ -146,6 +146,30 @@ node scripts/run-k8s-local-destroy.mjs
 
 Script destroy cũng sẽ dọn state của edge helper nếu đang tồn tại.
 
+## Expose local qua Cloudflare Tunnel
+
+Nếu chưa có IP public hoặc cloud Kubernetes thật, bạn có thể đưa Docker Desktop Kubernetes local ra internet bằng Cloudflare Tunnel:
+
+```bash
+node scripts/run-cloudflare-tunnel-local.mjs
+```
+
+Không có `CLOUDFLARE_TUNNEL_TOKEN` thì script tạo quick tunnel tạm thời `https://*.trycloudflare.com`. Nếu muốn dùng hostname thật trong Cloudflare, tạo named tunnel trong Cloudflare Zero Trust, copy token vào biến môi trường `CLOUDFLARE_TUNNEL_TOKEN`, rồi chạy lại script.
+
+Vì máy Windows hiện dùng Docker connector mặc định, Public Hostname service URL trong Cloudflare nên là:
+
+```text
+http://host.docker.internal:8080
+```
+
+Nếu muốn dừng Docker connector:
+
+```bash
+node scripts/stop-cloudflare-tunnel-local.mjs
+```
+
+Chi tiết từng bước nằm tại [../docs/CLOUDFLARE.md](../docs/CLOUDFLARE.md).
+
 ## Manual flow nếu cần tự điều khiển
 
 1. Render runtime:
