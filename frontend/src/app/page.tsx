@@ -73,6 +73,7 @@ const stats = [
 
 export default function HomePage() {
   const { user, isLoading } = useAuth();
+  const currentYear = new Date().getFullYear();
 
   return (
     <main className="min-h-screen bg-white dark:bg-gray-900">
@@ -404,7 +405,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm">
-            <p>&copy; 2024 CampusCore. All rights reserved.</p>
+            <p>&copy; {currentYear} CampusCore. All rights reserved.</p>
           </div>
         </div>
       </footer>
