@@ -1,4 +1,5 @@
 import {
+  assertNamespaceReadyForFreshDeploy,
   baseURL,
   bootstrapJobs,
   collectArtifacts,
@@ -28,6 +29,10 @@ async function main() {
   try {
     await runPreflight();
     await ensureClusterAvailable();
+    if (!keepResources) {
+      await deleteNamespace();
+    }
+    await assertNamespaceReadyForFreshDeploy();
     await applyOverlay();
     await waitForInfra();
     await runBootstrapSequence();
