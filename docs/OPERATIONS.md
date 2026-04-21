@@ -85,6 +85,12 @@ One-shot init hiện tại:
 - Overlay Docker Desktop bật Swagger local, tắt secure cookie flag cho HTTP local, và dùng `ClusterIP` + port-forward cho `campuscore-nginx`.
 - Repo cũng đã có `k8s/overlays/staging-generic` và `k8s/overlays/prod-generic` làm khung cloud-agnostic cho staging/prod.
 - Nếu cluster dùng `ExternalSecret` + `cert-manager`, có thể bắt đầu từ `k8s/overlays/staging-operator` hoặc `k8s/overlays/prod-operator` để thay static secret placeholder bằng operator-managed resources.
+- Nếu muốn chuẩn bị overlay riêng cho staging/prod thật, copy từ `k8s/templates/private-operator/staging` hoặc `k8s/templates/private-operator/prod` ra private repo/overlay rồi điền hostname, TLS secret, ingress annotations, `ClusterSecretStore`, `ClusterIssuer`, và remote secret key thật.
+- Render private template trước khi apply:
+  - `kubectl kustomize k8s/templates/private-operator/staging`
+  - `kubectl kustomize k8s/templates/private-operator/staging/bootstrap`
+  - `kubectl kustomize k8s/templates/private-operator/prod`
+  - `kubectl kustomize k8s/templates/private-operator/prod/bootstrap`
 - Cloudflare nếu dùng sau này chỉ đứng trước ingress.
 - Checklist ingress/TLS/secrets cho generic overlays và operator overlays nằm tại `docs/K8S_HANDOFF.md`.
 - Bootstrap schema/migration vẫn là bước operator-managed riêng, giống policy production compose hiện tại.
