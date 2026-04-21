@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, unlink, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -13,12 +13,25 @@ export const localPort = Number(process.env.K8S_LOCAL_EDGE_PORT ?? '8080');
 export const baseURL = `http://127.0.0.1:${localPort}`;
 export const overlayDir = path.join(repoRoot, 'k8s', 'overlays', 'docker-desktop');
 export const bootstrapDir = path.join(repoRoot, 'k8s', 'bootstrap');
+export const edgeSupervisorScriptPath = path.join(
+  repoRoot,
+  'scripts',
+  'k8s-local-edge-supervisor.mjs',
+);
 export const edgeStatePath = path.join(
   repoRoot,
   'frontend',
   'test-results',
   'k8s-local-edge-state.json',
 );
+export const edgeHealthUrls = {
+  health: `${baseURL}/health`,
+  login: `${baseURL}/login`,
+  docs: `${baseURL}/api/docs`,
+  readiness: `${baseURL}/api/v1/health/readiness`,
+  authContext: `${baseURL}/api/v1/internal/auth-context/users/test-user`,
+  peopleContext: `${baseURL}/api/v1/internal/people-context/users/test-user`,
+};
 
 export const infraDeployments = ['postgres', 'redis', 'rabbitmq', 'minio'];
 export const runtimeDeployments = [
@@ -313,6 +326,40 @@ export async function startDetachedPortForward(logsDir) {
   };
 }
 
+export async function startDetachedEdgeSupervisor(logsDir) {
+  await mkdir(logsDir, { recursive: true });
+  const stdoutPath = path.join(logsDir, 'edge-supervisor.out.log');
+  const stderrPath = path.join(logsDir, 'edge-supervisor.err.log');
+  const stdoutFd = openSync(stdoutPath, 'a');
+  const stderrFd = openSync(stderrPath, 'a');
+
+  const child = spawn(
+    process.execPath,
+    [edgeSupervisorScriptPath, '--logs-dir', logsDir],
+    {
+      cwd: repoRoot,
+      detached: true,
+      windowsHide: true,
+      stdio: ['ignore', stdoutFd, stderrFd],
+      shell: false,
+    },
+  );
+
+  closeSync(stdoutFd);
+  closeSync(stderrFd);
+  child.unref();
+
+  if (!Number.isFinite(child.pid) || child.pid <= 0) {
+    throw new Error('Failed to start detached CampusCore K8s edge supervisor.');
+  }
+
+  return {
+    pid: child.pid,
+    stdoutPath,
+    stderrPath,
+  };
+}
+
 export async function stopPortForward(handle) {
   if (!handle) {
     return;
@@ -409,6 +456,44 @@ export async function runEdgeSmokeChecks() {
   return fetchJson(`${baseURL}/health`);
 }
 
+export async function probeLocalEdgeContractOnce(requestTimeoutMs = 10000) {
+  const healthResponse = await fetch(edgeHealthUrls.health, {
+    signal: AbortSignal.timeout(requestTimeoutMs),
+  });
+  if (!healthResponse.ok) {
+    throw new Error(
+      `Expected GET ${edgeHealthUrls.health} to return 200, received ${healthResponse.status}.`,
+    );
+  }
+
+  const health = await healthResponse.json();
+  if (health?.status !== 'ok' || health?.service !== 'campuscore-api') {
+    throw new Error(
+      `Unexpected health payload from ${edgeHealthUrls.health}: ${JSON.stringify(health)}`,
+    );
+  }
+
+  await assertHttpStatus(edgeHealthUrls.login, 200, requestTimeoutMs);
+  await assertHttpStatus(edgeHealthUrls.docs, 200, requestTimeoutMs);
+  await assertHttpStatus(edgeHealthUrls.readiness, 403, requestTimeoutMs);
+  await assertHttpStatus(edgeHealthUrls.authContext, 403, requestTimeoutMs);
+  await assertHttpStatus(edgeHealthUrls.peopleContext, 403, requestTimeoutMs);
+
+  return {
+    namespace,
+    baseURL,
+    health,
+    urls: {
+      health: edgeHealthUrls.health,
+      login: edgeHealthUrls.login,
+      docs: edgeHealthUrls.docs,
+      readiness: edgeHealthUrls.readiness,
+      authContext: edgeHealthUrls.authContext,
+      peopleContext: edgeHealthUrls.peopleContext,
+    },
+  };
+}
+
 export async function summarizeRuntimeState() {
   if (!(await namespaceExists())) {
     return {
@@ -440,7 +525,7 @@ export async function writeJsonSummary(logsDir, fileName, payload) {
 export async function readEdgeState() {
   try {
     const raw = await readFile(edgeStatePath, 'utf8');
-    return JSON.parse(raw);
+    return normalizeEdgeState(JSON.parse(raw));
   } catch {
     return null;
   }
@@ -448,7 +533,11 @@ export async function readEdgeState() {
 
 export async function writeEdgeState(payload) {
   await mkdir(path.dirname(edgeStatePath), { recursive: true });
-  await writeFile(edgeStatePath, JSON.stringify(payload, null, 2), 'utf8');
+  await writeFile(
+    edgeStatePath,
+    JSON.stringify(normalizeEdgeState(payload), null, 2),
+    'utf8',
+  );
 }
 
 export async function removeEdgeState() {
@@ -475,7 +564,7 @@ export async function cleanupStaleEdgeState() {
     return null;
   }
 
-  if (await isProcessRunning(state.pid)) {
+  if (await isProcessRunning(getEdgeControllerPid(state))) {
     return state;
   }
 
@@ -483,18 +572,24 @@ export async function cleanupStaleEdgeState() {
   return null;
 }
 
-export async function waitForLocalEdgeHealthy() {
-  const health = await runEdgeSmokeChecks();
-  return {
-    namespace,
-    baseURL,
-    health,
-    urls: {
-      health: `${baseURL}/health`,
-      login: `${baseURL}/login`,
-      docs: `${baseURL}/api/docs`,
-    },
-  };
+export async function waitForLocalEdgeHealthy(
+  timeoutMs = 120000,
+  intervalMs = 2000,
+  requestTimeoutMs = 10000,
+) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+
+  while (Date.now() < deadline) {
+    try {
+      return await probeLocalEdgeContractOnce(requestTimeoutMs);
+    } catch (error) {
+      lastError = error;
+      await delay(intervalMs);
+    }
+  }
+
+  throw lastError ?? new Error('Timed out waiting for the local K8s edge.');
 }
 
 export async function collectArtifacts(logsDir) {
@@ -557,8 +652,108 @@ export function printDeployInstructions() {
   console.log(
     `[k8s-deploy] To stop the helper later: node scripts/stop-k8s-local-edge.mjs`,
   );
+  console.log(
+    `[k8s-deploy] The helper is the official browser path; raw kubectl port-forward is debug fallback only.`,
+  );
   console.log(`[k8s-deploy] Then open ${baseURL}/login or ${baseURL}/api/docs`);
   console.log('');
+}
+
+export function getEdgeControllerPid(state) {
+  return state?.supervisorPid ?? state?.pid ?? null;
+}
+
+export function getEdgeKubectlPid(state) {
+  return state?.kubectlPid ?? null;
+}
+
+export function classifyPortForwardLine(line) {
+  const message = line.trim();
+  if (!message) {
+    return {
+      kind: 'empty',
+      severity: 'debug',
+      actionable: false,
+    };
+  }
+
+  if (/^Forwarding from /iu.test(message)) {
+    return {
+      kind: 'listener-ready',
+      severity: 'info',
+      actionable: false,
+    };
+  }
+
+  if (/^Handling connection for \d+/iu.test(message)) {
+    return {
+      kind: 'client-disconnect-noise',
+      severity: 'debug',
+      actionable: false,
+    };
+  }
+
+  if (
+    /error copying from local connection to remote stream/iu.test(message) &&
+    /(wsarecv:\s*an existing connection was forcibly closed by the remote host|use of closed network connection|connection reset by peer|broken pipe)/iu.test(
+      message,
+    )
+  ) {
+    return {
+      kind: 'client-disconnect-noise',
+      severity: 'debug',
+      actionable: false,
+    };
+  }
+
+  if (
+    /(unable to listen on any of the requested ports|address already in use|lost connection to pod|error upgrading connection|timed out waiting for|service .* not found|pod .* not found|error forwarding port)/iu.test(
+      message,
+    )
+  ) {
+    return {
+      kind: 'runtime-error',
+      severity: 'error',
+      actionable: true,
+    };
+  }
+
+  return {
+    kind: 'runtime-log',
+    severity: 'info',
+    actionable: false,
+  };
+}
+
+export async function appendLine(filePath, line) {
+  await appendFile(filePath, `${line}\n`, 'utf8');
+}
+
+function normalizeEdgeState(state) {
+  if (!state || typeof state !== 'object') {
+    return state;
+  }
+
+  const supervisorPid = state.supervisorPid ?? state.pid ?? null;
+  return {
+    ...state,
+    pid: supervisorPid,
+    supervisorPid,
+    kubectlPid: state.kubectlPid ?? null,
+    restartCount: Number(state.restartCount ?? 0),
+    status: state.status ?? 'unknown',
+  };
+}
+
+async function assertHttpStatus(url, expectedStatus, requestTimeoutMs) {
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(requestTimeoutMs),
+  });
+  if (response.status !== expectedStatus) {
+    throw new Error(
+      `Expected GET ${url} to return ${expectedStatus}, received ${response.status}.`,
+    );
+  }
 }
 
 export function run(command, args, options = {}) {

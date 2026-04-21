@@ -104,9 +104,17 @@ node scripts/run-k8s-local-edge.mjs
 Helper này sẽ:
 
 - kiểm tra cluster và namespace `campuscore`
-- mở `kubectl port-forward` ở background
-- đợi `/health` sẵn sàng rồi ghi lại local edge state
-- ghi state file để có thể dừng gọn bằng script đối ứng
+- mở supervisor nền quản lý `kubectl port-forward`
+- tự restart listener nếu `kubectl` rơi bất ngờ nhưng cluster/runtime vẫn khỏe
+- đợi đủ `/health`, `/login`, `/api/docs`, và deny `/api/v1/internal/*` trước khi báo ready
+- ghi state file và log file để có thể dừng gọn bằng script đối ứng
+
+Helper này là **đường local chính thức** cho browser/IAB. Log raw kiểu:
+
+- `Handling connection for 8080`
+- `error copying from local connection to remote stream ... wsarecv: An existing connection was forcibly closed by the remote host`
+
+được coi là **benign client-disconnect noise** nếu `http://127.0.0.1:8080/health` vẫn lên bình thường.
 
 Các bài contract check sâu hơn như `/login`, `/api/docs`, và deny `/api/v1/internal/*` vẫn được khóa ở `run-k8s-local-smoke.mjs` và `run-k8s-local-deploy.mjs`.
 
@@ -122,7 +130,7 @@ node scripts/stop-k8s-local-edge.mjs
 kubectl -n campuscore port-forward service/campuscore-nginx 8080:80
 ```
 
-Lệnh này là **long-running command** có chủ đích: terminal sẽ giữ mở cho tới khi bạn nhấn `Ctrl+C`. Đây không phải là dấu hiệu stack bị treo.
+Lệnh này chỉ còn là **debug fallback**. Terminal sẽ giữ mở cho tới khi bạn nhấn `Ctrl+C`, và trên Windows bạn có thể thấy log `wsarecv` hoặc `error copying from local connection to remote stream` khi browser/IAB tự đóng socket. Nếu `/health` vẫn lên, đó không phải là dấu hiệu stack bị treo.
 
 Rồi mở:
 
@@ -188,7 +196,7 @@ Với local Docker Desktop, cách dùng khuyến nghị là:
 node scripts/run-k8s-local-edge.mjs
 ```
 
-để browser/IAB luôn có local listener ổn định tại `http://127.0.0.1:8080`.
+để browser/IAB luôn có local listener ổn định tại `http://127.0.0.1:8080`. State hiện hành của helper được ghi ở `frontend/test-results/k8s-local-edge-state.json`, còn log raw/classified được ghi trong `frontend/test-results/k8s-local-edge/`.
 
 ## Cloud-agnostic overlays
 

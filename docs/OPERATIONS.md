@@ -73,9 +73,11 @@ One-shot init hiện tại:
   - `node scripts/run-k8s-local-deploy.mjs`
   - sau đó đổi namespace từ `default` sang `campuscore` trong Docker Desktop Kubernetes UI
   - cách dùng khuyến nghị để mở edge local là `node scripts/run-k8s-local-edge.mjs`
-  - helper này sẽ giữ local listener ổn định ở `http://127.0.0.1:8080` và đợi `/health` sẵn sàng trước khi thoát
+  - helper này sẽ giữ local listener ổn định ở `http://127.0.0.1:8080`, đợi đủ `/health`, `/login`, `/api/docs`, và deny `/api/v1/internal/*` trước khi báo ready
+  - helper tự quản lý `kubectl port-forward`, tự restart khi listener rơi bất ngờ, và ghi state/log vào `frontend/test-results/k8s-local-edge*`
   - các route contract như `/login`, `/api/docs`, và deny `/api/v1/internal/*` vẫn được verify trong `run-k8s-local-smoke.mjs` và `run-k8s-local-deploy.mjs`
-  - nếu cần fallback thủ công, vẫn có thể dùng `kubectl -n campuscore port-forward service/campuscore-nginx 8080:80`
+  - nếu cần fallback thủ công, vẫn có thể dùng `kubectl -n campuscore port-forward service/campuscore-nginx 8080:80`, nhưng đây chỉ là đường debug
+  - log `Handling connection for 8080` hoặc `error copying from local connection to remote stream ... wsarecv ...` từ raw `kubectl port-forward` thường chỉ là client-disconnect noise nếu `http://127.0.0.1:8080/health` vẫn lên
   - khi cần dọn, chạy `node scripts/run-k8s-local-destroy.mjs`
   - nếu chỉ muốn dừng listener local mà giữ cluster, chạy `node scripts/stop-k8s-local-edge.mjs`
   - nếu chỉ muốn reconcile lại runtime trên namespace đang tồn tại, dùng `K8S_REUSE_NAMESPACE=1 node scripts/run-k8s-local-deploy.mjs`

@@ -2,6 +2,7 @@ import { mkdir } from 'node:fs/promises';
 
 import {
   edgeStatePath,
+  getEdgeControllerPid,
   isProcessRunning,
   readEdgeState,
   removeEdgeState,
@@ -28,9 +29,12 @@ async function main() {
     return;
   }
 
-  const wasRunning = Boolean(state.pid && (await isProcessRunning(state.pid)));
+  const controllerPid = getEdgeControllerPid(state);
+  const wasRunning = Boolean(
+    controllerPid && (await isProcessRunning(controllerPid)),
+  );
   if (wasRunning) {
-    await stopDetachedProcess(state.pid);
+    await stopDetachedProcess(controllerPid);
   }
 
   await removeEdgeState();
@@ -38,7 +42,9 @@ async function main() {
     stoppedAt: new Date().toISOString(),
     stateFile: edgeStatePath,
     stopped: wasRunning,
-    pid: state.pid ?? null,
+    pid: controllerPid ?? null,
+    supervisorPid: state.supervisorPid ?? controllerPid ?? null,
+    kubectlPid: state.kubectlPid ?? null,
     baseURL: state.baseURL ?? null,
   });
 

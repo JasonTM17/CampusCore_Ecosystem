@@ -6,15 +6,13 @@ import {
   cleanupStaleEdgeState,
   edgeStatePath,
   ensureClusterAvailable,
+  getEdgeControllerPid,
   isProcessRunning,
   namespace,
-  readEdgeState,
   removeEdgeState,
   resolveLogsDir,
-  run,
-  runCli,
   runPreflight,
-  startDetachedPortForward,
+  startDetachedEdgeSupervisor,
   stopDetachedProcess,
   waitForLocalEdgeHealthy,
   writeEdgeState,
@@ -34,72 +32,82 @@ async function main() {
 
   const existingState = await cleanupStaleEdgeState();
   await markProgress('after-state-cleanup', {
-    hasExistingState: Boolean(existingState?.pid),
+    hasExistingState: Boolean(getEdgeControllerPid(existingState)),
   });
-  if (existingState?.pid && (await isProcessRunning(existingState.pid))) {
+  const existingControllerPid = getEdgeControllerPid(existingState);
+  if (existingControllerPid && (await isProcessRunning(existingControllerPid))) {
     try {
       const summary = await verifyLocalHealth();
       await markProgress('after-existing-health-verify');
+      const latestState = (await cleanupStaleEdgeState()) ?? existingState;
       await writeEdgeState({
-        ...existingState,
+        ...latestState,
+        status: 'healthy',
+        lastHealthyAt: new Date().toISOString(),
         lastVerifiedAt: new Date().toISOString(),
       });
       await markProgress('after-existing-state-write');
       await mkdir(logsDir, { recursive: true });
       await writeJsonSummary(logsDir, 'edge-summary.json', {
-        mode: 'reused-existing-port-forward',
+        mode: 'reused-existing-edge-helper',
         namespace,
         baseURL,
-        pid: existingState.pid,
+        supervisorPid: existingControllerPid,
+        kubectlPid: existingState.kubectlPid ?? null,
         stateFile: edgeStatePath,
         logs: existingState.logs ?? null,
         summary,
       });
       await markProgress('after-existing-summary');
-      printAccessInstructions(existingState.pid);
+      printAccessInstructions(existingControllerPid);
       return;
     } catch {
-      await stopDetachedProcess(existingState.pid);
+      await stopDetachedProcess(existingControllerPid);
       await removeEdgeState();
     }
   }
 
   await mkdir(logsDir, { recursive: true });
-  const portForward = await startDetachedPortForward(logsDir);
-  await markProgress('after-port-forward-start', {
-    pid: portForward.pid,
+  const supervisor = await startDetachedEdgeSupervisor(logsDir);
+  await markProgress('after-supervisor-start', {
+    pid: supervisor.pid,
   });
 
   try {
     const summary = await verifyLocalHealth();
     await markProgress('after-health-verify');
+    const latestState = await cleanupStaleEdgeState();
     const state = {
-      pid: portForward.pid,
+      ...(latestState ?? {}),
+      pid: supervisor.pid,
+      supervisorPid: supervisor.pid,
       namespace,
       baseURL,
+      status: 'healthy',
       startedAt: new Date().toISOString(),
-      logs: {
-        stdoutPath: portForward.stdoutPath,
-        stderrPath: portForward.stderrPath,
+      lastHealthyAt: latestState?.lastHealthyAt ?? new Date().toISOString(),
+      logs: latestState?.logs ?? {
+        supervisorStdoutPath: supervisor.stdoutPath,
+        supervisorStderrPath: supervisor.stderrPath,
       },
     };
 
     await writeEdgeState(state);
     await markProgress('after-state-write');
     await writeJsonSummary(logsDir, 'edge-summary.json', {
-      mode: 'started-new-port-forward',
+      mode: 'started-new-edge-helper',
       ...state,
       stateFile: edgeStatePath,
       summary,
     });
     await markProgress('after-summary-write');
-    printAccessInstructions(portForward.pid);
+    printAccessInstructions(supervisor.pid);
   } catch (error) {
-    await stopDetachedProcess(portForward.pid);
+    await stopDetachedProcess(supervisor.pid);
     await removeEdgeState();
 
-    const stdout = await safeReadText(portForward.stdoutPath);
-    const stderr = await safeReadText(portForward.stderrPath);
+    const stdout = await safeReadText(supervisor.stdoutPath);
+    const stderr = await safeReadText(supervisor.stderrPath);
     const details = [error instanceof Error ? error.message : String(error)];
 
     if (stdout.trim()) {
@@ -117,13 +125,19 @@ async function main() {
 function printAccessInstructions(pid) {
   console.log('');
   console.log(
-    `[k8s-edge] Local edge listener is ready on ${baseURL} (pid ${pid}).`,
+    `[k8s-edge] Local edge helper is ready on ${baseURL} (supervisor pid ${pid}).`,
   );
   console.log(`[k8s-edge] Health: ${baseURL}/health`);
   console.log(`[k8s-edge] Login:  ${baseURL}/login`);
   console.log(`[k8s-edge] Docs:   ${baseURL}/api/docs`);
   console.log(
+    `[k8s-edge] State:  ${edgeStatePath}`,
+  );
+  console.log(
     `[k8s-edge] Stop it later with: node scripts/stop-k8s-local-edge.mjs`,
+  );
+  console.log(
+    `[k8s-edge] Client-disconnect noise from raw kubectl port-forward is treated as benign; use the helper logs only for troubleshooting.`,
   );
   console.log('');
 }
@@ -150,66 +164,12 @@ async function markProgress(step, extra = {}) {
 }
 
 async function verifyLocalHealth() {
-  if (process.platform !== 'win32') {
-    const summary = await waitForLocalEdgeHealthy();
-    return {
-      namespace,
-      baseURL,
-      health: summary.health,
-      urls: summary.urls,
-    };
-  }
-
-  const deadline = Date.now() + 120000;
-  let lastError;
-
-  while (Date.now() < deadline) {
-    try {
-      const health = await invokeHealthJson(`${baseURL}/health`);
-      if (health?.status !== 'ok' || health?.service !== 'campuscore-api') {
-        throw new Error(
-          `Unexpected health payload: ${JSON.stringify(health)}`,
-        );
-      }
-
-      return {
-        namespace,
-        baseURL,
-        health,
-        urls: {
-          health: `${baseURL}/health`,
-          login: `${baseURL}/login`,
-          docs: `${baseURL}/api/docs`,
-        },
-      };
-    } catch (error) {
-      lastError = error;
-      await delay(2000);
-    }
-  }
-
-  throw lastError ?? new Error('Timed out waiting for the local K8s edge.');
+  return waitForLocalEdgeHealthy();
 }
 
-async function invokeHealthJson(url) {
-  const output = await run(
-    'powershell',
-    [
-      '-NoProfile',
-      '-Command',
-      [
-        `$response = Invoke-RestMethod -Uri '${url}' -TimeoutSec 20`,
-        '$response | ConvertTo-Json -Compress',
-      ].join('; '),
-    ],
-    { captureOutput: true, timeoutMs: 30000 },
-  );
-
-  return JSON.parse(output.trim());
+try {
+  await main();
+} catch (error) {
+  console.error(error instanceof Error ? error.stack ?? error.message : error);
+  process.exitCode = 1;
 }
-
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-await runCli(main);
