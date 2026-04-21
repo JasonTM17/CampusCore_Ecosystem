@@ -43,7 +43,7 @@ Placeholder hiện tại:
 
 TLS secret phải do operator/cluster cung cấp. Repo không commit cert/key thật.
 
-Nếu dùng Cloudflare sau này, Cloudflare chỉ đứng ở lớp DNS/WAF/CDN phía trước ingress. Nó không thay runtime cluster, không thay service boundary, và không thay `nginx` nội bộ của CampusCore.
+Nếu dùng Cloudflare sau này, Cloudflare chỉ đứng ở lớp DNS/WAF/CDN phía trước ingress. Nó không thay runtime cluster, không thay service boundary, và không thay `nginx` nội bộ của CampusCore. Runbook chi tiết cho DNS, TLS Full Strict, cert-manager DNS-01, và private overlay nằm tại [CLOUDFLARE.md](./CLOUDFLARE.md).
 
 ## ConfigMap vs Secret mapping
 
@@ -169,6 +169,7 @@ Nếu cluster đã có `ExternalSecret` + `cert-manager`, checklist thực tế 
 5. Apply overlay runtime
 6. Chạy bootstrap jobs theo đúng thứ tự
 7. Verify `/health`, deny `/api/v1/internal/*`, login/session, và `/api/docs` nếu môi trường cho phép
+8. Nếu domain chạy qua Cloudflare, hoàn tất checklist trong [CLOUDFLARE.md](./CLOUDFLARE.md) trước khi bật proxy cho production traffic
 
 ## Release interaction
 
