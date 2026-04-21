@@ -2,373 +2,350 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useAuth } from '@/context/AuthContext';
+import { Award, FileText, GraduationCap, TrendingUp } from 'lucide-react';
+import { useRequireAuth } from '@/context/AuthContext';
 import { gradesApi, semestersApi } from '@/lib/api';
-import { TranscriptResponse, Semester } from '@/types/api';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
 import {
-    Loader2,
-    GraduationCap,
-    Calendar,
-    TrendingUp,
-    BookOpen,
-    AlertCircle,
-    Award,
-    ChevronDown,
-    FileText,
-    CheckCircle,
-    Clock,
-    XCircle,
-} from 'lucide-react';
+  Semester,
+  StudentGradeRecord,
+  StudentTranscriptSemester,
+} from '@/types/api';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@/components/ui/state-block';
+
+function getGradeTone(letterGrade: string | null) {
+  if (!letterGrade) {
+    return 'bg-secondary text-muted-foreground';
+  }
+
+  if (letterGrade.startsWith('A')) {
+    return 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400';
+  }
+
+  if (letterGrade.startsWith('B')) {
+    return 'bg-blue-500/12 text-blue-600 dark:text-blue-400';
+  }
+
+  if (letterGrade.startsWith('C')) {
+    return 'bg-amber-500/12 text-amber-600 dark:text-amber-400';
+  }
+
+  if (letterGrade.startsWith('D')) {
+    return 'bg-orange-500/12 text-orange-600 dark:text-orange-400';
+  }
+
+  return 'bg-rose-500/12 text-rose-600 dark:text-rose-400';
+}
 
 const gradePoints: Record<string, number> = {
-    'A+': 4.0, 'A': 4.0, 'A-': 3.7,
-    'B+': 3.3, 'B': 3.0, 'B-': 2.7,
-    'C+': 2.3, 'C': 2.0, 'C-': 1.7,
-    'D+': 1.3, 'D': 1.0, 'D-': 0.7,
-    'F': 0.0,
+  'A+': 4,
+  A: 4,
+  'A-': 3.7,
+  'B+': 3.3,
+  B: 3,
+  'B-': 2.7,
+  'C+': 2.3,
+  C: 2,
+  'C-': 1.7,
+  'D+': 1.3,
+  D: 1,
+  'D-': 0.7,
+  F: 0,
 };
 
-const gradeColorClass = (letter: string | null): string => {
-    if (!letter) return 'text-gray-400 bg-gray-50';
-    if (letter.startsWith('A')) return 'text-emerald-700 bg-emerald-50 border-emerald-200';
-    if (letter.startsWith('B')) return 'text-blue-700 bg-blue-50 border-blue-200';
-    if (letter.startsWith('C')) return 'text-amber-700 bg-amber-50 border-amber-200';
-    if (letter.startsWith('D')) return 'text-orange-700 bg-orange-50 border-orange-200';
-    return 'text-red-700 bg-red-50 border-red-200';
-};
+function getGradePoint(record: StudentGradeRecord) {
+  if (typeof record.gradePoint === 'number') {
+    return record.gradePoint;
+  }
 
-const statusBadge = (status: string) => {
-    switch (status) {
-        case 'PUBLISHED':
-            return (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">
-                    <CheckCircle className="h-3 w-3" /> Published
-                </span>
-            );
-        case 'APPEALED':
-            return (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 border border-yellow-200">
-                    <Clock className="h-3 w-3" /> Appealed
-                </span>
-            );
-        case 'DRAFT':
-            return (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
-                    <Clock className="h-3 w-3" /> Draft
-                </span>
-            );
-        default:
-            return null;
-    }
-};
+  if (record.letterGrade && gradePoints[record.letterGrade] !== undefined) {
+    return gradePoints[record.letterGrade];
+  }
 
-const enrollmentStatusBadge = (status: string) => {
-    switch (status) {
-        case 'COMPLETED':
-            return <span className="text-green-600 font-medium">Completed</span>;
-        case 'CONFIRMED':
-            return <span className="text-blue-600 font-medium">Confirmed</span>;
-        case 'PENDING':
-            return <span className="text-amber-600 font-medium">Pending</span>;
-        case 'DROPPED':
-            return <span className="text-red-600 font-medium">Dropped</span>;
-        case 'CANCELLED':
-            return <span className="text-gray-600 font-medium">Cancelled</span>;
-        default:
-            return <span className="text-gray-500">{status}</span>;
-    }
-};
+  return null;
+}
 
 export default function TranscriptPage() {
-    const { user, logout } = useAuth();
-    const [transcriptData, setTranscriptData] = useState<TranscriptResponse | null>(null);
-    const [semesters, setSemesters] = useState<Semester[]>([]);
-    const [selectedSemester, setSelectedSemester] = useState<string>('');
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const fetchSemesters = useCallback(async () => {
-        try {
-            const semestersRes = await semestersApi.getAll();
-            setSemesters(semestersRes.data);
-        } catch {
-            toast.error('Failed to load semesters');
-        }
-    }, []);
+  const { hasAccess, isLoading: authLoading } = useRequireAuth(['STUDENT']);
+  const [transcriptData, setTranscriptData] = useState<{
+    summary: {
+      cumulativeGpa: number;
+      totalCreditsEarned: number;
+      totalCreditsAttempted: number;
+    };
+    semesters: StudentTranscriptSemester[];
+  } | null>(null);
+  const [semesters, setSemesters] = useState<Semester[]>([]);
+  const [selectedSemester, setSelectedSemester] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
 
-    const fetchTranscript = useCallback(async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const data = await gradesApi.getMyTranscript(selectedSemester || undefined);
-            setTranscriptData(data);
-        } catch {
-            setError('Failed to load transcript. Please try again.');
-            toast.error('Failed to load transcript');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [selectedSemester]);
+  const fetchSemesters = useCallback(async () => {
+    const response = await semestersApi.getAll();
+    setSemesters(response.data ?? []);
+  }, []);
 
-    useEffect(() => {
-        void fetchSemesters();
-    }, [fetchSemesters]);
+  const fetchTranscript = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
 
-    useEffect(() => {
-        void fetchTranscript();
-    }, [fetchTranscript]);
-
-    // Group grades by semester
-    const groupedRecords = useMemo(() => {
-        if (!transcriptData?.records) return {};
-        const groups: Record<string, typeof transcriptData.records> = {};
-        transcriptData.records.forEach((record) => {
-            if (!groups[record.semester]) groups[record.semester] = [];
-            groups[record.semester].push(record);
-        });
-        return groups;
-    }, [transcriptData]);
-
-    // Calculate semester GPAs from records
-    const semesterSummaries = useMemo(() => {
-        if (!transcriptData?.records) return {};
-        const summaries: Record<string, { gpa: number; credits: number; courses: number }> = {};
-        Object.entries(groupedRecords).forEach(([semester, records]) => {
-            const graded = records.filter((r) => r.letterGrade && gradePoints[r.letterGrade] !== undefined && r.enrollmentStatus === 'COMPLETED');
-            const credits = graded.reduce((sum, r) => sum + r.credits, 0);
-            const points = graded.reduce((sum, r) => sum + (gradePoints[r.letterGrade!] * r.credits), 0);
-            const gpa = credits > 0 ? points / credits : 0;
-            summaries[semester] = { gpa: Number(gpa.toFixed(2)), credits, courses: records.length };
-        });
-        return summaries;
-    }, [groupedRecords, transcriptData]);
-
-    const transcriptRecords = transcriptData?.records ?? [];
-    const hasTranscriptRecords = transcriptRecords.length > 0;
-
-    if (isLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="text-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-3" />
-                    <p className="text-gray-500">Loading transcript...</p>
-                </div>
-            </div>
-        );
+    try {
+      const data = await gradesApi.getMyTranscript(selectedSemester || undefined);
+      setTranscriptData(data);
+    } catch {
+      setError('Transcript data could not be loaded.');
+    } finally {
+      setIsLoading(false);
     }
+  }, [selectedSemester]);
 
+  useEffect(() => {
+    if (hasAccess) {
+      void fetchSemesters();
+    }
+  }, [fetchSemesters, hasAccess]);
+
+  useEffect(() => {
+    if (hasAccess) {
+      void fetchTranscript();
+    }
+  }, [fetchTranscript, hasAccess]);
+
+  const transcriptSemesters = useMemo(
+    () => transcriptData?.semesters ?? [],
+    [transcriptData],
+  );
+
+  const totalCourses = useMemo(
+    () =>
+      transcriptSemesters.reduce(
+        (sum, semester) => sum + semester.records.length,
+        0,
+      ),
+    [transcriptSemesters],
+  );
+
+  const selectedSemesterName = useMemo(() => {
     return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Navigation */}
-            <nav className="bg-white shadow-sm border-b">
-                <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                        <Link href="/dashboard" className="text-xl font-bold">CampusCore</Link>
-                        <span className="text-gray-500">|</span>
-                        <span className="text-gray-600">Academic Transcript</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <span className="text-gray-600">Welcome, {user?.firstName}</span>
-                        <Button variant="outline" onClick={logout}>Logout</Button>
-                    </div>
-                </div>
-            </nav>
-
-            <main className="container mx-auto px-4 py-8">
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                    <div>
-                        <h2 className="text-2xl font-bold flex items-center gap-2">
-                            <FileText className="h-7 w-7 text-primary" />
-                            Academic Transcript
-                        </h2>
-                        <p className="text-gray-500 mt-1">View your official academic record and GPA</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        {semesters.length > 0 && (
-                            <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-gray-500" />
-                                <div className="relative">
-                                    <select
-                                        value={selectedSemester}
-                                        onChange={(e) => setSelectedSemester(e.target.value)}
-                                        className="border rounded-md px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white"
-                                    >
-                                        <option value="">All Semesters</option>
-                                        {semesters.map((sem) => (
-                                            <option key={sem.id} value={sem.id}>
-                                                {sem.name} {(sem.status === 'IN_PROGRESS' || sem.status === 'ADD_DROP_OPEN') ? '(Current)' : ''}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                                </div>
-                            </div>
-                        )}
-                        <Link href="/dashboard/grades">
-                            <Button variant="outline" size="sm">View Grades</Button>
-                        </Link>
-                    </div>
-                </div>
-
-                {/* Error State */}
-                {error && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center mb-6">
-                        <AlertCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
-                        <p className="text-red-600 font-medium mb-2">{error}</p>
-                        <Button variant="outline" onClick={fetchTranscript}>Try Again</Button>
-                    </div>
-                )}
-
-                {/* Empty State */}
-                {!error && (!transcriptData || !hasTranscriptRecords) && (
-                    <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
-                        <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold text-gray-700 mb-2">No Transcript Available</h3>
-                        <p className="text-gray-500 mb-4">
-                            {selectedSemester
-                                ? 'No records found for the selected semester.'
-                                : 'You don\'t have any completed courses yet. Your transcript will appear here once you finish courses and receive grades.'}
-                        </p>
-                        <Link href="/dashboard/enrollments">
-                            <Button>View Enrollments</Button>
-                        </Link>
-                    </div>
-                )}
-
-                {/* Content - Transcript Summary + Records */}
-                {!error && transcriptData && hasTranscriptRecords && (
-                    <>
-                        {/* Summary Cards */}
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-                            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-md p-5 text-white">
-                                <div className="flex items-center gap-2 mb-2 opacity-90">
-                                    <TrendingUp className="h-4 w-4" />
-                                    <span className="text-sm font-medium">Cumulative GPA</span>
-                                </div>
-                                <p className="text-4xl font-bold">{transcriptData.summary.cumulativeGPA.toFixed(2)}</p>
-                                <p className="text-xs text-blue-100 mt-1">out of 4.00</p>
-                            </div>
-                            <div className="bg-white rounded-lg shadow-sm border p-5">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <div className="p-1.5 rounded-lg bg-emerald-50">
-                                        <Award className="h-4 w-4 text-emerald-600" />
-                                    </div>
-                                    <span className="text-sm text-gray-500">Earned Credits</span>
-                                </div>
-                                <p className="text-3xl font-bold text-gray-900">{transcriptData.summary.totalEarnedCredits}</p>
-                                <p className="text-xs text-gray-400 mt-1">completed</p>
-                            </div>
-                            <div className="bg-white rounded-lg shadow-sm border p-5">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <div className="p-1.5 rounded-lg bg-amber-50">
-                                        <Clock className="h-4 w-4 text-amber-600" />
-                                    </div>
-                                    <span className="text-sm text-gray-500">Attempted Credits</span>
-                                </div>
-                                <p className="text-3xl font-bold text-gray-900">{transcriptData.summary.totalAttemptedCredits}</p>
-                                <p className="text-xs text-gray-400 mt-1">registered</p>
-                            </div>
-                            <div className="bg-white rounded-lg shadow-sm border p-5">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <div className="p-1.5 rounded-lg bg-violet-50">
-                                        <BookOpen className="h-4 w-4 text-violet-600" />
-                                    </div>
-                                    <span className="text-sm text-gray-500">Total Courses</span>
-                                </div>
-                                <p className="text-3xl font-bold text-gray-900">{transcriptData.summary.totalCourses}</p>
-                                <p className="text-xs text-gray-400 mt-1">{transcriptData.summary.gradeCount} with grades</p>
-                            </div>
-                            <div className="bg-white rounded-lg shadow-sm border p-5">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <div className="p-1.5 rounded-lg bg-cyan-50">
-                                        <GraduationCap className="h-4 w-4 text-cyan-600" />
-                                    </div>
-                                    <span className="text-sm text-gray-500">Credits Left</span>
-                                </div>
-                                <p className="text-3xl font-bold text-gray-900">{Math.max(0, transcriptData.summary.totalAttemptedCredits - transcriptData.summary.totalEarnedCredits)}</p>
-                                <p className="text-xs text-gray-400 mt-1">to complete</p>
-                            </div>
-                        </div>
-
-                        {/* Records by Semester */}
-                        {Object.entries(groupedRecords).map(([semesterName, records]) => {
-                            const summary = semesterSummaries[semesterName];
-                            return (
-                                <div key={semesterName} className="mb-6">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                                            <Calendar className="h-4 w-4 text-gray-500" />
-                                            {semesterName}
-                                        </h3>
-                                        {summary && summary.courses > 0 && (
-                                            <div className="flex items-center gap-4 text-sm">
-                                                <span className="text-gray-600">
-                                                    {summary.courses} course{summary.courses !== 1 ? 's' : ''} | {summary.credits} credits
-                                                </span>
-                                                <span className="font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-                                                    Semester GPA: {summary.gpa.toFixed(2)}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-sm">
-                                                <thead>
-                                                    <tr className="bg-gray-50 border-b">
-                                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Course Code</th>
-                                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Course Name</th>
-                                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Credits</th>
-                                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Section</th>
-                                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Score</th>
-                                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Grade</th>
-                                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Points</th>
-                                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Status</th>
-                                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Grade Status</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y">
-                                                    {records.map((record) => (
-                                                        <tr key={record.id} className="hover:bg-gray-50 transition-colors">
-                                                            <td className="px-4 py-3 font-medium text-gray-900">{record.courseCode}</td>
-                                                            <td className="px-4 py-3 text-gray-700">{record.courseName}</td>
-                                                            <td className="px-4 py-3 text-center text-gray-600">{record.credits}</td>
-                                                            <td className="px-4 py-3 text-center text-gray-600">{record.sectionCode}</td>
-                                                            <td className="px-4 py-3 text-center text-gray-700 font-medium">
-                                                                {record.finalGrade !== null ? record.finalGrade.toFixed(1) : '-'}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center">
-                                                                {record.letterGrade ? (
-                                                                    <span className={`inline-flex items-center justify-center min-w-[2.5rem] h-7 rounded-md text-sm font-bold border ${gradeColorClass(record.letterGrade)}`}>
-                                                                        {record.letterGrade}
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="text-gray-400">-</span>
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center text-gray-600">
-                                                                {record.gradePoint !== null ? record.gradePoint.toFixed(1) : '-'}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center text-sm">
-                                                                {enrollmentStatusBadge(record.enrollmentStatus)}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center">
-                                                                {statusBadge(record.gradeStatus)}
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </>
-                )}
-            </main>
-        </div>
+      semesters.find((semester) => semester.id === selectedSemester)?.name ??
+      'all semesters'
     );
+  }, [selectedSemester, semesters]);
+
+  if (authLoading || !hasAccess) {
+    return <LoadingState label="Loading transcript" />;
+  }
+
+  return (
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow={<SectionEyebrow>Student workspace</SectionEyebrow>}
+        title="Transcript"
+        description={`Review the long-form academic record for ${selectedSemesterName}, including cumulative GPA and semester-by-semester outcomes.`}
+        actions={
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="min-w-[220px]">
+              <Select
+                aria-label="Select semester for transcript"
+                value={selectedSemester}
+                onChange={(event) => setSelectedSemester(event.target.value)}
+                options={[
+                  { value: '', label: 'All semesters' },
+                  ...semesters.map((semester) => ({
+                    value: semester.id,
+                    label: semester.name,
+                  })),
+                ]}
+              />
+            </div>
+            <Link href="/dashboard/grades">
+              <Button variant="outline">Open grades</Button>
+            </Link>
+          </div>
+        }
+      />
+
+      {error ? (
+        <ErrorState
+          title="Transcript unavailable"
+          description={error}
+          onRetry={() => void fetchTranscript()}
+        />
+      ) : isLoading ? (
+        <LoadingState label="Loading transcript" />
+      ) : !transcriptData || transcriptSemesters.length === 0 ? (
+        <EmptyState
+          icon={FileText}
+          title="No transcript records yet"
+          description="Completed courses and published grades will accumulate here once academic outcomes are available."
+          action={
+            <Link href="/dashboard/grades">
+              <Button>Open grades</Button>
+            </Link>
+          }
+        />
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card variant="elevated">
+              <CardContent className="flex items-center justify-between gap-4 pt-6">
+                <div>
+                  <div className="text-sm text-muted-foreground">
+                    Cumulative GPA
+                  </div>
+                  <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
+                    {transcriptData.summary.cumulativeGpa.toFixed(2)}
+                  </div>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-500/12 text-blue-600 dark:text-blue-400">
+                  <TrendingUp className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card variant="elevated">
+              <CardContent className="flex items-center justify-between gap-4 pt-6">
+                <div>
+                  <div className="text-sm text-muted-foreground">
+                    Earned credits
+                  </div>
+                  <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
+                    {transcriptData.summary.totalCreditsEarned}
+                  </div>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-500/12 text-emerald-600 dark:text-emerald-400">
+                  <Award className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card variant="elevated">
+              <CardContent className="flex items-center justify-between gap-4 pt-6">
+                <div>
+                  <div className="text-sm text-muted-foreground">
+                    Attempted credits
+                  </div>
+                  <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
+                    {transcriptData.summary.totalCreditsAttempted}
+                  </div>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-violet-500/12 text-violet-600 dark:text-violet-400">
+                  <GraduationCap className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card variant="elevated">
+              <CardContent className="flex items-center justify-between gap-4 pt-6">
+                <div>
+                  <div className="text-sm text-muted-foreground">Courses</div>
+                  <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
+                    {totalCourses}
+                  </div>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-amber-500/12 text-amber-600 dark:text-amber-400">
+                  <FileText className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            {transcriptSemesters.map((semester) => (
+              <Card key={semester.semesterId} variant="muted">
+                <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <CardTitle className="text-xl">{semester.semesterName}</CardTitle>
+                  <div className="text-sm text-muted-foreground">
+                    {semester.records.length} course
+                    {semester.records.length === 1 ? '' : 's'} -{' '}
+                    {semester.creditsAttempted} credits attempted - GPA{' '}
+                    {semester.gpa.toFixed(2)}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[840px] text-sm">
+                      <thead>
+                        <tr className="border-b border-border/70 text-left text-muted-foreground">
+                          <th className="px-2 py-3 font-medium">Course</th>
+                          <th className="px-2 py-3 font-medium">Section</th>
+                          <th className="px-2 py-3 text-center font-medium">Credits</th>
+                          <th className="px-2 py-3 text-center font-medium">Score</th>
+                          <th className="px-2 py-3 text-center font-medium">Grade</th>
+                          <th className="px-2 py-3 text-center font-medium">Points</th>
+                          <th className="px-2 py-3 text-center font-medium">
+                            Enrollment
+                          </th>
+                          <th className="px-2 py-3 text-right font-medium">
+                            Grade status
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {semester.records.map((record) => (
+                          <tr key={record.id}>
+                            <td className="px-2 py-4">
+                              <div className="font-medium text-foreground">
+                                {record.courseCode}
+                              </div>
+                              <div className="text-muted-foreground">
+                                {record.courseName}
+                              </div>
+                            </td>
+                            <td className="px-2 py-4 text-muted-foreground">
+                              {record.sectionCode}
+                            </td>
+                            <td className="px-2 py-4 text-center text-muted-foreground">
+                              {record.credits}
+                            </td>
+                            <td className="px-2 py-4 text-center text-foreground">
+                              {typeof record.finalGrade === 'number'
+                                ? record.finalGrade.toFixed(1)
+                                : '-'}
+                            </td>
+                            <td className="px-2 py-4 text-center">
+                              {record.letterGrade ? (
+                                <span
+                                  className={`inline-flex min-w-[2.75rem] items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold ${getGradeTone(
+                                    record.letterGrade,
+                                  )}`}
+                                >
+                                  {record.letterGrade}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-4 text-center text-muted-foreground">
+                              {typeof getGradePoint(record) === 'number'
+                                ? getGradePoint(record)?.toFixed(1)
+                                : '-'}
+                            </td>
+                            <td className="px-2 py-4 text-center">
+                              <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
+                                {record.enrollmentStatus}
+                              </span>
+                            </td>
+                            <td className="px-2 py-4 text-right">
+                              <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
+                                {record.gradeStatus}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }

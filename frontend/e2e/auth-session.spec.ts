@@ -103,9 +103,12 @@ test('cookie session refresh and logout require CSRF and clear the browser sessi
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Toggle profile menu' }).click();
-    await page.getByRole('button', { name: 'Logout' }).click();
-    await expect(page).toHaveURL(/\/login$/);
+    await page.getByRole('button', { name: 'Toggle profile menu' }).click();
+    await page
+      .locator('#dashboard-profile-menu')
+      .getByRole('button', { name: /Sign out|Logout/i })
+      .click();
+    await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
     await expect(
       page.getByRole('heading', { name: /Welcome Back/i }),
     ).toBeVisible();

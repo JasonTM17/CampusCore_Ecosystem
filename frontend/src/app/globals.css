@@ -4,48 +4,62 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 24 20% 97%;
+    --foreground: 220 24% 14%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 220 24% 14%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
+    --popover-foreground: 220 24% 14%;
+    --primary: 220 33% 18%;
+    --primary-foreground: 24 20% 97%;
+    --secondary: 30 18% 92%;
+    --secondary-foreground: 220 20% 18%;
+    --muted: 24 14% 93%;
+    --muted-foreground: 218 11% 43%;
+    --accent: 197 73% 44%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 72% 53%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --border: 24 12% 84%;
+    --input: 24 12% 84%;
+    --ring: 197 73% 44%;
     --radius: 0.5rem;
+    --canvas-subtle: 30 18% 94%;
+    --surface-raised: 0 0% 100%;
+    --surface-alt: 32 18% 95%;
+    --ink-soft: 220 16% 26%;
+    --accent-warm: 22 84% 52%;
+    --accent-cool: 197 73% 44%;
+    --success: 152 57% 38%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    --background: 223 24% 10%;
+    --foreground: 210 25% 96%;
+    --card: 222 19% 14%;
+    --card-foreground: 210 25% 96%;
+    --popover: 222 19% 14%;
+    --popover-foreground: 210 25% 96%;
+    --primary: 201 85% 64%;
+    --primary-foreground: 223 24% 10%;
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 210 25% 96%;
+    --muted: 220 15% 16%;
+    --muted-foreground: 215 16% 72%;
+    --accent: 220 15% 18%;
+    --accent-foreground: 210 25% 96%;
+    --destructive: 0 70% 57%;
+    --destructive-foreground: 210 25% 96%;
+    --border: 220 15% 23%;
+    --input: 220 15% 23%;
+    --ring: 201 85% 64%;
+    --canvas-subtle: 222 20% 12%;
+    --surface-raised: 220 17% 16%;
+    --surface-alt: 220 16% 19%;
+    --ink-soft: 214 16% 74%;
+    --accent-warm: 22 84% 58%;
+    --accent-cool: 201 85% 64%;
+    --success: 152 57% 44%;
   }
 }
 
@@ -61,11 +75,65 @@
   }
   body {
     @apply bg-background text-foreground;
+    min-height: 100vh;
   }
   button,
   input,
   select,
   textarea {
     font: inherit;
+  }
+  ::selection {
+    background: hsl(var(--accent-cool) / 0.25);
+  }
+  a {
+    color: inherit;
+  }
+}
+
+@layer utilities {
+  .bg-canvas-subtle {
+    background-color: hsl(var(--canvas-subtle));
+  }
+
+  .bg-surface-raised {
+    background-color: hsl(var(--surface-raised));
+  }
+
+  .bg-surface-alt {
+    background-color: hsl(var(--surface-alt));
+  }
+
+  .text-ink-soft {
+    color: hsl(var(--ink-soft));
+  }
+
+  .text-accent-warm {
+    color: hsl(var(--accent-warm));
+  }
+
+  .border-soft {
+    border-color: hsl(var(--border) / 0.7);
+  }
+
+  .surface-shadow {
+    box-shadow: 0 24px 48px -36px rgba(15, 23, 42, 0.32);
+  }
+
+  .panel-shadow {
+    box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.35);
+  }
+
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  .orbital-divider {
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsl(var(--accent-warm) / 0.45) 48%,
+      transparent 100%
+    );
   }
 }

@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Ignore logout API failures and still clear the client session.
     } finally {
       setUser(null);
-      router.replace('/login');
+      router.replace('/login?reason=signed-out');
     }
   }, [router]);
 

@@ -387,16 +387,43 @@ test('auth client uses cookie sessions and CSRF headers', () => {
   const apiSource = read('src/lib/api.ts');
   const authContextSource = read('src/context/AuthContext.tsx');
 
+  assert.match(apiSource, /NEXT_PUBLIC_API_URL \|\| '\/api\/v1'/);
   assert.match(apiSource, /withCredentials:\s*true/);
   assert.match(apiSource, /cc_csrf/);
   assert.match(apiSource, /X-CSRF-Token/);
-  assert.match(apiSource, /await api\.post\(\s*'\/auth\/logout',\s*\{\}\s*\);/s);
+  assert.match(
+    apiSource,
+    /await api\.post\(\s*'\/auth\/logout',\s*\{\}\s*,\s*\{[\s\S]*skipAuthRefresh:\s*true[\s\S]*skipAuthRedirect:\s*true[\s\S]*\}\s+as AuthRequestConfig,\s*\);/s,
+  );
+  assert.match(apiSource, /redirectToLogin\('session-expired'\)/);
+  assert.match(apiSource, /redirectToLogin\('unauthorized'\)/);
   assert.match(apiSource, /skipAuthRefresh:\s*true/);
   assert.doesNotMatch(apiSource, /localStorage\.(getItem|setItem|removeItem)/);
   assert.doesNotMatch(
     authContextSource,
     /localStorage\.(getItem|setItem|removeItem)/,
   );
+  assert.match(authContextSource, /router\.replace\('\/login\?reason=signed-out'\)/);
+});
+
+test('frontend config exposes local edge rewrites and SEO runtime files', () => {
+  const nextConfigSource = fs.readFileSync(
+    path.join(root, 'next.config.mjs'),
+    'utf8',
+  );
+  const envExampleSource = read('.env.example');
+  const layoutSource = read('src/app/layout.tsx');
+
+  assert.match(nextConfigSource, /source:\s*'\/api\/v1\/:path\*'/);
+  assert.match(nextConfigSource, /LOCAL_EDGE_ORIGIN/);
+  assert.match(envExampleSource, /NEXT_PUBLIC_SITE_URL=https:\/\/tienson\.io\.vn/);
+  assert.match(envExampleSource, /NEXT_PUBLIC_API_URL=\/api\/v1/);
+  assert.match(envExampleSource, /LOCAL_EDGE_ORIGIN=http:\/\/127\.0\.0\.1:8080/);
+  assert.match(layoutSource, /metadataBase:\s*new URL\(siteUrl\)/);
+  assert.match(layoutSource, /manifest:\s*"\/manifest\.webmanifest"/);
+  assert.ok(fs.existsSync(path.join(root, 'src', 'app', 'robots.ts')));
+  assert.ok(fs.existsSync(path.join(root, 'src', 'app', 'sitemap.ts')));
+  assert.ok(fs.existsSync(path.join(root, 'src', 'app', 'manifest.ts')));
 });
 
 test('shared UI no longer contains obvious mojibake arrows', () => {
@@ -447,7 +474,73 @@ test('modal exposes dialog semantics and a labeled close control', () => {
 
   assert.match(source, /role="dialog"/);
   assert.match(source, /aria-modal="true"/);
-  assert.match(source, /aria-label="Close modal"/);
+  assert.match(source, /closeLabel = 'Close modal'/);
+  assert.match(source, /aria-label=\{closeLabel\}/);
+});
+
+test('frontend routes do not use raw browser confirm dialogs', () => {
+  const routeFiles = walkFiles(path.join(root, 'src', 'app'), (filePath) =>
+    filePath.endsWith('.tsx'),
+  );
+
+  const offenders = routeFiles
+    .filter((filePath) => {
+      const source = fs.readFileSync(filePath, 'utf8');
+      return /window\.confirm\s*\(/.test(source);
+    })
+    .map((filePath) => path.relative(root, filePath).replace(/\\/g, '/'));
+
+  assert.deepEqual(offenders, []);
+});
+
+test('legacy admin CRUD surfaces use shared admin surface primitives', () => {
+  const polishedAdminRoutes = [
+    'src/app/admin/academic-years/page.tsx',
+    'src/app/admin/announcements/page.tsx',
+    'src/app/admin/classrooms/page.tsx',
+    'src/app/admin/courses/page.tsx',
+    'src/app/admin/departments/page.tsx',
+    'src/app/admin/enrollments/page.tsx',
+    'src/app/admin/invoices/page.tsx',
+    'src/app/admin/lecturers/page.tsx',
+    'src/app/admin/sections/page.tsx',
+    'src/app/admin/semesters/page.tsx',
+    'src/app/admin/users/page.tsx',
+  ];
+
+  for (const routeFile of polishedAdminRoutes) {
+    const source = read(routeFile);
+    assert.match(source, /AdminToolbarCard/);
+    assert.match(source, /AdminTableCard/);
+    assert.match(source, /AdminRowActions/);
+  }
+});
+
+test('admin overview and analytics reuse the shared admin metric and panel grammar', () => {
+  const adminOverviewSource = read('src/app/admin/page.tsx');
+  const adminAnalyticsSource = read('src/app/admin/analytics/page.tsx');
+
+  assert.match(adminOverviewSource, /AdminMetricCard/);
+  assert.match(adminOverviewSource, /AdminTableCard/);
+  assert.match(adminAnalyticsSource, /AdminMetricCard/);
+  assert.match(adminAnalyticsSource, /AdminTableCard/);
+});
+
+test('student and lecturer workspace surfaces use shared dashboard primitives', () => {
+  const studentOverviewSource = read('src/app/dashboard/page.tsx');
+  const profileSource = read('src/app/dashboard/profile/page.tsx');
+  const lecturerOverviewSource = read('src/app/dashboard/lecturer/page.tsx');
+  const lecturerGradesSource = read('src/app/dashboard/lecturer/grades/page.tsx');
+
+  assert.match(studentOverviewSource, /WorkspaceMetricCard/);
+  assert.match(studentOverviewSource, /WorkspacePanel/);
+  assert.match(studentOverviewSource, /WorkspaceActionTile/);
+  assert.match(profileSource, /WorkspacePanel/);
+  assert.match(lecturerOverviewSource, /WorkspaceMetricCard/);
+  assert.match(lecturerOverviewSource, /WorkspacePanel/);
+  assert.match(lecturerOverviewSource, /WorkspaceActionTile/);
+  assert.match(lecturerGradesSource, /WorkspaceMetricCard/);
+  assert.match(lecturerGradesSource, /WorkspacePanel/);
 });
 
 test('key frontend surfaces label icon-only buttons', () => {
@@ -457,83 +550,76 @@ test('key frontend surfaces label icon-only buttons', () => {
   assertPatterns('src/app/reset-password/page.tsx', [
     /aria-label=\{showPassword \? 'Hide password' : 'Show password'\}/,
   ]);
-  assertPatterns('src/app/dashboard/profile/page.tsx', [
-    /aria-label="Upload profile photo"/,
-  ]);
   assertPatterns('src/app/dashboard/invoices/page.tsx', [
-    /aria-label="Close invoice details"/,
+    /closeLabel="Close invoice details"/,
   ]);
   assertPatterns('src/app/admin/academic-years/page.tsx', [
-    /aria-label=\{`Edit academic year \$\{year\.year\}`\}/,
-    /aria-label=\{`Delete academic year \$\{year\.year\}`\}/,
+    /aria-label=\{`Edit academic year \$\{[a-zA-Z]+\.year\}`\}/,
+    /aria-label=\{`Delete academic year \$\{[a-zA-Z]+\.year\}`\}/,
+    /backLabel="Back to admin dashboard"/,
   ]);
   assertPatterns('src/app/admin/announcements/page.tsx', [
-    /aria-label=\{`Delete announcement \$\{a\.title\}`\}/,
-    /aria-label="Close new announcement form"/,
+    /aria-label=\{`Delete announcement \$\{[a-zA-Z]+\.title\}`\}/,
+    /closeLabel="Close new announcement form"/,
+    /backLabel="Back to admin dashboard"/,
   ]);
   assertPatterns('src/app/admin/classrooms/page.tsx', [
     /aria-label=\{`Edit classroom \$\{room\.building\} \$\{room\.roomNumber\}`\}/,
     /aria-label=\{`Delete classroom \$\{room\.building\} \$\{room\.roomNumber\}`\}/,
+    /backLabel="Back to admin dashboard"/,
   ]);
   assertPatterns('src/app/admin/courses/page.tsx', [
     /aria-label=\{`Edit course \$\{course\.code\}`\}/,
     /aria-label=\{`Delete course \$\{course\.code\}`\}/,
+    /backLabel="Back to admin dashboard"/,
   ]);
   assertPatterns('src/app/admin/departments/page.tsx', [
-    /aria-label=\{`Edit department \$\{dept\.name\}`\}/,
-    /aria-label=\{`Delete department \$\{dept\.name\}`\}/,
+    /aria-label=\{`Edit department \$\{[a-zA-Z]+\.name\}`\}/,
+    /aria-label=\{`Delete department \$\{[a-zA-Z]+\.name\}`\}/,
+    /backLabel="Back to admin dashboard"/,
   ]);
   assertPatterns('src/app/admin/enrollments/page.tsx', [
-    /aria-label=\{`View enrollment details for \$\{enrollment\.student\?/,
-    /aria-label=\{`Delete enrollment for \$\{enrollment\.student\?/,
-    /aria-label="Close enrollment details"/,
+    /aria-label=\{`View enrollment details for \$\{[a-zA-Z]+Label\}`\}/,
+    /aria-label=\{`Delete enrollment for \$\{[a-zA-Z]+Label\}`\}/,
+    /closeLabel="Close enrollment details"/,
+    /backLabel="Back to admin dashboard"/,
   ]);
   assertPatterns('src/app/admin/invoices/page.tsx', [
     /aria-label=\{`View invoice \$\{invoice\.invoiceNumber\}`\}/,
     /aria-label=\{`Delete invoice \$\{invoice\.invoiceNumber\}`\}/,
-    /aria-label="Close invoice details"/,
+    /closeLabel="Close invoice details"/,
+    /backLabel="Back to admin dashboard"/,
   ]);
   assertPatterns('src/app/admin/lecturers/page.tsx', [
     /aria-label=\{`Edit lecturer \$\{lecturer\.employeeId\}`\}/,
     /aria-label=\{`Delete lecturer \$\{lecturer\.employeeId\}`\}/,
+    /backLabel="Back to admin dashboard"/,
   ]);
   assertPatterns('src/app/admin/sections/page.tsx', [
     /aria-label=\{`Edit section \$\{section\.sectionNumber\} for \$\{section\.course\?\.code \|\| 'course'\}`\}/,
     /aria-label=\{`Delete section \$\{section\.sectionNumber\} for \$\{section\.course\?\.code \|\| 'course'\}`\}/,
     /aria-label=\{`Remove schedule \$\{idx \+ 1\}`\}/,
+    /backLabel="Back to admin dashboard"/,
   ]);
   assertPatterns('src/app/admin/semesters/page.tsx', [
     /aria-label=\{`Edit semester \$\{semester\.name\}`\}/,
     /aria-label=\{`Delete semester \$\{semester\.name\}`\}/,
+    /backLabel="Back to admin dashboard"/,
   ]);
   assertPatterns('src/app/admin/users/page.tsx', [
-    /aria-label=\{`Edit user \$\{u\.firstName\} \$\{u\.lastName\}`\}/,
-    /aria-label=\{`Delete user \$\{u\.firstName\} \$\{u\.lastName\}`\}/,
+    /aria-label=\{`Edit user \$\{[a-zA-Z]+\.firstName\} \$\{[a-zA-Z]+\.lastName\}`\}/,
+    /aria-label=\{`Delete user \$\{[a-zA-Z]+\.firstName\} \$\{[a-zA-Z]+\.lastName\}`\}/,
+  ]);
+  assertPatterns('src/app/admin/page.tsx', [
+    /href="\/admin\/users"/,
+    /href="\/admin\/analytics"/,
   ]);
   assertPatterns('src/components/ui/data-table.tsx', [
     /aria-label="Go to previous page"/,
     /aria-label="Go to next page"/,
   ]);
-  assertPatterns('src/app/admin/academic-years/page.tsx', [
-    /aria-label="Back to admin dashboard"/,
-  ]);
   assertPatterns('src/app/admin/analytics/page.tsx', [
-    /aria-label="Back to admin dashboard"/,
-  ]);
-  assertPatterns('src/app/admin/classrooms/page.tsx', [
-    /aria-label="Back to admin dashboard"/,
-  ]);
-  assertPatterns('src/app/admin/courses/page.tsx', [
-    /aria-label="Back to admin dashboard"/,
-  ]);
-  assertPatterns('src/app/admin/departments/page.tsx', [
-    /aria-label="Back to admin dashboard"/,
-  ]);
-  assertPatterns('src/app/admin/lecturers/page.tsx', [
-    /aria-label="Back to admin dashboard"/,
-  ]);
-  assertPatterns('src/app/admin/semesters/page.tsx', [
-    /aria-label="Back to admin dashboard"/,
+    /backLabel="Back to admin dashboard"/,
   ]);
   assertPatterns('src/app/dashboard/lecturer/announcements/page.tsx', [
     /aria-label="Back to lecturer dashboard"/,

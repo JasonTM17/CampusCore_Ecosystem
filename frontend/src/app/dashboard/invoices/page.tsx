@@ -1,21 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CreditCard, Eye, Receipt } from 'lucide-react';
+import { useRequireAuth } from '@/context/AuthContext';
 import { financeApi, semestersApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Modal } from '@/components/ui/modal';
+import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
 import {
-  ArrowLeft,
-  Receipt,
-  AlertCircle,
-  Eye,
-  CheckCircle,
-  Clock,
-  XCircle,
-  type LucideIcon,
-} from 'lucide-react';
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@/components/ui/state-block';
+import { toast } from 'sonner';
 
 interface Invoice {
   id: string;
@@ -52,516 +51,361 @@ interface InvoiceDetail extends Invoice {
   }[];
 }
 
-interface Semester {
+interface SemesterOption {
   id: string;
   name: string;
 }
 
-const statusColors: Record<string, string> = {
-  DRAFT: 'bg-gray-100 text-gray-700',
-  PENDING: 'bg-yellow-100 text-yellow-700',
-  PAID: 'bg-green-100 text-green-700',
-  OVERDUE: 'bg-red-100 text-red-700',
-  PARTIALLY_PAID: 'bg-blue-100 text-blue-700',
-  CANCELLED: 'bg-gray-100 text-gray-500',
+const statusTone: Record<string, string> = {
+  DRAFT: 'bg-secondary text-foreground',
+  PENDING: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
+  PAID: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400',
+  OVERDUE: 'bg-rose-500/12 text-rose-600 dark:text-rose-400',
+  PARTIALLY_PAID: 'bg-blue-500/12 text-blue-600 dark:text-blue-400',
+  CANCELLED: 'bg-secondary text-muted-foreground',
 };
 
-const statusIcons: Record<string, LucideIcon> = {
-  DRAFT: Clock,
-  PENDING: Clock,
-  PAID: CheckCircle,
-  OVERDUE: XCircle,
-  PARTIALLY_PAID: Clock,
-  CANCELLED: XCircle,
-};
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(amount);
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
 
 export default function StudentInvoicesPage() {
-  const { user, logout } = useAuth();
-  const router = useRouter();
+  const { hasAccess, isLoading: authLoading } = useRequireAuth(['STUDENT']);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [semesters, setSemesters] = useState<Semester[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [semesters, setSemesters] = useState<SemesterOption[]>([]);
+  const [selectedSemester, setSelectedSemester] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceDetail | null>(
     null,
   );
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [filterSemester, setFilterSemester] = useState('');
-  const fetchDropdownData = useCallback(async () => {
-    try {
-      const res = await semestersApi.getAll();
-      setSemesters(res.data || []);
-    } catch (err) {
-      console.error('Failed to fetch semesters:', err);
-    }
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const fetchSemesters = useCallback(async () => {
+    const response = await semestersApi.getAll();
+    setSemesters(
+      (response.data ?? []).map((semester) => ({
+        id: semester.id,
+        name: semester.name,
+      })),
+    );
   }, []);
 
   const fetchInvoices = useCallback(async () => {
     setIsLoading(true);
-    setError(null);
+    setError('');
+
     try {
-      const data = await financeApi.getMyInvoices(filterSemester || undefined);
+      const data = await financeApi.getMyInvoices(selectedSemester || undefined);
       setInvoices(data);
-    } catch (err) {
-      setError('Failed to load invoices');
-      toast.error('Failed to load invoices');
+    } catch {
+      setError('Invoices could not be loaded.');
     } finally {
       setIsLoading(false);
     }
-  }, [filterSemester]);
+  }, [selectedSemester]);
 
   useEffect(() => {
-    if (!user?.studentId) {
-      router.push('/dashboard');
+    if (hasAccess) {
+      void fetchSemesters();
     }
-  }, [user, router]);
+  }, [fetchSemesters, hasAccess]);
 
   useEffect(() => {
-    void fetchDropdownData();
-  }, [fetchDropdownData]);
+    if (hasAccess) {
+      void fetchInvoices();
+    }
+  }, [fetchInvoices, hasAccess]);
 
-  useEffect(() => {
-    void fetchInvoices();
-  }, [fetchInvoices]);
-
-  if (!user?.studentId) {
+  const selectedSemesterName = useMemo(() => {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
+      semesters.find((semester) => semester.id === selectedSemester)?.name ??
+      'all semesters'
     );
-  }
+  }, [selectedSemester, semesters]);
 
-  const handleViewDetail = async (invoice: Invoice) => {
+  const totalOutstanding = useMemo(() => {
+    return invoices
+      .filter((invoice) => invoice.status !== 'PAID')
+      .reduce((sum, invoice) => sum + invoice.balance, 0);
+  }, [invoices]);
+
+  const viewInvoice = async (invoice: Invoice) => {
+    setIsDetailLoading(true);
+
     try {
       const detail = await financeApi.getMyInvoiceById(invoice.id);
       setSelectedInvoice(detail);
-      setIsDetailOpen(true);
-    } catch (err) {
-      toast.error('Failed to load invoice details');
+    } catch {
+      toast.error('Invoice details could not be loaded.');
+    } finally {
+      setIsDetailLoading(false);
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const totalOutstanding = invoices
-    .filter((inv) => inv.status !== 'PAID')
-    .reduce((sum, inv) => sum + inv.balance, 0);
+  if (authLoading || !hasAccess) {
+    return <LoadingState label="Loading invoices" />;
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-slate-800 text-white shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white hover:bg-gray-700"
-              onClick={() => router.push('/dashboard')}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-            <h1 className="text-xl font-bold">CampusCore</h1>
-            <span className="text-gray-500">|</span>
-            <span className="text-gray-300">My Invoices</span>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow={<SectionEyebrow>Student workspace</SectionEyebrow>}
+        title="Invoices"
+        description={`Review tuition and fee records for ${selectedSemesterName}, including balances, payment history, and due dates.`}
+        actions={
+          <div className="min-w-[220px]">
+            <Select
+              aria-label="Select semester for invoices"
+              value={selectedSemester}
+              onChange={(event) => setSelectedSemester(event.target.value)}
+              options={[
+                { value: '', label: 'All semesters' },
+                ...semesters.map((semester) => ({
+                  value: semester.id,
+                  label: semester.name,
+                })),
+              ]}
+            />
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-gray-300">Welcome, {user?.firstName}</span>
-            <Button
-              variant="outline"
-              className="text-white border-gray-600 hover:bg-gray-700"
-              onClick={logout}
-            >
-              Logout
-            </Button>
-          </div>
-        </div>
-      </nav>
+        }
+      />
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              <Receipt className="h-7 w-7 text-primary" />
-              My Invoices
-            </h2>
-            <p className="text-gray-500 mt-1">
-              View and manage your tuition invoices
-            </p>
-          </div>
-          {totalOutstanding > 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2">
-              <span className="text-yellow-800 font-medium">
-                Total Outstanding:{' '}
-              </span>
-              <span className="text-yellow-900 font-bold">
-                {formatCurrency(totalOutstanding)}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Filters */}
-        <div className="bg-white p-4 rounded-lg shadow-sm border mb-6">
-          <div className="flex flex-wrap items-end gap-4">
-            <div>
-              <label
-                htmlFor="semester-filter"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Semester
-              </label>
-              <select
-                id="semester-filter"
-                value={filterSemester}
-                onChange={(e) => setFilterSemester(e.target.value)}
-                className="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary min-w-[180px]"
-              >
-                <option value="">All Semesters</option>
-                {semesters.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <Button variant="outline" onClick={() => setFilterSemester('')}>
-              Clear Filter
-            </Button>
-          </div>
-        </div>
-
-        {/* Error State */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center mb-6">
-            <AlertCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
-            <p className="text-red-600 font-medium mb-2">{error}</p>
-            <Button variant="outline" onClick={fetchInvoices}>
-              Try Again
-            </Button>
-          </div>
-        )}
-
-        {/* Invoices Table */}
-        {!error && (
-          <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b">
-                    <th className="text-left px-4 py-3 font-semibold text-gray-600">
-                      Invoice #
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-600">
-                      Semester
-                    </th>
-                    <th className="text-right px-4 py-3 font-semibold text-gray-600">
-                      Amount
-                    </th>
-                    <th className="text-right px-4 py-3 font-semibold text-gray-600">
-                      Paid
-                    </th>
-                    <th className="text-right px-4 py-3 font-semibold text-gray-600">
-                      Balance
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-600">
-                      Due Date
-                    </th>
-                    <th className="text-center px-4 py-3 font-semibold text-gray-600">
-                      Status
-                    </th>
-                    <th className="text-center px-4 py-3 font-semibold text-gray-600">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {invoices.map((invoice) => (
-                    <tr
-                      key={invoice.id}
-                      className="hover:bg-gray-50 transition-colors"
-                    >
-                      <td className="px-4 py-3 font-medium text-gray-900">
-                        {invoice.invoiceNumber}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        {invoice.semesterName}
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium">
-                        {formatCurrency(invoice.total)}
-                      </td>
-                      <td className="px-4 py-3 text-right text-green-600">
-                        {formatCurrency(invoice.paidAmount)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium text-red-600">
-                        {formatCurrency(invoice.balance)}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        {formatDate(invoice.dueDate)}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[invoice.status] || 'bg-gray-100 text-gray-600'}`}
-                        >
-                          {invoice.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleViewDetail(invoice)}
-                          aria-label={`View details for invoice ${invoice.invoiceNumber}`}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Empty state */}
-            {invoices.length === 0 && !isLoading && (
-              <div className="p-8 text-center">
-                <Receipt className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">No invoices found</p>
-              </div>
-            )}
-
-            {/* Loading */}
-            {isLoading && (
-              <div className="p-8 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              </div>
-            )}
-          </div>
-        )}
-      </main>
-
-      {/* Invoice Detail Modal */}
-      {isDetailOpen && selectedInvoice && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-3xl p-6 my-8 mx-4">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h3 className="text-xl font-semibold">Invoice Details</h3>
-                <p className="text-gray-500">{selectedInvoice.invoiceNumber}</p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsDetailOpen(false)}
-                aria-label="Close invoice details"
-                title="Close invoice details"
-              >
-                <XCircle className="h-5 w-5" />
-              </Button>
-            </div>
-
-            <div className="space-y-6">
-              {/* Status Banner */}
-              <div
-                className={`p-4 rounded-lg flex items-center justify-between ${
-                  selectedInvoice.status === 'PAID'
-                    ? 'bg-green-50'
-                    : selectedInvoice.status === 'OVERDUE'
-                      ? 'bg-red-50'
-                      : 'bg-yellow-50'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  {(() => {
-                    const Icon = statusIcons[selectedInvoice.status] || Clock;
-                    return (
-                      <Icon
-                        className={`h-6 w-6 ${
-                          selectedInvoice.status === 'PAID'
-                            ? 'text-green-600'
-                            : selectedInvoice.status === 'OVERDUE'
-                              ? 'text-red-600'
-                              : 'text-yellow-600'
-                        }`}
-                      />
-                    );
-                  })()}
-                  <div>
-                    <p
-                      className={`font-semibold ${
-                        selectedInvoice.status === 'PAID'
-                          ? 'text-green-800'
-                          : selectedInvoice.status === 'OVERDUE'
-                            ? 'text-red-800'
-                            : 'text-yellow-800'
-                      }`}
-                    >
-                      {selectedInvoice.status}
-                    </p>
-                    {selectedInvoice.paidAt && (
-                      <p className="text-sm text-gray-600">
-                        Paid on {formatDate(selectedInvoice.paidAt)}
-                      </p>
-                    )}
+      {error ? (
+        <ErrorState
+          title="Invoices unavailable"
+          description={error}
+          onRetry={() => void fetchInvoices()}
+        />
+      ) : isLoading ? (
+        <LoadingState label="Loading invoices" />
+      ) : invoices.length === 0 ? (
+        <EmptyState
+          icon={Receipt}
+          title="No invoices found"
+          description="When tuition or fee records are generated for your account, they will appear here."
+        />
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card variant="elevated">
+              <CardContent className="flex items-center justify-between gap-4 pt-6">
+                <div>
+                  <div className="text-sm text-muted-foreground">
+                    Outstanding balance
+                  </div>
+                  <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
+                    {formatCurrency(totalOutstanding)}
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-600">Balance Due</p>
-                  <p className="text-2xl font-bold">
-                    {formatCurrency(selectedInvoice.balance)}
-                  </p>
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-amber-500/12 text-amber-600 dark:text-amber-400">
+                  <CreditCard className="h-5 w-5" />
                 </div>
-              </div>
+              </CardContent>
+            </Card>
+            <Card variant="elevated">
+              <CardContent className="flex items-center justify-between gap-4 pt-6">
+                <div>
+                  <div className="text-sm text-muted-foreground">Invoices in view</div>
+                  <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
+                    {invoices.length}
+                  </div>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-500/12 text-blue-600 dark:text-blue-400">
+                  <Receipt className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card variant="elevated">
+              <CardContent className="flex items-center justify-between gap-4 pt-6">
+                <div>
+                  <div className="text-sm text-muted-foreground">Paid records</div>
+                  <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
+                    {invoices.filter((invoice) => invoice.status === 'PAID').length}
+                  </div>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-500/12 text-emerald-600 dark:text-emerald-400">
+                  <CreditCard className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-              {/* Invoice Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-500">
-                    Semester
-                  </label>
-                  <p className="text-gray-900">
-                    {selectedInvoice.semesterName}
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-500">
-                    Due Date
-                  </label>
-                  <p className="text-gray-900">
-                    {formatDate(selectedInvoice.dueDate)}
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-500">
-                    Created
-                  </label>
-                  <p className="text-gray-900">
-                    {formatDate(selectedInvoice.createdAt)}
-                  </p>
-                </div>
-              </div>
-
-              {/* Invoice Items */}
-              <div>
-                <h4 className="font-semibold mb-3">Invoice Items</h4>
-                <table className="w-full text-sm">
+          <Card variant="muted">
+            <CardHeader>
+              <CardTitle className="text-xl">Billing records</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[900px] text-sm">
                   <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2">Description</th>
-                      <th className="text-right py-2">Qty</th>
-                      <th className="text-right py-2">Unit Price</th>
-                      <th className="text-right py-2">Total</th>
+                    <tr className="border-b border-border/70 text-left text-muted-foreground">
+                      <th className="px-2 py-3 font-medium">Invoice</th>
+                      <th className="px-2 py-3 font-medium">Semester</th>
+                      <th className="px-2 py-3 text-right font-medium">Total</th>
+                      <th className="px-2 py-3 text-right font-medium">Paid</th>
+                      <th className="px-2 py-3 text-right font-medium">Balance</th>
+                      <th className="px-2 py-3 font-medium">Due date</th>
+                      <th className="px-2 py-3 text-center font-medium">Status</th>
+                      <th className="px-2 py-3 text-right font-medium">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y">
-                    {selectedInvoice.items?.map((item) => (
-                      <tr key={item.id}>
-                        <td className="py-2">{item.description}</td>
-                        <td className="text-right py-2">{item.quantity}</td>
-                        <td className="text-right py-2">
-                          {formatCurrency(item.unitPrice)}
+                  <tbody className="divide-y divide-border/60">
+                    {invoices.map((invoice) => (
+                      <tr key={invoice.id}>
+                        <td className="px-2 py-4 font-medium text-foreground">
+                          {invoice.invoiceNumber}
                         </td>
-                        <td className="text-right py-2 font-medium">
-                          {formatCurrency(item.total)}
+                        <td className="px-2 py-4 text-muted-foreground">
+                          {invoice.semesterName}
+                        </td>
+                        <td className="px-2 py-4 text-right text-foreground">
+                          {formatCurrency(invoice.total)}
+                        </td>
+                        <td className="px-2 py-4 text-right text-foreground">
+                          {formatCurrency(invoice.paidAmount)}
+                        </td>
+                        <td className="px-2 py-4 text-right font-medium text-foreground">
+                          {formatCurrency(invoice.balance)}
+                        </td>
+                        <td className="px-2 py-4 text-muted-foreground">
+                          {formatDate(invoice.dueDate)}
+                        </td>
+                        <td className="px-2 py-4 text-center">
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                              statusTone[invoice.status] ??
+                              'bg-secondary text-foreground'
+                            }`}
+                          >
+                            {invoice.status}
+                          </span>
+                        </td>
+                        <td className="px-2 py-4 text-right">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => void viewInvoice(invoice)}
+                            aria-label={`View details for invoice ${invoice.invoiceNumber}`}
+                            title={`View details for invoice ${invoice.invoiceNumber}`}
+                          >
+                            {isDetailLoading && selectedInvoice?.id !== invoice.id ? null : (
+                              <Eye className="mr-2 h-4 w-4" />
+                            )}
+                            View details
+                          </Button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot>
-                    <tr className="border-t">
-                      <td colSpan={3} className="text-right py-2 font-medium">
-                        Subtotal
-                      </td>
-                      <td className="text-right py-2">
-                        {formatCurrency(selectedInvoice.subtotal)}
-                      </td>
-                    </tr>
-                    {selectedInvoice.discount > 0 && (
-                      <tr>
-                        <td
-                          colSpan={3}
-                          className="text-right py-2 text-green-600"
-                        >
-                          Discount
-                        </td>
-                        <td className="text-right py-2 text-green-600">
-                          -{formatCurrency(selectedInvoice.discount)}
-                        </td>
-                      </tr>
-                    )}
-                    <tr className="border-t font-bold">
-                      <td colSpan={3} className="text-right py-2">
-                        Total
-                      </td>
-                      <td className="text-right py-2">
-                        {formatCurrency(selectedInvoice.total)}
-                      </td>
-                    </tr>
-                  </tfoot>
                 </table>
               </div>
-
-              {/* Payments History */}
-              {selectedInvoice.payments &&
-                selectedInvoice.payments.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold mb-3">Payment History</h4>
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-2">Payment #</th>
-                          <th className="text-left py-2">Date</th>
-                          <th className="text-left py-2">Method</th>
-                          <th className="text-right py-2">Amount</th>
-                          <th className="text-center py-2">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {selectedInvoice.payments.map((payment) => (
-                          <tr key={payment.id}>
-                            <td className="py-2">{payment.paymentNumber}</td>
-                            <td className="py-2">
-                              {formatDate(payment.paidAt || payment.createdAt)}
-                            </td>
-                            <td className="py-2">{payment.method}</td>
-                            <td className="text-right py-2 font-medium">
-                              {formatCurrency(payment.amount)}
-                            </td>
-                            <td className="text-center py-2">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                                {payment.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-            </div>
-
-            <div className="mt-6 flex justify-end">
-              <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
-                Close
-              </Button>
-            </div>
-          </div>
-        </div>
+            </CardContent>
+          </Card>
+        </>
       )}
+
+      <Modal
+        isOpen={Boolean(selectedInvoice)}
+        onClose={() => setSelectedInvoice(null)}
+        title="Invoice details"
+        closeLabel="Close invoice details"
+      >
+        {selectedInvoice ? (
+          <div className="space-y-6">
+            <div className="rounded-lg border border-border/70 bg-secondary/30 px-4 py-4">
+              <div className="text-base font-semibold text-foreground">
+                {selectedInvoice.invoiceNumber}
+              </div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                {selectedInvoice.semesterName}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-3 text-sm text-muted-foreground">
+                <span>Due {formatDate(selectedInvoice.dueDate)}</span>
+                <span>Created {formatDate(selectedInvoice.createdAt)}</span>
+                <span className="font-medium text-foreground">
+                  Balance {formatCurrency(selectedInvoice.balance)}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                Invoice items
+              </h3>
+              <div className="space-y-3">
+                {selectedInvoice.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-lg border border-border/70 bg-card px-4 py-4"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="font-medium text-foreground">
+                          {item.description}
+                        </div>
+                        <div className="mt-1 text-sm text-muted-foreground">
+                          {item.quantity} x {formatCurrency(item.unitPrice)}
+                        </div>
+                      </div>
+                      <div className="font-medium text-foreground">
+                        {formatCurrency(item.total)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {selectedInvoice.payments.length > 0 ? (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  Payment history
+                </h3>
+                <div className="space-y-3">
+                  {selectedInvoice.payments.map((payment) => (
+                    <div
+                      key={payment.id}
+                      className="rounded-lg border border-border/70 bg-card px-4 py-4"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="font-medium text-foreground">
+                            {payment.paymentNumber}
+                          </div>
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            {payment.method} - {formatDate(payment.paidAt || payment.createdAt)}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-medium text-foreground">
+                            {formatCurrency(payment.amount)}
+                          </div>
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            {payment.status}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }

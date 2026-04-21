@@ -1,343 +1,461 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
-import { adminSemestersApi } from '@/lib/api';
-import { Button } from '@/components/ui/button';
+import { Calendar, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/context/AuthContext';
+import { academicYearsApi, adminSemestersApi } from '@/lib/api';
+import { AdminFrame } from '@/components/admin/AdminFrame';
 import {
-    Loader2,
-    Calendar,
-    Search,
-    Plus,
-    Pencil,
-    Trash2,
-    ArrowLeft,
-    AlertCircle,
-} from 'lucide-react';
+  AdminDialogFooter,
+  AdminFormField,
+  AdminPaginationFooter,
+  AdminRowActions,
+  AdminTableCard,
+  AdminTableScroll,
+  AdminToolbarCard,
+  AdminToolbarMeta,
+} from '@/components/admin/AdminSurface';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Modal } from '@/components/ui/modal';
+import { Select } from '@/components/ui/select';
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@/components/ui/state-block';
+import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 
 interface Semester {
-    id: string;
-    name: string;
-    type: string;
-    academicYearId: string;
-    academicYear?: { year: number };
-    startDate: string;
-    endDate: string;
-    status: string;
+  id: string;
+  name: string;
+  type: string;
+  academicYearId: string;
+  academicYear?: { year: number };
+  startDate: string;
+  endDate: string;
+  status: string;
 }
 
+interface AcademicYearOption {
+  id: string;
+  year: number;
+}
+
+const semesterTypeOptions = [
+  { value: 'FALL', label: 'Fall' },
+  { value: 'SPRING', label: 'Spring' },
+  { value: 'SUMMER', label: 'Summer' },
+];
+
 export default function AdminSemestersPage() {
-    const { user, logout, isAdmin, isSuperAdmin } = useAuth();
-    const router = useRouter();
-    const [semesters, setSemesters] = useState<Semester[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [showModal, setShowModal] = useState(false);
-    const [editingSemester, setEditingSemester] = useState<Semester | null>(null);
-    const [formData, setFormData] = useState({
-        name: '',
-        type: 'FALL',
-        academicYearId: '',
-        startDate: '',
-        endDate: '',
-    });
-    const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
+  const { user, isAdmin, isSuperAdmin } = useAuth();
+  const router = useRouter();
+  const [semesters, setSemesters] = useState<Semester[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYearOption[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingSemester, setEditingSemester] = useState<Semester | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    type: 'FALL',
+    academicYearId: '',
+    startDate: '',
+    endDate: '',
+  });
+  const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
+  const { confirm, confirmationDialog } = useConfirmationDialog();
 
-    // Redirect non-admins
-    useEffect(() => {
-        if (user && !isAdmin && !isSuperAdmin) {
-            router.push('/dashboard');
-        }
-    }, [user, isAdmin, isSuperAdmin, router]);
+  useEffect(() => {
+    if (user && !isAdmin && !isSuperAdmin) {
+      router.push('/dashboard');
+    }
+  }, [user, isAdmin, isSuperAdmin, router]);
 
-    const fetchSemesters = useCallback(async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const response = await adminSemestersApi.getAll({ page, limit: 20 });
-            setSemesters(response.data);
-            setTotalPages(response.meta?.totalPages || 1);
-        } catch {
-            setError('Failed to load semesters');
-            toast.error('Failed to load semesters');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [page]);
+  const fetchAcademicYears = useCallback(async () => {
+    try {
+      const response = await academicYearsApi.getAll({ limit: 1000 });
+      setAcademicYears(response.data || []);
+    } catch {
+      // The table can still render without dropdown helpers.
+    }
+  }, []);
 
-    useEffect(() => {
-        if (canAccess) {
-            void fetchSemesters();
-        }
-    }, [canAccess, fetchSemesters]);
+  const fetchSemesters = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
 
-    if (!canAccess) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
+    try {
+      const response = await adminSemestersApi.getAll({ page, limit: 20 });
+      const filteredSemesters = search
+        ? response.data.filter(
+            (semester: Semester) =>
+              semester.name.toLowerCase().includes(search.toLowerCase()) ||
+              semester.type.toLowerCase().includes(search.toLowerCase()) ||
+              String(semester.academicYear?.year || '').includes(search.trim()),
+          )
+        : response.data;
+
+      setSemesters(filteredSemesters);
+      setTotalPages(response.meta?.totalPages || 1);
+    } catch {
+      setError('Semesters could not be loaded.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [page, search]);
+
+  useEffect(() => {
+    if (canAccess) {
+      void fetchAcademicYears();
+      void fetchSemesters();
+    }
+  }, [canAccess, fetchAcademicYears, fetchSemesters]);
+
+  const pageSummary = useMemo(() => {
+    if (semesters.length === 0) {
+      return 'No matching records';
     }
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this semester?')) return;
-        
-        try {
-            await adminSemestersApi.delete(id);
-            toast.success('Semester deleted successfully');
-            fetchSemesters();
-        } catch {
-            toast.error('Failed to delete semester');
-        }
-    };
+    return `Page ${page} of ${totalPages}`;
+  }, [page, semesters.length, totalPages]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            if (editingSemester) {
-                await adminSemestersApi.update(editingSemester.id, formData);
-                toast.success('Semester updated successfully');
-            } else {
-                await adminSemestersApi.create(formData);
-                toast.success('Semester created successfully');
+  const academicYearOptions = useMemo(
+    () => [
+      { value: '', label: 'Select academic year' },
+      ...academicYears.map((year) => ({
+        value: year.id,
+        label: String(year.year),
+      })),
+    ],
+    [academicYears],
+  );
+
+  if (!canAccess) {
+    return <LoadingState label="Loading semesters" className="m-8" />;
+  }
+
+  const resetForm = () => {
+    setEditingSemester(null);
+    setFormData({
+      name: '',
+      type: 'FALL',
+      academicYearId: '',
+      startDate: '',
+      endDate: '',
+    });
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const openEdit = (semester: Semester) => {
+    setEditingSemester(semester);
+    setFormData({
+      name: semester.name,
+      type: semester.type,
+      academicYearId: semester.academicYearId,
+      startDate: semester.startDate.split('T')[0],
+      endDate: semester.endDate.split('T')[0],
+    });
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetForm();
+  };
+
+  const handleSearch = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setPage(1);
+    await fetchSemesters();
+  };
+
+  const handleDelete = async (semester: Semester) => {
+    const shouldDelete = await confirm({
+      title: 'Delete semester',
+      message: `Delete ${semester.name}? This removes the semester from the current admin view.`,
+      confirmText: 'Delete semester',
+      variant: 'destructive',
+    });
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      await adminSemestersApi.delete(semester.id);
+      toast.success('Semester deleted');
+      await fetchSemesters();
+    } catch {
+      toast.error('We could not delete that semester.');
+    }
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsSaving(true);
+
+    try {
+      if (editingSemester) {
+        await adminSemestersApi.update(editingSemester.id, formData);
+        toast.success('Semester updated');
+      } else {
+        await adminSemestersApi.create(formData);
+        toast.success('Semester created');
+      }
+
+      closeModal();
+      await fetchSemesters();
+    } catch (requestError: any) {
+      toast.error(
+        requestError.response?.data?.message ??
+          'The semester could not be saved.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <AdminFrame
+      title="Semesters"
+      description="Keep registration windows and teaching periods anchored to a clean academic timeline."
+      backLabel="Back to admin dashboard"
+      actions={
+        <Button onClick={openCreate}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create semester
+        </Button>
+      }
+    >
+      <div className="space-y-6">
+        <AdminToolbarCard>
+            <form
+              onSubmit={handleSearch}
+              className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"
+            >
+              <div className="w-full max-w-xl">
+                <label className="mb-2 block text-sm font-medium text-foreground">
+                  Search semesters
+                </label>
+                <Input
+                  type="text"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by semester, type, or year"
+                  icon={<Search className="h-4 w-4" />}
+                />
+              </div>
+              <AdminToolbarMeta
+                summary={pageSummary}
+                actions={
+                  <Button type="submit" variant="outline">
+                    Search
+                  </Button>
+                }
+              />
+            </form>
+        </AdminToolbarCard>
+
+        {error ? (
+          <ErrorState
+            title="Semesters unavailable"
+            description={error}
+            onRetry={() => void fetchSemesters()}
+          />
+        ) : isLoading ? (
+          <LoadingState label="Loading semesters" />
+        ) : semesters.length === 0 ? (
+          <EmptyState
+            icon={Calendar}
+            title="No matching semesters"
+            description="Create a semester to anchor sections, invoices, registration timing, and reporting."
+            action={<Button onClick={openCreate}>Create semester</Button>}
+          />
+        ) : (
+          <AdminTableCard
+            title="Semester records"
+            footer={
+              <AdminPaginationFooter
+                summary={pageSummary}
+                page={page}
+                totalPages={totalPages}
+                onPrevious={() => setPage((current) => current - 1)}
+                onNext={() => setPage((current) => current + 1)}
+              />
             }
-            setShowModal(false);
-            setEditingSemester(null);
-            setFormData({ name: '', type: 'FALL', academicYearId: '', startDate: '', endDate: '' });
-            fetchSemesters();
-        } catch (err: any) {
-            toast.error(err.response?.data?.message || 'Operation failed');
-        }
-    };
+          >
+              <AdminTableScroll>
+                <table className="w-full min-w-[840px] text-sm">
+                  <thead>
+                    <tr className="border-b border-border/70 text-left text-muted-foreground">
+                      <th className="px-2 py-3 font-medium">Name</th>
+                      <th className="px-2 py-3 font-medium">Type</th>
+                      <th className="px-2 py-3 font-medium">Academic year</th>
+                      <th className="px-2 py-3 font-medium">Start date</th>
+                      <th className="px-2 py-3 font-medium">End date</th>
+                      <th className="px-2 py-3 font-medium">Status</th>
+                      <th className="px-2 py-3 text-right font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {semesters.map((semester) => (
+                      <tr key={semester.id}>
+                        <td className="px-2 py-4 font-medium text-foreground">
+                          {semester.name}
+                        </td>
+                        <td className="px-2 py-4 text-muted-foreground">
+                          {semester.type}
+                        </td>
+                        <td className="px-2 py-4 text-muted-foreground">
+                          {semester.academicYear?.year || 'Unassigned'}
+                        </td>
+                        <td className="px-2 py-4 text-muted-foreground">
+                          {new Date(semester.startDate).toLocaleDateString()}
+                        </td>
+                        <td className="px-2 py-4 text-muted-foreground">
+                          {new Date(semester.endDate).toLocaleDateString()}
+                        </td>
+                        <td className="px-2 py-4">
+                          <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
+                            {semester.status.replace(/_/g, ' ')}
+                          </span>
+                        </td>
+                        <td className="px-2 py-4">
+                          <AdminRowActions>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => openEdit(semester)}
+                              aria-label={`Edit semester ${semester.name}`}
+                              title={`Edit semester ${semester.name}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => void handleDelete(semester)}
+                              aria-label={`Delete semester ${semester.name}`}
+                              title={`Delete semester ${semester.name}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AdminRowActions>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </AdminTableScroll>
+          </AdminTableCard>
+        )}
+      </div>
 
-    const openEdit = (semester: Semester) => {
-        setEditingSemester(semester);
-        setFormData({
-            name: semester.name,
-            type: semester.type,
-            academicYearId: semester.academicYearId,
-            startDate: semester.startDate.split('T')[0],
-            endDate: semester.endDate.split('T')[0],
-        });
-        setShowModal(true);
-    };
+      <Modal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        title={editingSemester ? 'Edit semester' : 'Create semester'}
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <AdminFormField label="Semester name">
+            <Input
+              type="text"
+              value={formData.name}
+              onChange={(event) =>
+                setFormData((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }))
+              }
+              placeholder="e.g. Fall 2026"
+              required
+            />
+          </AdminFormField>
 
-    const getStatusBadge = (status: string) => {
-        const styles: Record<string, string> = {
-            'ACTIVE': 'bg-green-100 text-green-700',
-            'REGISTRATION_OPEN': 'bg-blue-100 text-blue-700',
-            'ADD_DROP_OPEN': 'bg-cyan-100 text-cyan-700',
-            'IN_PROGRESS': 'bg-purple-100 text-purple-700',
-            'CLOSED': 'bg-gray-100 text-gray-700',
-            'ARCHIVED': 'bg-slate-100 text-slate-700',
-        };
-        return (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${styles[status] || 'bg-gray-100 text-gray-600'}`}>
-                {status.replace(/_/g, ' ')}
-            </span>
-        );
-    };
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Select
+              label="Type"
+              value={formData.type}
+              onChange={(event) =>
+                setFormData((current) => ({
+                  ...current,
+                  type: event.target.value,
+                }))
+              }
+              options={semesterTypeOptions}
+            />
+            <Select
+              label="Academic year"
+              value={formData.academicYearId}
+              onChange={(event) =>
+                setFormData((current) => ({
+                  ...current,
+                  academicYearId: event.target.value,
+                }))
+              }
+              options={academicYearOptions}
+              required
+            />
+          </div>
 
-    return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Navigation */}
-            <nav className="bg-slate-800 text-white shadow-sm">
-                <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                        <Link
-                            href="/admin"
-                            className="flex items-center gap-2 text-gray-300 hover:text-white"
-                            aria-label="Back to admin dashboard"
-                            title="Back to admin dashboard"
-                        >
-                            <ArrowLeft className="h-4 w-4" />
-                        </Link>
-                        <h1 className="text-xl font-bold">CampusCore Admin</h1>
-                        <span className="text-gray-500">|</span>
-                        <span className="text-gray-300">Semester Management</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <span className="text-gray-300">Welcome, {user?.firstName}</span>
-                        <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>Logout</Button>
-                    </div>
-                </div>
-            </nav>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <AdminFormField label="Start date">
+              <Input
+                type="date"
+                value={formData.startDate}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    startDate: event.target.value,
+                  }))
+                }
+                required
+              />
+            </AdminFormField>
+            <AdminFormField label="End date">
+              <Input
+                type="date"
+                value={formData.endDate}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    endDate: event.target.value,
+                  }))
+                }
+                required
+              />
+            </AdminFormField>
+          </div>
 
-            <main className="container mx-auto px-4 py-8">
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                    <div>
-                        <h2 className="text-2xl font-bold flex items-center gap-2">
-                            <Calendar className="h-7 w-7 text-primary" />
-                            Semester Management
-                        </h2>
-                        <p className="text-gray-500 mt-1">Manage academic semesters</p>
-                    </div>
-                    <Button onClick={() => { setEditingSemester(null); setFormData({ name: '', type: 'FALL', academicYearId: '', startDate: '', endDate: '' }); setShowModal(true); }}>
-                        <Plus className="h-4 w-4 mr-2" /> Create Semester
-                    </Button>
-                </div>
+          <AdminDialogFooter>
+            <Button type="button" variant="outline" onClick={closeModal}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSaving}>
+              {isSaving
+                ? 'Saving...'
+                : editingSemester
+                  ? 'Save changes'
+                  : 'Create semester'}
+            </Button>
+          </AdminDialogFooter>
+        </form>
+      </Modal>
 
-                {/* Error State */}
-                {error && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center mb-6">
-                        <AlertCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
-                        <p className="text-red-600 font-medium mb-2">{error}</p>
-                        <Button variant="outline" onClick={fetchSemesters}>Try Again</Button>
-                    </div>
-                )}
-
-                {/* Semesters Table */}
-                {!error && (
-                    <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="bg-gray-50 border-b">
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Name</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Type</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Academic Year</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Start Date</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">End Date</th>
-                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Status</th>
-                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y">
-                                    {semesters.map((semester) => (
-                                        <tr key={semester.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-4 py-3 font-medium text-gray-900">{semester.name}</td>
-                                            <td className="px-4 py-3 text-gray-600">{semester.type}</td>
-                                            <td className="px-4 py-3 text-gray-600">{semester.academicYear?.year || '-'}</td>
-                                            <td className="px-4 py-3 text-gray-600">{new Date(semester.startDate).toLocaleDateString()}</td>
-                                            <td className="px-4 py-3 text-gray-600">{new Date(semester.endDate).toLocaleDateString()}</td>
-                                            <td className="px-4 py-3 text-center">{getStatusBadge(semester.status)}</td>
-                                            <td className="px-4 py-3 text-center">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        onClick={() => openEdit(semester)}
-                                                        aria-label={`Edit semester ${semester.name}`}
-                                                        title={`Edit semester ${semester.name}`}
-                                                    >
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="text-red-600 hover:text-red-700"
-                                                        onClick={() => handleDelete(semester.id)}
-                                                        aria-label={`Delete semester ${semester.name}`}
-                                                        title={`Delete semester ${semester.name}`}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Empty state */}
-                        {semesters.length === 0 && !isLoading && (
-                            <div className="p-8 text-center">
-                                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                                <p className="text-gray-500">No semesters found</p>
-                            </div>
-                        )}
-
-                        {/* Pagination */}
-                        {totalPages > 1 && (
-                            <div className="border-t px-4 py-3 flex justify-between items-center">
-                                <span className="text-sm text-gray-500">Page {page} of {totalPages}</span>
-                                <div className="flex gap-2">
-                                    <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
-                                    <Button size="sm" variant="outline" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </main>
-
-            {/* Modal */}
-            {showModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
-                        <h3 className="text-lg font-semibold mb-4">{editingSemester ? 'Edit Semester' : 'Create Semester'}</h3>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Semester Name</label>
-                                <input
-                                    type="text"
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    placeholder="e.g., Fall 2026"
-                                    className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Type</label>
-                                <select
-                                    value={formData.type}
-                                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                                    className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                                >
-                                    <option value="FALL">Fall</option>
-                                    <option value="SPRING">Spring</option>
-                                    <option value="SUMMER">Summer</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Academic Year ID</label>
-                                <input
-                                    type="text"
-                                    value={formData.academicYearId}
-                                    onChange={(e) => setFormData({ ...formData, academicYearId: e.target.value })}
-                                    placeholder="e.g., 2026"
-                                    className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                                    required
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Start Date</label>
-                                    <input
-                                        type="date"
-                                        value={formData.startDate}
-                                        onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                                        className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">End Date</label>
-                                    <input
-                                        type="date"
-                                        value={formData.endDate}
-                                        onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                                        className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            <div className="flex justify-end gap-3 pt-4">
-                                <Button type="button" variant="outline" onClick={() => { setShowModal(false); setEditingSemester(null); }}>Cancel</Button>
-                                <Button type="submit">{editingSemester ? 'Update' : 'Create'}</Button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
+      {confirmationDialog}
+    </AdminFrame>
+  );
 }

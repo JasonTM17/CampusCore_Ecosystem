@@ -1,318 +1,381 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Building2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { departmentsApi } from '@/lib/api';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { AdminFrame } from '@/components/admin/AdminFrame';
 import {
-    Building2,
-    Plus,
-    Pencil,
-    Trash2,
-    ArrowLeft,
-    AlertCircle,
-    Search,
-} from 'lucide-react';
+  AdminDialogFooter,
+  AdminFormField,
+  AdminPaginationFooter,
+  AdminRowActions,
+  AdminTableCard,
+  AdminTableScroll,
+  AdminToolbarCard,
+  AdminToolbarMeta,
+} from '@/components/admin/AdminSurface';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Modal } from '@/components/ui/modal';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@/components/ui/state-block';
+import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
+import { toast } from 'sonner';
 
 interface Department {
-    id: string;
-    name: string;
-    code: string;
-    description?: string;
-    isActive: boolean;
-    createdAt: string;
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  isActive: boolean;
 }
 
 export default function AdminDepartmentsPage() {
-    const { user, logout, isAdmin, isSuperAdmin } = useAuth();
-    const router = useRouter();
-    const [departments, setDepartments] = useState<Department[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [search, setSearch] = useState('');
-    const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [showModal, setShowModal] = useState(false);
-    const [editingDept, setEditingDept] = useState<Department | null>(null);
-    const [formData, setFormData] = useState({
-        name: '',
-        code: '',
-        description: '',
-    });
-    const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
+  const { user, isAdmin, isSuperAdmin } = useAuth();
+  const router = useRouter();
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingDepartment, setEditingDepartment] = useState<Department | null>(
+    null,
+  );
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    code: '',
+    description: '',
+  });
+  const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
+  const { confirm, confirmationDialog } = useConfirmationDialog();
 
-    useEffect(() => {
-        if (user && !isAdmin && !isSuperAdmin) {
-            router.push('/dashboard');
-        }
-    }, [user, isAdmin, isSuperAdmin, router]);
+  useEffect(() => {
+    if (user && !isAdmin && !isSuperAdmin) {
+      router.push('/dashboard');
+    }
+  }, [user, isAdmin, isSuperAdmin, router]);
 
-    const fetchDepartments = useCallback(async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const response = await departmentsApi.getAll({ page, limit: 20 });
-            let filteredData = response.data;
-            if (search) {
-                filteredData = response.data.filter((d: Department) =>
-                    d.name.toLowerCase().includes(search.toLowerCase()) ||
-                    d.code.toLowerCase().includes(search.toLowerCase())
-                );
-            }
-            setDepartments(filteredData);
-            setTotalPages(response.meta?.totalPages || 1);
-        } catch {
-            setError('Failed to load departments');
-            toast.error('Failed to load departments');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [page, search]);
+  const fetchDepartments = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
 
-    useEffect(() => {
-        if (canAccess) {
-            void fetchDepartments();
-        }
-    }, [canAccess, fetchDepartments]);
+    try {
+      const response = await departmentsApi.getAll({ page, limit: 20 });
+      const filteredDepartments = search
+        ? response.data.filter(
+            (department) =>
+              department.name.toLowerCase().includes(search.toLowerCase()) ||
+              department.code.toLowerCase().includes(search.toLowerCase()),
+          )
+        : response.data;
 
-    if (!canAccess) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
+      setDepartments(filteredDepartments);
+      setTotalPages(response.meta?.totalPages || 1);
+    } catch {
+      setError('Departments could not be loaded.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [page, search]);
+
+  useEffect(() => {
+    if (canAccess) {
+      void fetchDepartments();
+    }
+  }, [canAccess, fetchDepartments]);
+
+  const pageSummary = useMemo(() => {
+    if (departments.length === 0) {
+      return 'No matching records';
     }
 
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault();
-        setPage(1);
-        fetchDepartments();
-    };
+    return `Page ${page} of ${totalPages}`;
+  }, [departments.length, page, totalPages]);
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this department?')) return;
-        
-        try {
-            await departmentsApi.delete(id);
-            toast.success('Department deleted successfully');
-            fetchDepartments();
-        } catch {
-            toast.error('Failed to delete department');
-        }
-    };
+  if (!canAccess) {
+    return <LoadingState label="Loading departments" className="m-8" />;
+  }
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            if (editingDept) {
-                await departmentsApi.update(editingDept.id, formData);
-                toast.success('Department updated successfully');
-            } else {
-                await departmentsApi.create(formData);
-                toast.success('Department created successfully');
+  const resetForm = () => {
+    setEditingDepartment(null);
+    setFormData({ name: '', code: '', description: '' });
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const openEdit = (department: Department) => {
+    setEditingDepartment(department);
+    setFormData({
+      name: department.name,
+      code: department.code,
+      description: department.description || '',
+    });
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetForm();
+  };
+
+  const handleSearch = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setPage(1);
+    await fetchDepartments();
+  };
+
+  const handleDelete = async (department: Department) => {
+    const shouldDelete = await confirm({
+      title: 'Delete department',
+      message: `Delete ${department.name}? This removes the department from the current admin view.`,
+      confirmText: 'Delete department',
+      variant: 'destructive',
+    });
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      await departmentsApi.delete(department.id);
+      toast.success('Department deleted');
+      await fetchDepartments();
+    } catch {
+      toast.error('We could not delete that department.');
+    }
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsSaving(true);
+
+    try {
+      if (editingDepartment) {
+        await departmentsApi.update(editingDepartment.id, formData);
+        toast.success('Department updated');
+      } else {
+        await departmentsApi.create(formData);
+        toast.success('Department created');
+      }
+
+      closeModal();
+      await fetchDepartments();
+    } catch (requestError: any) {
+      toast.error(
+        requestError.response?.data?.message ??
+          'The department could not be saved.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <AdminFrame
+      title="Departments"
+      description="Keep the academic structure readable for courses, lecturers, and downstream reporting."
+      backLabel="Back to admin dashboard"
+      actions={
+        <Button onClick={openCreate}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create department
+        </Button>
+      }
+    >
+      <div className="space-y-6">
+        <AdminToolbarCard>
+            <form
+              onSubmit={handleSearch}
+              className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"
+            >
+              <div className="w-full max-w-xl">
+                <label className="mb-2 block text-sm font-medium text-foreground">
+                  Search departments
+                </label>
+                <Input
+                  type="text"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by name or code"
+                  icon={<Search className="h-4 w-4" />}
+                />
+              </div>
+              <AdminToolbarMeta
+                summary={pageSummary}
+                actions={
+                  <Button type="submit" variant="outline">
+                    Search
+                  </Button>
+                }
+              />
+            </form>
+        </AdminToolbarCard>
+
+        {error ? (
+          <ErrorState
+            title="Departments unavailable"
+            description={error}
+            onRetry={() => void fetchDepartments()}
+          />
+        ) : isLoading ? (
+          <LoadingState label="Loading departments" />
+        ) : departments.length === 0 ? (
+          <EmptyState
+            icon={Building2}
+            title="No matching departments"
+            description="Create a department to anchor courses, lecturer assignments, and catalog ownership."
+            action={<Button onClick={openCreate}>Create department</Button>}
+          />
+        ) : (
+          <AdminTableCard
+            title="Department records"
+            footer={
+              <AdminPaginationFooter
+                summary={pageSummary}
+                page={page}
+                totalPages={totalPages}
+                onPrevious={() => setPage((current) => current - 1)}
+                onNext={() => setPage((current) => current + 1)}
+              />
             }
-            setShowModal(false);
-            setEditingDept(null);
-            setFormData({ name: '', code: '', description: '' });
-            fetchDepartments();
-        } catch (err: any) {
-            toast.error(err.response?.data?.message || 'Operation failed');
-        }
-    };
+          >
+              <AdminTableScroll>
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead>
+                    <tr className="border-b border-border/70 text-left text-muted-foreground">
+                      <th className="px-2 py-3 font-medium">Code</th>
+                      <th className="px-2 py-3 font-medium">Name</th>
+                      <th className="px-2 py-3 font-medium">Description</th>
+                      <th className="px-2 py-3 font-medium">Status</th>
+                      <th className="px-2 py-3 text-right font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {departments.map((department) => (
+                      <tr key={department.id}>
+                        <td className="px-2 py-4 font-medium text-foreground">
+                          {department.code}
+                        </td>
+                        <td className="px-2 py-4 text-foreground">
+                          {department.name}
+                        </td>
+                        <td className="px-2 py-4 text-muted-foreground">
+                          {department.description || 'No description'}
+                        </td>
+                        <td className="px-2 py-4">
+                          <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
+                            {department.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-2 py-4">
+                          <AdminRowActions>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => openEdit(department)}
+                              aria-label={`Edit department ${department.name}`}
+                              title={`Edit department ${department.name}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => void handleDelete(department)}
+                              aria-label={`Delete department ${department.name}`}
+                              title={`Delete department ${department.name}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AdminRowActions>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </AdminTableScroll>
+          </AdminTableCard>
+        )}
+      </div>
 
-    const openEdit = (dept: Department) => {
-        setEditingDept(dept);
-        setFormData({
-            name: dept.name,
-            code: dept.code,
-            description: dept.description || '',
-        });
-        setShowModal(true);
-    };
+      <Modal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        title={editingDepartment ? 'Edit department' : 'Create department'}
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <AdminFormField label="Code">
+              <Input
+                type="text"
+                value={formData.code}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    code: event.target.value,
+                  }))
+                }
+                disabled={Boolean(editingDepartment)}
+                required
+              />
+            </AdminFormField>
+            <AdminFormField label="Name">
+              <Input
+                type="text"
+                value={formData.name}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
+                }
+                required
+              />
+            </AdminFormField>
+          </div>
 
-    return (
-        <div className="min-h-screen bg-gray-50">
-            <nav className="bg-slate-800 text-white shadow-sm">
-                <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                        <Link
-                            href="/admin"
-                            className="flex items-center gap-2 text-gray-300 hover:text-white"
-                            aria-label="Back to admin dashboard"
-                            title="Back to admin dashboard"
-                        >
-                            <ArrowLeft className="h-4 w-4" />
-                        </Link>
-                        <h1 className="text-xl font-bold">CampusCore Admin</h1>
-                        <span className="text-gray-500">|</span>
-                        <span className="text-gray-300">Department Management</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <span className="text-gray-300">Welcome, {user?.firstName}</span>
-                        <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>Logout</Button>
-                    </div>
-                </div>
-            </nav>
+          <AdminFormField label="Description">
+            <Textarea
+              value={formData.description}
+              onChange={(event) =>
+                setFormData((current) => ({
+                  ...current,
+                  description: event.target.value,
+                }))
+              }
+              rows={4}
+            />
+          </AdminFormField>
 
-            <main className="container mx-auto px-4 py-8">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                    <div>
-                        <h2 className="text-2xl font-bold flex items-center gap-2">
-                            <Building2 className="h-7 w-7 text-primary" />
-                            Department Management
-                        </h2>
-                        <p className="text-gray-500 mt-1">Manage academic departments</p>
-                    </div>
-                    <Button onClick={() => { setEditingDept(null); setFormData({ name: '', code: '', description: '' }); setShowModal(true); }}>
-                        <Plus className="h-4 w-4 mr-2" /> Create Department
-                    </Button>
-                </div>
+          <AdminDialogFooter>
+            <Button type="button" variant="outline" onClick={closeModal}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSaving}>
+              {isSaving
+                ? 'Saving...'
+                : editingDepartment
+                  ? 'Save changes'
+                  : 'Create department'}
+            </Button>
+          </AdminDialogFooter>
+        </form>
+      </Modal>
 
-                <form onSubmit={handleSearch} className="mb-6 flex gap-2">
-                    <div className="relative flex-1 max-w-md">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder="Search by name or code..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                    </div>
-                    <Button type="submit">Search</Button>
-                </form>
-
-                {error && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center mb-6">
-                        <AlertCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
-                        <p className="text-red-600 font-medium mb-2">{error}</p>
-                        <Button variant="outline" onClick={fetchDepartments}>Try Again</Button>
-                    </div>
-                )}
-
-                {!error && (
-                    <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="bg-gray-50 border-b">
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Code</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Name</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Description</th>
-                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Status</th>
-                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y">
-                                    {departments.map((dept) => (
-                                        <tr key={dept.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-4 py-3 font-medium text-gray-900">{dept.code}</td>
-                                            <td className="px-4 py-3 text-gray-600">{dept.name}</td>
-                                            <td className="px-4 py-3 text-gray-600">{dept.description || '-'}</td>
-                                            <td className="px-4 py-3 text-center">
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                                    dept.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                                                }`}>
-                                                    {dept.isActive ? 'Active' : 'Inactive'}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3 text-center">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        onClick={() => openEdit(dept)}
-                                                        aria-label={`Edit department ${dept.name}`}
-                                                        title={`Edit department ${dept.name}`}
-                                                    >
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="text-red-600 hover:text-red-700"
-                                                        onClick={() => handleDelete(dept.id)}
-                                                        aria-label={`Delete department ${dept.name}`}
-                                                        title={`Delete department ${dept.name}`}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {departments.length === 0 && !isLoading && (
-                            <div className="p-8 text-center">
-                                <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                                <p className="text-gray-500">No departments found</p>
-                            </div>
-                        )}
-
-                        {totalPages > 1 && (
-                            <div className="border-t px-4 py-3 flex justify-between items-center">
-                                <span className="text-sm text-gray-500">Page {page} of {totalPages}</span>
-                                <div className="flex gap-2">
-                                    <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
-                                    <Button size="sm" variant="outline" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </main>
-
-            {showModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
-                        <h3 className="text-lg font-semibold mb-4">{editingDept ? 'Edit Department' : 'Create Department'}</h3>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Code *</label>
-                                    <input
-                                        type="text"
-                                        value={formData.code}
-                                        onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                                        disabled={!!editingDept}
-                                        className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Name *</label>
-                                    <input
-                                        type="text"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Description</label>
-                                <textarea
-                                    value={formData.description}
-                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                    rows={3}
-                                    className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                                />
-                            </div>
-                            <div className="flex justify-end gap-3 pt-4">
-                                <Button type="button" variant="outline" onClick={() => { setShowModal(false); setEditingDept(null); }}>Cancel</Button>
-                                <Button type="submit">{editingDept ? 'Update' : 'Create'}</Button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
+      {confirmationDialog}
+    </AdminFrame>
+  );
 }

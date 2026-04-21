@@ -1,14 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { AxiosError } from 'axios';
+import { ArrowRight, Eye, EyeOff, KeyRound, Lock, Mail } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { User } from '@/types/api';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { AuthShell } from '@/components/auth/AuthShell';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { SectionEyebrow } from '@/components/ui/page-header';
+import { getLocalEdgeOrigin, isLocalPreviewHost } from '@/lib/site';
 import { toast } from 'sonner';
-import { KeyRound, Mail, Lock, GraduationCap, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,238 +30,321 @@ function getPostLoginRoute(user: User) {
   return '/dashboard';
 }
 
+const authFeatures = [
+  {
+    label: 'Role-aware access',
+    description:
+      'Admins, lecturers, and students land in the right workspace without a second sign-in step.',
+  },
+  {
+    label: 'Session protection',
+    description:
+      'Browser auth stays on cookie sessions with CSRF protection and refresh handling.',
+  },
+  {
+    label: 'Operational continuity',
+    description:
+      'Core academic, finance, engagement, and analytics flows stay reachable from one portal.',
+  },
+];
+
+const reasonMessages: Record<string, { title: string; body: string }> = {
+  'session-expired': {
+    title: 'Your session ended',
+    body: 'Sign in again to continue working in CampusCore.',
+  },
+  unauthorized: {
+    title: 'Sign in required',
+    body: 'Your last request needed an active session.',
+  },
+  'signed-out': {
+    title: 'Signed out',
+    body: 'You have been signed out of the workspace.',
+  },
+};
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isClientReady, setIsClientReady] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [runtimeNotice, setRuntimeNotice] = useState<{
+    tone: 'info' | 'warning';
+    title: string;
+    body: string;
+  } | null>(null);
   const { login } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     setIsClientReady(true);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (!isLocalPreviewHost(window.location.hostname)) {
+      setRuntimeNotice(null);
+      return;
+    }
+
+    const localEdgeOrigin = getLocalEdgeOrigin();
+    const usingPreviewServer = window.location.origin !== localEdgeOrigin;
+
+    if (!usingPreviewServer) {
+      setRuntimeNotice(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const checkRuntime = async () => {
+      try {
+        const response = await fetch('/health', {
+          cache: 'no-store',
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        if (response.ok) {
+          setRuntimeNotice({
+            tone: 'info',
+            title: 'Development preview',
+            body: 'This local frontend is using the edge proxy. If sign-in stops responding, start the local edge helper or use the public domain.',
+          });
+          return;
+        }
+
+        setRuntimeNotice({
+          tone: 'warning',
+          title: 'Local edge unavailable',
+          body: `This preview cannot reach the local edge right now. Start the edge helper on ${localEdgeOrigin} or use the public domain instead of relying on frontend-only preview mode.`,
+        });
+      } catch {
+        if (!cancelled) {
+          setRuntimeNotice({
+            tone: 'warning',
+            title: 'Local edge unavailable',
+            body: `This preview cannot reach the local edge right now. Start the edge helper on ${localEdgeOrigin} or use the public domain instead of relying on frontend-only preview mode.`,
+          });
+        }
+      }
+    };
+
+    void checkRuntime();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const reason = searchParams.get('reason') ?? '';
+  const notice = useMemo(() => reasonMessages[reason], [reason]);
+
+  const getLoginErrorMessage = (error: unknown) => {
+    if (!(error instanceof AxiosError)) {
+      return 'We could not sign you in right now.';
+    }
+
+    if (!error.response) {
+      return 'CampusCore could not reach the local edge or auth services. Start the edge helper, confirm the proxy target is healthy, or use the public domain.';
+    }
+
+    if (error.response.status === 401) {
+      return 'The email address or password is incorrect.';
+    }
+
+    if (error.response.status === 403) {
+      return 'This sign-in attempt was blocked. Refresh the page and try again.';
+    }
+
+    if (error.response.status >= 500) {
+      return 'Sign-in is temporarily unavailable. Please try again in a moment.';
+    }
+
+    return error.response?.data?.message || 'We could not sign you in right now.';
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
     setIsLoading(true);
+
     try {
-      const user = await login(email, password);
-      toast.success('Welcome back! Login successful');
+      const user = await login(email.trim(), password);
+      toast.success('Welcome back');
       router.push(getPostLoginRoute(user));
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Invalid email or password');
+    } catch (error: unknown) {
+      const message = getLoginErrorMessage(error);
+      setFormError(message);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left Side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 relative overflow-hidden">
-        {/* Animated Background Patterns */}
-        <div className="absolute inset-0">
-          <div className="absolute top-20 left-20 w-72 h-72 bg-blue-500/20 rounded-full blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-20 right-20 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-3xl"></div>
-        </div>
-        
-        {/* Grid Pattern */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
-        
-        <div className="relative z-10 flex flex-col justify-center items-center w-full p-12 text-white">
-          <div className="mb-8">
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-400 to-cyan-400 rounded-2xl flex items-center justify-center mb-6 shadow-2xl shadow-blue-500/25">
-              <GraduationCap className="w-10 h-10 text-white" />
-            </div>
-            <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
-              CampusCore
-            </h1>
-            <p className="text-xl text-blue-200 max-w-md">
-              Production-like Campus Operations Workspace
+    <AuthShell
+      eyebrow="Secure access"
+      title="Sign in to the campus workspace."
+      description="Use the same protected browser session to move across academics, finance, announcements, and operational dashboards."
+      features={authFeatures}
+    >
+      <div className="space-y-6">
+        <div className="space-y-3">
+          <SectionEyebrow>Account access</SectionEyebrow>
+          <div className="space-y-2">
+            <h2 className="text-3xl font-semibold tracking-tight text-foreground">
+              Welcome back
+            </h2>
+            <p className="text-sm leading-6 text-muted-foreground">
+              Sign in with your campus account to continue.
             </p>
           </div>
-          
-          <div className="space-y-6 max-w-md">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                <span className="text-blue-400 font-bold">01</span>
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Course Management</h3>
-                <p className="text-blue-200/70 text-sm">Streamlined enrollment and scheduling</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
-                <span className="text-cyan-400 font-bold">02</span>
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Real-time Analytics</h3>
-                <p className="text-blue-200/70 text-sm">Comprehensive insights and reporting</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
-                <span className="text-emerald-400 font-bold">03</span>
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Hardened Sessions</h3>
-                <p className="text-blue-200/70 text-sm">Cookie-based auth with CSRF protection</p>
-              </div>
-            </div>
-          </div>
         </div>
-        
-        {/* Bottom Wave */}
-        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-900/50 to-transparent"></div>
-      </div>
 
-      {/* Right Side - Login Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white dark:bg-gray-900">
-        <div className="absolute top-4 right-4">
-          <ThemeToggle />
-        </div>
-        
-        <div className="w-full max-w-md space-y-8">
-          {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-cyan-600 rounded-xl flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-white" />
+        {notice ? (
+          <div className="rounded-lg border border-border/80 bg-secondary/50 px-4 py-3">
+            <div className="text-sm font-semibold text-foreground">
+              {notice.title}
             </div>
-            <span className="text-2xl font-bold dark:text-white">CampusCore</span>
+            <div className="mt-1 text-sm text-muted-foreground">
+              {notice.body}
+            </div>
+          </div>
+        ) : null}
+
+        {runtimeNotice ? (
+          <div
+            className={`rounded-lg px-4 py-3 ${
+              runtimeNotice.tone === 'warning'
+                ? 'border border-amber-500/30 bg-amber-500/10'
+                : 'border border-border/80 bg-secondary/40'
+            }`}
+          >
+            <div className="text-sm font-semibold text-foreground">
+              {runtimeNotice.title}
+            </div>
+            <div className="mt-1 text-sm leading-6 text-muted-foreground">
+              {runtimeNotice.body}
+            </div>
+          </div>
+        ) : null}
+
+        {formError ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            {formError}
+          </div>
+        ) : null}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2">
+            <label
+              htmlFor="email"
+              className="text-sm font-medium text-foreground"
+            >
+              Email address
+            </label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@university.edu"
+              autoComplete="email"
+              icon={<Mail className="h-4 w-4" />}
+              required
+            />
           </div>
 
-          <div>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Welcome back</h2>
-            <p className="mt-2 text-gray-600 dark:text-gray-400">
-              Sign in to access your academic dashboard
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-            <div className="space-y-5">
-              <div>
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-                >
-                  Email Address
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@university.edu"
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-                >
-                  Password
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    className="block w-full pl-10 pr-12 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    title={showPassword ? 'Hide password' : 'Show password'}
-                    aria-pressed={showPassword}
-                    disabled={!isClientReady}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                    ) : (
-                      <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">Remember me</span>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-4">
+              <label
+                htmlFor="password"
+                className="text-sm font-medium text-foreground"
+              >
+                Password
               </label>
               <Link
                 href="/forgot-password"
-                className="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400"
+                className="text-sm font-medium text-primary hover:underline"
               >
                 Forgot password?
               </Link>
             </div>
-
-            <Button
-              type="submit"
-              className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 flex items-center justify-center gap-2"
-              disabled={isLoading || !isClientReady}
-            >
-              {isLoading ? (
-                <span className="flex items-center gap-2">
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Signing in...
-                </span>
-              ) : (
-                <>
-                  Sign In
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </Button>
-          </form>
-
-          <div className="mt-8">
             <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200 dark:border-gray-700"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white dark:bg-gray-900 text-gray-500">Secure Login</span>
-              </div>
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                autoComplete="current-password"
+                icon={<Lock className="h-4 w-4" />}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                title={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                disabled={!isClientReady}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
             </div>
           </div>
 
-          <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-            <Link href="/" className="text-blue-600 hover:text-blue-500 font-medium inline-flex items-center gap-1">
-              <ArrowRight className="w-4 h-4 rotate-180" />
-              Back to Home
-            </Link>
-          </p>
+          <Button type="submit" className="w-full" disabled={isLoading || !isClientReady}>
+            {isLoading ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground" />
+                Signing in
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-2">
+                Sign in
+                <ArrowRight className="h-4 w-4" />
+              </span>
+            )}
+          </Button>
+        </form>
+
+        <div className="rounded-lg border border-border/70 bg-card/70 px-4 py-4">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-lg bg-[hsl(var(--foreground))] text-[hsl(var(--background))]">
+              <KeyRound className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-foreground">
+                Session behavior
+              </div>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                CampusCore uses cookie-based browser sessions with automatic refresh handling and CSRF protection for mutating requests.
+              </p>
+            </div>
+          </div>
         </div>
+
+        <p className="text-sm text-muted-foreground">
+          Need a different starting point?{' '}
+          <Link href="/" className="font-medium text-primary hover:underline">
+            Return to the homepage
+          </Link>
+          .
+        </p>
       </div>
-    </div>
+    </AuthShell>
   );
 }

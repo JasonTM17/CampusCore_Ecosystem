@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 interface ModalProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface ModalProps {
   title?: string;
   children: React.ReactNode;
   className?: string;
+  closeLabel?: string;
 }
 
 export function Modal({
@@ -18,6 +20,7 @@ export function Modal({
   title,
   children,
   className,
+  closeLabel = 'Close modal',
 }: ModalProps) {
   const titleId = React.useId();
   const dialogRef = React.useRef<HTMLDivElement>(null);
@@ -71,27 +74,27 @@ export function Modal({
         aria-labelledby={title ? titleId : undefined}
         tabIndex={-1}
         className={cn(
-          'relative z-50 w-full max-w-lg mx-4 bg-white dark:bg-gray-800 rounded-lg shadow-xl',
+          'relative z-50 mx-4 w-full max-w-lg rounded-lg border border-border/80 bg-card shadow-2xl',
           className,
         )}
       >
         {title && (
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-            <h3 id={titleId} className="text-lg font-semibold dark:text-white">
+          <div className="flex items-center justify-between border-b border-border/70 px-5 py-4">
+            <h3 id={titleId} className="text-lg font-semibold text-foreground">
               {title}
             </h3>
             <button
               ref={closeButtonRef}
               type="button"
               onClick={onClose}
-              className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
-              aria-label="Close modal"
+              className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              aria-label={closeLabel}
             >
-              <X className="h-5 w-5 dark:text-white" />
+              <X className="h-5 w-5" />
             </button>
           </div>
         )}
-        <div className="p-4">{children}</div>
+        <div className="p-5">{children}</div>
       </div>
     </div>
   );
@@ -123,29 +126,24 @@ export function ConfirmModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title}>
       <div className="space-y-4">
-        <p className="text-gray-600 dark:text-gray-300">{message}</p>
+        <p className="text-sm leading-6 text-muted-foreground">{message}</p>
         <div className="flex justify-end gap-2">
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={onClose}
             disabled={isLoading}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
           >
             {cancelText}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant={variant === 'destructive' ? 'destructive' : 'default'}
             onClick={onConfirm}
             disabled={isLoading}
-            className={cn(
-              'px-4 py-2 text-sm font-medium text-white rounded-md disabled:opacity-50',
-              variant === 'destructive'
-                ? 'bg-destructive hover:bg-destructive/90'
-                : 'bg-primary hover:bg-primary/90',
-            )}
           >
             {isLoading ? 'Loading...' : confirmText}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>

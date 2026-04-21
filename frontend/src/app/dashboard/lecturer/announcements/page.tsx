@@ -1,13 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
+import { Bell, RefreshCw } from 'lucide-react';
+import { useRequireAuth } from '@/context/AuthContext';
 import { announcementsApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
-import { ArrowLeft, Bell, AlertCircle, RefreshCw } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@/components/ui/state-block';
 
 type Announcement = {
   id: string;
@@ -16,145 +21,142 @@ type Announcement = {
   priority: string;
   createdAt: string;
   semester?: { name: string } | null;
-  section?: { sectionNumber: string; course?: { code?: string; name?: string } } | null;
+  section?: {
+    sectionNumber: string;
+    course?: { code?: string; name?: string };
+  } | null;
 };
 
-const priorityBadge: Record<string, string> = {
-  LOW: 'bg-gray-100 text-gray-700',
-  NORMAL: 'bg-blue-50 text-blue-700',
-  HIGH: 'bg-yellow-50 text-yellow-800',
-  URGENT: 'bg-red-50 text-red-700',
+const priorityTone: Record<string, string> = {
+  LOW: 'bg-secondary text-foreground',
+  NORMAL: 'bg-blue-500/12 text-blue-600 dark:text-blue-400',
+  HIGH: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
+  URGENT: 'bg-rose-500/12 text-rose-600 dark:text-rose-400',
 };
 
 export default function LecturerAnnouncementsPage() {
-  const { user, logout, isLecturer } = useAuth();
-  const router = useRouter();
+  const { hasAccess, isLoading: authLoading } = useRequireAuth(['LECTURER']);
   const [items, setItems] = useState<Announcement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (user && !isLecturer) router.push('/dashboard');
-  }, [user, isLecturer, router]);
-
-  useEffect(() => {
-    fetchFeed();
-  }, []);
-
-  const fetchFeed = async () => {
+  const fetchFeed = useCallback(async () => {
     setIsLoading(true);
-    setError(null);
+    setError('');
+
     try {
-      const res = await announcementsApi.getMy({ page: 1, limit: 50 });
-      setItems(res.data || []);
-    } catch (e) {
-      setError('Failed to load announcements');
-      toast.error('Failed to load announcements');
+      const response = await announcementsApi.getMy({ page: 1, limit: 50 });
+      setItems(response.data ?? []);
+    } catch {
+      setError('Announcements could not be loaded right now.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  if (!user || !isLecturer) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
+  useEffect(() => {
+    if (hasAccess) {
+      void fetchFeed();
+    }
+  }, [fetchFeed, hasAccess]);
+
+  if (authLoading || !hasAccess) {
+    return <LoadingState label="Loading announcements" />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-slate-800 text-white shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/dashboard/lecturer"
-              className="flex items-center gap-2 text-gray-300 hover:text-white"
-              aria-label="Back to lecturer dashboard"
-              title="Back to lecturer dashboard"
-            >
-              <ArrowLeft className="h-4 w-4" />
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow={<SectionEyebrow>Lecturer workspace</SectionEyebrow>}
+        title="Announcements"
+        description="Keep the latest campus and section-level notices close to your teaching workflow."
+        actions={
+          <div className="flex flex-wrap gap-3">
+            <Link href="/dashboard/lecturer">
+              <Button
+                type="button"
+                variant="outline"
+                aria-label="Back to lecturer dashboard"
+                title="Back to lecturer dashboard"
+              >
+                Back to lecturer dashboard
+              </Button>
             </Link>
-            <h1 className="text-xl font-bold">CampusCore</h1>
-            <span className="text-gray-500">|</span>
-            <span className="text-gray-300">Announcements</span>
-          </div>
-          <div className="flex items-center gap-4">
             <Button
+              type="button"
               variant="outline"
-              className="text-white border-gray-600 hover:bg-gray-700"
-              onClick={fetchFeed}
+              onClick={() => void fetchFeed()}
               disabled={isLoading}
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
+              />
               Refresh
             </Button>
-                        <span className="text-gray-300">Welcome, {user?.firstName}</span>
-            <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>
-              Logout
-            </Button>
           </div>
-        </div>
-      </nav>
+        }
+      />
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              <Bell className="h-7 w-7 text-primary" />
-              Announcements
-            </h2>
-            <p className="text-gray-500 mt-1">Updates relevant to you and your sections</p>
-          </div>
-        </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center mb-6">
-            <AlertCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
-            <p className="text-red-600 font-medium mb-2">{error}</p>
-            <Button variant="outline" onClick={fetchFeed}>
-              Try Again
-            </Button>
-          </div>
-        )}
-
-        {!error && (
-          <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-            {isLoading ? (
-              <div className="p-10 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              </div>
-            ) : items.length === 0 ? (
-              <div className="p-10 text-center text-gray-500">No announcements yet.</div>
-            ) : (
-              <div className="divide-y">
-                {items.map((a) => (
-                  <div key={a.id} className="p-5 hover:bg-gray-50">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${priorityBadge[a.priority] || 'bg-gray-100 text-gray-700'}`}>
-                            {a.priority}
-                          </span>
-                          <h3 className="font-semibold text-gray-900">{a.title}</h3>
-                        </div>
-                        <p className="text-sm text-gray-600 mt-2 whitespace-pre-line">{a.content}</p>
-                        <div className="text-xs text-gray-500 mt-3">
-                          {a.semester?.name ? <span className="mr-3">Semester: {a.semester.name}</span> : null}
-                          {a.section?.course?.code ? <span className="mr-3">Course: {a.section.course.code}</span> : null}
-                          <span>{new Date(a.createdAt).toLocaleString()}</span>
-                        </div>
-                      </div>
-                    </div>
+      {error ? (
+        <ErrorState
+          title="Announcements unavailable"
+          description={error}
+          onRetry={() => void fetchFeed()}
+        />
+      ) : isLoading ? (
+        <LoadingState label="Loading announcements" />
+      ) : items.length === 0 ? (
+        <EmptyState
+          icon={Bell}
+          title="No announcements yet"
+          description="Shared notices for your teaching workspace will appear here once they are published."
+        />
+      ) : (
+        <Card variant="muted">
+          <CardHeader>
+            <CardTitle className="text-xl">Recent notices</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {items.map((announcement) => (
+              <article
+                key={announcement.id}
+                className="rounded-lg border border-border/70 bg-card px-5 py-5"
+              >
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                        priorityTone[announcement.priority] ??
+                        'bg-secondary text-foreground'
+                      }`}
+                    >
+                      {announcement.priority}
+                    </span>
+                    <h2 className="text-lg font-semibold text-foreground">
+                      {announcement.title}
+                    </h2>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </main>
+                  <p className="max-w-3xl whitespace-pre-line text-sm leading-7 text-muted-foreground">
+                    {announcement.content}
+                  </p>
+                  <div className="flex flex-wrap gap-3 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                    {announcement.semester?.name ? (
+                      <span>Semester {announcement.semester.name}</span>
+                    ) : null}
+                    {announcement.section?.course?.code ? (
+                      <span>
+                        {announcement.section.course.code} section{' '}
+                        {announcement.section.sectionNumber}
+                      </span>
+                    ) : null}
+                    <span>{new Date(announcement.createdAt).toLocaleString()}</span>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
-

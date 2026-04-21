@@ -1,331 +1,383 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { AlertCircle, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { usersApi } from '@/lib/api';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { AdminFrame } from '@/components/admin/AdminFrame';
 import {
-    Loader2,
-    Users,
-    Search,
-    Plus,
-    Pencil,
-    Trash2,
-    ArrowLeft,
-    AlertCircle,
-} from 'lucide-react';
+  AdminDialogFooter,
+  AdminFormField,
+  AdminPaginationFooter,
+  AdminRowActions,
+  AdminTableCard,
+  AdminTableScroll,
+  AdminToolbarCard,
+  AdminToolbarMeta,
+} from '@/components/admin/AdminSurface';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Modal } from '@/components/ui/modal';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
+import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
+import { toast } from 'sonner';
 
 interface UserRecord {
-    id: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    status: string;
-    createdAt: string;
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  status: string;
+  createdAt: string;
 }
 
 export default function AdminUsersPage() {
-    const { user, logout, isAdmin, isSuperAdmin } = useAuth();
-    const router = useRouter();
-    const [users, setUsers] = useState<UserRecord[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [search, setSearch] = useState('');
-    const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [showCreateModal, setShowCreateModal] = useState(false);
-    const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
-    const [formData, setFormData] = useState({
-        email: '',
-        password: '',
-        firstName: '',
-        lastName: '',
-    });
-    const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
+  const { user, isAdmin, isSuperAdmin } = useAuth();
+  const router = useRouter();
+  const [users, setUsers] = useState<UserRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    firstName: '',
+    lastName: '',
+  });
+  const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
+  const { confirm, confirmationDialog } = useConfirmationDialog();
 
-    // Redirect non-admins
-    useEffect(() => {
-        if (user && !isAdmin && !isSuperAdmin) {
-            router.push('/dashboard');
-        }
-    }, [user, isAdmin, isSuperAdmin, router]);
+  useEffect(() => {
+    if (user && !isAdmin && !isSuperAdmin) {
+      router.push('/dashboard');
+    }
+  }, [user, isAdmin, isSuperAdmin, router]);
 
-    const fetchUsers = useCallback(async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const response = await usersApi.getAll({ page, limit: 20, search: search || undefined });
-            setUsers(response.data);
-            setTotalPages(response.meta?.totalPages || 1);
-        } catch {
-            setError('Failed to load users');
-            toast.error('Failed to load users');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [page, search]);
+  const fetchUsers = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
+    try {
+      const response = await usersApi.getAll({
+        page,
+        limit: 20,
+        search: search || undefined,
+      });
+      setUsers(response.data);
+      setTotalPages(response.meta?.totalPages || 1);
+    } catch {
+      setError('User records could not be loaded.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [page, search]);
 
-    useEffect(() => {
-        if (canAccess) {
-            void fetchUsers();
-        }
-    }, [canAccess, fetchUsers]);
+  useEffect(() => {
+    if (canAccess) {
+      void fetchUsers();
+    }
+  }, [canAccess, fetchUsers]);
 
-    if (!canAccess) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
+  const pageSummary = useMemo(() => {
+    if (users.length === 0) {
+      return 'No matching records';
     }
 
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault();
-        setPage(1);
-        fetchUsers();
-    };
+    return `Page ${page} of ${totalPages}`;
+  }, [page, totalPages, users.length]);
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this user?')) return;
-        
-        try {
-            await usersApi.delete(id);
-            toast.success('User deleted successfully');
-            fetchUsers();
-        } catch {
-            toast.error('Failed to delete user');
-        }
-    };
+  if (!canAccess) {
+    return <LoadingState label="Loading user management" className="m-8" />;
+  }
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            if (editingUser) {
-                await usersApi.update(editingUser.id, {
-                    firstName: formData.firstName,
-                    lastName: formData.lastName,
-                });
-                toast.success('User updated successfully');
-            } else {
-                await usersApi.create(formData);
-                toast.success('User created successfully');
-            }
-            setShowCreateModal(false);
-            setEditingUser(null);
-            setFormData({ email: '', password: '', firstName: '', lastName: '' });
-            fetchUsers();
-        } catch (err: any) {
-            toast.error(err.response?.data?.message || 'Operation failed');
-        }
-    };
+  const resetForm = () => {
+    setEditingUser(null);
+    setFormError('');
+    setFormData({ email: '', password: '', firstName: '', lastName: '' });
+  };
 
-    const openEdit = (user: UserRecord) => {
-        setEditingUser(user);
-        setFormData({
-            email: user.email,
-            password: '',
-            firstName: user.firstName,
-            lastName: user.lastName,
+  const openCreate = () => {
+    resetForm();
+    setShowCreateModal(true);
+  };
+
+  const openEdit = (userRecord: UserRecord) => {
+    setEditingUser(userRecord);
+    setFormError('');
+    setFormData({
+      email: userRecord.email,
+      password: '',
+      firstName: userRecord.firstName,
+      lastName: userRecord.lastName,
+    });
+    setShowCreateModal(true);
+  };
+
+  const closeModal = () => {
+    setShowCreateModal(false);
+    resetForm();
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPage(1);
+    await fetchUsers();
+  };
+
+  const handleDelete = async (userRecord: UserRecord) => {
+    const shouldDelete = await confirm({
+      title: 'Delete user',
+      message: `Delete ${userRecord.firstName} ${userRecord.lastName}? This action removes the account record from the current admin view.`,
+      confirmText: 'Delete user',
+      variant: 'destructive',
+    });
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      await usersApi.delete(userRecord.id);
+      toast.success('User deleted');
+      await fetchUsers();
+    } catch {
+      toast.error('We could not delete that user.');
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError('');
+    setIsSaving(true);
+
+    try {
+      if (editingUser) {
+        await usersApi.update(editingUser.id, {
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
         });
-        setShowCreateModal(true);
-    };
+        toast.success('User updated');
+      } else {
+        await usersApi.create({
+          email: formData.email.trim(),
+          password: formData.password,
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+        });
+        toast.success('User created');
+      }
 
-    return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Navigation */}
-            <nav className="bg-slate-800 text-white shadow-sm">
-                <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                        <Link
-                            href="/admin"
-                            className="flex items-center gap-2 text-gray-300 hover:text-white"
-                            aria-label="Back to admin dashboard"
-                            title="Back to admin dashboard"
-                        >
-                            <ArrowLeft className="h-4 w-4" />
-                        </Link>
-                        <h1 className="text-xl font-bold">CampusCore Admin</h1>
-                        <span className="text-gray-500">|</span>
-                        <span className="text-gray-300">User Management</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <span className="text-gray-300">Welcome, {user?.firstName}</span>
-                        <Button variant="outline" className="text-white border-gray-600 hover:bg-gray-700" onClick={logout}>Logout</Button>
-                    </div>
-                </div>
-            </nav>
+      closeModal();
+      await fetchUsers();
+    } catch (err: any) {
+      const message = err.response?.data?.message || 'The user record could not be saved.';
+      setFormError(message);
+      toast.error(message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
-            <main className="container mx-auto px-4 py-8">
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                    <div>
-                        <h2 className="text-2xl font-bold flex items-center gap-2">
-                            <Users className="h-7 w-7 text-primary" />
-                            User Management
-                        </h2>
-                        <p className="text-gray-500 mt-1">Manage user accounts in the system</p>
-                    </div>
-                    <Button onClick={() => { setEditingUser(null); setFormData({ email: '', password: '', firstName: '', lastName: '' }); setShowCreateModal(true); }}>
-                        <Plus className="h-4 w-4 mr-2" /> Create User
-                    </Button>
-                </div>
+  return (
+    <AdminFrame
+      title="User management"
+      description="Review campus accounts, create new records, and keep sensitive actions behind explicit confirmation."
+      actions={
+        <Button onClick={openCreate}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create user
+        </Button>
+      }
+    >
+      <div className="space-y-6">
+        <AdminToolbarCard>
+            <form onSubmit={handleSearch} className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div className="w-full max-w-xl">
+                <label className="mb-2 block text-sm font-medium text-foreground">
+                  Search users
+                </label>
+                <Input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by email or name"
+                  icon={<Search className="h-4 w-4" />}
+                />
+              </div>
+              <AdminToolbarMeta
+                summary={pageSummary}
+                actions={
+                  <Button type="submit" variant="outline">
+                    Search
+                  </Button>
+                }
+              />
+            </form>
+        </AdminToolbarCard>
 
-                {/* Search */}
-                <form onSubmit={handleSearch} className="mb-6 flex gap-2">
-                    <div className="relative flex-1 max-w-md">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder="Search by email or name..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                    </div>
-                    <Button type="submit">Search</Button>
-                </form>
+        {error ? (
+          <ErrorState
+            title="User records unavailable"
+            description={error}
+            onRetry={() => void fetchUsers()}
+          />
+        ) : isLoading ? (
+          <LoadingState label="Loading user records" />
+        ) : users.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title="No matching users"
+            description="Try another search term or create a new campus account."
+            action={<Button onClick={openCreate}>Create user</Button>}
+          />
+        ) : (
+          <AdminTableCard
+            title="Campus accounts"
+            footer={
+              <AdminPaginationFooter
+                summary={pageSummary}
+                page={page}
+                totalPages={totalPages}
+                onPrevious={() => setPage((current) => current - 1)}
+                onNext={() => setPage((current) => current + 1)}
+              />
+            }
+          >
+              <AdminTableScroll>
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead>
+                    <tr className="border-b border-border/70 text-left text-muted-foreground">
+                      <th className="px-2 py-3 font-medium">Name</th>
+                      <th className="px-2 py-3 font-medium">Email</th>
+                      <th className="px-2 py-3 font-medium">Status</th>
+                      <th className="px-2 py-3 font-medium">Created</th>
+                      <th className="px-2 py-3 text-right font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {users.map((record) => (
+                      <tr key={record.id}>
+                        <td className="px-2 py-4">
+                          <div className="font-medium text-foreground">
+                            {record.firstName} {record.lastName}
+                          </div>
+                        </td>
+                        <td className="px-2 py-4 text-muted-foreground">
+                          {record.email}
+                        </td>
+                        <td className="px-2 py-4">
+                          <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
+                            {record.status}
+                          </span>
+                        </td>
+                        <td className="px-2 py-4 text-muted-foreground">
+                          {new Date(record.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-2 py-4">
+                          <AdminRowActions>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => openEdit(record)}
+                              aria-label={`Edit user ${record.firstName} ${record.lastName}`}
+                              title={`Edit user ${record.firstName} ${record.lastName}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => void handleDelete(record)}
+                              aria-label={`Delete user ${record.firstName} ${record.lastName}`}
+                              title={`Delete user ${record.firstName} ${record.lastName}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AdminRowActions>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </AdminTableScroll>
+          </AdminTableCard>
+        )}
+      </div>
 
-                {/* Error State */}
-                {error && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center mb-6">
-                        <AlertCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
-                        <p className="text-red-600 font-medium mb-2">{error}</p>
-                        <Button variant="outline" onClick={fetchUsers}>Try Again</Button>
-                    </div>
-                )}
+      <Modal
+        isOpen={showCreateModal}
+        onClose={closeModal}
+        title={editingUser ? 'Edit user' : 'Create user'}
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {formError ? (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              {formError}
+            </div>
+          ) : null}
 
-                {/* Users Table */}
-                {!error && (
-                    <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="bg-gray-50 border-b">
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Name</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Email</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Status</th>
-                                        <th className="text-left px-4 py-3 font-semibold text-gray-600">Created</th>
-                                        <th className="text-center px-4 py-3 font-semibold text-gray-600">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y">
-                                    {users.map((u) => (
-                                        <tr key={u.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-4 py-3 font-medium text-gray-900">{u.firstName} {u.lastName}</td>
-                                            <td className="px-4 py-3 text-gray-600">{u.email}</td>
-                                            <td className="px-4 py-3">
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                                    u.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                                                }`}>
-                                                    {u.status}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3 text-gray-600">{new Date(u.createdAt).toLocaleDateString()}</td>
-                                            <td className="px-4 py-3 text-center">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        onClick={() => openEdit(u)}
-                                                        aria-label={`Edit user ${u.firstName} ${u.lastName}`}
-                                                        title={`Edit user ${u.firstName} ${u.lastName}`}
-                                                    >
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="text-red-600 hover:text-red-700"
-                                                        onClick={() => handleDelete(u.id)}
-                                                        aria-label={`Delete user ${u.firstName} ${u.lastName}`}
-                                                        title={`Delete user ${u.firstName} ${u.lastName}`}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+          <AdminFormField label="Email address">
+            <Input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData((current) => ({ ...current, email: e.target.value }))}
+              disabled={Boolean(editingUser)}
+              required
+            />
+          </AdminFormField>
 
-                        {/* Pagination */}
-                        {totalPages > 1 && (
-                            <div className="border-t px-4 py-3 flex justify-between items-center">
-                                <span className="text-sm text-gray-500">Page {page} of {totalPages}</span>
-                                <div className="flex gap-2">
-                                    <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
-                                    <Button size="sm" variant="outline" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </main>
+          {!editingUser ? (
+            <AdminFormField
+              label="Temporary password"
+              description="Use a temporary password and ask the user to rotate it after first sign-in."
+            >
+              <Input
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData((current) => ({ ...current, password: e.target.value }))}
+                required
+              />
+            </AdminFormField>
+          ) : null}
 
-            {/* Modal */}
-            {showCreateModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
-                        <h3 className="text-lg font-semibold mb-4">{editingUser ? 'Edit User' : 'Create User'}</h3>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Email</label>
-                                <input
-                                    type="email"
-                                    value={formData.email}
-                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                    disabled={!!editingUser}
-                                    className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100"
-                                    required
-                                />
-                            </div>
-                            {!editingUser && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Password</label>
-                                    <input
-                                        type="password"
-                                        value={formData.password}
-                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                        className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                                        required={!editingUser}
-                                    />
-                                </div>
-                            )}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">First Name</label>
-                                    <input
-                                        type="text"
-                                        value={formData.firstName}
-                                        onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                                        className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Last Name</label>
-                                    <input
-                                        type="text"
-                                        value={formData.lastName}
-                                        onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                                        className="mt-1 block w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            <div className="flex justify-end gap-3 pt-4">
-                                <Button type="button" variant="outline" onClick={() => { setShowCreateModal(false); setEditingUser(null); }}>Cancel</Button>
-                                <Button type="submit">{editingUser ? 'Update' : 'Create'}</Button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
+          <div className="grid gap-4 sm:grid-cols-2">
+            <AdminFormField label="First name">
+              <Input
+                type="text"
+                value={formData.firstName}
+                onChange={(e) => setFormData((current) => ({ ...current, firstName: e.target.value }))}
+                required
+              />
+            </AdminFormField>
+            <AdminFormField label="Last name">
+              <Input
+                type="text"
+                value={formData.lastName}
+                onChange={(e) => setFormData((current) => ({ ...current, lastName: e.target.value }))}
+                required
+              />
+            </AdminFormField>
+          </div>
+
+          <AdminDialogFooter>
+            <Button type="button" variant="outline" onClick={closeModal}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSaving}>
+              {isSaving ? 'Saving...' : editingUser ? 'Save changes' : 'Create user'}
+            </Button>
+          </AdminDialogFooter>
+        </form>
+      </Modal>
+
+      {confirmationDialog}
+    </AdminFrame>
+  );
 }

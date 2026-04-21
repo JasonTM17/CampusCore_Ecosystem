@@ -1,28 +1,29 @@
-import * as React from "react"
-import { cn } from "@/lib/utils"
+import * as React from 'react';
+import { cn } from '@/lib/utils';
 
 export interface InputProps
   extends React.InputHTMLAttributes<HTMLInputElement> {
   icon?: React.ReactNode
   error?: string
+  hint?: string
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, icon, error, ...props }, ref) => {
+  ({ className, type, icon, error, hint, ...props }, ref) => {
     return (
       <div className="w-full">
         <div className="relative">
           {icon && (
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground pointer-events-none">
               {icon}
             </div>
           )}
           <input
             type={type}
             className={cn(
-              "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-              icon && "pl-10",
-              error && "border-destructive focus-visible:ring-destructive",
+              'flex h-11 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background transition-[border-color,box-shadow,background-color] placeholder:text-muted-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60',
+              icon && 'pl-10',
+              error && 'border-destructive focus-visible:ring-destructive',
               className
             )}
             ref={ref}
@@ -32,10 +33,13 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {error && (
           <p className="mt-1 text-sm text-destructive">{error}</p>
         )}
+        {!error && hint ? (
+          <p className="mt-1 text-sm text-muted-foreground">{hint}</p>
+        ) : null}
       </div>
     )
   }
 )
-Input.displayName = "Input"
+Input.displayName = 'Input';
 
-export { Input }
+export { Input };

@@ -2,326 +2,320 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useAuth } from '@/context/AuthContext';
+import { Award, BookOpen, TrendingUp } from 'lucide-react';
+import { useRequireAuth } from '@/context/AuthContext';
 import { gradesApi, semestersApi } from '@/lib/api';
 import { StudentGradeRecord, Semester } from '@/types/api';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
+import { Select } from '@/components/ui/select';
 import {
-    Loader2,
-    GraduationCap,
-    Calendar,
-    TrendingUp,
-    BookOpen,
-    AlertCircle,
-    Award,
-    ChevronDown,
-} from 'lucide-react';
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@/components/ui/state-block';
 
 const gradePoints: Record<string, number> = {
-    'A+': 4.0, 'A': 4.0, 'A-': 3.7,
-    'B+': 3.3, 'B': 3.0, 'B-': 2.7,
-    'C+': 2.3, 'C': 2.0, 'C-': 1.7,
-    'D+': 1.3, 'D': 1.0, 'D-': 0.7,
-    'F': 0.0,
+  'A+': 4,
+  A: 4,
+  'A-': 3.7,
+  'B+': 3.3,
+  B: 3,
+  'B-': 2.7,
+  'C+': 2.3,
+  C: 2,
+  'C-': 1.7,
+  'D+': 1.3,
+  D: 1,
+  'D-': 0.7,
+  F: 0,
 };
 
-const gradeColorClass = (letter: string | null): string => {
-    if (!letter) return 'text-gray-400';
-    if (letter.startsWith('A')) return 'text-emerald-600 bg-emerald-50';
-    if (letter.startsWith('B')) return 'text-blue-600 bg-blue-50';
-    if (letter.startsWith('C')) return 'text-amber-600 bg-amber-50';
-    if (letter.startsWith('D')) return 'text-orange-600 bg-orange-50';
-    return 'text-red-600 bg-red-50';
-};
+function getGradeTone(letterGrade: string | null) {
+  if (!letterGrade) {
+    return 'bg-secondary text-muted-foreground';
+  }
 
-const statusBadge = (status: string) => {
-    switch (status) {
-        case 'PUBLISHED':
-            return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Published</span>;
-        case 'APPEALED':
-            return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">Appealed</span>;
-        case 'DRAFT':
-            return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Draft</span>;
-        default:
-            return null;
-    }
-};
+  if (letterGrade.startsWith('A')) {
+    return 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400';
+  }
+
+  if (letterGrade.startsWith('B')) {
+    return 'bg-blue-500/12 text-blue-600 dark:text-blue-400';
+  }
+
+  if (letterGrade.startsWith('C')) {
+    return 'bg-amber-500/12 text-amber-600 dark:text-amber-400';
+  }
+
+  if (letterGrade.startsWith('D')) {
+    return 'bg-orange-500/12 text-orange-600 dark:text-orange-400';
+  }
+
+  return 'bg-rose-500/12 text-rose-600 dark:text-rose-400';
+}
 
 export default function GradesPage() {
-    const { user, logout } = useAuth();
-    const [grades, setGrades] = useState<StudentGradeRecord[]>([]);
-    const [semesters, setSemesters] = useState<Semester[]>([]);
-    const [selectedSemester, setSelectedSemester] = useState<string>('');
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const fetchSemesters = useCallback(async () => {
-        try {
-            const semestersRes = await semestersApi.getAll();
-            setSemesters(semestersRes.data);
-        } catch {
-            toast.error('Failed to load semesters');
-        }
-    }, []);
+  const { hasAccess, isLoading: authLoading } = useRequireAuth(['STUDENT']);
+  const [grades, setGrades] = useState<StudentGradeRecord[]>([]);
+  const [semesters, setSemesters] = useState<Semester[]>([]);
+  const [selectedSemester, setSelectedSemester] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
 
-    const fetchGrades = useCallback(async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const data = await gradesApi.getMyGrades(selectedSemester || undefined);
-            setGrades(data);
-        } catch {
-            setError('Failed to load grades. Please try again.');
-            toast.error('Failed to load grades');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [selectedSemester]);
+  const fetchSemesters = useCallback(async () => {
+    const response = await semestersApi.getAll();
+    setSemesters(response.data ?? []);
+  }, []);
 
-    useEffect(() => {
-        void fetchSemesters();
-    }, [fetchSemesters]);
+  const fetchGrades = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
 
-    useEffect(() => {
-        void fetchGrades();
-    }, [fetchGrades]);
+    try {
+      const data = await gradesApi.getMyGrades(selectedSemester || undefined);
+      setGrades(data);
+    } catch {
+      setError('Grades could not be loaded.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedSemester]);
 
-    // GPA calculation
-    const summary = useMemo(() => {
-        const gradedCourses = grades.filter(g => g.letterGrade && gradePoints[g.letterGrade] !== undefined);
-        const totalCredits = gradedCourses.reduce((sum, g) => sum + g.credits, 0);
-        const totalPoints = gradedCourses.reduce((sum, g) => sum + (gradePoints[g.letterGrade!] * g.credits), 0);
-        const gpa = totalCredits > 0 ? totalPoints / totalCredits : 0;
-        const totalAllCredits = grades.reduce((sum, g) => sum + g.credits, 0);
-        const completedCredits = grades.filter(g => g.enrollmentStatus === 'COMPLETED').reduce((sum, g) => sum + g.credits, 0);
-
-        return {
-            gpa: gpa.toFixed(2),
-            totalCredits: totalAllCredits,
-            completedCredits,
-            courseCount: grades.length,
-            gradedCount: gradedCourses.length,
-        };
-    }, [grades]);
-
-    // Group grades by semester
-    const groupedGrades = useMemo(() => {
-        const groups: Record<string, StudentGradeRecord[]> = {};
-        grades.forEach(g => {
-            if (!groups[g.semester]) groups[g.semester] = [];
-            groups[g.semester].push(g);
-        });
-        return groups;
-    }, [grades]);
-
-    if (isLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="text-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-3" />
-                    <p className="text-gray-500">Loading grades...</p>
-                </div>
-            </div>
-        );
+  useEffect(() => {
+    if (!hasAccess) {
+      return;
     }
 
+    void fetchSemesters();
+  }, [fetchSemesters, hasAccess]);
+
+  useEffect(() => {
+    if (!hasAccess) {
+      return;
+    }
+
+    void fetchGrades();
+  }, [fetchGrades, hasAccess]);
+
+  const selectedSemesterName = useMemo(() => {
     return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Navigation */}
-            <nav className="bg-white shadow-sm border-b">
-                <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                        <Link href="/dashboard" className="text-xl font-bold">CampusCore</Link>
-                        <span className="text-gray-500">|</span>
-                        <span className="text-gray-600">My Grades</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <span className="text-gray-600">Welcome, {user?.firstName}</span>
-                        <Button variant="outline" onClick={logout}>Logout</Button>
-                    </div>
-                </div>
-            </nav>
-
-            <main className="container mx-auto px-4 py-8">
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                    <div>
-                        <h2 className="text-2xl font-bold flex items-center gap-2">
-                            <GraduationCap className="h-7 w-7 text-primary" />
-                            Academic Grades
-                        </h2>
-                        <p className="text-gray-500 mt-1">View your course grades and academic performance</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        {semesters.length > 0 && (
-                            <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-gray-500" />
-                                <div className="relative">
-                                    <select
-                                        value={selectedSemester}
-                                        onChange={(e) => setSelectedSemester(e.target.value)}
-                                        className="border rounded-md px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none bg-white"
-                                    >
-                                        <option value="">All Semesters</option>
-                                        {semesters.map(sem => (
-                                            <option key={sem.id} value={sem.id}>
-                                                {sem.name} {(sem.status === 'IN_PROGRESS' || sem.status === 'ADD_DROP_OPEN') ? '(Current)' : ''}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                                </div>
-                            </div>
-                        )}
-                        <Link href="/dashboard/schedule">
-                            <Button variant="outline" size="sm">View Schedule</Button>
-                        </Link>
-                    </div>
-                </div>
-
-                {/* Error State */}
-                {error && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center mb-6">
-                        <AlertCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
-                        <p className="text-red-600 font-medium mb-2">{error}</p>
-                        <Button variant="outline" onClick={fetchGrades}>Try Again</Button>
-                    </div>
-                )}
-
-                {/* Empty State */}
-                {!error && grades.length === 0 && (
-                    <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
-                        <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold text-gray-700 mb-2">No Grades Available</h3>
-                        <p className="text-gray-500 mb-4">
-                            {selectedSemester
-                                ? 'No grades found for the selected semester.'
-                                : 'You do not have any grades recorded yet. Grades will appear here once your courses are completed and graded.'}
-                        </p>
-                        <Link href="/dashboard/enrollments">
-                            <Button>View Enrollments</Button>
-                        </Link>
-                    </div>
-                )}
-
-                {/* Content - GPA Summary + Grades Table */}
-                {!error && grades.length > 0 && (
-                    <>
-                        {/* Summary Cards */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                            <div className="bg-white rounded-lg shadow-sm border p-5">
-                                <div className="flex items-center gap-3 mb-2">
-                                    <div className="p-2 rounded-lg bg-blue-50">
-                                        <TrendingUp className="h-5 w-5 text-blue-600" />
-                                    </div>
-                                    <span className="text-sm text-gray-500">GPA</span>
-                                </div>
-                                <p className="text-3xl font-bold text-gray-900">{summary.gpa}</p>
-                                <p className="text-xs text-gray-400 mt-1">of 4.00 scale</p>
-                            </div>
-                            <div className="bg-white rounded-lg shadow-sm border p-5">
-                                <div className="flex items-center gap-3 mb-2">
-                                    <div className="p-2 rounded-lg bg-emerald-50">
-                                        <Award className="h-5 w-5 text-emerald-600" />
-                                    </div>
-                                    <span className="text-sm text-gray-500">Completed</span>
-                                </div>
-                                <p className="text-3xl font-bold text-gray-900">{summary.completedCredits}</p>
-                                <p className="text-xs text-gray-400 mt-1">credits earned</p>
-                            </div>
-                            <div className="bg-white rounded-lg shadow-sm border p-5">
-                                <div className="flex items-center gap-3 mb-2">
-                                    <div className="p-2 rounded-lg bg-violet-50">
-                                        <BookOpen className="h-5 w-5 text-violet-600" />
-                                    </div>
-                                    <span className="text-sm text-gray-500">Courses</span>
-                                </div>
-                                <p className="text-3xl font-bold text-gray-900">{summary.courseCount}</p>
-                                <p className="text-xs text-gray-400 mt-1">{summary.gradedCount} graded</p>
-                            </div>
-                            <div className="bg-white rounded-lg shadow-sm border p-5">
-                                <div className="flex items-center gap-3 mb-2">
-                                    <div className="p-2 rounded-lg bg-amber-50">
-                                        <GraduationCap className="h-5 w-5 text-amber-600" />
-                                    </div>
-                                    <span className="text-sm text-gray-500">Total Credits</span>
-                                </div>
-                                <p className="text-3xl font-bold text-gray-900">{summary.totalCredits}</p>
-                                <p className="text-xs text-gray-400 mt-1">across all courses</p>
-                            </div>
-                        </div>
-
-                        {/* Grades by Semester */}
-                        {Object.entries(groupedGrades).map(([semesterName, semGrades]) => (
-                            <div key={semesterName} className="mb-6">
-                                <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                                    <Calendar className="h-4 w-4 text-gray-500" />
-                                    {semesterName}
-                                </h3>
-                                <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-sm">
-                                            <thead>
-                                                <tr className="bg-gray-50 border-b">
-                                                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Course Code</th>
-                                                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Course Name</th>
-                                                    <th className="text-center px-4 py-3 font-semibold text-gray-600">Credits</th>
-                                                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Section</th>
-                                                    <th className="text-left px-4 py-3 font-semibold text-gray-600">Lecturer</th>
-                                                    <th className="text-center px-4 py-3 font-semibold text-gray-600">Score</th>
-                                                    <th className="text-center px-4 py-3 font-semibold text-gray-600">Grade</th>
-                                                    <th className="text-center px-4 py-3 font-semibold text-gray-600">Status</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y">
-                                                {semGrades.map((grade) => (
-                                                    <tr key={grade.id} className="hover:bg-gray-50 transition-colors">
-                                                        <td className="px-4 py-3 font-medium text-gray-900">{grade.courseCode}</td>
-                                                        <td className="px-4 py-3 text-gray-700">{grade.courseName}</td>
-                                                        <td className="px-4 py-3 text-center text-gray-600">{grade.credits}</td>
-                                                        <td className="px-4 py-3 text-gray-600">{grade.sectionCode}</td>
-                                                        <td className="px-4 py-3 text-gray-600">{grade.lecturerName || '—'}</td>
-                                                        <td className="px-4 py-3 text-center text-gray-700 font-medium">
-                                                            {grade.finalGrade !== null ? grade.finalGrade.toFixed(1) : '—'}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-center">
-                                                            {grade.letterGrade ? (
-                                                                <span className={`inline-flex items-center justify-center w-10 h-7 rounded-md text-sm font-bold ${gradeColorClass(grade.letterGrade)}`}>
-                                                                    {grade.letterGrade}
-                                                                </span>
-                                                            ) : (
-                                                                <span className="text-gray-400">—</span>
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-center">
-                                                            {statusBadge(grade.gradeStatus)}
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    {/* Semester Sub-summary */}
-                                    <div className="border-t bg-gray-50 px-4 py-3 flex justify-between items-center text-sm text-gray-600">
-                                        <span>
-                                            {semGrades.length} course{semGrades.length !== 1 ? 's' : ''} · {semGrades.reduce((s, g) => s + g.credits, 0)} credits
-                                        </span>
-                                        {(() => {
-                                            const graded = semGrades.filter(g => g.letterGrade && gradePoints[g.letterGrade] !== undefined);
-                                            if (graded.length === 0) return null;
-                                            const tc = graded.reduce((s, g) => s + g.credits, 0);
-                                            const tp = graded.reduce((s, g) => s + gradePoints[g.letterGrade!] * g.credits, 0);
-                                            const sgpa = tc > 0 ? (tp / tc).toFixed(2) : '0.00';
-                                            return <span className="font-medium">Semester GPA: <span className="text-gray-900">{sgpa}</span></span>;
-                                        })()}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </>
-                )}
-            </main>
-        </div>
+      semesters.find((semester) => semester.id === selectedSemester)?.name ??
+      'all semesters'
     );
+  }, [selectedSemester, semesters]);
+
+  const summary = useMemo(() => {
+    const gradedCourses = grades.filter(
+      (grade) =>
+        grade.letterGrade && gradePoints[grade.letterGrade] !== undefined,
+    );
+    const totalCredits = gradedCourses.reduce(
+      (sum, grade) => sum + grade.credits,
+      0,
+    );
+    const totalPoints = gradedCourses.reduce(
+      (sum, grade) => sum + gradePoints[grade.letterGrade!] * grade.credits,
+      0,
+    );
+    const gpa = totalCredits > 0 ? totalPoints / totalCredits : 0;
+
+    return {
+      gpa: gpa.toFixed(2),
+      courseCount: grades.length,
+      gradedCount: gradedCourses.length,
+      completedCredits: grades
+        .filter((grade) => grade.enrollmentStatus === 'COMPLETED')
+        .reduce((sum, grade) => sum + grade.credits, 0),
+    };
+  }, [grades]);
+
+  const groupedGrades = useMemo(() => {
+    return grades.reduce<Record<string, StudentGradeRecord[]>>((groups, grade) => {
+      if (!groups[grade.semester]) {
+        groups[grade.semester] = [];
+      }
+
+      groups[grade.semester].push(grade);
+      return groups;
+    }, {});
+  }, [grades]);
+
+  if (authLoading || !hasAccess) {
+    return <LoadingState label="Loading grades" />;
+  }
+
+  return (
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow={<SectionEyebrow>Student workspace</SectionEyebrow>}
+        title="Grades"
+        description={`Review published grading outcomes for ${selectedSemesterName} without losing access to the rest of the academic workspace.`}
+        actions={
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="min-w-[220px]">
+              <Select
+                aria-label="Select semester for grades"
+                value={selectedSemester}
+                onChange={(event) => setSelectedSemester(event.target.value)}
+                options={[
+                  { value: '', label: 'All semesters' },
+                  ...semesters.map((semester) => ({
+                    value: semester.id,
+                    label: semester.name,
+                  })),
+                ]}
+              />
+            </div>
+            <Link href="/dashboard/transcript">
+              <Button variant="outline">Open transcript</Button>
+            </Link>
+          </div>
+        }
+      />
+
+      {error ? (
+        <ErrorState
+          title="Grades unavailable"
+          description={error}
+          onRetry={() => void fetchGrades()}
+        />
+      ) : isLoading ? (
+        <LoadingState label="Loading grades" />
+      ) : grades.length === 0 ? (
+        <EmptyState
+          icon={BookOpen}
+          title="No grades published yet"
+          description="Once courses are graded and published, the results will appear here."
+          action={
+            <Link href="/dashboard/transcript">
+              <Button>Open transcript</Button>
+            </Link>
+          }
+        />
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card variant="elevated">
+              <CardContent className="flex items-center justify-between gap-4 pt-6">
+                <div>
+                  <div className="text-sm text-muted-foreground">Current GPA</div>
+                  <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
+                    {summary.gpa}
+                  </div>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-500/12 text-blue-600 dark:text-blue-400">
+                  <TrendingUp className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card variant="elevated">
+              <CardContent className="flex items-center justify-between gap-4 pt-6">
+                <div>
+                  <div className="text-sm text-muted-foreground">Completed credits</div>
+                  <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
+                    {summary.completedCredits}
+                  </div>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-500/12 text-emerald-600 dark:text-emerald-400">
+                  <Award className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card variant="elevated">
+              <CardContent className="flex items-center justify-between gap-4 pt-6">
+                <div>
+                  <div className="text-sm text-muted-foreground">Graded courses</div>
+                  <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
+                    {summary.gradedCount}/{summary.courseCount}
+                  </div>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-violet-500/12 text-violet-600 dark:text-violet-400">
+                  <BookOpen className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            {Object.entries(groupedGrades).map(([semesterName, records]) => (
+              <Card key={semesterName} variant="muted">
+                <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <CardTitle className="text-xl">{semesterName}</CardTitle>
+                  <div className="text-sm text-muted-foreground">
+                    {records.length} course{records.length === 1 ? '' : 's'} -{' '}
+                    {records.reduce((sum, record) => sum + record.credits, 0)} credits
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[760px] text-sm">
+                      <thead>
+                        <tr className="border-b border-border/70 text-left text-muted-foreground">
+                          <th className="px-2 py-3 font-medium">Course</th>
+                          <th className="px-2 py-3 font-medium">Section</th>
+                          <th className="px-2 py-3 font-medium">Lecturer</th>
+                          <th className="px-2 py-3 text-center font-medium">Credits</th>
+                          <th className="px-2 py-3 text-center font-medium">Score</th>
+                          <th className="px-2 py-3 text-center font-medium">Grade</th>
+                          <th className="px-2 py-3 text-right font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {records.map((record) => (
+                          <tr key={record.id}>
+                            <td className="px-2 py-4">
+                              <div className="font-medium text-foreground">
+                                {record.courseCode}
+                              </div>
+                              <div className="text-muted-foreground">
+                                {record.courseName}
+                              </div>
+                            </td>
+                            <td className="px-2 py-4 text-muted-foreground">
+                              {record.sectionCode}
+                            </td>
+                            <td className="px-2 py-4 text-muted-foreground">
+                              {record.lecturerName ?? 'Pending assignment'}
+                            </td>
+                            <td className="px-2 py-4 text-center text-muted-foreground">
+                              {record.credits}
+                            </td>
+                            <td className="px-2 py-4 text-center text-foreground">
+                              {record.finalGrade !== null
+                                ? record.finalGrade.toFixed(1)
+                                : 'Not published'}
+                            </td>
+                            <td className="px-2 py-4 text-center">
+                              {record.letterGrade ? (
+                                <span
+                                  className={`inline-flex min-w-[2.75rem] items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold ${getGradeTone(
+                                    record.letterGrade,
+                                  )}`}
+                                >
+                                  {record.letterGrade}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-4 text-right">
+                              <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
+                                {record.gradeStatus}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }

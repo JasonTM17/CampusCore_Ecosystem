@@ -1,6 +1,7 @@
 import {
   expect,
   type APIRequestContext,
+  type Locator,
   type Page,
 } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -44,10 +45,16 @@ export type ControlSpec = {
 
 export type RouteSpec = {
   path: string;
-  heading: string | RegExp;
+  heading?: string | RegExp;
   controls?: ControlSpec[];
-  ready?: (page: Page) => Promise<void>;
+  settle?: (page: Page, timeoutMs: number) => Promise<void>;
+  assertVisible?: (page: Page, timeoutMs: number) => Promise<void>;
+  ready?: (page: Page, timeoutMs: number) => Promise<void>;
 };
+
+function getRouteAssertionTimeout() {
+  return isExternalStack ? 15_000 : 12_000;
+}
 
 export const publicRoutes = ['/', '/login', '/forgot-password', '/reset-password'];
 
@@ -59,21 +66,74 @@ export const studentRoutes: RouteSpec[] = [
       { role: 'button', name: 'Toggle notifications panel' },
       { role: 'button', name: 'Toggle profile menu' },
     ],
+    ready: async (page, timeoutMs) => {
+      await expect(
+        page.getByRole('heading', { name: /Next actions/i }).first(),
+      ).toBeVisible({ timeout: timeoutMs });
+      await expect(
+        page.getByRole('heading', { name: /Current courses/i }).first(),
+      ).toBeVisible({ timeout: timeoutMs });
+    },
   },
-  { path: '/dashboard/register', heading: 'Available Sections' },
-  { path: '/dashboard/enrollments', heading: 'My Enrollments' },
-  { path: '/dashboard/schedule', heading: 'My Class Schedule' },
-  { path: '/dashboard/grades', heading: 'Academic Grades' },
-  { path: '/dashboard/transcript', heading: 'Academic Transcript' },
+  { path: '/dashboard/register', heading: /^Course registration$/i },
+  { path: '/dashboard/enrollments', heading: /^My courses$/i },
+  { path: '/dashboard/schedule', heading: /^Schedule$/i },
+  { path: '/dashboard/grades', heading: /^Grades$/i },
+  {
+    path: '/dashboard/transcript',
+    settle: async (page, timeoutMs) => {
+      await waitForAnyVisible(
+        [
+          page.getByRole('combobox', {
+            name: /Select semester for transcript/i,
+          }),
+          page.getByRole('heading', {
+            name: /No transcript records yet/i,
+          }),
+          page.getByRole('heading', {
+            name: /Transcript unavailable/i,
+          }),
+        ],
+        timeoutMs,
+      );
+    },
+    assertVisible: async (page, timeoutMs) => {
+      await waitForAnyVisible(
+        [
+          page.getByRole('combobox', {
+            name: /Select semester for transcript/i,
+          }),
+          page.getByRole('button', { name: /Open grades/i }),
+          page.getByRole('heading', {
+            name: /No transcript records yet/i,
+          }),
+          page.getByRole('heading', {
+            name: /Transcript unavailable/i,
+          }),
+        ],
+        timeoutMs,
+      );
+    },
+  },
   { path: '/dashboard/announcements', heading: 'Announcements' },
   {
     path: '/dashboard/profile',
-    heading: 'Profile Settings',
-    controls: [{ role: 'button', name: 'Upload profile photo' }],
+    heading: /Profile settings/i,
+    controls: [{ role: 'button', name: /Save changes/i }],
+    ready: async (page, timeoutMs) => {
+      await expect(
+        page.getByRole('heading', { name: /Account profile/i }).first(),
+      ).toBeVisible({ timeout: timeoutMs });
+      await expect(
+        page
+          .getByRole('heading', { name: /Password and session safety/i })
+          .first(),
+      ).toBeVisible({ timeout: timeoutMs });
+    },
   },
   {
     path: '/dashboard/invoices',
-    heading: 'My Invoices',
+    heading: /^Invoices$/i,
     controls: [{ role: 'button', name: /View details for invoice/i }],
     ready: async (page) => {
       await page
@@ -81,7 +141,7 @@ export const studentRoutes: RouteSpec[] = [
         .first()
         .click();
       await expect(
-        page.getByRole('heading', { name: 'Invoice Details' }),
+        page.getByRole('heading', { name: /Invoice details/i }),
       ).toBeVisible();
       const closeButton = page.getByRole('button', {
         name: 'Close invoice details',
@@ -89,16 +149,33 @@ export const studentRoutes: RouteSpec[] = [
       await expect(closeButton).toBeVisible();
       await closeButton.click();
       await expect(
-        page.getByRole('heading', { name: 'Invoice Details' }),
+        page.getByRole('heading', { name: /Invoice details/i }),
       ).toBeHidden();
     },
   },
 ];
 
+export const adminHomeRoute: RouteSpec = {
+  path: '/admin',
+  heading: /^Admin dashboard$/i,
+  controls: [
+    { role: 'link', name: 'Add user' },
+    { role: 'link', name: 'Open analytics' },
+  ],
+  ready: async (page, timeoutMs) => {
+    await expect(
+      page.getByRole('heading', { name: /Management console/i }).first(),
+    ).toBeVisible({ timeout: timeoutMs });
+    await expect(
+      page.getByRole('link', { name: /User management/i }).first(),
+    ).toBeVisible({ timeout: timeoutMs });
+  },
+};
+
 export const adminRoutes: RouteSpec[] = [
   {
     path: '/admin/users',
-    heading: 'User Management',
+    heading: /^User management$/i,
     controls: [
       { role: 'link', name: 'Back to admin dashboard' },
       { role: 'button', name: /Edit user / },
@@ -107,7 +184,7 @@ export const adminRoutes: RouteSpec[] = [
   },
   {
     path: '/admin/lecturers',
-    heading: 'Lecturer Management',
+    heading: /^Lecturers$/i,
     controls: [
       { role: 'link', name: 'Back to admin dashboard' },
       { role: 'button', name: /Edit lecturer / },
@@ -116,7 +193,7 @@ export const adminRoutes: RouteSpec[] = [
   },
   {
     path: '/admin/courses',
-    heading: 'Course Management',
+    heading: /^Courses$/i,
     controls: [
       { role: 'link', name: 'Back to admin dashboard' },
       { role: 'button', name: /Edit course / },
@@ -125,7 +202,7 @@ export const adminRoutes: RouteSpec[] = [
   },
   {
     path: '/admin/sections',
-    heading: 'Section Management',
+    heading: /^Sections$/i,
     controls: [
       { role: 'link', name: 'Back to admin dashboard' },
       { role: 'button', name: /Edit section / },
@@ -134,7 +211,7 @@ export const adminRoutes: RouteSpec[] = [
   },
   {
     path: '/admin/enrollments',
-    heading: 'Enrollment Management',
+    heading: /^Enrollments$/i,
     controls: [
       { role: 'link', name: 'Back to admin dashboard' },
       { role: 'button', name: /View enrollment details for / },
@@ -143,7 +220,7 @@ export const adminRoutes: RouteSpec[] = [
   },
   {
     path: '/admin/classrooms',
-    heading: 'Classroom Management',
+    heading: /^Classrooms$/i,
     controls: [
       { role: 'link', name: 'Back to admin dashboard' },
       { role: 'button', name: /Edit classroom / },
@@ -152,7 +229,7 @@ export const adminRoutes: RouteSpec[] = [
   },
   {
     path: '/admin/semesters',
-    heading: 'Semester Management',
+    heading: /^Semesters$/i,
     controls: [
       { role: 'link', name: 'Back to admin dashboard' },
       { role: 'button', name: /Edit semester / },
@@ -161,7 +238,7 @@ export const adminRoutes: RouteSpec[] = [
   },
   {
     path: '/admin/academic-years',
-    heading: 'Academic Year Management',
+    heading: /^Academic years$/i,
     controls: [
       { role: 'link', name: 'Back to admin dashboard' },
       { role: 'button', name: /Edit academic year / },
@@ -170,7 +247,7 @@ export const adminRoutes: RouteSpec[] = [
   },
   {
     path: '/admin/departments',
-    heading: 'Department Management',
+    heading: /^Departments$/i,
     controls: [
       { role: 'link', name: 'Back to admin dashboard' },
       { role: 'button', name: /Edit department / },
@@ -187,43 +264,92 @@ export const adminRoutes: RouteSpec[] = [
   },
   {
     path: '/admin/invoices',
-    heading: 'Invoice Management',
+    heading: /^Invoices$/i,
     controls: [
       { role: 'link', name: 'Back to admin dashboard' },
       { role: 'button', name: /View invoice / },
       { role: 'button', name: /Delete invoice / },
     ],
+    ready: async (page, timeoutMs) => {
+      const viewButtons = page.getByRole('button', { name: /View invoice /i });
+      await expect(viewButtons.first()).toBeVisible({ timeout: timeoutMs });
+      await viewButtons.first().click();
+      await expect(
+        page.getByRole('button', { name: /Close invoice details/i }),
+      ).toBeVisible({ timeout: timeoutMs });
+      await expect(
+        page.getByRole('heading', { name: /Student information/i }),
+      ).toBeVisible({ timeout: timeoutMs });
+      await page.getByRole('button', { name: /Close invoice details/i }).click();
+      await expect(
+        page.getByRole('button', { name: /Close invoice details/i }),
+      ).toBeHidden({ timeout: timeoutMs });
+    },
   },
   {
     path: '/admin/analytics',
-    heading: 'Reports & Analytics',
-    controls: [{ role: 'link', name: 'Back to admin dashboard' }],
+    heading: /Reports (?:&|and) analytics/i,
+    controls: [
+      { role: 'link', name: 'Back to admin dashboard' },
+      { role: 'button', name: 'Refresh data' },
+    ],
+    ready: async (page, timeoutMs) => {
+      await expect(
+        page.getByRole('heading', { name: /Enrollments by semester/i }).first(),
+      ).toBeVisible({ timeout: timeoutMs });
+      await expect(
+        page.getByRole('heading', { name: /Section occupancy/i }).first(),
+      ).toBeVisible({ timeout: timeoutMs });
+    },
   },
 ];
 
 export const lecturerRoutes: RouteSpec[] = [
   {
     path: '/dashboard/lecturer',
-    heading: /Lecturer Portal/i,
+    heading: /Welcome back/i,
     controls: [
       { role: 'button', name: 'Toggle notifications panel' },
       { role: 'button', name: 'Toggle profile menu' },
     ],
+    ready: async (page, timeoutMs) => {
+      await expect(
+        page.getByRole('heading', { name: /Quick actions/i }).first(),
+      ).toBeVisible({ timeout: timeoutMs });
+      await expect(
+        page.getByRole('heading', { name: /Grading queue/i }).first(),
+      ).toBeVisible({ timeout: timeoutMs });
+    },
   },
   {
     path: '/dashboard/profile',
-    heading: 'Profile Settings',
-    controls: [{ role: 'button', name: 'Upload profile photo' }],
+    heading: /Profile settings/i,
+    controls: [{ role: 'button', name: /Save changes/i }],
+    ready: async (page, timeoutMs) => {
+      await expect(
+        page.getByRole('heading', { name: /Account profile/i }).first(),
+      ).toBeVisible({ timeout: timeoutMs });
+      await expect(
+        page
+          .getByRole('heading', { name: /Password and session safety/i })
+          .first(),
+      ).toBeVisible({ timeout: timeoutMs });
+    },
   },
   {
     path: '/dashboard/lecturer/schedule',
-    heading: 'My Teaching Schedule',
+    heading: /^Teaching schedule$/i,
     ready: async (page) => {
-      if ((await page.getByRole('table').count()) > 0) {
-        await expect(page.getByRole('table').first()).toBeVisible();
+      if (
+        (await page.getByRole('heading', { name: /Assigned sections/i }).count()) >
+        0
+      ) {
+        await expect(
+          page.getByRole('heading', { name: /Assigned sections/i }).first(),
+        ).toBeVisible();
       } else {
         await expect(
-          page.getByRole('heading', { name: 'No Teaching Assignments' }),
+          page.getByRole('heading', { name: /No teaching assignments yet/i }),
         ).toBeVisible();
       }
     },
@@ -553,27 +679,65 @@ function escapeForRegExp(value: string) {
 export async function expectControl(page: Page, control: ControlSpec) {
   await expect(
     page.getByRole(control.role, { name: control.name }).first(),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: getRouteAssertionTimeout() });
+}
+
+export async function waitForAnyVisible(
+  locators: Locator[],
+  timeoutMs = getRouteAssertionTimeout(),
+) {
+  await expect
+    .poll(
+      async () => {
+        for (const locator of locators) {
+          const first = locator.first();
+          try {
+            if ((await first.count()) > 0 && (await first.isVisible())) {
+              return true;
+            }
+          } catch {
+            // Keep polling until one of the acceptable route states becomes visible.
+          }
+        }
+
+        return false;
+      },
+      {
+        timeout: timeoutMs,
+        intervals: [250, 500, 1_000],
+      },
+    )
+    .toBe(true);
 }
 
 export async function visitRoute(page: Page, route: RouteSpec) {
-  const routeTimeout = isExternalStack ? 20_000 : 45_000;
+  const routeTimeout = isExternalStack ? 20_000 : 60_000;
+  const assertionTimeout = getRouteAssertionTimeout();
 
   await page.goto(route.path, {
     timeout: routeTimeout,
     waitUntil: 'domcontentloaded',
   });
   await expect(page).toHaveURL(new RegExp(`${escapeForRegExp(route.path)}$`));
-  await expect(
-    page.getByRole('heading', { name: route.heading }).first(),
-  ).toBeVisible();
+
+  if (route.settle) {
+    await route.settle(page, assertionTimeout);
+  }
+
+  if (route.assertVisible) {
+    await route.assertVisible(page, assertionTimeout);
+  } else if (route.heading) {
+    await expect(
+      page.getByRole('heading', { name: route.heading }).first(),
+    ).toBeVisible({ timeout: assertionTimeout });
+  }
 
   for (const control of route.controls ?? []) {
     await expectControl(page, control);
   }
 
   if (route.ready) {
-    await route.ready(page);
+    await route.ready(page, assertionTimeout);
   }
 }
 

@@ -1,275 +1,290 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useAuth } from '@/context/AuthContext';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Bell, Calendar, FileText, Users } from 'lucide-react';
+import { useRequireAuth } from '@/context/AuthContext';
+import { announcementsApi, sectionsApi } from '@/lib/api';
+import { GradingSection, LecturerSection } from '@/types/api';
+import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import {
-  AlertCircle,
-  Bell,
-  BookOpen,
-  Calendar,
-  ChevronRight,
-  GraduationCap,
-  Users,
-} from 'lucide-react';
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@/components/ui/state-block';
+import {
+  WorkspaceActionTile,
+  WorkspaceMetricCard,
+  WorkspacePanel,
+} from '@/components/dashboard/WorkspaceSurface';
 
-const menuItems = [
+type LecturerAnnouncement = {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  priority: string;
+};
+
+const quickLinks = [
   {
     href: '/dashboard/lecturer/schedule',
+    title: 'Teaching schedule',
+    description: 'Check rooms, sections, and meeting times for the current term.',
     icon: Calendar,
-    label: 'Teaching Schedule',
-    description: 'View your weekly timetable',
-    color: 'from-blue-500 to-cyan-500',
+    tone: 'bg-blue-500/12 text-blue-600 dark:text-blue-400',
   },
   {
     href: '/dashboard/lecturer/grades',
-    icon: GraduationCap,
-    label: 'Grade Management',
-    description: 'Enter and publish student grades',
-    color: 'from-emerald-500 to-teal-500',
+    title: 'Grade management',
+    description: 'Finish grading queues and move publish-ready sections forward.',
+    icon: FileText,
+    tone: 'bg-violet-500/12 text-violet-600 dark:text-violet-400',
   },
   {
     href: '/dashboard/lecturer/announcements',
+    title: 'Announcements',
+    description: 'Review broadcast updates that affect your sections and teaching day.',
     icon: Bell,
-    label: 'Announcements',
-    description: 'Post updates for your courses',
-    color: 'from-purple-500 to-pink-500',
+    tone: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
   },
 ];
 
 export default function LecturerDashboardPage() {
-  const { user } = useAuth();
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const { user, hasAccess, isLoading: authLoading } = useRequireAuth([
+    'LECTURER',
+  ]);
+  const [scheduleSections, setScheduleSections] = useState<LecturerSection[]>([]);
+  const [gradingSections, setGradingSections] = useState<GradingSection[]>([]);
+  const [announcements, setAnnouncements] = useState<LecturerAnnouncement[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 60_000);
-    return () => clearInterval(timer);
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const [scheduleData, gradingData, announcementsData] = await Promise.all([
+        sectionsApi.getMySchedule(),
+        sectionsApi.getMyGradingSections(),
+        announcementsApi.getMy({ page: 1, limit: 5 }),
+      ]);
+
+      setScheduleSections(scheduleData);
+      setGradingSections(gradingData);
+      setAnnouncements(announcementsData.data ?? []);
+    } catch {
+      setError('The lecturer dashboard could not load its operational data.');
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    if (hasAccess) {
+      void fetchData();
+    }
+  }, [fetchData, hasAccess]);
+
+  const totalStudents = useMemo(() => {
+    return scheduleSections.reduce(
+      (sum, section) => sum + (section.enrolledCount ?? 0),
+      0,
+    );
+  }, [scheduleSections]);
+
+  const readyToPublish = useMemo(() => {
+    return gradingSections.filter((section) => section.canPublish).length;
+  }, [gradingSections]);
+
+  if (authLoading || !hasAccess) {
+    return <LoadingState label="Loading lecturer dashboard" />;
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800 text-white">
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="mb-2 inline-flex items-center rounded-full bg-white/20 px-3 py-1 text-sm font-medium backdrop-blur-sm">
-                Lecturer Portal
-              </h2>
-              <h1 className="text-3xl font-bold md:text-4xl">
-                Welcome, Professor {user?.lastName}!
-              </h1>
-              <p className="mt-2 text-lg text-slate-300">
-                {currentTime.toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
-              </p>
-            </div>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow={<SectionEyebrow>Lecturer workspace</SectionEyebrow>}
+        title={`Welcome back, ${user?.firstName ?? 'lecturer'}`}
+        description="Keep section operations, grading queues, and teaching updates in one lecturer-focused shell."
+      />
 
-            <div className="flex gap-4">
-              <div className="min-w-[100px] rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
-                <div className="text-3xl font-bold">3</div>
-                <div className="text-sm text-slate-300">Courses</div>
-              </div>
-              <div className="min-w-[100px] rounded-2xl bg-white/10 p-4 backdrop-blur-sm">
-                <div className="text-3xl font-bold">150</div>
-                <div className="text-sm text-slate-300">Students</div>
-              </div>
-            </div>
+      {error ? (
+        <ErrorState
+          title="Lecturer dashboard unavailable"
+          description={error}
+          onRetry={() => void fetchData()}
+        />
+      ) : isLoading ? (
+        <LoadingState label="Loading lecturer dashboard" />
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-4">
+            <WorkspaceMetricCard
+              label="Sections"
+              value={scheduleSections.length.toLocaleString()}
+              icon={<Calendar className="h-5 w-5" />}
+              detail="Assigned teaching sections stay visible so grading and scheduling decisions remain grounded in the same term context."
+              toneClassName="bg-blue-500/12 text-blue-600 dark:text-blue-400"
+            />
+            <WorkspaceMetricCard
+              label="Students"
+              value={totalStudents.toLocaleString()}
+              icon={<Users className="h-5 w-5" />}
+              detail="Enrollment volume stays close to the lecturer shell so section-level follow-up remains visible."
+              toneClassName="bg-emerald-500/12 text-emerald-600 dark:text-emerald-400"
+            />
+            <WorkspaceMetricCard
+              label="Ready to publish"
+              value={readyToPublish.toLocaleString()}
+              icon={<FileText className="h-5 w-5" />}
+              detail="Publish-ready grading work surfaces early so final review does not get lost behind the rest of the workflow."
+              toneClassName="bg-violet-500/12 text-violet-600 dark:text-violet-400"
+            />
+            <WorkspaceMetricCard
+              label="Fresh notices"
+              value={announcements.length.toLocaleString()}
+              icon={<Bell className="h-5 w-5" />}
+              detail="Broadcast updates that affect teaching operations remain visible without pulling attention away from the grading queue."
+              toneClassName="bg-amber-500/12 text-amber-600 dark:text-amber-400"
+            />
           </div>
-        </div>
-      </div>
 
-      <main className="-mt-6 mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Link href="/dashboard/lecturer/grades" className="group">
-            <div className="rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 p-5 text-white shadow-lg shadow-emerald-500/25 transition-all group-hover:scale-105 group-hover:shadow-emerald-500/40">
-              <GraduationCap className="mb-2 h-7 w-7" />
-              <div className="font-semibold">Submit Grades</div>
-              <div className="text-sm text-emerald-100">Enter student grades</div>
-            </div>
-          </Link>
-          <Link href="/dashboard/lecturer/schedule" className="group">
-            <div className="rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-500 p-5 text-white shadow-lg shadow-blue-500/25 transition-all group-hover:scale-105 group-hover:shadow-blue-500/40">
-              <Calendar className="mb-2 h-7 w-7" />
-              <div className="font-semibold">View Schedule</div>
-              <div className="text-sm text-blue-100">Today&apos;s classes</div>
-            </div>
-          </Link>
-          <Link href="/dashboard/lecturer/announcements" className="group">
-            <div className="rounded-2xl bg-gradient-to-r from-purple-500 to-pink-500 p-5 text-white shadow-lg shadow-purple-500/25 transition-all group-hover:scale-105 group-hover:shadow-purple-500/40">
-              <Bell className="mb-2 h-7 w-7" />
-              <div className="font-semibold">Post Announcement</div>
-              <div className="text-sm text-purple-100">Notify students</div>
-            </div>
-          </Link>
-        </div>
-
-        <div className="grid gap-8 lg:grid-cols-3">
-          <div className="space-y-6 lg:col-span-2">
-            <div className="rounded-2xl border border-gray-100 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
-                Quick Access
-              </h2>
-              <div className="space-y-3">
-                {menuItems.map((item) => (
-                  <Link key={item.href} href={item.href} className="group">
-                    <div className="flex items-center gap-4 rounded-xl border border-gray-100 p-4 transition-all hover:border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:border-gray-600 dark:hover:bg-gray-700/50">
-                      <div
-                        className={`flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${item.color} shadow-lg transition-transform group-hover:scale-110`}
-                      >
-                        <item.icon className="h-6 w-6 text-white" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-medium text-gray-900 transition-colors group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400">
-                          {item.label}
-                        </h3>
-                        <p className="truncate text-sm text-gray-500 dark:text-gray-400">
-                          {item.description}
-                        </p>
-                      </div>
-                      <ChevronRight className="h-5 w-5 text-gray-400 transition-all group-hover:translate-x-1 group-hover:text-gray-600 dark:group-hover:text-gray-300" />
-                    </div>
-                  </Link>
+          <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+            <WorkspacePanel
+              title="Quick actions"
+              description="Open the lecturer tools that usually drive the next teaching action."
+              variant="muted"
+              contentClassName="grid gap-4 sm:grid-cols-3"
+            >
+                {quickLinks.map((item) => (
+                  <WorkspaceActionTile
+                    key={item.href}
+                    href={item.href}
+                    icon={<item.icon className="h-5 w-5" />}
+                    title={item.title}
+                    description={item.description}
+                    toneClassName={item.tone}
+                    ctaLabel="Open tool"
+                  />
                 ))}
-              </div>
-            </div>
+            </WorkspacePanel>
 
-            <div className="rounded-2xl border border-gray-100 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  My Courses This Semester
-                </h2>
-              </div>
-
-              <div className="space-y-3">
-                {[
-                  {
-                    code: 'CS101',
-                    name: 'Introduction to Computer Science',
-                    section: 'A',
-                    students: 45,
-                    schedule: 'Mon, Wed 10:00-12:00',
-                  },
-                  {
-                    code: 'CS201',
-                    name: 'Data Structures and Algorithms',
-                    section: 'A',
-                    students: 35,
-                    schedule: 'Tue, Thu 14:00-16:00',
-                  },
-                  {
-                    code: 'CS301',
-                    name: 'Database Management Systems',
-                    section: 'B',
-                    students: 40,
-                    schedule: 'Wed, Fri 08:00-10:00',
-                  },
-                ].map((course) => (
-                  <div
-                    key={`${course.code}-${course.section}`}
-                    className="flex items-center gap-4 rounded-xl bg-gray-50 p-4 transition-colors hover:bg-gray-100 dark:bg-gray-700/50 dark:hover:bg-gray-700"
-                  >
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500">
-                      <BookOpen className="h-6 w-6 text-white" />
+            <WorkspacePanel
+              title="Grading queue"
+              description="Sections nearest to final review stay visible here so grading work remains the primary next step."
+              contentClassName="space-y-3"
+            >
+                {gradingSections.length === 0 ? (
+                  <EmptyState
+                    icon={FileText}
+                    title="No grading assignments"
+                    description="Teaching sections with grading responsibility will appear here once they are active."
+                    className="min-h-[240px] border-none bg-transparent px-0 py-0"
+                  />
+                ) : (
+                  gradingSections.slice(0, 4).map((section) => (
+                    <div
+                      key={section.id}
+                      className="rounded-lg border border-border/70 bg-card px-4 py-4"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <div className="font-medium text-foreground">
+                            {section.courseCode} - {section.courseName}
+                          </div>
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            Section {section.sectionNumber} - {section.semester}
+                          </div>
+                        </div>
+                        <div className="text-sm text-muted-foreground sm:text-right">
+                          <div>{section.gradedCount}/{section.enrolledCount} graded</div>
+                          <div className="mt-1">
+                            <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
+                              {section.canPublish ? 'Ready to publish' : 'In progress'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-medium text-gray-900 dark:text-white">
-                        {course.code} - {course.name}
-                      </h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Section {course.section} | {course.schedule}
+                  ))
+                )}
+            </WorkspacePanel>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+            <WorkspacePanel
+              title="Sections in scope"
+              description="Assigned sections stay visible with capacity and department context before you move into schedule or grading detail."
+              contentClassName="space-y-3"
+            >
+                {scheduleSections.length === 0 ? (
+                  <EmptyState
+                    icon={Calendar}
+                    title="No teaching assignments yet"
+                    description="Assigned sections will appear here as soon as the current term is configured."
+                    className="min-h-[240px] border-none bg-transparent px-0 py-0"
+                  />
+                ) : (
+                  scheduleSections.slice(0, 5).map((section) => (
+                    <div
+                      key={section.id}
+                      className="rounded-lg border border-border/70 bg-card px-4 py-4"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <div className="font-medium text-foreground">
+                            {section.courseCode} - {section.courseName}
+                          </div>
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            Section {section.sectionNumber} - {section.departmentName}
+                          </div>
+                        </div>
+                        <div className="text-sm text-muted-foreground sm:text-right">
+                          <div>{section.enrolledCount}/{section.capacity} students</div>
+                          <div className="mt-1">{section.status}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+            </WorkspacePanel>
+
+            <WorkspacePanel
+              title="Latest announcements"
+              description="Broadcast updates that affect teaching operations surface here without taking the page away from the current workload."
+              variant="muted"
+              contentClassName="space-y-3"
+            >
+                {announcements.length === 0 ? (
+                  <EmptyState
+                    icon={Bell}
+                    title="No new notices"
+                    description="Shared notices for the lecturer workspace will show up here once they are published."
+                    className="min-h-[240px] border-none bg-transparent px-0 py-0"
+                  />
+                ) : (
+                  announcements.map((announcement) => (
+                    <div
+                      key={announcement.id}
+                      className="rounded-lg border border-border/70 bg-card px-4 py-4"
+                    >
+                      <div className="font-medium text-foreground">
+                        {announcement.title}
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        {announcement.content}
                       </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
-                        <Users className="h-4 w-4" />
-                        <span className="text-sm">{course.students}</span>
+                      <div className="mt-3 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                        {new Date(announcement.createdAt).toLocaleString()}
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+                  ))
+                )}
+            </WorkspacePanel>
           </div>
-
-          <div className="space-y-6">
-            <div className="rounded-2xl border border-gray-100 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
-                Today&apos;s Classes
-              </h2>
-              <div className="space-y-4">
-                {[
-                  { time: '10:00 - 12:00', course: 'CS101', room: 'Room 301' },
-                  { time: '14:00 - 16:00', course: 'CS201', room: 'Lab 202' },
-                ].map((session) => (
-                  <div key={`${session.time}-${session.course}`} className="flex items-center gap-3">
-                    <div className="w-16 text-sm font-medium text-gray-500 dark:text-gray-400">
-                      {session.time}
-                    </div>
-                    <div className="flex-1 rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
-                        {session.course}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{session.room}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-gray-100 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
-                Pending Actions
-              </h2>
-              <div className="space-y-3">
-                <div className="flex items-start gap-3 rounded-lg border border-amber-100 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
-                  <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      Grade Submission
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      CS101 midterm grades due in 3 days
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
-                  <Bell className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600 dark:text-blue-400" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      New Announcement
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Department meeting on Friday
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 p-6 text-white">
-              <h3 className="mb-4 font-semibold">This Month</h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Classes Taught</span>
-                  <span className="font-semibold">24</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Students</span>
-                  <span className="font-semibold">120</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Graded</span>
-                  <span className="font-semibold">85%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
+        </>
+      )}
     </div>
   );
 }
