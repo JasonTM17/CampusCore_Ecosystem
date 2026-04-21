@@ -1,5 +1,6 @@
 import {
   deleteNamespace,
+  getEdgeControllerPid,
   isProcessRunning,
   namespace,
   prepareLogs,
@@ -15,12 +16,13 @@ const logsDir = await prepareLogs('k8s-local-destroy');
 
 async function main() {
   const edgeState = await readEdgeState();
+  const controllerPid = getEdgeControllerPid(edgeState);
   const edgeWasRunning = Boolean(
-    edgeState?.pid && (await isProcessRunning(edgeState.pid)),
+    controllerPid && (await isProcessRunning(controllerPid)),
   );
 
   if (edgeWasRunning) {
-    await stopDetachedProcess(edgeState.pid);
+    await stopDetachedProcess(controllerPid);
   }
 
   await removeEdgeState();
