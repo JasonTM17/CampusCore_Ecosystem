@@ -14,6 +14,7 @@ import {
   ErrorState,
   LoadingState,
 } from '@/components/ui/state-block';
+import { useI18n } from '@/i18n';
 
 type TeachingSlot = {
   id: string;
@@ -40,6 +41,7 @@ const dayNames = [
 
 export default function LecturerSchedulePage() {
   const { hasAccess, isLoading: authLoading } = useRequireAuth(['LECTURER']);
+  const { locale, formatNumber } = useI18n();
   const [sections, setSections] = useState<LecturerSection[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [selectedSemester, setSelectedSemester] = useState('');
@@ -59,11 +61,15 @@ export default function LecturerSchedulePage() {
       const data = await sectionsApi.getMySchedule(selectedSemester || undefined);
       setSections(data);
     } catch {
-      setError('Teaching assignments could not be loaded.');
+      setError(
+        locale === 'vi'
+          ? 'Hiện chưa thể tải phân công giảng dạy.'
+          : 'Teaching assignments could not be loaded.',
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [selectedSemester]);
+  }, [locale, selectedSemester]);
 
   useEffect(() => {
     if (hasAccess) {
@@ -115,28 +121,80 @@ export default function LecturerSchedulePage() {
   const selectedSemesterName = useMemo(() => {
     return (
       semesters.find((semester) => semester.id === selectedSemester)?.name ??
-      'all semesters'
+      (locale === 'vi' ? 'tất cả học kỳ' : 'all semesters')
     );
-  }, [selectedSemester, semesters]);
+  }, [locale, selectedSemester, semesters]);
+
+  const localizedDayNames =
+    locale === 'vi'
+      ? ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy']
+      : dayNames;
+
+  const copy =
+    locale === 'vi'
+      ? {
+          eyebrow: 'Workspace giảng viên',
+          title: 'Lịch giảng dạy',
+          description: `Giữ thời khóa biểu của ${selectedSemesterName} luôn hiển thị trong khi chấm điểm và vận hành section vẫn chỉ cách một lần chạm.`,
+          selectSemester: 'Chọn học kỳ cho lịch giảng dạy',
+          allSemesters: 'Tất cả học kỳ',
+          loading: 'Đang tải lịch giảng dạy',
+          unavailableTitle: 'Lịch giảng dạy chưa sẵn sàng',
+          emptyTitle: 'Chưa có phân công giảng dạy',
+          emptyDescription:
+            'Các section có lịch học đang hoạt động sẽ xuất hiện tại đây sau khi được phân công.',
+          teachingSlots: 'Ca giảng dạy',
+          assignedSections: 'Section được giao',
+          studentsInScope: 'Sinh viên trong phạm vi',
+          weeklyAgenda: 'Lịch dạy theo tuần',
+          assignedSectionsTitle: 'Section được giao',
+          noTeachingSlot: 'Chưa có ca giảng dạy nào.',
+          items: 'mục',
+          item: 'mục',
+          sectionPrefix: 'Section',
+          studentsSuffix: 'sinh viên',
+        }
+      : {
+          eyebrow: 'Lecturer workspace',
+          title: 'Teaching schedule',
+          description: `Keep your timetable for ${selectedSemesterName} visible while grading and section operations stay one click away.`,
+          selectSemester: 'Select semester for teaching schedule',
+          allSemesters: 'All semesters',
+          loading: 'Loading teaching schedule',
+          unavailableTitle: 'Teaching schedule unavailable',
+          emptyTitle: 'No teaching assignments yet',
+          emptyDescription:
+            'Sections with active classroom schedules will appear here once they are assigned.',
+          teachingSlots: 'Teaching slots',
+          assignedSections: 'Assigned sections',
+          studentsInScope: 'Students in scope',
+          weeklyAgenda: 'Weekly agenda',
+          assignedSectionsTitle: 'Assigned sections',
+          noTeachingSlot: 'No teaching slot scheduled.',
+          items: 'items',
+          item: 'item',
+          sectionPrefix: 'Section',
+          studentsSuffix: 'students',
+        };
 
   if (authLoading || !hasAccess) {
-    return <LoadingState label="Loading teaching schedule" />;
+    return <LoadingState label={copy.loading} />;
   }
 
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow={<SectionEyebrow>Lecturer workspace</SectionEyebrow>}
-        title="Teaching schedule"
-        description={`Keep your timetable for ${selectedSemesterName} visible while grading and section operations stay one click away.`}
+        eyebrow={<SectionEyebrow>{copy.eyebrow}</SectionEyebrow>}
+        title={copy.title}
+        description={copy.description}
         actions={
           <div className="min-w-[220px]">
             <Select
-              aria-label="Select semester for teaching schedule"
+              aria-label={copy.selectSemester}
               value={selectedSemester}
               onChange={(event) => setSelectedSemester(event.target.value)}
               options={[
-                { value: '', label: 'All semesters' },
+                { value: '', label: copy.allSemesters },
                 ...semesters.map((semester) => ({
                   value: semester.id,
                   label: semester.name,
@@ -149,17 +207,17 @@ export default function LecturerSchedulePage() {
 
       {error ? (
         <ErrorState
-          title="Teaching schedule unavailable"
+          title={copy.unavailableTitle}
           description={error}
           onRetry={() => void fetchSchedule()}
         />
       ) : isLoading ? (
-        <LoadingState label="Loading teaching schedule" />
+        <LoadingState label={copy.loading} />
       ) : slots.length === 0 ? (
         <EmptyState
           icon={Calendar}
-          title="No teaching assignments yet"
-          description="Sections with active classroom schedules will appear here once they are assigned."
+          title={copy.emptyTitle}
+          description={copy.emptyDescription}
         />
       ) : (
         <>
@@ -167,9 +225,9 @@ export default function LecturerSchedulePage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">Teaching slots</div>
+                  <div className="text-sm text-muted-foreground">{copy.teachingSlots}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-                    {slots.length}
+                    {formatNumber(slots.length)}
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-500/12 text-blue-600 dark:text-blue-400">
@@ -180,9 +238,9 @@ export default function LecturerSchedulePage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">Assigned sections</div>
+                  <div className="text-sm text-muted-foreground">{copy.assignedSections}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-                    {sections.length}
+                    {formatNumber(sections.length)}
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-500/12 text-emerald-600 dark:text-emerald-400">
@@ -193,9 +251,11 @@ export default function LecturerSchedulePage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">Students in scope</div>
+                  <div className="text-sm text-muted-foreground">{copy.studentsInScope}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-                    {sections.reduce((sum, section) => sum + section.enrolledCount, 0)}
+                    {formatNumber(
+                      sections.reduce((sum, section) => sum + section.enrolledCount, 0),
+                    )}
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-violet-500/12 text-violet-600 dark:text-violet-400">
@@ -208,10 +268,10 @@ export default function LecturerSchedulePage() {
           <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
             <Card variant="muted">
               <CardHeader>
-                <CardTitle className="text-xl">Weekly agenda</CardTitle>
+                <CardTitle className="text-xl">{copy.weeklyAgenda}</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-2">
-                {dayNames.slice(1, 6).map((dayName, index) => {
+                {localizedDayNames.slice(1, 6).map((dayName, index) => {
                   const dayOfWeek = index + 1;
                   const items = slotsByDay[dayOfWeek] ?? [];
 
@@ -223,13 +283,14 @@ export default function LecturerSchedulePage() {
                       <div className="mb-3 flex items-center justify-between">
                         <h2 className="font-semibold text-foreground">{dayName}</h2>
                         <span className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                          {items.length} item{items.length === 1 ? '' : 's'}
+                          {formatNumber(items.length)}{' '}
+                          {items.length === 1 ? copy.item : copy.items}
                         </span>
                       </div>
 
                       {items.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
-                          No teaching slot scheduled.
+                          {copy.noTeachingSlot}
                         </p>
                       ) : (
                         <div className="space-y-3">
@@ -242,7 +303,7 @@ export default function LecturerSchedulePage() {
                                 {slot.courseCode} - {slot.courseName}
                               </div>
                               <div className="mt-1 text-sm text-muted-foreground">
-                                Section {slot.sectionNumber}
+                                {copy.sectionPrefix} {slot.sectionNumber}
                               </div>
                               <div className="mt-2 flex flex-wrap gap-3 text-sm text-muted-foreground">
                                 <span className="inline-flex items-center gap-2">
@@ -266,7 +327,7 @@ export default function LecturerSchedulePage() {
 
             <Card variant="elevated">
               <CardHeader>
-                <CardTitle className="text-xl">Assigned sections</CardTitle>
+                <CardTitle className="text-xl">{copy.assignedSectionsTitle}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {sections.map((section) => (
@@ -280,11 +341,14 @@ export default function LecturerSchedulePage() {
                           {section.courseCode} - {section.courseName}
                         </div>
                         <div className="mt-1 text-sm text-muted-foreground">
-                          Section {section.sectionNumber} - {section.departmentName}
+                          {copy.sectionPrefix} {section.sectionNumber} - {section.departmentName}
                         </div>
                       </div>
                       <div className="text-sm text-muted-foreground sm:text-right">
-                        <div>{section.enrolledCount}/{section.capacity} students</div>
+                        <div>
+                          {formatNumber(section.enrolledCount)}/{formatNumber(section.capacity)}{' '}
+                          {copy.studentsSuffix}
+                        </div>
                         <div className="mt-1">
                           {section.status}
                         </div>

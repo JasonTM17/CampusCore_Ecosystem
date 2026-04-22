@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { Award, FileText, GraduationCap, TrendingUp } from 'lucide-react';
+import { LocalizedLink } from '@/components/LocalizedLink';
 import { useRequireAuth } from '@/context/AuthContext';
 import { gradesApi, semestersApi } from '@/lib/api';
 import {
@@ -19,6 +19,7 @@ import {
   ErrorState,
   LoadingState,
 } from '@/components/ui/state-block';
+import { useI18n } from '@/i18n';
 
 function getGradeTone(letterGrade: string | null) {
   if (!letterGrade) {
@@ -74,6 +75,7 @@ function getGradePoint(record: StudentGradeRecord) {
 
 export default function TranscriptPage() {
   const { hasAccess, isLoading: authLoading } = useRequireAuth(['STUDENT']);
+  const { locale, formatNumber } = useI18n();
   const [transcriptData, setTranscriptData] = useState<{
     summary: {
       cumulativeGpa: number;
@@ -100,11 +102,15 @@ export default function TranscriptPage() {
       const data = await gradesApi.getMyTranscript(selectedSemester || undefined);
       setTranscriptData(data);
     } catch {
-      setError('Transcript data could not be loaded.');
+      setError(
+        locale === 'vi'
+          ? 'Hiện chưa thể tải dữ liệu bảng điểm.'
+          : 'Transcript data could not be loaded.',
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [selectedSemester]);
+  }, [locale, selectedSemester]);
 
   useEffect(() => {
     if (hasAccess) {
@@ -135,29 +141,94 @@ export default function TranscriptPage() {
   const selectedSemesterName = useMemo(() => {
     return (
       semesters.find((semester) => semester.id === selectedSemester)?.name ??
-      'all semesters'
+      (locale === 'vi' ? 'tất cả học kỳ' : 'all semesters')
     );
-  }, [selectedSemester, semesters]);
+  }, [locale, selectedSemester, semesters]);
+
+  const copy =
+    locale === 'vi'
+      ? {
+          eyebrow: 'Workspace sinh viên',
+          title: 'Bảng điểm',
+          description: `Xem hồ sơ học tập dài hạn cho ${selectedSemesterName}, bao gồm GPA tích lũy và kết quả theo từng học kỳ.`,
+          selectSemester: 'Chọn học kỳ cho bảng điểm',
+          allSemesters: 'Tất cả học kỳ',
+          openGrades: 'Mở điểm số',
+          loading: 'Đang tải bảng điểm',
+          unavailableTitle: 'Bảng điểm chưa sẵn sàng',
+          emptyTitle: 'Chưa có hồ sơ bảng điểm',
+          emptyDescription:
+            'Các môn học hoàn tất và điểm đã công bố sẽ được tích lũy tại đây khi có kết quả học tập.',
+          cumulativeGpa: 'GPA tích lũy',
+          earnedCredits: 'Tín chỉ đạt',
+          attemptedCredits: 'Tín chỉ đăng ký',
+          courses: 'Môn học',
+          courseWord: 'môn',
+          coursesWord: 'môn',
+          creditsAttempted: 'tín chỉ đã đăng ký',
+          gradePointLabel: 'GPA',
+          headers: {
+            course: 'Môn học',
+            section: 'Section',
+            credits: 'Tín chỉ',
+            score: 'Điểm',
+            grade: 'Xếp loại',
+            points: 'Điểm hệ',
+            enrollment: 'Enrollment',
+            gradeStatus: 'Trạng thái điểm',
+          },
+        }
+      : {
+          eyebrow: 'Student workspace',
+          title: 'Transcript',
+          description: `Review the long-form academic record for ${selectedSemesterName}, including cumulative GPA and semester-by-semester outcomes.`,
+          selectSemester: 'Select semester for transcript',
+          allSemesters: 'All semesters',
+          openGrades: 'Open grades',
+          loading: 'Loading transcript',
+          unavailableTitle: 'Transcript unavailable',
+          emptyTitle: 'No transcript records yet',
+          emptyDescription:
+            'Completed courses and published grades will accumulate here once academic outcomes are available.',
+          cumulativeGpa: 'Cumulative GPA',
+          earnedCredits: 'Earned credits',
+          attemptedCredits: 'Attempted credits',
+          courses: 'Courses',
+          courseWord: 'course',
+          coursesWord: 'courses',
+          creditsAttempted: 'credits attempted',
+          gradePointLabel: 'GPA',
+          headers: {
+            course: 'Course',
+            section: 'Section',
+            credits: 'Credits',
+            score: 'Score',
+            grade: 'Grade',
+            points: 'Points',
+            enrollment: 'Enrollment',
+            gradeStatus: 'Grade status',
+          },
+        };
 
   if (authLoading || !hasAccess) {
-    return <LoadingState label="Loading transcript" />;
+    return <LoadingState label={copy.loading} />;
   }
 
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow={<SectionEyebrow>Student workspace</SectionEyebrow>}
-        title="Transcript"
-        description={`Review the long-form academic record for ${selectedSemesterName}, including cumulative GPA and semester-by-semester outcomes.`}
+        eyebrow={<SectionEyebrow>{copy.eyebrow}</SectionEyebrow>}
+        title={copy.title}
+        description={copy.description}
         actions={
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="min-w-[220px]">
               <Select
-                aria-label="Select semester for transcript"
+                aria-label={copy.selectSemester}
                 value={selectedSemester}
                 onChange={(event) => setSelectedSemester(event.target.value)}
                 options={[
-                  { value: '', label: 'All semesters' },
+                  { value: '', label: copy.allSemesters },
                   ...semesters.map((semester) => ({
                     value: semester.id,
                     label: semester.name,
@@ -165,30 +236,30 @@ export default function TranscriptPage() {
                 ]}
               />
             </div>
-            <Link href="/dashboard/grades">
-              <Button variant="outline">Open grades</Button>
-            </Link>
+            <LocalizedLink href="/dashboard/grades">
+              <Button variant="outline">{copy.openGrades}</Button>
+            </LocalizedLink>
           </div>
         }
       />
 
       {error ? (
         <ErrorState
-          title="Transcript unavailable"
+          title={copy.unavailableTitle}
           description={error}
           onRetry={() => void fetchTranscript()}
         />
       ) : isLoading ? (
-        <LoadingState label="Loading transcript" />
+        <LoadingState label={copy.loading} />
       ) : !transcriptData || transcriptSemesters.length === 0 ? (
         <EmptyState
           icon={FileText}
-          title="No transcript records yet"
-          description="Completed courses and published grades will accumulate here once academic outcomes are available."
+          title={copy.emptyTitle}
+          description={copy.emptyDescription}
           action={
-            <Link href="/dashboard/grades">
-              <Button>Open grades</Button>
-            </Link>
+            <LocalizedLink href="/dashboard/grades">
+              <Button>{copy.openGrades}</Button>
+            </LocalizedLink>
           }
         />
       ) : (
@@ -197,9 +268,7 @@ export default function TranscriptPage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">
-                    Cumulative GPA
-                  </div>
+                  <div className="text-sm text-muted-foreground">{copy.cumulativeGpa}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
                     {transcriptData.summary.cumulativeGpa.toFixed(2)}
                   </div>
@@ -212,11 +281,9 @@ export default function TranscriptPage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">
-                    Earned credits
-                  </div>
+                  <div className="text-sm text-muted-foreground">{copy.earnedCredits}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-                    {transcriptData.summary.totalCreditsEarned}
+                    {formatNumber(transcriptData.summary.totalCreditsEarned)}
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-500/12 text-emerald-600 dark:text-emerald-400">
@@ -227,11 +294,9 @@ export default function TranscriptPage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">
-                    Attempted credits
-                  </div>
+                  <div className="text-sm text-muted-foreground">{copy.attemptedCredits}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-                    {transcriptData.summary.totalCreditsAttempted}
+                    {formatNumber(transcriptData.summary.totalCreditsAttempted)}
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-violet-500/12 text-violet-600 dark:text-violet-400">
@@ -242,9 +307,9 @@ export default function TranscriptPage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">Courses</div>
+                  <div className="text-sm text-muted-foreground">{copy.courses}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-                    {totalCourses}
+                    {formatNumber(totalCourses)}
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-amber-500/12 text-amber-600 dark:text-amber-400">
@@ -260,9 +325,10 @@ export default function TranscriptPage() {
                 <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <CardTitle className="text-xl">{semester.semesterName}</CardTitle>
                   <div className="text-sm text-muted-foreground">
-                    {semester.records.length} course
-                    {semester.records.length === 1 ? '' : 's'} -{' '}
-                    {semester.creditsAttempted} credits attempted - GPA{' '}
+                    {formatNumber(semester.records.length)}{' '}
+                    {semester.records.length === 1 ? copy.courseWord : copy.coursesWord}{' '}
+                    - {formatNumber(semester.creditsAttempted)} {copy.creditsAttempted} -{' '}
+                    {copy.gradePointLabel}{' '}
                     {semester.gpa.toFixed(2)}
                   </div>
                 </CardHeader>
@@ -271,18 +337,14 @@ export default function TranscriptPage() {
                     <table className="w-full min-w-[840px] text-sm">
                       <thead>
                         <tr className="border-b border-border/70 text-left text-muted-foreground">
-                          <th className="px-2 py-3 font-medium">Course</th>
-                          <th className="px-2 py-3 font-medium">Section</th>
-                          <th className="px-2 py-3 text-center font-medium">Credits</th>
-                          <th className="px-2 py-3 text-center font-medium">Score</th>
-                          <th className="px-2 py-3 text-center font-medium">Grade</th>
-                          <th className="px-2 py-3 text-center font-medium">Points</th>
-                          <th className="px-2 py-3 text-center font-medium">
-                            Enrollment
-                          </th>
-                          <th className="px-2 py-3 text-right font-medium">
-                            Grade status
-                          </th>
+                          <th className="px-2 py-3 font-medium">{copy.headers.course}</th>
+                          <th className="px-2 py-3 font-medium">{copy.headers.section}</th>
+                          <th className="px-2 py-3 text-center font-medium">{copy.headers.credits}</th>
+                          <th className="px-2 py-3 text-center font-medium">{copy.headers.score}</th>
+                          <th className="px-2 py-3 text-center font-medium">{copy.headers.grade}</th>
+                          <th className="px-2 py-3 text-center font-medium">{copy.headers.points}</th>
+                          <th className="px-2 py-3 text-center font-medium">{copy.headers.enrollment}</th>
+                          <th className="px-2 py-3 text-right font-medium">{copy.headers.gradeStatus}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/60">
@@ -300,7 +362,7 @@ export default function TranscriptPage() {
                               {record.sectionCode}
                             </td>
                             <td className="px-2 py-4 text-center text-muted-foreground">
-                              {record.credits}
+                              {formatNumber(record.credits)}
                             </td>
                             <td className="px-2 py-4 text-center text-foreground">
                               {typeof record.finalGrade === 'number'

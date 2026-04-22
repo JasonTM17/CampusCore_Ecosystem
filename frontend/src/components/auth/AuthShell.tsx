@@ -1,9 +1,11 @@
 'use client';
 
 import * as React from 'react';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { BrandMark } from '@/components/BrandMark';
+import { LanguageToggle } from '@/components/LanguageToggle';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { SectionEyebrow } from '@/components/ui/page-header';
+import { useI18n } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 interface AuthShellFeature {
@@ -30,6 +32,8 @@ export function AuthShell({
   footer,
   className,
 }: AuthShellProps) {
+  const { messages } = useI18n();
+
   return (
     <div className="min-h-screen bg-background">
       <div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
@@ -77,12 +81,13 @@ export function AuthShell({
         </section>
 
         <section className="relative flex items-center justify-center px-5 py-10 sm:px-8 lg:px-10">
-          <div className="absolute right-4 top-4 sm:right-6 sm:top-6">
+          <div className="absolute right-4 top-4 flex items-center gap-2 sm:right-6 sm:top-6">
+            <LanguageToggle />
             <ThemeToggle />
           </div>
           <div className={cn('w-full max-w-lg space-y-8', className)}>
             <div className="lg:hidden">
-              <BrandMark href="/" subtitle="Academic access" />
+              <BrandMark href="/" subtitle={messages.authShell.mobileSubtitle} />
             </div>
             {children}
             {footer ? <div>{footer}</div> : null}

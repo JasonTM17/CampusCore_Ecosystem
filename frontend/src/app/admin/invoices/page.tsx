@@ -31,6 +31,7 @@ import {
   LoadingState,
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
+import { useI18n } from '@/i18n';
 
 interface Invoice {
   id: string;
@@ -84,6 +85,8 @@ const statusColors: Record<string, string> = {
 
 export default function AdminInvoicesPage() {
   const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { formatCurrency, formatDate, formatDateTime, formatNumber, href, locale, messages } =
+    useI18n();
   const router = useRouter();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
@@ -106,9 +109,9 @@ export default function AdminInvoicesPage() {
 
   useEffect(() => {
     if (user && !isAdmin && !isSuperAdmin) {
-      router.push('/dashboard');
+      router.push(href('/dashboard'));
     }
-  }, [user, isAdmin, isSuperAdmin, router]);
+  }, [href, isAdmin, isSuperAdmin, router, user]);
 
   const fetchSemesters = useCallback(async () => {
     try {
@@ -140,11 +143,175 @@ export default function AdminInvoicesPage() {
       setTotalPages(response.meta?.totalPages || 1);
       setTotal(response.meta?.total || 0);
     } catch {
-      setError('Invoices could not be loaded.');
+      setError(
+        locale === 'vi'
+          ? 'Hiện chưa thể tải danh sách hóa đơn.'
+          : 'Invoices could not be loaded.',
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [filters.semesterId, filters.status, filters.studentId, page]);
+  }, [filters.semesterId, filters.status, filters.studentId, locale, page]);
+
+  const copy = useMemo(
+    () =>
+      locale === 'vi'
+        ? {
+          loading: 'Đang tải hóa đơn',
+          title: 'Hóa đơn',
+          description:
+            'Theo dõi sức khỏe hóa đơn, tạo billing theo học kỳ có kiểm soát và giữ phần follow-up thanh toán luôn rõ ràng.',
+          refresh: 'Làm mới',
+          exportCsv: 'Xuất CSV',
+          generate: 'Tạo hóa đơn',
+          semester: 'Học kỳ',
+          status: 'Trạng thái',
+          allSemesters: 'Tất cả học kỳ',
+          allStatuses: 'Tất cả trạng thái',
+          statusOptions: {
+            DRAFT: 'Nháp',
+            PENDING: 'Chờ thanh toán',
+            PAID: 'Đã thanh toán',
+            OVERDUE: 'Quá hạn',
+            PARTIALLY_PAID: 'Thanh toán một phần',
+            CANCELLED: 'Đã hủy',
+          },
+          pageSummaryEmpty: '0 hóa đơn',
+          pageSummary: (count: number) => `${formatNumber(count)} hóa đơn`,
+          clearFilters: 'Xóa bộ lọc',
+          unavailableTitle: 'Hóa đơn chưa sẵn sàng',
+          emptyTitle: 'Không có hóa đơn phù hợp',
+          emptyDescription:
+            'Khi học kỳ sẵn sàng để billing, hóa đơn sẽ xuất hiện ở đây cùng trạng thái thanh toán và hạn thanh toán.',
+          tableTitle: 'Bản ghi hóa đơn',
+          headers: {
+            invoice: 'Số hóa đơn',
+            student: 'Sinh viên',
+            semester: 'Học kỳ',
+            amount: 'Số tiền',
+            dueDate: 'Hạn thanh toán',
+            status: 'Trạng thái',
+            actions: 'Tác vụ',
+          },
+          noEmail: 'Chưa có email',
+          unassigned: 'Chưa gán',
+          deleteTitle: 'Xóa hóa đơn',
+          deleteMessage: (invoiceNumber: string) =>
+            `Xóa ${invoiceNumber}? Hành động này sẽ gỡ hóa đơn khỏi màn hình quản trị hiện tại.`,
+          deleteConfirm: 'Xóa hóa đơn',
+          deleted: 'Đã xóa hóa đơn',
+          deleteFailed: 'Hiện chưa thể xóa hóa đơn này.',
+          statusUpdated: 'Đã cập nhật trạng thái hóa đơn',
+          statusUpdateFailed: 'Hiện chưa thể cập nhật trạng thái hóa đơn.',
+          selectSemesterFirst: 'Hãy chọn học kỳ trước khi tạo hóa đơn.',
+          generateTitle: 'Tạo hóa đơn theo học kỳ',
+          generateMessage:
+            'Tạo hóa đơn cho toàn bộ sinh viên có đăng ký đã xác nhận trong học kỳ đang chọn?',
+          generateConfirm: 'Tạo hóa đơn',
+          generateSuccess: (generated: number, skipped: number) =>
+            `Đã tạo ${formatNumber(generated)} hóa đơn và bỏ qua ${formatNumber(skipped)} bản ghi.`,
+          generateFailed: 'Hiện chưa thể tạo hóa đơn theo học kỳ.',
+          exportStarted: 'Đã bắt đầu xuất dữ liệu hóa đơn',
+          exportFailed: 'Hiện chưa thể xuất dữ liệu hóa đơn.',
+          detailFailed: 'Hiện chưa thể tải chi tiết hóa đơn.',
+          viewLabel: (invoiceNumber: string) => `Xem hóa đơn ${invoiceNumber}`,
+          deleteLabel: (invoiceNumber: string) => `Xóa hóa đơn ${invoiceNumber}`,
+          detailTitle: (invoiceNumber?: string) =>
+            invoiceNumber ? `Hóa đơn ${invoiceNumber}` : 'Chi tiết hóa đơn',
+          closeDetail: 'Đóng chi tiết hóa đơn',
+          studentInformation: 'Thông tin sinh viên',
+          name: 'Tên',
+          email: 'Email',
+          invoiceItems: 'Khoản mục hóa đơn',
+          descriptionLabel: 'Mô tả',
+          quantity: 'SL',
+          unitPrice: 'Đơn giá',
+          totalLabel: 'Tổng cộng',
+          statusActions: 'Tác vụ trạng thái',
+          markPending: 'Đánh dấu chờ thanh toán',
+          markPaid: 'Đánh dấu đã thanh toán',
+          cancelInvoice: 'Hủy hóa đơn',
+          close: 'Đóng',
+        }
+        : {
+          loading: 'Loading invoices',
+          title: 'Invoices',
+          description:
+            'Review invoice health, generate semester billing in a controlled way, and keep payment follow-up readable.',
+          refresh: 'Refresh',
+          exportCsv: 'Export CSV',
+          generate: 'Generate invoices',
+          semester: 'Semester',
+          status: 'Status',
+          allSemesters: 'All semesters',
+          allStatuses: 'All statuses',
+          statusOptions: {
+            DRAFT: 'Draft',
+            PENDING: 'Pending',
+            PAID: 'Paid',
+            OVERDUE: 'Overdue',
+            PARTIALLY_PAID: 'Partially paid',
+            CANCELLED: 'Cancelled',
+          },
+          pageSummaryEmpty: '0 invoices',
+          pageSummary: (count: number) => `${formatNumber(count)} invoices`,
+          clearFilters: 'Clear filters',
+          unavailableTitle: 'Invoices unavailable',
+          emptyTitle: 'No matching invoices',
+          emptyDescription:
+            'Once a semester is ready for billing, generated invoices will appear here with payment status and due dates.',
+          tableTitle: 'Invoice records',
+          headers: {
+            invoice: 'Invoice #',
+            student: 'Student',
+            semester: 'Semester',
+            amount: 'Amount',
+            dueDate: 'Due date',
+            status: 'Status',
+            actions: 'Actions',
+          },
+          noEmail: 'No email',
+          unassigned: 'Unassigned',
+          deleteTitle: 'Delete invoice',
+          deleteMessage: (invoiceNumber: string) =>
+            `Delete ${invoiceNumber}? This removes the invoice from the current admin view.`,
+          deleteConfirm: 'Delete invoice',
+          deleted: 'Invoice deleted',
+          deleteFailed: 'We could not delete that invoice.',
+          statusUpdated: 'Invoice status updated',
+          statusUpdateFailed: 'The invoice status could not be updated.',
+          selectSemesterFirst: 'Select a semester before generating invoices.',
+          generateTitle: 'Generate semester invoices',
+          generateMessage:
+            'Generate invoices for all students with confirmed enrollments in the selected semester?',
+          generateConfirm: 'Generate invoices',
+          generateSuccess: (generated: number, skipped: number) =>
+            `Generated ${formatNumber(generated)} invoices and skipped ${formatNumber(skipped)}.`,
+          generateFailed: 'Semester invoices could not be generated.',
+          exportStarted: 'Invoice export started',
+          exportFailed: 'Invoices could not be exported.',
+          detailFailed: 'Invoice details could not be loaded.',
+          viewLabel: (invoiceNumber: string) => `View invoice ${invoiceNumber}`,
+          deleteLabel: (invoiceNumber: string) => `Delete invoice ${invoiceNumber}`,
+          detailTitle: (invoiceNumber?: string) =>
+            invoiceNumber ? `Invoice ${invoiceNumber}` : 'Invoice details',
+          closeDetail: 'Close invoice details',
+          studentInformation: 'Student information',
+          name: 'Name',
+          email: 'Email',
+          invoiceItems: 'Invoice items',
+          descriptionLabel: 'Description',
+          quantity: 'Qty',
+          unitPrice: 'Unit price',
+          totalLabel: 'Total',
+          statusActions: 'Status actions',
+          markPending: 'Mark as pending',
+          markPaid: 'Mark as paid',
+          cancelInvoice: 'Cancel invoice',
+          close: 'Close',
+        },
+    [formatNumber, locale],
+  );
 
   useEffect(() => {
     if (canAccess) {
@@ -155,38 +322,38 @@ export default function AdminInvoicesPage() {
 
   const semesterOptions = useMemo(
     () => [
-      { value: '', label: 'All semesters' },
+      { value: '', label: copy.allSemesters },
       ...semesters.map((semester) => ({
         value: semester.id,
         label: semester.name,
       })),
     ],
-    [semesters],
+    [copy.allSemesters, semesters],
   );
 
   const statusOptions = useMemo(
     () => [
-      { value: '', label: 'All statuses' },
-      { value: 'DRAFT', label: 'Draft' },
-      { value: 'PENDING', label: 'Pending' },
-      { value: 'PAID', label: 'Paid' },
-      { value: 'OVERDUE', label: 'Overdue' },
-      { value: 'PARTIALLY_PAID', label: 'Partially paid' },
-      { value: 'CANCELLED', label: 'Cancelled' },
+      { value: '', label: copy.allStatuses },
+      { value: 'DRAFT', label: copy.statusOptions.DRAFT },
+      { value: 'PENDING', label: copy.statusOptions.PENDING },
+      { value: 'PAID', label: copy.statusOptions.PAID },
+      { value: 'OVERDUE', label: copy.statusOptions.OVERDUE },
+      { value: 'PARTIALLY_PAID', label: copy.statusOptions.PARTIALLY_PAID },
+      { value: 'CANCELLED', label: copy.statusOptions.CANCELLED },
     ],
-    [],
+    [copy.allStatuses, copy.statusOptions],
   );
 
   const pageSummary = useMemo(() => {
     if (invoices.length === 0) {
-      return `0 invoices`;
+      return copy.pageSummaryEmpty;
     }
 
-    return `${total} invoices`;
-  }, [invoices.length, total]);
+    return copy.pageSummary(total);
+  }, [copy, invoices.length, total]);
 
   if (!canAccess) {
-    return <LoadingState label="Loading invoices" className="m-8" />;
+    return <LoadingState label={copy.loading} className="m-8" />;
   }
 
   const handleViewDetail = async (invoice: Invoice) => {
@@ -195,15 +362,15 @@ export default function AdminInvoicesPage() {
       setSelectedInvoice(detail);
       setIsDetailOpen(true);
     } catch {
-      toast.error('Invoice details could not be loaded.');
+      toast.error(copy.detailFailed);
     }
   };
 
   const handleDelete = async (invoice: Invoice) => {
     const shouldDelete = await confirm({
-      title: 'Delete invoice',
-      message: `Delete ${invoice.invoiceNumber}? This removes the invoice from the current admin view.`,
-      confirmText: 'Delete invoice',
+      title: copy.deleteTitle,
+      message: copy.deleteMessage(invoice.invoiceNumber),
+      confirmText: copy.deleteConfirm,
       variant: 'destructive',
     });
 
@@ -213,17 +380,17 @@ export default function AdminInvoicesPage() {
 
     try {
       await financeApi.deleteInvoice(invoice.id);
-      toast.success('Invoice deleted');
+      toast.success(copy.deleted);
       await fetchInvoices();
     } catch {
-      toast.error('We could not delete that invoice.');
+      toast.error(copy.deleteFailed);
     }
   };
 
   const handleUpdateStatus = async (invoiceId: string, status: string) => {
     try {
       await financeApi.updateInvoice(invoiceId, { status });
-      toast.success('Invoice status updated');
+      toast.success(copy.statusUpdated);
       await fetchInvoices();
 
       if (selectedInvoice?.id === invoiceId) {
@@ -231,21 +398,20 @@ export default function AdminInvoicesPage() {
         setSelectedInvoice(detail);
       }
     } catch {
-      toast.error('The invoice status could not be updated.');
+      toast.error(copy.statusUpdateFailed);
     }
   };
 
   const handleGenerateInvoices = async () => {
     if (!filters.semesterId) {
-      toast.error('Select a semester before generating invoices.');
+      toast.error(copy.selectSemesterFirst);
       return;
     }
 
     const shouldGenerate = await confirm({
-      title: 'Generate semester invoices',
-      message:
-        'Generate invoices for all students with confirmed enrollments in the selected semester?',
-      confirmText: 'Generate invoices',
+      title: copy.generateTitle,
+      message: copy.generateMessage,
+      confirmText: copy.generateConfirm,
     });
 
     if (!shouldGenerate) {
@@ -255,11 +421,11 @@ export default function AdminInvoicesPage() {
     try {
       const result = await financeApi.generateSemesterInvoices(filters.semesterId);
       toast.success(
-        `Generated ${result.generated} invoices and skipped ${result.skipped}.`,
+        copy.generateSuccess(Number(result.generated), Number(result.skipped)),
       );
       await fetchInvoices();
     } catch {
-      toast.error('Semester invoices could not be generated.');
+      toast.error(copy.generateFailed);
     }
   };
 
@@ -271,43 +437,29 @@ export default function AdminInvoicesPage() {
       link.href = URL.createObjectURL(blob);
       link.download = `invoices_${new Date().toISOString().split('T')[0]}.csv`;
       link.click();
-      toast.success('Invoice export started');
+      toast.success(copy.exportStarted);
     } catch {
-      toast.error('Invoices could not be exported.');
+      toast.error(copy.exportFailed);
     }
   };
 
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
-
-  const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-
   return (
     <AdminFrame
-      title="Invoices"
-      description="Review invoice health, generate semester billing in a controlled way, and keep payment follow-up readable."
-      backLabel="Back to admin dashboard"
+      title={copy.title}
+      description={copy.description}
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={() => void fetchInvoices()}>
             <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
+            {copy.refresh}
           </Button>
           <Button variant="outline" onClick={() => void handleExportCsv()}>
             <Download className="mr-2 h-4 w-4" />
-            Export CSV
+            {copy.exportCsv}
           </Button>
           <Button onClick={() => void handleGenerateInvoices()}>
             <Plus className="mr-2 h-4 w-4" />
-            Generate invoices
+            {copy.generate}
           </Button>
         </div>
       }
@@ -316,7 +468,7 @@ export default function AdminInvoicesPage() {
         <AdminToolbarCard>
             <div className="grid gap-4 md:grid-cols-3">
               <Select
-                label="Semester"
+                label={copy.semester}
                 value={filters.semesterId}
                 onChange={(event) => {
                   setFilters((current) => ({
@@ -328,7 +480,7 @@ export default function AdminInvoicesPage() {
                 options={semesterOptions}
               />
               <Select
-                label="Status"
+                label={copy.status}
                 value={filters.status}
                 onChange={(event) => {
                   setFilters((current) => ({
@@ -347,7 +499,7 @@ export default function AdminInvoicesPage() {
                     setPage(1);
                   }}
                 >
-                  Clear filters
+                  {copy.clearFilters}
                 </Button>
                 <div className="text-sm text-muted-foreground">{pageSummary}</div>
               </div>
@@ -356,24 +508,24 @@ export default function AdminInvoicesPage() {
 
         {error ? (
           <ErrorState
-            title="Invoices unavailable"
+            title={copy.unavailableTitle}
             description={error}
             onRetry={() => void fetchInvoices()}
           />
         ) : isLoading ? (
-          <LoadingState label="Loading invoices" />
+          <LoadingState label={copy.loading} />
         ) : invoices.length === 0 ? (
           <EmptyState
             icon={Receipt}
-            title="No matching invoices"
-            description="Once a semester is ready for billing, generated invoices will appear here with payment status and due dates."
+            title={copy.emptyTitle}
+            description={copy.emptyDescription}
           />
         ) : (
           <AdminTableCard
-            title="Invoice records"
+            title={copy.tableTitle}
             footer={
               <AdminPaginationFooter
-                summary={`Page ${page} of ${totalPages}`}
+                summary={`${messages.common.states.page} ${page} ${messages.common.states.of} ${totalPages}`}
                 page={page}
                 totalPages={totalPages}
                 onPrevious={() => setPage((current) => current - 1)}
@@ -385,13 +537,13 @@ export default function AdminInvoicesPage() {
                 <table className="w-full min-w-[900px] text-sm">
                   <thead>
                     <tr className="border-b border-border/70 text-left text-muted-foreground">
-                      <th className="px-2 py-3 font-medium">Invoice #</th>
-                      <th className="px-2 py-3 font-medium">Student</th>
-                      <th className="px-2 py-3 font-medium">Semester</th>
-                      <th className="px-2 py-3 font-medium text-right">Amount</th>
-                      <th className="px-2 py-3 font-medium">Due date</th>
-                      <th className="px-2 py-3 font-medium">Status</th>
-                      <th className="px-2 py-3 text-right font-medium">Actions</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.invoice}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.student}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.semester}</th>
+                      <th className="px-2 py-3 font-medium text-right">{copy.headers.amount}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.dueDate}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.status}</th>
+                      <th className="px-2 py-3 text-right font-medium">{copy.headers.actions}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
@@ -408,12 +560,12 @@ export default function AdminInvoicesPage() {
                                 : invoice.studentId}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {invoice.student?.user?.email || 'No email'}
+                              {invoice.student?.user?.email || copy.noEmail}
                             </p>
                           </div>
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
-                          {invoice.semester?.name || 'Unassigned'}
+                          {invoice.semester?.name || copy.unassigned}
                         </td>
                         <td className="px-2 py-4 text-right font-medium text-foreground">
                           {formatCurrency(Number(invoice.total))}
@@ -425,7 +577,8 @@ export default function AdminInvoicesPage() {
                           <span
                             className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusColors[invoice.status] || 'bg-secondary text-foreground'}`}
                           >
-                            {invoice.status.replace(/_/g, ' ')}
+                            {copy.statusOptions[invoice.status as keyof typeof copy.statusOptions] ??
+                              invoice.status.replace(/_/g, ' ')}
                           </span>
                         </td>
                         <td className="px-2 py-4">
@@ -434,8 +587,8 @@ export default function AdminInvoicesPage() {
                               size="icon"
                               variant="ghost"
                               onClick={() => void handleViewDetail(invoice)}
-                              aria-label={`View invoice ${invoice.invoiceNumber}`}
-                              title={`View invoice ${invoice.invoiceNumber}`}
+                              aria-label={copy.viewLabel(invoice.invoiceNumber)}
+                              title={copy.viewLabel(invoice.invoiceNumber)}
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -444,8 +597,8 @@ export default function AdminInvoicesPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(invoice)}
-                              aria-label={`Delete invoice ${invoice.invoiceNumber}`}
-                              title={`Delete invoice ${invoice.invoiceNumber}`}
+                              aria-label={copy.deleteLabel(invoice.invoiceNumber)}
+                              title={copy.deleteLabel(invoice.invoiceNumber)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -463,17 +616,17 @@ export default function AdminInvoicesPage() {
       <Modal
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
-        title={selectedInvoice ? `Invoice ${selectedInvoice.invoiceNumber}` : 'Invoice details'}
-        closeLabel="Close invoice details"
+        title={copy.detailTitle(selectedInvoice?.invoiceNumber)}
+        closeLabel={copy.closeDetail}
         className="max-w-3xl"
       >
         {selectedInvoice ? (
           <div className="space-y-6">
             <div className="rounded-lg border border-border/70 bg-secondary/30 p-4">
-              <h4 className="font-semibold text-foreground">Student information</h4>
+              <h4 className="font-semibold text-foreground">{copy.studentInformation}</h4>
               <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
                 <div>
-                  <span className="text-muted-foreground">Name:</span>{' '}
+                  <span className="text-muted-foreground">{copy.name}:</span>{' '}
                   <span className="font-medium text-foreground">
                     {selectedInvoice.student?.user
                       ? `${selectedInvoice.student.user.firstName} ${selectedInvoice.student.user.lastName}`
@@ -481,24 +634,24 @@ export default function AdminInvoicesPage() {
                   </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Email:</span>{' '}
+                  <span className="text-muted-foreground">{copy.email}:</span>{' '}
                   <span className="font-medium text-foreground">
-                    {selectedInvoice.student?.user?.email || 'No email'}
+                    {selectedInvoice.student?.user?.email || copy.noEmail}
                   </span>
                 </div>
               </div>
             </div>
 
             <div>
-              <h4 className="font-semibold text-foreground">Invoice items</h4>
+              <h4 className="font-semibold text-foreground">{copy.invoiceItems}</h4>
               <AdminTableScroll className="mt-3">
                 <table className="w-full min-w-[560px] text-sm">
                   <thead>
                     <tr className="border-b border-border/70 text-left text-muted-foreground">
-                      <th className="py-2 pr-4 font-medium">Description</th>
-                      <th className="py-2 pr-4 text-right font-medium">Qty</th>
-                      <th className="py-2 pr-4 text-right font-medium">Unit price</th>
-                      <th className="py-2 text-right font-medium">Total</th>
+                      <th className="py-2 pr-4 font-medium">{copy.descriptionLabel}</th>
+                      <th className="py-2 pr-4 text-right font-medium">{copy.quantity}</th>
+                      <th className="py-2 pr-4 text-right font-medium">{copy.unitPrice}</th>
+                      <th className="py-2 text-right font-medium">{copy.totalLabel}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
@@ -523,7 +676,7 @@ export default function AdminInvoicesPage() {
                         colSpan={3}
                         className="py-3 pr-4 text-right font-semibold text-foreground"
                       >
-                        Total
+                        {copy.totalLabel}
                       </td>
                       <td className="py-3 text-right font-semibold text-foreground">
                         {formatCurrency(Number(selectedInvoice.total))}
@@ -535,7 +688,7 @@ export default function AdminInvoicesPage() {
             </div>
 
             <div className="space-y-3">
-              <h4 className="font-semibold text-foreground">Status actions</h4>
+              <h4 className="font-semibold text-foreground">{copy.statusActions}</h4>
               <div className="flex flex-wrap gap-2">
                 {selectedInvoice.status === 'DRAFT' ? (
                   <Button
@@ -544,7 +697,7 @@ export default function AdminInvoicesPage() {
                       void handleUpdateStatus(selectedInvoice.id, 'PENDING')
                     }
                   >
-                    Mark as pending
+                    {copy.markPending}
                   </Button>
                 ) : null}
                 {selectedInvoice.status === 'PENDING' ? (
@@ -552,7 +705,7 @@ export default function AdminInvoicesPage() {
                     size="sm"
                     onClick={() => void handleUpdateStatus(selectedInvoice.id, 'PAID')}
                   >
-                    Mark as paid
+                    {copy.markPaid}
                   </Button>
                 ) : null}
                 {selectedInvoice.status !== 'CANCELLED' &&
@@ -564,7 +717,7 @@ export default function AdminInvoicesPage() {
                       void handleUpdateStatus(selectedInvoice.id, 'CANCELLED')
                     }
                   >
-                    Cancel invoice
+                    {copy.cancelInvoice}
                   </Button>
                 ) : null}
               </div>
@@ -572,7 +725,7 @@ export default function AdminInvoicesPage() {
 
             <AdminDialogFooter className="pt-0">
               <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
-                Close
+                {copy.close}
               </Button>
             </AdminDialogFooter>
           </div>

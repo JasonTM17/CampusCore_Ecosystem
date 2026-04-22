@@ -1,8 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
+import { LocalizedLink } from '@/components/LocalizedLink';
 import {
   Card,
   CardContent,
@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { useI18n } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 interface WorkspaceMetricCardProps {
@@ -115,11 +116,13 @@ export function WorkspaceActionTile({
   title,
   description,
   toneClassName,
-  ctaLabel = 'Open workspace',
+  ctaLabel,
   className,
 }: WorkspaceActionTileProps) {
+  const { messages } = useI18n();
+
   return (
-    <Link
+    <LocalizedLink
       href={href}
       className={cn(
         'group min-w-0 rounded-lg border border-border/70 bg-card px-5 py-5 transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
@@ -144,10 +147,10 @@ export function WorkspaceActionTile({
           </p>
         </div>
         <div className="mt-auto flex items-center gap-2 text-sm font-medium text-primary">
-          <span>{ctaLabel}</span>
+          <span>{ctaLabel ?? messages.common.actions.openWorkspace}</span>
           <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
         </div>
       </div>
-    </Link>
+    </LocalizedLink>
   );
 }

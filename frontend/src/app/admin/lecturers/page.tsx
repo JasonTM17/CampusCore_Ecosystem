@@ -27,6 +27,7 @@ import {
   LoadingState,
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
+import { useI18n } from '@/i18n';
 
 interface Lecturer {
   id: string;
@@ -46,6 +47,7 @@ interface Department {
 
 export default function AdminLecturersPage() {
   const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { href, locale, messages } = useI18n();
   const router = useRouter();
   const [lecturers, setLecturers] = useState<Lecturer[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -68,9 +70,9 @@ export default function AdminLecturersPage() {
 
   useEffect(() => {
     if (user && !isAdmin && !isSuperAdmin) {
-      router.push('/dashboard');
+      router.push(href('/dashboard'));
     }
-  }, [user, isAdmin, isSuperAdmin, router]);
+  }, [href, isAdmin, isSuperAdmin, router, user]);
 
   const fetchDepartments = useCallback(async () => {
     try {
@@ -105,11 +107,133 @@ export default function AdminLecturersPage() {
       setLecturers(filteredLecturers);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
-      setError('Lecturers could not be loaded.');
+      setError(
+        locale === 'vi'
+          ? 'Hiện chưa thể tải danh sách giảng viên.'
+          : 'Lecturers could not be loaded.',
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [page, search]);
+  }, [locale, page, search]);
+
+  const copy = useMemo(
+    () =>
+      locale === 'vi'
+        ? {
+          loading: 'Đang tải giảng viên',
+          title: 'Giảng viên',
+          description:
+            'Giữ hồ sơ giảng dạy gắn đúng người, đúng khoa và đúng metadata vận hành.',
+          create: 'Tạo giảng viên',
+          searchLabel: 'Tìm giảng viên',
+          searchPlaceholder: 'Tìm theo tên, email hoặc mã nhân sự',
+          pageSummaryEmpty: 'Không có bản ghi phù hợp',
+          pageSummary: (currentPage: number, pages: number) =>
+            `Trang ${currentPage} / ${pages}`,
+          selectDepartment: 'Chọn khoa',
+          unavailableTitle: 'Giảng viên chưa sẵn sàng',
+          emptyTitle: 'Không có giảng viên phù hợp',
+          emptyDescription:
+            'Hãy tạo hồ sơ giảng viên để section, lịch dạy và ownership chấm điểm luôn khớp nhau.',
+          tableTitle: 'Bản ghi giảng viên',
+          headers: {
+            employeeId: 'Mã nhân sự',
+            lecturer: 'Giảng viên',
+            email: 'Email',
+            department: 'Khoa',
+            specialization: 'Chuyên môn',
+            status: 'Trạng thái',
+            actions: 'Tác vụ',
+          },
+          unlinkedAccount: 'Chưa liên kết tài khoản',
+          noEmail: 'Chưa có email',
+          unassigned: 'Chưa gán',
+          notProvided: 'Chưa cập nhật',
+          active: 'Đang hoạt động',
+          inactive: 'Ngừng hoạt động',
+          deleteTitle: 'Xóa giảng viên',
+          deleteMessage: (employeeId: string) =>
+            `Xóa ${employeeId}? Hành động này sẽ gỡ giảng viên khỏi màn hình quản trị hiện tại.`,
+          deleteConfirm: 'Xóa giảng viên',
+          deleted: 'Đã xóa giảng viên',
+          deleteFailed: 'Hiện chưa thể xóa giảng viên này.',
+          updated: 'Đã cập nhật giảng viên',
+          created: 'Đã tạo giảng viên',
+          saveFailed: 'Hiện chưa thể lưu hồ sơ giảng viên.',
+          editTitle: 'Chỉnh sửa giảng viên',
+          createTitle: 'Tạo giảng viên',
+          fields: {
+            employeeId: 'Mã nhân sự',
+            userId: 'ID tài khoản liên kết',
+            userIdPlaceholder: 'ID tài khoản người dùng hiện có',
+            department: 'Khoa',
+            specialization: 'Chuyên môn',
+            specializationPlaceholder: 'Tùy chọn: môn hoặc lĩnh vực phụ trách',
+          },
+          saving: 'Đang lưu...',
+          editAction: messages.common.actions.saveChanges,
+          editLabel: (employeeId: string) => `Chỉnh sửa giảng viên ${employeeId}`,
+          deleteLabel: (employeeId: string) => `Xóa giảng viên ${employeeId}`,
+        }
+        : {
+          loading: 'Loading lecturers',
+          title: 'Lecturers',
+          description:
+            'Keep teaching assignments tied to the right people, departments, and profile metadata.',
+          create: 'Create lecturer',
+          searchLabel: 'Search lecturers',
+          searchPlaceholder: 'Search by name, email, or employee ID',
+          pageSummaryEmpty: 'No matching records',
+          pageSummary: (currentPage: number, pages: number) =>
+            `Page ${currentPage} of ${pages}`,
+          selectDepartment: 'Select department',
+          unavailableTitle: 'Lecturers unavailable',
+          emptyTitle: 'No matching lecturers',
+          emptyDescription:
+            'Create a lecturer profile to keep schedules, sections, and grading ownership aligned.',
+          tableTitle: 'Lecturer records',
+          headers: {
+            employeeId: 'Employee ID',
+            lecturer: 'Lecturer',
+            email: 'Email',
+            department: 'Department',
+            specialization: 'Specialization',
+            status: 'Status',
+            actions: 'Actions',
+          },
+          unlinkedAccount: 'Unlinked account',
+          noEmail: 'No email',
+          unassigned: 'Unassigned',
+          notProvided: 'Not provided',
+          active: 'Active',
+          inactive: 'Inactive',
+          deleteTitle: 'Delete lecturer',
+          deleteMessage: (employeeId: string) =>
+            `Delete ${employeeId}? This removes the lecturer from the current admin view.`,
+          deleteConfirm: 'Delete lecturer',
+          deleted: 'Lecturer deleted',
+          deleteFailed: 'We could not delete that lecturer.',
+          updated: 'Lecturer updated',
+          created: 'Lecturer created',
+          saveFailed: 'The lecturer profile could not be saved.',
+          editTitle: 'Edit lecturer',
+          createTitle: 'Create lecturer',
+          fields: {
+            employeeId: 'Employee ID',
+            userId: 'Linked user ID',
+            userIdPlaceholder: 'Existing user account ID',
+            department: 'Department',
+            specialization: 'Specialization',
+            specializationPlaceholder: 'Optional subject or field focus',
+          },
+          saving: 'Saving...',
+          editAction: messages.common.actions.saveChanges,
+          editLabel: (employeeId: string) => `Edit lecturer ${employeeId}`,
+          deleteLabel: (employeeId: string) => `Delete lecturer ${employeeId}`,
+        },
+    [locale, messages.common.actions.saveChanges],
+  );
 
   useEffect(() => {
     if (canAccess) {
@@ -120,25 +244,25 @@ export default function AdminLecturersPage() {
 
   const pageSummary = useMemo(() => {
     if (lecturers.length === 0) {
-      return 'No matching records';
+      return copy.pageSummaryEmpty;
     }
 
-    return `Page ${page} of ${totalPages}`;
-  }, [lecturers.length, page, totalPages]);
+    return copy.pageSummary(page, totalPages);
+  }, [copy, lecturers.length, page, totalPages]);
 
   const departmentOptions = useMemo(
     () => [
-      { value: '', label: 'Select department' },
+      { value: '', label: copy.selectDepartment },
       ...departments.map((department) => ({
         value: department.id,
         label: department.name,
       })),
     ],
-    [departments],
+    [copy.selectDepartment, departments],
   );
 
   if (!canAccess) {
-    return <LoadingState label="Loading lecturers" className="m-8" />;
+    return <LoadingState label={copy.loading} className="m-8" />;
   }
 
   const resetForm = () => {
@@ -180,9 +304,9 @@ export default function AdminLecturersPage() {
 
   const handleDelete = async (lecturer: Lecturer) => {
     const shouldDelete = await confirm({
-      title: 'Delete lecturer',
-      message: `Delete ${lecturer.employeeId}? This removes the lecturer from the current admin view.`,
-      confirmText: 'Delete lecturer',
+      title: copy.deleteTitle,
+      message: copy.deleteMessage(lecturer.employeeId),
+      confirmText: copy.deleteConfirm,
       variant: 'destructive',
     });
 
@@ -192,10 +316,10 @@ export default function AdminLecturersPage() {
 
     try {
       await lecturersApi.delete(lecturer.id);
-      toast.success('Lecturer deleted');
+      toast.success(copy.deleted);
       await fetchLecturers();
     } catch {
-      toast.error('We could not delete that lecturer.');
+      toast.error(copy.deleteFailed);
     }
   };
 
@@ -206,18 +330,17 @@ export default function AdminLecturersPage() {
     try {
       if (editingLecturer) {
         await lecturersApi.update(editingLecturer.id, formData);
-        toast.success('Lecturer updated');
+        toast.success(copy.updated);
       } else {
         await lecturersApi.create(formData);
-        toast.success('Lecturer created');
+        toast.success(copy.created);
       }
 
       closeModal();
       await fetchLecturers();
     } catch (requestError: any) {
       toast.error(
-        requestError.response?.data?.message ??
-          'The lecturer profile could not be saved.',
+        requestError.response?.data?.message ?? copy.saveFailed,
       );
     } finally {
       setIsSaving(false);
@@ -226,13 +349,12 @@ export default function AdminLecturersPage() {
 
   return (
     <AdminFrame
-      title="Lecturers"
-      description="Keep teaching assignments tied to the right people, departments, and profile metadata."
-      backLabel="Back to admin dashboard"
+      title={copy.title}
+      description={copy.description}
       actions={
         <Button onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" />
-          Create lecturer
+          {copy.create}
         </Button>
       }
     >
@@ -244,13 +366,13 @@ export default function AdminLecturersPage() {
             >
               <div className="w-full max-w-xl">
                 <label className="mb-2 block text-sm font-medium text-foreground">
-                  Search lecturers
+                  {copy.searchLabel}
                 </label>
                 <Input
                   type="text"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search by name, email, or employee ID"
+                  placeholder={copy.searchPlaceholder}
                   icon={<Search className="h-4 w-4" />}
                 />
               </div>
@@ -258,7 +380,7 @@ export default function AdminLecturersPage() {
                 summary={pageSummary}
                 actions={
                   <Button type="submit" variant="outline">
-                    Search
+                    {messages.common.actions.search}
                   </Button>
                 }
               />
@@ -267,22 +389,22 @@ export default function AdminLecturersPage() {
 
         {error ? (
           <ErrorState
-            title="Lecturers unavailable"
+            title={copy.unavailableTitle}
             description={error}
             onRetry={() => void fetchLecturers()}
           />
         ) : isLoading ? (
-          <LoadingState label="Loading lecturers" />
+          <LoadingState label={copy.loading} />
         ) : lecturers.length === 0 ? (
           <EmptyState
             icon={GraduationCap}
-            title="No matching lecturers"
-            description="Create a lecturer profile to keep schedules, sections, and grading ownership aligned."
-            action={<Button onClick={openCreate}>Create lecturer</Button>}
+            title={copy.emptyTitle}
+            description={copy.emptyDescription}
+            action={<Button onClick={openCreate}>{copy.create}</Button>}
           />
         ) : (
           <AdminTableCard
-            title="Lecturer records"
+            title={copy.tableTitle}
             footer={
               <AdminPaginationFooter
                 summary={pageSummary}
@@ -297,13 +419,13 @@ export default function AdminLecturersPage() {
                 <table className="w-full min-w-[860px] text-sm">
                   <thead>
                     <tr className="border-b border-border/70 text-left text-muted-foreground">
-                      <th className="px-2 py-3 font-medium">Employee ID</th>
-                      <th className="px-2 py-3 font-medium">Lecturer</th>
-                      <th className="px-2 py-3 font-medium">Email</th>
-                      <th className="px-2 py-3 font-medium">Department</th>
-                      <th className="px-2 py-3 font-medium">Specialization</th>
-                      <th className="px-2 py-3 font-medium">Status</th>
-                      <th className="px-2 py-3 text-right font-medium">Actions</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.employeeId}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.lecturer}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.email}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.department}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.specialization}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.status}</th>
+                      <th className="px-2 py-3 text-right font-medium">{copy.headers.actions}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
@@ -315,20 +437,20 @@ export default function AdminLecturersPage() {
                         <td className="px-2 py-4 text-foreground">
                           {lecturer.user
                             ? `${lecturer.user.firstName} ${lecturer.user.lastName}`
-                            : 'Unlinked account'}
+                            : copy.unlinkedAccount}
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
-                          {lecturer.user?.email || 'No email'}
+                          {lecturer.user?.email || copy.noEmail}
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
-                          {lecturer.department?.name || 'Unassigned'}
+                          {lecturer.department?.name || copy.unassigned}
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
-                          {lecturer.specialization || 'Not provided'}
+                          {lecturer.specialization || copy.notProvided}
                         </td>
                         <td className="px-2 py-4">
                           <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
-                            {lecturer.isActive ? 'Active' : 'Inactive'}
+                            {lecturer.isActive ? copy.active : copy.inactive}
                           </span>
                         </td>
                         <td className="px-2 py-4">
@@ -337,8 +459,8 @@ export default function AdminLecturersPage() {
                               size="icon"
                               variant="ghost"
                               onClick={() => openEdit(lecturer)}
-                              aria-label={`Edit lecturer ${lecturer.employeeId}`}
-                              title={`Edit lecturer ${lecturer.employeeId}`}
+                              aria-label={copy.editLabel(lecturer.employeeId)}
+                              title={copy.editLabel(lecturer.employeeId)}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -347,8 +469,8 @@ export default function AdminLecturersPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(lecturer)}
-                              aria-label={`Delete lecturer ${lecturer.employeeId}`}
-                              title={`Delete lecturer ${lecturer.employeeId}`}
+                              aria-label={copy.deleteLabel(lecturer.employeeId)}
+                              title={copy.deleteLabel(lecturer.employeeId)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -366,11 +488,11 @@ export default function AdminLecturersPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={closeModal}
-        title={editingLecturer ? 'Edit lecturer' : 'Create lecturer'}
+        title={editingLecturer ? copy.editTitle : copy.createTitle}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <AdminFormField label="Employee ID">
+            <AdminFormField label={copy.fields.employeeId}>
               <Input
                 type="text"
                 value={formData.employeeId}
@@ -384,7 +506,7 @@ export default function AdminLecturersPage() {
                 required
               />
             </AdminFormField>
-            <AdminFormField label="Linked user ID">
+            <AdminFormField label={copy.fields.userId}>
               <Input
                 type="text"
                 value={formData.userId}
@@ -395,14 +517,14 @@ export default function AdminLecturersPage() {
                   }))
                 }
                 disabled={Boolean(editingLecturer)}
-                placeholder="Existing user account ID"
+                placeholder={copy.fields.userIdPlaceholder}
                 required
               />
             </AdminFormField>
           </div>
 
           <Select
-            label="Department"
+            label={copy.fields.department}
             value={formData.departmentId}
             onChange={(event) =>
               setFormData((current) => ({
@@ -414,7 +536,7 @@ export default function AdminLecturersPage() {
             required
           />
 
-          <AdminFormField label="Specialization">
+          <AdminFormField label={copy.fields.specialization}>
             <Input
               type="text"
               value={formData.specialization}
@@ -424,20 +546,20 @@ export default function AdminLecturersPage() {
                   specialization: event.target.value,
                 }))
               }
-              placeholder="Optional subject or field focus"
+              placeholder={copy.fields.specializationPlaceholder}
             />
           </AdminFormField>
 
           <AdminDialogFooter>
             <Button type="button" variant="outline" onClick={closeModal}>
-              Cancel
+              {messages.common.actions.cancel}
             </Button>
             <Button type="submit" disabled={isSaving}>
               {isSaving
-                ? 'Saving...'
+                ? copy.saving
                 : editingLecturer
-                  ? 'Save changes'
-                  : 'Create lecturer'}
+                  ? copy.editAction
+                  : copy.create}
             </Button>
           </AdminDialogFooter>
         </form>

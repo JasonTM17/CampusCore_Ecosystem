@@ -9,6 +9,7 @@ import React, {
   useState,
 } from 'react';
 import { useRouter } from 'next/navigation';
+import { useI18n } from '@/i18n';
 import { User } from '@/types/api';
 import { authApi } from '@/lib/api';
 
@@ -28,6 +29,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const { href } = useI18n();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -65,9 +67,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Ignore logout API failures and still clear the client session.
     } finally {
       setUser(null);
-      router.replace('/login?reason=signed-out');
+      router.replace(`${href('/login')}?reason=signed-out`);
     }
-  }, [router]);
+  }, [href, router]);
 
   const isStudent = user?.roles?.includes('STUDENT') ?? false;
   const isLecturer = user?.roles?.includes('LECTURER') ?? false;
@@ -106,6 +108,7 @@ export function useRequireAuth(
 ) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  const { href } = useI18n();
   const [hasAccess, setHasAccess] = useState(false);
 
   useEffect(() => {
@@ -116,7 +119,7 @@ export function useRequireAuth(
     setHasAccess(false);
 
     if (!user) {
-      router.push('/login');
+      router.push(href('/login'));
       return;
     }
 
@@ -130,18 +133,18 @@ export function useRequireAuth(
 
       if (!hasRole) {
         if (user.roles?.includes('ADMIN') || user.roles?.includes('SUPER_ADMIN')) {
-          router.push('/admin');
+          router.push(href('/admin'));
         } else if (user.roles?.includes('LECTURER')) {
-          router.push('/dashboard/lecturer');
+          router.push(href('/dashboard/lecturer'));
         } else {
-          router.push('/dashboard');
+          router.push(href('/dashboard'));
         }
         return;
       }
     }
 
     setHasAccess(true);
-  }, [user, isLoading, requiredRoles, router]);
+  }, [href, user, isLoading, requiredRoles, router]);
 
   return { user, isLoading, hasAccess };
 }

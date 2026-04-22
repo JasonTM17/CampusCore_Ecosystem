@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import {
   BookOpen,
   ClipboardList,
@@ -9,6 +8,7 @@ import {
   MapPin,
   Users,
 } from 'lucide-react';
+import { LocalizedLink } from '@/components/LocalizedLink';
 import { useRequireAuth } from '@/context/AuthContext';
 import {
   coursesApi,
@@ -35,6 +35,7 @@ import {
   ErrorState,
   LoadingState,
 } from '@/components/ui/state-block';
+import { useI18n } from '@/i18n';
 import { toast } from 'sonner';
 
 function getDayName(day: number) {
@@ -53,6 +54,7 @@ export default function RegisterPage() {
   const { user, isLoading: authLoading, hasAccess } = useRequireAuth([
     'STUDENT',
   ]);
+  const { locale, formatNumber } = useI18n();
   const [sections, setSections] = useState<Section[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
@@ -88,11 +90,15 @@ export default function RegisterPage() {
         setSelectedSemester(preferredSemesterId);
       }
     } catch {
-      setError('Registration data could not be loaded.');
+      setError(
+        locale === 'vi'
+          ? 'Hiện chưa thể tải dữ liệu đăng ký học phần.'
+          : 'Registration data could not be loaded.',
+      );
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     if (hasAccess) {
@@ -121,7 +127,11 @@ export default function RegisterPage() {
       } catch {
         if (!cancelled) {
           setCourses([]);
-          toast.error('Courses for that department could not be loaded.');
+          toast.error(
+            locale === 'vi'
+              ? 'Hiện chưa thể tải môn học của khoa này.'
+              : 'Courses for that department could not be loaded.',
+          );
         }
       }
     };
@@ -130,7 +140,7 @@ export default function RegisterPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedDepartment]);
+  }, [locale, selectedDepartment]);
 
   const filteredSections = useMemo(() => {
     return sections.filter((section) => {
@@ -154,9 +164,9 @@ export default function RegisterPage() {
   const selectedSemesterName = useMemo(() => {
     return (
       semesters.find((semester) => semester.id === selectedSemester)?.name ??
-      'all terms'
+      (locale === 'vi' ? 'tất cả học kỳ' : 'all terms')
     );
-  }, [selectedSemester, semesters]);
+  }, [locale, selectedSemester, semesters]);
 
   const openSections = filteredSections.filter((section) => section.status === 'OPEN');
   const waitlistSections = filteredSections.filter(
@@ -166,8 +176,25 @@ export default function RegisterPage() {
   );
 
   const handleEnroll = async (section: Section) => {
+    const copy =
+      locale === 'vi'
+        ? {
+            missingProfile: 'Hồ sơ sinh viên chưa sẵn sàng trong phiên hiện tại.',
+            joinedWaitlist: (position: number) =>
+              `Đã vào danh sách chờ ở vị trí ${position}.`,
+            enrollmentSubmitted: 'Đã gửi đăng ký.',
+            enrollmentFailed: 'Hiện chưa thể hoàn tất đăng ký này.',
+          }
+        : {
+            missingProfile: 'Your student profile is not available in this session.',
+            joinedWaitlist: (position: number) =>
+              `Joined the waitlist at position ${position}.`,
+            enrollmentSubmitted: 'Enrollment submitted.',
+            enrollmentFailed: 'Enrollment could not be completed.',
+          };
+
     if (!user?.studentId) {
-      toast.error('Your student profile is not available in this session.');
+      toast.error(copy.missingProfile);
       return;
     }
 
@@ -178,9 +205,9 @@ export default function RegisterPage() {
 
       if ('position' in result && result.status === 'ACTIVE') {
         const waitlistResult = result as WaitlistEntry;
-        toast.success(`Joined the waitlist at position ${waitlistResult.position}.`);
+        toast.success(copy.joinedWaitlist(waitlistResult.position));
       } else {
-        toast.success('Enrollment submitted.');
+        toast.success(copy.enrollmentSubmitted);
       }
 
       const latestEnrollments = await enrollmentsApi.getMyEnrollments(
@@ -188,46 +215,117 @@ export default function RegisterPage() {
       );
       setEnrollments(latestEnrollments);
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Enrollment could not be completed.');
+      toast.error(error.response?.data?.message || copy.enrollmentFailed);
     } finally {
       setIsEnrolling(null);
     }
   };
 
+  const copy =
+    locale === 'vi'
+      ? {
+          eyebrow: 'Workspace sinh viên',
+          title: 'Đăng ký học phần',
+          description: `Xem các section cho ${selectedSemesterName}, so sánh sức chứa và chuyển vào danh sách chờ mà không rời khỏi student shell.`,
+          openCourses: 'Mở môn học của tôi',
+          loading: 'Đang tải dữ liệu đăng ký',
+          unavailableTitle: 'Đăng ký học phần chưa sẵn sàng',
+          availableSections: 'Section khả dụng',
+          currentEnrollments: 'Đăng ký hiện tại',
+          waitlistCandidates: 'Ứng viên danh sách chờ',
+          filterTitle: 'Lọc section',
+          semester: 'Học kỳ',
+          department: 'Khoa',
+          course: 'Môn học',
+          allSemesters: 'Tất cả học kỳ',
+          allDepartments: 'Tất cả khoa',
+          allDepartmentCourses: 'Tất cả môn của khoa',
+          selectDepartmentFirst: 'Hãy chọn khoa trước',
+          noSectionsTitle: 'Không có section khớp bộ lọc hiện tại',
+          noSectionsDescription:
+            'Hãy thử một kết hợp học kỳ, khoa hoặc môn học khác để mở rộng danh sách đăng ký.',
+          clearFilters: 'Xóa bộ lọc',
+          sectionPrefix: 'Section',
+          departmentUnavailable: 'Chưa có thông tin khoa',
+          departmentSuffix: 'khoa',
+          credits: 'tín chỉ',
+          seatsLeft: (count: number) => `${count} chỗ trống`,
+          sectionFull: 'Section đã đầy',
+          alreadyEnrolled: 'Đã đăng ký',
+          submitting: 'Đang gửi',
+          joinWaitlist: 'Vào danh sách chờ',
+          enrollNow: 'Đăng ký ngay',
+          reviewCourses: 'Xem môn học hiện tại',
+        }
+      : {
+          eyebrow: 'Student workspace',
+          title: 'Course registration',
+          description: `Browse sections for ${selectedSemesterName}, compare capacity, and move into waitlists without leaving the protected student shell.`,
+          openCourses: 'Open my courses',
+          loading: 'Loading registration data',
+          unavailableTitle: 'Registration unavailable',
+          availableSections: 'Available sections',
+          currentEnrollments: 'Current enrollments',
+          waitlistCandidates: 'Waitlist candidates',
+          filterTitle: 'Filter sections',
+          semester: 'Semester',
+          department: 'Department',
+          course: 'Course',
+          allSemesters: 'All semesters',
+          allDepartments: 'All departments',
+          allDepartmentCourses: 'All department courses',
+          selectDepartmentFirst: 'Select a department first',
+          noSectionsTitle: 'No sections match the current filters',
+          noSectionsDescription:
+            'Try another semester, department, or course combination to widen the registration view.',
+          clearFilters: 'Clear filters',
+          sectionPrefix: 'Section',
+          departmentUnavailable: 'Department information unavailable',
+          departmentSuffix: 'department',
+          credits: 'credits',
+          seatsLeft: (count: number) => `${count} seat(s) left`,
+          sectionFull: 'Section is full',
+          alreadyEnrolled: 'Already enrolled',
+          submitting: 'Submitting',
+          joinWaitlist: 'Join waitlist',
+          enrollNow: 'Enroll now',
+          reviewCourses: 'Review current courses',
+        };
+
   if (authLoading || !hasAccess) {
-    return <LoadingState label="Loading registration workspace" />;
+    return <LoadingState label={copy.loading} />;
   }
 
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow={<SectionEyebrow>Student workspace</SectionEyebrow>}
-        title="Course registration"
-        description={`Browse sections for ${selectedSemesterName}, compare capacity, and move into waitlists without leaving the protected student shell.`}
+        eyebrow={<SectionEyebrow>{copy.eyebrow}</SectionEyebrow>}
+        title={copy.title}
+        description={copy.description}
         actions={
-          <Link href="/dashboard/enrollments">
-            <Button variant="outline">Open my courses</Button>
-          </Link>
+          <LocalizedLink href="/dashboard/enrollments">
+            <Button variant="outline">{copy.openCourses}</Button>
+          </LocalizedLink>
         }
       />
 
       {error ? (
         <ErrorState
-          title="Registration unavailable"
+          title={copy.unavailableTitle}
           description={error}
           onRetry={() => void fetchBaseData()}
         />
       ) : isLoading ? (
-        <LoadingState label="Loading registration data" />
+        <LoadingState label={copy.loading} />
       ) : (
         <>
           <div className="grid gap-4 md:grid-cols-3">
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">Available sections</div>
+                  <div className="text-sm text-muted-foreground">{copy.availableSections}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-                    {openSections.length}
+                    {formatNumber(openSections.length)}
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-500/12 text-blue-600 dark:text-blue-400">
@@ -238,9 +336,9 @@ export default function RegisterPage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">Current enrollments</div>
+                  <div className="text-sm text-muted-foreground">{copy.currentEnrollments}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-                    {enrollments.length}
+                    {formatNumber(enrollments.length)}
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-500/12 text-emerald-600 dark:text-emerald-400">
@@ -251,9 +349,9 @@ export default function RegisterPage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">Waitlist candidates</div>
+                  <div className="text-sm text-muted-foreground">{copy.waitlistCandidates}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-                    {waitlistSections.length}
+                    {formatNumber(waitlistSections.length)}
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-amber-500/12 text-amber-600 dark:text-amber-400">
@@ -265,15 +363,15 @@ export default function RegisterPage() {
 
           <Card variant="muted">
             <CardHeader>
-              <CardTitle className="text-xl">Filter sections</CardTitle>
+              <CardTitle className="text-xl">{copy.filterTitle}</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 lg:grid-cols-3">
               <Select
-                label="Semester"
+                label={copy.semester}
                 value={selectedSemester}
                 onChange={(event) => setSelectedSemester(event.target.value)}
                 options={[
-                  { value: '', label: 'All semesters' },
+                  { value: '', label: copy.allSemesters },
                   ...semesters.map((semester) => ({
                     value: semester.id,
                     label: semester.name,
@@ -281,11 +379,11 @@ export default function RegisterPage() {
                 ]}
               />
               <Select
-                label="Department"
+                label={copy.department}
                 value={selectedDepartment}
                 onChange={(event) => setSelectedDepartment(event.target.value)}
                 options={[
-                  { value: '', label: 'All departments' },
+                  { value: '', label: copy.allDepartments },
                   ...departments.map((department) => ({
                     value: department.id,
                     label: department.name,
@@ -293,7 +391,7 @@ export default function RegisterPage() {
                 ]}
               />
               <Select
-                label="Course"
+                label={copy.course}
                 value={selectedCourse}
                 onChange={(event) => setSelectedCourse(event.target.value)}
                 disabled={!selectedDepartment}
@@ -301,8 +399,8 @@ export default function RegisterPage() {
                   {
                     value: '',
                     label: selectedDepartment
-                      ? 'All department courses'
-                      : 'Select a department first',
+                      ? copy.allDepartmentCourses
+                      : copy.selectDepartmentFirst,
                   },
                   ...courses.map((course) => ({
                     value: course.id,
@@ -316,8 +414,8 @@ export default function RegisterPage() {
           {filteredSections.length === 0 ? (
             <EmptyState
               icon={BookOpen}
-              title="No sections match the current filters"
-              description="Try another semester, department, or course combination to widen the registration view."
+              title={copy.noSectionsTitle}
+              description={copy.noSectionsDescription}
               action={
                 <Button
                   type="button"
@@ -328,7 +426,7 @@ export default function RegisterPage() {
                     setSelectedCourse('');
                   }}
                 >
-                  Clear filters
+                  {copy.clearFilters}
                 </Button>
               }
             />
@@ -353,7 +451,7 @@ export default function RegisterPage() {
                                 {section.course?.code} - {section.course?.name}
                               </h2>
                               <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
-                                Section {section.sectionNumber}
+                                {copy.sectionPrefix} {section.sectionNumber}
                               </span>
                               <span
                                 className={`rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -369,17 +467,19 @@ export default function RegisterPage() {
                             </div>
                             <p className="text-sm leading-6 text-muted-foreground">
                               {section.course?.department?.name
-                                ? `${section.course.department.name} department`
-                                : 'Department information unavailable'}
+                                ? `${section.course.department.name} ${copy.departmentSuffix}`
+                                : copy.departmentUnavailable}
                             </p>
                           </div>
 
                           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                            <span>{section.course?.credits} credits</span>
+                            <span>
+                              {formatNumber(section.course?.credits ?? 0)} {copy.credits}
+                            </span>
                             <span>
                               {seatsLeft > 0
-                                ? `${seatsLeft} seat(s) left`
-                                : 'Section is full'}
+                                ? copy.seatsLeft(seatsLeft)
+                                : copy.sectionFull}
                             </span>
                             {section.lecturer?.user ? (
                               <span>
@@ -414,7 +514,7 @@ export default function RegisterPage() {
                         <div className="flex shrink-0 flex-col gap-3 xl:min-w-[180px]">
                           {isEnrolled ? (
                             <Button type="button" disabled variant="outline">
-                              Already enrolled
+                              {copy.alreadyEnrolled}
                             </Button>
                           ) : (
                             <Button
@@ -429,20 +529,20 @@ export default function RegisterPage() {
                               {isEnrolling === section.id ? (
                                 <>
                                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  Submitting
+                                  {copy.submitting}
                                 </>
                               ) : isJoinWaitlist ? (
-                                'Join waitlist'
+                                copy.joinWaitlist
                               ) : (
-                                'Enroll now'
+                                copy.enrollNow
                               )}
                             </Button>
                           )}
-                          <Link href="/dashboard/enrollments">
+                          <LocalizedLink href="/dashboard/enrollments">
                             <Button type="button" variant="outline" className="w-full">
-                              Review current courses
+                              {copy.reviewCourses}
                             </Button>
-                          </Link>
+                          </LocalizedLink>
                         </div>
                       </div>
                     </CardContent>

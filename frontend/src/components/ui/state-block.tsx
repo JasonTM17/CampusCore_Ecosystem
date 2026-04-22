@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { AlertCircle, LucideIcon, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useI18n } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 interface StateBlockProps {
@@ -51,9 +52,11 @@ export function ErrorState({
   title,
   description,
   onRetry,
-  retryLabel = 'Try again',
+  retryLabel,
   className,
 }: ErrorStateProps) {
+  const { messages } = useI18n();
+
   return (
     <div
       className={cn(
@@ -79,7 +82,7 @@ export function ErrorState({
             className="shrink-0"
           >
             <RefreshCw className="mr-2 h-4 w-4" />
-            {retryLabel}
+            {retryLabel || messages.common.actions.retry}
           </Button>
         ) : null}
       </div>
@@ -93,18 +96,22 @@ interface LoadingStateProps {
 }
 
 export function LoadingState({
-  label = 'Loading content',
+  label,
   className,
 }: LoadingStateProps) {
+  const { messages } = useI18n();
+
   return (
     <div
       className={cn(
         'flex min-h-[220px] flex-col items-center justify-center gap-4 rounded-lg border border-border/70 bg-card/70 px-6 py-10',
         className,
       )}
-    >
-      <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
-      <p className="text-sm text-muted-foreground">{label}</p>
+      >
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
+      <p className="text-sm text-muted-foreground">
+        {label || messages.common.states.loadingContent}
+      </p>
     </div>
   );
 }

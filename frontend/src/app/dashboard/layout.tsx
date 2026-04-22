@@ -1,88 +1,35 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Bell, Calendar, ClipboardList, CreditCard, FileText, LayoutDashboard, LogOut, Menu, School, Settings, User, Users, X, BookOpen, DoorOpen, BarChart3 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { LanguageToggle } from '@/components/LanguageToggle';
+import { LocalizedLink } from '@/components/LocalizedLink';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { BrandMark } from '@/components/BrandMark';
 import { Button } from '@/components/ui/button';
+import { useI18n } from '@/i18n';
 import { notificationsApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 const studentMenuItems = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/dashboard/register', icon: ClipboardList, label: 'Course registration' },
-  { href: '/dashboard/enrollments', icon: BookOpen, label: 'My courses' },
-  { href: '/dashboard/schedule', icon: Calendar, label: 'Schedule' },
-  { href: '/dashboard/grades', icon: FileText, label: 'Grades' },
-  { href: '/dashboard/transcript', icon: School, label: 'Transcript' },
-  { href: '/dashboard/invoices', icon: CreditCard, label: 'Invoices' },
-  { href: '/dashboard/announcements', icon: Bell, label: 'Announcements' },
+  { href: '/dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
+  { href: '/dashboard/register', icon: ClipboardList, labelKey: 'courseRegistration' },
+  { href: '/dashboard/enrollments', icon: BookOpen, labelKey: 'myCourses' },
+  { href: '/dashboard/schedule', icon: Calendar, labelKey: 'schedule' },
+  { href: '/dashboard/grades', icon: FileText, labelKey: 'grades' },
+  { href: '/dashboard/transcript', icon: School, labelKey: 'transcript' },
+  { href: '/dashboard/invoices', icon: CreditCard, labelKey: 'invoices' },
+  { href: '/dashboard/announcements', icon: Bell, labelKey: 'announcements' },
 ];
 
 const lecturerMenuItems = [
-  { href: '/dashboard/lecturer', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/dashboard/lecturer/schedule', icon: Calendar, label: 'Teaching schedule' },
-  { href: '/dashboard/lecturer/grades', icon: FileText, label: 'Grade management' },
-  { href: '/dashboard/lecturer/announcements', icon: Bell, label: 'Announcements' },
+  { href: '/dashboard/lecturer', icon: LayoutDashboard, labelKey: 'dashboard' },
+  { href: '/dashboard/lecturer/schedule', icon: Calendar, labelKey: 'teachingSchedule' },
+  { href: '/dashboard/lecturer/grades', icon: FileText, labelKey: 'gradeManagement' },
+  { href: '/dashboard/lecturer/announcements', icon: Bell, labelKey: 'announcements' },
 ];
-
-const pageMetadata: Record<string, { title: string; description: string }> = {
-  '/dashboard': {
-    title: 'Student dashboard',
-    description: 'Registration, coursework, billing, and profile tasks stay in one student shell.',
-  },
-  '/dashboard/profile': {
-    title: 'Profile settings',
-    description: 'Keep contact details and credential rotation aligned with the active browser session.',
-  },
-  '/dashboard/register': {
-    title: 'Course registration',
-    description: 'Browse sections and manage enrollment decisions for the current term.',
-  },
-  '/dashboard/enrollments': {
-    title: 'My courses',
-    description: 'Track the classes you are taking and the sections attached to them.',
-  },
-  '/dashboard/schedule': {
-    title: 'Schedule',
-    description: 'Keep the weekly class view close while the rest of the portal stays reachable.',
-  },
-  '/dashboard/grades': {
-    title: 'Grades',
-    description: 'Review published grades and current academic standing.',
-  },
-  '/dashboard/transcript': {
-    title: 'Transcript',
-    description: 'View cumulative academic history and semester outcomes.',
-  },
-  '/dashboard/invoices': {
-    title: 'Invoices',
-    description: 'Review billing status and payment history.',
-  },
-  '/dashboard/announcements': {
-    title: 'Announcements',
-    description: 'Read campus-wide updates and shared notices.',
-  },
-  '/dashboard/lecturer': {
-    title: 'Lecturer dashboard',
-    description: 'Keep teaching tasks, grading queues, section context, and announcements in one lecturer shell.',
-  },
-  '/dashboard/lecturer/schedule': {
-    title: 'Teaching schedule',
-    description: 'Track assigned sections, rooms, and meeting windows.',
-  },
-  '/dashboard/lecturer/grades': {
-    title: 'Grade management',
-    description: 'Review grading queues, filter by term, and move publish-ready sections forward.',
-  },
-  '/dashboard/lecturer/announcements': {
-    title: 'Announcements',
-    description: 'Share updates with the students connected to your sections.',
-  },
-};
 
 interface NotificationItem {
   id: string;
@@ -98,6 +45,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { user, isLoading, logout, isLecturer, isAdmin } = useAuth();
+  const { href, messages } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -108,14 +56,78 @@ export default function DashboardLayout({
   const profileRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
 
-  const menuItems = isAdmin ? [] : isLecturer ? lecturerMenuItems : studentMenuItems;
+  const menuLabels = messages.dashboardShell.menu;
+  const menuItems = isAdmin
+    ? []
+    : (isLecturer ? lecturerMenuItems : studentMenuItems).map((item) => ({
+        ...item,
+        label: menuLabels[item.labelKey as keyof typeof menuLabels],
+      }));
+
+  const pageMetadata = useMemo<Record<string, { title: string; description: string }>>(
+    () => ({
+      '/dashboard': {
+        title: messages.studentDashboard.eyebrow,
+        description: messages.dashboardShell.routeDescriptions.dashboard,
+      },
+      '/dashboard/profile': {
+        title: messages.profile.title,
+        description: messages.dashboardShell.routeDescriptions.profile,
+      },
+      '/dashboard/register': {
+        title: messages.dashboardShell.menu.courseRegistration,
+        description: messages.dashboardShell.routeDescriptions.register,
+      },
+      '/dashboard/enrollments': {
+        title: messages.dashboardShell.menu.myCourses,
+        description: messages.dashboardShell.routeDescriptions.enrollments,
+      },
+      '/dashboard/schedule': {
+        title: messages.dashboardShell.menu.schedule,
+        description: messages.dashboardShell.routeDescriptions.schedule,
+      },
+      '/dashboard/grades': {
+        title: messages.dashboardShell.menu.grades,
+        description: messages.dashboardShell.routeDescriptions.grades,
+      },
+      '/dashboard/transcript': {
+        title: messages.dashboardShell.menu.transcript,
+        description: messages.dashboardShell.routeDescriptions.transcript,
+      },
+      '/dashboard/invoices': {
+        title: messages.dashboardShell.menu.invoices,
+        description: messages.dashboardShell.routeDescriptions.invoices,
+      },
+      '/dashboard/announcements': {
+        title: messages.dashboardShell.menu.announcements,
+        description: messages.dashboardShell.routeDescriptions.announcements,
+      },
+      '/dashboard/lecturer': {
+        title: messages.lecturerDashboard.eyebrow,
+        description: messages.dashboardShell.routeDescriptions.lecturer,
+      },
+      '/dashboard/lecturer/schedule': {
+        title: messages.dashboardShell.menu.teachingSchedule,
+        description: messages.dashboardShell.routeDescriptions.lecturerSchedule,
+      },
+      '/dashboard/lecturer/grades': {
+        title: messages.dashboardShell.menu.gradeManagement,
+        description: messages.dashboardShell.routeDescriptions.lecturerGrades,
+      },
+      '/dashboard/lecturer/announcements': {
+        title: messages.dashboardShell.menu.announcements,
+        description: messages.dashboardShell.routeDescriptions.lecturerAnnouncements,
+      },
+    }),
+    [messages],
+  );
 
   useEffect(() => {
     if (isLoading) return;
     if (!user) {
-      router.replace('/login?reason=unauthorized');
+      router.replace(`${href('/login')}?reason=unauthorized`);
     }
-  }, [user, isLoading, router]);
+  }, [href, user, isLoading, router]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -179,16 +191,16 @@ export default function DashboardLayout({
 
     if (matchingItem) {
       return {
-        title: matchingItem.label,
-        description: 'Navigate the current workflow without leaving the workspace shell.',
+        title: menuLabels[matchingItem.labelKey as keyof typeof menuLabels],
+        description: messages.dashboardShell.pageDefaults.description,
       };
     }
 
     return {
-      title: 'Campus workspace',
-      description: 'Move through your current role surface with consistent session handling.',
+      title: messages.dashboardShell.pageDefaults.title,
+      description: messages.dashboardShell.pageDefaults.fallbackDescription,
     };
-  }, [pathname]);
+  }, [menuLabels, messages, pageMetadata, pathname]);
 
   if (isLoading) {
     return (
@@ -203,7 +215,11 @@ export default function DashboardLayout({
   }
 
   const unreadCount = notifications.filter((notification) => !notification.isRead).length;
-  const roleLabel = isAdmin ? 'Admin access' : isLecturer ? 'Lecturer access' : 'Student access';
+  const roleLabel = isAdmin
+    ? messages.dashboardShell.roles.admin
+    : isLecturer
+      ? messages.dashboardShell.roles.lecturer
+      : messages.dashboardShell.roles.student;
 
   return (
     <div className="min-h-screen bg-background dark:bg-[hsl(var(--background))]">
@@ -212,7 +228,7 @@ export default function DashboardLayout({
           type="button"
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={() => setSidebarOpen(false)}
-          aria-label="Close sidebar overlay"
+          aria-label={messages.dashboardShell.controls.closeOverlay}
         />
       ) : null}
 
@@ -230,16 +246,16 @@ export default function DashboardLayout({
             size="icon"
             className="lg:hidden"
             onClick={() => setSidebarOpen(false)}
-            aria-label="Close sidebar navigation"
+            aria-label={messages.dashboardShell.controls.closeSidebar}
           >
             <X className="h-5 w-5" />
           </Button>
         </div>
 
-        <div className="border-b border-border/70 px-5 py-4">
+          <div className="border-b border-border/70 px-5 py-4">
           <div className="text-sm font-semibold text-foreground">{roleLabel}</div>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            Keep your next action close without losing the surrounding context.
+            {messages.dashboardShell.roleDescription}
           </p>
         </div>
 
@@ -252,7 +268,7 @@ export default function DashboardLayout({
                 pathname.startsWith(item.href));
 
             return (
-              <Link
+              <LocalizedLink
                 key={item.href}
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
@@ -265,26 +281,26 @@ export default function DashboardLayout({
               >
                 <item.icon className="h-4.5 w-4.5" />
                 <span>{item.label}</span>
-              </Link>
+              </LocalizedLink>
             );
           })}
         </nav>
 
         <div className="border-t border-border/70 px-4 py-4">
-          <Link
+          <LocalizedLink
             href="/dashboard/profile"
             className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
           >
             <Settings className="h-4.5 w-4.5" />
-            Profile settings
-          </Link>
+            {messages.dashboardShell.menu.profileSettings}
+          </LocalizedLink>
           <button
             type="button"
             onClick={() => void logout()}
             className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-red-500 transition-colors hover:bg-red-500/10"
           >
             <LogOut className="h-4.5 w-4.5" />
-            Sign out
+            {messages.common.actions.signOut}
           </button>
         </div>
       </aside>
@@ -299,7 +315,7 @@ export default function DashboardLayout({
                 size="icon"
                 className="lg:hidden"
                 onClick={() => setSidebarOpen(true)}
-                aria-label="Open sidebar navigation"
+                aria-label={messages.dashboardShell.controls.openSidebar}
                 aria-expanded={sidebarOpen}
               >
                 <Menu className="h-5 w-5" />
@@ -315,6 +331,7 @@ export default function DashboardLayout({
             </div>
 
             <div className="flex items-center gap-2">
+              <LanguageToggle />
               <ThemeToggle />
 
               <div className="relative" ref={notificationsRef}>
@@ -323,7 +340,7 @@ export default function DashboardLayout({
                   variant="ghost"
                   size="icon"
                   onClick={() => setNotificationsOpen((current) => !current)}
-                  aria-label="Toggle notifications panel"
+                  aria-label={messages.dashboardShell.controls.toggleNotifications}
                   aria-expanded={notificationsOpen}
                   aria-controls="dashboard-notifications-panel"
                 >
@@ -340,18 +357,17 @@ export default function DashboardLayout({
                   >
                     <div className="border-b border-border/70 px-4 py-3">
                       <h3 className="text-sm font-semibold text-foreground">
-                        Notifications
+                        {messages.dashboardShell.notifications.title}
                       </h3>
                     </div>
                     <div className="max-h-72 overflow-y-auto px-4 py-3">
                       {notificationsLoading ? (
                         <div className="py-6 text-sm text-muted-foreground">
-                          Loading recent alerts...
+                          {messages.dashboardShell.notifications.loading}
                         </div>
                       ) : notifications.length === 0 ? (
                         <div className="py-6 text-sm leading-6 text-muted-foreground">
-                          No unread alerts right now. Announcements remain the
-                          main broadcast channel for shared updates.
+                          {messages.dashboardShell.notifications.empty}
                         </div>
                       ) : (
                         <div className="space-y-3">
@@ -361,10 +377,10 @@ export default function DashboardLayout({
                               className="rounded-lg border border-border/60 bg-secondary/30 px-3 py-3"
                             >
                               <div className="text-sm font-medium text-foreground">
-                                {notification.title || 'New update'}
+                                {notification.title || messages.dashboardShell.notifications.fallbackTitle}
                               </div>
                               <div className="mt-1 text-sm leading-6 text-muted-foreground">
-                                {notification.content || 'A new notification has arrived for your account.'}
+                                {notification.content || messages.dashboardShell.notifications.fallbackContent}
                               </div>
                             </div>
                           ))}
@@ -372,13 +388,13 @@ export default function DashboardLayout({
                       )}
                     </div>
                     <div className="border-t border-border/70 px-4 py-3">
-                      <Link
+                      <LocalizedLink
                         href={isLecturer ? '/dashboard/lecturer/announcements' : '/dashboard/announcements'}
                         className="text-sm font-medium text-primary hover:underline"
                         onClick={() => setNotificationsOpen(false)}
                       >
-                        Open announcements
-                      </Link>
+                        {messages.dashboardShell.notifications.openAnnouncements}
+                      </LocalizedLink>
                     </div>
                   </div>
                 ) : null}
@@ -389,7 +405,7 @@ export default function DashboardLayout({
                   type="button"
                   onClick={() => setProfileOpen((current) => !current)}
                   className="flex items-center gap-3 rounded-lg border border-border/70 bg-card px-3 py-2 transition-colors hover:bg-secondary/50"
-                  aria-label="Toggle profile menu"
+                  aria-label={messages.dashboardShell.controls.toggleProfile}
                   aria-expanded={profileOpen}
                   aria-controls="dashboard-profile-menu"
                   aria-haspopup="menu"
@@ -425,29 +441,29 @@ export default function DashboardLayout({
                       </div>
                     </div>
                     <div className="px-2 py-2">
-                      <Link
+                      <LocalizedLink
                         href="/dashboard/profile"
                         className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
                         onClick={() => setProfileOpen(false)}
                       >
                         <User className="h-4 w-4" />
-                        Profile
-                      </Link>
-                      <Link
+                        {messages.dashboardShell.menu.profile}
+                      </LocalizedLink>
+                      <LocalizedLink
                         href="/dashboard/profile"
                         className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
                         onClick={() => setProfileOpen(false)}
                       >
                         <Settings className="h-4 w-4" />
-                        Settings
-                      </Link>
+                        {messages.dashboardShell.menu.settings}
+                      </LocalizedLink>
                       <button
                         type="button"
                         onClick={() => void logout()}
                         className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-red-500 transition-colors hover:bg-red-500/10"
                       >
                         <LogOut className="h-4 w-4" />
-                        Sign out
+                        {messages.common.actions.signOut}
                       </button>
                     </div>
                   </div>

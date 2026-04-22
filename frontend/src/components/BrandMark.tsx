@@ -1,5 +1,7 @@
-import Link from 'next/link';
+'use client';
+
 import { GraduationCap } from 'lucide-react';
+import { LocalizedLink } from '@/components/LocalizedLink';
 import { cn } from '@/lib/utils';
 
 interface BrandMarkProps {
@@ -54,8 +56,8 @@ export function BrandMark({
   }
 
   return (
-    <Link href={href} className="inline-flex">
+    <LocalizedLink href={href} className="inline-flex">
       {content}
-    </Link>
+    </LocalizedLink>
   );
 }

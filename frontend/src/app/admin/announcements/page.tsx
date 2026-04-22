@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/state-block';
 import { Textarea } from '@/components/ui/textarea';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
+import { useI18n } from '@/i18n';
 
 type Semester = { id: string; name: string };
 
@@ -47,6 +48,7 @@ const roleOptions = ['STUDENT', 'LECTURER', 'ADMIN', 'SUPER_ADMIN'] as const;
 
 export default function AdminAnnouncementsPage() {
   const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { href, locale, formatDateTime, messages } = useI18n();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -70,9 +72,9 @@ export default function AdminAnnouncementsPage() {
 
   useEffect(() => {
     if (user && !isAdmin && !isSuperAdmin) {
-      router.push('/dashboard');
+      router.push(href('/dashboard'));
     }
-  }, [user, isAdmin, isSuperAdmin, router]);
+  }, [href, isAdmin, isSuperAdmin, router, user]);
 
   const fetchSemesters = useCallback(async () => {
     try {
@@ -97,11 +99,15 @@ export default function AdminAnnouncementsPage() {
       setItems(response.data || []);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
-      setError('Announcements could not be loaded.');
+      setError(
+        locale === 'vi'
+          ? 'Hiện chưa thể tải thông báo.'
+          : 'Announcements could not be loaded.',
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [filters.priority, filters.semesterId, page]);
+  }, [filters.priority, filters.semesterId, locale, page]);
 
   useEffect(() => {
     if (canAccess) {
@@ -112,47 +118,146 @@ export default function AdminAnnouncementsPage() {
 
   const semesterOptions = useMemo(
     () => [
-      { value: '', label: 'All semesters' },
+      { value: '', label: locale === 'vi' ? 'Tất cả học kỳ' : 'All semesters' },
       ...semesters.map((semester) => ({
         value: semester.id,
         label: semester.name,
       })),
     ],
-    [semesters],
+    [locale, semesters],
   );
 
   const createSemesterOptions = useMemo(
     () => [
-      { value: '', label: 'No semester' },
+      { value: '', label: locale === 'vi' ? 'Không có học kỳ' : 'No semester' },
       ...semesters.map((semester) => ({
         value: semester.id,
         label: semester.name,
       })),
     ],
-    [semesters],
+    [locale, semesters],
   );
 
   const priorityOptions = useMemo(
     () => [
-      { value: '', label: 'All priorities' },
+      { value: '', label: locale === 'vi' ? 'Tất cả mức ưu tiên' : 'All priorities' },
       ...priorities.map((priority) => ({
         value: priority,
         label: priority,
       })),
     ],
-    [],
+    [locale],
   );
 
   const pageSummary = useMemo(() => {
     if (items.length === 0) {
-      return 'No matching records';
+      return locale === 'vi' ? 'Không có bản ghi phù hợp' : 'No matching records';
     }
 
-    return `Page ${page} of ${totalPages}`;
-  }, [items.length, page, totalPages]);
+    return locale === 'vi'
+      ? `Trang ${page} / ${totalPages}`
+      : `Page ${page} of ${totalPages}`;
+  }, [items.length, locale, page, totalPages]);
+
+  const copy =
+    locale === 'vi'
+      ? {
+          loading: 'Đang tải thông báo',
+          title: 'Thông báo',
+          description:
+            'Phát hành cập nhật rõ ràng mà không để thông điệp bị phân mảnh khắp nền tảng.',
+          refresh: 'Làm mới',
+          newAnnouncement: 'Thông báo mới',
+          semester: 'Học kỳ',
+          priority: 'Ưu tiên',
+          clearFilters: 'Xóa bộ lọc',
+          unavailableTitle: 'Thông báo chưa sẵn sàng',
+          emptyTitle: 'Không có thông báo phù hợp',
+          emptyDescription:
+            'Hãy tạo thông báo để sinh viên, giảng viên và quản trị viên luôn nắm cùng một cập nhật campus.',
+          feedTitle: 'Bảng tin thông báo',
+          globalAudience: 'Toàn bộ đối tượng',
+          targeted: 'Nhắm tới',
+          selectedRoles: 'Vai trò đã chọn',
+          semesterPrefix: 'Học kỳ',
+          publishedAt: 'Phát hành',
+          deleteTitle: 'Xóa thông báo',
+          deleteMessage: (title: string) =>
+            `Xóa ${title}? Hành động này sẽ gỡ thông báo khỏi màn hình quản trị hiện tại.`,
+          deleteConfirm: 'Xóa thông báo',
+          deleted: 'Đã xóa thông báo',
+          deleteFailed: 'Hiện chưa thể xóa thông báo này.',
+          titleRequired: 'Tiêu đề và nội dung là bắt buộc.',
+          created: 'Đã tạo thông báo',
+          createFailed: 'Hiện chưa thể tạo thông báo.',
+          modalTitle: 'Thông báo mới',
+          closeModal: 'Đóng biểu mẫu thông báo mới',
+          form: {
+            title: 'Tiêu đề',
+            content: 'Nội dung',
+            priority: 'Ưu tiên',
+            semester: 'Học kỳ',
+            globalAudience: 'Toàn bộ đối tượng',
+            targetRoles: 'Vai trò nhận',
+            targetYears: 'Niên khóa nhận',
+            titlePlaceholder: 'Tiêu đề thông báo',
+            contentPlaceholder: 'Viết cập nhật một cách rõ ràng và trực tiếp.',
+            yearsPlaceholder: 'Ví dụ: 1,2,3',
+            yearsHint: 'Để trống nếu muốn nhắm tới tất cả niên khóa phù hợp.',
+          },
+          createAction: 'Tạo thông báo',
+          deleteLabel: (title: string) => `Xóa thông báo ${title}`,
+        }
+      : {
+          loading: 'Loading announcements',
+          title: 'Announcements',
+          description:
+            'Publish clear updates without leaving fragmented messages scattered across the platform.',
+          refresh: 'Refresh',
+          newAnnouncement: 'New announcement',
+          semester: 'Semester',
+          priority: 'Priority',
+          clearFilters: 'Clear filters',
+          unavailableTitle: 'Announcements unavailable',
+          emptyTitle: 'No matching announcements',
+          emptyDescription:
+            'Create an announcement to keep students, lecturers, and admins aligned on the latest campus updates.',
+          feedTitle: 'Announcement feed',
+          globalAudience: 'Global audience',
+          targeted: 'Targeted',
+          selectedRoles: 'Selected roles',
+          semesterPrefix: 'Semester',
+          publishedAt: 'Published',
+          deleteTitle: 'Delete announcement',
+          deleteMessage: (title: string) =>
+            `Delete ${title}? This removes the announcement from the current admin view.`,
+          deleteConfirm: 'Delete announcement',
+          deleted: 'Announcement deleted',
+          deleteFailed: 'We could not delete that announcement.',
+          titleRequired: 'Title and content are required.',
+          created: 'Announcement created',
+          createFailed: 'The announcement could not be created.',
+          modalTitle: 'New announcement',
+          closeModal: 'Close new announcement form',
+          form: {
+            title: 'Title',
+            content: 'Content',
+            priority: 'Priority',
+            semester: 'Semester',
+            globalAudience: 'Global audience',
+            targetRoles: 'Target roles',
+            targetYears: 'Target years',
+            titlePlaceholder: 'Announcement title',
+            contentPlaceholder: 'Write the update clearly and directly.',
+            yearsPlaceholder: 'e.g. 1,2,3',
+            yearsHint: 'Leave empty to target every matching year.',
+          },
+          createAction: 'Create announcement',
+          deleteLabel: (title: string) => `Delete announcement ${title}`,
+        };
 
   if (!canAccess) {
-    return <LoadingState label="Loading announcements" className="m-8" />;
+    return <LoadingState label={copy.loading} className="m-8" />;
   }
 
   const resetDraft = () => {
@@ -174,7 +279,7 @@ export default function AdminAnnouncementsPage() {
 
   const handleCreate = async () => {
     if (!draft.title.trim() || !draft.content.trim()) {
-      toast.error('Title and content are required.');
+      toast.error(copy.titleRequired);
       return;
     }
 
@@ -195,20 +300,20 @@ export default function AdminAnnouncementsPage() {
         targetRoles: draft.isGlobal ? [] : draft.targetRoles,
         targetYears: draft.isGlobal ? [] : targetYears,
       });
-      toast.success('Announcement created');
+      toast.success(copy.created);
       closeCreateModal();
       setPage(1);
       await fetchAnnouncements();
     } catch {
-      toast.error('The announcement could not be created.');
+      toast.error(copy.createFailed);
     }
   };
 
   const handleDelete = async (announcement: Announcement) => {
     const shouldDelete = await confirm({
-      title: 'Delete announcement',
-      message: `Delete ${announcement.title}? This removes the announcement from the current admin view.`,
-      confirmText: 'Delete announcement',
+      title: copy.deleteTitle,
+      message: copy.deleteMessage(announcement.title),
+      confirmText: copy.deleteConfirm,
       variant: 'destructive',
     });
 
@@ -218,27 +323,26 @@ export default function AdminAnnouncementsPage() {
 
     try {
       await announcementsApi.delete(announcement.id);
-      toast.success('Announcement deleted');
+      toast.success(copy.deleted);
       await fetchAnnouncements();
     } catch {
-      toast.error('We could not delete that announcement.');
+      toast.error(copy.deleteFailed);
     }
   };
 
   return (
     <AdminFrame
-      title="Announcements"
-      description="Publish clear updates without leaving fragmented messages scattered across the platform."
-      backLabel="Back to admin dashboard"
+      title={copy.title}
+      description={copy.description}
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={() => void fetchAnnouncements()}>
             <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
+            {copy.refresh}
           </Button>
           <Button onClick={() => setIsCreateOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            New announcement
+            {copy.newAnnouncement}
           </Button>
         </div>
       }
@@ -247,7 +351,7 @@ export default function AdminAnnouncementsPage() {
         <AdminToolbarCard>
             <div className="grid gap-4 md:grid-cols-3">
               <Select
-                label="Semester"
+                label={copy.semester}
                 value={filters.semesterId}
                 onChange={(event) => {
                   setFilters((current) => ({
@@ -259,7 +363,7 @@ export default function AdminAnnouncementsPage() {
                 options={semesterOptions}
               />
               <Select
-                label="Priority"
+                label={copy.priority}
                 value={filters.priority}
                 onChange={(event) => {
                   setFilters((current) => ({
@@ -278,7 +382,7 @@ export default function AdminAnnouncementsPage() {
                     setPage(1);
                   }}
                 >
-                  Clear filters
+                  {copy.clearFilters}
                 </Button>
                 <div className="text-sm text-muted-foreground">{pageSummary}</div>
               </div>
@@ -287,22 +391,22 @@ export default function AdminAnnouncementsPage() {
 
         {error ? (
           <ErrorState
-            title="Announcements unavailable"
+            title={copy.unavailableTitle}
             description={error}
             onRetry={() => void fetchAnnouncements()}
           />
         ) : isLoading ? (
-          <LoadingState label="Loading announcements" />
+          <LoadingState label={copy.loading} />
         ) : items.length === 0 ? (
           <EmptyState
             icon={Bell}
-            title="No matching announcements"
-            description="Create an announcement to keep students, lecturers, and admins aligned on the latest campus updates."
-            action={<Button onClick={() => setIsCreateOpen(true)}>New announcement</Button>}
+            title={copy.emptyTitle}
+            description={copy.emptyDescription}
+            action={<Button onClick={() => setIsCreateOpen(true)}>{copy.newAnnouncement}</Button>}
           />
         ) : (
           <AdminTableCard
-            title="Announcement feed"
+            title={copy.feedTitle}
             contentClassName="space-y-4"
             footer={
               <AdminPaginationFooter
@@ -328,12 +432,12 @@ export default function AdminAnnouncementsPage() {
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {announcement.isGlobal
-                            ? 'Global audience'
-                            : `Targeted: ${(announcement.targetRoles || []).join(', ') || 'Selected roles'}`}
+                            ? copy.globalAudience
+                            : `${copy.targeted}: ${(announcement.targetRoles || []).join(', ') || copy.selectedRoles}`}
                         </span>
                         {announcement.semester?.name ? (
                           <span className="text-xs text-muted-foreground">
-                            Semester: {announcement.semester.name}
+                            {copy.semesterPrefix}: {announcement.semester.name}
                           </span>
                         ) : null}
                       </div>
@@ -346,7 +450,7 @@ export default function AdminAnnouncementsPage() {
                         </p>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Published {new Date(announcement.createdAt).toLocaleString()}
+                        {copy.publishedAt} {formatDateTime(announcement.createdAt)}
                       </p>
                     </div>
                     <AdminRowActions className="shrink-0">
@@ -355,8 +459,8 @@ export default function AdminAnnouncementsPage() {
                         variant="ghost"
                         className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => void handleDelete(announcement)}
-                        aria-label={`Delete announcement ${announcement.title}`}
-                        title={`Delete announcement ${announcement.title}`}
+                        aria-label={copy.deleteLabel(announcement.title)}
+                        title={copy.deleteLabel(announcement.title)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -371,12 +475,12 @@ export default function AdminAnnouncementsPage() {
       <Modal
         isOpen={isCreateOpen}
         onClose={closeCreateModal}
-        title="New announcement"
-        closeLabel="Close new announcement form"
+        title={copy.modalTitle}
+        closeLabel={copy.closeModal}
         className="max-w-2xl"
       >
         <div className="space-y-4">
-          <AdminFormField label="Title">
+          <AdminFormField label={copy.form.title}>
             <Input
               value={draft.title}
               onChange={(event) =>
@@ -385,11 +489,11 @@ export default function AdminAnnouncementsPage() {
                   title: event.target.value,
                 }))
               }
-              placeholder="Announcement title"
+              placeholder={copy.form.titlePlaceholder}
             />
           </AdminFormField>
 
-          <AdminFormField label="Content">
+          <AdminFormField label={copy.form.content}>
             <Textarea
               value={draft.content}
               onChange={(event) =>
@@ -399,13 +503,13 @@ export default function AdminAnnouncementsPage() {
                 }))
               }
               className="min-h-[160px]"
-              placeholder="Write the update clearly and directly."
+              placeholder={copy.form.contentPlaceholder}
             />
           </AdminFormField>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Select
-              label="Priority"
+              label={copy.form.priority}
               value={draft.priority}
               onChange={(event) =>
                 setDraft((current) => ({
@@ -419,7 +523,7 @@ export default function AdminAnnouncementsPage() {
               }))}
             />
             <Select
-              label="Semester"
+              label={copy.form.semester}
               value={draft.semesterId}
               onChange={(event) =>
                 setDraft((current) => ({
@@ -443,14 +547,14 @@ export default function AdminAnnouncementsPage() {
                 }))
               }
             />
-            Global audience
+            {copy.form.globalAudience}
           </label>
 
           {!draft.isGlobal ? (
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
-                  Target roles
+                  {copy.form.targetRoles}
                 </label>
                 <div className="flex flex-wrap gap-3 rounded-lg border border-border/70 bg-background/70 p-3 text-sm">
                   {roleOptions.map((role) => (
@@ -475,7 +579,7 @@ export default function AdminAnnouncementsPage() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
-                  Target years
+                  {copy.form.targetYears}
                 </label>
                 <Input
                   value={draft.targetYears}
@@ -485,8 +589,8 @@ export default function AdminAnnouncementsPage() {
                       targetYears: event.target.value,
                     }))
                   }
-                  placeholder="e.g. 1,2,3"
-                  hint="Leave empty to target every matching year."
+                  placeholder={copy.form.yearsPlaceholder}
+                  hint={copy.form.yearsHint}
                 />
               </div>
             </div>
@@ -494,9 +598,9 @@ export default function AdminAnnouncementsPage() {
 
           <AdminDialogFooter>
             <Button type="button" variant="outline" onClick={closeCreateModal}>
-              Cancel
+              {messages.common.actions.cancel}
             </Button>
-            <Button onClick={() => void handleCreate()}>Create announcement</Button>
+            <Button onClick={() => void handleCreate()}>{copy.createAction}</Button>
           </AdminDialogFooter>
         </div>
       </Modal>

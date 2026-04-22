@@ -29,6 +29,7 @@ import {
   LoadingState,
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
+import { useI18n } from '@/i18n';
 
 interface Enrollment {
   id: string;
@@ -78,6 +79,8 @@ const statusColors: Record<string, string> = {
 
 export default function AdminEnrollmentsPage() {
   const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { formatDate, formatDateTime, formatNumber, href, locale, messages } =
+    useI18n();
   const router = useRouter();
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
@@ -103,9 +106,9 @@ export default function AdminEnrollmentsPage() {
 
   useEffect(() => {
     if (user && !isAdmin && !isSuperAdmin) {
-      router.push('/dashboard');
+      router.push(href('/dashboard'));
     }
-  }, [user, isAdmin, isSuperAdmin, router]);
+  }, [href, isAdmin, isSuperAdmin, router, user]);
 
   const fetchDropdownData = useCallback(async () => {
     try {
@@ -157,11 +160,168 @@ export default function AdminEnrollmentsPage() {
       setTotalPages(response.meta?.totalPages || 1);
       setTotal(response.meta?.total || 0);
     } catch {
-      setError('Enrollments could not be loaded.');
+      setError(
+        locale === 'vi'
+          ? 'Hiện chưa thể tải danh sách đăng ký.'
+          : 'Enrollments could not be loaded.',
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [filters.courseId, filters.sectionId, filters.semesterId, filters.status, page]);
+  }, [filters.courseId, filters.sectionId, filters.semesterId, filters.status, locale, page]);
+
+  const copy =
+    locale === 'vi'
+      ? {
+          loading: 'Đang tải đăng ký',
+          title: 'Đăng ký học phần',
+          description:
+            'Theo dõi luồng đăng ký, phát hiện lệch trạng thái và xem chi tiết đăng ký theo section từ một nơi.',
+          exportCsv: 'Xuất CSV',
+          semester: 'Học kỳ',
+          course: 'Môn học',
+          section: 'Section',
+          status: 'Trạng thái',
+          allSemesters: 'Tất cả học kỳ',
+          allCourses: 'Tất cả môn học',
+          allSections: 'Tất cả section',
+          allStatuses: 'Tất cả trạng thái',
+          statusOptions: {
+            PENDING: 'Chờ xác nhận',
+            CONFIRMED: 'Đã xác nhận',
+            COMPLETED: 'Hoàn tất',
+            DROPPED: 'Đã rút',
+            CANCELLED: 'Đã hủy',
+          },
+          clearFilters: 'Xóa bộ lọc',
+          enrollmentsCount: (count: number) => `${formatNumber(count)} đăng ký`,
+          unavailableTitle: 'Đăng ký chưa sẵn sàng',
+          emptyTitle: 'Không có đăng ký phù hợp',
+          emptyDescription:
+            'Khi sinh viên bắt đầu đăng ký, màn hình này sẽ hiển thị môn học, section, học kỳ và trạng thái cuối cùng trong cùng một nơi.',
+          tableTitle: 'Bản ghi đăng ký',
+          pageSummary: (currentPage: number, pages: number) =>
+            `Trang ${currentPage} / ${pages}`,
+          headers: {
+            student: 'Sinh viên',
+            course: 'Môn học',
+            section: 'Section',
+            semester: 'Học kỳ',
+            lecturer: 'Giảng viên',
+            status: 'Trạng thái',
+            enrolledDate: 'Ngày đăng ký',
+            actions: 'Tác vụ',
+          },
+          noEmail: 'Chưa có email',
+          unknownCourse: 'Chưa rõ môn học',
+          noCourseName: 'Chưa có tên môn',
+          unknownSection: 'Chưa rõ section',
+          unassigned: 'Chưa gán',
+          viewDetail: 'Chi tiết đăng ký',
+          closeDetail: 'Đóng chi tiết đăng ký',
+          deleteTitle: 'Xóa đăng ký',
+          deleteMessage: (learnerLabel: string) =>
+            `Xóa đăng ký của ${learnerLabel}? Hành động này không thể hoàn tác.`,
+          deleteConfirm: 'Xóa đăng ký',
+          deleted: 'Đã xóa đăng ký',
+          deleteFailed: 'Hiện chưa thể xóa đăng ký này.',
+          exportStarted: 'Đã bắt đầu xuất dữ liệu đăng ký',
+          exportFailed: 'Hiện chưa thể xuất dữ liệu đăng ký.',
+          detailFailed: 'Hiện chưa thể tải chi tiết đăng ký.',
+          viewLabel: (learnerLabel: string) =>
+            `Xem chi tiết đăng ký của ${learnerLabel}`,
+          deleteLabel: (learnerLabel: string) =>
+            `Xóa đăng ký của ${learnerLabel}`,
+          detail: {
+            title: 'Chi tiết đăng ký',
+            student: 'Sinh viên',
+            status: 'Trạng thái',
+            course: 'Môn học',
+            section: 'Section',
+            semester: 'Học kỳ',
+            lecturer: 'Giảng viên',
+            enrolledAt: 'Đăng ký lúc',
+            droppedAt: 'Rút lúc',
+            finalGrade: 'Điểm cuối kỳ',
+            letterGrade: 'Điểm chữ',
+            close: 'Đóng',
+          },
+        }
+      : {
+          loading: 'Loading enrollments',
+          title: 'Enrollments',
+          description:
+            'Track registration flow, identify status drift, and review section-level enrollment details from one place.',
+          exportCsv: 'Export CSV',
+          semester: 'Semester',
+          course: 'Course',
+          section: 'Section',
+          status: 'Status',
+          allSemesters: 'All semesters',
+          allCourses: 'All courses',
+          allSections: 'All sections',
+          allStatuses: 'All statuses',
+          statusOptions: {
+            PENDING: 'Pending',
+            CONFIRMED: 'Confirmed',
+            COMPLETED: 'Completed',
+            DROPPED: 'Dropped',
+            CANCELLED: 'Cancelled',
+          },
+          clearFilters: 'Clear filters',
+          enrollmentsCount: (count: number) => `${formatNumber(count)} enrollments`,
+          unavailableTitle: 'Enrollments unavailable',
+          emptyTitle: 'No matching enrollments',
+          emptyDescription:
+            'When students start registering, this view will show course, section, semester, and final status in one place.',
+          tableTitle: 'Enrollment records',
+          pageSummary: (currentPage: number, pages: number) =>
+            `Page ${currentPage} of ${pages}`,
+          headers: {
+            student: 'Student',
+            course: 'Course',
+            section: 'Section',
+            semester: 'Semester',
+            lecturer: 'Lecturer',
+            status: 'Status',
+            enrolledDate: 'Enrolled date',
+            actions: 'Actions',
+          },
+          noEmail: 'No email',
+          unknownCourse: 'Unknown course',
+          noCourseName: 'No course name',
+          unknownSection: 'Unknown section',
+          unassigned: 'Unassigned',
+          viewDetail: 'Enrollment details',
+          closeDetail: 'Close enrollment details',
+          deleteTitle: 'Delete enrollment',
+          deleteMessage: (learnerLabel: string) =>
+            `Delete ${learnerLabel}'s enrollment? This action cannot be undone.`,
+          deleteConfirm: 'Delete enrollment',
+          deleted: 'Enrollment deleted',
+          deleteFailed: 'We could not delete that enrollment.',
+          exportStarted: 'Enrollment export started',
+          exportFailed: 'Enrollments could not be exported.',
+          detailFailed: 'Enrollment details could not be loaded.',
+          viewLabel: (learnerLabel: string) =>
+            `View enrollment details for ${learnerLabel}`,
+          deleteLabel: (learnerLabel: string) =>
+            `Delete enrollment for ${learnerLabel}`,
+          detail: {
+            title: 'Enrollment details',
+            student: 'Student',
+            status: 'Status',
+            course: 'Course',
+            section: 'Section',
+            semester: 'Semester',
+            lecturer: 'Lecturer',
+            enrolledAt: 'Enrolled at',
+            droppedAt: 'Dropped at',
+            finalGrade: 'Final grade',
+            letterGrade: 'Letter grade',
+            close: 'Close',
+          },
+        };
 
   useEffect(() => {
     if (canAccess) {
@@ -178,51 +338,51 @@ export default function AdminEnrollmentsPage() {
 
   const semesterOptions = useMemo(
     () => [
-      { value: '', label: 'All semesters' },
+      { value: '', label: copy.allSemesters },
       ...semesters.map((semester) => ({
         value: semester.id,
         label: semester.name,
       })),
     ],
-    [semesters],
+    [copy.allSemesters, semesters],
   );
 
   const courseOptions = useMemo(
     () => [
-      { value: '', label: 'All courses' },
+      { value: '', label: copy.allCourses },
       ...courses.map((course) => ({
         value: course.id,
         label: `${course.code} - ${course.name}`,
       })),
     ],
-    [courses],
+    [copy.allCourses, courses],
   );
 
   const sectionOptions = useMemo(
     () => [
-      { value: '', label: 'All sections' },
+      { value: '', label: copy.allSections },
       ...sections.map((section) => ({
         value: section.id,
         label: section.sectionNumber,
       })),
     ],
-    [sections],
+    [copy.allSections, sections],
   );
 
   const statusOptions = useMemo(
     () => [
-      { value: '', label: 'All statuses' },
-      { value: 'PENDING', label: 'Pending' },
-      { value: 'CONFIRMED', label: 'Confirmed' },
-      { value: 'COMPLETED', label: 'Completed' },
-      { value: 'DROPPED', label: 'Dropped' },
-      { value: 'CANCELLED', label: 'Cancelled' },
+      { value: '', label: copy.allStatuses },
+      { value: 'PENDING', label: copy.statusOptions.PENDING },
+      { value: 'CONFIRMED', label: copy.statusOptions.CONFIRMED },
+      { value: 'COMPLETED', label: copy.statusOptions.COMPLETED },
+      { value: 'DROPPED', label: copy.statusOptions.DROPPED },
+      { value: 'CANCELLED', label: copy.statusOptions.CANCELLED },
     ],
-    [],
+    [copy.allStatuses, copy.statusOptions],
   );
 
   if (!canAccess) {
-    return <LoadingState label="Loading enrollments" className="m-8" />;
+    return <LoadingState label={copy.loading} className="m-8" />;
   }
 
   const handleClearFilters = () => {
@@ -236,7 +396,7 @@ export default function AdminEnrollmentsPage() {
       setSelectedEnrollment(fullEnrollment);
       setIsDetailOpen(true);
     } catch {
-      toast.error('Enrollment details could not be loaded.');
+      toast.error(copy.detailFailed);
     }
   };
 
@@ -246,9 +406,9 @@ export default function AdminEnrollmentsPage() {
       : enrollment.studentId;
 
     const shouldDelete = await confirm({
-      title: 'Delete enrollment',
-      message: `Delete ${learnerLabel}'s enrollment? This action cannot be undone.`,
-      confirmText: 'Delete enrollment',
+      title: copy.deleteTitle,
+      message: copy.deleteMessage(learnerLabel),
+      confirmText: copy.deleteConfirm,
       variant: 'destructive',
     });
 
@@ -258,10 +418,10 @@ export default function AdminEnrollmentsPage() {
 
     try {
       await enrollmentsApi.delete(enrollment.id);
-      toast.success('Enrollment deleted');
+      toast.success(copy.deleted);
       await fetchEnrollments();
     } catch {
-      toast.error('We could not delete that enrollment.');
+      toast.error(copy.deleteFailed);
     }
   };
 
@@ -273,21 +433,20 @@ export default function AdminEnrollmentsPage() {
       link.href = URL.createObjectURL(blob);
       link.download = `enrollments_${new Date().toISOString().split('T')[0]}.csv`;
       link.click();
-      toast.success('Enrollment export started');
+      toast.success(copy.exportStarted);
     } catch {
-      toast.error('Enrollments could not be exported.');
+      toast.error(copy.exportFailed);
     }
   };
 
   return (
     <AdminFrame
-      title="Enrollments"
-      description="Track registration flow, identify status drift, and review section-level enrollment details from one place."
-      backLabel="Back to admin dashboard"
+      title={copy.title}
+      description={copy.description}
       actions={
         <Button variant="outline" onClick={() => void handleExportCsv()}>
           <Download className="mr-2 h-4 w-4" />
-          Export CSV
+          {copy.exportCsv}
         </Button>
       }
     >
@@ -295,7 +454,7 @@ export default function AdminEnrollmentsPage() {
         <AdminToolbarCard>
             <div className="grid gap-4 xl:grid-cols-5">
               <Select
-                label="Semester"
+                label={copy.semester}
                 value={filters.semesterId}
                 onChange={(event) => {
                   setFilters((current) => ({
@@ -307,7 +466,7 @@ export default function AdminEnrollmentsPage() {
                 options={semesterOptions}
               />
               <Select
-                label="Course"
+                label={copy.course}
                 value={filters.courseId}
                 onChange={(event) => {
                   setFilters((current) => ({
@@ -320,7 +479,7 @@ export default function AdminEnrollmentsPage() {
                 options={courseOptions}
               />
               <Select
-                label="Section"
+                label={copy.section}
                 value={filters.sectionId}
                 onChange={(event) => {
                   setFilters((current) => ({
@@ -333,7 +492,7 @@ export default function AdminEnrollmentsPage() {
                 disabled={!filters.courseId}
               />
               <Select
-                label="Status"
+                label={copy.status}
                 value={filters.status}
                 onChange={(event) => {
                   setFilters((current) => ({
@@ -346,10 +505,10 @@ export default function AdminEnrollmentsPage() {
               />
               <div className="flex items-end gap-2">
                 <Button variant="outline" onClick={handleClearFilters}>
-                  Clear filters
+                  {copy.clearFilters}
                 </Button>
                 <div className="text-sm text-muted-foreground">
-                  {total} enrollments
+                  {copy.enrollmentsCount(total)}
                 </div>
               </div>
             </div>
@@ -357,24 +516,24 @@ export default function AdminEnrollmentsPage() {
 
         {error ? (
           <ErrorState
-            title="Enrollments unavailable"
+            title={copy.unavailableTitle}
             description={error}
             onRetry={() => void fetchEnrollments()}
           />
         ) : isLoading ? (
-          <LoadingState label="Loading enrollments" />
+          <LoadingState label={copy.loading} />
         ) : enrollments.length === 0 ? (
           <EmptyState
             icon={FileText}
-            title="No matching enrollments"
-            description="When students start registering, this view will show course, section, semester, and final status in one place."
+            title={copy.emptyTitle}
+            description={copy.emptyDescription}
           />
         ) : (
           <AdminTableCard
-            title="Enrollment records"
+            title={copy.tableTitle}
             footer={
               <AdminPaginationFooter
-                summary={`Page ${page} of ${totalPages}`}
+                summary={copy.pageSummary(page, totalPages)}
                 page={page}
                 totalPages={totalPages}
                 onPrevious={() => setPage((current) => current - 1)}
@@ -386,14 +545,14 @@ export default function AdminEnrollmentsPage() {
                 <table className="w-full min-w-[1100px] text-sm">
                   <thead>
                     <tr className="border-b border-border/70 text-left text-muted-foreground">
-                      <th className="px-2 py-3 font-medium">Student</th>
-                      <th className="px-2 py-3 font-medium">Course</th>
-                      <th className="px-2 py-3 font-medium">Section</th>
-                      <th className="px-2 py-3 font-medium">Semester</th>
-                      <th className="px-2 py-3 font-medium">Lecturer</th>
-                      <th className="px-2 py-3 font-medium">Status</th>
-                      <th className="px-2 py-3 font-medium">Enrolled date</th>
-                      <th className="px-2 py-3 text-right font-medium">Actions</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.student}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.course}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.section}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.semester}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.lecturer}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.status}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.enrolledDate}</th>
+                      <th className="px-2 py-3 text-right font-medium">{copy.headers.actions}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
@@ -410,40 +569,41 @@ export default function AdminEnrollmentsPage() {
                                 {learnerLabel}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                {enrollment.student?.user?.email || 'No email'}
+                                {enrollment.student?.user?.email || copy.noEmail}
                               </p>
                             </div>
                           </td>
                           <td className="px-2 py-4">
                             <div className="space-y-1">
                               <p className="font-medium text-foreground">
-                                {enrollment.section?.course?.code || 'Unknown course'}
+                                {enrollment.section?.course?.code || copy.unknownCourse}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                {enrollment.section?.course?.name || 'No course name'}
+                                {enrollment.section?.course?.name || copy.noCourseName}
                               </p>
                             </div>
                           </td>
                           <td className="px-2 py-4 text-muted-foreground">
-                            {enrollment.section?.sectionNumber || 'Unknown section'}
+                            {enrollment.section?.sectionNumber || copy.unknownSection}
                           </td>
                           <td className="px-2 py-4 text-muted-foreground">
-                            {enrollment.semester?.name || 'Unassigned'}
+                            {enrollment.semester?.name || copy.unassigned}
                           </td>
                           <td className="px-2 py-4 text-muted-foreground">
                             {enrollment.section?.lecturer?.user
                               ? `${enrollment.section.lecturer.user.firstName} ${enrollment.section.lecturer.user.lastName}`
-                              : 'Unassigned'}
+                              : copy.unassigned}
                           </td>
                           <td className="px-2 py-4">
                             <span
                               className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusColors[enrollment.status] || 'bg-secondary text-foreground'}`}
                             >
-                              {enrollment.status}
+                              {copy.statusOptions[enrollment.status as keyof typeof copy.statusOptions] ??
+                                enrollment.status}
                             </span>
                           </td>
                           <td className="px-2 py-4 text-muted-foreground">
-                            {new Date(enrollment.enrolledAt).toLocaleDateString()}
+                            {formatDate(enrollment.enrolledAt)}
                           </td>
                           <td className="px-2 py-4">
                             <AdminRowActions>
@@ -451,8 +611,8 @@ export default function AdminEnrollmentsPage() {
                                 size="icon"
                                 variant="ghost"
                                 onClick={() => void handleViewDetail(enrollment)}
-                                aria-label={`View enrollment details for ${learnerLabel}`}
-                                title={`View enrollment details for ${learnerLabel}`}
+                                aria-label={copy.viewLabel(learnerLabel)}
+                                title={copy.viewLabel(learnerLabel)}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -461,8 +621,8 @@ export default function AdminEnrollmentsPage() {
                                 variant="ghost"
                                 className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                                 onClick={() => void handleDelete(enrollment)}
-                                aria-label={`Delete enrollment for ${learnerLabel}`}
-                                title={`Delete enrollment for ${learnerLabel}`}
+                                aria-label={copy.deleteLabel(learnerLabel)}
+                                title={copy.deleteLabel(learnerLabel)}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -481,8 +641,8 @@ export default function AdminEnrollmentsPage() {
       <Modal
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
-        title="Enrollment details"
-        closeLabel="Close enrollment details"
+        title={copy.detail.title}
+        closeLabel={copy.closeDetail}
         className="max-w-2xl"
       >
         {selectedEnrollment ? (
@@ -490,25 +650,27 @@ export default function AdminEnrollmentsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
-                  Student
+                  {copy.detail.student}
                 </label>
                 <p className="mt-1 text-foreground">
                   {selectedEnrollment.student?.user?.firstName}{' '}
                   {selectedEnrollment.student?.user?.lastName}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {selectedEnrollment.student?.user?.email || 'No email'}
+                  {selectedEnrollment.student?.user?.email || copy.noEmail}
                 </p>
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
-                  Status
+                  {copy.detail.status}
                 </label>
                 <div className="mt-1">
                   <span
                     className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusColors[selectedEnrollment.status] || 'bg-secondary text-foreground'}`}
                   >
-                    {selectedEnrollment.status}
+                    {copy.statusOptions[
+                      selectedEnrollment.status as keyof typeof copy.statusOptions
+                    ] ?? selectedEnrollment.status}
                   </span>
                 </div>
               </div>
@@ -517,7 +679,7 @@ export default function AdminEnrollmentsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
-                  Course
+                  {copy.detail.course}
                 </label>
                 <p className="mt-1 text-foreground">
                   {selectedEnrollment.section?.course?.code} -{' '}
@@ -526,7 +688,7 @@ export default function AdminEnrollmentsPage() {
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
-                  Section
+                  {copy.detail.section}
                 </label>
                 <p className="mt-1 text-foreground">
                   {selectedEnrollment.section?.sectionNumber}
@@ -537,20 +699,20 @@ export default function AdminEnrollmentsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
-                  Semester
+                  {copy.detail.semester}
                 </label>
                 <p className="mt-1 text-foreground">
-                  {selectedEnrollment.semester?.name || 'Unassigned'}
+                  {selectedEnrollment.semester?.name || copy.unassigned}
                 </p>
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
-                  Lecturer
+                  {copy.detail.lecturer}
                 </label>
                 <p className="mt-1 text-foreground">
                   {selectedEnrollment.section?.lecturer?.user
                     ? `${selectedEnrollment.section.lecturer.user.firstName} ${selectedEnrollment.section.lecturer.user.lastName}`
-                    : 'Unassigned'}
+                    : copy.unassigned}
                 </p>
               </div>
             </div>
@@ -558,19 +720,19 @@ export default function AdminEnrollmentsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
-                  Enrolled at
+                  {copy.detail.enrolledAt}
                 </label>
                 <p className="mt-1 text-foreground">
-                  {new Date(selectedEnrollment.enrolledAt).toLocaleString()}
+                  {formatDateTime(selectedEnrollment.enrolledAt)}
                 </p>
               </div>
               {selectedEnrollment.droppedAt ? (
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">
-                    Dropped at
+                    {copy.detail.droppedAt}
                   </label>
                   <p className="mt-1 text-foreground">
-                    {new Date(selectedEnrollment.droppedAt).toLocaleString()}
+                    {formatDateTime(selectedEnrollment.droppedAt)}
                   </p>
                 </div>
               ) : null}
@@ -580,16 +742,16 @@ export default function AdminEnrollmentsPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">
-                    Final grade
+                    {copy.detail.finalGrade}
                   </label>
                   <p className="mt-1 text-foreground">
-                    {selectedEnrollment.finalGrade}
+                    {formatNumber(selectedEnrollment.finalGrade)}
                   </p>
                 </div>
                 {selectedEnrollment.letterGrade ? (
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">
-                      Letter grade
+                      {copy.detail.letterGrade}
                     </label>
                     <p className="mt-1 text-foreground">
                       {selectedEnrollment.letterGrade}
@@ -601,7 +763,7 @@ export default function AdminEnrollmentsPage() {
 
             <AdminDialogFooter className="pt-0">
               <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
-                Close
+                {copy.detail.close}
               </Button>
             </AdminDialogFooter>
           </div>

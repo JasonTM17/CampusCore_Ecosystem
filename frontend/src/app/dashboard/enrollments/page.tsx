@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { BookOpen, Calendar, Clock, MapPin, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { enrollmentsApi } from '@/lib/api';
+import { LocalizedLink } from '@/components/LocalizedLink';
 import { Enrollment } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import {
   LoadingState,
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
+import { useI18n } from '@/i18n';
 import { toast } from 'sonner';
 
 const statusTone: Record<string, string> = {
@@ -24,25 +25,106 @@ const statusTone: Record<string, string> = {
   COMPLETED: 'bg-blue-500/12 text-blue-600 dark:text-blue-400',
 };
 
-function getDayName(day: number) {
-  return [
-    'Sunday',
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday',
-  ][day] ?? '';
+function getDayName(day: number, locale: 'en' | 'vi') {
+  const names =
+    locale === 'vi'
+      ? [
+          'Chủ nhật',
+          'Thứ hai',
+          'Thứ ba',
+          'Thứ tư',
+          'Thứ năm',
+          'Thứ sáu',
+          'Thứ bảy',
+        ]
+      : [
+          'Sunday',
+          'Monday',
+          'Tuesday',
+          'Wednesday',
+          'Thursday',
+          'Friday',
+          'Saturday',
+        ];
+
+  return names[day] ?? '';
 }
 
 export default function EnrollmentsPage() {
   const { user } = useAuth();
+  const { locale, formatDate, formatNumber } = useI18n();
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isDropping, setIsDropping] = useState<string | null>(null);
   const { confirm, confirmationDialog } = useConfirmationDialog();
+
+  const copy =
+    locale === 'vi'
+      ? {
+          eyebrow: 'Workspace sinh viên',
+          title: 'Môn học của tôi',
+          description:
+            'Theo dõi trạng thái section, xem lịch học và xử lý thay đổi enrollment mà không rời khỏi workspace dùng chung.',
+          browseSections: 'Xem các section',
+          loading: 'Đang tải đăng ký học',
+          unavailableTitle: 'Đăng ký học chưa sẵn sàng',
+          emptyTitle: 'Chưa có môn học',
+          emptyDescription:
+            'Khi bạn đăng ký vào một section, lịch học và chi tiết section sẽ xuất hiện ở đây.',
+          coursesInView: 'Môn học trong màn hình',
+          confirmed: 'Đã xác nhận',
+          pending: 'Đang chờ',
+          recordTitle: 'Hồ sơ đăng ký',
+          sectionPrefix: 'Section',
+          enrolledOn: 'Đăng ký ngày',
+          credits: 'tín chỉ',
+          unknownCourse: 'Môn học',
+          unavailableCourseName: 'Chưa có tên môn',
+          unknownSection: 'Chưa rõ section',
+          dropCourse: 'Hủy môn học',
+          droppingCourse: 'Đang hủy môn',
+          confirmTitle: 'Hủy môn học',
+          confirmMessage: (courseLabel: string) =>
+            `Hủy ${courseLabel}? Hành động này giữ cho việc đổi lịch học luôn rõ ràng và có chủ đích.`,
+          dropped: 'Đã hủy môn học',
+          dropFailed: 'Hiện chưa thể hủy môn học này.',
+          studentProfileMissing:
+            'Không tìm thấy hồ sơ sinh viên trong phiên hiện tại.',
+          loadFailed: 'Hiện chưa thể tải danh sách đăng ký học của bạn.',
+        }
+      : {
+          eyebrow: 'Student workspace',
+          title: 'My courses',
+          description:
+            'Track section status, review schedules, and make enrollment changes without leaving the shared workspace.',
+          browseSections: 'Browse available sections',
+          loading: 'Loading enrollments',
+          unavailableTitle: 'Enrollments unavailable',
+          emptyTitle: 'No courses yet',
+          emptyDescription:
+            'Once you enroll in a section, the current schedule and section details will appear here.',
+          coursesInView: 'Courses in view',
+          confirmed: 'Confirmed',
+          pending: 'Pending',
+          recordTitle: 'Enrollment record',
+          sectionPrefix: 'Section',
+          enrolledOn: 'Enrolled',
+          credits: 'credits',
+          unknownCourse: 'Course',
+          unavailableCourseName: 'Unavailable',
+          unknownSection: 'Unknown section',
+          dropCourse: 'Drop course',
+          droppingCourse: 'Dropping course',
+          confirmTitle: 'Drop course',
+          confirmMessage: (courseLabel: string) =>
+            `Drop ${courseLabel}? This keeps the action explicit and prevents accidental schedule changes.`,
+          dropped: 'Course dropped',
+          dropFailed: 'We could not drop this course.',
+          studentProfileMissing:
+            'Your student profile is not available in this session.',
+          loadFailed: 'Your current enrollments could not be loaded.',
+        };
 
   const fetchEnrollments = useCallback(async () => {
     setIsLoading(true);
@@ -52,11 +134,11 @@ export default function EnrollmentsPage() {
       const data = await enrollmentsApi.getMyEnrollments();
       setEnrollments(data);
     } catch {
-      setError('Your current enrollments could not be loaded.');
+      setError(copy.loadFailed);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [copy.loadFailed]);
 
   useEffect(() => {
     void fetchEnrollments();
@@ -64,14 +146,14 @@ export default function EnrollmentsPage() {
 
   const handleDrop = async (enrollmentId: string, courseLabel: string) => {
     if (!user?.studentId) {
-      toast.error('Your student profile is not available in this session.');
+      toast.error(copy.studentProfileMissing);
       return;
     }
 
     const shouldContinue = await confirm({
-      title: 'Drop course',
-      message: `Drop ${courseLabel}? This keeps the action explicit and prevents accidental schedule changes.`,
-      confirmText: 'Drop course',
+      title: copy.confirmTitle,
+      message: copy.confirmMessage(courseLabel),
+      confirmText: copy.dropCourse,
       variant: 'destructive',
     });
 
@@ -82,10 +164,10 @@ export default function EnrollmentsPage() {
     setIsDropping(enrollmentId);
     try {
       await enrollmentsApi.drop(enrollmentId);
-      toast.success('Course dropped');
+      toast.success(copy.dropped);
       await fetchEnrollments();
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'We could not drop this course.');
+      toast.error(error.response?.data?.message || copy.dropFailed);
     } finally {
       setIsDropping(null);
     }
@@ -101,54 +183,62 @@ export default function EnrollmentsPage() {
   const summaryCards = useMemo(
     () => [
       {
-        label: 'Courses in view',
-        value: enrollments.length,
+        label: copy.coursesInView,
+        value: formatNumber(enrollments.length),
         tone: 'bg-blue-500/12 text-blue-600 dark:text-blue-400',
       },
       {
-        label: 'Confirmed',
-        value: confirmedCourses.length,
+        label: copy.confirmed,
+        value: formatNumber(confirmedCourses.length),
         tone: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400',
       },
       {
-        label: 'Pending',
-        value: pendingCourses.length,
+        label: copy.pending,
+        value: formatNumber(pendingCourses.length),
         tone: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
       },
     ],
-    [confirmedCourses.length, enrollments.length, pendingCourses.length],
+    [
+      confirmedCourses.length,
+      copy.confirmed,
+      copy.coursesInView,
+      copy.pending,
+      enrollments.length,
+      formatNumber,
+      pendingCourses.length,
+    ],
   );
 
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow={<SectionEyebrow>Student workspace</SectionEyebrow>}
-        title="My courses"
-        description="Track section status, review schedules, and make enrollment changes without leaving the shared workspace."
+        eyebrow={<SectionEyebrow>{copy.eyebrow}</SectionEyebrow>}
+        title={copy.title}
+        description={copy.description}
         actions={
-          <Link href="/dashboard/register">
-            <Button>Browse available sections</Button>
-          </Link>
+          <LocalizedLink href="/dashboard/register">
+            <Button>{copy.browseSections}</Button>
+          </LocalizedLink>
         }
       />
 
       {error ? (
         <ErrorState
-          title="Enrollments unavailable"
+          title={copy.unavailableTitle}
           description={error}
           onRetry={() => void fetchEnrollments()}
         />
       ) : isLoading ? (
-        <LoadingState label="Loading enrollments" />
+        <LoadingState label={copy.loading} />
       ) : enrollments.length === 0 ? (
         <EmptyState
           icon={BookOpen}
-          title="No courses yet"
-          description="Once you enroll in a section, the current schedule and section details will appear here."
+          title={copy.emptyTitle}
+          description={copy.emptyDescription}
           action={
-            <Link href="/dashboard/register">
-              <Button>Browse available sections</Button>
-            </Link>
+            <LocalizedLink href="/dashboard/register">
+              <Button>{copy.browseSections}</Button>
+            </LocalizedLink>
           }
         />
       ) : (
@@ -175,12 +265,13 @@ export default function EnrollmentsPage() {
 
           <Card variant="muted">
             <CardHeader>
-              <CardTitle className="text-xl">Enrollment record</CardTitle>
+              <CardTitle className="text-xl">{copy.recordTitle}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {enrollments.map((enrollment) => {
-                const courseCode = enrollment.section?.course?.code ?? 'Course';
-                const courseName = enrollment.section?.course?.name ?? 'Unavailable';
+                const courseCode = enrollment.section?.course?.code ?? copy.unknownCourse;
+                const courseName =
+                  enrollment.section?.course?.name ?? copy.unavailableCourseName;
                 const courseLabel = `${courseCode} ${courseName}`.trim();
 
                 return (
@@ -195,7 +286,8 @@ export default function EnrollmentsPage() {
                             {courseCode} - {courseName}
                           </h2>
                           <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
-                            Section {enrollment.section?.sectionNumber}
+                            {copy.sectionPrefix}{' '}
+                            {enrollment.section?.sectionNumber || copy.unknownSection}
                           </span>
                           <span
                             className={`rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -210,9 +302,11 @@ export default function EnrollmentsPage() {
                         <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                           <span className="inline-flex items-center gap-2">
                             <Calendar className="h-4 w-4" />
-                            Enrolled {new Date(enrollment.enrolledAt).toLocaleDateString()}
+                            {copy.enrolledOn} {formatDate(enrollment.enrolledAt)}
                           </span>
-                          <span>{enrollment.section?.course?.credits} credits</span>
+                          <span>
+                            {enrollment.section?.course?.credits} {copy.credits}
+                          </span>
                           {enrollment.section?.lecturer ? (
                             <span>
                               {enrollment.section.lecturer.user?.firstName}{' '}
@@ -236,7 +330,8 @@ export default function EnrollmentsPage() {
                                 className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs text-foreground"
                               >
                                 <Clock className="h-3.5 w-3.5" />
-                                {getDayName(schedule.dayOfWeek)} {schedule.startTime}-
+                                {getDayName(schedule.dayOfWeek, locale)}{' '}
+                                {schedule.startTime}-
                                 {schedule.endTime}
                               </span>
                             ))}
@@ -253,7 +348,9 @@ export default function EnrollmentsPage() {
                           disabled={isDropping === enrollment.id}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
-                          {isDropping === enrollment.id ? 'Dropping course' : 'Drop course'}
+                          {isDropping === enrollment.id
+                            ? copy.droppingCourse
+                            : copy.dropCourse}
                         </Button>
                       ) : null}
                     </div>

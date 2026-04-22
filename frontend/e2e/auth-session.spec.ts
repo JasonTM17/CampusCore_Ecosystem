@@ -103,7 +103,9 @@ test('cookie session refresh and logout require CSRF and clear the browser sessi
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.getByRole('heading', { name: /Welcome back/i })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Toggle profile menu' }).click();
+    await page
+      .getByRole('button', { name: /Toggle profile menu|Bật tắt menu hồ sơ/i })
+      .click();
     await page
       .locator('#dashboard-profile-menu')
       .getByRole('button', { name: /Sign out|Logout/i })
