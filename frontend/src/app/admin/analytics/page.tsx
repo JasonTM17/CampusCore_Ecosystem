@@ -13,6 +13,7 @@ import {
 } from '@/components/admin/AdminSurface';
 import { Button } from '@/components/ui/button';
 import { ErrorState, LoadingState, EmptyState } from '@/components/ui/state-block';
+import { useI18n } from '@/i18n';
 
 interface AnalyticsOverview {
   totalStudents: number;
@@ -75,6 +76,7 @@ const gradeColors: Record<string, string> = {
 
 export default function AdminAnalyticsPage() {
   const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { formatNumber, href, messages } = useI18n();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -87,9 +89,9 @@ export default function AdminAnalyticsPage() {
 
   useEffect(() => {
     if (user && !isAdmin && !isSuperAdmin) {
-      router.push('/dashboard');
+      router.push(href('/dashboard'));
     }
-  }, [user, isAdmin, isSuperAdmin, router]);
+  }, [href, user, isAdmin, isSuperAdmin, router]);
 
   const fetchAnalytics = useCallback(async () => {
     setIsLoading(true);
@@ -110,11 +112,11 @@ export default function AdminAnalyticsPage() {
       setGradeDistribution(gradeData);
       setEnrollmentTrends(trendsData);
     } catch {
-      setError('Analytics data could not be loaded right now.');
+      setError(messages.adminAnalytics.unavailableDescription);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [messages.adminAnalytics.unavailableDescription]);
 
   useEffect(() => {
     if (canAccess) {
@@ -123,43 +125,43 @@ export default function AdminAnalyticsPage() {
   }, [canAccess, fetchAnalytics]);
 
   if (!canAccess) {
-    return <LoadingState label="Loading analytics" className="m-8" />;
+    return <LoadingState label={messages.adminAnalytics.loading} className="m-8" />;
   }
 
   const stats = [
-    { label: 'Students', value: overview?.totalStudents || 0, detail: 'Active student records in the current analytics snapshot.', icon: Users, tone: 'bg-blue-500/12 text-blue-600 dark:text-blue-400' },
-    { label: 'Lecturers', value: overview?.totalLecturers || 0, detail: 'Teaching-facing identities available to academic operations.', icon: GraduationCap, tone: 'bg-violet-500/12 text-violet-600 dark:text-violet-400' },
-    { label: 'Courses', value: overview?.totalCourses || 0, detail: 'Catalog rows currently feeding sections and registration.', icon: BookOpen, tone: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400' },
-    { label: 'Sections', value: overview?.totalSections || 0, detail: 'Live section records currently visible to reporting.', icon: BarChart3, tone: 'bg-amber-500/12 text-amber-600 dark:text-amber-400' },
-    { label: 'Enrollments', value: overview?.totalEnrollments || 0, detail: 'Enrollment throughput reflected across academic reporting.', icon: TrendingUp, tone: 'bg-cyan-500/12 text-cyan-600 dark:text-cyan-400' },
-    { label: 'Departments', value: overview?.totalDepartments || 0, detail: 'Department records tied to faculty and staffing views.', icon: Building2, tone: 'bg-pink-500/12 text-pink-600 dark:text-pink-400' },
-    { label: 'Faculties', value: overview?.totalFaculties || 0, detail: 'Faculty groupings available for academic segmentation.', icon: Building2, tone: 'bg-indigo-500/12 text-indigo-600 dark:text-indigo-400' },
-    { label: 'Classrooms', value: overview?.totalClassrooms || 0, detail: 'Rooms currently available for section occupancy tracking.', icon: MapPin, tone: 'bg-teal-500/12 text-teal-600 dark:text-teal-400' },
+    { label: messages.adminAnalytics.stats[0], value: overview?.totalStudents || 0, detail: messages.adminAnalytics.statDetails[0], icon: Users, tone: 'bg-blue-500/12 text-blue-600 dark:text-blue-400' },
+    { label: messages.adminAnalytics.stats[1], value: overview?.totalLecturers || 0, detail: messages.adminAnalytics.statDetails[1], icon: GraduationCap, tone: 'bg-violet-500/12 text-violet-600 dark:text-violet-400' },
+    { label: messages.adminAnalytics.stats[2], value: overview?.totalCourses || 0, detail: messages.adminAnalytics.statDetails[2], icon: BookOpen, tone: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400' },
+    { label: messages.adminAnalytics.stats[3], value: overview?.totalSections || 0, detail: messages.adminAnalytics.statDetails[3], icon: BarChart3, tone: 'bg-amber-500/12 text-amber-600 dark:text-amber-400' },
+    { label: messages.adminAnalytics.stats[4], value: overview?.totalEnrollments || 0, detail: messages.adminAnalytics.statDetails[4], icon: TrendingUp, tone: 'bg-cyan-500/12 text-cyan-600 dark:text-cyan-400' },
+    { label: messages.adminAnalytics.stats[5], value: overview?.totalDepartments || 0, detail: messages.adminAnalytics.statDetails[5], icon: Building2, tone: 'bg-pink-500/12 text-pink-600 dark:text-pink-400' },
+    { label: messages.adminAnalytics.stats[6], value: overview?.totalFaculties || 0, detail: messages.adminAnalytics.statDetails[6], icon: Building2, tone: 'bg-indigo-500/12 text-indigo-600 dark:text-indigo-400' },
+    { label: messages.adminAnalytics.stats[7], value: overview?.totalClassrooms || 0, detail: messages.adminAnalytics.statDetails[7], icon: MapPin, tone: 'bg-teal-500/12 text-teal-600 dark:text-teal-400' },
   ];
 
   const maxEnrollment = Math.max(...enrollmentsBySemester.map((semester) => semester.enrollmentCount), 1);
 
   return (
     <AdminFrame
-      title="Reports and analytics"
-      description="Track enrollment volume, grading distribution, and classroom utilization without leaving the same admin grammar used across live record management."
+      title={messages.adminAnalytics.title}
+      description={messages.adminAnalytics.description}
       backHref="/admin"
-      backLabel="Back to admin dashboard"
+      backLabel={messages.adminShell.backToDashboard}
       actions={
         <Button type="button" variant="outline" onClick={() => void fetchAnalytics()} disabled={isLoading}>
           <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh data
+          {messages.adminAnalytics.refreshData}
         </Button>
       }
     >
       {error ? (
         <ErrorState
-          title="Analytics unavailable"
-          description={error}
+          title={messages.adminAnalytics.unavailableTitle}
+          description={error || messages.adminAnalytics.unavailableDescription}
           onRetry={() => void fetchAnalytics()}
         />
       ) : isLoading && !overview ? (
-        <LoadingState label="Loading analytics overview" />
+        <LoadingState label={messages.adminAnalytics.loading} />
       ) : (
         <div className="space-y-8">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -167,7 +169,7 @@ export default function AdminAnalyticsPage() {
               <AdminMetricCard
                 key={stat.label}
                 label={stat.label}
-                value={stat.value.toLocaleString()}
+                value={formatNumber(stat.value)}
                 icon={<stat.icon className="h-5 w-5" />}
                 detail={stat.detail}
                 toneClassName={stat.tone}
@@ -178,14 +180,14 @@ export default function AdminAnalyticsPage() {
 
           <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
             <AdminTableCard
-              title="Enrollments by semester"
-              description="Compare academic terms by current enrollment volume without leaving the reporting workspace."
+              title={messages.adminAnalytics.panels.enrollmentsBySemester.title}
+              description={messages.adminAnalytics.panels.enrollmentsBySemester.description}
               className="h-full"
             >
                 {enrollmentsBySemester.length === 0 ? (
                   <EmptyState
-                    title="No semester enrollment data yet"
-                    description="Once enrollment rows are available, this panel will show which academic terms are carrying the most volume."
+                    title={messages.adminAnalytics.panels.enrollmentsBySemester.emptyTitle}
+                    description={messages.adminAnalytics.panels.enrollmentsBySemester.emptyDescription}
                     className="min-h-[240px] border-none bg-transparent px-0 py-0"
                   />
                 ) : (
@@ -197,7 +199,7 @@ export default function AdminAnalyticsPage() {
                             {semester.semesterName}
                           </div>
                           <div className="text-muted-foreground">
-                            {semester.enrollmentCount} students
+                            {semester.enrollmentCount} {messages.adminAnalytics.tableHeaders.students}
                           </div>
                         </div>
                         <div className="h-2.5 rounded-full bg-secondary">
@@ -215,15 +217,15 @@ export default function AdminAnalyticsPage() {
             </AdminTableCard>
 
             <AdminTableCard
-              title="Grade distribution"
-              description="Watch published grades settle across the current academic workload."
+              title={messages.adminAnalytics.panels.gradeDistribution.title}
+              description={messages.adminAnalytics.panels.gradeDistribution.description}
               className="h-full"
             >
                 {gradeDistribution.length === 0 ||
                 gradeDistribution.every((grade) => grade.count === 0) ? (
                   <EmptyState
-                    title="No published grades yet"
-                    description="This panel becomes more useful as sections publish final grades."
+                    title={messages.adminAnalytics.panels.gradeDistribution.emptyTitle}
+                    description={messages.adminAnalytics.panels.gradeDistribution.emptyDescription}
                     className="min-h-[240px] border-none bg-transparent px-0 py-0"
                   />
                 ) : (
@@ -250,13 +252,13 @@ export default function AdminAnalyticsPage() {
           </div>
 
           <AdminTableCard
-            title="Section occupancy"
-            description="Surface the sections that are close to capacity before they become an operational problem."
+            title={messages.adminAnalytics.panels.sectionOccupancy.title}
+            description={messages.adminAnalytics.panels.sectionOccupancy.description}
           >
               {sectionOccupancy.length === 0 ? (
                 <EmptyState
-                  title="No section occupancy data"
-                  description="Section and enrollment counts need to be present before occupancy can be visualized."
+                  title={messages.adminAnalytics.panels.sectionOccupancy.emptyTitle}
+                  description={messages.adminAnalytics.panels.sectionOccupancy.emptyDescription}
                   className="min-h-[240px] border-none bg-transparent px-0 py-0"
                 />
               ) : (
@@ -264,12 +266,12 @@ export default function AdminAnalyticsPage() {
                   <table className="w-full min-w-[680px] text-sm">
                     <thead>
                       <tr className="border-b border-border/70 text-left text-muted-foreground">
-                        <th className="px-2 py-3 font-medium">Course</th>
-                        <th className="px-2 py-3 font-medium">Section</th>
-                        <th className="px-2 py-3 font-medium">Semester</th>
-                        <th className="px-2 py-3 text-right font-medium">Capacity</th>
-                        <th className="px-2 py-3 text-right font-medium">Enrolled</th>
-                        <th className="px-2 py-3 text-right font-medium">Occupancy</th>
+                        <th className="px-2 py-3 font-medium">{messages.adminAnalytics.tableHeaders.course}</th>
+                        <th className="px-2 py-3 font-medium">{messages.adminAnalytics.tableHeaders.section}</th>
+                        <th className="px-2 py-3 font-medium">{messages.adminAnalytics.tableHeaders.semester}</th>
+                        <th className="px-2 py-3 text-right font-medium">{messages.adminAnalytics.tableHeaders.capacity}</th>
+                        <th className="px-2 py-3 text-right font-medium">{messages.adminAnalytics.tableHeaders.enrolled}</th>
+                        <th className="px-2 py-3 text-right font-medium">{messages.adminAnalytics.tableHeaders.occupancy}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60">
@@ -325,13 +327,13 @@ export default function AdminAnalyticsPage() {
           </AdminTableCard>
 
           <AdminTableCard
-            title="Enrollment trends"
-            description="Review monthly intake, completions, and drop activity in one operational readout."
+            title={messages.adminAnalytics.panels.enrollmentTrends.title}
+            description={messages.adminAnalytics.panels.enrollmentTrends.description}
           >
               {enrollmentTrends.length === 0 ? (
                 <EmptyState
-                  title="No recent trend data"
-                  description="Trend cards appear when monthly enrollment activity is available."
+                  title={messages.adminAnalytics.panels.enrollmentTrends.emptyTitle}
+                  description={messages.adminAnalytics.panels.enrollmentTrends.emptyDescription}
                   className="min-h-[220px] border-none bg-transparent px-0 py-0"
                 />
               ) : (
@@ -346,17 +348,17 @@ export default function AdminAnalyticsPage() {
                       </div>
                       <div className="mt-4 space-y-3 text-sm">
                         <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Enrolled</span>
+                          <span className="text-muted-foreground">{messages.adminAnalytics.tableHeaders.grades.enrolled}</span>
                           <span className="font-medium text-foreground">{trend.enrolled}</span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Completed</span>
+                          <span className="text-muted-foreground">{messages.adminAnalytics.tableHeaders.grades.completed}</span>
                           <span className="font-medium text-[hsl(var(--success))]">
                             {trend.completed}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Dropped</span>
+                          <span className="text-muted-foreground">{messages.adminAnalytics.tableHeaders.grades.dropped}</span>
                           <span className="font-medium text-destructive">{trend.dropped}</span>
                         </div>
                       </div>

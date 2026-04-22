@@ -10,6 +10,17 @@ function read(relPath) {
   return fs.readFileSync(path.join(root, relPath), 'utf8');
 }
 
+function readFirstExisting(relPaths) {
+  for (const relPath of relPaths) {
+    const fullPath = path.join(root, relPath);
+    if (fs.existsSync(fullPath)) {
+      return fs.readFileSync(fullPath, 'utf8');
+    }
+  }
+
+  throw new Error(`Could not find any of: ${relPaths.join(', ')}`);
+}
+
 function assertPatterns(relPath, patterns) {
   const source = read(relPath);
 
@@ -342,7 +353,94 @@ function collectCoveredE2ERoutes() {
     }
   }
 
-  return [...coveredRoutes].sort();
+  return [
+    ...new Set(
+      [...coveredRoutes].map(
+        (route) => route.replace(/^\/(?:en|vi)(?=\/|$)/, '') || '/',
+      ),
+    ),
+  ].sort();
+}
+
+function unwrapObjectLikeExpression(node) {
+  if (!node) {
+    return null;
+  }
+
+  if (ts.isObjectLiteralExpression(node)) {
+    return node;
+  }
+
+  if (
+    ts.isAsExpression(node) ||
+    ts.isTypeAssertionExpression(node) ||
+    ts.isSatisfiesExpression(node)
+  ) {
+    return unwrapObjectLikeExpression(node.expression);
+  }
+
+  if (ts.isParenthesizedExpression(node)) {
+    return unwrapObjectLikeExpression(node.expression);
+  }
+
+  return null;
+}
+
+function findExportedObjectLiteral(sourceFile, exportName) {
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement)) {
+      continue;
+    }
+
+    for (const declaration of statement.declarationList.declarations) {
+      const objectLiteral = unwrapObjectLikeExpression(declaration.initializer);
+      if (
+        ts.isIdentifier(declaration.name) &&
+        declaration.name.text === exportName &&
+        objectLiteral
+      ) {
+        return objectLiteral;
+      }
+    }
+  }
+
+  throw new Error(`Could not find exported object literal "${exportName}"`);
+}
+
+function collectObjectShape(node, prefix = '', acc = []) {
+  if (ts.isObjectLiteralExpression(node)) {
+    for (const property of node.properties) {
+      if (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property)) {
+        continue;
+      }
+
+      const keyNode = ts.isPropertyAssignment(property) ? property.name : property.name;
+      const key =
+        ts.isIdentifier(keyNode) || ts.isStringLiteralLike(keyNode) || ts.isNumericLiteral(keyNode)
+          ? keyNode.text
+          : keyNode.getText().replace(/['"`]/g, '');
+      const pathKey = prefix ? `${prefix}.${key}` : key;
+      acc.push(pathKey);
+
+      const value = ts.isPropertyAssignment(property)
+        ? property.initializer
+        : property.name;
+      if (ts.isObjectLiteralExpression(value) || ts.isArrayLiteralExpression(value)) {
+        collectObjectShape(value, pathKey, acc);
+      }
+    }
+  }
+
+  if (ts.isArrayLiteralExpression(node)) {
+    acc.push(`${prefix}[]:${node.elements.length}`);
+    node.elements.forEach((element, index) => {
+      if (ts.isObjectLiteralExpression(element) || ts.isArrayLiteralExpression(element)) {
+        collectObjectShape(element, `${prefix}[${index}]`, acc);
+      }
+    });
+  }
+
+  return acc;
 }
 
 test('ThemeProvider always renders through the context provider', () => {
@@ -361,8 +459,14 @@ test('dashboard chrome no longer exposes dead internal links', () => {
   assert.doesNotMatch(source, /\/admin\/students/);
   assert.doesNotMatch(source, /\/dashboard\/notifications/);
   assert.doesNotMatch(source, /\/dashboard\/settings/);
-  assert.match(source, /aria-label="Toggle notifications panel"/);
-  assert.match(source, /aria-label="Toggle profile menu"/);
+  assert.match(
+    source,
+    /aria-label=\{messages\.dashboardShell\.controls\.toggleNotifications\}/,
+  );
+  assert.match(
+    source,
+    /aria-label=\{messages\.dashboardShell\.controls\.toggleProfile\}/,
+  );
 });
 
 test('admin hub only links to implemented routes', () => {
@@ -378,7 +482,8 @@ test('homepage copy avoids demo placeholders and dead hrefs', () => {
 
   assert.doesNotMatch(source, deadHrefPattern);
   assert.doesNotMatch(source, /50K\+/);
-  assert.match(source, /Kubernetes-ready/);
+  assert.match(source, /messages\.home\.metricCards\.map/);
+  assert.match(source, /messages\.home\.whyTitle/);
   assert.doesNotMatch(source, contactSalesPattern);
   assert.match(source, /href=\{user \? '\/dashboard' : '\/login'\}/);
 });
@@ -403,7 +508,10 @@ test('auth client uses cookie sessions and CSRF headers', () => {
     authContextSource,
     /localStorage\.(getItem|setItem|removeItem)/,
   );
-  assert.match(authContextSource, /router\.replace\('\/login\?reason=signed-out'\)/);
+  assert.match(
+    authContextSource,
+    /router\.replace\(`\$\{href\('\/login'\)\}\?reason=signed-out`\)/,
+  );
 });
 
 test('frontend config exposes local edge rewrites and SEO runtime files', () => {
@@ -413,17 +521,53 @@ test('frontend config exposes local edge rewrites and SEO runtime files', () => 
   );
   const envExampleSource = read('.env.example');
   const layoutSource = read('src/app/layout.tsx');
+  const serverMetadataSource = read('src/i18n/server.ts');
 
   assert.match(nextConfigSource, /source:\s*'\/api\/v1\/:path\*'/);
   assert.match(nextConfigSource, /LOCAL_EDGE_ORIGIN/);
   assert.match(envExampleSource, /NEXT_PUBLIC_SITE_URL=https:\/\/tienson\.io\.vn/);
   assert.match(envExampleSource, /NEXT_PUBLIC_API_URL=\/api\/v1/);
   assert.match(envExampleSource, /LOCAL_EDGE_ORIGIN=http:\/\/127\.0\.0\.1:8080/);
-  assert.match(layoutSource, /metadataBase:\s*new URL\(siteUrl\)/);
-  assert.match(layoutSource, /manifest:\s*"\/manifest\.webmanifest"/);
+  assert.match(layoutSource, /<html lang=\{htmlLang\}/);
+  assert.match(serverMetadataSource, /metadataBase:\s*new URL\(getSiteUrl\(\)\)/);
+  assert.match(serverMetadataSource, /alternates:/);
+  assert.match(serverMetadataSource, /manifest:\s*'\/manifest\.webmanifest'/);
   assert.ok(fs.existsSync(path.join(root, 'src', 'app', 'robots.ts')));
   assert.ok(fs.existsSync(path.join(root, 'src', 'app', 'sitemap.ts')));
   assert.ok(fs.existsSync(path.join(root, 'src', 'app', 'manifest.ts')));
+});
+
+test('locale middleware, dictionaries, and shell toggles stay aligned', () => {
+  const middlewareSource = readFirstExisting([
+    'src/proxy.ts',
+    'proxy.ts',
+    'src/middleware.ts',
+    'middleware.ts',
+  ]);
+  const messagesSource = read('src/i18n/messages.ts');
+  const sourceFile = ts.createSourceFile(
+    'messages.ts',
+    messagesSource,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const englishShape = collectObjectShape(findExportedObjectLiteral(sourceFile, 'en')).sort();
+  const vietnameseShape = collectObjectShape(findExportedObjectLiteral(sourceFile, 'vi')).sort();
+
+  assert.match(middlewareSource, /cc_locale/);
+  assert.match(middlewareSource, /stripLocaleFromPathname/);
+  assert.match(middlewareSource, /x-cc-locale/);
+  assert.deepEqual(vietnameseShape, englishShape);
+
+  for (const relPath of [
+    'src/app/page.tsx',
+    'src/components/auth/AuthShell.tsx',
+    'src/components/admin/AdminFrame.tsx',
+    'src/app/dashboard/layout.tsx',
+  ]) {
+    assert.match(read(relPath), /LanguageToggle/);
+  }
 });
 
 test('shared UI no longer contains obvious mojibake arrows', () => {
@@ -474,8 +618,8 @@ test('modal exposes dialog semantics and a labeled close control', () => {
 
   assert.match(source, /role="dialog"/);
   assert.match(source, /aria-modal="true"/);
-  assert.match(source, /closeLabel = 'Close modal'/);
-  assert.match(source, /aria-label=\{closeLabel\}/);
+  assert.match(source, /closeLabel\?: string/);
+  assert.match(source, /aria-label=\{closeLabel \|\| messages\.common\.states\.closeModal\}/);
 });
 
 test('frontend routes do not use raw browser confirm dialogs', () => {
@@ -545,86 +689,100 @@ test('student and lecturer workspace surfaces use shared dashboard primitives', 
 
 test('key frontend surfaces label icon-only buttons', () => {
   assertPatterns('src/app/login/page.tsx', [
-    /aria-label=\{showPassword \? 'Hide password' : 'Show password'\}/,
+    /aria-label=\{showPassword \? messages\.login\.hidePassword : messages\.login\.showPassword\}/,
   ]);
   assertPatterns('src/app/reset-password/page.tsx', [
-    /aria-label=\{showPassword \? 'Hide password' : 'Show password'\}/,
+    /aria-label=\{showPassword \? messages\.login\.hidePassword : messages\.login\.showPassword\}/,
   ]);
   assertPatterns('src/app/dashboard/invoices/page.tsx', [
-    /closeLabel="Close invoice details"/,
+    /closeLabel=\{copy\.closeDetail\}/,
   ]);
   assertPatterns('src/app/admin/academic-years/page.tsx', [
-    /aria-label=\{`Edit academic year \$\{[a-zA-Z]+\.year\}`\}/,
-    /aria-label=\{`Delete academic year \$\{[a-zA-Z]+\.year\}`\}/,
-    /backLabel="Back to admin dashboard"/,
+    /aria-label=\{copy\.editLabel\(record\.year\)\}/,
+    /aria-label=\{copy\.deleteLabel\(record\.year\)\}/,
   ]);
   assertPatterns('src/app/admin/announcements/page.tsx', [
-    /aria-label=\{`Delete announcement \$\{[a-zA-Z]+\.title\}`\}/,
-    /closeLabel="Close new announcement form"/,
-    /backLabel="Back to admin dashboard"/,
+    /aria-label=\{copy\.deleteLabel\(announcement\.title\)\}/,
+    /closeLabel=\{copy\.closeModal\}/,
   ]);
   assertPatterns('src/app/admin/classrooms/page.tsx', [
-    /aria-label=\{`Edit classroom \$\{room\.building\} \$\{room\.roomNumber\}`\}/,
-    /aria-label=\{`Delete classroom \$\{room\.building\} \$\{room\.roomNumber\}`\}/,
-    /backLabel="Back to admin dashboard"/,
+    /aria-label=\{copy\.editLabel\(room\.building, room\.roomNumber\)\}/,
+    /aria-label=\{copy\.deleteLabel\(room\.building, room\.roomNumber\)\}/,
   ]);
   assertPatterns('src/app/admin/courses/page.tsx', [
-    /aria-label=\{`Edit course \$\{course\.code\}`\}/,
-    /aria-label=\{`Delete course \$\{course\.code\}`\}/,
-    /backLabel="Back to admin dashboard"/,
+    /aria-label=\{copy\.editLabel\(course\.code\)\}/,
+    /aria-label=\{copy\.deleteLabel\(course\.code\)\}/,
   ]);
   assertPatterns('src/app/admin/departments/page.tsx', [
-    /aria-label=\{`Edit department \$\{[a-zA-Z]+\.name\}`\}/,
-    /aria-label=\{`Delete department \$\{[a-zA-Z]+\.name\}`\}/,
-    /backLabel="Back to admin dashboard"/,
+    /aria-label=\{copy\.editLabel\(department\.name\)\}/,
+    /aria-label=\{copy\.deleteLabel\(department\.name\)\}/,
   ]);
   assertPatterns('src/app/admin/enrollments/page.tsx', [
-    /aria-label=\{`View enrollment details for \$\{[a-zA-Z]+Label\}`\}/,
-    /aria-label=\{`Delete enrollment for \$\{[a-zA-Z]+Label\}`\}/,
-    /closeLabel="Close enrollment details"/,
-    /backLabel="Back to admin dashboard"/,
+    /aria-label=\{copy\.viewLabel\(learnerLabel\)\}/,
+    /aria-label=\{copy\.deleteLabel\(learnerLabel\)\}/,
+    /closeLabel=\{copy\.closeDetail\}/,
   ]);
   assertPatterns('src/app/admin/invoices/page.tsx', [
-    /aria-label=\{`View invoice \$\{invoice\.invoiceNumber\}`\}/,
-    /aria-label=\{`Delete invoice \$\{invoice\.invoiceNumber\}`\}/,
-    /closeLabel="Close invoice details"/,
-    /backLabel="Back to admin dashboard"/,
+    /aria-label=\{copy\.viewLabel\(invoice\.invoiceNumber\)\}/,
+    /aria-label=\{copy\.deleteLabel\(invoice\.invoiceNumber\)\}/,
+    /closeLabel=\{copy\.closeDetail\}/,
   ]);
   assertPatterns('src/app/admin/lecturers/page.tsx', [
-    /aria-label=\{`Edit lecturer \$\{lecturer\.employeeId\}`\}/,
-    /aria-label=\{`Delete lecturer \$\{lecturer\.employeeId\}`\}/,
-    /backLabel="Back to admin dashboard"/,
+    /aria-label=\{copy\.editLabel\(lecturer\.employeeId\)\}/,
+    /aria-label=\{copy\.deleteLabel\(lecturer\.employeeId\)\}/,
   ]);
   assertPatterns('src/app/admin/sections/page.tsx', [
-    /aria-label=\{`Edit section \$\{section\.sectionNumber\} for \$\{section\.course\?\.code \|\| 'course'\}`\}/,
-    /aria-label=\{`Delete section \$\{section\.sectionNumber\} for \$\{section\.course\?\.code \|\| 'course'\}`\}/,
-    /aria-label=\{`Remove schedule \$\{idx \+ 1\}`\}/,
-    /backLabel="Back to admin dashboard"/,
+    /aria-label=\{copy\.editLabel\(/,
+    /aria-label=\{copy\.deleteLabel\(/,
+    /aria-label=\{copy\.removeSchedule\(idx \+ 1\)\}/,
   ]);
   assertPatterns('src/app/admin/semesters/page.tsx', [
-    /aria-label=\{`Edit semester \$\{semester\.name\}`\}/,
-    /aria-label=\{`Delete semester \$\{semester\.name\}`\}/,
-    /backLabel="Back to admin dashboard"/,
+    /aria-label=\{copy\.editLabel\(semester\.name\)\}/,
+    /aria-label=\{copy\.deleteLabel\(semester\.name\)\}/,
   ]);
   assertPatterns('src/app/admin/users/page.tsx', [
-    /aria-label=\{`Edit user \$\{[a-zA-Z]+\.firstName\} \$\{[a-zA-Z]+\.lastName\}`\}/,
-    /aria-label=\{`Delete user \$\{[a-zA-Z]+\.firstName\} \$\{[a-zA-Z]+\.lastName\}`\}/,
+    /aria-label=\{copy\.editUserLabel\(/,
+    /aria-label=\{copy\.deleteUserLabel\(/,
   ]);
   assertPatterns('src/app/admin/page.tsx', [
     /href="\/admin\/users"/,
     /href="\/admin\/analytics"/,
   ]);
   assertPatterns('src/components/ui/data-table.tsx', [
-    /aria-label="Go to previous page"/,
-    /aria-label="Go to next page"/,
-  ]);
-  assertPatterns('src/app/admin/analytics/page.tsx', [
-    /backLabel="Back to admin dashboard"/,
+    /aria-label=\{messages\.common\.states\.goToPreviousPage\}/,
+    /aria-label=\{messages\.common\.states\.goToNextPage\}/,
   ]);
   assertPatterns('src/app/dashboard/lecturer/announcements/page.tsx', [
-    /aria-label="Back to lecturer dashboard"/,
+    /aria-label=\{copy\.backToDashboard\}/,
   ]);
   assertPatterns('src/app/dashboard/lecturer/grades/\[id\]/page.tsx', [
-    /aria-label="Back to grade management"/,
+    /aria-label=\{copy\.backToGrades\}/,
   ]);
+});
+
+test('admin CRUD routes rely on localized AdminFrame back labels', () => {
+  for (const relPath of [
+    'src/app/admin/academic-years/page.tsx',
+    'src/app/admin/announcements/page.tsx',
+    'src/app/admin/classrooms/page.tsx',
+    'src/app/admin/courses/page.tsx',
+    'src/app/admin/departments/page.tsx',
+    'src/app/admin/enrollments/page.tsx',
+    'src/app/admin/invoices/page.tsx',
+    'src/app/admin/lecturers/page.tsx',
+    'src/app/admin/sections/page.tsx',
+    'src/app/admin/semesters/page.tsx',
+  ]) {
+    assert.doesNotMatch(read(relPath), /backLabel=/);
+  }
+});
+
+test('localization smoke keeps bilingual coverage anchored to localized routes', () => {
+  const source = read('e2e/localization.spec.ts');
+
+  assert.match(source, /page\.goto\('\/vi'\)/);
+  assert.match(source, /page\.goto\('\/vi\/login'\)/);
+  assert.match(source, /page\.goto\('\/vi\/dashboard'\)/);
+  assert.match(source, /toHaveURL\(\/\\\/vi\\\/admin/);
+  assert.match(source, /getByRole\('button', \{ name: \/.*English.*\/i \}\)/);
 });

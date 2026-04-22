@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { Bell, RefreshCw } from 'lucide-react';
 import { useRequireAuth } from '@/context/AuthContext';
 import { announcementsApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { LocalizedLink } from '@/components/LocalizedLink';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import {
@@ -13,6 +13,7 @@ import {
   ErrorState,
   LoadingState,
 } from '@/components/ui/state-block';
+import { useI18n } from '@/i18n';
 
 type Announcement = {
   id: string;
@@ -36,9 +37,47 @@ const priorityTone: Record<string, string> = {
 
 export default function LecturerAnnouncementsPage() {
   const { hasAccess, isLoading: authLoading } = useRequireAuth(['LECTURER']);
+  const { locale, formatDateTime } = useI18n();
   const [items, setItems] = useState<Announcement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+
+  const copy =
+    locale === 'vi'
+      ? {
+          eyebrow: 'Workspace giảng viên',
+          title: 'Thông báo',
+          description:
+            'Giữ các cập nhật mới nhất từ campus và section sát với luồng công việc giảng dạy của bạn.',
+          backToDashboard: 'Quay lại dashboard giảng viên',
+          refresh: 'Làm mới',
+          loading: 'Đang tải thông báo',
+          unavailableTitle: 'Thông báo chưa sẵn sàng',
+          emptyTitle: 'Chưa có thông báo',
+          emptyDescription:
+            'Các thông báo dùng chung cho workspace giảng dạy sẽ xuất hiện ở đây sau khi được phát hành.',
+          recentNotices: 'Thông báo gần đây',
+          semesterPrefix: 'Học kỳ',
+          sectionPrefix: 'section',
+          loadFailed: 'Hiện chưa thể tải thông báo.',
+        }
+      : {
+          eyebrow: 'Lecturer workspace',
+          title: 'Announcements',
+          description:
+            'Keep the latest campus and section-level notices close to your teaching workflow.',
+          backToDashboard: 'Back to lecturer dashboard',
+          refresh: 'Refresh',
+          loading: 'Loading announcements',
+          unavailableTitle: 'Announcements unavailable',
+          emptyTitle: 'No announcements yet',
+          emptyDescription:
+            'Shared notices for your teaching workspace will appear here once they are published.',
+          recentNotices: 'Recent notices',
+          semesterPrefix: 'Semester',
+          sectionPrefix: 'section',
+          loadFailed: 'Announcements could not be loaded right now.',
+        };
 
   const fetchFeed = useCallback(async () => {
     setIsLoading(true);
@@ -48,11 +87,11 @@ export default function LecturerAnnouncementsPage() {
       const response = await announcementsApi.getMy({ page: 1, limit: 50 });
       setItems(response.data ?? []);
     } catch {
-      setError('Announcements could not be loaded right now.');
+      setError(copy.loadFailed);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [copy.loadFailed]);
 
   useEffect(() => {
     if (hasAccess) {
@@ -61,27 +100,27 @@ export default function LecturerAnnouncementsPage() {
   }, [fetchFeed, hasAccess]);
 
   if (authLoading || !hasAccess) {
-    return <LoadingState label="Loading announcements" />;
+    return <LoadingState label={copy.loading} />;
   }
 
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow={<SectionEyebrow>Lecturer workspace</SectionEyebrow>}
-        title="Announcements"
-        description="Keep the latest campus and section-level notices close to your teaching workflow."
+        eyebrow={<SectionEyebrow>{copy.eyebrow}</SectionEyebrow>}
+        title={copy.title}
+        description={copy.description}
         actions={
           <div className="flex flex-wrap gap-3">
-            <Link href="/dashboard/lecturer">
+            <LocalizedLink href="/dashboard/lecturer">
               <Button
                 type="button"
                 variant="outline"
-                aria-label="Back to lecturer dashboard"
-                title="Back to lecturer dashboard"
+                aria-label={copy.backToDashboard}
+                title={copy.backToDashboard}
               >
-                Back to lecturer dashboard
+                {copy.backToDashboard}
               </Button>
-            </Link>
+            </LocalizedLink>
             <Button
               type="button"
               variant="outline"
@@ -91,7 +130,7 @@ export default function LecturerAnnouncementsPage() {
               <RefreshCw
                 className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}
               />
-              Refresh
+              {copy.refresh}
             </Button>
           </div>
         }
@@ -99,22 +138,22 @@ export default function LecturerAnnouncementsPage() {
 
       {error ? (
         <ErrorState
-          title="Announcements unavailable"
+          title={copy.unavailableTitle}
           description={error}
           onRetry={() => void fetchFeed()}
         />
       ) : isLoading ? (
-        <LoadingState label="Loading announcements" />
+        <LoadingState label={copy.loading} />
       ) : items.length === 0 ? (
         <EmptyState
           icon={Bell}
-          title="No announcements yet"
-          description="Shared notices for your teaching workspace will appear here once they are published."
+          title={copy.emptyTitle}
+          description={copy.emptyDescription}
         />
       ) : (
         <Card variant="muted">
           <CardHeader>
-            <CardTitle className="text-xl">Recent notices</CardTitle>
+            <CardTitle className="text-xl">{copy.recentNotices}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {items.map((announcement) => (
@@ -141,15 +180,17 @@ export default function LecturerAnnouncementsPage() {
                   </p>
                   <div className="flex flex-wrap gap-3 text-xs uppercase tracking-[0.16em] text-muted-foreground">
                     {announcement.semester?.name ? (
-                      <span>Semester {announcement.semester.name}</span>
+                      <span>
+                        {copy.semesterPrefix} {announcement.semester.name}
+                      </span>
                     ) : null}
                     {announcement.section?.course?.code ? (
                       <span>
-                        {announcement.section.course.code} section{' '}
+                        {announcement.section.course.code} {copy.sectionPrefix}{' '}
                         {announcement.section.sectionNumber}
                       </span>
                     ) : null}
-                    <span>{new Date(announcement.createdAt).toLocaleString()}</span>
+                    <span>{formatDateTime(announcement.createdAt)}</span>
                   </div>
                 </div>
               </article>

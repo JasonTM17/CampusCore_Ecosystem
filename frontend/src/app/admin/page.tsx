@@ -1,15 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, BarChart3, Bell, BookMarked, BookOpen, Building2, CreditCard, DoorOpen, FileText, GraduationCap, School, TrendingUp, UserPlus, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { analyticsApi } from '@/lib/api';
 import { AdminFrame } from '@/components/admin/AdminFrame';
 import { AdminMetricCard, AdminTableCard } from '@/components/admin/AdminSurface';
+import { LocalizedLink } from '@/components/LocalizedLink';
 import { Button } from '@/components/ui/button';
 import { ErrorState, LoadingState } from '@/components/ui/state-block';
+import { useI18n } from '@/i18n';
 
 interface QuickStats {
   totalStudents: number;
@@ -100,6 +101,7 @@ const menuItems = [
 
 export default function AdminDashboardPage() {
   const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { formatNumber, href, messages } = useI18n();
   const router = useRouter();
   const [stats, setStats] = useState<QuickStats>({
     totalStudents: 0,
@@ -112,9 +114,9 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (user && !isAdmin && !isSuperAdmin) {
-      router.push('/dashboard');
+      router.push(href('/dashboard'));
     }
-  }, [user, isAdmin, isSuperAdmin, router]);
+  }, [href, user, isAdmin, isSuperAdmin, router]);
 
   const fetchStats = useCallback(async () => {
     setIsLoading(true);
@@ -129,11 +131,11 @@ export default function AdminDashboardPage() {
         totalEnrollments: data.totalEnrollments || 0,
       });
     } catch {
-      setError('Campus overview is not available right now.');
+      setError(messages.admin.unavailableDescription);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [messages.admin.unavailableDescription]);
 
   useEffect(() => {
     if (!user || (!isAdmin && !isSuperAdmin)) {
@@ -144,66 +146,68 @@ export default function AdminDashboardPage() {
   }, [fetchStats, isAdmin, isSuperAdmin, user]);
 
   if (!user || (!isAdmin && !isSuperAdmin)) {
-    return <LoadingState label="Loading admin workspace" className="m-8" />;
+    return <LoadingState label={messages.admin.loading} className="m-8" />;
   }
 
   const statCards = [
     {
-      label: 'Students',
+      label: messages.admin.stats[0],
       value: stats.totalStudents,
       icon: Users,
-      detail: 'People records reachable through the current ownership model.',
+      detail: messages.admin.statDetails[0],
       tone: 'bg-blue-500/12 text-blue-600 dark:text-blue-400',
     },
     {
-      label: 'Lecturers',
+      label: messages.admin.stats[1],
       value: stats.totalLecturers,
       icon: School,
-      detail: 'Active lecturer accounts and teaching-facing identities.',
+      detail: messages.admin.statDetails[1],
       tone: 'bg-violet-500/12 text-violet-600 dark:text-violet-400',
     },
     {
-      label: 'Courses',
+      label: messages.admin.stats[2],
       value: stats.totalCourses,
       icon: BookOpen,
-      detail: 'Catalog rows available for section planning and registration.',
+      detail: messages.admin.statDetails[2],
       tone: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400',
     },
     {
-      label: 'Enrollments',
+      label: messages.admin.stats[3],
       value: stats.totalEnrollments,
       icon: TrendingUp,
-      detail: 'Enrollment rows reflected across academic and analytics views.',
+      detail: messages.admin.statDetails[3],
       tone: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
     },
   ];
 
   return (
     <AdminFrame
-      title="Admin dashboard"
-      description="Keep the campus workspace aligned across people, academics, finance, and reporting without leaving the admin shell."
+      title={messages.admin.title}
+      description={messages.admin.description}
       actions={
         <>
           <Button asChild variant="outline">
-            <Link href="/admin/users">
+            <LocalizedLink href="/admin/users">
               <UserPlus className="mr-2 h-4 w-4" />
-              Add user
-            </Link>
+              {messages.common.actions.addUser}
+            </LocalizedLink>
           </Button>
           <Button asChild>
-            <Link href="/admin/analytics">Open analytics</Link>
+            <LocalizedLink href="/admin/analytics">
+              {messages.common.actions.openAnalytics}
+            </LocalizedLink>
           </Button>
         </>
       }
     >
       {error ? (
         <ErrorState
-          title="Admin overview unavailable"
-          description={error}
+          title={messages.admin.unavailableTitle}
+          description={error || messages.admin.unavailableDescription}
           onRetry={() => void fetchStats()}
         />
       ) : isLoading ? (
-        <LoadingState label="Loading campus overview" />
+        <LoadingState label={messages.admin.loading} />
       ) : (
         <div className="space-y-8">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -211,7 +215,7 @@ export default function AdminDashboardPage() {
               <AdminMetricCard
                 key={stat.label}
                 label={stat.label}
-                value={stat.value.toLocaleString()}
+                value={formatNumber(stat.value)}
                 icon={<stat.icon className="h-5 w-5" />}
                 detail={stat.detail}
                 toneClassName={stat.tone}
@@ -219,14 +223,14 @@ export default function AdminDashboardPage() {
             ))}
           </div>
 
-          <AdminTableCard
-            title="Management console"
-            description="Jump straight into the workspace that needs attention. Each area keeps the same admin shell, confirmation flow, and route grammar."
+              <AdminTableCard
+            title={messages.admin.managementConsoleTitle}
+            description={messages.admin.managementConsoleDescription}
             contentClassName="space-y-0"
           >
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {menuItems.map((item) => (
-                <Link
+              {menuItems.map((item, index) => (
+                <LocalizedLink
                   key={item.href}
                   href={item.href}
                   className="group rounded-lg border border-border/70 bg-card px-5 py-5 transition-colors hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -239,18 +243,18 @@ export default function AdminDashboardPage() {
                     </div>
                     <div className="space-y-3">
                       <h3 className="text-lg font-semibold text-foreground transition-colors group-hover:text-primary">
-                        {item.label}
+                        {messages.admin.menuItems[index][0]}
                       </h3>
                       <p className="text-sm leading-6 text-muted-foreground">
-                        {item.description}
+                        {messages.admin.menuItems[index][1]}
                       </p>
                     </div>
                     <div className="mt-auto flex items-center gap-2 text-sm font-medium text-primary">
-                      <span>Open workspace</span>
+                      <span>{messages.common.actions.openWorkspace}</span>
                       <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                     </div>
                   </div>
-                </Link>
+                </LocalizedLink>
               ))}
             </div>
           </AdminTableCard>

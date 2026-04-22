@@ -1,36 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { ArrowLeft, Mail, RotateCcw } from 'lucide-react';
 import { authApi } from '@/lib/api';
 import { AuthShell } from '@/components/auth/AuthShell';
+import { LocalizedLink } from '@/components/LocalizedLink';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SectionEyebrow } from '@/components/ui/page-header';
+import { useI18n } from '@/i18n';
 import { toast } from 'sonner';
 
 export const dynamic = 'force-dynamic';
 
-const recoveryFeatures = [
-  {
-    label: 'Verified handoff',
-    description:
-      'Password recovery stays on the same browser contract as sign-in and session refresh.',
-  },
-  {
-    label: 'Clear next steps',
-    description:
-      'The screen keeps recovery guidance visible instead of dropping you into a dead end.',
-  },
-  {
-    label: 'Safer messaging',
-    description:
-      'Responses stay intentionally vague so the flow does not confirm whether an email exists.',
-  },
-];
-
 export default function ForgotPasswordPage() {
+  const { messages } = useI18n();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
@@ -42,9 +26,9 @@ export default function ForgotPasswordPage() {
     try {
       await authApi.forgotPassword(email.trim());
       setEmailSent(true);
-      toast.success('If the email exists, a reset link has been sent.');
+      toast.success(messages.forgotPassword.sentToast);
     } catch {
-      toast.error('We could not start password recovery right now.');
+      toast.error(messages.forgotPassword.failedToast);
     } finally {
       setIsLoading(false);
     }
@@ -52,23 +36,26 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthShell
-      eyebrow="Password recovery"
-      title="Recover account access without guessing."
-      description="Use your campus email to request a reset link. The response stays consistent whether the account exists or not."
-      features={recoveryFeatures}
+      eyebrow={messages.forgotPassword.eyebrow}
+      title={messages.forgotPassword.title}
+      description={messages.forgotPassword.description}
+      features={messages.forgotPassword.featureTitles.map((label, index) => ({
+        label,
+        description: messages.forgotPassword.featureDescriptions[index],
+      }))}
       className="max-w-md"
     >
       <div className="space-y-6">
         <div className="space-y-3">
-          <SectionEyebrow>Recovery flow</SectionEyebrow>
+          <SectionEyebrow>{messages.forgotPassword.sectionEyebrow}</SectionEyebrow>
           <div className="space-y-2">
             <h2 className="text-3xl font-semibold tracking-tight text-foreground">
-              Forgot password
+              {messages.forgotPassword.heading}
             </h2>
             <p className="text-sm leading-6 text-muted-foreground">
               {emailSent
-                ? 'The next step is in your email inbox.'
-                : 'Enter your email and we will send password reset instructions.'}
+                ? messages.forgotPassword.afterSend
+                : messages.forgotPassword.beforeSend}
             </p>
           </div>
         </div>
@@ -76,12 +63,10 @@ export default function ForgotPasswordPage() {
         {emailSent ? (
           <div className="space-y-4 rounded-lg border border-border/70 bg-card/80 p-5">
             <div className="rounded-lg border border-[hsl(var(--success))/0.3] bg-[hsl(var(--success))/0.08] px-4 py-3 text-sm text-foreground">
-              If an account matches <strong>{email}</strong>, a reset link is on
-              the way.
+              {messages.forgotPassword.sentBanner.replace('{email}', email)}
             </div>
             <p className="text-sm leading-6 text-muted-foreground">
-              Check spam or promotions if you do not see the message right away.
-              You can also start over with another address.
+              {messages.forgotPassword.sentDescription}
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button
@@ -91,44 +76,46 @@ export default function ForgotPasswordPage() {
                 className="sm:flex-1"
               >
                 <RotateCcw className="mr-2 h-4 w-4" />
-                Try another email
+                {messages.common.actions.tryAnotherEmail}
               </Button>
-              <Link href="/login" className="sm:flex-1">
+              <LocalizedLink href="/login" className="sm:flex-1">
                 <Button variant="default" className="w-full">
-                  Back to sign in
+                  {messages.common.actions.backToSignIn}
                 </Button>
-              </Link>
+              </LocalizedLink>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
-                Email address
+                {messages.forgotPassword.emailLabel}
               </label>
               <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@university.edu"
+                placeholder={messages.forgotPassword.emailPlaceholder}
                 autoComplete="email"
                 required
                 icon={<Mail className="h-4 w-4" />}
-                hint="Use the address tied to your campus account."
+                hint={messages.forgotPassword.emailHint}
               />
             </div>
 
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Sending reset instructions' : 'Send reset link'}
+              {isLoading
+                ? messages.forgotPassword.sendingResetInstructions
+                : messages.forgotPassword.sendResetLink}
             </Button>
           </form>
         )}
 
         <p className="text-sm text-muted-foreground">
-          <Link href="/login" className="inline-flex items-center gap-2 font-medium text-primary hover:underline">
+          <LocalizedLink href="/login" className="inline-flex items-center gap-2 font-medium text-primary hover:underline">
             <ArrowLeft className="h-4 w-4" />
-            Back to sign in
-          </Link>
+            {messages.common.actions.backToSignIn}
+          </LocalizedLink>
         </p>
       </div>
     </AuthShell>

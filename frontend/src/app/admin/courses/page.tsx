@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/state-block';
 import { Textarea } from '@/components/ui/textarea';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
+import { useI18n } from '@/i18n';
 
 interface Course {
   id: string;
@@ -46,6 +47,7 @@ interface Department {
 
 export default function AdminCoursesPage() {
   const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { href, locale, formatNumber, messages } = useI18n();
   const router = useRouter();
   const [courses, setCourses] = useState<Course[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -70,9 +72,9 @@ export default function AdminCoursesPage() {
 
   useEffect(() => {
     if (user && !isAdmin && !isSuperAdmin) {
-      router.push('/dashboard');
+      router.push(href('/dashboard'));
     }
-  }, [user, isAdmin, isSuperAdmin, router]);
+  }, [href, isAdmin, isSuperAdmin, router, user]);
 
   const fetchDepartments = useCallback(async () => {
     try {
@@ -104,11 +106,13 @@ export default function AdminCoursesPage() {
       setCourses(filteredCourses);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
-      setError('Courses could not be loaded.');
+      setError(
+        locale === 'vi' ? 'Hiện chưa thể tải môn học.' : 'Courses could not be loaded.',
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [departmentFilter, page, search]);
+  }, [departmentFilter, locale, page, search]);
 
   useEffect(() => {
     if (canAccess) {
@@ -119,36 +123,133 @@ export default function AdminCoursesPage() {
 
   const pageSummary = useMemo(() => {
     if (courses.length === 0) {
-      return 'No matching records';
+      return locale === 'vi' ? 'Không có bản ghi phù hợp' : 'No matching records';
     }
 
-    return `Page ${page} of ${totalPages}`;
-  }, [courses.length, page, totalPages]);
+    return locale === 'vi'
+      ? `Trang ${page} / ${totalPages}`
+      : `Page ${page} of ${totalPages}`;
+  }, [courses.length, locale, page, totalPages]);
 
   const departmentOptions = useMemo(
     () => [
-      { value: '', label: 'All departments' },
+      { value: '', label: locale === 'vi' ? 'Tất cả khoa' : 'All departments' },
       ...departments.map((department) => ({
         value: department.id,
         label: department.name,
       })),
     ],
-    [departments],
+    [departments, locale],
   );
 
   const formDepartmentOptions = useMemo(
     () => [
-      { value: '', label: 'Select department' },
+      { value: '', label: locale === 'vi' ? 'Chọn khoa' : 'Select department' },
       ...departments.map((department) => ({
         value: department.id,
         label: department.name,
       })),
     ],
-    [departments],
+    [departments, locale],
   );
 
+  const copy =
+    locale === 'vi'
+      ? {
+          loading: 'Đang tải môn học',
+          title: 'Môn học',
+          description:
+            'Quản lý catalog môn học với ownership rõ ràng, số tín chỉ nhất quán và cấu trúc học thuật ổn định.',
+          create: 'Tạo môn học',
+          searchLabel: 'Tìm môn học',
+          searchPlaceholder: 'Tìm theo mã hoặc tên môn',
+          department: 'Khoa',
+          unavailableTitle: 'Môn học chưa sẵn sàng',
+          emptyTitle: 'Không có môn học phù hợp',
+          emptyDescription:
+            'Hãy tạo môn học để section, đăng ký và tài chính cùng dùng một nguồn catalog rõ ràng.',
+          tableTitle: 'Bản ghi môn học',
+          headers: {
+            code: 'Mã',
+            name: 'Tên môn',
+            credits: 'Tín chỉ',
+            department: 'Khoa',
+            status: 'Trạng thái',
+            actions: 'Tác vụ',
+          },
+          unassigned: 'Chưa gán',
+          active: 'Đang hoạt động',
+          inactive: 'Ngừng hoạt động',
+          deleteTitle: 'Xóa môn học',
+          deleteMessage: (code: string) =>
+            `Xóa ${code}? Hành động này sẽ gỡ môn học khỏi màn hình quản trị hiện tại.`,
+          deleteConfirm: 'Xóa môn học',
+          deleted: 'Đã xóa môn học',
+          deleteFailed: 'Hiện chưa thể xóa môn học này.',
+          updated: 'Đã cập nhật môn học',
+          created: 'Đã tạo môn học',
+          saveFailed: 'Hiện chưa thể lưu môn học.',
+          editTitle: 'Chỉnh sửa môn học',
+          createTitle: 'Tạo môn học',
+          courseCode: 'Mã môn học',
+          creditsLabel: 'Tín chỉ',
+          courseName: 'Tên môn học',
+          descriptionLabel: 'Mô tả',
+          descriptionPlaceholder: 'Ghi chú catalog tùy chọn',
+          saving: 'Đang lưu...',
+          editAction: messages.common.actions.saveChanges,
+          editLabel: (code: string) => `Chỉnh sửa môn học ${code}`,
+          deleteLabel: (code: string) => `Xóa môn học ${code}`,
+        }
+      : {
+          loading: 'Loading courses',
+          title: 'Courses',
+          description:
+            'Maintain the course catalog with clean ownership, clear credit values, and a consistent academic structure.',
+          create: 'Create course',
+          searchLabel: 'Search courses',
+          searchPlaceholder: 'Search by code or name',
+          department: 'Department',
+          unavailableTitle: 'Courses unavailable',
+          emptyTitle: 'No matching courses',
+          emptyDescription:
+            'Create a course so sections, registration, and finance flows inherit a clean catalog source.',
+          tableTitle: 'Course records',
+          headers: {
+            code: 'Code',
+            name: 'Name',
+            credits: 'Credits',
+            department: 'Department',
+            status: 'Status',
+            actions: 'Actions',
+          },
+          unassigned: 'Unassigned',
+          active: 'Active',
+          inactive: 'Inactive',
+          deleteTitle: 'Delete course',
+          deleteMessage: (code: string) =>
+            `Delete ${code}? This removes the course from the current admin view.`,
+          deleteConfirm: 'Delete course',
+          deleted: 'Course deleted',
+          deleteFailed: 'We could not delete that course.',
+          updated: 'Course updated',
+          created: 'Course created',
+          saveFailed: 'The course could not be saved.',
+          editTitle: 'Edit course',
+          createTitle: 'Create course',
+          courseCode: 'Course code',
+          creditsLabel: 'Credits',
+          courseName: 'Course name',
+          descriptionLabel: 'Description',
+          descriptionPlaceholder: 'Optional catalog notes',
+          saving: 'Saving...',
+          editAction: messages.common.actions.saveChanges,
+          editLabel: (code: string) => `Edit course ${code}`,
+          deleteLabel: (code: string) => `Delete course ${code}`,
+        };
+
   if (!canAccess) {
-    return <LoadingState label="Loading courses" className="m-8" />;
+    return <LoadingState label={copy.loading} className="m-8" />;
   }
 
   const resetForm = () => {
@@ -192,9 +293,9 @@ export default function AdminCoursesPage() {
 
   const handleDelete = async (course: Course) => {
     const shouldDelete = await confirm({
-      title: 'Delete course',
-      message: `Delete ${course.code}? This removes the course from the current admin view.`,
-      confirmText: 'Delete course',
+      title: copy.deleteTitle,
+      message: copy.deleteMessage(course.code),
+      confirmText: copy.deleteConfirm,
       variant: 'destructive',
     });
 
@@ -204,10 +305,10 @@ export default function AdminCoursesPage() {
 
     try {
       await coursesApi.delete(course.id);
-      toast.success('Course deleted');
+      toast.success(copy.deleted);
       await fetchCourses();
     } catch {
-      toast.error('We could not delete that course.');
+      toast.error(copy.deleteFailed);
     }
   };
 
@@ -218,17 +319,17 @@ export default function AdminCoursesPage() {
     try {
       if (editingCourse) {
         await coursesApi.update(editingCourse.id, formData);
-        toast.success('Course updated');
+        toast.success(copy.updated);
       } else {
         await coursesApi.create(formData);
-        toast.success('Course created');
+        toast.success(copy.created);
       }
 
       closeModal();
       await fetchCourses();
     } catch (requestError: any) {
       toast.error(
-        requestError.response?.data?.message ?? 'The course could not be saved.',
+        requestError.response?.data?.message ?? copy.saveFailed,
       );
     } finally {
       setIsSaving(false);
@@ -237,13 +338,12 @@ export default function AdminCoursesPage() {
 
   return (
     <AdminFrame
-      title="Courses"
-      description="Maintain the course catalog with clean ownership, clear credit values, and a consistent academic structure."
-      backLabel="Back to admin dashboard"
+      title={copy.title}
+      description={copy.description}
       actions={
         <Button onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" />
-          Create course
+          {copy.create}
         </Button>
       }
     >
@@ -256,18 +356,18 @@ export default function AdminCoursesPage() {
               <div className="grid w-full gap-4 xl:max-w-3xl xl:grid-cols-[minmax(0,1fr)_260px]">
                 <div>
                   <label className="mb-2 block text-sm font-medium text-foreground">
-                    Search courses
+                    {copy.searchLabel}
                   </label>
                   <Input
                     type="text"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search by code or name"
+                    placeholder={copy.searchPlaceholder}
                     icon={<Search className="h-4 w-4" />}
                   />
                 </div>
                 <Select
-                  label="Department"
+                  label={copy.department}
                   value={departmentFilter}
                   onChange={(event) => {
                     setDepartmentFilter(event.target.value);
@@ -280,7 +380,7 @@ export default function AdminCoursesPage() {
                 summary={pageSummary}
                 actions={
                   <Button type="submit" variant="outline">
-                    Search
+                    {messages.common.actions.search}
                   </Button>
                 }
               />
@@ -289,22 +389,22 @@ export default function AdminCoursesPage() {
 
         {error ? (
           <ErrorState
-            title="Courses unavailable"
+            title={copy.unavailableTitle}
             description={error}
             onRetry={() => void fetchCourses()}
           />
         ) : isLoading ? (
-          <LoadingState label="Loading courses" />
+          <LoadingState label={copy.loading} />
         ) : courses.length === 0 ? (
           <EmptyState
             icon={BookOpen}
-            title="No matching courses"
-            description="Create a course so sections, registration, and finance flows inherit a clean catalog source."
-            action={<Button onClick={openCreate}>Create course</Button>}
+            title={copy.emptyTitle}
+            description={copy.emptyDescription}
+            action={<Button onClick={openCreate}>{copy.create}</Button>}
           />
         ) : (
           <AdminTableCard
-            title="Course records"
+            title={copy.tableTitle}
             footer={
               <AdminPaginationFooter
                 summary={pageSummary}
@@ -319,12 +419,12 @@ export default function AdminCoursesPage() {
                 <table className="w-full min-w-[760px] text-sm">
                   <thead>
                     <tr className="border-b border-border/70 text-left text-muted-foreground">
-                      <th className="px-2 py-3 font-medium">Code</th>
-                      <th className="px-2 py-3 font-medium">Name</th>
-                      <th className="px-2 py-3 font-medium">Credits</th>
-                      <th className="px-2 py-3 font-medium">Department</th>
-                      <th className="px-2 py-3 font-medium">Status</th>
-                      <th className="px-2 py-3 text-right font-medium">Actions</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.code}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.name}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.credits}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.department}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.status}</th>
+                      <th className="px-2 py-3 text-right font-medium">{copy.headers.actions}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
@@ -337,14 +437,14 @@ export default function AdminCoursesPage() {
                           {course.name}
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
-                          {course.credits}
+                          {formatNumber(course.credits)}
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
-                          {course.department?.name || 'Unassigned'}
+                          {course.department?.name || copy.unassigned}
                         </td>
                         <td className="px-2 py-4">
                           <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
-                            {course.isActive ? 'Active' : 'Inactive'}
+                            {course.isActive ? copy.active : copy.inactive}
                           </span>
                         </td>
                         <td className="px-2 py-4">
@@ -353,8 +453,8 @@ export default function AdminCoursesPage() {
                               size="icon"
                               variant="ghost"
                               onClick={() => openEdit(course)}
-                              aria-label={`Edit course ${course.code}`}
-                              title={`Edit course ${course.code}`}
+                              aria-label={copy.editLabel(course.code)}
+                              title={copy.editLabel(course.code)}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -363,8 +463,8 @@ export default function AdminCoursesPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(course)}
-                              aria-label={`Delete course ${course.code}`}
-                              title={`Delete course ${course.code}`}
+                              aria-label={copy.deleteLabel(course.code)}
+                              title={copy.deleteLabel(course.code)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -382,11 +482,11 @@ export default function AdminCoursesPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={closeModal}
-        title={editingCourse ? 'Edit course' : 'Create course'}
+        title={editingCourse ? copy.editTitle : copy.createTitle}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <AdminFormField label="Course code">
+            <AdminFormField label={copy.courseCode}>
               <Input
                 type="text"
                 value={formData.code}
@@ -400,7 +500,7 @@ export default function AdminCoursesPage() {
                 required
               />
             </AdminFormField>
-            <AdminFormField label="Credits">
+            <AdminFormField label={copy.creditsLabel}>
               <Input
                 type="number"
                 min="1"
@@ -417,7 +517,7 @@ export default function AdminCoursesPage() {
             </AdminFormField>
           </div>
 
-          <AdminFormField label="Course name">
+          <AdminFormField label={copy.courseName}>
             <Input
               type="text"
               value={formData.name}
@@ -432,7 +532,7 @@ export default function AdminCoursesPage() {
           </AdminFormField>
 
           <Select
-            label="Department"
+            label={copy.department}
             value={formData.departmentId}
             onChange={(event) =>
               setFormData((current) => ({
@@ -444,7 +544,7 @@ export default function AdminCoursesPage() {
             required
           />
 
-          <AdminFormField label="Description">
+          <AdminFormField label={copy.descriptionLabel}>
             <Textarea
               value={formData.description}
               onChange={(event) =>
@@ -454,20 +554,16 @@ export default function AdminCoursesPage() {
                 }))
               }
               rows={4}
-              placeholder="Optional catalog notes"
+              placeholder={copy.descriptionPlaceholder}
             />
           </AdminFormField>
 
           <AdminDialogFooter>
             <Button type="button" variant="outline" onClick={closeModal}>
-              Cancel
+              {messages.common.actions.cancel}
             </Button>
             <Button type="submit" disabled={isSaving}>
-              {isSaving
-                ? 'Saving...'
-                : editingCourse
-                  ? 'Save changes'
-                  : 'Create course'}
+              {isSaving ? copy.saving : editingCourse ? copy.editAction : copy.create}
             </Button>
           </AdminDialogFooter>
         </form>

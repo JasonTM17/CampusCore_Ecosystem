@@ -16,6 +16,7 @@ import {
   WorkspaceMetricCard,
   WorkspacePanel,
 } from '@/components/dashboard/WorkspaceSurface';
+import { useI18n } from '@/i18n';
 
 type LecturerAnnouncement = {
   id: string;
@@ -28,22 +29,16 @@ type LecturerAnnouncement = {
 const quickLinks = [
   {
     href: '/dashboard/lecturer/schedule',
-    title: 'Teaching schedule',
-    description: 'Check rooms, sections, and meeting times for the current term.',
     icon: Calendar,
     tone: 'bg-blue-500/12 text-blue-600 dark:text-blue-400',
   },
   {
     href: '/dashboard/lecturer/grades',
-    title: 'Grade management',
-    description: 'Finish grading queues and move publish-ready sections forward.',
     icon: FileText,
     tone: 'bg-violet-500/12 text-violet-600 dark:text-violet-400',
   },
   {
     href: '/dashboard/lecturer/announcements',
-    title: 'Announcements',
-    description: 'Review broadcast updates that affect your sections and teaching day.',
     icon: Bell,
     tone: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
   },
@@ -53,6 +48,7 @@ export default function LecturerDashboardPage() {
   const { user, hasAccess, isLoading: authLoading } = useRequireAuth([
     'LECTURER',
   ]);
+  const { formatDateTime, formatNumber, messages } = useI18n();
   const [scheduleSections, setScheduleSections] = useState<LecturerSection[]>([]);
   const [gradingSections, setGradingSections] = useState<GradingSection[]>([]);
   const [announcements, setAnnouncements] = useState<LecturerAnnouncement[]>([]);
@@ -74,11 +70,11 @@ export default function LecturerDashboardPage() {
       setGradingSections(gradingData);
       setAnnouncements(announcementsData.data ?? []);
     } catch {
-      setError('The lecturer dashboard could not load its operational data.');
+      setError(messages.lecturerDashboard.errors.loadFailed);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [messages.lecturerDashboard.errors.loadFailed]);
 
   useEffect(() => {
     if (hasAccess) {
@@ -98,88 +94,88 @@ export default function LecturerDashboardPage() {
   }, [gradingSections]);
 
   if (authLoading || !hasAccess) {
-    return <LoadingState label="Loading lecturer dashboard" />;
+    return <LoadingState label={messages.lecturerDashboard.errors.loading} />;
   }
 
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow={<SectionEyebrow>Lecturer workspace</SectionEyebrow>}
-        title={`Welcome back, ${user?.firstName ?? 'lecturer'}`}
-        description="Keep section operations, grading queues, and teaching updates in one lecturer-focused shell."
+        eyebrow={<SectionEyebrow>{messages.lecturerDashboard.eyebrow}</SectionEyebrow>}
+        title={messages.lecturerDashboard.title.replace('{name}', user?.firstName ?? 'lecturer')}
+        description={messages.lecturerDashboard.description}
       />
 
       {error ? (
         <ErrorState
-          title="Lecturer dashboard unavailable"
+          title={messages.lecturerDashboard.errors.unavailableTitle}
           description={error}
           onRetry={() => void fetchData()}
         />
       ) : isLoading ? (
-        <LoadingState label="Loading lecturer dashboard" />
+        <LoadingState label={messages.lecturerDashboard.errors.loading} />
       ) : (
         <>
           <div className="grid gap-4 md:grid-cols-4">
             <WorkspaceMetricCard
-              label="Sections"
-              value={scheduleSections.length.toLocaleString()}
+              label={messages.lecturerDashboard.metrics.labels[0]}
+              value={formatNumber(scheduleSections.length)}
               icon={<Calendar className="h-5 w-5" />}
-              detail="Assigned teaching sections stay visible so grading and scheduling decisions remain grounded in the same term context."
+              detail={messages.lecturerDashboard.metrics.details[0]}
               toneClassName="bg-blue-500/12 text-blue-600 dark:text-blue-400"
             />
             <WorkspaceMetricCard
-              label="Students"
-              value={totalStudents.toLocaleString()}
+              label={messages.lecturerDashboard.metrics.labels[1]}
+              value={formatNumber(totalStudents)}
               icon={<Users className="h-5 w-5" />}
-              detail="Enrollment volume stays close to the lecturer shell so section-level follow-up remains visible."
+              detail={messages.lecturerDashboard.metrics.details[1]}
               toneClassName="bg-emerald-500/12 text-emerald-600 dark:text-emerald-400"
             />
             <WorkspaceMetricCard
-              label="Ready to publish"
-              value={readyToPublish.toLocaleString()}
+              label={messages.lecturerDashboard.metrics.labels[2]}
+              value={formatNumber(readyToPublish)}
               icon={<FileText className="h-5 w-5" />}
-              detail="Publish-ready grading work surfaces early so final review does not get lost behind the rest of the workflow."
+              detail={messages.lecturerDashboard.metrics.details[2]}
               toneClassName="bg-violet-500/12 text-violet-600 dark:text-violet-400"
             />
             <WorkspaceMetricCard
-              label="Fresh notices"
-              value={announcements.length.toLocaleString()}
+              label={messages.lecturerDashboard.metrics.labels[3]}
+              value={formatNumber(announcements.length)}
               icon={<Bell className="h-5 w-5" />}
-              detail="Broadcast updates that affect teaching operations remain visible without pulling attention away from the grading queue."
+              detail={messages.lecturerDashboard.metrics.details[3]}
               toneClassName="bg-amber-500/12 text-amber-600 dark:text-amber-400"
             />
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
             <WorkspacePanel
-              title="Quick actions"
-              description="Open the lecturer tools that usually drive the next teaching action."
+              title={messages.lecturerDashboard.quickActionsTitle}
+              description={messages.lecturerDashboard.quickActionsDescription}
               variant="muted"
               contentClassName="grid gap-4 sm:grid-cols-3"
             >
-                {quickLinks.map((item) => (
+                {quickLinks.map((item, index) => (
                   <WorkspaceActionTile
                     key={item.href}
                     href={item.href}
                     icon={<item.icon className="h-5 w-5" />}
-                    title={item.title}
-                    description={item.description}
+                    title={messages.lecturerDashboard.quickLinks[index][0]}
+                    description={messages.lecturerDashboard.quickLinks[index][1]}
                     toneClassName={item.tone}
-                    ctaLabel="Open tool"
+                    ctaLabel={messages.common.actions.openTool}
                   />
                 ))}
             </WorkspacePanel>
 
             <WorkspacePanel
-              title="Grading queue"
-              description="Sections nearest to final review stay visible here so grading work remains the primary next step."
+              title={messages.lecturerDashboard.gradingQueueTitle}
+              description={messages.lecturerDashboard.gradingQueueDescription}
               contentClassName="space-y-3"
             >
                 {gradingSections.length === 0 ? (
                   <EmptyState
                     icon={FileText}
-                    title="No grading assignments"
-                    description="Teaching sections with grading responsibility will appear here once they are active."
+                    title={messages.lecturerDashboard.gradingQueueEmptyTitle}
+                    description={messages.lecturerDashboard.gradingQueueEmptyDescription}
                     className="min-h-[240px] border-none bg-transparent px-0 py-0"
                   />
                 ) : (
@@ -198,10 +194,10 @@ export default function LecturerDashboardPage() {
                           </div>
                         </div>
                         <div className="text-sm text-muted-foreground sm:text-right">
-                          <div>{section.gradedCount}/{section.enrolledCount} graded</div>
+                          <div>{section.gradedCount}/{section.enrolledCount} {messages.lecturerDashboard.gradedSuffix}</div>
                           <div className="mt-1">
                             <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
-                              {section.canPublish ? 'Ready to publish' : 'In progress'}
+                              {section.canPublish ? messages.lecturerDashboard.queueStatusReady : messages.lecturerDashboard.queueStatusProgress}
                             </span>
                           </div>
                         </div>
@@ -214,15 +210,15 @@ export default function LecturerDashboardPage() {
 
           <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
             <WorkspacePanel
-              title="Sections in scope"
-              description="Assigned sections stay visible with capacity and department context before you move into schedule or grading detail."
+              title={messages.lecturerDashboard.sectionsInScopeTitle}
+              description={messages.lecturerDashboard.sectionsInScopeDescription}
               contentClassName="space-y-3"
             >
                 {scheduleSections.length === 0 ? (
                   <EmptyState
                     icon={Calendar}
-                    title="No teaching assignments yet"
-                    description="Assigned sections will appear here as soon as the current term is configured."
+                    title={messages.lecturerDashboard.sectionsInScopeEmptyTitle}
+                    description={messages.lecturerDashboard.sectionsInScopeEmptyDescription}
                     className="min-h-[240px] border-none bg-transparent px-0 py-0"
                   />
                 ) : (
@@ -241,7 +237,7 @@ export default function LecturerDashboardPage() {
                           </div>
                         </div>
                         <div className="text-sm text-muted-foreground sm:text-right">
-                          <div>{section.enrolledCount}/{section.capacity} students</div>
+                          <div>{section.enrolledCount}/{section.capacity} {messages.lecturerDashboard.studentsSuffix}</div>
                           <div className="mt-1">{section.status}</div>
                         </div>
                       </div>
@@ -251,16 +247,16 @@ export default function LecturerDashboardPage() {
             </WorkspacePanel>
 
             <WorkspacePanel
-              title="Latest announcements"
-              description="Broadcast updates that affect teaching operations surface here without taking the page away from the current workload."
+              title={messages.lecturerDashboard.announcementsTitle}
+              description={messages.lecturerDashboard.announcementsDescription}
               variant="muted"
               contentClassName="space-y-3"
             >
                 {announcements.length === 0 ? (
                   <EmptyState
                     icon={Bell}
-                    title="No new notices"
-                    description="Shared notices for the lecturer workspace will show up here once they are published."
+                    title={messages.lecturerDashboard.announcementsEmptyTitle}
+                    description={messages.lecturerDashboard.announcementsEmptyDescription}
                     className="min-h-[240px] border-none bg-transparent px-0 py-0"
                   />
                 ) : (
@@ -276,7 +272,7 @@ export default function LecturerDashboardPage() {
                         {announcement.content}
                       </p>
                       <div className="mt-3 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        {new Date(announcement.createdAt).toLocaleString()}
+                        {formatDateTime(announcement.createdAt)}
                       </div>
                     </div>
                   ))

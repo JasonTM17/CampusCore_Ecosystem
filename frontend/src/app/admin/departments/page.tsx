@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { toast } from 'sonner';
+import { useI18n } from '@/i18n';
 
 interface Department {
   id: string;
@@ -38,6 +39,7 @@ interface Department {
 
 export default function AdminDepartmentsPage() {
   const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { href, locale, messages } = useI18n();
   const router = useRouter();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -60,9 +62,9 @@ export default function AdminDepartmentsPage() {
 
   useEffect(() => {
     if (user && !isAdmin && !isSuperAdmin) {
-      router.push('/dashboard');
+      router.push(href('/dashboard'));
     }
-  }, [user, isAdmin, isSuperAdmin, router]);
+  }, [href, isAdmin, isSuperAdmin, router, user]);
 
   const fetchDepartments = useCallback(async () => {
     setIsLoading(true);
@@ -81,11 +83,115 @@ export default function AdminDepartmentsPage() {
       setDepartments(filteredDepartments);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
-      setError('Departments could not be loaded.');
+      setError(
+        locale === 'vi'
+          ? 'Hiện chưa thể tải danh sách khoa.'
+          : 'Departments could not be loaded.',
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [page, search]);
+  }, [locale, page, search]);
+
+  const copy = useMemo(
+    () =>
+      locale === 'vi'
+        ? {
+          loading: 'Đang tải khoa',
+          title: 'Khoa',
+          description:
+            'Giữ cấu trúc học thuật rõ ràng để môn học, giảng viên và báo cáo luôn bám cùng một ownership.',
+          create: 'Tạo khoa',
+          searchLabel: 'Tìm khoa',
+          searchPlaceholder: 'Tìm theo tên hoặc mã khoa',
+          pageSummaryEmpty: 'Không có bản ghi phù hợp',
+          pageSummary: (currentPage: number, pages: number) =>
+            `Trang ${currentPage} / ${pages}`,
+          unavailableTitle: 'Khoa chưa sẵn sàng',
+          emptyTitle: 'Không có khoa phù hợp',
+          emptyDescription:
+            'Hãy tạo khoa để môn học, giảng viên và catalog học thuật cùng bám vào một cấu trúc rõ ràng.',
+          tableTitle: 'Bản ghi khoa',
+          headers: {
+            code: 'Mã',
+            name: 'Tên khoa',
+            description: 'Mô tả',
+            status: 'Trạng thái',
+            actions: 'Tác vụ',
+          },
+          noDescription: 'Chưa có mô tả',
+          active: 'Đang hoạt động',
+          inactive: 'Ngừng hoạt động',
+          deleteTitle: 'Xóa khoa',
+          deleteMessage: (name: string) =>
+            `Xóa ${name}? Hành động này sẽ gỡ khoa khỏi màn hình quản trị hiện tại.`,
+          deleteConfirm: 'Xóa khoa',
+          deleted: 'Đã xóa khoa',
+          deleteFailed: 'Hiện chưa thể xóa khoa này.',
+          updated: 'Đã cập nhật khoa',
+          created: 'Đã tạo khoa',
+          saveFailed: 'Hiện chưa thể lưu khoa.',
+          editTitle: 'Chỉnh sửa khoa',
+          createTitle: 'Tạo khoa',
+          fields: {
+            code: 'Mã khoa',
+            name: 'Tên khoa',
+            description: 'Mô tả',
+          },
+          saving: 'Đang lưu...',
+          editAction: messages.common.actions.saveChanges,
+          editLabel: (name: string) => `Chỉnh sửa khoa ${name}`,
+          deleteLabel: (name: string) => `Xóa khoa ${name}`,
+        }
+        : {
+          loading: 'Loading departments',
+          title: 'Departments',
+          description:
+            'Keep the academic structure readable for courses, lecturers, and downstream reporting.',
+          create: 'Create department',
+          searchLabel: 'Search departments',
+          searchPlaceholder: 'Search by name or code',
+          pageSummaryEmpty: 'No matching records',
+          pageSummary: (currentPage: number, pages: number) =>
+            `Page ${currentPage} of ${pages}`,
+          unavailableTitle: 'Departments unavailable',
+          emptyTitle: 'No matching departments',
+          emptyDescription:
+            'Create a department to anchor courses, lecturer assignments, and catalog ownership.',
+          tableTitle: 'Department records',
+          headers: {
+            code: 'Code',
+            name: 'Name',
+            description: 'Description',
+            status: 'Status',
+            actions: 'Actions',
+          },
+          noDescription: 'No description',
+          active: 'Active',
+          inactive: 'Inactive',
+          deleteTitle: 'Delete department',
+          deleteMessage: (name: string) =>
+            `Delete ${name}? This removes the department from the current admin view.`,
+          deleteConfirm: 'Delete department',
+          deleted: 'Department deleted',
+          deleteFailed: 'We could not delete that department.',
+          updated: 'Department updated',
+          created: 'Department created',
+          saveFailed: 'The department could not be saved.',
+          editTitle: 'Edit department',
+          createTitle: 'Create department',
+          fields: {
+            code: 'Code',
+            name: 'Name',
+            description: 'Description',
+          },
+          saving: 'Saving...',
+          editAction: messages.common.actions.saveChanges,
+          editLabel: (name: string) => `Edit department ${name}`,
+          deleteLabel: (name: string) => `Delete department ${name}`,
+        },
+    [locale, messages.common.actions.saveChanges],
+  );
 
   useEffect(() => {
     if (canAccess) {
@@ -95,14 +201,14 @@ export default function AdminDepartmentsPage() {
 
   const pageSummary = useMemo(() => {
     if (departments.length === 0) {
-      return 'No matching records';
+      return copy.pageSummaryEmpty;
     }
 
-    return `Page ${page} of ${totalPages}`;
-  }, [departments.length, page, totalPages]);
+    return copy.pageSummary(page, totalPages);
+  }, [copy, departments.length, page, totalPages]);
 
   if (!canAccess) {
-    return <LoadingState label="Loading departments" className="m-8" />;
+    return <LoadingState label={copy.loading} className="m-8" />;
   }
 
   const resetForm = () => {
@@ -138,9 +244,9 @@ export default function AdminDepartmentsPage() {
 
   const handleDelete = async (department: Department) => {
     const shouldDelete = await confirm({
-      title: 'Delete department',
-      message: `Delete ${department.name}? This removes the department from the current admin view.`,
-      confirmText: 'Delete department',
+      title: copy.deleteTitle,
+      message: copy.deleteMessage(department.name),
+      confirmText: copy.deleteConfirm,
       variant: 'destructive',
     });
 
@@ -150,10 +256,10 @@ export default function AdminDepartmentsPage() {
 
     try {
       await departmentsApi.delete(department.id);
-      toast.success('Department deleted');
+      toast.success(copy.deleted);
       await fetchDepartments();
     } catch {
-      toast.error('We could not delete that department.');
+      toast.error(copy.deleteFailed);
     }
   };
 
@@ -164,18 +270,17 @@ export default function AdminDepartmentsPage() {
     try {
       if (editingDepartment) {
         await departmentsApi.update(editingDepartment.id, formData);
-        toast.success('Department updated');
+        toast.success(copy.updated);
       } else {
         await departmentsApi.create(formData);
-        toast.success('Department created');
+        toast.success(copy.created);
       }
 
       closeModal();
       await fetchDepartments();
     } catch (requestError: any) {
       toast.error(
-        requestError.response?.data?.message ??
-          'The department could not be saved.',
+        requestError.response?.data?.message ?? copy.saveFailed,
       );
     } finally {
       setIsSaving(false);
@@ -184,13 +289,12 @@ export default function AdminDepartmentsPage() {
 
   return (
     <AdminFrame
-      title="Departments"
-      description="Keep the academic structure readable for courses, lecturers, and downstream reporting."
-      backLabel="Back to admin dashboard"
+      title={copy.title}
+      description={copy.description}
       actions={
         <Button onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" />
-          Create department
+          {copy.create}
         </Button>
       }
     >
@@ -202,13 +306,13 @@ export default function AdminDepartmentsPage() {
             >
               <div className="w-full max-w-xl">
                 <label className="mb-2 block text-sm font-medium text-foreground">
-                  Search departments
+                  {copy.searchLabel}
                 </label>
                 <Input
                   type="text"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search by name or code"
+                  placeholder={copy.searchPlaceholder}
                   icon={<Search className="h-4 w-4" />}
                 />
               </div>
@@ -216,7 +320,7 @@ export default function AdminDepartmentsPage() {
                 summary={pageSummary}
                 actions={
                   <Button type="submit" variant="outline">
-                    Search
+                    {messages.common.actions.search}
                   </Button>
                 }
               />
@@ -225,22 +329,22 @@ export default function AdminDepartmentsPage() {
 
         {error ? (
           <ErrorState
-            title="Departments unavailable"
+            title={copy.unavailableTitle}
             description={error}
             onRetry={() => void fetchDepartments()}
           />
         ) : isLoading ? (
-          <LoadingState label="Loading departments" />
+          <LoadingState label={copy.loading} />
         ) : departments.length === 0 ? (
           <EmptyState
             icon={Building2}
-            title="No matching departments"
-            description="Create a department to anchor courses, lecturer assignments, and catalog ownership."
-            action={<Button onClick={openCreate}>Create department</Button>}
+            title={copy.emptyTitle}
+            description={copy.emptyDescription}
+            action={<Button onClick={openCreate}>{copy.create}</Button>}
           />
         ) : (
           <AdminTableCard
-            title="Department records"
+            title={copy.tableTitle}
             footer={
               <AdminPaginationFooter
                 summary={pageSummary}
@@ -255,11 +359,11 @@ export default function AdminDepartmentsPage() {
                 <table className="w-full min-w-[720px] text-sm">
                   <thead>
                     <tr className="border-b border-border/70 text-left text-muted-foreground">
-                      <th className="px-2 py-3 font-medium">Code</th>
-                      <th className="px-2 py-3 font-medium">Name</th>
-                      <th className="px-2 py-3 font-medium">Description</th>
-                      <th className="px-2 py-3 font-medium">Status</th>
-                      <th className="px-2 py-3 text-right font-medium">Actions</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.code}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.name}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.description}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.status}</th>
+                      <th className="px-2 py-3 text-right font-medium">{copy.headers.actions}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
@@ -272,11 +376,11 @@ export default function AdminDepartmentsPage() {
                           {department.name}
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
-                          {department.description || 'No description'}
+                          {department.description || copy.noDescription}
                         </td>
                         <td className="px-2 py-4">
                           <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
-                            {department.isActive ? 'Active' : 'Inactive'}
+                            {department.isActive ? copy.active : copy.inactive}
                           </span>
                         </td>
                         <td className="px-2 py-4">
@@ -285,8 +389,8 @@ export default function AdminDepartmentsPage() {
                               size="icon"
                               variant="ghost"
                               onClick={() => openEdit(department)}
-                              aria-label={`Edit department ${department.name}`}
-                              title={`Edit department ${department.name}`}
+                              aria-label={copy.editLabel(department.name)}
+                              title={copy.editLabel(department.name)}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -295,8 +399,8 @@ export default function AdminDepartmentsPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(department)}
-                              aria-label={`Delete department ${department.name}`}
-                              title={`Delete department ${department.name}`}
+                              aria-label={copy.deleteLabel(department.name)}
+                              title={copy.deleteLabel(department.name)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -314,11 +418,11 @@ export default function AdminDepartmentsPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={closeModal}
-        title={editingDepartment ? 'Edit department' : 'Create department'}
+        title={editingDepartment ? copy.editTitle : copy.createTitle}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <AdminFormField label="Code">
+            <AdminFormField label={copy.fields.code}>
               <Input
                 type="text"
                 value={formData.code}
@@ -332,7 +436,7 @@ export default function AdminDepartmentsPage() {
                 required
               />
             </AdminFormField>
-            <AdminFormField label="Name">
+            <AdminFormField label={copy.fields.name}>
               <Input
                 type="text"
                 value={formData.name}
@@ -347,7 +451,7 @@ export default function AdminDepartmentsPage() {
             </AdminFormField>
           </div>
 
-          <AdminFormField label="Description">
+          <AdminFormField label={copy.fields.description}>
             <Textarea
               value={formData.description}
               onChange={(event) =>
@@ -362,14 +466,14 @@ export default function AdminDepartmentsPage() {
 
           <AdminDialogFooter>
             <Button type="button" variant="outline" onClick={closeModal}>
-              Cancel
+              {messages.common.actions.cancel}
             </Button>
             <Button type="submit" disabled={isSaving}>
               {isSaving
-                ? 'Saving...'
+                ? copy.saving
                 : editingDepartment
-                  ? 'Save changes'
-                  : 'Create department'}
+                  ? copy.editAction
+                  : copy.create}
             </Button>
           </AdminDialogFooter>
         </form>

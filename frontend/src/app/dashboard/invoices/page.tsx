@@ -14,6 +14,7 @@ import {
   ErrorState,
   LoadingState,
 } from '@/components/ui/state-block';
+import { useI18n } from '@/i18n';
 import { toast } from 'sonner';
 
 interface Invoice {
@@ -65,23 +66,9 @@ const statusTone: Record<string, string> = {
   CANCELLED: 'bg-secondary text-muted-foreground',
 };
 
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount);
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
 export default function StudentInvoicesPage() {
   const { hasAccess, isLoading: authLoading } = useRequireAuth(['STUDENT']);
+  const { locale, formatCurrency, formatDate, formatNumber } = useI18n();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [semesters, setSemesters] = useState<SemesterOption[]>([]);
   const [selectedSemester, setSelectedSemester] = useState('');
@@ -110,11 +97,15 @@ export default function StudentInvoicesPage() {
       const data = await financeApi.getMyInvoices(selectedSemester || undefined);
       setInvoices(data);
     } catch {
-      setError('Invoices could not be loaded.');
+      setError(
+        locale === 'vi'
+          ? 'Hiện chưa thể tải dữ liệu hóa đơn.'
+          : 'Invoices could not be loaded.',
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [selectedSemester]);
+  }, [locale, selectedSemester]);
 
   useEffect(() => {
     if (hasAccess) {
@@ -131,9 +122,9 @@ export default function StudentInvoicesPage() {
   const selectedSemesterName = useMemo(() => {
     return (
       semesters.find((semester) => semester.id === selectedSemester)?.name ??
-      'all semesters'
+      (locale === 'vi' ? 'tất cả học kỳ' : 'all semesters')
     );
-  }, [selectedSemester, semesters]);
+  }, [locale, selectedSemester, semesters]);
 
   const totalOutstanding = useMemo(() => {
     return invoices
@@ -148,30 +139,113 @@ export default function StudentInvoicesPage() {
       const detail = await financeApi.getMyInvoiceById(invoice.id);
       setSelectedInvoice(detail);
     } catch {
-      toast.error('Invoice details could not be loaded.');
+      toast.error(
+        locale === 'vi'
+          ? 'Hiện chưa thể tải chi tiết hóa đơn.'
+          : 'Invoice details could not be loaded.',
+      );
     } finally {
       setIsDetailLoading(false);
     }
   };
 
+  const copy =
+    locale === 'vi'
+      ? {
+          eyebrow: 'Workspace sinh viên',
+          title: 'Hóa đơn',
+          description: `Xem học phí và các khoản phí cho ${selectedSemesterName}, bao gồm số dư, lịch sử thanh toán và hạn thanh toán.`,
+          selectSemester: 'Chọn học kỳ cho hóa đơn',
+          allSemesters: 'Tất cả học kỳ',
+          loading: 'Đang tải hóa đơn',
+          unavailableTitle: 'Hóa đơn chưa sẵn sàng',
+          emptyTitle: 'Chưa có hóa đơn',
+          emptyDescription:
+            'Khi học phí hoặc phí dịch vụ được tạo cho tài khoản của bạn, chúng sẽ xuất hiện tại đây.',
+          outstandingBalance: 'Số dư chưa thanh toán',
+          invoicesInView: 'Hóa đơn trong màn hình',
+          paidRecords: 'Bản ghi đã thanh toán',
+          billingRecords: 'Hồ sơ thanh toán',
+          headers: {
+            invoice: 'Hóa đơn',
+            semester: 'Học kỳ',
+            total: 'Tổng cộng',
+            paid: 'Đã thanh toán',
+            balance: 'Còn lại',
+            dueDate: 'Hạn thanh toán',
+            status: 'Trạng thái',
+            actions: 'Tác vụ',
+          },
+          viewDetails: 'Xem chi tiết',
+          viewDetailsLabel: (invoiceNumber: string) =>
+            `Xem chi tiết hóa đơn ${invoiceNumber}`,
+          detailTitle: 'Chi tiết hóa đơn',
+          closeDetail: 'Đóng chi tiết hóa đơn',
+          due: 'Hạn',
+          created: 'Tạo ngày',
+          balance: 'Còn lại',
+          itemSection: 'Khoản mục hóa đơn',
+          paymentHistory: 'Lịch sử thanh toán',
+          itemQuantity: 'x',
+          noPayments: 'Chưa có giao dịch thanh toán nào.',
+        }
+      : {
+          eyebrow: 'Student workspace',
+          title: 'Invoices',
+          description: `Review tuition and fee records for ${selectedSemesterName}, including balances, payment history, and due dates.`,
+          selectSemester: 'Select semester for invoices',
+          allSemesters: 'All semesters',
+          loading: 'Loading invoices',
+          unavailableTitle: 'Invoices unavailable',
+          emptyTitle: 'No invoices found',
+          emptyDescription:
+            'When tuition or fee records are generated for your account, they will appear here.',
+          outstandingBalance: 'Outstanding balance',
+          invoicesInView: 'Invoices in view',
+          paidRecords: 'Paid records',
+          billingRecords: 'Billing records',
+          headers: {
+            invoice: 'Invoice',
+            semester: 'Semester',
+            total: 'Total',
+            paid: 'Paid',
+            balance: 'Balance',
+            dueDate: 'Due date',
+            status: 'Status',
+            actions: 'Actions',
+          },
+          viewDetails: 'View details',
+          viewDetailsLabel: (invoiceNumber: string) =>
+            `View details for invoice ${invoiceNumber}`,
+          detailTitle: 'Invoice details',
+          closeDetail: 'Close invoice details',
+          due: 'Due',
+          created: 'Created',
+          balance: 'Balance',
+          itemSection: 'Invoice items',
+          paymentHistory: 'Payment history',
+          itemQuantity: 'x',
+          noPayments: 'No payment records yet.',
+        };
+
   if (authLoading || !hasAccess) {
-    return <LoadingState label="Loading invoices" />;
+    return <LoadingState label={copy.loading} />;
   }
 
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow={<SectionEyebrow>Student workspace</SectionEyebrow>}
-        title="Invoices"
-        description={`Review tuition and fee records for ${selectedSemesterName}, including balances, payment history, and due dates.`}
+        eyebrow={<SectionEyebrow>{copy.eyebrow}</SectionEyebrow>}
+        title={copy.title}
+        description={copy.description}
         actions={
           <div className="min-w-[220px]">
             <Select
-              aria-label="Select semester for invoices"
+              aria-label={copy.selectSemester}
               value={selectedSemester}
               onChange={(event) => setSelectedSemester(event.target.value)}
               options={[
-                { value: '', label: 'All semesters' },
+                { value: '', label: copy.allSemesters },
                 ...semesters.map((semester) => ({
                   value: semester.id,
                   label: semester.name,
@@ -184,17 +258,17 @@ export default function StudentInvoicesPage() {
 
       {error ? (
         <ErrorState
-          title="Invoices unavailable"
+          title={copy.unavailableTitle}
           description={error}
           onRetry={() => void fetchInvoices()}
         />
       ) : isLoading ? (
-        <LoadingState label="Loading invoices" />
+        <LoadingState label={copy.loading} />
       ) : invoices.length === 0 ? (
         <EmptyState
           icon={Receipt}
-          title="No invoices found"
-          description="When tuition or fee records are generated for your account, they will appear here."
+          title={copy.emptyTitle}
+          description={copy.emptyDescription}
         />
       ) : (
         <>
@@ -202,9 +276,7 @@ export default function StudentInvoicesPage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">
-                    Outstanding balance
-                  </div>
+                  <div className="text-sm text-muted-foreground">{copy.outstandingBalance}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
                     {formatCurrency(totalOutstanding)}
                   </div>
@@ -217,9 +289,9 @@ export default function StudentInvoicesPage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">Invoices in view</div>
+                  <div className="text-sm text-muted-foreground">{copy.invoicesInView}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-                    {invoices.length}
+                    {formatNumber(invoices.length)}
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-500/12 text-blue-600 dark:text-blue-400">
@@ -230,9 +302,9 @@ export default function StudentInvoicesPage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">Paid records</div>
+                  <div className="text-sm text-muted-foreground">{copy.paidRecords}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-                    {invoices.filter((invoice) => invoice.status === 'PAID').length}
+                    {formatNumber(invoices.filter((invoice) => invoice.status === 'PAID').length)}
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-500/12 text-emerald-600 dark:text-emerald-400">
@@ -244,21 +316,21 @@ export default function StudentInvoicesPage() {
 
           <Card variant="muted">
             <CardHeader>
-              <CardTitle className="text-xl">Billing records</CardTitle>
+              <CardTitle className="text-xl">{copy.billingRecords}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[900px] text-sm">
                   <thead>
                     <tr className="border-b border-border/70 text-left text-muted-foreground">
-                      <th className="px-2 py-3 font-medium">Invoice</th>
-                      <th className="px-2 py-3 font-medium">Semester</th>
-                      <th className="px-2 py-3 text-right font-medium">Total</th>
-                      <th className="px-2 py-3 text-right font-medium">Paid</th>
-                      <th className="px-2 py-3 text-right font-medium">Balance</th>
-                      <th className="px-2 py-3 font-medium">Due date</th>
-                      <th className="px-2 py-3 text-center font-medium">Status</th>
-                      <th className="px-2 py-3 text-right font-medium">Actions</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.invoice}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.semester}</th>
+                      <th className="px-2 py-3 text-right font-medium">{copy.headers.total}</th>
+                      <th className="px-2 py-3 text-right font-medium">{copy.headers.paid}</th>
+                      <th className="px-2 py-3 text-right font-medium">{copy.headers.balance}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.dueDate}</th>
+                      <th className="px-2 py-3 text-center font-medium">{copy.headers.status}</th>
+                      <th className="px-2 py-3 text-right font-medium">{copy.headers.actions}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
@@ -298,13 +370,13 @@ export default function StudentInvoicesPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => void viewInvoice(invoice)}
-                            aria-label={`View details for invoice ${invoice.invoiceNumber}`}
-                            title={`View details for invoice ${invoice.invoiceNumber}`}
+                            aria-label={copy.viewDetailsLabel(invoice.invoiceNumber)}
+                            title={copy.viewDetailsLabel(invoice.invoiceNumber)}
                           >
                             {isDetailLoading && selectedInvoice?.id !== invoice.id ? null : (
                               <Eye className="mr-2 h-4 w-4" />
                             )}
-                            View details
+                            {copy.viewDetails}
                           </Button>
                         </td>
                       </tr>
@@ -320,8 +392,8 @@ export default function StudentInvoicesPage() {
       <Modal
         isOpen={Boolean(selectedInvoice)}
         onClose={() => setSelectedInvoice(null)}
-        title="Invoice details"
-        closeLabel="Close invoice details"
+        title={copy.detailTitle}
+        closeLabel={copy.closeDetail}
       >
         {selectedInvoice ? (
           <div className="space-y-6">
@@ -333,17 +405,17 @@ export default function StudentInvoicesPage() {
                 {selectedInvoice.semesterName}
               </div>
               <div className="mt-3 flex flex-wrap gap-3 text-sm text-muted-foreground">
-                <span>Due {formatDate(selectedInvoice.dueDate)}</span>
-                <span>Created {formatDate(selectedInvoice.createdAt)}</span>
+                <span>{copy.due} {formatDate(selectedInvoice.dueDate)}</span>
+                <span>{copy.created} {formatDate(selectedInvoice.createdAt)}</span>
                 <span className="font-medium text-foreground">
-                  Balance {formatCurrency(selectedInvoice.balance)}
+                  {copy.balance} {formatCurrency(selectedInvoice.balance)}
                 </span>
               </div>
             </div>
 
             <div className="space-y-3">
               <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                Invoice items
+                {copy.itemSection}
               </h3>
               <div className="space-y-3">
                 {selectedInvoice.items.map((item) => (
@@ -357,7 +429,8 @@ export default function StudentInvoicesPage() {
                           {item.description}
                         </div>
                         <div className="mt-1 text-sm text-muted-foreground">
-                          {item.quantity} x {formatCurrency(item.unitPrice)}
+                          {formatNumber(item.quantity)} {copy.itemQuantity}{' '}
+                          {formatCurrency(item.unitPrice)}
                         </div>
                       </div>
                       <div className="font-medium text-foreground">
@@ -372,7 +445,7 @@ export default function StudentInvoicesPage() {
             {selectedInvoice.payments.length > 0 ? (
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  Payment history
+                  {copy.paymentHistory}
                 </h3>
                 <div className="space-y-3">
                   {selectedInvoice.payments.map((payment) => (
@@ -402,7 +475,11 @@ export default function StudentInvoicesPage() {
                   ))}
                 </div>
               </div>
-            ) : null}
+            ) : (
+              <div className="rounded-lg border border-border/70 bg-secondary/20 px-4 py-4 text-sm text-muted-foreground">
+                {copy.noPayments}
+              </div>
+            )}
           </div>
         ) : null}
       </Modal>

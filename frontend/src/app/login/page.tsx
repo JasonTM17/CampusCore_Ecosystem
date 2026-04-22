@@ -8,9 +8,11 @@ import { ArrowRight, Eye, EyeOff, KeyRound, Lock, Mail } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { User } from '@/types/api';
 import { AuthShell } from '@/components/auth/AuthShell';
+import { LocalizedLink } from '@/components/LocalizedLink';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SectionEyebrow } from '@/components/ui/page-header';
+import { useI18n } from '@/i18n';
 import { getLocalEdgeOrigin, isLocalPreviewHost } from '@/lib/site';
 import { toast } from 'sonner';
 
@@ -30,39 +32,6 @@ function getPostLoginRoute(user: User) {
   return '/dashboard';
 }
 
-const authFeatures = [
-  {
-    label: 'Role-aware access',
-    description:
-      'Admins, lecturers, and students land in the right workspace without a second sign-in step.',
-  },
-  {
-    label: 'Session protection',
-    description:
-      'Browser auth stays on cookie sessions with CSRF protection and refresh handling.',
-  },
-  {
-    label: 'Operational continuity',
-    description:
-      'Core academic, finance, engagement, and analytics flows stay reachable from one portal.',
-  },
-];
-
-const reasonMessages: Record<string, { title: string; body: string }> = {
-  'session-expired': {
-    title: 'Your session ended',
-    body: 'Sign in again to continue working in CampusCore.',
-  },
-  unauthorized: {
-    title: 'Sign in required',
-    body: 'Your last request needed an active session.',
-  },
-  'signed-out': {
-    title: 'Signed out',
-    body: 'You have been signed out of the workspace.',
-  },
-};
-
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -76,6 +45,7 @@ export default function LoginPage() {
     body: string;
   } | null>(null);
   const { login } = useAuth();
+  const { href, messages } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -116,23 +86,23 @@ export default function LoginPage() {
         if (response.ok) {
           setRuntimeNotice({
             tone: 'info',
-            title: 'Development preview',
-            body: 'This local frontend is using the edge proxy. If sign-in stops responding, start the local edge helper or use the public domain.',
+            title: messages.login.runtimeNotice.infoTitle,
+            body: messages.login.runtimeNotice.infoBody,
           });
           return;
         }
 
         setRuntimeNotice({
           tone: 'warning',
-          title: 'Local edge unavailable',
-          body: `This preview cannot reach the local edge right now. Start the edge helper on ${localEdgeOrigin} or use the public domain instead of relying on frontend-only preview mode.`,
+          title: messages.login.runtimeNotice.warningTitle,
+          body: messages.login.runtimeNotice.warningBody.replace('{origin}', localEdgeOrigin),
         });
       } catch {
         if (!cancelled) {
           setRuntimeNotice({
             tone: 'warning',
-            title: 'Local edge unavailable',
-            body: `This preview cannot reach the local edge right now. Start the edge helper on ${localEdgeOrigin} or use the public domain instead of relying on frontend-only preview mode.`,
+            title: messages.login.runtimeNotice.warningTitle,
+            body: messages.login.runtimeNotice.warningBody.replace('{origin}', localEdgeOrigin),
           });
         }
       }
@@ -142,33 +112,52 @@ export default function LoginPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [
+    messages.login.runtimeNotice.infoBody,
+    messages.login.runtimeNotice.infoTitle,
+    messages.login.runtimeNotice.warningBody,
+    messages.login.runtimeNotice.warningTitle,
+  ]);
 
   const reason = searchParams.get('reason') ?? '';
-  const notice = useMemo(() => reasonMessages[reason], [reason]);
+  const notice = useMemo(() => {
+    if (reason === 'session-expired') {
+      return messages.login.reasonMessages.sessionExpired;
+    }
+
+    if (reason === 'unauthorized') {
+      return messages.login.reasonMessages.unauthorized;
+    }
+
+    if (reason === 'signed-out') {
+      return messages.login.reasonMessages.signedOut;
+    }
+
+    return undefined;
+  }, [messages.login.reasonMessages, reason]);
 
   const getLoginErrorMessage = (error: unknown) => {
     if (!(error instanceof AxiosError)) {
-      return 'We could not sign you in right now.';
+      return messages.login.errors.fallback;
     }
 
     if (!error.response) {
-      return 'CampusCore could not reach the local edge or auth services. Start the edge helper, confirm the proxy target is healthy, or use the public domain.';
+      return messages.login.errors.backendUnavailable;
     }
 
     if (error.response.status === 401) {
-      return 'The email address or password is incorrect.';
+      return messages.login.errors.invalidCredentials;
     }
 
     if (error.response.status === 403) {
-      return 'This sign-in attempt was blocked. Refresh the page and try again.';
+      return messages.login.errors.blocked;
     }
 
     if (error.response.status >= 500) {
-      return 'Sign-in is temporarily unavailable. Please try again in a moment.';
+      return messages.login.errors.temporaryUnavailable;
     }
 
-    return error.response?.data?.message || 'We could not sign you in right now.';
+    return error.response?.data?.message || messages.login.errors.fallback;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -178,8 +167,8 @@ export default function LoginPage() {
 
     try {
       const user = await login(email.trim(), password);
-      toast.success('Welcome back');
-      router.push(getPostLoginRoute(user));
+      toast.success(messages.login.heading);
+      router.push(href(getPostLoginRoute(user)));
     } catch (error: unknown) {
       const message = getLoginErrorMessage(error);
       setFormError(message);
@@ -190,20 +179,23 @@ export default function LoginPage() {
 
   return (
     <AuthShell
-      eyebrow="Secure access"
-      title="Sign in to the campus workspace."
-      description="Use the same protected browser session to move across academics, finance, announcements, and operational dashboards."
-      features={authFeatures}
+      eyebrow={messages.login.eyebrow}
+      title={messages.login.title}
+      description={messages.login.description}
+      features={messages.login.featureTitles.map((label, index) => ({
+        label,
+        description: messages.login.featureDescriptions[index],
+      }))}
     >
       <div className="space-y-6">
         <div className="space-y-3">
-          <SectionEyebrow>Account access</SectionEyebrow>
+          <SectionEyebrow>{messages.login.sectionEyebrow}</SectionEyebrow>
           <div className="space-y-2">
             <h2 className="text-3xl font-semibold tracking-tight text-foreground">
-              Welcome back
+              {messages.login.heading}
             </h2>
             <p className="text-sm leading-6 text-muted-foreground">
-              Sign in with your campus account to continue.
+              {messages.login.subheading}
             </p>
           </div>
         </div>
@@ -248,14 +240,14 @@ export default function LoginPage() {
               htmlFor="email"
               className="text-sm font-medium text-foreground"
             >
-              Email address
+              {messages.login.emailLabel}
             </label>
             <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@university.edu"
+              placeholder={messages.login.emailPlaceholder}
               autoComplete="email"
               icon={<Mail className="h-4 w-4" />}
               required
@@ -268,14 +260,14 @@ export default function LoginPage() {
                 htmlFor="password"
                 className="text-sm font-medium text-foreground"
               >
-                Password
+                {messages.login.passwordLabel}
               </label>
-              <Link
+              <LocalizedLink
                 href="/forgot-password"
                 className="text-sm font-medium text-primary hover:underline"
               >
-                Forgot password?
-              </Link>
+                {messages.login.forgotPassword}
+              </LocalizedLink>
             </div>
             <div className="relative">
               <Input
@@ -283,7 +275,7 @@ export default function LoginPage() {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
+                placeholder={messages.login.passwordPlaceholder}
                 autoComplete="current-password"
                 icon={<Lock className="h-4 w-4" />}
                 required
@@ -292,8 +284,8 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => setShowPassword((current) => !current)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                title={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={showPassword ? messages.login.hidePassword : messages.login.showPassword}
+                title={showPassword ? messages.login.hidePassword : messages.login.showPassword}
                 aria-pressed={showPassword}
                 disabled={!isClientReady}
               >
@@ -310,11 +302,11 @@ export default function LoginPage() {
             {isLoading ? (
               <span className="inline-flex items-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground" />
-                Signing in
+                {messages.login.signingIn}
               </span>
             ) : (
               <span className="inline-flex items-center gap-2">
-                Sign in
+                {messages.common.actions.signIn}
                 <ArrowRight className="h-4 w-4" />
               </span>
             )}
@@ -328,20 +320,20 @@ export default function LoginPage() {
             </div>
             <div>
               <div className="text-sm font-semibold text-foreground">
-                Session behavior
+                {messages.login.sessionBehaviorTitle}
               </div>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                CampusCore uses cookie-based browser sessions with automatic refresh handling and CSRF protection for mutating requests.
+                {messages.login.sessionBehaviorDescription}
               </p>
             </div>
           </div>
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Need a different starting point?{' '}
-          <Link href="/" className="font-medium text-primary hover:underline">
-            Return to the homepage
-          </Link>
+          {messages.login.returnHomeLead}{' '}
+          <LocalizedLink href="/" className="font-medium text-primary hover:underline">
+            {messages.common.actions.returnHome}
+          </LocalizedLink>
           .
         </p>
       </div>

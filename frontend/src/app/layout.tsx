@@ -1,14 +1,17 @@
-import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "sonner";
-import { getSiteUrl } from "@/lib/site";
+import { I18nProvider } from "@/i18n";
+import {
+  getHtmlLang,
+  getLocalizedMetadata,
+  getRequestLocale,
+  isPrefixedRequest,
+} from "@/i18n/server";
 
 export const dynamic = 'force-dynamic';
-
-const siteUrl = getSiteUrl();
 
 const inter = Inter({
   subsets: ["latin", "latin-ext"],
@@ -17,61 +20,31 @@ const inter = Inter({
   fallback: ["system-ui", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
 });
 
-export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
-  title: {
-    default: "CampusCore",
-    template: "%s | CampusCore",
-  },
-  description:
-    "CampusCore is a campus operations workspace for identity, academics, finance, engagement, people data, and analytics.",
-  applicationName: "CampusCore",
-  alternates: {
-    canonical: "/",
-  },
-  openGraph: {
-    title: "CampusCore",
-    description:
-      "A campus operations workspace with stable browser auth, clear service ownership, and verified runtime delivery.",
-    url: "/",
-    siteName: "CampusCore",
-    type: "website",
-    images: [
-      {
-        url: "/opengraph-image",
-        width: 1200,
-        height: 630,
-        alt: "CampusCore workspace overview",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "CampusCore",
-    description:
-      "A campus operations workspace for academics, finance, engagement, analytics, and secure browser sessions.",
-    images: ["/twitter-image"],
-  },
-  robots: {
-    index: true,
-    follow: true,
-  },
-  manifest: "/manifest.webmanifest",
-};
+export async function generateMetadata() {
+  return getLocalizedMetadata();
+}
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const [locale, htmlLang, prefixed] = await Promise.all([
+    getRequestLocale(),
+    getHtmlLang(),
+    isPrefixedRequest(),
+  ]);
+
   return (
-    <html lang="en" suppressHydrationWarning className={inter.variable}>
+    <html lang={htmlLang} suppressHydrationWarning className={inter.variable}>
       <body className="min-h-screen">
         <ThemeProvider>
-          <AuthProvider>
-            {children}
-            <Toaster position="top-right" richColors />
-          </AuthProvider>
+          <I18nProvider locale={locale} isPrefixed={prefixed}>
+            <AuthProvider>
+              {children}
+              <Toaster position="top-right" richColors />
+            </AuthProvider>
+          </I18nProvider>
         </ThemeProvider>
       </body>
     </html>

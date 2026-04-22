@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
+import { useI18n } from '@/i18n';
 import { toast } from 'sonner';
 
 interface UserRecord {
@@ -34,6 +35,7 @@ interface UserRecord {
 
 export default function AdminUsersPage() {
   const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { href, locale, formatDate, messages } = useI18n();
   const router = useRouter();
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,9 +58,9 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     if (user && !isAdmin && !isSuperAdmin) {
-      router.push('/dashboard');
+      router.push(href('/dashboard'));
     }
-  }, [user, isAdmin, isSuperAdmin, router]);
+  }, [href, isAdmin, isSuperAdmin, router, user]);
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
@@ -72,11 +74,15 @@ export default function AdminUsersPage() {
       setUsers(response.data);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
-      setError('User records could not be loaded.');
+      setError(
+        locale === 'vi'
+          ? 'Hiện chưa thể tải hồ sơ người dùng.'
+          : 'User records could not be loaded.',
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [page, search]);
+  }, [locale, page, search]);
 
   useEffect(() => {
     if (canAccess) {
@@ -86,14 +92,109 @@ export default function AdminUsersPage() {
 
   const pageSummary = useMemo(() => {
     if (users.length === 0) {
-      return 'No matching records';
+      return locale === 'vi' ? 'Không có bản ghi phù hợp' : 'No matching records';
     }
 
-    return `Page ${page} of ${totalPages}`;
-  }, [page, totalPages, users.length]);
+    return locale === 'vi'
+      ? `Trang ${page} / ${totalPages}`
+      : `Page ${page} of ${totalPages}`;
+  }, [locale, page, totalPages, users.length]);
+
+  const copy =
+    locale === 'vi'
+      ? {
+          loading: 'Đang tải quản lý người dùng',
+          title: 'Quản lý người dùng',
+          description:
+            'Rà soát tài khoản campus, tạo bản ghi mới và giữ các hành động nhạy cảm sau bước xác nhận rõ ràng.',
+          createUser: 'Tạo người dùng',
+          searchUsers: 'Tìm người dùng',
+          searchPlaceholder: 'Tìm theo email hoặc tên',
+          unavailableTitle: 'Hồ sơ người dùng chưa sẵn sàng',
+          emptyTitle: 'Không có người dùng phù hợp',
+          emptyDescription:
+            'Hãy thử từ khóa khác hoặc tạo tài khoản campus mới.',
+          tableTitle: 'Tài khoản campus',
+          headers: {
+            name: 'Tên',
+            email: 'Email',
+            status: 'Trạng thái',
+            created: 'Tạo ngày',
+            actions: 'Tác vụ',
+          },
+          deleteTitle: 'Xóa người dùng',
+          deleteMessage: (firstName: string, lastName: string) =>
+            `Xóa ${firstName} ${lastName}? Hành động này sẽ gỡ bản ghi tài khoản khỏi màn hình quản trị hiện tại.`,
+          deleteConfirm: 'Xóa người dùng',
+          deleted: 'Đã xóa người dùng',
+          deleteFailed: 'Hiện chưa thể xóa người dùng này.',
+          updated: 'Đã cập nhật người dùng',
+          created: 'Đã tạo người dùng',
+          saveFailed: 'Hiện chưa thể lưu hồ sơ người dùng.',
+          editTitle: 'Chỉnh sửa người dùng',
+          createTitle: 'Tạo người dùng',
+          emailLabel: 'Địa chỉ email',
+          temporaryPassword: 'Mật khẩu tạm thời',
+          temporaryPasswordHint:
+            'Hãy dùng mật khẩu tạm thời và yêu cầu người dùng đổi lại sau lần đăng nhập đầu tiên.',
+          firstName: 'Tên',
+          lastName: 'Họ',
+          saving: 'Đang lưu...',
+          editAction: messages.common.actions.saveChanges,
+          closeDialog: 'Đóng biểu mẫu người dùng',
+          editUserLabel: (firstName: string, lastName: string) =>
+            `Chỉnh sửa người dùng ${firstName} ${lastName}`,
+          deleteUserLabel: (firstName: string, lastName: string) =>
+            `Xóa người dùng ${firstName} ${lastName}`,
+        }
+      : {
+          loading: 'Loading user management',
+          title: 'User management',
+          description:
+            'Review campus accounts, create new records, and keep sensitive actions behind explicit confirmation.',
+          createUser: 'Create user',
+          searchUsers: 'Search users',
+          searchPlaceholder: 'Search by email or name',
+          unavailableTitle: 'User records unavailable',
+          emptyTitle: 'No matching users',
+          emptyDescription:
+            'Try another search term or create a new campus account.',
+          tableTitle: 'Campus accounts',
+          headers: {
+            name: 'Name',
+            email: 'Email',
+            status: 'Status',
+            created: 'Created',
+            actions: 'Actions',
+          },
+          deleteTitle: 'Delete user',
+          deleteMessage: (firstName: string, lastName: string) =>
+            `Delete ${firstName} ${lastName}? This action removes the account record from the current admin view.`,
+          deleteConfirm: 'Delete user',
+          deleted: 'User deleted',
+          deleteFailed: 'We could not delete that user.',
+          updated: 'User updated',
+          created: 'User created',
+          saveFailed: 'The user record could not be saved.',
+          editTitle: 'Edit user',
+          createTitle: 'Create user',
+          emailLabel: 'Email address',
+          temporaryPassword: 'Temporary password',
+          temporaryPasswordHint:
+            'Use a temporary password and ask the user to rotate it after first sign-in.',
+          firstName: 'First name',
+          lastName: 'Last name',
+          saving: 'Saving...',
+          editAction: messages.common.actions.saveChanges,
+          closeDialog: 'Close user form',
+          editUserLabel: (firstName: string, lastName: string) =>
+            `Edit user ${firstName} ${lastName}`,
+          deleteUserLabel: (firstName: string, lastName: string) =>
+            `Delete user ${firstName} ${lastName}`,
+        };
 
   if (!canAccess) {
-    return <LoadingState label="Loading user management" className="m-8" />;
+    return <LoadingState label={copy.loading} className="m-8" />;
   }
 
   const resetForm = () => {
@@ -132,9 +233,9 @@ export default function AdminUsersPage() {
 
   const handleDelete = async (userRecord: UserRecord) => {
     const shouldDelete = await confirm({
-      title: 'Delete user',
-      message: `Delete ${userRecord.firstName} ${userRecord.lastName}? This action removes the account record from the current admin view.`,
-      confirmText: 'Delete user',
+      title: copy.deleteTitle,
+      message: copy.deleteMessage(userRecord.firstName, userRecord.lastName),
+      confirmText: copy.deleteConfirm,
       variant: 'destructive',
     });
 
@@ -144,10 +245,10 @@ export default function AdminUsersPage() {
 
     try {
       await usersApi.delete(userRecord.id);
-      toast.success('User deleted');
+      toast.success(copy.deleted);
       await fetchUsers();
     } catch {
-      toast.error('We could not delete that user.');
+      toast.error(copy.deleteFailed);
     }
   };
 
@@ -162,7 +263,7 @@ export default function AdminUsersPage() {
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
         });
-        toast.success('User updated');
+        toast.success(copy.updated);
       } else {
         await usersApi.create({
           email: formData.email.trim(),
@@ -170,13 +271,13 @@ export default function AdminUsersPage() {
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
         });
-        toast.success('User created');
+        toast.success(copy.created);
       }
 
       closeModal();
       await fetchUsers();
     } catch (err: any) {
-      const message = err.response?.data?.message || 'The user record could not be saved.';
+      const message = err.response?.data?.message || copy.saveFailed;
       setFormError(message);
       toast.error(message);
     } finally {
@@ -186,12 +287,12 @@ export default function AdminUsersPage() {
 
   return (
     <AdminFrame
-      title="User management"
-      description="Review campus accounts, create new records, and keep sensitive actions behind explicit confirmation."
+      title={copy.title}
+      description={copy.description}
       actions={
         <Button onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" />
-          Create user
+          {copy.createUser}
         </Button>
       }
     >
@@ -200,13 +301,13 @@ export default function AdminUsersPage() {
             <form onSubmit={handleSearch} className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div className="w-full max-w-xl">
                 <label className="mb-2 block text-sm font-medium text-foreground">
-                  Search users
+                  {copy.searchUsers}
                 </label>
                 <Input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by email or name"
+                  placeholder={copy.searchPlaceholder}
                   icon={<Search className="h-4 w-4" />}
                 />
               </div>
@@ -214,7 +315,7 @@ export default function AdminUsersPage() {
                 summary={pageSummary}
                 actions={
                   <Button type="submit" variant="outline">
-                    Search
+                    {messages.common.actions.search}
                   </Button>
                 }
               />
@@ -223,22 +324,22 @@ export default function AdminUsersPage() {
 
         {error ? (
           <ErrorState
-            title="User records unavailable"
+            title={copy.unavailableTitle}
             description={error}
             onRetry={() => void fetchUsers()}
           />
         ) : isLoading ? (
-          <LoadingState label="Loading user records" />
+          <LoadingState label={copy.loading} />
         ) : users.length === 0 ? (
           <EmptyState
             icon={Users}
-            title="No matching users"
-            description="Try another search term or create a new campus account."
-            action={<Button onClick={openCreate}>Create user</Button>}
+            title={copy.emptyTitle}
+            description={copy.emptyDescription}
+            action={<Button onClick={openCreate}>{copy.createUser}</Button>}
           />
         ) : (
           <AdminTableCard
-            title="Campus accounts"
+            title={copy.tableTitle}
             footer={
               <AdminPaginationFooter
                 summary={pageSummary}
@@ -253,11 +354,11 @@ export default function AdminUsersPage() {
                 <table className="w-full min-w-[720px] text-sm">
                   <thead>
                     <tr className="border-b border-border/70 text-left text-muted-foreground">
-                      <th className="px-2 py-3 font-medium">Name</th>
-                      <th className="px-2 py-3 font-medium">Email</th>
-                      <th className="px-2 py-3 font-medium">Status</th>
-                      <th className="px-2 py-3 font-medium">Created</th>
-                      <th className="px-2 py-3 text-right font-medium">Actions</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.name}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.email}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.status}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.created}</th>
+                      <th className="px-2 py-3 text-right font-medium">{copy.headers.actions}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
@@ -277,7 +378,7 @@ export default function AdminUsersPage() {
                           </span>
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
-                          {new Date(record.createdAt).toLocaleDateString()}
+                          {formatDate(record.createdAt)}
                         </td>
                         <td className="px-2 py-4">
                           <AdminRowActions>
@@ -285,8 +386,8 @@ export default function AdminUsersPage() {
                               size="icon"
                               variant="ghost"
                               onClick={() => openEdit(record)}
-                              aria-label={`Edit user ${record.firstName} ${record.lastName}`}
-                              title={`Edit user ${record.firstName} ${record.lastName}`}
+                              aria-label={copy.editUserLabel(record.firstName, record.lastName)}
+                              title={copy.editUserLabel(record.firstName, record.lastName)}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -295,8 +396,8 @@ export default function AdminUsersPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(record)}
-                              aria-label={`Delete user ${record.firstName} ${record.lastName}`}
-                              title={`Delete user ${record.firstName} ${record.lastName}`}
+                              aria-label={copy.deleteUserLabel(record.firstName, record.lastName)}
+                              title={copy.deleteUserLabel(record.firstName, record.lastName)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -314,7 +415,8 @@ export default function AdminUsersPage() {
       <Modal
         isOpen={showCreateModal}
         onClose={closeModal}
-        title={editingUser ? 'Edit user' : 'Create user'}
+        title={editingUser ? copy.editTitle : copy.createTitle}
+        closeLabel={copy.closeDialog}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           {formError ? (
@@ -323,7 +425,7 @@ export default function AdminUsersPage() {
             </div>
           ) : null}
 
-          <AdminFormField label="Email address">
+          <AdminFormField label={copy.emailLabel}>
             <Input
               type="email"
               value={formData.email}
@@ -335,8 +437,8 @@ export default function AdminUsersPage() {
 
           {!editingUser ? (
             <AdminFormField
-              label="Temporary password"
-              description="Use a temporary password and ask the user to rotate it after first sign-in."
+              label={copy.temporaryPassword}
+              description={copy.temporaryPasswordHint}
             >
               <Input
                 type="password"
@@ -348,7 +450,7 @@ export default function AdminUsersPage() {
           ) : null}
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <AdminFormField label="First name">
+            <AdminFormField label={copy.firstName}>
               <Input
                 type="text"
                 value={formData.firstName}
@@ -356,7 +458,7 @@ export default function AdminUsersPage() {
                 required
               />
             </AdminFormField>
-            <AdminFormField label="Last name">
+            <AdminFormField label={copy.lastName}>
               <Input
                 type="text"
                 value={formData.lastName}
@@ -368,10 +470,14 @@ export default function AdminUsersPage() {
 
           <AdminDialogFooter>
             <Button type="button" variant="outline" onClick={closeModal}>
-              Cancel
+              {messages.common.actions.cancel}
             </Button>
             <Button type="submit" disabled={isSaving}>
-              {isSaving ? 'Saving...' : editingUser ? 'Save changes' : 'Create user'}
+              {isSaving
+                ? copy.saving
+                : editingUser
+                  ? copy.editAction
+                  : copy.createUser}
             </Button>
           </AdminDialogFooter>
         </form>

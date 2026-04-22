@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { Award, BookOpen, TrendingUp } from 'lucide-react';
+import { LocalizedLink } from '@/components/LocalizedLink';
 import { useRequireAuth } from '@/context/AuthContext';
 import { gradesApi, semestersApi } from '@/lib/api';
 import { StudentGradeRecord, Semester } from '@/types/api';
@@ -15,6 +15,7 @@ import {
   ErrorState,
   LoadingState,
 } from '@/components/ui/state-block';
+import { useI18n } from '@/i18n';
 
 const gradePoints: Record<string, number> = {
   'A+': 4,
@@ -58,6 +59,7 @@ function getGradeTone(letterGrade: string | null) {
 
 export default function GradesPage() {
   const { hasAccess, isLoading: authLoading } = useRequireAuth(['STUDENT']);
+  const { locale, formatNumber, messages } = useI18n();
   const [grades, setGrades] = useState<StudentGradeRecord[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [selectedSemester, setSelectedSemester] = useState('');
@@ -77,11 +79,15 @@ export default function GradesPage() {
       const data = await gradesApi.getMyGrades(selectedSemester || undefined);
       setGrades(data);
     } catch {
-      setError('Grades could not be loaded.');
+      setError(
+        locale === 'vi'
+          ? 'Hiện chưa thể tải dữ liệu điểm số.'
+          : 'Grades could not be loaded.',
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [selectedSemester]);
+  }, [locale, selectedSemester]);
 
   useEffect(() => {
     if (!hasAccess) {
@@ -102,9 +108,9 @@ export default function GradesPage() {
   const selectedSemesterName = useMemo(() => {
     return (
       semesters.find((semester) => semester.id === selectedSemester)?.name ??
-      'all semesters'
+      (locale === 'vi' ? 'tất cả học kỳ' : 'all semesters')
     );
-  }, [selectedSemester, semesters]);
+  }, [locale, selectedSemester, semesters]);
 
   const summary = useMemo(() => {
     const gradedCourses = grades.filter(
@@ -142,25 +148,88 @@ export default function GradesPage() {
     }, {});
   }, [grades]);
 
+  const copy =
+    locale === 'vi'
+      ? {
+          eyebrow: 'Workspace sinh viên',
+          title: 'Điểm số',
+          description: `Xem kết quả đã công bố cho ${selectedSemesterName}, rồi chuyển sang bảng điểm mà không rời khỏi student workspace.`,
+          selectSemester: 'Chọn học kỳ cho điểm số',
+          allSemesters: 'Tất cả học kỳ',
+          openTranscript: 'Mở bảng điểm',
+          loading: 'Đang tải điểm số',
+          unavailableTitle: 'Điểm số chưa sẵn sàng',
+          emptyTitle: 'Chưa có điểm được công bố',
+          emptyDescription:
+            'Khi môn học được chấm và công bố, kết quả sẽ xuất hiện tại đây.',
+          currentGpa: 'GPA hiện tại',
+          completedCredits: 'Tín chỉ hoàn tất',
+          gradedCourses: 'Môn đã có điểm',
+          courseWord: 'môn',
+          coursesWord: 'môn',
+          creditsWord: 'tín chỉ',
+          tableHeaders: {
+            course: 'Môn học',
+            section: 'Section',
+            lecturer: 'Giảng viên',
+            credits: 'Tín chỉ',
+            score: 'Điểm',
+            grade: 'Xếp loại',
+            status: 'Trạng thái',
+          },
+          pendingAssignment: 'Chờ phân công',
+          notPublished: 'Chưa công bố',
+        }
+      : {
+          eyebrow: 'Student workspace',
+          title: 'Grades',
+          description: `Review published grading outcomes for ${selectedSemesterName} without losing access to the rest of the academic workspace.`,
+          selectSemester: 'Select semester for grades',
+          allSemesters: 'All semesters',
+          openTranscript: 'Open transcript',
+          loading: 'Loading grades',
+          unavailableTitle: 'Grades unavailable',
+          emptyTitle: 'No grades published yet',
+          emptyDescription:
+            'Once courses are graded and published, the results will appear here.',
+          currentGpa: 'Current GPA',
+          completedCredits: 'Completed credits',
+          gradedCourses: 'Graded courses',
+          courseWord: 'course',
+          coursesWord: 'courses',
+          creditsWord: 'credits',
+          tableHeaders: {
+            course: 'Course',
+            section: 'Section',
+            lecturer: 'Lecturer',
+            credits: 'Credits',
+            score: 'Score',
+            grade: 'Grade',
+            status: 'Status',
+          },
+          pendingAssignment: 'Pending assignment',
+          notPublished: 'Not published',
+        };
+
   if (authLoading || !hasAccess) {
-    return <LoadingState label="Loading grades" />;
+    return <LoadingState label={copy.loading} />;
   }
 
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow={<SectionEyebrow>Student workspace</SectionEyebrow>}
-        title="Grades"
-        description={`Review published grading outcomes for ${selectedSemesterName} without losing access to the rest of the academic workspace.`}
+        eyebrow={<SectionEyebrow>{copy.eyebrow}</SectionEyebrow>}
+        title={copy.title}
+        description={copy.description}
         actions={
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="min-w-[220px]">
               <Select
-                aria-label="Select semester for grades"
+                aria-label={copy.selectSemester}
                 value={selectedSemester}
                 onChange={(event) => setSelectedSemester(event.target.value)}
                 options={[
-                  { value: '', label: 'All semesters' },
+                  { value: '', label: copy.allSemesters },
                   ...semesters.map((semester) => ({
                     value: semester.id,
                     label: semester.name,
@@ -168,30 +237,30 @@ export default function GradesPage() {
                 ]}
               />
             </div>
-            <Link href="/dashboard/transcript">
-              <Button variant="outline">Open transcript</Button>
-            </Link>
+            <LocalizedLink href="/dashboard/transcript">
+              <Button variant="outline">{copy.openTranscript}</Button>
+            </LocalizedLink>
           </div>
         }
       />
 
       {error ? (
         <ErrorState
-          title="Grades unavailable"
+          title={copy.unavailableTitle}
           description={error}
           onRetry={() => void fetchGrades()}
         />
       ) : isLoading ? (
-        <LoadingState label="Loading grades" />
+        <LoadingState label={copy.loading} />
       ) : grades.length === 0 ? (
         <EmptyState
           icon={BookOpen}
-          title="No grades published yet"
-          description="Once courses are graded and published, the results will appear here."
+          title={copy.emptyTitle}
+          description={copy.emptyDescription}
           action={
-            <Link href="/dashboard/transcript">
-              <Button>Open transcript</Button>
-            </Link>
+            <LocalizedLink href="/dashboard/transcript">
+              <Button>{copy.openTranscript}</Button>
+            </LocalizedLink>
           }
         />
       ) : (
@@ -200,7 +269,7 @@ export default function GradesPage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">Current GPA</div>
+                  <div className="text-sm text-muted-foreground">{copy.currentGpa}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
                     {summary.gpa}
                   </div>
@@ -213,9 +282,9 @@ export default function GradesPage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">Completed credits</div>
+                  <div className="text-sm text-muted-foreground">{copy.completedCredits}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-                    {summary.completedCredits}
+                    {formatNumber(summary.completedCredits)}
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-500/12 text-emerald-600 dark:text-emerald-400">
@@ -226,9 +295,9 @@ export default function GradesPage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">Graded courses</div>
+                  <div className="text-sm text-muted-foreground">{copy.gradedCourses}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-                    {summary.gradedCount}/{summary.courseCount}
+                    {formatNumber(summary.gradedCount)}/{formatNumber(summary.courseCount)}
                   </div>
                 </div>
                 <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-violet-500/12 text-violet-600 dark:text-violet-400">
@@ -244,8 +313,10 @@ export default function GradesPage() {
                 <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <CardTitle className="text-xl">{semesterName}</CardTitle>
                   <div className="text-sm text-muted-foreground">
-                    {records.length} course{records.length === 1 ? '' : 's'} -{' '}
-                    {records.reduce((sum, record) => sum + record.credits, 0)} credits
+                    {formatNumber(records.length)}{' '}
+                    {records.length === 1 ? copy.courseWord : copy.coursesWord} -{' '}
+                    {formatNumber(records.reduce((sum, record) => sum + record.credits, 0))}{' '}
+                    {copy.creditsWord}
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -253,13 +324,13 @@ export default function GradesPage() {
                     <table className="w-full min-w-[760px] text-sm">
                       <thead>
                         <tr className="border-b border-border/70 text-left text-muted-foreground">
-                          <th className="px-2 py-3 font-medium">Course</th>
-                          <th className="px-2 py-3 font-medium">Section</th>
-                          <th className="px-2 py-3 font-medium">Lecturer</th>
-                          <th className="px-2 py-3 text-center font-medium">Credits</th>
-                          <th className="px-2 py-3 text-center font-medium">Score</th>
-                          <th className="px-2 py-3 text-center font-medium">Grade</th>
-                          <th className="px-2 py-3 text-right font-medium">Status</th>
+                          <th className="px-2 py-3 font-medium">{copy.tableHeaders.course}</th>
+                          <th className="px-2 py-3 font-medium">{copy.tableHeaders.section}</th>
+                          <th className="px-2 py-3 font-medium">{copy.tableHeaders.lecturer}</th>
+                          <th className="px-2 py-3 text-center font-medium">{copy.tableHeaders.credits}</th>
+                          <th className="px-2 py-3 text-center font-medium">{copy.tableHeaders.score}</th>
+                          <th className="px-2 py-3 text-center font-medium">{copy.tableHeaders.grade}</th>
+                          <th className="px-2 py-3 text-right font-medium">{copy.tableHeaders.status}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/60">
@@ -277,15 +348,15 @@ export default function GradesPage() {
                               {record.sectionCode}
                             </td>
                             <td className="px-2 py-4 text-muted-foreground">
-                              {record.lecturerName ?? 'Pending assignment'}
+                              {record.lecturerName ?? copy.pendingAssignment}
                             </td>
                             <td className="px-2 py-4 text-center text-muted-foreground">
-                              {record.credits}
+                              {formatNumber(record.credits)}
                             </td>
                             <td className="px-2 py-4 text-center text-foreground">
                               {record.finalGrade !== null
                                 ? record.finalGrade.toFixed(1)
-                                : 'Not published'}
+                                : copy.notPublished}
                             </td>
                             <td className="px-2 py-4 text-center">
                               {record.letterGrade ? (

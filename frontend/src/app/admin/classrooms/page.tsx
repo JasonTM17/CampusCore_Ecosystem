@@ -27,6 +27,7 @@ import {
   LoadingState,
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
+import { useI18n } from '@/i18n';
 
 interface Classroom {
   id: string;
@@ -37,15 +38,9 @@ interface Classroom {
   isActive?: boolean;
 }
 
-const classroomTypeOptions = [
-  { value: 'LECTURE', label: 'Lecture' },
-  { value: 'LAB', label: 'Lab' },
-  { value: 'SEMINAR', label: 'Seminar' },
-  { value: 'OTHER', label: 'Other' },
-];
-
 export default function AdminClassroomsPage() {
   const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { formatNumber, href, locale, messages } = useI18n();
   const router = useRouter();
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -67,9 +62,9 @@ export default function AdminClassroomsPage() {
 
   useEffect(() => {
     if (user && !isAdmin && !isSuperAdmin) {
-      router.push('/dashboard');
+      router.push(href('/dashboard'));
     }
-  }, [user, isAdmin, isSuperAdmin, router]);
+  }, [href, isAdmin, isSuperAdmin, router, user]);
 
   const fetchClassrooms = useCallback(async () => {
     setIsLoading(true);
@@ -88,11 +83,131 @@ export default function AdminClassroomsPage() {
       setClassrooms(filteredRooms);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
-      setError('Classrooms could not be loaded.');
+      setError(
+        locale === 'vi'
+          ? 'Hiện chưa thể tải danh sách phòng học.'
+          : 'Classrooms could not be loaded.',
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [page, search]);
+  }, [locale, page, search]);
+
+  const classroomTypeOptions = useMemo(
+    () => [
+      { value: 'LECTURE', label: locale === 'vi' ? 'Lớp học lý thuyết' : 'Lecture' },
+      { value: 'LAB', label: locale === 'vi' ? 'Phòng thí nghiệm' : 'Lab' },
+      { value: 'SEMINAR', label: locale === 'vi' ? 'Phòng seminar' : 'Seminar' },
+      { value: 'OTHER', label: locale === 'vi' ? 'Khác' : 'Other' },
+    ],
+    [locale],
+  );
+
+  const copy = useMemo(
+    () =>
+      locale === 'vi'
+        ? {
+          loading: 'Đang tải phòng học',
+          title: 'Phòng học',
+          description:
+            'Giữ dữ liệu phòng học rõ ràng để section, lịch học và kế hoạch sức chứa luôn khớp nhau.',
+          create: 'Tạo phòng học',
+          searchLabel: 'Tìm phòng học',
+          searchPlaceholder: 'Tìm theo tòa nhà hoặc số phòng',
+          pageSummaryEmpty: 'Không có bản ghi phù hợp',
+          pageSummary: (currentPage: number, pages: number) =>
+            `Trang ${currentPage} / ${pages}`,
+          unavailableTitle: 'Phòng học chưa sẵn sàng',
+          emptyTitle: 'Không có phòng học phù hợp',
+          emptyDescription:
+            'Hãy tạo phòng học để phần xếp section có nguồn dữ liệu phòng ổn định.',
+          tableTitle: 'Bản ghi phòng học',
+          headers: {
+            building: 'Tòa nhà',
+            room: 'Phòng',
+            capacity: 'Sức chứa',
+            type: 'Loại phòng',
+            status: 'Trạng thái',
+            actions: 'Tác vụ',
+          },
+          active: 'Đang hoạt động',
+          inactive: 'Ngừng hoạt động',
+          deleteTitle: 'Xóa phòng học',
+          deleteMessage: (building: string, roomNumber: string) =>
+            `Xóa phòng ${building} ${roomNumber}? Hành động này sẽ gỡ phòng khỏi màn hình quản trị hiện tại.`,
+          deleteConfirm: 'Xóa phòng học',
+          deleted: 'Đã xóa phòng học',
+          deleteFailed: 'Hiện chưa thể xóa phòng học này.',
+          updated: 'Đã cập nhật phòng học',
+          created: 'Đã tạo phòng học',
+          saveFailed: 'Hiện chưa thể lưu phòng học.',
+          editTitle: 'Chỉnh sửa phòng học',
+          createTitle: 'Tạo phòng học',
+          fields: {
+            building: 'Tòa nhà',
+            roomNumber: 'Số phòng',
+            capacity: 'Sức chứa',
+            type: 'Loại phòng',
+          },
+          saving: 'Đang lưu...',
+          editAction: messages.common.actions.saveChanges,
+          editLabel: (building: string, roomNumber: string) =>
+            `Chỉnh sửa phòng học ${building} ${roomNumber}`,
+          deleteLabel: (building: string, roomNumber: string) =>
+            `Xóa phòng học ${building} ${roomNumber}`,
+        }
+        : {
+          loading: 'Loading classrooms',
+          title: 'Classrooms',
+          description:
+            'Keep room inventory readable so sections, schedules, and capacity planning stay aligned.',
+          create: 'Create classroom',
+          searchLabel: 'Search classrooms',
+          searchPlaceholder: 'Search by building or room number',
+          pageSummaryEmpty: 'No matching records',
+          pageSummary: (currentPage: number, pages: number) =>
+            `Page ${currentPage} of ${pages}`,
+          unavailableTitle: 'Classrooms unavailable',
+          emptyTitle: 'No matching classrooms',
+          emptyDescription:
+            'Create a classroom so section scheduling has a reliable room inventory to work with.',
+          tableTitle: 'Classroom records',
+          headers: {
+            building: 'Building',
+            room: 'Room',
+            capacity: 'Capacity',
+            type: 'Type',
+            status: 'Status',
+            actions: 'Actions',
+          },
+          active: 'Active',
+          inactive: 'Inactive',
+          deleteTitle: 'Delete classroom',
+          deleteMessage: (building: string, roomNumber: string) =>
+            `Delete ${building} ${roomNumber}? This removes the classroom from the current admin view.`,
+          deleteConfirm: 'Delete classroom',
+          deleted: 'Classroom deleted',
+          deleteFailed: 'We could not delete that classroom.',
+          updated: 'Classroom updated',
+          created: 'Classroom created',
+          saveFailed: 'The classroom could not be saved.',
+          editTitle: 'Edit classroom',
+          createTitle: 'Create classroom',
+          fields: {
+            building: 'Building',
+            roomNumber: 'Room number',
+            capacity: 'Capacity',
+            type: 'Type',
+          },
+          saving: 'Saving...',
+          editAction: messages.common.actions.saveChanges,
+          editLabel: (building: string, roomNumber: string) =>
+            `Edit classroom ${building} ${roomNumber}`,
+          deleteLabel: (building: string, roomNumber: string) =>
+            `Delete classroom ${building} ${roomNumber}`,
+        },
+    [locale, messages.common.actions.saveChanges],
+  );
 
   useEffect(() => {
     if (canAccess) {
@@ -102,14 +217,14 @@ export default function AdminClassroomsPage() {
 
   const pageSummary = useMemo(() => {
     if (classrooms.length === 0) {
-      return 'No matching records';
+      return copy.pageSummaryEmpty;
     }
 
-    return `Page ${page} of ${totalPages}`;
-  }, [classrooms.length, page, totalPages]);
+    return copy.pageSummary(page, totalPages);
+  }, [classrooms.length, copy, page, totalPages]);
 
   if (!canAccess) {
-    return <LoadingState label="Loading classrooms" className="m-8" />;
+    return <LoadingState label={copy.loading} className="m-8" />;
   }
 
   const resetForm = () => {
@@ -151,9 +266,9 @@ export default function AdminClassroomsPage() {
 
   const handleDelete = async (room: Classroom) => {
     const shouldDelete = await confirm({
-      title: 'Delete classroom',
-      message: `Delete ${room.building} ${room.roomNumber}? This removes the classroom from the current admin view.`,
-      confirmText: 'Delete classroom',
+      title: copy.deleteTitle,
+      message: copy.deleteMessage(room.building, room.roomNumber),
+      confirmText: copy.deleteConfirm,
       variant: 'destructive',
     });
 
@@ -163,10 +278,10 @@ export default function AdminClassroomsPage() {
 
     try {
       await classroomsApi.delete(room.id);
-      toast.success('Classroom deleted');
+      toast.success(copy.deleted);
       await fetchClassrooms();
     } catch {
-      toast.error('We could not delete that classroom.');
+      toast.error(copy.deleteFailed);
     }
   };
 
@@ -177,18 +292,17 @@ export default function AdminClassroomsPage() {
     try {
       if (editingRoom) {
         await classroomsApi.update(editingRoom.id, formData);
-        toast.success('Classroom updated');
+        toast.success(copy.updated);
       } else {
         await classroomsApi.create(formData);
-        toast.success('Classroom created');
+        toast.success(copy.created);
       }
 
       closeModal();
       await fetchClassrooms();
     } catch (requestError: any) {
       toast.error(
-        requestError.response?.data?.message ??
-          'The classroom could not be saved.',
+        requestError.response?.data?.message ?? copy.saveFailed,
       );
     } finally {
       setIsSaving(false);
@@ -197,13 +311,12 @@ export default function AdminClassroomsPage() {
 
   return (
     <AdminFrame
-      title="Classrooms"
-      description="Keep room inventory readable so sections, schedules, and capacity planning stay aligned."
-      backLabel="Back to admin dashboard"
+      title={copy.title}
+      description={copy.description}
       actions={
         <Button onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" />
-          Create classroom
+          {copy.create}
         </Button>
       }
     >
@@ -215,13 +328,13 @@ export default function AdminClassroomsPage() {
             >
               <div className="w-full max-w-xl">
                 <label className="mb-2 block text-sm font-medium text-foreground">
-                  Search classrooms
+                  {copy.searchLabel}
                 </label>
                 <Input
                   type="text"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search by building or room number"
+                  placeholder={copy.searchPlaceholder}
                   icon={<Search className="h-4 w-4" />}
                 />
               </div>
@@ -229,7 +342,7 @@ export default function AdminClassroomsPage() {
                 summary={pageSummary}
                 actions={
                   <Button type="submit" variant="outline">
-                    Search
+                    {messages.common.actions.search}
                   </Button>
                 }
               />
@@ -238,22 +351,22 @@ export default function AdminClassroomsPage() {
 
         {error ? (
           <ErrorState
-            title="Classrooms unavailable"
+            title={copy.unavailableTitle}
             description={error}
             onRetry={() => void fetchClassrooms()}
           />
         ) : isLoading ? (
-          <LoadingState label="Loading classrooms" />
+          <LoadingState label={copy.loading} />
         ) : classrooms.length === 0 ? (
           <EmptyState
             icon={DoorOpen}
-            title="No matching classrooms"
-            description="Create a classroom so section scheduling has a reliable room inventory to work with."
-            action={<Button onClick={openCreate}>Create classroom</Button>}
+            title={copy.emptyTitle}
+            description={copy.emptyDescription}
+            action={<Button onClick={openCreate}>{copy.create}</Button>}
           />
         ) : (
           <AdminTableCard
-            title="Classroom records"
+            title={copy.tableTitle}
             footer={
               <AdminPaginationFooter
                 summary={pageSummary}
@@ -268,12 +381,12 @@ export default function AdminClassroomsPage() {
                 <table className="w-full min-w-[720px] text-sm">
                   <thead>
                     <tr className="border-b border-border/70 text-left text-muted-foreground">
-                      <th className="px-2 py-3 font-medium">Building</th>
-                      <th className="px-2 py-3 font-medium">Room</th>
-                      <th className="px-2 py-3 font-medium">Capacity</th>
-                      <th className="px-2 py-3 font-medium">Type</th>
-                      <th className="px-2 py-3 font-medium">Status</th>
-                      <th className="px-2 py-3 text-right font-medium">Actions</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.building}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.room}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.capacity}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.type}</th>
+                      <th className="px-2 py-3 font-medium">{copy.headers.status}</th>
+                      <th className="px-2 py-3 text-right font-medium">{copy.headers.actions}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
@@ -286,14 +399,14 @@ export default function AdminClassroomsPage() {
                           {room.roomNumber}
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
-                          {room.capacity}
+                          {formatNumber(room.capacity)}
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
                           {room.type}
                         </td>
                         <td className="px-2 py-4">
                           <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
-                            {room.isActive ? 'Active' : 'Inactive'}
+                            {room.isActive ? copy.active : copy.inactive}
                           </span>
                         </td>
                         <td className="px-2 py-4">
@@ -302,8 +415,8 @@ export default function AdminClassroomsPage() {
                               size="icon"
                               variant="ghost"
                               onClick={() => openEdit(room)}
-                              aria-label={`Edit classroom ${room.building} ${room.roomNumber}`}
-                              title={`Edit classroom ${room.building} ${room.roomNumber}`}
+                              aria-label={copy.editLabel(room.building, room.roomNumber)}
+                              title={copy.editLabel(room.building, room.roomNumber)}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -312,8 +425,8 @@ export default function AdminClassroomsPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(room)}
-                              aria-label={`Delete classroom ${room.building} ${room.roomNumber}`}
-                              title={`Delete classroom ${room.building} ${room.roomNumber}`}
+                              aria-label={copy.deleteLabel(room.building, room.roomNumber)}
+                              title={copy.deleteLabel(room.building, room.roomNumber)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -331,11 +444,11 @@ export default function AdminClassroomsPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={closeModal}
-        title={editingRoom ? 'Edit classroom' : 'Create classroom'}
+        title={editingRoom ? copy.editTitle : copy.createTitle}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <AdminFormField label="Building">
+            <AdminFormField label={copy.fields.building}>
               <Input
                 type="text"
                 value={formData.building}
@@ -348,7 +461,7 @@ export default function AdminClassroomsPage() {
                 required
               />
             </AdminFormField>
-            <AdminFormField label="Room number">
+            <AdminFormField label={copy.fields.roomNumber}>
               <Input
                 type="text"
                 value={formData.roomNumber}
@@ -364,7 +477,7 @@ export default function AdminClassroomsPage() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <AdminFormField label="Capacity">
+            <AdminFormField label={copy.fields.capacity}>
               <Input
                 type="number"
                 min="1"
@@ -379,7 +492,7 @@ export default function AdminClassroomsPage() {
               />
             </AdminFormField>
             <Select
-              label="Type"
+              label={copy.fields.type}
               value={formData.type}
               onChange={(event) =>
                 setFormData((current) => ({
@@ -393,14 +506,14 @@ export default function AdminClassroomsPage() {
 
           <AdminDialogFooter>
             <Button type="button" variant="outline" onClick={closeModal}>
-              Cancel
+              {messages.common.actions.cancel}
             </Button>
             <Button type="submit" disabled={isSaving}>
               {isSaving
-                ? 'Saving...'
+                ? copy.saving
                 : editingRoom
-                  ? 'Save changes'
-                  : 'Create classroom'}
+                  ? copy.editAction
+                  : copy.create}
             </Button>
           </AdminDialogFooter>
         </form>

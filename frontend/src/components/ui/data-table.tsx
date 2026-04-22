@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Search, Download } from 
 import { Button } from './button';
 import { Input } from './input';
 import { Select } from './select';
+import { useI18n } from '@/i18n';
 
 interface Column<T> {
   key: string;
@@ -28,12 +29,13 @@ export function DataTable<T extends Record<string, unknown>>({
   data,
   columns,
   keyField,
-  searchPlaceholder = 'Search...',
+  searchPlaceholder,
   searchKeys = [],
   onExport,
   loading = false,
-  emptyMessage = 'No data found',
+  emptyMessage,
 }: DataTableProps<T>) {
+  const { messages } = useI18n();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -92,7 +94,7 @@ export function DataTable<T extends Record<string, unknown>>({
         <div className="w-full sm:w-72">
           <Input
             type="text"
-            placeholder={searchPlaceholder}
+            placeholder={searchPlaceholder || messages.common.states.searchPlaceholder}
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -104,7 +106,7 @@ export function DataTable<T extends Record<string, unknown>>({
         {onExport && (
           <Button variant="outline" onClick={onExport}>
             <Download className="h-4 w-4 mr-2" />
-            Export
+            {messages.common.states.export}
           </Button>
         )}
       </div>
@@ -148,7 +150,7 @@ export function DataTable<T extends Record<string, unknown>>({
               ) : paginatedData.length === 0 ? (
                 <tr>
                   <td colSpan={columns.length} className="px-4 py-8 text-center text-gray-500">
-                    {emptyMessage}
+                    {emptyMessage || messages.common.states.noDataFound}
                   </td>
                 </tr>
               ) : (
@@ -174,7 +176,7 @@ export function DataTable<T extends Record<string, unknown>>({
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <span>
-              Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, sortedData.length)} of {sortedData.length} results
+              {messages.common.states.showingResults} {(page - 1) * pageSize + 1} {messages.common.states.to} {Math.min(page * pageSize, sortedData.length)} {messages.common.states.of} {sortedData.length} {messages.common.states.results}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -185,10 +187,10 @@ export function DataTable<T extends Record<string, unknown>>({
                 setPage(1);
               }}
               options={[
-                { value: '10', label: '10 per page' },
-                { value: '25', label: '25 per page' },
-                { value: '50', label: '50 per page' },
-                { value: '100', label: '100 per page' },
+                { value: '10', label: messages.common.states.perPage10 },
+                { value: '25', label: messages.common.states.perPage25 },
+                { value: '50', label: messages.common.states.perPage50 },
+                { value: '100', label: messages.common.states.perPage100 },
               ]}
             />
             <div className="flex items-center gap-1">
@@ -197,21 +199,21 @@ export function DataTable<T extends Record<string, unknown>>({
                 size="sm"
                 onClick={() => setPage(page - 1)}
                 disabled={page === 1}
-                aria-label="Go to previous page"
-                title="Go to previous page"
+                aria-label={messages.common.states.goToPreviousPage}
+                title={messages.common.states.goToPreviousPage}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="px-3 py-1 text-sm">
-                Page {page} of {totalPages}
+                {messages.common.states.page} {page} {messages.common.states.of} {totalPages}
               </span>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setPage(page + 1)}
                 disabled={page === totalPages}
-                aria-label="Go to next page"
-                title="Go to next page"
+                aria-label={messages.common.states.goToNextPage}
+                title={messages.common.states.goToNextPage}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>

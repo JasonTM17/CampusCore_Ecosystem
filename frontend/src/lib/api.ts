@@ -24,6 +24,7 @@ import {
   SectionGrades,
   SectionSchedule,
 } from '@/types/api';
+import { addLocalePrefix, stripLocaleFromPathname } from '@/i18n/paths';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 type ApiObject = Record<string, unknown>;
@@ -179,7 +180,9 @@ function redirectToLogin(reason: 'session-expired' | 'unauthorized') {
     return;
   }
 
-  const loginUrl = new URL('/login', window.location.origin);
+  const { locale } = stripLocaleFromPathname(window.location.pathname);
+  const loginPath = locale ? addLocalePrefix('/login', locale) : '/login';
+  const loginUrl = new URL(loginPath, window.location.origin);
   loginUrl.searchParams.set('reason', reason);
   window.location.href = loginUrl.toString();
 }

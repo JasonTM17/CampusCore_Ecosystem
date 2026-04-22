@@ -12,6 +12,9 @@ const logsDir = path.join(frontendDir, 'test-results', 'image-smoke-stack');
 const projectName = process.env.IMAGE_SMOKE_COMPOSE_PROJECT ?? 'campuscore-image-smoke';
 const edgePort = Number(process.env.IMAGE_SMOKE_EDGE_PORT ?? '8080');
 const baseURL = `http://127.0.0.1:${edgePort}`;
+const internalEdgeURL = process.env.IMAGE_SMOKE_INTERNAL_EDGE_URL ?? 'http://nginx';
+const internalEdgeProbeService =
+  process.env.IMAGE_SMOKE_INTERNAL_EDGE_PROBE_SERVICE ?? 'frontend';
 const keepStack = process.env.IMAGE_SMOKE_KEEP_STACK === '1';
 const usePrebuiltImages = process.env.E2E_USE_PREBUILT_IMAGES === '1';
 const readinessKey =
@@ -95,7 +98,7 @@ async function main() {
       await compose(['up', '-d']);
     }
 
-    const liveness = await waitForJson(`${baseURL}/health`, (payload) => {
+    const liveness = await waitForEdgeJson('/health', (payload) => {
       return payload?.status === 'ok' && payload?.service === 'campuscore-api';
     });
     const coreReadiness = await getInternalReadiness('core-api', 4000);
@@ -116,42 +119,42 @@ async function main() {
       4006,
     );
 
-    await waitForResponse(`${baseURL}/`, (_, response) => response.ok, {
+    await waitForEdgeResponse('/', (_, response) => response.ok, {
       parseJson: false,
     });
-    await waitForResponse(`${baseURL}/login`, (_, response) => response.ok, {
+    await waitForEdgeResponse('/login', (_, response) => response.ok, {
       parseJson: false,
     });
-    await waitForResponse(`${baseURL}/api/docs`, (_, response) => response.ok, {
+    await waitForEdgeResponse('/api/docs', (_, response) => response.ok, {
       parseJson: false,
     });
-    await waitForResponse(
-      `${baseURL}/api/v1/health/readiness`,
+    await waitForEdgeResponse(
+      '/api/v1/health/readiness',
       (_, response) => response.status === 403,
       { parseJson: false },
     );
-    await waitForResponse(
-      `${baseURL}/api/v1/internal/people-context/users/test-user`,
+    await waitForEdgeResponse(
+      '/api/v1/internal/people-context/users/test-user',
       (_, response) => response.status === 403,
       { parseJson: false },
     );
-    await waitForResponse(
-      `${baseURL}/api/v1/internal/auth-context/users/test-user`,
+    await waitForEdgeResponse(
+      '/api/v1/internal/auth-context/users/test-user',
       (_, response) => response.status === 403,
       { parseJson: false },
     );
-    await waitForResponse(
-      `${baseURL}/api/v1/students`,
+    await waitForEdgeResponse(
+      '/api/v1/students',
       (_, response) => [401, 403].includes(response.status),
       { parseJson: false },
     );
-    await waitForResponse(
-      `${baseURL}/api/v1/announcements`,
+    await waitForEdgeResponse(
+      '/api/v1/announcements',
       (_, response) => [401, 403].includes(response.status),
       { parseJson: false },
     );
-    await waitForResponse(
-      `${baseURL}/api/v1/analytics/overview`,
+    await waitForEdgeResponse(
+      '/api/v1/analytics/overview',
       (_, response) => [401, 403].includes(response.status),
       { parseJson: false },
     );
@@ -302,6 +305,40 @@ async function waitForJson(url, predicate, options = {}) {
   });
 }
 
+async function waitForEdgeJson(pathname, predicate, options = {}) {
+  return waitForEdgeResponse(pathname, predicate, {
+    ...options,
+    parseJson: true,
+    timeoutMs: options.timeoutMs ?? 180_000,
+    intervalMs: options.intervalMs ?? 2_000,
+  });
+}
+
+async function waitForEdgeResponse(pathname, predicate, options = {}) {
+  const timeoutMs = options.timeoutMs ?? 180_000;
+  const hostDeadline = Math.min(timeoutMs, options.hostTimeoutMs ?? 45_000);
+  const hostUrl = `${baseURL}${pathname}`;
+
+  try {
+    return await waitForResponse(hostUrl, predicate, {
+      ...options,
+      timeoutMs: hostDeadline,
+    });
+  } catch (hostError) {
+    if (!shouldFallbackToInternalEdge(hostError)) {
+      throw hostError;
+    }
+
+    return waitForServiceResponse(
+      internalEdgeProbeService,
+      `${internalEdgeURL}${pathname}`,
+      predicate,
+      options,
+      hostError,
+    );
+  }
+}
+
 async function waitForResponse(
   url,
   predicate,
@@ -309,12 +346,19 @@ async function waitForResponse(
 ) {
   const timeoutMs = options.timeoutMs ?? 180_000;
   const intervalMs = options.intervalMs ?? 2_000;
+  const requestTimeoutMs = options.requestTimeoutMs ?? Math.min(15_000, timeoutMs);
   const deadline = Date.now() + timeoutMs;
   let lastError = null;
 
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: {
+          Connection: 'close',
+          ...(options.headers ?? {}),
+        },
+        signal: AbortSignal.timeout(requestTimeoutMs),
+      });
       const payload = options.parseJson === false ? null : await response.json();
 
       if (predicate(payload, response)) {
@@ -332,6 +376,89 @@ async function waitForResponse(
   }
 
   throw lastError ?? new Error(`Timed out waiting for ${url}`);
+}
+
+async function waitForServiceResponse(
+  serviceName,
+  url,
+  predicate,
+  options = { parseJson: true, timeoutMs: 180_000, intervalMs: 2_000 },
+  hostError = null,
+) {
+  const timeoutMs = options.timeoutMs ?? 180_000;
+  const intervalMs = options.intervalMs ?? 2_000;
+  const requestTimeoutMs = options.requestTimeoutMs ?? Math.min(15_000, timeoutMs);
+  const deadline = Date.now() + timeoutMs;
+  let lastError = hostError;
+
+  while (Date.now() < deadline) {
+    try {
+      const output = await compose(
+        [
+          'exec',
+          '-T',
+          serviceName,
+          'node',
+          '-e',
+          `
+            const url = ${JSON.stringify(url)};
+            const headers = ${JSON.stringify(options.headers ?? {})};
+            const requestTimeoutMs = ${requestTimeoutMs};
+
+            fetch(url, {
+              headers,
+              signal: AbortSignal.timeout(requestTimeoutMs),
+            })
+              .then(async (response) => {
+                const body = await response.text();
+                process.stdout.write(JSON.stringify({
+                  ok: response.ok,
+                  status: response.status,
+                  body,
+                }));
+              })
+              .catch((error) => {
+                console.error(error?.stack ?? String(error));
+                process.exit(1);
+              });
+          `,
+        ],
+        { captureOutput: true },
+      );
+
+      const result = JSON.parse(output.trim());
+      const payload =
+        options.parseJson === false ? null : JSON.parse(result.body || 'null');
+      const response = {
+        ok: result.ok,
+        status: result.status,
+      };
+
+      if (predicate(payload, response)) {
+        return payload;
+      }
+
+      lastError = new Error(
+        `Received unexpected response from ${url}: ${result.status}`,
+      );
+    } catch (error) {
+      lastError = error;
+    }
+
+    await delay(intervalMs);
+  }
+
+  throw lastError ?? new Error(`Timed out waiting for ${url}`);
+}
+
+function shouldFallbackToInternalEdge(error) {
+  const message = error?.stack ?? error?.message ?? String(error);
+  return (
+    /ECONNRESET/u.test(message) ||
+    /TimeoutError/u.test(message) ||
+    /timed out/u.test(message) ||
+    /fetch failed/u.test(message)
+  );
 }
 
 async function collectArtifacts() {

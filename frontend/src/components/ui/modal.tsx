@@ -4,6 +4,7 @@ import * as React from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useI18n } from '@/i18n';
 
 interface ModalProps {
   isOpen: boolean;
@@ -20,8 +21,9 @@ export function Modal({
   title,
   children,
   className,
-  closeLabel = 'Close modal',
+  closeLabel,
 }: ModalProps) {
+  const { messages } = useI18n();
   const titleId = React.useId();
   const dialogRef = React.useRef<HTMLDivElement>(null);
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);
@@ -88,7 +90,7 @@ export function Modal({
               type="button"
               onClick={onClose}
               className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-              aria-label={closeLabel}
+              aria-label={closeLabel || messages.common.states.closeModal}
             >
               <X className="h-5 w-5" />
             </button>
@@ -118,11 +120,13 @@ export function ConfirmModal({
   onConfirm,
   title,
   message,
-  confirmText = 'Confirm',
-  cancelText = 'Cancel',
+  confirmText,
+  cancelText,
   variant = 'default',
   isLoading = false,
 }: ConfirmModalProps) {
+  const { messages } = useI18n();
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title}>
       <div className="space-y-4">
@@ -134,7 +138,7 @@ export function ConfirmModal({
             onClick={onClose}
             disabled={isLoading}
           >
-            {cancelText}
+            {cancelText || messages.common.actions.cancel}
           </Button>
           <Button
             type="button"
@@ -142,7 +146,9 @@ export function ConfirmModal({
             onClick={onConfirm}
             disabled={isLoading}
           >
-            {isLoading ? 'Loading...' : confirmText}
+            {isLoading
+              ? messages.common.states.loading
+              : confirmText || messages.common.actions.confirm}
           </Button>
         </div>
       </div>
