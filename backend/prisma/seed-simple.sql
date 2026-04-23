@@ -15,13 +15,13 @@ INSERT INTO "AcademicYear" (id, year, "startDate", "endDate", "isCurrent", "crea
 VALUES (gen_random_uuid(), 2025, '2025-01-15', '2025-12-15', true, NOW(), NOW());
 
 -- Insert Semester
-INSERT INTO "Semester" (id, name, type, "academicYearId", "startDate", "endDate", status, "createdAt", "updatedAt")
-SELECT gen_random_uuid(), 'Spring 2025', 'SPRING', id, '2025-01-15', '2025-05-15', 'IN_PROGRESS', NOW(), NOW()
+INSERT INTO "Semester" (id, name, "nameEn", "nameVi", type, "academicYearId", "startDate", "endDate", status, "createdAt", "updatedAt")
+SELECT gen_random_uuid(), 'Spring 2025', 'Spring 2025', 'Học kỳ Xuân 2025', 'SPRING', id, '2025-01-15', '2025-05-15', 'IN_PROGRESS', NOW(), NOW()
 FROM "AcademicYear" WHERE year = 2025;
 
 -- Insert Faculty
-INSERT INTO "Faculty" (id, name, code, description, "isActive", "createdAt", "updatedAt")
-VALUES (gen_random_uuid(), 'Faculty of Computer Science', 'FCS', 'Computer Science', true, NOW(), NOW());
+INSERT INTO "Faculty" (id, name, "nameEn", "nameVi", code, description, "descriptionEn", "descriptionVi", "isActive", "createdAt", "updatedAt")
+VALUES (gen_random_uuid(), 'Faculty of Computer Science', 'Faculty of Computer Science', 'Khoa Khoa học máy tính', 'FCS', 'Computer Science', 'Computer Science', 'Khoa học máy tính', true, NOW(), NOW());
 
 -- Insert Roles
 INSERT INTO "Role" (id, name, description, "createdAt", "updatedAt") 
@@ -34,8 +34,8 @@ INSERT INTO "Role" (id, name, description, "createdAt", "updatedAt")
 SELECT gen_random_uuid(), 'ADMIN', 'Admin', NOW(), NOW() WHERE NOT EXISTS (SELECT 1 FROM "Role" WHERE name = 'ADMIN');
 
 -- Insert Department
-INSERT INTO "Department" (id, name, code, description, "facultyId", "isActive", "createdAt", "updatedAt")
-SELECT gen_random_uuid(), 'Computer Science', 'CS', 'CS Department', id, true, NOW(), NOW()
+INSERT INTO "Department" (id, name, "nameEn", "nameVi", code, description, "descriptionEn", "descriptionVi", "facultyId", "isActive", "createdAt", "updatedAt")
+SELECT gen_random_uuid(), 'Computer Science', 'Computer Science', 'Khoa học máy tính', 'CS', 'CS Department', 'CS Department', 'Khoa Khoa học máy tính', id, true, NOW(), NOW()
 FROM "Faculty" WHERE code = 'FCS';
 
 -- Insert Admin User (password: admin123)
