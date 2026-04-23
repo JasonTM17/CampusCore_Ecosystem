@@ -8,8 +8,10 @@ import {
   Param,
   Query,
   UseGuards,
+  BadRequestException,
   ForbiddenException,
   Res,
+  Headers,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Response } from 'express';
@@ -23,6 +25,8 @@ import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { CreateMyPaymentDto } from './dto/create-my-payment.dto';
+import { InitiatePaymentIntentDto } from './dto/initiate-payment-intent.dto';
+import { SimulateSandboxPaymentSignalDto } from './dto/simulate-sandbox-payment-signal.dto';
 
 @ApiTags('Finance')
 @Controller('finance')
@@ -51,9 +55,71 @@ export class FinanceController {
     return this.financeService.getStudentInvoiceById(studentId, id);
   }
 
+  @Post('my/invoices/:id/checkout')
+  @Roles('STUDENT')
+  @ApiOperation({
+    summary:
+      'Initiate a sandbox payment checkout intent for the current student',
+  })
+  initiateCheckout(
+    @CurrentStudent() studentId: string,
+    @Param('id') invoiceId: string,
+    @Body() data: InitiatePaymentIntentDto,
+    @Headers('idempotency-key') headerIdempotencyKey?: string,
+  ) {
+    if (!studentId) {
+      throw new ForbiddenException('Student profile not found');
+    }
+
+    return this.financeService.initiateStudentInvoiceCheckout(
+      studentId,
+      invoiceId,
+      data,
+      headerIdempotencyKey,
+    );
+  }
+
+  @Get('my/payment-intents/:id')
+  @Roles('STUDENT')
+  @ApiOperation({ summary: 'Get the current student payment intent by ID' })
+  getMyPaymentIntent(
+    @CurrentStudent() studentId: string,
+    @Param('id') id: string,
+  ) {
+    if (!studentId) {
+      throw new ForbiddenException('Student profile not found');
+    }
+
+    return this.financeService.getStudentPaymentIntent(studentId, id);
+  }
+
+  @Post('my/payment-intents/:id/sandbox-signal')
+  @Roles('STUDENT')
+  @ApiOperation({
+    summary: 'Simulate a sandbox provider signal for the current student',
+  })
+  sendMySandboxPaymentSignal(
+    @CurrentStudent() studentId: string,
+    @Param('id') id: string,
+    @Body() data: SimulateSandboxPaymentSignalDto,
+  ) {
+    if (!studentId) {
+      throw new ForbiddenException('Student profile not found');
+    }
+
+    return this.financeService.signalStudentSandboxPaymentIntent(
+      studentId,
+      id,
+      data,
+    );
+  }
+
   @Post('my/payments')
   @Roles('STUDENT')
-  @ApiOperation({ summary: 'Record payment for current student invoice' })
+  @ApiOperation({
+    summary:
+      'Legacy direct payment recording endpoint for current student invoice',
+  })
   createMyPayment(
     @CurrentStudent() studentId: string,
     @Body() data: CreateMyPaymentDto,
@@ -62,10 +128,11 @@ export class FinanceController {
       throw new ForbiddenException('Student profile not found');
     }
 
-    return this.financeService.createPayment({
-      ...data,
-      studentId,
-    });
+    void data;
+
+    throw new BadRequestException(
+      'Student payments must be initiated through the checkout flow',
+    );
   }
 
   @Post('invoices')

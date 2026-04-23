@@ -24,6 +24,51 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum PaymentProvider {
+  MOMO
+  ZALOPAY
+  VNPAY
+  PAYPAL
+  CARD
+}
+
+enum PaymentIntentStatus {
+  REQUIRES_ACTION
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentAttemptStatus {
+  CREATED
+  REDIRECT_REQUIRED
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentSignalSource {
+  INITIATION
+  CALLBACK
+  WEBHOOK
+  SYSTEM
+}
+
+enum PaymentIntentEventType {
+  INTENT_CREATED
+  ATTEMPT_CREATED
+  SIGNAL_RECEIVED
+  VERIFICATION_PASSED
+  VERIFICATION_FAILED
+  STATE_TRANSITION
+  PAYMENT_RECORDED
+  MANUAL_REVIEW_REQUIRED
+}
+
 model Invoice {
   id                 String        @id @default(uuid())
   invoiceNumber      String        @unique
@@ -34,6 +79,8 @@ model Invoice {
   studentCode        String
   semesterId         String
   semesterName       String
+  semesterNameEn     String?
+  semesterNameVi     String?
   status             InvoiceStatus @default(DRAFT)
   subtotal           Decimal       @db.Decimal(10, 2)
   discount           Decimal       @default(0) @db.Decimal(10, 2)
@@ -44,8 +91,9 @@ model Invoice {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
-  items    InvoiceItem[]
-  payments Payment[]
+  items          InvoiceItem[]
+  payments       Payment[]
+  paymentIntents PaymentIntent[]
 
   @@index([invoiceNumber])
   @@index([studentId])
@@ -55,12 +103,12 @@ model Invoice {
 }
 
 model InvoiceItem {
-  id          String   @id @default(uuid())
+  id          String  @id @default(uuid())
   invoiceId   String
   description String
-  quantity    Int      @default(1)
-  unitPrice   Decimal  @db.Decimal(10, 2)
-  total       Decimal  @db.Decimal(10, 2)
+  quantity    Int     @default(1)
+  unitPrice   Decimal @db.Decimal(10, 2)
+  total       Decimal @db.Decimal(10, 2)
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
@@ -68,25 +116,111 @@ model InvoiceItem {
 }
 
 model Payment {
-  id            String        @id @default(uuid())
-  paymentNumber String        @unique
-  invoiceId     String
-  studentId     String
-  amount        Decimal       @db.Decimal(10, 2)
-  method        String
-  status        PaymentStatus @default(PENDING)
-  paidAt        DateTime?
-  transactionId String?
-  notes         String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id              String        @id @default(uuid())
+  paymentNumber   String        @unique
+  invoiceId       String
+  studentId       String
+  amount          Decimal       @db.Decimal(10, 2)
+  method          String
+  status          PaymentStatus @default(PENDING)
+  paidAt          DateTime?
+  transactionId   String?
+  paymentIntentId String?       @unique
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
-  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice       Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  paymentIntent PaymentIntent? @relation(fields: [paymentIntentId], references: [id], onDelete: SetNull)
 
   @@index([paymentNumber])
   @@index([invoiceId])
   @@index([studentId])
   @@index([status])
+}
+
+model PaymentIntent {
+  id           String              @id @default(uuid())
+  intentNumber String              @unique
+  invoiceId    String
+  studentId    String
+  provider     PaymentProvider
+  status       PaymentIntentStatus @default(REQUIRES_ACTION)
+  amount       Decimal             @db.Decimal(10, 2)
+  currency     String              @default("VND")
+  metadata     Json?
+  expiresAt    DateTime
+  lastSignalAt DateTime?
+  finalizedAt  DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  invoice  Invoice              @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  payment  Payment?
+  attempts PaymentAttempt[]
+  events   PaymentIntentEvent[]
+
+  @@index([invoiceId])
+  @@index([studentId])
+  @@index([provider])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PaymentAttempt {
+  id                String               @id @default(uuid())
+  attemptNumber     String               @unique
+  intentId          String
+  invoiceId         String
+  studentId         String
+  provider          PaymentProvider
+  status            PaymentAttemptStatus @default(CREATED)
+  idempotencyKey    String
+  publicToken       String               @unique
+  amount            Decimal              @db.Decimal(10, 2)
+  currency          String               @default("VND")
+  providerReference String?
+  redirectUrl       String?
+  callbackUrl       String?
+  webhookUrl        String?
+  returnUrl         String?
+  cancelUrl         String?
+  providerPayload   Json?
+  occurredAt        DateTime?
+  finalizedAt       DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  intent PaymentIntent        @relation(fields: [intentId], references: [id], onDelete: Restrict)
+  events PaymentIntentEvent[]
+
+  @@unique([invoiceId, studentId, provider, idempotencyKey])
+  @@index([intentId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PaymentIntentEvent {
+  id                String                 @id @default(uuid())
+  paymentIntentId   String
+  paymentAttemptId  String?
+  type              PaymentIntentEventType
+  source            PaymentSignalSource
+  provider          PaymentProvider
+  fromIntentStatus  PaymentIntentStatus?
+  toIntentStatus    PaymentIntentStatus?
+  fromAttemptStatus PaymentAttemptStatus?
+  toAttemptStatus   PaymentAttemptStatus?
+  payload           Json?
+  createdAt         DateTime               @default(now())
+
+  intent  PaymentIntent   @relation(fields: [paymentIntentId], references: [id], onDelete: Restrict)
+  attempt PaymentAttempt? @relation(fields: [paymentAttemptId], references: [id], onDelete: Restrict)
+
+  @@index([paymentIntentId, createdAt])
+  @@index([paymentAttemptId, createdAt])
+  @@index([type])
+  @@index([source])
 }
 
 model Scholarship {

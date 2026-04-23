@@ -22,6 +22,8 @@ export type FinanceContextStudent = {
 export type FinanceContextSemester = {
   id: string;
   name: string;
+  nameEn?: string | null;
+  nameVi?: string | null;
   endDate: string | null;
 };
 
