@@ -348,6 +348,7 @@ export class FinanceService {
 
     return invoices.map((invoice) => {
       const paidAmount = this.calculatePaidAmount(invoice.payments);
+      const semesterSnapshot = this.resolveInvoiceSemesterSnapshot(invoice);
       const status = this.resolveDisplayInvoiceStatus(
         Number(invoice.total),
         invoice.dueDate,
@@ -358,7 +359,9 @@ export class FinanceService {
       return {
         id: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
-        semesterName: invoice.semesterName,
+        semesterName: semesterSnapshot.name,
+        semesterNameEn: semesterSnapshot.nameEn,
+        semesterNameVi: semesterSnapshot.nameVi,
         semesterId: invoice.semesterId,
         status,
         subtotal: Number(invoice.subtotal),

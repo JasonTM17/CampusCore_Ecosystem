@@ -211,13 +211,12 @@ describe('Finance service integration', () => {
         amount: 450,
         method: 'CARD',
       })
-      .expect(201)
+      .expect(400)
       .expect(({ body }) => {
-        expect(body.paymentNumber).toBeTruthy();
-        expect(body.amount).toBe(450);
+        expect(body.message).toContain(
+          'Student payments must be initiated through the checkout flow',
+        );
       });
-
-    await expectFinanceEvent(FINANCE_EVENT_TYPES.PAYMENT_COMPLETED);
   });
 
   it('generates invoices for a semester through the internal core context', async () => {
@@ -257,6 +256,8 @@ describe('Finance service integration', () => {
       .expect(201);
 
     const invoiceId = createResponse.body.id;
+
+    await expectFinanceEvent(FINANCE_EVENT_TYPES.INVOICE_CREATED);
 
     const checkoutResponse = await supertest(baseUrl)
       .post(`/api/v1/finance/my/invoices/${invoiceId}/checkout`)
@@ -457,26 +458,36 @@ describe('Finance service integration', () => {
 
   async function expectFinanceEvent(type: string) {
     const deadline = Date.now() + 10_000;
-    let message: amqp.GetMessage | false = false;
+    const skippedMessages: amqp.GetMessage[] = [];
 
-    while (!message && Date.now() < deadline) {
-      message = await rabbitChannel.get(NOTIFICATION_EVENTS_QUEUE, {
+    while (Date.now() < deadline) {
+      const message = await rabbitChannel.get(NOTIFICATION_EVENTS_QUEUE, {
         noAck: false,
       });
 
       if (!message) {
         await new Promise((resolve) => setTimeout(resolve, 250));
+        continue;
       }
+
+      const parsed = JSON.parse(message.content.toString()) as { type: string };
+      if (parsed.type === type) {
+        rabbitChannel.ack(message);
+        for (const skipped of skippedMessages) {
+          rabbitChannel.nack(skipped, false, true);
+        }
+        expect(parsed.type).toBe(type);
+        return;
+      }
+
+      skippedMessages.push(message);
     }
 
-    expect(message).not.toBe(false);
-    if (!message) {
-      throw new Error(`Timed out waiting for finance event ${type}`);
+    for (const skipped of skippedMessages) {
+      rabbitChannel.nack(skipped, false, true);
     }
 
-    const parsed = JSON.parse(message.content.toString()) as { type: string };
-    rabbitChannel.ack(message);
-    expect(parsed.type).toBe(type);
+    throw new Error(`Timed out waiting for finance event ${type}`);
   }
 });
 
