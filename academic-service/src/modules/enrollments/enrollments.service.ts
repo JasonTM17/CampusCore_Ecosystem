@@ -756,6 +756,8 @@ export class EnrollmentsService {
         ) {
           throw error;
         }
+
+        await this.delayBeforeRetry(attempt);
       }
     }
 
@@ -763,12 +765,30 @@ export class EnrollmentsService {
   }
 
   private isRetryableTransactionError(error: unknown): boolean {
-    return (
+    const message =
       typeof error === 'object' &&
       error !== null &&
-      'code' in error &&
-      (error as { code?: string }).code === 'P2034'
+      'message' in error &&
+      typeof (error as { message?: unknown }).message === 'string'
+        ? (error as { message: string }).message
+        : '';
+
+    return (
+      (typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        ['P2034', 'P2010'].includes((error as { code?: string }).code ?? '')) ||
+      message.includes('could not serialize access due to concurrent update') ||
+      message.includes(
+        'could not serialize access due to read/write dependencies among transactions',
+      ) ||
+      message.includes('Transaction failed due to a write conflict')
     );
+  }
+
+  private async delayBeforeRetry(attempt: number) {
+    const backoffMs = 25 * attempt;
+    await new Promise((resolve) => setTimeout(resolve, backoffMs));
   }
 
   private async getSectionEnrollmentContext(
@@ -1172,7 +1192,7 @@ export class EnrollmentsService {
           ) AS new_position
         FROM "Waitlist"
         WHERE "sectionId" = ${sectionId}
-          AND "status" = ${WaitlistStatus.ACTIVE}
+          AND "status" = ${WaitlistStatus.ACTIVE}::"WaitlistStatus"
       )
       UPDATE "Waitlist" AS waitlist
       SET "position" = ranked.new_position
