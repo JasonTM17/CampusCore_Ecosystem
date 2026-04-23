@@ -47,6 +47,13 @@ const schema = z.object({
   [ENV.HEALTH_READINESS_KEY]: z.string().min(16).optional(),
   [ENV.JWT_SECRET]: z.string().min(1),
   [ENV.RABBITMQ_URL]: z.string().min(1).optional(),
+  [ENV.SMTP_HOST]: z.string().min(1).optional(),
+  [ENV.SMTP_PORT]: maybeNumber.optional(),
+  [ENV.SMTP_USER]: z.string().min(1).optional(),
+  [ENV.SMTP_PASSWORD]: z.string().min(1).optional(),
+  [ENV.SMTP_SECURE]: booleanLike.optional(),
+  [ENV.EMAIL_FROM]: z.string().min(1).optional(),
+  [ENV.EMAIL_FROM_NAME]: z.string().min(1).optional(),
 });
 
 export function validateEnvironment(env: Record<string, unknown>) {
@@ -79,6 +86,9 @@ export function validateEnvironment(env: Record<string, unknown>) {
   return {
     ...parsed.data,
     [ENV.FRONTEND_URL]: frontendUrl ?? ENV_DEFAULTS.FRONTEND_URL,
+    [ENV.EMAIL_FROM]: parsed.data[ENV.EMAIL_FROM] ?? ENV_DEFAULTS.EMAIL_FROM,
+    [ENV.EMAIL_FROM_NAME]:
+      parsed.data[ENV.EMAIL_FROM_NAME] ?? ENV_DEFAULTS.EMAIL_FROM_NAME,
     [ENV.SWAGGER_ENABLED]:
       parsed.data[ENV.SWAGGER_ENABLED] ?? ENV_DEFAULTS.SWAGGER_ENABLED,
   };

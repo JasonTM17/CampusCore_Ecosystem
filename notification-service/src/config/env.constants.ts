@@ -8,6 +8,13 @@ export const ENV = {
   HEALTH_READINESS_KEY: 'HEALTH_READINESS_KEY',
   JWT_SECRET: 'JWT_SECRET',
   RABBITMQ_URL: 'RABBITMQ_URL',
+  SMTP_HOST: 'SMTP_HOST',
+  SMTP_PORT: 'SMTP_PORT',
+  SMTP_USER: 'SMTP_USER',
+  SMTP_PASSWORD: 'SMTP_PASSWORD',
+  SMTP_SECURE: 'SMTP_SECURE',
+  EMAIL_FROM: 'EMAIL_FROM',
+  EMAIL_FROM_NAME: 'EMAIL_FROM_NAME',
 } as const;
 
 export const ENV_DEFAULTS = {
@@ -15,4 +22,6 @@ export const ENV_DEFAULTS = {
   FRONTEND_URL: 'http://localhost',
   SWAGGER_ENABLED: false,
   COOKIE_SECURE: undefined,
+  EMAIL_FROM: 'noreply@campuscore.edu',
+  EMAIL_FROM_NAME: 'CampusCore Administration',
 } as const;

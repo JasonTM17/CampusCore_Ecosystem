@@ -7,6 +7,10 @@ import {
   NOTIFICATION_EVENT_TYPES,
   NotificationEventEnvelope,
 } from '../rabbitmq/rabbitmq.events';
+import {
+  EmailService,
+  EnrollmentEmailTemplate,
+} from '../common/services/email.service';
 
 type NotificationEventPayload = {
   userId?: string;
@@ -23,6 +27,19 @@ type NotificationEventPayload = {
   announcement?: Record<string, unknown>;
   invoice?: Record<string, unknown>;
   payment?: Record<string, unknown>;
+  email?: {
+    to: string;
+    template: EnrollmentEmailTemplate;
+    locale?: 'en' | 'vi';
+    studentName: string;
+    courseCode?: string;
+    courseName: string;
+    courseNameVi?: string;
+    sectionNumber: string;
+    semesterName?: string;
+    semesterNameVi?: string;
+    link?: string | null;
+  };
 };
 
 @Injectable()
@@ -33,6 +50,7 @@ export class NotificationsConsumer implements OnModuleInit {
     private readonly rabbitMQService: RabbitMQService,
     private readonly notificationsService: NotificationsService,
     private readonly notificationsGateway: NotificationsGateway,
+    private readonly emailService: EmailService,
   ) {}
 
   async onModuleInit() {
@@ -97,6 +115,22 @@ export class NotificationsConsumer implements OnModuleInit {
     );
 
     this.notificationsGateway.sendNotificationToUser(payload.userId, created);
+    await this.sendEmailIfPresent(payload.email);
+  }
+
+  private async sendEmailIfPresent(
+    payload?: NotificationEventPayload['email'],
+  ) {
+    if (!payload) {
+      return;
+    }
+
+    const sent = await this.emailService.sendEnrollmentNotification(payload);
+    if (!sent) {
+      this.logger.warn(
+        `Enrollment email delivery did not complete for ${payload.to}`,
+      );
+    }
   }
 
   private async handleRoleNotification(payload: NotificationEventPayload) {
