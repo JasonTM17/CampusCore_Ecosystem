@@ -8,7 +8,7 @@
 - GitHub Actions ưu tiên `DOCKERHUB_TOKEN`; `DOCKERHUB_PASSWORD` chỉ còn là legacy fallback.
 - Badge CD trong `README.md` phải trỏ tới tag release mới nhất vì workflow CD chỉ chạy từ semver tag.
 
-Release công khai mới nhất của vòng hardening/Kubernetes này được chốt là **`v1.3.6`**. `v1.3.4` vẫn là baseline public trước đó, còn `v1.3.5` được giữ như patch trung gian đã tồn tại trên origin.
+Release công khai kế tiếp của vòng bilingual frontend, student-core payments, observability, và analytics cockpit được chuẩn bị là **`v1.4.0`**. `v1.3.6` vẫn là baseline public trước đó cho Kubernetes/local edge hardening.
 
 ## Required quality gate
 
@@ -56,7 +56,7 @@ Release hiện tại phải publish đủ 9 image:
 
 Tag strategy cho mỗi release:
 
-- semver tag, ví dụ `v1.3.6`
+- semver tag, ví dụ `v1.4.0`
 - short SHA immutable tag
 - `latest`
 
@@ -70,7 +70,7 @@ Tag strategy cho mỗi release:
 Kiểm tra local sau release:
 
 ```powershell
-$env:RELEASE_TAG='v1.3.6'
+$env:RELEASE_TAG='v1.4.0'
 $env:RELEASE_SHORT_SHA=(git rev-parse --short HEAD).Trim()
 node scripts/verify-release-manifests.mjs
 ```
