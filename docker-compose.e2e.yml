@@ -23,7 +23,10 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
+    hostname: rabbitmq-edge-e2e
     environment:
+      RABBITMQ_NODENAME: rabbit@rabbitmq-edge-e2e
+      RABBITMQ_ERLANG_COOKIE: edge-e2e-rabbitmq-cookie
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-campuscore}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-campuscore_password}
     healthcheck:
