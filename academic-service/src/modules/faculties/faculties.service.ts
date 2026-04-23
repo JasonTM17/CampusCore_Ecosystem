@@ -1,12 +1,24 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import {
+  hydrateLocalizedCatalogRecord,
+  normalizeLocalizedCatalogData,
+} from '../common/catalog-localization';
 
 @Injectable()
 export class FacultiesService {
   constructor(private prisma: PrismaService) {}
 
   async create(data: any) {
-    return this.prisma.faculty.create({ data, include: { departments: true } });
+    const faculty = await this.prisma.faculty.create({
+      data: {
+        ...data,
+        ...normalizeLocalizedCatalogData('faculty', data),
+      },
+      include: { departments: true },
+    });
+
+    return this.hydrateFaculty(faculty);
   }
 
   async findAll(page = 1, limit = 20) {
@@ -21,7 +33,7 @@ export class FacultiesService {
       this.prisma.faculty.count(),
     ]);
     return {
-      data: faculties,
+      data: faculties.map((faculty) => this.hydrateFaculty(faculty)),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -32,21 +44,41 @@ export class FacultiesService {
       include: { departments: true },
     });
     if (!faculty) throw new NotFoundException('Faculty not found');
-    return faculty;
+    return this.hydrateFaculty(faculty);
   }
 
   async update(id: string, data: any) {
-    await this.findOne(id);
-    return this.prisma.faculty.update({
+    const existing = await this.prisma.faculty.findUnique({
       where: { id },
-      data,
+    });
+    if (!existing) {
+      throw new NotFoundException('Faculty not found');
+    }
+
+    const faculty = await this.prisma.faculty.update({
+      where: { id },
+      data: {
+        ...data,
+        ...normalizeLocalizedCatalogData('faculty', data, existing),
+      },
       include: { departments: true },
     });
+
+    return this.hydrateFaculty(faculty);
   }
 
   async remove(id: string) {
     await this.findOne(id);
     await this.prisma.faculty.delete({ where: { id } });
     return { message: 'Faculty deleted successfully' };
+  }
+
+  private hydrateFaculty<T extends { departments?: any[] }>(faculty: T) {
+    return {
+      ...hydrateLocalizedCatalogRecord('faculty', faculty as any),
+      departments: faculty.departments?.map((department) =>
+        hydrateLocalizedCatalogRecord('department', department),
+      ),
+    };
   }
 }

@@ -149,8 +149,23 @@ describe('GradesService', () => {
       const mockEnrollments = [
         {
           id: 'enrollment-1',
+          studentId: 'student-uuid',
+          finalGrade: null,
+          letterGrade: null,
           student: { user: { firstName: 'John', lastName: 'Doe' } },
-          section: { course: { code: 'CS101', name: 'Intro to CS' } },
+          section: {
+            course: {
+              code: 'CS101',
+              name: 'Intro to CS',
+              nameEn: 'Introduction to Computer Science',
+              nameVi: 'Nhập môn Khoa học máy tính',
+            },
+            semester: {
+              name: 'Spring 2025',
+              nameEn: 'Spring 2025',
+              nameVi: 'Học kỳ Xuân 2025',
+            },
+          },
           gradeItems: [],
         },
       ];

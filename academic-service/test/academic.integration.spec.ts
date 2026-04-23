@@ -5,6 +5,8 @@ import { JwtService } from '@nestjs/jwt';
 import { configureHttpApp } from '../src/bootstrap';
 import { PrismaService } from '../src/modules/common/prisma/prisma.service';
 import { CSRF_HEADER } from '../src/modules/auth/auth-session.util';
+import { EnrollmentsService } from '../src/modules/enrollments/enrollments.service';
+import { WaitlistService } from '../src/modules/waitlist/waitlist.service';
 
 type TestUser = {
   id: string;
@@ -52,6 +54,8 @@ describe('Academic service integration', () => {
   let app: NestExpressApplication;
   let prisma: PrismaService;
   let jwtService: JwtService;
+  let enrollmentsService: EnrollmentsService;
+  let waitlistService: WaitlistService;
   let baseUrl: string;
 
   const adminUser: TestUser = {
@@ -76,6 +80,9 @@ describe('Academic service integration', () => {
 
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
+    process.env.DATABASE_URL ??=
+      'postgresql://campuscore:ci-postgres-password@127.0.0.1:5432/campuscore?schema=academic';
+    process.env.JWT_SECRET ??= 'ci-jwt-secret';
     process.env.FRONTEND_URL ??= 'http://127.0.0.1:3100';
     process.env.HEALTH_READINESS_KEY ??= 'academic-readiness-key-12345';
     process.env.COOKIE_SECURE ??= 'false';
@@ -92,6 +99,8 @@ describe('Academic service integration', () => {
 
     prisma = app.get(PrismaService);
     jwtService = app.get(JwtService);
+    enrollmentsService = app.get(EnrollmentsService);
+    waitlistService = app.get(WaitlistService);
     baseUrl = await app.getUrl();
   });
 
@@ -101,7 +110,9 @@ describe('Academic service integration', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) {
+      await app.close();
+    }
   });
 
   it('supports student cookie auth, csrf enforcement, grades, transcript, and attendance flows', async () => {
@@ -114,6 +125,8 @@ describe('Academic service integration', () => {
       .expect(({ body }) => {
         expect(body.data).toHaveLength(1);
         expect(body.data[0].id).toBe(IDS.semester);
+        expect(body.data[0].nameEn).toBeTruthy();
+        expect(body.data[0].nameVi).toMatch(/^Học kỳ /u);
       });
 
     await supertest(baseUrl)
@@ -148,6 +161,8 @@ describe('Academic service integration', () => {
         expect(body).toHaveLength(1);
         expect(body[0].courseCode).toBe('COMP101');
         expect(body[0].letterGrade).toBe('B+');
+        expect(body[0].courseNameVi).toBe('Nhập môn khoa học máy tính');
+        expect(body[0].semesterNameVi).toMatch(/^Học kỳ /u);
       });
 
     await supertest(baseUrl)
@@ -157,6 +172,10 @@ describe('Academic service integration', () => {
       .expect(({ body }) => {
         expect(body.summary.totalCreditsEarned).toBe(3);
         expect(body.semesters).toHaveLength(1);
+        expect(body.semesters[0].semesterNameVi).toMatch(/^Học kỳ /u);
+        expect(body.semesters[0].records[0].courseNameVi).toBe(
+          'Nhập môn khoa học máy tính',
+        );
       });
 
     await supertest(baseUrl)
@@ -361,6 +380,144 @@ describe('Academic service integration', () => {
       });
   });
 
+  it('keeps seat allocation atomic when two students race for the final seat', async () => {
+    const studentThree = await createStudentFixture('3');
+    const studentFour = await createStudentFixture('4');
+    const sectionId = 'section-contention-seat-1';
+
+    await createContentionSection({
+      courseId: 'course-contention-seat-1',
+      courseCode: 'COMP350',
+      courseName: 'Concurrency Testing',
+      sectionId,
+      sectionNumber: 'C1',
+      capacity: 1,
+    });
+
+    const results = await Promise.all([
+      enrollmentsService.enrollStudent(studentThree.studentId, sectionId),
+      enrollmentsService.enrollStudent(studentFour.studentId, sectionId),
+    ]);
+
+    const storedEnrollments = await prisma.enrollment.findMany({
+      where: {
+        sectionId,
+        status: { in: ['PENDING', 'CONFIRMED', 'COMPLETED'] },
+      },
+    });
+    const activeWaitlist = await prisma.waitlist.findMany({
+      where: { sectionId, status: 'ACTIVE' },
+      orderBy: { position: 'asc' },
+    });
+    const section = await prisma.section.findUnique({
+      where: { id: sectionId },
+    });
+
+    expect(results.filter((result) => 'position' in result)).toHaveLength(1);
+    expect(results.filter((result) => 'enrolledAt' in result)).toHaveLength(1);
+    expect(storedEnrollments).toHaveLength(1);
+    expect(activeWaitlist).toHaveLength(1);
+    expect(activeWaitlist[0].position).toBe(1);
+    expect(section?.enrolledCount).toBe(1);
+  });
+
+  it('prevents duplicate promotion when drop and manual promotion overlap', async () => {
+    const enrolledStudent = await createStudentFixture('5');
+    const firstWaitlistedStudent = await createStudentFixture('6');
+    const secondWaitlistedStudent = await createStudentFixture('7');
+    const sectionId = 'section-contention-promotion-1';
+
+    await createContentionSection({
+      courseId: 'course-contention-promotion-1',
+      courseCode: 'COMP351',
+      courseName: 'Promotion Testing',
+      sectionId,
+      sectionNumber: 'C2',
+      capacity: 1,
+    });
+
+    const enrollment = await prisma.enrollment.create({
+      data: {
+        id: 'enrollment-contention-promotion-1',
+        studentId: enrolledStudent.studentId,
+        sectionId,
+        semesterId: IDS.semester,
+        status: 'CONFIRMED',
+      },
+    });
+
+    await prisma.section.update({
+      where: { id: sectionId },
+      data: { enrolledCount: 1 },
+    });
+
+    await prisma.waitlist.createMany({
+      data: [
+        {
+          id: 'waitlist-contention-promotion-1',
+          studentId: firstWaitlistedStudent.studentId,
+          sectionId,
+          position: 1,
+          status: 'ACTIVE',
+        },
+        {
+          id: 'waitlist-contention-promotion-2',
+          studentId: secondWaitlistedStudent.studentId,
+          sectionId,
+          position: 2,
+          status: 'ACTIVE',
+        },
+      ],
+    });
+
+    const settled = await Promise.allSettled([
+      enrollmentsService.dropEnrollment(
+        enrollment.id,
+        enrolledStudent.studentId,
+      ),
+      waitlistService.promoteStudent('waitlist-contention-promotion-1'),
+    ]);
+
+    const promotedStudentEnrollments = await prisma.enrollment.findMany({
+      where: {
+        sectionId,
+        studentId: firstWaitlistedStudent.studentId,
+      },
+    });
+    const activeSeatConsumers = await prisma.enrollment.count({
+      where: {
+        sectionId,
+        status: { in: ['PENDING', 'CONFIRMED', 'COMPLETED'] },
+      },
+    });
+    const firstWaitlistEntry = await prisma.waitlist.findUnique({
+      where: { id: 'waitlist-contention-promotion-1' },
+    });
+    const remainingActiveWaitlist = await prisma.waitlist.findMany({
+      where: { sectionId, status: 'ACTIVE' },
+      orderBy: { position: 'asc' },
+    });
+    const section = await prisma.section.findUnique({
+      where: { id: sectionId },
+    });
+
+    expect(
+      settled.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    expect(
+      settled.filter((result) => result.status === 'rejected'),
+    ).toHaveLength(1);
+    expect(promotedStudentEnrollments).toHaveLength(1);
+    expect(activeSeatConsumers).toBe(1);
+    expect(firstWaitlistEntry?.status).toBe('CONVERTED');
+    expect(section?.enrolledCount).toBe(1);
+    expect(remainingActiveWaitlist).toHaveLength(1);
+    expect(remainingActiveWaitlist[0]).toMatchObject({
+      studentId: secondWaitlistedStudent.studentId,
+      position: 1,
+    });
+  });
+
   async function issueAuth(user: TestUser): Promise<AuthContext> {
     const token = await jwtService.signAsync({
       sub: user.id,
@@ -451,8 +608,12 @@ describe('Academic service integration', () => {
       data: {
         id: IDS.faculty,
         name: 'Engineering',
+        nameEn: 'Engineering',
+        nameVi: 'Khoa Kỹ thuật',
         code: 'ENG',
         description: 'Engineering faculty',
+        descriptionEn: 'Engineering faculty',
+        descriptionVi: 'Khoa Kỹ thuật',
         isActive: true,
       },
     });
@@ -461,9 +622,13 @@ describe('Academic service integration', () => {
       data: {
         id: IDS.department,
         name: 'Computer Science',
+        nameEn: 'Computer Science',
+        nameVi: 'Khoa học máy tính',
         code: 'CSE',
         facultyId: IDS.faculty,
         description: 'Computer science department',
+        descriptionEn: 'Computer science department',
+        descriptionVi: 'Bộ môn Khoa học máy tính',
         isActive: true,
       },
     });
@@ -492,6 +657,8 @@ describe('Academic service integration', () => {
       data: {
         id: IDS.semester,
         name: 'Current Term',
+        nameEn: `Fall ${now.getUTCFullYear()}`,
+        nameVi: `Học kỳ Thu ${now.getUTCFullYear()}`,
         type: 'FALL',
         academicYearId: IDS.academicYear,
         startDate: semesterStart,
@@ -508,11 +675,16 @@ describe('Academic service integration', () => {
       data: {
         id: IDS.curriculum,
         name: 'Computer Science 2026',
+        nameEn: 'Computer Science 2026',
+        nameVi: 'Chương trình Khoa học máy tính 2026',
         code: 'CS2026',
         departmentId: IDS.department,
         academicYearId: IDS.academicYear,
         totalCredits: 120,
         description: 'Computer science curriculum',
+        descriptionEn: 'Computer science curriculum',
+        descriptionVi:
+          'Chương trình Khoa học máy tính cho khóa tuyển sinh 2026',
         isActive: true,
       },
     });
@@ -558,7 +730,9 @@ describe('Academic service integration', () => {
         {
           id: IDS.courseCompleted,
           code: 'COMP101',
-          name: 'Intro to Computer Science',
+          name: 'Introduction to Computer Science',
+          nameEn: 'Introduction to Computer Science',
+          nameVi: 'Nhập môn khoa học máy tính',
           credits: 3,
           departmentId: IDS.department,
           semesterId: IDS.semester,
@@ -568,6 +742,8 @@ describe('Academic service integration', () => {
           id: IDS.courseOpen,
           code: 'COMP202',
           name: 'Data Structures',
+          nameEn: 'Data Structures',
+          nameVi: 'Cấu trúc dữ liệu',
           credits: 3,
           departmentId: IDS.department,
           semesterId: IDS.semester,
@@ -698,6 +874,77 @@ describe('Academic service integration', () => {
         sectionId: IDS.openSection,
         position: 1,
         status: 'ACTIVE',
+      },
+    });
+  }
+
+  async function createStudentFixture(suffix: string) {
+    const userId = `student-user-${suffix}`;
+    const studentId = `student-profile-${suffix}`;
+
+    await prisma.user.create({
+      data: {
+        id: userId,
+        email: `student${suffix}@campuscore.edu`,
+        firstName: `Student${suffix}`,
+        lastName: 'Load',
+        status: 'ACTIVE',
+      },
+    });
+
+    await prisma.student.create({
+      data: {
+        id: studentId,
+        userId,
+        studentId: `STU10${suffix}`,
+        curriculumId: IDS.curriculum,
+        year: 2,
+        status: 'ACTIVE',
+        admissionDate: new Date('2025-09-01T00:00:00.000Z'),
+      },
+    });
+
+    return { userId, studentId };
+  }
+
+  async function createContentionSection({
+    courseId,
+    courseCode,
+    courseName,
+    sectionId,
+    sectionNumber,
+    capacity,
+  }: {
+    courseId: string;
+    courseCode: string;
+    courseName: string;
+    sectionId: string;
+    sectionNumber: string;
+    capacity: number;
+  }) {
+    await prisma.course.create({
+      data: {
+        id: courseId,
+        code: courseCode,
+        name: courseName,
+        credits: 3,
+        departmentId: IDS.department,
+        semesterId: IDS.semester,
+        isActive: true,
+      },
+    });
+
+    await prisma.section.create({
+      data: {
+        id: sectionId,
+        sectionNumber,
+        courseId,
+        semesterId: IDS.semester,
+        lecturerId: IDS.lecturerProfile,
+        classroomId: IDS.classroomA,
+        capacity,
+        enrolledCount: 0,
+        status: 'OPEN',
       },
     });
   }

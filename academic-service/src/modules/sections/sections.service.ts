@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { hydrateLocalizedCatalogRecord } from '../common/catalog-localization';
 
 @Injectable()
 export class SectionsService {
   constructor(private prisma: PrismaService) {}
 
   async createSection(data: any) {
-    return this.prisma.section.create({
+    const section = await this.prisma.section.create({
       data,
       include: {
         course: true,
@@ -17,6 +18,8 @@ export class SectionsService {
         waitlists: true,
       },
     });
+
+    return this.hydrateSection(section);
   }
 
   async findAllSections(
@@ -56,7 +59,7 @@ export class SectionsService {
       this.prisma.section.count({ where }),
     ]);
     return {
-      data: sections,
+      data: sections.map((section) => this.hydrateSection(section)),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -90,39 +93,53 @@ export class SectionsService {
       orderBy: [{ course: { code: 'asc' } }, { sectionNumber: 'asc' }],
     });
 
-    return sections.map((section) => ({
-      id: section.id,
-      sectionId: section.id,
-      sectionNumber: section.sectionNumber,
-      courseCode: section.course.code,
-      courseName: section.course.name,
-      credits: section.course.credits,
-      capacity: section.capacity,
-      enrolledCount: section._count.enrollments || section.enrolledCount,
-      departmentName: section.course.department.name,
-      status: section.status,
-      schedules: section.schedules
-        .map((schedule) => ({
-          id: schedule.id,
-          dayOfWeek: schedule.dayOfWeek,
-          startTime: schedule.startTime,
-          endTime: schedule.endTime,
-          building:
-            schedule.classroom?.building ||
-            section.classroom?.building ||
-            'TBA',
-          roomNumber:
-            schedule.classroom?.roomNumber ||
-            section.classroom?.roomNumber ||
-            'TBA',
-        }))
-        .sort((a, b) => {
-          if (a.dayOfWeek !== b.dayOfWeek) {
-            return a.dayOfWeek - b.dayOfWeek;
-          }
-          return a.startTime.localeCompare(b.startTime);
-        }),
-    }));
+    const hydratedSections = sections.map((section) => {
+      const course = hydrateLocalizedCatalogRecord('course', section.course)!;
+      const department = hydrateLocalizedCatalogRecord(
+        'department',
+        section.course.department,
+      )!;
+
+      return {
+        id: section.id,
+        sectionId: section.id,
+        sectionNumber: section.sectionNumber,
+        courseCode: course.code,
+        courseName: course.name,
+        courseNameEn: course.nameEn,
+        courseNameVi: course.nameVi,
+        credits: course.credits,
+        capacity: section.capacity,
+        enrolledCount: section._count.enrollments || section.enrolledCount,
+        departmentName: department.name,
+        departmentNameEn: department.nameEn,
+        departmentNameVi: department.nameVi,
+        status: section.status,
+        schedules: section.schedules
+          .map((schedule) => ({
+            id: schedule.id,
+            dayOfWeek: schedule.dayOfWeek,
+            startTime: schedule.startTime,
+            endTime: schedule.endTime,
+            building:
+              schedule.classroom?.building ||
+              section.classroom?.building ||
+              'TBA',
+            roomNumber:
+              schedule.classroom?.roomNumber ||
+              section.classroom?.roomNumber ||
+              'TBA',
+          }))
+          .sort((a, b) => {
+            if (a.dayOfWeek !== b.dayOfWeek) {
+              return a.dayOfWeek - b.dayOfWeek;
+            }
+            return a.startTime.localeCompare(b.startTime);
+          }),
+      };
+    });
+
+    return hydratedSections;
   }
 
   async findLecturerGradingSections(lecturerId: string, semesterId?: string) {
@@ -153,6 +170,15 @@ export class SectionsService {
     });
 
     return sections.map((section) => {
+      const course = hydrateLocalizedCatalogRecord('course', section.course)!;
+      const department = hydrateLocalizedCatalogRecord(
+        'department',
+        section.course.department,
+      )!;
+      const semester = hydrateLocalizedCatalogRecord(
+        'semester',
+        section.semester,
+      )!;
       const enrolledCount = section.enrollments.length;
       const gradedCount = section.enrollments.filter(
         (enrollment) => enrollment.finalGrade !== null,
@@ -171,12 +197,18 @@ export class SectionsService {
         id: section.id,
         sectionId: section.id,
         sectionNumber: section.sectionNumber,
-        courseCode: section.course.code,
-        courseName: section.course.name,
-        credits: section.course.credits,
-        departmentName: section.course.department.name,
-        semester: section.semester.name,
-        semesterName: section.semester.name,
+        courseCode: course.code,
+        courseName: course.name,
+        courseNameEn: course.nameEn,
+        courseNameVi: course.nameVi,
+        credits: course.credits,
+        departmentName: department.name,
+        departmentNameEn: department.nameEn,
+        departmentNameVi: department.nameVi,
+        semester: semester.name,
+        semesterName: semester.name,
+        semesterNameEn: semester.nameEn,
+        semesterNameVi: semester.nameVi,
         enrolledCount,
         gradedCount,
         publishedCount,
@@ -202,16 +234,18 @@ export class SectionsService {
       },
     });
     if (!section) throw new NotFoundException('Section not found');
-    return section;
+    return this.hydrateSection(section);
   }
 
   async updateSection(id: string, data: any) {
     await this.findOneSection(id);
-    return this.prisma.section.update({
+    const section = await this.prisma.section.update({
       where: { id },
       data,
       include: { course: true, lecturer: true },
     });
+
+    return this.hydrateSection(section);
   }
 
   async removeSection(id: string) {
@@ -242,9 +276,15 @@ export class SectionsService {
       sectionNumber: section.sectionNumber,
       courseCode: section.course.code,
       courseName: section.course.name,
+      courseNameEn: section.course.nameEn,
+      courseNameVi: section.course.nameVi,
       credits: section.course.credits,
       departmentName: section.course.department.name,
+      departmentNameEn: section.course.department.nameEn,
+      departmentNameVi: section.course.department.nameVi,
       semester: section.semester.name,
+      semesterNameEn: section.semester.nameEn,
+      semesterNameVi: section.semester.nameVi,
       lecturerName: section.lecturer
         ? `${section.lecturer.user.firstName} ${section.lecturer.user.lastName}`
         : undefined,
@@ -302,5 +342,27 @@ export class SectionsService {
     });
 
     return { message: 'Grades published successfully' };
+  }
+
+  private hydrateSection<T extends { course?: any; semester?: any }>(
+    section: T,
+  ) {
+    return {
+      ...section,
+      course: section.course
+        ? {
+            ...hydrateLocalizedCatalogRecord('course', section.course),
+            department: section.course.department
+              ? hydrateLocalizedCatalogRecord(
+                  'department',
+                  section.course.department,
+                )
+              : section.course.department,
+          }
+        : section.course,
+      semester: section.semester
+        ? hydrateLocalizedCatalogRecord('semester', section.semester)
+        : section.semester,
+    };
   }
 }
