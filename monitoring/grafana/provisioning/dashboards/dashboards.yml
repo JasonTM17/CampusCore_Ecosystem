@@ -1,7 +1,10 @@
-- name: Default
-  folder: Dashboards
-  type: file
-  options:
-    path: /etc/grafana/provisioning/dashboards
+apiVersion: 1
+
+providers:
+  - name: CampusCore
+    folder: CampusCore
+    type: file
+    options:
+      path: /etc/grafana/provisioning/dashboards
     disableDeletion: false
     allowUiUpdates: false

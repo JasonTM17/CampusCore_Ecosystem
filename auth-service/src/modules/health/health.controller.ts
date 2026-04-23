@@ -1,4 +1,10 @@
-import { Controller, ForbiddenException, Get, Headers } from '@nestjs/common';
+import {
+  Controller,
+  ForbiddenException,
+  Get,
+  Header,
+  Headers,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import {
@@ -34,6 +40,14 @@ export class HealthController {
   check(@Headers(HEALTH_READINESS_HEADER) healthKey?: string) {
     this.assertReadinessAccess(healthKey);
     return this.healthService.readiness();
+  }
+
+  @Get('metrics')
+  @Header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8')
+  @ApiOperation({ summary: 'Internal Prometheus metrics surface' })
+  metrics(@Headers(HEALTH_READINESS_HEADER) healthKey?: string) {
+    this.assertReadinessAccess(healthKey);
+    return this.healthService.metrics();
   }
 
   private assertReadinessAccess(providedKey?: string) {
