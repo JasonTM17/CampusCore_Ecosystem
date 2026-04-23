@@ -63,40 +63,42 @@ export function Modal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 overflow-y-auto">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden="true"
       />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={title ? titleId : undefined}
-        tabIndex={-1}
-        className={cn(
-          'relative z-50 mx-4 w-full max-w-lg rounded-lg border border-border/80 bg-card shadow-2xl',
-          className,
-        )}
-      >
-        {title && (
-          <div className="flex items-center justify-between border-b border-border/70 px-5 py-4">
-            <h3 id={titleId} className="text-lg font-semibold text-foreground">
-              {title}
-            </h3>
-            <button
-              ref={closeButtonRef}
-              type="button"
-              onClick={onClose}
-              className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-              aria-label={closeLabel || messages.common.states.closeModal}
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        )}
-        <div className="p-5">{children}</div>
+      <div className="relative z-50 flex min-h-full items-start justify-center px-4 py-4 sm:py-8">
+        <div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={title ? titleId : undefined}
+          tabIndex={-1}
+          className={cn(
+            'relative flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col rounded-lg border border-border/80 bg-card shadow-2xl sm:max-h-[calc(100vh-4rem)]',
+            className,
+          )}
+        >
+          {title && (
+            <div className="flex shrink-0 items-center justify-between border-b border-border/70 px-5 py-4">
+              <h3 id={titleId} className="text-lg font-semibold text-foreground">
+                {title}
+              </h3>
+              <button
+                ref={closeButtonRef}
+                type="button"
+                onClick={onClose}
+                className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                aria-label={closeLabel || messages.common.states.closeModal}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          )}
+          <div className="min-h-0 overflow-y-auto p-5">{children}</div>
+        </div>
       </div>
     </div>
   );

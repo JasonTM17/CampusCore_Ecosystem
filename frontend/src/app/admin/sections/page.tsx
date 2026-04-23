@@ -34,6 +34,10 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import {
+  getLocalizedCourseLabel,
+  getLocalizedName,
+} from '@/lib/academic-content';
 
 interface Section {
   id: string;
@@ -43,8 +47,14 @@ interface Section {
   lecturerId?: string;
   capacity: number;
   status: 'OPEN' | 'CLOSED' | 'CANCELLED';
-  course?: { code: string; name: string; department?: { name: string } };
-  semester?: { name: string };
+  course?: {
+    code: string;
+    name: string;
+    nameEn?: string;
+    nameVi?: string;
+    department?: { name: string; nameEn?: string; nameVi?: string };
+  };
+  semester?: { name: string; nameEn?: string; nameVi?: string; type?: string };
   lecturer?: { user?: { firstName: string; lastName: string } };
   schedules?: {
     id: string;
@@ -59,11 +69,16 @@ interface Course {
   id: string;
   code: string;
   name: string;
+  nameEn?: string;
+  nameVi?: string;
 }
 
 interface Semester {
   id: string;
   name: string;
+  nameEn?: string;
+  nameVi?: string;
+  type?: string;
 }
 
 interface Lecturer {
@@ -341,10 +356,10 @@ export default function AdminSectionsPage() {
       { value: '', label: copy.allSemesters },
       ...semesters.map((semester) => ({
         value: semester.id,
-        label: semester.name,
+        label: getLocalizedName(locale, semester, semester.name),
       })),
     ],
-    [copy.allSemesters, semesters],
+    [copy.allSemesters, locale, semesters],
   );
 
   const courseOptions = useMemo(
@@ -352,10 +367,10 @@ export default function AdminSectionsPage() {
       { value: '', label: copy.selectCourse },
       ...courses.map((course) => ({
         value: course.id,
-        label: `${course.code} - ${course.name}`,
+        label: getLocalizedCourseLabel(locale, course, `${course.code} - ${course.name}`),
       })),
     ],
-    [copy.selectCourse, courses],
+    [copy.selectCourse, courses, locale],
   );
 
   const semesterOptions = useMemo(
@@ -363,10 +378,10 @@ export default function AdminSectionsPage() {
       { value: '', label: copy.selectSemester },
       ...semesters.map((semester) => ({
         value: semester.id,
-        label: semester.name,
+        label: getLocalizedName(locale, semester, semester.name),
       })),
     ],
-    [copy.selectSemester, semesters],
+    [copy.selectSemester, locale, semesters],
   );
 
   const lecturerOptions = useMemo(
@@ -597,7 +612,23 @@ export default function AdminSectionsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
-                    {sections.map((section) => (
+                    {sections.map((section) => {
+                      const courseLabel = section.course
+                        ? getLocalizedCourseLabel(
+                            locale,
+                            section.course,
+                            `${section.course.code} - ${section.course.name}`,
+                          )
+                        : copy.unknownCourse;
+                      const semesterLabel = section.semester
+                        ? getLocalizedName(
+                            locale,
+                            section.semester,
+                            section.semester.name,
+                          )
+                        : copy.unassigned;
+
+                      return (
                       <tr key={section.id}>
                         <td className="px-2 py-4">
                             <div className="space-y-1">
@@ -605,7 +636,7 @@ export default function AdminSectionsPage() {
                               {section.course?.code || copy.unknownCourse}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                              {section.course?.name || copy.noCourseName}
+                              {section.course ? courseLabel : copy.noCourseName}
                               </p>
                             </div>
                           </td>
@@ -613,7 +644,7 @@ export default function AdminSectionsPage() {
                           {section.sectionNumber}
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
-                          {section.semester?.name || copy.unassigned}
+                          {semesterLabel}
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
                           {section.lecturer?.user
@@ -690,7 +721,8 @@ export default function AdminSectionsPage() {
                           </AdminRowActions>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </AdminTableScroll>

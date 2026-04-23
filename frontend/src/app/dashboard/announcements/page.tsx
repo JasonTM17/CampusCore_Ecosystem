@@ -14,6 +14,7 @@ import {
   LoadingState,
 } from '@/components/ui/state-block';
 import { useI18n } from '@/i18n';
+import { getLocalizedFlatLabel } from '@/lib/academic-content';
 
 type Announcement = {
   id: string;
@@ -21,10 +22,10 @@ type Announcement = {
   content: string;
   priority: string;
   createdAt: string;
-  semester?: { name: string } | null;
+  semester?: { name: string; nameEn?: string; nameVi?: string } | null;
   section?: {
     sectionNumber: string;
-    course?: { code?: string; name?: string };
+    course?: { code?: string; name?: string; nameEn?: string; nameVi?: string };
   } | null;
 };
 
@@ -47,9 +48,9 @@ export default function StudentAnnouncementsPage() {
   const copy =
     locale === 'vi'
       ? {
-          eyebrow: 'Workspace sinh viên',
+          eyebrow: 'Không gian sinh viên',
           title: 'Thông báo',
-          description: `Đọc các cập nhật quan trọng dành cho ${user?.firstName ?? 'bạn'} mà không rời khỏi student workspace đã được bảo vệ.`,
+          description: `Đọc các cập nhật quan trọng dành cho ${user?.firstName ?? 'bạn'} mà không rời khỏi không gian sinh viên.`,
           refresh: 'Làm mới',
           loading: 'Đang tải thông báo',
           unavailableTitle: 'Thông báo chưa sẵn sàng',
@@ -59,7 +60,7 @@ export default function StudentAnnouncementsPage() {
           returnDashboard: 'Quay lại dashboard',
           recentNotices: 'Thông báo gần đây',
           semesterPrefix: 'Học kỳ',
-          sectionPrefix: 'section',
+          sectionPrefix: 'lớp học phần',
           loadFailed: 'Hiện chưa thể tải thông báo.',
         }
       : {
@@ -175,7 +176,14 @@ export default function StudentAnnouncementsPage() {
                     <div className="flex flex-wrap gap-3 text-xs uppercase tracking-[0.16em] text-muted-foreground">
                       {announcement.semester?.name ? (
                         <span>
-                          {copy.semesterPrefix} {announcement.semester.name}
+                          {copy.semesterPrefix}{' '}
+                          {getLocalizedFlatLabel(
+                            locale,
+                            announcement.semester.name,
+                            announcement.semester.nameEn,
+                            announcement.semester.nameVi,
+                            announcement.semester.name,
+                          )}
                         </span>
                       ) : null}
                       {announcement.section?.course?.code ? (

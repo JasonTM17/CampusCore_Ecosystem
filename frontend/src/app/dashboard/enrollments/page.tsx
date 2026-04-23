@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookOpen, Calendar, Clock, MapPin, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { enrollmentsApi } from '@/lib/api';
+import { getLocalizedName } from '@/lib/academic-content';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { Enrollment } from '@/types/api';
 import { Button } from '@/components/ui/button';
@@ -270,8 +271,11 @@ export default function EnrollmentsPage() {
             <CardContent className="space-y-4">
               {enrollments.map((enrollment) => {
                 const courseCode = enrollment.section?.course?.code ?? copy.unknownCourse;
-                const courseName =
-                  enrollment.section?.course?.name ?? copy.unavailableCourseName;
+                const courseName = getLocalizedName(
+                  locale,
+                  enrollment.section?.course,
+                  enrollment.section?.course?.name ?? copy.unavailableCourseName,
+                );
                 const courseLabel = `${courseCode} ${courseName}`.trim();
 
                 return (

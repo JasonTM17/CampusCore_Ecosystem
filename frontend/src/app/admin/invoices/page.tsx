@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import { getLocalizedName } from '@/lib/academic-content';
 
 interface Invoice {
   id: string;
@@ -47,7 +48,7 @@ interface Invoice {
     user?: { firstName?: string; lastName?: string; email?: string };
     studentId?: string;
   };
-  semester?: { name: string };
+  semester?: { name: string; nameEn?: string; nameVi?: string; type?: string };
 }
 
 interface InvoiceDetail extends Invoice {
@@ -72,6 +73,9 @@ interface InvoiceDetail extends Invoice {
 interface Semester {
   id: string;
   name: string;
+  nameEn?: string;
+  nameVi?: string;
+  type?: string;
 }
 
 const statusColors: Record<string, string> = {
@@ -325,10 +329,18 @@ export default function AdminInvoicesPage() {
       { value: '', label: copy.allSemesters },
       ...semesters.map((semester) => ({
         value: semester.id,
-        label: semester.name,
+        label: getLocalizedName(locale, semester, semester.name),
       })),
     ],
-    [copy.allSemesters, semesters],
+    [copy.allSemesters, locale, semesters],
+  );
+
+  const semesterLookup = useMemo(
+    () =>
+      new Map(
+        semesters.map((semester) => [semester.id, semester] as const),
+      ),
+    [semesters],
   );
 
   const statusOptions = useMemo(
@@ -565,7 +577,11 @@ export default function AdminInvoicesPage() {
                           </div>
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
-                          {invoice.semester?.name || copy.unassigned}
+                          {getLocalizedName(
+                            locale,
+                            semesterLookup.get(invoice.semesterId) ?? invoice.semester,
+                            invoice.semester?.name || copy.unassigned,
+                          )}
                         </td>
                         <td className="px-2 py-4 text-right font-medium text-foreground">
                           {formatCurrency(Number(invoice.total))}

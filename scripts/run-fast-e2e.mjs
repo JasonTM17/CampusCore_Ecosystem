@@ -1,6 +1,7 @@
 import { createWriteStream } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { createServer as createNetServer } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -23,7 +24,7 @@ const nextCli = path.join(frontendDir, 'node_modules', 'next', 'dist', 'bin', 'n
 
 const postgresContainer =
   process.env.E2E_POSTGRES_CONTAINER ?? 'campuscore-fast-e2e-postgres';
-const postgresPort = Number(process.env.E2E_DB_PORT ?? '5433');
+const postgresPort = Number(process.env.E2E_DB_PORT ?? '55433');
 const postgresUser = process.env.E2E_POSTGRES_USER ?? 'campuscore';
 const postgresPassword =
   process.env.E2E_POSTGRES_PASSWORD ?? 'campuscore_password';
@@ -49,6 +50,7 @@ const peopleDatabaseUrl = publicDatabaseUrl.replace('schema=public', 'schema=peo
 const analyticsDatabaseUrl = publicDatabaseUrl;
 
 const frontendBaseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3100';
+const frontendPort = Number(new URL(frontendBaseURL).port || '80');
 const proxyPort = Number(process.env.E2E_GATEWAY_PORT ?? '4180');
 const apiBaseURL = process.env.E2E_API_URL ?? `http://127.0.0.1:${proxyPort}/api/v1`;
 const backendPort = Number(process.env.E2E_CORE_API_PORT ?? '4100');
@@ -59,6 +61,8 @@ const academicPort = Number(process.env.E2E_ACADEMIC_PORT ?? '4103');
 const engagementPort = Number(process.env.E2E_ENGAGEMENT_PORT ?? '4104');
 const peoplePort = Number(process.env.E2E_PEOPLE_PORT ?? '4105');
 const analyticsPort = Number(process.env.E2E_ANALYTICS_PORT ?? '4106');
+const e2eProfile = process.env.E2E_PROFILE ?? 'full';
+const playwrightFilter = process.env.E2E_PLAYWRIGHT_FILTER;
 const internalServiceToken =
   process.env.INTERNAL_SERVICE_TOKEN ?? 'local-fast-e2e-internal-token-12345';
 const keepPostgres = process.env.E2E_KEEP_POSTGRES === '1';
@@ -85,13 +89,25 @@ const academicApiPrefixes = [
   '/api/v1/semesters',
   '/api/v1/waitlist'
 ];
+const enabledServices = {
+  engagement: e2eProfile !== 'finance',
+  people: e2eProfile !== 'finance',
+  analytics: e2eProfile !== 'finance'
+};
 
 function nestStartArgs(serviceDir) {
   return [path.join(serviceDir, 'node_modules', '@nestjs', 'cli', 'bin', 'nest.js'), 'start'];
 }
 
 function frontendDevArgs() {
-  return [nextCli, 'dev', '--hostname', '127.0.0.1', '--port', '3100'];
+  return [
+    nextCli,
+    'dev',
+    '--hostname',
+    '127.0.0.1',
+    '--port',
+    String(frontendPort),
+  ];
 }
 
 async function main() {
@@ -99,6 +115,8 @@ async function main() {
   await mkdir(logsDir, { recursive: true });
 
   try {
+    await assertDockerAvailable();
+    await assertPortsAvailable();
     await cleanupPostgres();
     await startPostgres();
     await waitForPostgres();
@@ -120,22 +138,33 @@ async function main() {
       `http://127.0.0.1:${academicPort}/api/v1/health/liveness`,
       (_, response) => response.ok
     );
-    await waitForResponse(
-      `http://127.0.0.1:${engagementPort}/api/v1/health/liveness`,
-      (_, response) => response.ok
-    );
-    await waitForResponse(
-      `http://127.0.0.1:${peoplePort}/api/v1/health/liveness`,
-      (_, response) => response.ok
-    );
-    await waitForResponse(
-      `http://127.0.0.1:${analyticsPort}/api/v1/health/liveness`,
-      (_, response) => response.ok
-    );
+    if (enabledServices.engagement) {
+      await waitForResponse(
+        `http://127.0.0.1:${engagementPort}/api/v1/health/liveness`,
+        (_, response) => response.ok
+      );
+    }
+    if (enabledServices.people) {
+      await waitForResponse(
+        `http://127.0.0.1:${peoplePort}/api/v1/health/liveness`,
+        (_, response) => response.ok
+      );
+    }
+    if (enabledServices.analytics) {
+      await waitForResponse(
+        `http://127.0.0.1:${analyticsPort}/api/v1/health/liveness`,
+        (_, response) => response.ok
+      );
+    }
     await waitForResponse(`${apiBaseURL}/health/liveness`, (_, response) => response.ok);
     await waitForResponse(frontendBaseURL, (_, response) => response.ok);
 
-    await run(process.execPath, [playwrightCli, 'test'], {
+    const playwrightArgs = [playwrightCli, 'test'];
+    if (playwrightFilter) {
+      playwrightArgs.push(playwrightFilter);
+    }
+
+    await run(process.execPath, playwrightArgs, {
       cwd: frontendDir,
       env: {
         ...process.env,
@@ -191,18 +220,24 @@ async function prepareDatabase() {
     cwd: academicDir,
     env: { ...process.env, DATABASE_URL: academicDatabaseUrl }
   });
-  await run('npm', ['run', 'prisma:generate'], {
-    cwd: engagementDir,
-    env: { ...process.env, DATABASE_URL: engagementDatabaseUrl }
-  });
-  await run('npm', ['run', 'prisma:generate'], {
-    cwd: peopleDir,
-    env: { ...process.env, DATABASE_URL: peopleDatabaseUrl }
-  });
-  await run('npm', ['run', 'prisma:generate'], {
-    cwd: analyticsDir,
-    env: { ...process.env, DATABASE_URL: analyticsDatabaseUrl }
-  });
+  if (enabledServices.engagement) {
+    await run('npm', ['run', 'prisma:generate'], {
+      cwd: engagementDir,
+      env: { ...process.env, DATABASE_URL: engagementDatabaseUrl }
+    });
+  }
+  if (enabledServices.people) {
+    await run('npm', ['run', 'prisma:generate'], {
+      cwd: peopleDir,
+      env: { ...process.env, DATABASE_URL: peopleDatabaseUrl }
+    });
+  }
+  if (enabledServices.analytics) {
+    await run('npm', ['run', 'prisma:generate'], {
+      cwd: analyticsDir,
+      env: { ...process.env, DATABASE_URL: analyticsDatabaseUrl }
+    });
+  }
   await run('npm', ['run', 'prisma:dbpush'], {
     cwd: notificationDir,
     env: { ...process.env, DATABASE_URL: notificationsDatabaseUrl }
@@ -215,18 +250,24 @@ async function prepareDatabase() {
     cwd: academicDir,
     env: { ...process.env, DATABASE_URL: academicDatabaseUrl }
   });
-  await run('npm', ['run', 'prisma:dbpush'], {
-    cwd: engagementDir,
-    env: { ...process.env, DATABASE_URL: engagementDatabaseUrl }
-  });
-  await run('npm', ['run', 'prisma:dbpush'], {
-    cwd: peopleDir,
-    env: { ...process.env, DATABASE_URL: peopleDatabaseUrl }
-  });
-  await run('npm', ['run', 'prisma:dbpush'], {
-    cwd: analyticsDir,
-    env: { ...process.env, DATABASE_URL: analyticsDatabaseUrl }
-  });
+  if (enabledServices.engagement) {
+    await run('npm', ['run', 'prisma:dbpush'], {
+      cwd: engagementDir,
+      env: { ...process.env, DATABASE_URL: engagementDatabaseUrl }
+    });
+  }
+  if (enabledServices.people) {
+    await run('npm', ['run', 'prisma:dbpush'], {
+      cwd: peopleDir,
+      env: { ...process.env, DATABASE_URL: peopleDatabaseUrl }
+    });
+  }
+  if (enabledServices.analytics) {
+    await run('npm', ['run', 'prisma:dbpush'], {
+      cwd: analyticsDir,
+      env: { ...process.env, DATABASE_URL: analyticsDatabaseUrl }
+    });
+  }
   await run('npm', ['run', 'prisma:seed'], {
     cwd: backendDir,
     env: { ...process.env, DATABASE_URL: publicDatabaseUrl }
@@ -275,29 +316,33 @@ async function prepareDatabase() {
       FRONTEND_URL: frontendBaseURL
     }
   });
-  await run('npm', ['run', 'data:migrate:legacy'], {
-    cwd: engagementDir,
-    env: {
-      ...process.env,
-      DATABASE_URL: engagementDatabaseUrl,
-      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
-      FRONTEND_URL: frontendBaseURL,
-      RABBITMQ_URL: 'disabled'
-    }
-  });
-  await run('npm', ['run', 'data:migrate:legacy'], {
-    cwd: peopleDir,
-    env: {
-      ...process.env,
-      DATABASE_URL: peopleDatabaseUrl,
-      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
-      FRONTEND_URL: frontendBaseURL,
-      AUTH_SERVICE_INTERNAL_URL: `http://127.0.0.1:${authPort}`,
-      ACADEMIC_SERVICE_INTERNAL_URL: `http://127.0.0.1:${academicPort}`,
-      INTERNAL_SERVICE_TOKEN: internalServiceToken,
-      RABBITMQ_URL: 'disabled'
-    }
-  });
+  if (enabledServices.engagement) {
+    await run('npm', ['run', 'data:migrate:legacy'], {
+      cwd: engagementDir,
+      env: {
+        ...process.env,
+        DATABASE_URL: engagementDatabaseUrl,
+        JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+        FRONTEND_URL: frontendBaseURL,
+        RABBITMQ_URL: 'disabled'
+      }
+    });
+  }
+  if (enabledServices.people) {
+    await run('npm', ['run', 'data:migrate:legacy'], {
+      cwd: peopleDir,
+      env: {
+        ...process.env,
+        DATABASE_URL: peopleDatabaseUrl,
+        JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+        FRONTEND_URL: frontendBaseURL,
+        AUTH_SERVICE_INTERNAL_URL: `http://127.0.0.1:${authPort}`,
+        ACADEMIC_SERVICE_INTERNAL_URL: `http://127.0.0.1:${academicPort}`,
+        INTERNAL_SERVICE_TOKEN: internalServiceToken,
+        RABBITMQ_URL: 'disabled'
+      }
+    });
+  }
 }
 
 async function startApplicationServers() {
@@ -389,58 +434,64 @@ async function startApplicationServers() {
     }
   });
 
-  await startManagedProcess(
-    'engagement-service',
-    process.execPath,
-    nestStartArgs(engagementDir),
-    {
-    cwd: engagementDir,
-    env: {
-      ...process.env,
-      DATABASE_URL: engagementDatabaseUrl,
-      PORT: String(engagementPort),
-      FRONTEND_URL: frontendBaseURL,
-      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
-      NODE_ENV: 'test',
-      RABBITMQ_URL: 'disabled',
-      COOKIE_SECURE: 'false'
-    }
-  });
+  if (enabledServices.engagement) {
+    await startManagedProcess(
+      'engagement-service',
+      process.execPath,
+      nestStartArgs(engagementDir),
+      {
+      cwd: engagementDir,
+      env: {
+        ...process.env,
+        DATABASE_URL: engagementDatabaseUrl,
+        PORT: String(engagementPort),
+        FRONTEND_URL: frontendBaseURL,
+        JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+        NODE_ENV: 'test',
+        RABBITMQ_URL: 'disabled',
+        COOKIE_SECURE: 'false'
+      }
+    });
+  }
 
-  await startManagedProcess('people-service', process.execPath, nestStartArgs(peopleDir), {
-    cwd: peopleDir,
-    env: {
-      ...process.env,
-      DATABASE_URL: peopleDatabaseUrl,
-      PORT: String(peoplePort),
-      FRONTEND_URL: frontendBaseURL,
-      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
-      NODE_ENV: 'test',
-      RABBITMQ_URL: 'disabled',
-      COOKIE_SECURE: 'false',
-      AUTH_SERVICE_INTERNAL_URL: `http://127.0.0.1:${authPort}`,
-      ACADEMIC_SERVICE_INTERNAL_URL: `http://127.0.0.1:${academicPort}`,
-      INTERNAL_SERVICE_TOKEN: internalServiceToken
-    }
-  });
+  if (enabledServices.people) {
+    await startManagedProcess('people-service', process.execPath, nestStartArgs(peopleDir), {
+      cwd: peopleDir,
+      env: {
+        ...process.env,
+        DATABASE_URL: peopleDatabaseUrl,
+        PORT: String(peoplePort),
+        FRONTEND_URL: frontendBaseURL,
+        JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+        NODE_ENV: 'test',
+        RABBITMQ_URL: 'disabled',
+        COOKIE_SECURE: 'false',
+        AUTH_SERVICE_INTERNAL_URL: `http://127.0.0.1:${authPort}`,
+        ACADEMIC_SERVICE_INTERNAL_URL: `http://127.0.0.1:${academicPort}`,
+        INTERNAL_SERVICE_TOKEN: internalServiceToken
+      }
+    });
+  }
 
-  await startManagedProcess(
-    'analytics-service',
-    process.execPath,
-    nestStartArgs(analyticsDir),
-    {
-    cwd: analyticsDir,
-    env: {
-      ...process.env,
-      DATABASE_URL: analyticsDatabaseUrl,
-      PORT: String(analyticsPort),
-      FRONTEND_URL: frontendBaseURL,
-      JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
-      NODE_ENV: 'test',
-      RABBITMQ_URL: 'disabled',
-      COOKIE_SECURE: 'false'
-    }
-  });
+  if (enabledServices.analytics) {
+    await startManagedProcess(
+      'analytics-service',
+      process.execPath,
+      nestStartArgs(analyticsDir),
+      {
+      cwd: analyticsDir,
+      env: {
+        ...process.env,
+        DATABASE_URL: analyticsDatabaseUrl,
+        PORT: String(analyticsPort),
+        FRONTEND_URL: frontendBaseURL,
+        JWT_SECRET: process.env.E2E_JWT_SECRET ?? 'e2e-jwt-secret',
+        NODE_ENV: 'test',
+        RABBITMQ_URL: 'disabled',
+        COOKIE_SECURE: 'false'
+      }
+    });
+  }
 
   await startApiGateway();
 
@@ -453,6 +504,7 @@ async function startApplicationServers() {
       env: {
         ...process.env,
         NEXT_PUBLIC_API_URL: apiBaseURL,
+        LOCAL_EDGE_ORIGIN: `http://127.0.0.1:${proxyPort}`,
         NODE_OPTIONS: frontendNodeOptions
       }
     }
@@ -478,7 +530,8 @@ async function startApiGateway() {
         method,
         headers,
         body: ['GET', 'HEAD'].includes(method.toUpperCase()) ? undefined : req,
-        duplex: ['GET', 'HEAD'].includes(method.toUpperCase()) ? undefined : 'half'
+        duplex: ['GET', 'HEAD'].includes(method.toUpperCase()) ? undefined : 'half',
+        redirect: 'manual'
       });
 
       const outgoingHeaders = Object.fromEntries(response.headers.entries());
@@ -530,6 +583,9 @@ function resolveProxyTarget(url) {
   }
 
   if (url.startsWith('/api/v1/analytics') || url.startsWith('/analytics')) {
+    if (!enabledServices.analytics) {
+      return `http://127.0.0.1:${backendPort}`;
+    }
     return `http://127.0.0.1:${analyticsPort}`;
   }
 
@@ -543,6 +599,9 @@ function resolveProxyTarget(url) {
     url.startsWith('/students') ||
     url.startsWith('/lecturers')
   ) {
+    if (!enabledServices.people) {
+      return `http://127.0.0.1:${backendPort}`;
+    }
     return `http://127.0.0.1:${peoplePort}`;
   }
 
@@ -552,6 +611,9 @@ function resolveProxyTarget(url) {
     url.startsWith('/announcements') ||
     url.startsWith('/support-tickets')
   ) {
+    if (!enabledServices.engagement) {
+      return `http://127.0.0.1:${backendPort}`;
+    }
     return `http://127.0.0.1:${engagementPort}`;
   }
 
@@ -663,6 +725,70 @@ async function terminateManagedProcess(child) {
     signalUnixProcessTree(child.pid, 'SIGKILL');
     await waitForExit(child, 5_000);
   }
+}
+
+async function assertDockerAvailable() {
+  try {
+    await run('docker', ['info'], {
+      captureOutput: true
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : String(error);
+
+    throw new Error(
+      [
+        '[fast-e2e] Docker daemon is not reachable.',
+        '[fast-e2e] Start Docker Desktop/Linux engine before running the fast E2E lane.',
+        message
+      ].join('\n')
+    );
+  }
+}
+
+async function assertPortsAvailable() {
+  const ports = [
+    postgresPort,
+    backendPort,
+    authPort,
+    notificationPort,
+    financePort,
+    academicPort,
+    engagementPort,
+    peoplePort,
+    analyticsPort,
+    proxyPort,
+    frontendPort
+  ];
+
+  for (const port of ports) {
+    await assertPortAvailable(port);
+  }
+}
+
+async function assertPortAvailable(port) {
+  await new Promise((resolve, reject) => {
+    const server = createNetServer();
+
+    server.once('error', (error) => {
+      reject(
+        new Error(
+          `[fast-e2e] Required local port ${port} is already in use. Free the port or override the E2E_* port env before rerunning the lane. ${error instanceof Error ? error.message : String(error)}`
+        )
+      );
+    });
+
+    server.listen(port, () => {
+      server.close((closeError) => {
+        if (closeError) {
+          reject(closeError);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  });
 }
 
 function killProcess(pid) {

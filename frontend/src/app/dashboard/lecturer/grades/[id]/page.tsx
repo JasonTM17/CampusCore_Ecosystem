@@ -6,6 +6,7 @@ import { CheckCircle, FileText, Save, Send, Users } from 'lucide-react';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { useRequireAuth } from '@/context/AuthContext';
 import { sectionsApi } from '@/lib/api';
+import { getLocalizedFlatLabel } from '@/lib/academic-content';
 import { SectionGrades } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -71,6 +72,19 @@ export default function SectionGradingPage() {
   const { confirm, confirmationDialog } = useConfirmationDialog();
 
   const sectionId = params?.id;
+  const localizedCourseName = useMemo(
+    () =>
+      sectionData
+        ? getLocalizedFlatLabel(
+            locale,
+            sectionData.courseName,
+            sectionData.courseNameEn,
+            sectionData.courseNameVi,
+            sectionData.courseName,
+          )
+        : '',
+    [locale, sectionData],
+  );
 
   const copy =
     locale === 'vi'
@@ -348,7 +362,7 @@ export default function SectionGradingPage() {
       <PageHeader
         eyebrow={<SectionEyebrow>{copy.eyebrow}</SectionEyebrow>}
         title={`${sectionData.courseCode} · ${copy.sectionPrefix} ${sectionData.sectionNumber}`}
-        description={copy.pageDescription(sectionData.courseName)}
+        description={copy.pageDescription(localizedCourseName)}
         actions={
           <div className="flex flex-wrap gap-3">
             <LocalizedLink href="/dashboard/lecturer/grades">

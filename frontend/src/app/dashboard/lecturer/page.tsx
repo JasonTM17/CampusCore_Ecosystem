@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bell, Calendar, FileText, Users } from 'lucide-react';
 import { useRequireAuth } from '@/context/AuthContext';
 import { announcementsApi, sectionsApi } from '@/lib/api';
+import { getLocalizedFlatLabel } from '@/lib/academic-content';
 import { GradingSection, LecturerSection } from '@/types/api';
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import {
@@ -48,7 +49,7 @@ export default function LecturerDashboardPage() {
   const { user, hasAccess, isLoading: authLoading } = useRequireAuth([
     'LECTURER',
   ]);
-  const { formatDateTime, formatNumber, messages } = useI18n();
+  const { locale, formatDateTime, formatNumber, messages } = useI18n();
   const [scheduleSections, setScheduleSections] = useState<LecturerSection[]>([]);
   const [gradingSections, setGradingSections] = useState<GradingSection[]>([]);
   const [announcements, setAnnouncements] = useState<LecturerAnnouncement[]>([]);
@@ -187,10 +188,22 @@ export default function LecturerDashboardPage() {
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <div className="font-medium text-foreground">
-                            {section.courseCode} - {section.courseName}
+                            {section.courseCode} - {getLocalizedFlatLabel(
+                              locale,
+                              section.courseName,
+                              section.courseNameEn,
+                              section.courseNameVi,
+                              section.courseName,
+                            )}
                           </div>
                           <div className="mt-1 text-sm text-muted-foreground">
-                            Section {section.sectionNumber} - {section.semester}
+                            Section {section.sectionNumber} - {getLocalizedFlatLabel(
+                              locale,
+                              section.semester,
+                              section.semesterNameEn,
+                              section.semesterNameVi,
+                              section.semester,
+                            )}
                           </div>
                         </div>
                         <div className="text-sm text-muted-foreground sm:text-right">
@@ -230,10 +243,22 @@ export default function LecturerDashboardPage() {
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <div className="font-medium text-foreground">
-                            {section.courseCode} - {section.courseName}
+                            {section.courseCode} - {getLocalizedFlatLabel(
+                              locale,
+                              section.courseName,
+                              section.courseNameEn,
+                              section.courseNameVi,
+                              section.courseName,
+                            )}
                           </div>
                           <div className="mt-1 text-sm text-muted-foreground">
-                            Section {section.sectionNumber} - {section.departmentName}
+                            Section {section.sectionNumber} - {getLocalizedFlatLabel(
+                              locale,
+                              section.departmentName,
+                              section.departmentNameEn,
+                              section.departmentNameVi,
+                              section.departmentName,
+                            )}
                           </div>
                         </div>
                         <div className="text-sm text-muted-foreground sm:text-right">

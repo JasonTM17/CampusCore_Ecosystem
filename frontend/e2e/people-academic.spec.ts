@@ -99,7 +99,7 @@ test('lecturer can traverse teaching flows without losing lecturer claims', asyn
             }),
           ).toBeVisible({ timeout: timeoutMs });
 
-          const manageButtons = currentPage.getByRole('button', {
+          const manageLinks = currentPage.getByRole('link', {
             name: /Manage Grades|Enter Grades/i,
           });
           const emptyStateHeading = currentPage.getByRole('heading', {
@@ -107,21 +107,21 @@ test('lecturer can traverse teaching flows without losing lecturer claims', asyn
           });
 
           await waitForAnyVisible(
-            [manageButtons, emptyStateHeading],
+            [manageLinks, emptyStateHeading],
             timeoutMs,
           );
 
-          const hasManageButtons =
-            (await manageButtons.first().count()) > 0 &&
-            (await manageButtons.first().isVisible().catch(() => false));
+          const hasManageLinks =
+            (await manageLinks.first().count()) > 0 &&
+            (await manageLinks.first().isVisible().catch(() => false));
 
-          if (!hasManageButtons) {
+          if (!hasManageLinks) {
             await expect(emptyStateHeading).toBeVisible({ timeout: timeoutMs });
             return;
           }
 
-          await expect(manageButtons.first()).toBeVisible({ timeout: timeoutMs });
-          await manageButtons.first().click();
+          await expect(manageLinks.first()).toBeVisible({ timeout: timeoutMs });
+          await manageLinks.first().click();
           await expect(currentPage).toHaveURL(
             /\/dashboard\/lecturer\/grades\/[^/]+$/,
           );

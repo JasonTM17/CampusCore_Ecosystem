@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FileText, GraduationCap, Users } from 'lucide-react';
 import { useRequireAuth } from '@/context/AuthContext';
 import { sectionsApi, semestersApi } from '@/lib/api';
+import { getLocalizedFlatLabel, getLocalizedName } from '@/lib/academic-content';
 import { GradingSection, Semester } from '@/types/api';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,7 @@ import { useI18n } from '@/i18n';
 
 export default function LecturerGradesPage() {
   const { hasAccess, isLoading: authLoading } = useRequireAuth(['LECTURER']);
-  const { formatNumber, messages } = useI18n();
+  const { locale, formatNumber, messages } = useI18n();
   const [sections, setSections] = useState<GradingSection[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [selectedSemester, setSelectedSemester] = useState('');
@@ -64,10 +65,14 @@ export default function LecturerGradesPage() {
 
   const selectedSemesterName = useMemo(() => {
     return (
-      semesters.find((semester) => semester.id === selectedSemester)?.name ??
+      getLocalizedName(
+        locale,
+        semesters.find((semester) => semester.id === selectedSemester),
+        messages.lecturerGrades.allSemesters,
+      ) ??
       messages.lecturerGrades.allSemesters
     );
-  }, [messages.lecturerGrades.allSemesters, selectedSemester, semesters]);
+  }, [locale, messages.lecturerGrades.allSemesters, selectedSemester, semesters]);
 
   const publishReadyCount = sections.filter((section) => section.canPublish).length;
   const totalGradedEntries = sections.reduce(
@@ -95,7 +100,7 @@ export default function LecturerGradesPage() {
                 { value: '', label: messages.lecturerGrades.allSemestersOption },
                 ...semesters.map((semester) => ({
                   value: semester.id,
-                  label: semester.name,
+                  label: getLocalizedName(locale, semester, semester.name),
                 })),
               ]}
             />
@@ -160,14 +165,34 @@ export default function LecturerGradesPage() {
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <h2 className="text-lg font-semibold text-foreground">
-                            {section.courseCode} - {section.courseName}
+                            {section.courseCode} - {getLocalizedFlatLabel(
+                              locale,
+                              section.courseName,
+                              section.courseNameEn,
+                              section.courseNameVi,
+                              section.courseName,
+                            )}
                           </h2>
                           <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
                             {messages.lecturerGrades.labels.sectionPrefix} {section.sectionNumber}
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          {section.departmentName} - {section.semester}
+                          {getLocalizedFlatLabel(
+                            locale,
+                            section.departmentName,
+                            section.departmentNameEn,
+                            section.departmentNameVi,
+                            section.departmentName,
+                          )}{' '}
+                          -{' '}
+                          {getLocalizedFlatLabel(
+                            locale,
+                            section.semester,
+                            section.semesterNameEn,
+                            section.semesterNameVi,
+                            section.semester,
+                          )}
                         </p>
                       </div>
 
@@ -191,11 +216,11 @@ export default function LecturerGradesPage() {
                       >
                         {section.canPublish ? messages.lecturerGrades.labels.readyStatus : section.gradeStatus}
                       </span>
-                      <LocalizedLink href={`/dashboard/lecturer/grades/${section.id}`}>
-                        <Button>
+                      <Button asChild>
+                        <LocalizedLink href={`/dashboard/lecturer/grades/${section.id}`}>
                           {section.gradedCount > 0 ? messages.lecturerGrades.labels.manageGrades : messages.lecturerGrades.labels.enterGrades}
-                        </Button>
-                      </LocalizedLink>
+                        </LocalizedLink>
+                      </Button>
                     </div>
                   </div>
                 </div>

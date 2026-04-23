@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bell, BookMarked, BookOpen, Calendar, ClipboardList, CreditCard, FileText, GraduationCap, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { enrollmentsApi, semestersApi } from '@/lib/api';
+import { getLocalizedName } from '@/lib/academic-content';
 import { pickPreferredSemesterId } from '@/lib/semesters';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { Button } from '@/components/ui/button';
@@ -77,7 +78,7 @@ const portalLinks = [
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { formatDate, formatNumber, messages } = useI18n();
+  const { locale, formatDate, formatNumber, messages } = useI18n();
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [currentSemester, setCurrentSemester] = useState<string>('');
@@ -113,10 +114,18 @@ export default function DashboardPage() {
 
   const currentSemesterName = useMemo(() => {
     return (
-      semesters.find((semester) => semester.id === currentSemester)?.name ||
-      messages.studentDashboard.currentTermFallback
+      getLocalizedName(
+        locale,
+        semesters.find((semester) => semester.id === currentSemester),
+        messages.studentDashboard.currentTermFallback,
+      ) || messages.studentDashboard.currentTermFallback
     );
-  }, [currentSemester, messages.studentDashboard.currentTermFallback, semesters]);
+  }, [
+    currentSemester,
+    locale,
+    messages.studentDashboard.currentTermFallback,
+    semesters,
+  ]);
 
   const confirmedCourses = enrollments.filter(
     (enrollment) => enrollment.status === 'CONFIRMED',
@@ -224,7 +233,14 @@ export default function DashboardPage() {
                   />
                 ) : (
                   <div className="space-y-3">
-                    {highlightedCourses.map((enrollment) => (
+                    {highlightedCourses.map((enrollment) => {
+                      const localizedCourseName = getLocalizedName(
+                        locale,
+                        enrollment.section?.course,
+                        enrollment.section?.course?.name ?? '',
+                      );
+
+                      return (
                       <div
                         key={enrollment.id}
                         className="flex items-center gap-4 rounded-lg border border-border/70 bg-card px-4 py-4"
@@ -234,7 +250,7 @@ export default function DashboardPage() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-medium text-foreground">
-                            {enrollment.section?.course?.code} - {enrollment.section?.course?.name}
+                            {enrollment.section?.course?.code} - {localizedCourseName}
                           </div>
                           <div className="text-sm text-muted-foreground">
                             {messages.studentDashboard.panels.currentCourses.sectionLabel.replace('{section}', enrollment.section?.sectionNumber || '')}
@@ -244,7 +260,8 @@ export default function DashboardPage() {
                           {enrollment.status}
                         </span>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
             </WorkspacePanel>

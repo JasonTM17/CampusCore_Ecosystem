@@ -2,16 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, Calendar, ClipboardList, CreditCard, FileText, LayoutDashboard, LogOut, Menu, School, Settings, User, Users, X, BookOpen, DoorOpen, BarChart3 } from 'lucide-react';
+import { Bell, Calendar, ChevronLeft, ChevronRight, ClipboardList, CreditCard, FileText, LayoutDashboard, LogOut, Menu, School, Settings, User, Users, X, BookOpen, DoorOpen, BarChart3 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { BrandMark } from '@/components/BrandMark';
+import { StudentContextRail } from '@/components/dashboard/StudentContextRail';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n';
 import { notificationsApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { stripLocaleFromPathname } from '@/i18n/paths';
 
 const studentMenuItems = [
   { href: '/dashboard', icon: LayoutDashboard, labelKey: 'dashboard' },
@@ -47,8 +49,12 @@ export default function DashboardLayout({
   const { user, isLoading, logout, isLecturer, isAdmin } = useAuth();
   const { href, messages } = useI18n();
   const router = useRouter();
-  const pathname = usePathname();
+  const visiblePathname = usePathname();
+  const pathname = stripLocaleFromPathname(visiblePathname).pathname;
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [studentRailOpen, setStudentRailOpen] = useState(false);
+  const [studentRailCollapsed, setStudentRailCollapsed] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -57,6 +63,7 @@ export default function DashboardLayout({
   const notificationsRef = useRef<HTMLDivElement>(null);
 
   const menuLabels = messages.dashboardShell.menu;
+  const showStudentRail = !isAdmin && !isLecturer;
   const menuItems = isAdmin
     ? []
     : (isLecturer ? lecturerMenuItems : studentMenuItems).map((item) => ({
@@ -128,6 +135,50 @@ export default function DashboardLayout({
       router.replace(`${href('/login')}?reason=unauthorized`);
     }
   }, [href, user, isLoading, router]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const persisted = window.localStorage.getItem('campuscore.dashboard-sidebar');
+    if (persisted === 'collapsed') {
+      setSidebarCollapsed(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(
+      'campuscore.dashboard-sidebar',
+      sidebarCollapsed ? 'collapsed' : 'expanded',
+    );
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !showStudentRail) {
+      return;
+    }
+
+    const persisted = window.localStorage.getItem('campuscore.student-rail');
+    if (persisted === 'collapsed') {
+      setStudentRailCollapsed(true);
+    }
+  }, [showStudentRail]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !showStudentRail) {
+      return;
+    }
+
+    window.localStorage.setItem(
+      'campuscore.student-rail',
+      studentRailCollapsed ? 'collapsed' : 'expanded',
+    );
+  }, [showStudentRail, studentRailCollapsed]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -234,12 +285,47 @@ export default function DashboardLayout({
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-border/70 bg-[hsl(var(--surface-alt))] transition-transform duration-200 lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-border/70 bg-[hsl(var(--surface-alt))] transition-[transform,width] duration-200 lg:translate-x-0',
+          sidebarCollapsed ? 'lg:w-20' : 'lg:w-72',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="flex items-center justify-between border-b border-border/70 px-5 py-4">
-          <BrandMark href={isLecturer ? '/dashboard/lecturer' : '/dashboard'} compact />
+        <div
+          className={cn(
+            'flex items-center justify-between border-b border-border/70 py-4',
+            sidebarCollapsed ? 'px-3' : 'px-5',
+          )}
+        >
+          <BrandMark
+            href={isLecturer ? '/dashboard/lecturer' : '/dashboard'}
+            compact
+            className={cn(sidebarCollapsed && 'justify-center gap-0')}
+            titleClassName={cn(sidebarCollapsed && 'hidden')}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="hidden lg:inline-flex"
+            onClick={() => setSidebarCollapsed((current) => !current)}
+            aria-label={
+              sidebarCollapsed
+                ? messages.dashboardShell.controls.expandSidebar
+                : messages.dashboardShell.controls.collapseSidebar
+            }
+            title={
+              sidebarCollapsed
+                ? messages.dashboardShell.controls.expandSidebar
+                : messages.dashboardShell.controls.collapseSidebar
+            }
+            aria-expanded={!sidebarCollapsed}
+          >
+            {sidebarCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -252,14 +338,28 @@ export default function DashboardLayout({
           </Button>
         </div>
 
-          <div className="border-b border-border/70 px-5 py-4">
-          <div className="text-sm font-semibold text-foreground">{roleLabel}</div>
-          <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            {messages.dashboardShell.roleDescription}
-          </p>
+        <div
+          className={cn(
+            'border-b border-border/70 py-4',
+            sidebarCollapsed ? 'px-3 text-center' : 'px-5',
+          )}
+        >
+          <div className="text-sm font-semibold text-foreground">
+            {sidebarCollapsed ? roleLabel.slice(0, 2).toUpperCase() : roleLabel}
+          </div>
+          {!sidebarCollapsed ? (
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              {messages.dashboardShell.roleDescription}
+            </p>
+          ) : null}
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-4">
+        <nav
+          className={cn(
+            'flex-1 space-y-1 overflow-y-auto py-4',
+            sidebarCollapsed ? 'px-3' : 'px-4',
+          )}
+        >
           {menuItems.map((item) => {
             const isActive =
               pathname === item.href ||
@@ -272,40 +372,62 @@ export default function DashboardLayout({
                 key={item.href}
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
+                aria-label={item.label}
+                title={sidebarCollapsed ? item.label : undefined}
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                  sidebarCollapsed && 'justify-center px-0',
                   isActive
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:bg-secondary/70 hover:text-foreground',
                 )}
               >
                 <item.icon className="h-4.5 w-4.5" />
-                <span>{item.label}</span>
+                {!sidebarCollapsed ? <span>{item.label}</span> : null}
               </LocalizedLink>
             );
           })}
         </nav>
 
-        <div className="border-t border-border/70 px-4 py-4">
+        <div
+          className={cn(
+            'border-t border-border/70 py-4',
+            sidebarCollapsed ? 'px-3' : 'px-4',
+          )}
+        >
           <LocalizedLink
             href="/dashboard/profile"
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
+            aria-label={messages.dashboardShell.menu.profileSettings}
+            title={
+              sidebarCollapsed
+                ? messages.dashboardShell.menu.profileSettings
+                : undefined
+            }
+            className={cn(
+              'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground',
+              sidebarCollapsed && 'justify-center px-0',
+            )}
           >
             <Settings className="h-4.5 w-4.5" />
-            {messages.dashboardShell.menu.profileSettings}
+            {!sidebarCollapsed ? messages.dashboardShell.menu.profileSettings : null}
           </LocalizedLink>
           <button
             type="button"
             onClick={() => void logout()}
-            className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-red-500 transition-colors hover:bg-red-500/10"
+            aria-label={messages.common.actions.signOut}
+            title={sidebarCollapsed ? messages.common.actions.signOut : undefined}
+            className={cn(
+              'mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-red-500 transition-colors hover:bg-red-500/10',
+              sidebarCollapsed && 'justify-center px-0',
+            )}
           >
             <LogOut className="h-4.5 w-4.5" />
-            {messages.common.actions.signOut}
+            {!sidebarCollapsed ? messages.common.actions.signOut : null}
           </button>
         </div>
       </aside>
 
-      <div className="lg:pl-72">
+      <div className={cn(sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-72')}>
         <header className="sticky top-0 z-30 border-b border-border/70 bg-background/95 backdrop-blur">
           <div className="flex items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
             <div className="flex min-w-0 items-start gap-3">
@@ -331,6 +453,19 @@ export default function DashboardLayout({
             </div>
 
             <div className="flex items-center gap-2">
+              {showStudentRail ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="xl:hidden"
+                  onClick={() => setStudentRailOpen(true)}
+                  aria-label={messages.dashboardShell.controls.openStudentRail}
+                  aria-expanded={studentRailOpen}
+                >
+                  <DoorOpen className="h-5 w-5" />
+                </Button>
+              ) : null}
               <LanguageToggle />
               <ThemeToggle />
 
@@ -473,7 +608,55 @@ export default function DashboardLayout({
           </div>
         </header>
 
-        <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        {showStudentRail && studentRailOpen ? (
+          <>
+            <button
+              type="button"
+              className="fixed inset-0 z-40 bg-black/45 xl:hidden"
+              onClick={() => setStudentRailOpen(false)}
+              aria-label={messages.dashboardShell.controls.closeStudentRailOverlay}
+            />
+            <div className="fixed inset-y-0 right-0 z-50 w-full max-w-sm p-4 xl:hidden">
+              <StudentContextRail
+                mobile
+                currentPageTitle={currentPage.title}
+                currentPageDescription={currentPage.description}
+                unreadCount={unreadCount}
+                collapsed={false}
+                onToggleCollapsed={() => undefined}
+                onCloseMobile={() => setStudentRailOpen(false)}
+              />
+            </div>
+          </>
+        ) : null}
+
+        <div className="px-4 py-6 sm:px-6 lg:px-8">
+          {showStudentRail ? (
+            <div
+              className={cn(
+                'grid items-start gap-6',
+                studentRailCollapsed
+                  ? 'xl:grid-cols-[minmax(0,1fr)_5.5rem]'
+                  : 'xl:grid-cols-[minmax(0,1fr)_22rem]',
+              )}
+            >
+              <main className="min-w-0">{children}</main>
+              <div className="hidden xl:block">
+                <StudentContextRail
+                  currentPageTitle={currentPage.title}
+                  currentPageDescription={currentPage.description}
+                  unreadCount={unreadCount}
+                  collapsed={studentRailCollapsed}
+                  onToggleCollapsed={() =>
+                    setStudentRailCollapsed((current) => !current)
+                  }
+                />
+              </div>
+            </div>
+          ) : (
+            <main>{children}</main>
+          )}
+        </div>
       </div>
     </div>
   );

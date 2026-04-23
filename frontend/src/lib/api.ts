@@ -9,6 +9,7 @@ import {
   User,
   Section,
   Enrollment,
+  EnrollmentActionResult,
   WaitlistEntry,
   Semester,
   Department,
@@ -44,16 +45,17 @@ type AnnouncementRecord = {
   content: string;
   priority: string;
   createdAt: string;
-  semester?: { name: string } | null;
+  semester?: { name: string; nameEn?: string; nameVi?: string } | null;
   section?: {
     sectionNumber: string;
-    course?: { code?: string; name?: string };
+    course?: { code?: string; name?: string; nameEn?: string; nameVi?: string };
   } | null;
 };
 type NotificationRecord = {
   id: string;
   title?: string;
   content?: string;
+  message?: string;
   isRead: boolean;
   createdAt: string;
 };
@@ -72,6 +74,8 @@ type AnalyticsOverview = {
 type SemesterEnrollmentStat = {
   semesterId: string;
   semesterName: string;
+  semesterNameEn?: string;
+  semesterNameVi?: string;
   academicYear: number;
   enrollmentCount: number;
 };
@@ -80,7 +84,11 @@ type SectionOccupancyStat = {
   sectionNumber: string;
   courseCode: string;
   courseName: string;
+  courseNameEn?: string;
+  courseNameVi?: string;
   semesterName: string;
+  semesterNameEn?: string;
+  semesterNameVi?: string;
   capacity: number;
   enrolledCount: number;
   occupancyRate: number;
@@ -92,25 +100,96 @@ type GradeDistributionStat = {
 };
 type EnrollmentTrendStat = {
   month: string;
+  year?: number;
+  monthNumber?: number;
+  startDate?: string;
+  endDate?: string;
+  labelEn?: string;
+  labelVi?: string;
   enrolled: number;
   dropped: number;
   completed: number;
+  net?: number;
+  totalActivity?: number;
 };
-type InvoiceStatus =
+export type AnalyticsFinanceSummary = {
+  totals: {
+    totalInvoiced: number;
+    paidAmount: number;
+    outstandingAmount: number;
+    pendingInvoices: number;
+    overdueInvoices: number;
+    failedPayments: number;
+  };
+  invoiceStatus: Array<{ status: string; count: number; amount: number }>;
+  paymentStatus: Array<{ status: string; count: number; amount: number }>;
+  providerFunnel: Array<{
+    provider: string;
+    status: string;
+    count: number;
+    amount: number;
+  }>;
+};
+export type AnalyticsNotificationSummary = {
+  total: number;
+  unread: number;
+  read: number;
+  byType: Array<{ type: string; count: number }>;
+  recentAttention: Array<{
+    id: string;
+    title: string;
+    message: string;
+    type: string;
+    createdAt: string;
+  }>;
+};
+export type AnalyticsRegistrationPressure = {
+  activeSemesters: number;
+  totalSections: number;
+  atCapacity: number;
+  nearCapacity: number;
+  waitlistActive: number;
+  averageOccupancy: number;
+  highestPressure: Array<
+    SectionOccupancyStat & {
+      waitlistCount: number;
+    }
+  >;
+  waitlistStatus: Array<{ status: string; count: number }>;
+};
+export type AnalyticsOperatorSummary = {
+  generatedAt: string;
+  serviceCount: number;
+  dependencyDown: number;
+  highLatency: number;
+  dashboards: Array<{ label: string; url: string }>;
+};
+export type AnalyticsCockpit = {
+  generatedAt: string;
+  overview: AnalyticsOverview;
+  enrollmentTrends: EnrollmentTrendStat[];
+  sectionOccupancy: SectionOccupancyStat[];
+  gradeDistribution: GradeDistributionStat[];
+  finance: AnalyticsFinanceSummary;
+  notifications: AnalyticsNotificationSummary;
+  registrationPressure: AnalyticsRegistrationPressure;
+  operator: AnalyticsOperatorSummary;
+};
+export type InvoiceStatus =
   | 'DRAFT'
   | 'PENDING'
   | 'PAID'
   | 'OVERDUE'
   | 'PARTIALLY_PAID'
   | 'CANCELLED';
-type FinanceInvoiceItem = {
+export type FinanceInvoiceItem = {
   id: string;
   description: string;
   quantity: number;
   unitPrice: number;
   total: number;
 };
-type FinancePaymentRecord = {
+export type FinancePaymentRecord = {
   id: string;
   paymentNumber: string;
   amount: number;
@@ -124,6 +203,9 @@ type FinanceAdminInvoice = {
   invoiceNumber: string;
   studentId: string;
   semesterId: string;
+  semesterName: string;
+  semesterNameEn?: string;
+  semesterNameVi?: string;
   status: InvoiceStatus;
   total: number;
   dueDate: string;
@@ -133,16 +215,18 @@ type FinanceAdminInvoice = {
     user?: { firstName?: string; lastName?: string; email?: string };
     studentId?: string;
   };
-  semester?: { name: string };
+  semester?: { name: string; nameEn?: string; nameVi?: string };
 };
 type FinanceAdminInvoiceDetail = FinanceAdminInvoice & {
   items: FinanceInvoiceItem[];
   payments: FinancePaymentRecord[];
 };
-type FinanceStudentInvoice = {
+export type FinanceStudentInvoice = {
   id: string;
   invoiceNumber: string;
   semesterName: string;
+  semesterNameEn?: string;
+  semesterNameVi?: string;
   semesterId: string;
   status: InvoiceStatus;
   subtotal: number;
@@ -154,10 +238,107 @@ type FinanceStudentInvoice = {
   paidAmount: number;
   balance: number;
 };
-type FinanceStudentInvoiceDetail = FinanceStudentInvoice & {
+export type FinanceStudentInvoiceDetail = FinanceStudentInvoice & {
   items: FinanceInvoiceItem[];
   payments: FinancePaymentRecord[];
 };
+export type StudentCheckoutProvider =
+  | 'MOMO'
+  | 'ZALOPAY'
+  | 'VNPAY'
+  | 'PAYPAL'
+  | 'CARD';
+export type StudentCheckoutFlow =
+  | 'REDIRECT'
+  | 'QR'
+  | 'APPROVAL'
+  | 'HOSTED_CARD';
+export type StudentCheckoutSignalStatus =
+  | 'SUCCESS'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'PROCESSING';
+export type StudentCheckoutNextAction = {
+  flow: StudentCheckoutFlow;
+  redirectUrl?: string | null;
+  approvalUrl?: string | null;
+  hostedCheckoutUrl?: string | null;
+  deeplinkUrl?: string | null;
+  qrPayload?: string | null;
+  qrCodeUrl?: string | null;
+};
+export type StudentCheckoutAttempt = {
+  id: string;
+  attemptNumber: string;
+  provider: StudentCheckoutProvider;
+  status: string;
+  amount: number;
+  currency: string;
+  publicToken: string;
+  providerReference?: string | null;
+  callbackUrl?: string | null;
+  webhookUrl?: string | null;
+  returnUrl?: string | null;
+  cancelUrl?: string | null;
+  nextAction?: StudentCheckoutNextAction | null;
+  occurredAt?: string | null;
+  finalizedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+export type StudentCheckoutTimelineEvent = {
+  id: string;
+  type: string;
+  source: string;
+  provider: StudentCheckoutProvider;
+  fromIntentStatus?: string | null;
+  toIntentStatus?: string | null;
+  fromAttemptStatus?: string | null;
+  toAttemptStatus?: string | null;
+  payload?: ApiObject | null;
+  createdAt: string;
+};
+export type StudentCheckoutIntent = {
+  id: string;
+  intentNumber: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  provider: StudentCheckoutProvider;
+  status: string;
+  amount: number;
+  currency: string;
+  outstandingAmount: number;
+  expiresAt?: string | null;
+  finalizedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  paymentId?: string | null;
+  nextAction?: StudentCheckoutNextAction | null;
+  latestAttempt: StudentCheckoutAttempt | null;
+  attempts: StudentCheckoutAttempt[];
+  timeline: StudentCheckoutTimelineEvent[];
+  sandbox?: {
+    mode: string;
+    callbackUrl?: string | null;
+    webhookUrl?: string | null;
+    publicToken?: string | null;
+    signatureAlgorithm?: string;
+    signatureFields?: string[];
+    supportedStatuses?: string[];
+  } | null;
+};
+export type StudentCheckoutRecordedPayment = {
+  status?: string;
+  mode?: string;
+  checkoutUrl?: string;
+  deeplinkUrl?: string;
+  qrCodeUrl?: string;
+  providerReference?: string;
+  payment?: ApiObject;
+};
+export type StudentCheckoutSession =
+  | StudentCheckoutIntent
+  | StudentCheckoutRecordedPayment;
 type SectionDetail = Section & {
   schedules?: Array<
     Pick<SectionSchedule, 'dayOfWeek' | 'startTime' | 'endTime'> & {
@@ -470,8 +651,8 @@ export const sectionsApi = {
 
 // Enrollments API
 export const enrollmentsApi = {
-  enroll: async (sectionId: string): Promise<Enrollment | WaitlistEntry> => {
-    const response = await api.post<Enrollment | WaitlistEntry>(
+  enroll: async (sectionId: string): Promise<EnrollmentActionResult> => {
+    const response = await api.post<EnrollmentActionResult>(
       '/enrollments/enroll',
       { sectionId },
     );
@@ -537,6 +718,18 @@ export const enrollmentsApi = {
     const response = await api.get<string>('/enrollments/export/csv', {
       params,
     });
+    return response.data;
+  },
+};
+
+export const waitlistApi = {
+  getMyWaitlist: async (): Promise<WaitlistEntry[]> => {
+    const response = await api.get<WaitlistEntry[]>('/waitlist/my');
+    return response.data;
+  },
+
+  removeMyWaitlistEntry: async (id: string): Promise<ApiObject> => {
+    const response = await api.delete<ApiObject>(`/waitlist/${id}`);
     return response.data;
   },
 };
@@ -838,6 +1031,11 @@ export const analyticsApi = {
     );
     return response.data;
   },
+
+  getCockpit: async (): Promise<AnalyticsCockpit> => {
+    const response = await api.get<AnalyticsCockpit>('/analytics/cockpit');
+    return response.data;
+  },
 };
 
 // Finance API
@@ -869,6 +1067,59 @@ export const financeApi = {
     transactionId?: string;
   }): Promise<ApiObject> => {
     const response = await api.post<ApiObject>('/finance/my/payments', data);
+    return response.data;
+  },
+
+  startMyCheckout: async (data: {
+    invoiceId: string;
+    provider: StudentCheckoutProvider;
+    amount: number;
+    returnUrl?: string;
+    cancelUrl?: string;
+    locale?: string;
+    idempotencyKey?: string;
+  }): Promise<StudentCheckoutSession> => {
+    const idempotencyKey =
+      data.idempotencyKey ??
+      `checkout-${data.provider.toLowerCase()}-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 10)}`;
+
+    const response = await api.post<StudentCheckoutIntent>(
+      `/finance/my/invoices/${data.invoiceId}/checkout`,
+      {
+        provider: data.provider,
+        idempotencyKey,
+        returnUrl: data.returnUrl,
+        cancelUrl: data.cancelUrl,
+      },
+      {
+        headers: {
+          'Idempotency-Key': idempotencyKey,
+        },
+      },
+    );
+    return response.data;
+  },
+
+  getMyPaymentIntent: async (id: string): Promise<StudentCheckoutIntent> => {
+    const response = await api.get<StudentCheckoutIntent>(
+      `/finance/my/payment-intents/${id}`,
+    );
+    return response.data;
+  },
+
+  sendMySandboxPaymentSignal: async (
+    id: string,
+    data: {
+      status: StudentCheckoutSignalStatus;
+      providerTransactionId?: string;
+    },
+  ): Promise<ApiObject> => {
+    const response = await api.post<ApiObject>(
+      `/finance/my/payment-intents/${id}/sandbox-signal`,
+      data,
+    );
     return response.data;
   },
 
@@ -1027,7 +1278,13 @@ export const notificationsApi = {
       '/notifications/my',
       { params },
     );
-    return response.data;
+    return {
+      ...response.data,
+      data: (response.data.data ?? []).map((notification) => ({
+        ...notification,
+        content: notification.content ?? notification.message ?? '',
+      })),
+    };
   },
   markRead: async (id: string): Promise<ApiObject> => {
     const response = await api.patch<ApiObject>(

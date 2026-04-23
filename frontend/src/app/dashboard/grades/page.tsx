@@ -5,6 +5,7 @@ import { Award, BookOpen, TrendingUp } from 'lucide-react';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { useRequireAuth } from '@/context/AuthContext';
 import { gradesApi, semestersApi } from '@/lib/api';
+import { getLocalizedFlatLabel, getLocalizedName } from '@/lib/academic-content';
 import { StudentGradeRecord, Semester } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -107,7 +108,11 @@ export default function GradesPage() {
 
   const selectedSemesterName = useMemo(() => {
     return (
-      semesters.find((semester) => semester.id === selectedSemester)?.name ??
+      getLocalizedName(
+        locale,
+        semesters.find((semester) => semester.id === selectedSemester),
+        locale === 'vi' ? 't\u1ea5t c\u1ea3 h\u1ecdc k\u1ef3' : 'all semesters',
+      ) ??
       (locale === 'vi' ? 'tất cả học kỳ' : 'all semesters')
     );
   }, [locale, selectedSemester, semesters]);
@@ -139,14 +144,22 @@ export default function GradesPage() {
 
   const groupedGrades = useMemo(() => {
     return grades.reduce<Record<string, StudentGradeRecord[]>>((groups, grade) => {
-      if (!groups[grade.semester]) {
-        groups[grade.semester] = [];
+      const semesterLabel = getLocalizedFlatLabel(
+        locale,
+        grade.semester,
+        grade.semesterNameEn,
+        grade.semesterNameVi,
+        grade.semester,
+      );
+
+      if (!groups[semesterLabel]) {
+        groups[semesterLabel] = [];
       }
 
-      groups[grade.semester].push(grade);
+      groups[semesterLabel].push(grade);
       return groups;
     }, {});
-  }, [grades]);
+  }, [grades, locale]);
 
   const copy =
     locale === 'vi'
@@ -232,7 +245,7 @@ export default function GradesPage() {
                   { value: '', label: copy.allSemesters },
                   ...semesters.map((semester) => ({
                     value: semester.id,
-                    label: semester.name,
+                    label: getLocalizedName(locale, semester, semester.name),
                   })),
                 ]}
               />
@@ -341,7 +354,13 @@ export default function GradesPage() {
                                 {record.courseCode}
                               </div>
                               <div className="text-muted-foreground">
-                                {record.courseName}
+                                {getLocalizedFlatLabel(
+                                  locale,
+                                  record.courseName,
+                                  record.courseNameEn,
+                                  record.courseNameVi,
+                                  record.courseName,
+                                )}
                               </div>
                             </td>
                             <td className="px-2 py-4 text-muted-foreground">

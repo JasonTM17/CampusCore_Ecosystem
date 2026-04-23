@@ -58,7 +58,11 @@ export interface Course {
   id: string;
   code: string;
   name: string;
+  nameEn?: string;
+  nameVi?: string;
   description?: string;
+  descriptionEn?: string;
+  descriptionVi?: string;
   credits: number;
   departmentId: string;
   isActive: boolean;
@@ -135,10 +139,22 @@ export interface WaitlistEntry {
   section?: Section;
 }
 
+export type EnrollmentActionResult =
+  | {
+      kind: 'enrollment';
+      record: Enrollment;
+    }
+  | {
+      kind: 'waitlist';
+      record: WaitlistEntry;
+    };
+
 // Academic Types
 export interface Semester {
   id: string;
   name: string;
+  nameEn?: string;
+  nameVi?: string;
   type: string;
   academicYearId: string;
   startDate: string;
@@ -164,8 +180,12 @@ export interface AcademicYear {
 export interface Department {
   id: string;
   name: string;
+  nameEn?: string;
+  nameVi?: string;
   code: string;
   description?: string;
+  descriptionEn?: string;
+  descriptionVi?: string;
   facultyId: string;
   isActive: boolean;
   createdAt: string;
@@ -175,8 +195,12 @@ export interface Department {
 export interface Faculty {
   id: string;
   name: string;
+  nameEn?: string;
+  nameVi?: string;
   code: string;
   description?: string;
+  descriptionEn?: string;
+  descriptionVi?: string;
   isActive: boolean;
   createdAt: string;
 }
@@ -184,11 +208,15 @@ export interface Faculty {
 export interface Curriculum {
   id: string;
   name: string;
+  nameEn?: string;
+  nameVi?: string;
   code: string;
   departmentId: string;
   academicYearId: string;
   totalCredits: number;
   description?: string;
+  descriptionEn?: string;
+  descriptionVi?: string;
   isActive: boolean;
   createdAt: string;
 }
@@ -213,10 +241,14 @@ export interface StudentGradeRecord {
   id: string;
   courseCode: string;
   courseName: string;
+  courseNameEn?: string;
+  courseNameVi?: string;
   credits: number;
   sectionCode: string;
   lecturerName: string | null;
   semester: string;
+  semesterNameEn?: string;
+  semesterNameVi?: string;
   semesterId: string;
   finalGrade: number | null;
   letterGrade: string | null;
@@ -228,6 +260,8 @@ export interface StudentGradeRecord {
 export interface StudentTranscriptSemester {
   semesterId: string;
   semesterName: string;
+  semesterNameEn?: string;
+  semesterNameVi?: string;
   records: StudentGradeRecord[];
   gpa: number;
   creditsEarned: number;
@@ -265,10 +299,16 @@ export interface GradingSection {
   sectionNumber: string;
   courseCode: string;
   courseName: string;
+  courseNameEn?: string;
+  courseNameVi?: string;
   credits: number;
   departmentName: string;
+  departmentNameEn?: string;
+  departmentNameVi?: string;
   semester: string;
   semesterName?: string;
+  semesterNameEn?: string;
+  semesterNameVi?: string;
   enrolledCount: number;
   gradedCount: number;
   publishedCount: number;
@@ -282,10 +322,14 @@ export interface LecturerSection {
   sectionNumber: string;
   courseCode: string;
   courseName: string;
+  courseNameEn?: string;
+  courseNameVi?: string;
   credits: number;
   capacity: number;
   enrolledCount: number;
   departmentName: string;
+  departmentNameEn?: string;
+  departmentNameVi?: string;
   status: 'OPEN' | 'CLOSED' | 'CANCELLED';
   schedules: {
     id: string;
@@ -304,11 +348,17 @@ export interface SectionGrades {
   sectionNumber: string;
   courseCode: string;
   courseName: string;
+  courseNameEn?: string;
+  courseNameVi?: string;
   lecturerName?: string;
   status?: 'OPEN' | 'CLOSED' | 'CANCELLED';
   credits?: number;
   departmentName?: string;
+  departmentNameEn?: string;
+  departmentNameVi?: string;
   semester?: string;
+  semesterNameEn?: string;
+  semesterNameVi?: string;
   enrollments: {
     id: string;
     studentId: string;
