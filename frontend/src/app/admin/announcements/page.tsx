@@ -27,8 +27,14 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import { getLocalizedName } from '@/lib/academic-content';
 
-type Semester = { id: string; name: string };
+type Semester = {
+  id: string;
+  name: string;
+  nameEn?: string;
+  nameVi?: string;
+};
 
 type Announcement = {
   id: string;
@@ -40,7 +46,7 @@ type Announcement = {
   isGlobal?: boolean;
   semesterId?: string | null;
   createdAt: string;
-  semester?: { name: string } | null;
+  semester?: { name: string; nameEn?: string; nameVi?: string } | null;
 };
 
 const priorities = ['LOW', 'NORMAL', 'HIGH', 'URGENT'] as const;
@@ -121,7 +127,7 @@ export default function AdminAnnouncementsPage() {
       { value: '', label: locale === 'vi' ? 'Tất cả học kỳ' : 'All semesters' },
       ...semesters.map((semester) => ({
         value: semester.id,
-        label: semester.name,
+        label: getLocalizedName(locale, semester, semester.name),
       })),
     ],
     [locale, semesters],
@@ -132,7 +138,7 @@ export default function AdminAnnouncementsPage() {
       { value: '', label: locale === 'vi' ? 'Không có học kỳ' : 'No semester' },
       ...semesters.map((semester) => ({
         value: semester.id,
-        label: semester.name,
+        label: getLocalizedName(locale, semester, semester.name),
       })),
     ],
     [locale, semesters],
@@ -437,7 +443,12 @@ export default function AdminAnnouncementsPage() {
                         </span>
                         {announcement.semester?.name ? (
                           <span className="text-xs text-muted-foreground">
-                            {copy.semesterPrefix}: {announcement.semester.name}
+                            {copy.semesterPrefix}:{' '}
+                            {getLocalizedName(
+                              locale,
+                              announcement.semester,
+                              announcement.semester.name,
+                            )}
                           </span>
                         ) : null}
                       </div>

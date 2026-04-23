@@ -74,22 +74,22 @@ export default function LoginPage() {
     let cancelled = false;
 
     const checkRuntime = async () => {
+      const probeTargets = ['/health', '/api/docs'];
+
       try {
-        const response = await fetch('/health', {
-          cache: 'no-store',
-        });
-
-        if (cancelled) {
-          return;
-        }
-
-        if (response.ok) {
-          setRuntimeNotice({
-            tone: 'info',
-            title: messages.login.runtimeNotice.infoTitle,
-            body: messages.login.runtimeNotice.infoBody,
+        for (const target of probeTargets) {
+          const response = await fetch(target, {
+            cache: 'no-store',
           });
-          return;
+
+          if (cancelled) {
+            return;
+          }
+
+          if (response.ok) {
+            setRuntimeNotice(null);
+            return;
+          }
         }
 
         setRuntimeNotice({
@@ -153,11 +153,15 @@ export default function LoginPage() {
       return messages.login.errors.blocked;
     }
 
+    if (error.response.status === 404) {
+      return messages.login.errors.backendUnavailable;
+    }
+
     if (error.response.status >= 500) {
       return messages.login.errors.temporaryUnavailable;
     }
 
-    return error.response?.data?.message || messages.login.errors.fallback;
+    return messages.login.errors.fallback;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

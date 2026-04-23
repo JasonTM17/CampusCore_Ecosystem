@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    --font-sans: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --background: 24 20% 97%;
     --foreground: 220 24% 14%;
     --card: 0 0% 100%;
@@ -34,32 +35,32 @@
   }
 
   .dark {
-    --background: 223 24% 10%;
-    --foreground: 210 25% 96%;
-    --card: 222 19% 14%;
-    --card-foreground: 210 25% 96%;
-    --popover: 222 19% 14%;
-    --popover-foreground: 210 25% 96%;
-    --primary: 201 85% 64%;
-    --primary-foreground: 223 24% 10%;
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 210 25% 96%;
-    --muted: 220 15% 16%;
-    --muted-foreground: 215 16% 72%;
-    --accent: 220 15% 18%;
-    --accent-foreground: 210 25% 96%;
-    --destructive: 0 70% 57%;
-    --destructive-foreground: 210 25% 96%;
-    --border: 220 15% 23%;
-    --input: 220 15% 23%;
-    --ring: 201 85% 64%;
-    --canvas-subtle: 222 20% 12%;
-    --surface-raised: 220 17% 16%;
-    --surface-alt: 220 16% 19%;
-    --ink-soft: 214 16% 74%;
-    --accent-warm: 22 84% 58%;
-    --accent-cool: 201 85% 64%;
-    --success: 152 57% 44%;
+    --background: 220 18% 9%;
+    --foreground: 210 18% 94%;
+    --card: 220 14% 12%;
+    --card-foreground: 210 18% 94%;
+    --popover: 220 14% 12%;
+    --popover-foreground: 210 18% 94%;
+    --primary: 205 44% 72%;
+    --primary-foreground: 220 20% 9%;
+    --secondary: 220 11% 16%;
+    --secondary-foreground: 210 18% 94%;
+    --muted: 220 10% 14%;
+    --muted-foreground: 214 10% 74%;
+    --accent: 220 11% 16%;
+    --accent-foreground: 210 18% 94%;
+    --destructive: 0 74% 63%;
+    --destructive-foreground: 210 18% 94%;
+    --border: 220 9% 24%;
+    --input: 220 9% 24%;
+    --ring: 205 44% 72%;
+    --canvas-subtle: 220 18% 10%;
+    --surface-raised: 220 13% 14%;
+    --surface-alt: 220 12% 17%;
+    --ink-soft: 214 9% 79%;
+    --accent-warm: 24 78% 64%;
+    --accent-cool: 205 44% 72%;
+    --success: 152 42% 48%;
   }
 }
 
@@ -122,6 +123,14 @@
 
   .panel-shadow {
     box-shadow: 0 16px 30px -24px rgba(15, 23, 42, 0.35);
+  }
+
+  .dark .surface-shadow {
+    box-shadow: 0 26px 52px -40px rgba(0, 0, 0, 0.65);
+  }
+
+  .dark .panel-shadow {
+    box-shadow: 0 18px 34px -28px rgba(0, 0, 0, 0.58);
   }
 
   .focus-ring {

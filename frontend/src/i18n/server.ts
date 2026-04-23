@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { unstable_noStore as noStore } from 'next/cache';
 import { cookies, headers } from 'next/headers';
 import {
   defaultLocale,
@@ -16,11 +17,13 @@ import {
 import { buildSiteUrl, getSiteUrl } from '@/lib/site';
 
 async function getHeader(name: string) {
+  noStore();
   const headerStore = await headers();
   return headerStore.get(name);
 }
 
 export async function getRequestLocale() {
+  noStore();
   const raw = await getHeader('x-cc-locale');
   if (isLocale(raw)) {
     return raw;
@@ -97,6 +100,7 @@ function getRouteMetadata(pathname: string, locale: Locale) {
 }
 
 export async function getLocalizedMetadata(): Promise<Metadata> {
+  noStore();
   const locale = await getRequestLocale();
   const pathname = await getRequestStrippedPathname();
   const canonicalPath = buildCanonicalPath(pathname, locale);
@@ -147,11 +151,12 @@ export async function getLocalizedMetadata(): Promise<Metadata> {
       description: routeMetadata.description,
       images: [buildSiteUrl(socialImagePath)],
     },
+    themeColor: [
+      { media: '(prefers-color-scheme: light)', color: '#f7f4ef' },
+      { media: '(prefers-color-scheme: dark)', color: '#12161d' },
+    ],
     robots: routeMetadata.robots,
     manifest: '/manifest.webmanifest',
-    other: {
-      'theme-color': '#101826',
-    },
   };
 }
 

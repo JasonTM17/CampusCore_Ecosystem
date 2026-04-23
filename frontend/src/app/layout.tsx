@@ -1,9 +1,9 @@
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "sonner";
 import { I18nProvider } from "@/i18n";
+import { isLocale } from "@/i18n/config";
 import {
   getHtmlLang,
   getLocalizedMetadata,
@@ -13,30 +13,32 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-const inter = Inter({
-  subsets: ["latin", "latin-ext"],
-  display: "swap",
-  variable: "--font-sans",
-  fallback: ["system-ui", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
-});
-
 export async function generateMetadata() {
   return getLocalizedMetadata();
 }
 
 export default async function RootLayout({
   children,
+  params,
 }: {
   children: React.ReactNode;
+  params?: Promise<{ locale?: string }>;
 }) {
-  const [locale, htmlLang, prefixed] = await Promise.all([
+  const resolvedParams = params ? await params : {};
+  const routeLocale = isLocale(resolvedParams.locale)
+    ? resolvedParams.locale
+    : null;
+  const [requestLocale, requestHtmlLang, requestPrefixed] = await Promise.all([
     getRequestLocale(),
     getHtmlLang(),
     isPrefixedRequest(),
   ]);
+  const locale = routeLocale ?? requestLocale;
+  const htmlLang = routeLocale ?? requestHtmlLang;
+  const prefixed = routeLocale ? true : requestPrefixed;
 
   return (
-    <html lang={htmlLang} suppressHydrationWarning className={inter.variable}>
+    <html lang={htmlLang} suppressHydrationWarning>
       <body className="min-h-screen">
         <ThemeProvider>
           <I18nProvider locale={locale} isPrefixed={prefixed}>

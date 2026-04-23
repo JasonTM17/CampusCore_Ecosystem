@@ -1,5 +1,8 @@
 const localEdgeOrigin =
   (process.env.LOCAL_EDGE_ORIGIN || 'http://127.0.0.1:8080').replace(/\/$/, '');
+const enableLocalEdgeRewrites =
+  process.env.NODE_ENV === 'development' ||
+  process.env.ENABLE_LOCAL_EDGE_REWRITES === '1';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -14,7 +17,7 @@ const nextConfig = {
     unoptimized: true,
   },
   async rewrites() {
-    if (process.env.NODE_ENV !== 'development') {
+    if (!enableLocalEdgeRewrites) {
       return [];
     }
 

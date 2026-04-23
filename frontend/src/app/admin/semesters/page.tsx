@@ -28,10 +28,13 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import { getLocalizedName } from '@/lib/academic-content';
 
 interface Semester {
   id: string;
   name: string;
+  nameEn?: string;
+  nameVi?: string;
   type: string;
   academicYearId: string;
   academicYear?: { year: number };
@@ -60,7 +63,8 @@ export default function AdminSemestersPage() {
   const [editingSemester, setEditingSemester] = useState<Semester | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
+    nameEn: '',
+    nameVi: '',
     type: 'FALL',
     academicYearId: '',
     startDate: '',
@@ -94,6 +98,8 @@ export default function AdminSemestersPage() {
         ? response.data.filter(
             (semester: Semester) =>
               semester.name.toLowerCase().includes(search.toLowerCase()) ||
+              semester.nameEn?.toLowerCase().includes(search.toLowerCase()) ||
+              semester.nameVi?.toLowerCase().includes(search.toLowerCase()) ||
               semester.type.toLowerCase().includes(search.toLowerCase()) ||
               String(semester.academicYear?.year || '').includes(search.trim()),
           )
@@ -114,11 +120,17 @@ export default function AdminSemestersPage() {
 
   const semesterTypeOptions = useMemo(
     () => [
-      { value: 'FALL', label: locale === 'vi' ? 'Học kỳ thu' : 'Fall' },
-      { value: 'SPRING', label: locale === 'vi' ? 'Học kỳ xuân' : 'Spring' },
-      { value: 'SUMMER', label: locale === 'vi' ? 'Học kỳ hè' : 'Summer' },
+      { value: 'FALL', label: locale === 'vi' ? 'Học kỳ Thu' : 'Fall' },
+      { value: 'SPRING', label: locale === 'vi' ? 'Học kỳ Xuân' : 'Spring' },
+      { value: 'SUMMER', label: locale === 'vi' ? 'Học kỳ Hè' : 'Summer' },
     ],
     [locale],
+  );
+
+  const getSemesterTypeLabel = useCallback(
+    (type: string) =>
+      semesterTypeOptions.find((option) => option.value === type)?.label ?? type,
+    [semesterTypeOptions],
   );
 
   const copy = useMemo(
@@ -262,7 +274,8 @@ export default function AdminSemestersPage() {
   const resetForm = () => {
     setEditingSemester(null);
     setFormData({
-      name: '',
+      nameEn: '',
+      nameVi: '',
       type: 'FALL',
       academicYearId: '',
       startDate: '',
@@ -278,7 +291,8 @@ export default function AdminSemestersPage() {
   const openEdit = (semester: Semester) => {
     setEditingSemester(semester);
     setFormData({
-      name: semester.name,
+      nameEn: semester.nameEn || semester.name,
+      nameVi: semester.nameVi || '',
       type: semester.type,
       academicYearId: semester.academicYearId,
       startDate: semester.startDate.split('T')[0],
@@ -299,9 +313,10 @@ export default function AdminSemestersPage() {
   };
 
   const handleDelete = async (semester: Semester) => {
+    const semesterLabel = getLocalizedName(locale, semester, semester.name);
     const shouldDelete = await confirm({
       title: copy.deleteTitle,
-      message: copy.deleteMessage(semester.name),
+      message: copy.deleteMessage(semesterLabel),
       confirmText: copy.deleteConfirm,
       variant: 'destructive',
     });
@@ -324,11 +339,15 @@ export default function AdminSemestersPage() {
     setIsSaving(true);
 
     try {
+      const payload = {
+        ...formData,
+        name: formData.nameEn || formData.nameVi,
+      };
       if (editingSemester) {
-        await adminSemestersApi.update(editingSemester.id, formData);
+        await adminSemestersApi.update(editingSemester.id, payload);
         toast.success(copy.updated);
       } else {
-        await adminSemestersApi.create(formData);
+        await adminSemestersApi.create(payload);
         toast.success(copy.created);
       }
 
@@ -425,13 +444,27 @@ export default function AdminSemestersPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
-                    {semesters.map((semester) => (
+                    {semesters.map((semester) => {
+                      const semesterLabel = getLocalizedName(
+                        locale,
+                        semester,
+                        semester.name,
+                      );
+
+                      return (
                       <tr key={semester.id}>
                         <td className="px-2 py-4 font-medium text-foreground">
-                          {semester.name}
+                          <div className="space-y-1">
+                            <div>{semesterLabel}</div>
+                            {semester.nameEn && semester.nameVi ? (
+                              <div className="text-xs font-normal text-muted-foreground">
+                                {locale === 'vi' ? semester.nameEn : semester.nameVi}
+                              </div>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
-                          {semester.type}
+                          {getSemesterTypeLabel(semester.type)}
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
                           {semester.academicYear?.year || copy.unassigned}
@@ -453,8 +486,8 @@ export default function AdminSemestersPage() {
                               size="icon"
                               variant="ghost"
                               onClick={() => openEdit(semester)}
-                              aria-label={copy.editLabel(semester.name)}
-                              title={copy.editLabel(semester.name)}
+                              aria-label={copy.editLabel(semesterLabel)}
+                              title={copy.editLabel(semesterLabel)}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -463,15 +496,16 @@ export default function AdminSemestersPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(semester)}
-                              aria-label={copy.deleteLabel(semester.name)}
-                              title={copy.deleteLabel(semester.name)}
+                              aria-label={copy.deleteLabel(semesterLabel)}
+                              title={copy.deleteLabel(semesterLabel)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </AdminRowActions>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </AdminTableScroll>
@@ -485,20 +519,46 @@ export default function AdminSemestersPage() {
         title={editingSemester ? copy.editTitle : copy.createTitle}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
-          <AdminFormField label={copy.fields.name}>
-            <Input
-              type="text"
-              value={formData.name}
-              onChange={(event) =>
-                setFormData((current) => ({
-                  ...current,
-                  name: event.target.value,
-                }))
-              }
-              placeholder={copy.fields.namePlaceholder}
-              required
-            />
-          </AdminFormField>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <AdminFormField
+              label={locale === 'vi' ? 'Tên tiếng Anh' : 'English name'}
+            >
+              <Input
+                type="text"
+                value={formData.nameEn}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    nameEn: event.target.value,
+                  }))
+                }
+                placeholder={
+                  locale === 'vi' ? 'Ví dụ: Fall 2026' : 'e.g. Fall 2026'
+                }
+                required
+              />
+            </AdminFormField>
+            <AdminFormField
+              label={locale === 'vi' ? 'Tên tiếng Việt' : 'Vietnamese name'}
+            >
+              <Input
+                type="text"
+                value={formData.nameVi}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    nameVi: event.target.value,
+                  }))
+                }
+                placeholder={
+                  locale === 'vi'
+                    ? 'Ví dụ: Học kỳ Thu 2026'
+                    : 'e.g. Học kỳ Thu 2026'
+                }
+                required
+              />
+            </AdminFormField>
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Select

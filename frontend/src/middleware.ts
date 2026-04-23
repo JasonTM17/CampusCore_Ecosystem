@@ -42,24 +42,7 @@ export function middleware(request: NextRequest) {
   );
 
   if (localeMatch.locale) {
-    const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value;
-
-    if (cookieLocale !== locale) {
-      const response = NextResponse.redirect(request.nextUrl);
-
-      response.cookies.set(LOCALE_COOKIE, locale, {
-        path: '/',
-        sameSite: 'lax',
-        maxAge: COOKIE_MAX_AGE,
-      });
-
-      return response;
-    }
-
-    const rewriteUrl = request.nextUrl.clone();
-    rewriteUrl.pathname = strippedPath;
-
-    const response = NextResponse.rewrite(rewriteUrl, {
+    const response = NextResponse.next({
       request: {
         headers: requestHeaders,
       },

@@ -5,6 +5,7 @@ import { Calendar, Clock, MapPin } from 'lucide-react';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { useRequireAuth } from '@/context/AuthContext';
 import { enrollmentsApi, semestersApi } from '@/lib/api';
+import { getLocalizedCourseLabel, getLocalizedName } from '@/lib/academic-content';
 import { pickPreferredSemesterId } from '@/lib/semesters';
 import { Enrollment, Semester } from '@/types/api';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,8 @@ type DayAgendaItem = {
   id: string;
   courseCode: string;
   courseName: string;
+  courseNameEn?: string;
+  courseNameVi?: string;
   sectionNumber: string;
   startTime: string;
   endTime: string;
@@ -137,6 +140,8 @@ export default function SchedulePage() {
             id: `${enrollment.id}-${index}`,
             courseCode: section.course?.code ?? 'Course',
             courseName: section.course?.name ?? 'Unavailable',
+            courseNameEn: section.course?.nameEn,
+            courseNameVi: section.course?.nameVi,
             sectionNumber: section.sectionNumber,
             startTime: schedule.startTime,
             endTime: schedule.endTime,
@@ -168,7 +173,11 @@ export default function SchedulePage() {
 
   const selectedSemesterName = useMemo(() => {
     return (
-      semesters.find((semester) => semester.id === selectedSemester)?.name ??
+      getLocalizedName(
+        locale,
+        semesters.find((semester) => semester.id === selectedSemester),
+        locale === 'vi' ? 't\u1ea5t c\u1ea3 h\u1ecdc k\u1ef3' : 'all terms',
+      ) ??
       (locale === 'vi' ? 'tất cả học kỳ' : 'all terms')
     );
   }, [locale, selectedSemester, semesters]);
@@ -181,9 +190,9 @@ export default function SchedulePage() {
   const copy =
     locale === 'vi'
       ? {
-          eyebrow: 'Workspace sinh viên',
+          eyebrow: 'Không gian sinh viên',
           title: 'Thời khóa biểu',
-          description: `Giữ lịch học theo tuần cho ${selectedSemesterName} trong tầm tay trong khi phần còn lại của student workspace vẫn chỉ cách một lần chạm.`,
+          description: `Giữ lịch học theo tuần cho ${selectedSemesterName} trong tầm tay trong khi phần còn lại của không gian sinh viên vẫn chỉ cách một lần chạm.`,
           selectSemester: 'Chọn học kỳ cho thời khóa biểu',
           allSemesters: 'Tất cả học kỳ',
           openCourses: 'Mở môn học của tôi',
@@ -202,7 +211,7 @@ export default function SchedulePage() {
           noSlot: 'Chưa có lịch dạy.',
           items: 'mục',
           item: 'mục',
-          sectionPrefix: 'Section',
+          sectionPrefix: 'Lớp học phần',
           roomPending: 'Đang chờ thông tin phòng học',
         }
       : {
@@ -252,7 +261,7 @@ export default function SchedulePage() {
                   { value: '', label: copy.allSemesters },
                   ...semesters.map((semester) => ({
                     value: semester.id,
-                    label: semester.name,
+                    label: getLocalizedName(locale, semester, semester.name),
                   })),
                 ]}
               />
@@ -376,7 +385,16 @@ export default function SchedulePage() {
                               className="rounded-lg border border-border/60 bg-secondary/30 px-4 py-3"
                             >
                               <div className="font-medium text-foreground">
-                                {item.courseCode} - {item.courseName}
+                                {getLocalizedCourseLabel(
+                                  locale,
+                                  {
+                                    code: item.courseCode,
+                                    name: item.courseName,
+                                    nameEn: item.courseNameEn,
+                                    nameVi: item.courseNameVi,
+                                  },
+                                  `${item.courseCode} - ${item.courseName}`,
+                                )}
                               </div>
                               <div className="mt-1 text-sm text-muted-foreground">
                                 {copy.sectionPrefix} {item.sectionNumber}
@@ -416,7 +434,16 @@ export default function SchedulePage() {
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <div className="font-medium text-foreground">
-                          {item.courseCode} - {item.courseName}
+                          {getLocalizedCourseLabel(
+                            locale,
+                            {
+                              code: item.courseCode,
+                              name: item.courseName,
+                              nameEn: item.courseNameEn,
+                              nameVi: item.courseNameVi,
+                            },
+                            `${item.courseCode} - ${item.courseName}`,
+                          )}
                         </div>
                         <div className="mt-1 text-sm text-muted-foreground">
                           {localizedDayNames[item.dayOfWeek]} - {copy.sectionPrefix}{' '}

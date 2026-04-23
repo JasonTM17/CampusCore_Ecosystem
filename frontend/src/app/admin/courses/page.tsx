@@ -29,20 +29,31 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import {
+  getLocalizedDescription,
+  getLocalizedName,
+} from '@/lib/academic-content';
 
 interface Course {
   id: string;
   code: string;
   name: string;
+  nameEn?: string;
+  nameVi?: string;
+  description?: string;
+  descriptionEn?: string;
+  descriptionVi?: string;
   credits: number;
   departmentId: string;
-  department?: { name: string };
+  department?: { name: string; nameEn?: string; nameVi?: string };
   isActive: boolean;
 }
 
 interface Department {
   id: string;
   name: string;
+  nameEn?: string;
+  nameVi?: string;
 }
 
 export default function AdminCoursesPage() {
@@ -62,10 +73,12 @@ export default function AdminCoursesPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     code: '',
-    name: '',
+    nameEn: '',
+    nameVi: '',
     credits: 3,
     departmentId: '',
-    description: '',
+    descriptionEn: '',
+    descriptionVi: '',
   });
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
   const { confirm, confirmationDialog } = useConfirmationDialog();
@@ -99,7 +112,9 @@ export default function AdminCoursesPage() {
         ? response.data.filter(
             (course: Course) =>
               course.code.toLowerCase().includes(search.toLowerCase()) ||
-              course.name.toLowerCase().includes(search.toLowerCase()),
+              course.name.toLowerCase().includes(search.toLowerCase()) ||
+              course.nameEn?.toLowerCase().includes(search.toLowerCase()) ||
+              course.nameVi?.toLowerCase().includes(search.toLowerCase()),
           )
         : response.data;
 
@@ -136,7 +151,7 @@ export default function AdminCoursesPage() {
       { value: '', label: locale === 'vi' ? 'Tất cả khoa' : 'All departments' },
       ...departments.map((department) => ({
         value: department.id,
-        label: department.name,
+          label: getLocalizedName(locale, department, department.name),
       })),
     ],
     [departments, locale],
@@ -147,7 +162,7 @@ export default function AdminCoursesPage() {
       { value: '', label: locale === 'vi' ? 'Chọn khoa' : 'Select department' },
       ...departments.map((department) => ({
         value: department.id,
-        label: department.name,
+          label: getLocalizedName(locale, department, department.name),
       })),
     ],
     [departments, locale],
@@ -256,10 +271,12 @@ export default function AdminCoursesPage() {
     setEditingCourse(null);
     setFormData({
       code: '',
-      name: '',
+      nameEn: '',
+      nameVi: '',
       credits: 3,
       departmentId: '',
-      description: '',
+      descriptionEn: '',
+      descriptionVi: '',
     });
   };
 
@@ -272,10 +289,12 @@ export default function AdminCoursesPage() {
     setEditingCourse(course);
     setFormData({
       code: course.code,
-      name: course.name,
+      nameEn: course.nameEn || course.name,
+      nameVi: course.nameVi || '',
       credits: course.credits,
       departmentId: course.departmentId,
-      description: '',
+      descriptionEn: course.descriptionEn || course.description || '',
+      descriptionVi: course.descriptionVi || '',
     });
     setIsModalOpen(true);
   };
@@ -317,11 +336,16 @@ export default function AdminCoursesPage() {
     setIsSaving(true);
 
     try {
+      const payload = {
+        ...formData,
+        name: formData.nameEn || formData.nameVi,
+        description: formData.descriptionEn || formData.descriptionVi,
+      };
       if (editingCourse) {
-        await coursesApi.update(editingCourse.id, formData);
+        await coursesApi.update(editingCourse.id, payload);
         toast.success(copy.updated);
       } else {
-        await coursesApi.create(formData);
+        await coursesApi.create(payload);
         toast.success(copy.created);
       }
 
@@ -428,19 +452,41 @@ export default function AdminCoursesPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
-                    {courses.map((course) => (
+                    {courses.map((course) => {
+                      const courseLabel = getLocalizedName(locale, course, course.name);
+                      const courseDescription = getLocalizedDescription(
+                        locale,
+                        course,
+                        '',
+                      );
+                      const departmentLabel = course.department
+                        ? getLocalizedName(
+                            locale,
+                            course.department,
+                            course.department.name,
+                          )
+                        : copy.unassigned;
+
+                      return (
                       <tr key={course.id}>
                         <td className="px-2 py-4 font-medium text-foreground">
                           {course.code}
                         </td>
                         <td className="px-2 py-4 text-foreground">
-                          {course.name}
+                          <div className="space-y-1">
+                            <div>{courseLabel}</div>
+                            {courseDescription ? (
+                              <div className="text-xs text-muted-foreground">
+                                {courseDescription}
+                              </div>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
                           {formatNumber(course.credits)}
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
-                          {course.department?.name || copy.unassigned}
+                          {departmentLabel}
                         </td>
                         <td className="px-2 py-4">
                           <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
@@ -453,8 +499,8 @@ export default function AdminCoursesPage() {
                               size="icon"
                               variant="ghost"
                               onClick={() => openEdit(course)}
-                              aria-label={copy.editLabel(course.code)}
-                              title={copy.editLabel(course.code)}
+                              aria-label={copy.editLabel(courseLabel)}
+                              title={copy.editLabel(courseLabel)}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -463,15 +509,16 @@ export default function AdminCoursesPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(course)}
-                              aria-label={copy.deleteLabel(course.code)}
-                              title={copy.deleteLabel(course.code)}
+                              aria-label={copy.deleteLabel(courseLabel)}
+                              title={copy.deleteLabel(courseLabel)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </AdminRowActions>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </AdminTableScroll>
@@ -517,19 +564,34 @@ export default function AdminCoursesPage() {
             </AdminFormField>
           </div>
 
-          <AdminFormField label={copy.courseName}>
-            <Input
-              type="text"
-              value={formData.name}
-              onChange={(event) =>
-                setFormData((current) => ({
-                  ...current,
-                  name: event.target.value,
-                }))
-              }
-              required
-            />
-          </AdminFormField>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <AdminFormField label={locale === 'vi' ? 'Tên tiếng Anh' : 'English name'}>
+              <Input
+                type="text"
+                value={formData.nameEn}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    nameEn: event.target.value,
+                  }))
+                }
+                required
+              />
+            </AdminFormField>
+            <AdminFormField label={locale === 'vi' ? 'Tên tiếng Việt' : 'Vietnamese name'}>
+              <Input
+                type="text"
+                value={formData.nameVi}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    nameVi: event.target.value,
+                  }))
+                }
+                required
+              />
+            </AdminFormField>
+          </div>
 
           <Select
             label={copy.department}
@@ -544,19 +606,38 @@ export default function AdminCoursesPage() {
             required
           />
 
-          <AdminFormField label={copy.descriptionLabel}>
-            <Textarea
-              value={formData.description}
-              onChange={(event) =>
-                setFormData((current) => ({
-                  ...current,
-                  description: event.target.value,
-                }))
-              }
-              rows={4}
-              placeholder={copy.descriptionPlaceholder}
-            />
-          </AdminFormField>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <AdminFormField
+              label={locale === 'vi' ? 'Mô tả tiếng Anh' : 'English description'}
+            >
+              <Textarea
+                value={formData.descriptionEn}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    descriptionEn: event.target.value,
+                  }))
+                }
+                rows={4}
+                placeholder={copy.descriptionPlaceholder}
+              />
+            </AdminFormField>
+            <AdminFormField
+              label={locale === 'vi' ? 'Mô tả tiếng Việt' : 'Vietnamese description'}
+            >
+              <Textarea
+                value={formData.descriptionVi}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    descriptionVi: event.target.value,
+                  }))
+                }
+                rows={4}
+                placeholder={copy.descriptionPlaceholder}
+              />
+            </AdminFormField>
+          </div>
 
           <AdminDialogFooter>
             <Button type="button" variant="outline" onClick={closeModal}>

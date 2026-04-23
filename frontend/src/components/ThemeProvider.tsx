@@ -17,11 +17,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as Theme | null;
-    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    const initialTheme = savedTheme === 'dark' || savedTheme === 'light' ? savedTheme : systemTheme;
+    const initialTheme =
+      savedTheme === 'dark' || savedTheme === 'light' ? savedTheme : 'light';
 
     setTheme(initialTheme);
     document.documentElement.classList.toggle('dark', initialTheme === 'dark');
+    document.documentElement.dataset.theme = initialTheme;
     setMounted(true);
   }, []);
 
@@ -32,6 +33,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     localStorage.setItem('theme', theme);
     document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.dataset.theme = theme;
   }, [mounted, theme]);
 
   const toggleTheme = useCallback(() => {

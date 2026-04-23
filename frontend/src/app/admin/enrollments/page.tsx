@@ -30,6 +30,10 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import {
+  getLocalizedCourseLabel,
+  getLocalizedName,
+} from '@/lib/academic-content';
 
 interface Enrollment {
   id: string;
@@ -47,21 +51,26 @@ interface Enrollment {
   };
   section?: {
     sectionNumber: string;
-    course?: { code?: string; name?: string };
+    course?: { code?: string; name?: string; nameEn?: string; nameVi?: string };
     lecturer?: { user?: { firstName?: string; lastName?: string } };
   };
-  semester?: { name: string };
+  semester?: { name: string; nameEn?: string; nameVi?: string; type?: string };
 }
 
 interface Semester {
   id: string;
   name: string;
+  nameEn?: string;
+  nameVi?: string;
+  type?: string;
 }
 
 interface Course {
   id: string;
   code: string;
   name: string;
+  nameEn?: string;
+  nameVi?: string;
 }
 
 interface Section {
@@ -341,10 +350,10 @@ export default function AdminEnrollmentsPage() {
       { value: '', label: copy.allSemesters },
       ...semesters.map((semester) => ({
         value: semester.id,
-        label: semester.name,
+        label: getLocalizedName(locale, semester, semester.name),
       })),
     ],
-    [copy.allSemesters, semesters],
+    [copy.allSemesters, locale, semesters],
   );
 
   const courseOptions = useMemo(
@@ -352,10 +361,10 @@ export default function AdminEnrollmentsPage() {
       { value: '', label: copy.allCourses },
       ...courses.map((course) => ({
         value: course.id,
-        label: `${course.code} - ${course.name}`,
+        label: getLocalizedCourseLabel(locale, course, `${course.code} - ${course.name}`),
       })),
     ],
-    [copy.allCourses, courses],
+    [copy.allCourses, courses, locale],
   );
 
   const sectionOptions = useMemo(
@@ -560,6 +569,20 @@ export default function AdminEnrollmentsPage() {
                       const learnerLabel = enrollment.student?.user
                         ? `${enrollment.student.user.firstName} ${enrollment.student.user.lastName}`
                         : enrollment.studentId;
+                      const courseLabel = enrollment.section?.course
+                        ? getLocalizedCourseLabel(
+                            locale,
+                            enrollment.section.course,
+                            `${enrollment.section.course.code || ''} ${enrollment.section.course.name || ''}`.trim(),
+                          )
+                        : copy.noCourseName;
+                      const semesterLabel = enrollment.semester
+                        ? getLocalizedName(
+                            locale,
+                            enrollment.semester,
+                            enrollment.semester.name,
+                          )
+                        : copy.unassigned;
 
                       return (
                         <tr key={enrollment.id}>
@@ -579,7 +602,7 @@ export default function AdminEnrollmentsPage() {
                                 {enrollment.section?.course?.code || copy.unknownCourse}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                {enrollment.section?.course?.name || copy.noCourseName}
+                                {courseLabel}
                               </p>
                             </div>
                           </td>
@@ -587,7 +610,7 @@ export default function AdminEnrollmentsPage() {
                             {enrollment.section?.sectionNumber || copy.unknownSection}
                           </td>
                           <td className="px-2 py-4 text-muted-foreground">
-                            {enrollment.semester?.name || copy.unassigned}
+                            {semesterLabel}
                           </td>
                           <td className="px-2 py-4 text-muted-foreground">
                             {enrollment.section?.lecturer?.user
@@ -683,7 +706,13 @@ export default function AdminEnrollmentsPage() {
                 </label>
                 <p className="mt-1 text-foreground">
                   {selectedEnrollment.section?.course?.code} -{' '}
-                  {selectedEnrollment.section?.course?.name}
+                  {selectedEnrollment.section?.course
+                    ? getLocalizedName(
+                        locale,
+                        selectedEnrollment.section.course,
+                        selectedEnrollment.section.course.name || copy.noCourseName,
+                      )
+                    : copy.noCourseName}
                 </p>
               </div>
               <div>
@@ -702,7 +731,13 @@ export default function AdminEnrollmentsPage() {
                   {copy.detail.semester}
                 </label>
                 <p className="mt-1 text-foreground">
-                  {selectedEnrollment.semester?.name || copy.unassigned}
+                  {selectedEnrollment.semester
+                    ? getLocalizedName(
+                        locale,
+                        selectedEnrollment.semester,
+                        selectedEnrollment.semester.name,
+                      )
+                    : copy.unassigned}
                 </p>
               </div>
               <div>

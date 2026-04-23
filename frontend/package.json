@@ -11,8 +11,9 @@
     "start": "next start",
     "start:standalone": "node scripts/start-standalone.mjs",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx --max-warnings=0",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit --incremental false",
     "test": "node --test tests/frontend-smoke.test.js",
+    "test:e2e:finance": "node ../scripts/run-finance-e2e.mjs",
     "test:e2e": "node ../scripts/run-fast-e2e.mjs",
     "test:e2e:edge": "node ../scripts/run-edge-e2e.mjs"
   },

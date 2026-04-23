@@ -42,7 +42,7 @@ export function AuthShell({
             <div className="mx-auto max-w-xl space-y-10">
               <BrandMark
                 href="/"
-                subtitle="Campus operations workspace"
+                subtitle={messages.authShell.desktopSubtitle}
                 markClassName="bg-[hsl(var(--foreground))] text-[hsl(var(--background))]"
               />
               <div className="space-y-4">

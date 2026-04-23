@@ -100,30 +100,30 @@ export const en = {
       eyebrow: 'CampusCore',
       title: 'Campus operations that stay calm under real load.',
       description:
-        'Identity, academics, finance, engagement, people data, and analytics in one release-verified workspace.',
+        'Registration, teaching, billing, people data, and reporting in one workspace with clear service ownership.',
       badges: [
-        'Cookie sessions + CSRF',
-        '9-image topology',
-        'Compose + Kubernetes',
+        'Role-aware workspace',
+        'Verified releases',
+        'Service-owned domains',
       ],
     },
   },
   home: {
     navSubtitle: 'Campus operations workspace',
-    eyebrow: 'CampusCore platform',
-    title: 'Academic operations that feel steady, not stitched together.',
+    eyebrow: 'Campus operations workspace',
+    title: 'Keep academic operations moving without the usual friction.',
     description:
-      'CampusCore brings identity, academics, finance, engagement, people data, and analytics into one web workspace while keeping service ownership, release checks, and runtime boundaries clear.',
+      'CampusCore brings registration, schedules, billing, announcements, and reporting into one steady workspace for students, lecturers, and campus teams.',
     metricCards: [
       {
-        title: 'Kubernetes-ready',
+        title: 'Operationally ready',
         description:
-          'Local Docker Desktop and release-verified Kustomize paths stay aligned.',
+          'The product is shaped for real campus operations, from day-to-day sign-in to release handoff.',
       },
       {
         title: 'Security-first',
         description:
-          'Session refresh, CSRF headers, and internal-edge denial remain in place.',
+          'Account protection and transaction safeguards stay in place without turning the interface into a status console.',
       },
       {
         title: 'Operational clarity',
@@ -131,20 +131,20 @@ export const en = {
           'The UI maps to clear owners instead of collapsing everything back into core.',
       },
     ],
-    snapshotEyebrow: 'Runtime snapshot',
-    snapshotTitle: 'Verified delivery without hiding the moving parts',
+    snapshotEyebrow: 'Operational readout',
+    snapshotTitle: 'A calmer way to keep campus work moving',
     snapshotChecks: [
-      'Dedicated auth, analytics, finance, academic, engagement, and people services',
-      'Next.js frontend with cookie session refresh and CSRF-safe mutations',
-      'Compose and Kubernetes-first runtime validation',
-      'Public edge keeps internal contracts blocked from the browser',
+      'Students, lecturers, and admins start from one steady workspace',
+      'Registration, billing, announcements, and reporting stay connected in the same session',
+      'Each domain can change on its own release path without dragging the whole product',
+      'Public access stays simple while internal service traffic remains separate',
     ],
     snapshotPrimaryAccessTitle: 'Primary access',
     snapshotPrimaryAccessDescription:
-      'Students, lecturers, and admins enter through one consistent browser contract.',
-    snapshotReleaseTitle: 'Release posture',
+      'Students, lecturers, and admins all enter through one consistent sign-in experience.',
+    snapshotReleaseTitle: 'Delivery posture',
     snapshotReleaseDescription:
-      'Registry publishing, image verification, and local K8s flows stay traceable.',
+      'Releases, verification, and runtime checks stay traceable from build to browser.',
     capabilitiesEyebrow: 'What the portal is built to do',
     capabilitiesTitle:
       'One frontend language across the critical campus workflows',
@@ -154,7 +154,7 @@ export const en = {
       {
         title: 'Identity you can trust',
         description:
-          'Cookie-based sessions, CSRF protection, and role-aware routing stay intact across the web client.',
+          'Account access stays steady across the people-facing workflows that matter during the academic day.',
       },
       {
         title: 'Academic workflows',
@@ -174,7 +174,7 @@ export const en = {
       {
         title: 'Release discipline',
         description:
-          'Compose, Kustomize, CI, registry publishing, and edge checks all point at the same 9-image topology.',
+          'Deployments, runtime checks, and service handoffs stay readable as the platform grows.',
       },
       {
         title: 'Campus-ready shell',
@@ -185,7 +185,7 @@ export const en = {
     whyEyebrow: 'Why microservices for CampusCore',
     whyTitle: 'Split ownership where campus operations actually split',
     whyDescription:
-      'CampusCore is service-oriented because campus operations do not fail all at once. Identity, academics, finance, engagement, people data, and analytics move at different speeds and deserve different release paths.',
+      'CampusCore is split into services because campus work does not peak or fail in one place at a time. Identity, academics, finance, engagement, people data, and analytics move at different speeds and deserve different operating rhythms.',
     whyPoints: [
       {
         title: 'Smaller blast radius',
@@ -195,7 +195,7 @@ export const en = {
       {
         title: 'Independent auth ownership',
         description:
-          'Identity and browser session handling stay owned by auth instead of being scattered across unrelated services.',
+          'Identity and sign-in can evolve without forcing unrelated academic or finance changes.',
       },
       {
         title: 'Scaling by workload',
@@ -205,43 +205,44 @@ export const en = {
       {
         title: 'Release verification',
         description:
-          'The 9-image topology makes it easier to trace what was published, what was verified, and what is running now.',
+          'Clear service ownership makes it easier to trace what changed, what shipped, and what is running now.',
       },
       {
         title: 'Stronger edge boundaries',
         description:
-          'Public routes stay readable for the browser while internal contracts stay behind the edge.',
+          'People-facing routes stay clear while internal service contracts remain out of the browser path.',
       },
       {
         title: 'Clearer operator handoff',
         description:
-          'Compose, Kustomize, and registry verification remain readable because each domain owns a smaller surface.',
+          'Operators can reason about incidents and deployments one domain at a time instead of untangling one giant surface.',
       },
     ],
     footerSubtitle: 'Operational workspace',
     footerDescription:
-      'A microservices-oriented campus platform focused on stable browser auth, clearer service ownership, and verified runtime delivery.',
+      'A campus platform built for steady sign-in, clearer ownership, and calmer day-to-day operations.',
     footerWorkspace: 'Workspace',
     footerDelivery: 'Delivery',
     footerLinks: {
       workspace: ['Student access', 'Lecturer workflows', 'Admin operations'],
-      delivery: ['Compose and K8s', 'Semver image releases', 'Edge and security verification'],
+      delivery: ['Deployment handoff', 'Release verification', 'Operational monitoring'],
     },
     footerCopyright: 'All rights reserved.',
   },
   authShell: {
+    desktopSubtitle: 'Campus operations workspace',
     mobileSubtitle: 'Academic access',
   },
   login: {
     eyebrow: 'Secure access',
     title: 'Sign in to the campus workspace.',
     description:
-      'Use the same protected browser session to move across academics, finance, announcements, and operational dashboards.',
+      'Sign in with your campus account to continue across registration, billing, schedules, and updates.',
     featureTitles: ['Role-aware access', 'Session protection', 'Operational continuity'],
     featureDescriptions: [
       'Admins, lecturers, and students land in the right workspace without a second sign-in step.',
-      'Browser auth stays on cookie sessions with CSRF protection and refresh handling.',
-      'Core academic, finance, engagement, and analytics flows stay reachable from one portal.',
+      'Sign-in stays steady across the pages people actually need during the academic day.',
+      'Registration, billing, and reporting all start from the same calm entry point.',
     ],
     sectionEyebrow: 'Account access',
     heading: 'Welcome back',
@@ -254,9 +255,9 @@ export const en = {
     showPassword: 'Show password',
     hidePassword: 'Hide password',
     signingIn: 'Signing in',
-    sessionBehaviorTitle: 'Session behavior',
+    sessionBehaviorTitle: 'One steady session',
     sessionBehaviorDescription:
-      'CampusCore uses cookie-based browser sessions with automatic refresh handling and CSRF protection for mutating requests.',
+      'Move between student, lecturer, and admin work without starting over.',
     reasonMessages: {
       sessionExpired: {
         title: 'Your session ended',
@@ -272,19 +273,18 @@ export const en = {
       },
     },
     runtimeNotice: {
-      infoTitle: 'Development preview',
-      infoBody:
-        'This local frontend is using the edge proxy. If sign-in stops responding, start the local edge helper or use the public domain.',
-      warningTitle: 'Local edge unavailable',
+      infoTitle: 'Preview ready',
+      infoBody: 'This preview is ready for workspace review.',
+      warningTitle: 'Sign-in is unavailable in this preview',
       warningBody:
-        'This preview cannot reach the local edge right now. Start the edge helper on {origin} or use the public domain instead of relying on frontend-only preview mode.',
+        'This preview cannot reach the workspace services right now. Open the main workspace entry point or try again in a moment.',
     },
     errors: {
       fallback: 'We could not sign you in right now.',
       invalidCredentials: 'The email address or password is incorrect.',
       blocked: 'This sign-in attempt was blocked. Refresh the page and try again.',
       backendUnavailable:
-        'CampusCore could not reach the local edge or auth services. Start the edge helper, confirm the proxy target is healthy, or use the public domain.',
+        'CampusCore could not reach sign-in right now. Try again in a moment.',
       temporaryUnavailable:
         'Sign-in is temporarily unavailable. Please try again in a moment.',
     },
@@ -297,7 +297,7 @@ export const en = {
       'Use your campus email to request a reset link. The response stays consistent whether the account exists or not.',
     featureTitles: ['Verified handoff', 'Clear next steps', 'Safer messaging'],
     featureDescriptions: [
-      'Password recovery stays on the same browser contract as sign-in and session refresh.',
+      'Password recovery stays aligned with the same sign-in experience used across the workspace.',
       'The screen keeps recovery guidance visible instead of dropping you into a dead end.',
       'Responses stay intentionally vague so the flow does not confirm whether an email exists.',
     ],
@@ -462,6 +462,68 @@ export const en = {
         dropped: 'Dropped',
       },
     },
+    cockpit: {
+      kpis: {
+        serviceHealth: 'Service health',
+        serviceHealthDetail: 'Observed service targets in the local operator stack.',
+        registrationPressure: 'Registration pressure',
+        registrationPressureDetail: 'Full or near-full sections that need attention.',
+        paymentRisk: 'Payment risk',
+        paymentRiskDetail: 'Failed, overdue, or pending finance work.',
+        notificationHealth: 'Notification health',
+        notificationHealthDetail: 'Unread or warning-level operational messages.',
+      },
+      labels: {
+        healthy: 'healthy',
+        sectionsAtRisk: 'sections at risk',
+        failedPayments: 'failed payments',
+        unreadNotifications: 'unread',
+        totalInvoiced: 'Invoiced',
+        paidAmount: 'Paid',
+        outstanding: 'Outstanding',
+        waitlist: 'Waitlist',
+        full: 'Full',
+        nearCapacity: 'Near capacity',
+        averageOccupancy: 'Average occupancy',
+        noAttention: 'No immediate operator action is queued.',
+      },
+      panels: {
+        enrollmentFlow: {
+          title: 'Enrollment movement',
+          description:
+            'Twelve-month enrollment, completion, and drop activity with structured buckets for localized reporting.',
+        },
+        registrationPressure: {
+          title: 'Registration pressure',
+          description:
+            'Sections closest to capacity, with active waitlist signals visible before students hit a dead end.',
+        },
+        financeFunnel: {
+          title: 'Finance checkout posture',
+          description:
+            'Invoice exposure and provider payment activity in one reconciliation view.',
+        },
+        notificationDelivery: {
+          title: 'Notification delivery',
+          description:
+            'Unread, warning, and error-level messages that may require an operator follow-up.',
+        },
+        operatorLinks: {
+          title: 'Operator drill-down',
+          description:
+            'Use these internal links for detailed metrics, logs, traces, and alert review.',
+        },
+        actionQueue: {
+          title: 'Attention queue',
+          description:
+            'The highest-value operational follow-ups from enrollment, finance, and notification signals.',
+        },
+      },
+      actions: {
+        open: 'Open',
+        opensInNewTab: 'opens in a new tab',
+      },
+    },
   },
   dashboardShell: {
     roles: {
@@ -471,6 +533,43 @@ export const en = {
     },
     roleDescription:
       'Keep your next action close without losing the surrounding context.',
+    studentRail: {
+      title: 'Student context',
+      subtitle:
+        'Keep the current route, billing signals, and registration shortcuts visible without crowding the main workspace.',
+      currentViewLabel: 'Current view',
+      signalsTitle: 'Signals',
+      notificationLabel: 'Unread updates',
+      localeLabel: 'Language',
+      sessionSummary:
+        'Your student workspace stays in the same signed-in context while you move between registration, billing, and records.',
+      quickActionsTitle: 'Quick actions',
+      collapse: 'Collapse student context panel',
+      expand: 'Expand student context panel',
+      closeDrawer: 'Close student context panel',
+      quickLinks: {
+        registration: {
+          title: 'Registration plan',
+          description:
+            'Review open sections, waitlists, and the active registration window.',
+        },
+        schedule: {
+          title: 'Weekly schedule',
+          description:
+            'Keep this term’s meetings close while you compare sections.',
+        },
+        billing: {
+          title: 'Billing status',
+          description:
+            'Check outstanding invoices and payment follow-up without leaving the workspace.',
+        },
+        announcements: {
+          title: 'Campus updates',
+          description:
+            'Open the latest shared notices affecting classes, billing, and student activity.',
+        },
+      },
+    },
     menu: {
       dashboard: 'Dashboard',
       courseRegistration: 'Course registration',
@@ -498,20 +597,24 @@ export const en = {
     controls: {
       openSidebar: 'Open sidebar navigation',
       closeSidebar: 'Close sidebar navigation',
+      collapseSidebar: 'Collapse sidebar navigation',
+      expandSidebar: 'Expand sidebar navigation',
       closeOverlay: 'Close sidebar overlay',
+      openStudentRail: 'Open student context panel',
+      closeStudentRailOverlay: 'Close student context overlay',
       toggleNotifications: 'Toggle notifications panel',
       toggleProfile: 'Toggle profile menu',
     },
     pageDefaults: {
       description:
-        'Navigate the current workflow without leaving the workspace shell.',
+        'Navigate the current workflow without leaving the workspace.',
       title: 'Campus workspace',
       fallbackDescription:
         'Move through your current role surface with consistent session handling.',
     },
     routeDescriptions: {
       dashboard:
-        'Registration, coursework, billing, and profile tasks stay in one student shell.',
+        'Registration, coursework, billing, and profile tasks stay in one student workspace.',
       profile:
         'Keep contact details and credential rotation aligned with the active browser session.',
       register:
@@ -525,7 +628,7 @@ export const en = {
       invoices: 'Review billing status and payment history.',
       announcements: 'Read campus-wide updates and shared notices.',
       lecturer:
-        'Keep teaching tasks, grading queues, section context, and announcements in one lecturer shell.',
+        'Keep teaching tasks, grading queues, section context, and announcements in one lecturer workspace.',
       lecturerSchedule: 'Track assigned sections, rooms, and meeting windows.',
       lecturerGrades:
         'Review grading queues, filter by term, and move publish-ready sections forward.',
@@ -538,7 +641,7 @@ export const en = {
     eyebrow: 'Student workspace',
     title: 'Welcome back, {name}',
     description:
-      'The current term is {semester}. Move between registration, coursework, billing, and profile updates without leaving the student shell.',
+      'The current term is {semester}. Move between registration, coursework, billing, and profile updates without leaving the student workspace.',
     currentTermFallback: 'No active term',
     currentDateLabel: 'Today',
     metrics: {
@@ -547,7 +650,7 @@ export const en = {
       pendingDecisions: 'Pending decisions',
       currentSemester: 'Current semester',
       details: [
-        'Registration, section context, and current coursework remain visible from the same student shell.',
+        'Registration, section context, and current coursework remain visible from the same student workspace.',
         'Confirmed sections stay close so you can move into schedules, grades, and transcript work without losing context.',
         'Anything that still needs attention stays visible before it turns into a registration surprise.',
         'The dashboard keeps one active academic context so the rest of the student tools stay aligned.',
@@ -609,7 +712,7 @@ export const en = {
     eyebrow: 'Account settings',
     title: 'Profile settings',
     description:
-      'Update personal details, keep contact information current, and rotate credentials without leaving the workspace shell.',
+      'Update personal details, keep contact information current, and rotate credentials without leaving the workspace.',
     profileTitle: 'Account profile',
     profileDescription:
       'Keep the account record aligned with the information your campus teams rely on.',
@@ -657,7 +760,7 @@ export const en = {
     eyebrow: 'Lecturer workspace',
     title: 'Welcome back, {name}',
     description:
-      'Keep section operations, grading queues, and teaching updates in one lecturer-focused shell.',
+      'Keep section operations, grading queues, and teaching updates in one lecturer-focused workspace.',
     quickActionsTitle: 'Quick actions',
     quickActionsDescription:
       'Open the lecturer tools that usually drive the next teaching action.',
@@ -688,7 +791,7 @@ export const en = {
       labels: ['Sections', 'Students', 'Ready to publish', 'Fresh notices'],
       details: [
         'Assigned teaching sections stay visible so grading and scheduling decisions remain grounded in the same term context.',
-        'Enrollment volume stays close to the lecturer shell so section-level follow-up remains visible.',
+        'Enrollment volume stays close to the lecturer workspace so section-level follow-up remains visible.',
         'Publish-ready grading work surfaces early so final review does not get lost behind the rest of the workflow.',
         'Broadcast updates that affect teaching operations remain visible without pulling attention away from the grading queue.',
       ],
@@ -853,30 +956,30 @@ export const vi: I18nMessages = {
       eyebrow: 'CampusCore',
       title: 'Vận hành campus vẫn vững dưới tải thực tế.',
       description:
-        'Định danh, học vụ, tài chính, tương tác, dữ liệu con người và phân tích trong một workspace đã được xác minh phát hành.',
+        'Đăng ký học phần, giảng dạy, học phí, dữ liệu con người và báo cáo trong một workspace có owner rõ ràng giữa các service.',
       badges: [
-        'Cookie session + CSRF',
-        'Topology 9 image',
-        'Compose + Kubernetes',
+        'Workspace theo vai trò',
+        'Phát hành đã xác minh',
+        'Service có owner riêng',
       ],
     },
   },
   home: {
-    navSubtitle: 'Workspace vận hành campus',
-    eyebrow: 'Nền tảng CampusCore',
-    title: 'Vận hành học vụ ổn định, không chắp vá.',
+    navSubtitle: 'Không gian vận hành campus',
+    eyebrow: 'Không gian vận hành campus',
+    title: 'Giữ vận hành học vụ trôi chảy, rõ ràng và đáng tin cậy.',
     description:
-      'CampusCore gom định danh, học vụ, tài chính, tương tác, dữ liệu con người và phân tích vào một workspace web duy nhất, đồng thời vẫn giữ rõ owner dịch vụ, kiểm chứng phát hành và ranh giới runtime.',
+      'CampusCore gom đăng ký học phần, thời khóa biểu, học phí, thông báo và báo cáo vào một không gian làm việc ổn định cho sinh viên, giảng viên và đội ngũ vận hành.',
     metricCards: [
       {
-        title: 'Sẵn sàng cho Kubernetes',
+        title: 'Sẵn sàng cho vận hành',
         description:
-          'Luồng Docker Desktop local và Kustomize đã xác minh theo release luôn đi cùng nhau.',
+          'Sản phẩm được dựng cho vận hành campus thực tế, từ đăng nhập hằng ngày đến bàn giao phát hành.',
       },
       {
         title: 'Ưu tiên bảo mật',
         description:
-          'Refresh phiên, header CSRF và chặn internal edge vẫn được giữ nguyên.',
+          'Các lớp bảo vệ tài khoản và giao dịch vẫn được giữ vững mà không biến giao diện thành bảng chẩn đoán kỹ thuật.',
       },
       {
         title: 'Vận hành rõ ràng',
@@ -884,29 +987,29 @@ export const vi: I18nMessages = {
           'UI bám theo owner rõ ràng thay vì dồn tất cả trở lại một lõi duy nhất.',
       },
     ],
-    snapshotEyebrow: 'Ảnh chụp runtime',
-    snapshotTitle: 'Phát hành đã được xác minh mà không che đi phần chuyển động bên dưới',
+    snapshotEyebrow: 'Nhịp vận hành',
+    snapshotTitle: 'Một cách bình tĩnh hơn để giữ campus luôn chạy',
     snapshotChecks: [
-      'Auth, analytics, finance, academic, engagement và people tách owner riêng',
-      'Frontend Next.js với cookie session refresh và mutation an toàn với CSRF',
-      'Xác minh runtime theo Compose và Kubernetes trước',
-      'Public edge vẫn chặn contract nội bộ khỏi trình duyệt',
+      'Sinh viên, giảng viên và quản trị cùng đi vào một workspace ổn định',
+      'Đăng ký học phần, học phí, thông báo và báo cáo luôn nối tiếp trong cùng một phiên',
+      'Mỗi domain có thể đổi theo nhịp riêng mà không kéo cả hệ thống đi theo',
+      'Lối vào công khai vẫn gọn cho người dùng, còn lưu lượng nội bộ được giữ tách riêng',
     ],
     snapshotPrimaryAccessTitle: 'Lối vào chính',
     snapshotPrimaryAccessDescription:
-      'Sinh viên, giảng viên và quản trị cùng đi qua một contract trình duyệt nhất quán.',
-    snapshotReleaseTitle: 'Trạng thái phát hành',
+      'Sinh viên, giảng viên và quản trị cùng đi qua một trải nghiệm đăng nhập nhất quán.',
+    snapshotReleaseTitle: 'Nhịp triển khai',
     snapshotReleaseDescription:
-      'Registry publishing, kiểm image và K8s local vẫn truy vết được rõ ràng.',
+      'Các bước phát hành, kiểm chứng và kiểm tra runtime luôn lần theo được từ build đến trình duyệt.',
     capabilitiesEyebrow: 'Portal này được xây để làm gì',
     capabilitiesTitle: 'Một ngôn ngữ giao diện cho các luồng campus quan trọng',
     capabilitiesDescription:
-      'Giao diện được thiết kế cho vận hành campus thực tế, với mặc định điềm tĩnh hơn cho auth, data state và tác vụ theo role.',
+      'Giao diện được thiết kế cho vận hành campus thực tế, với mặc định điềm tĩnh hơn cho xác thực, trạng thái dữ liệu và tác vụ theo vai trò.',
     pillars: [
       {
         title: 'Định danh đáng tin',
         description:
-          'Cookie session, CSRF protection và role-aware routing luôn được giữ vững trong web client.',
+          'Đăng nhập được giữ ổn định trên những luồng mà người dùng thật sự cần trong ngày học vụ.',
       },
       {
         title: 'Luồng học vụ',
@@ -921,23 +1024,23 @@ export const vi: I18nMessages = {
       {
         title: 'Owner dữ liệu con người',
         description:
-          'Dữ liệu sinh viên và giảng viên vẫn hiển thị trên frontend mà không kéo UI trở lại monolith.',
+          'Dữ liệu sinh viên và giảng viên vẫn hiển thị trên frontend mà không kéo UI quay lại kiểu monolith.',
       },
       {
         title: 'Kỷ luật phát hành',
         description:
-          'Compose, Kustomize, CI, registry publishing và edge check cùng trỏ về một topology 9 image.',
+          'Triển khai, kiểm tra runtime và bàn giao service vẫn rõ ràng khi hệ thống lớn dần.',
       },
       {
         title: 'Portal sẵn cho campus',
         description:
-          'Một cổng chung cho sinh viên, giảng viên và quản trị với state rõ hơn, ít ngõ cụt hơn và điều hướng điềm tĩnh hơn.',
+          'Một cổng chung cho sinh viên, giảng viên và quản trị với trạng thái rõ hơn, ít ngõ cụt hơn và điều hướng điềm tĩnh hơn.',
       },
     ],
     whyEyebrow: 'Vì sao CampusCore chọn microservices',
     whyTitle: 'Tách owner đúng nơi vận hành campus thực sự đã tách',
     whyDescription:
-      'CampusCore đi theo hướng microservices vì vận hành campus không hỏng đồng loạt trong một lần. Định danh, học vụ, tài chính, tương tác, dữ liệu con người và phân tích vận hành với nhịp độ khác nhau và cần các đường phát hành khác nhau.',
+      'CampusCore được tách thành microservices vì vận hành campus không tăng tải hay gặp sự cố ở một chỗ duy nhất. Định danh, học vụ, tài chính, tương tác, dữ liệu con người và phân tích đều có nhịp vận hành riêng.',
     whyPoints: [
       {
         title: 'Giảm blast radius',
@@ -947,7 +1050,7 @@ export const vi: I18nMessages = {
       {
         title: 'Auth có owner độc lập',
         description:
-          'Định danh và browser session được giữ trọn trong auth thay vì rải vào các service không liên quan.',
+          'Định danh và đăng nhập có thể thay đổi mà không buộc học vụ hay tài chính phải đi theo.',
       },
       {
         title: 'Scale theo tải',
@@ -957,43 +1060,44 @@ export const vi: I18nMessages = {
       {
         title: 'Kiểm chứng phát hành rõ',
         description:
-          'Topology 9 image giúp truy dấu thứ gì đã publish, đã verify và đang chạy dễ hơn.',
+          'Owner rõ ràng giúp truy dấu phần nào vừa đổi, vừa phát hành và đang chạy dễ hơn.',
       },
       {
         title: 'Ranh giới edge mạnh hơn',
         description:
-          'Route công khai vẫn dễ dùng cho trình duyệt trong khi contract nội bộ ở phía sau edge.',
+          'Lối vào cho người dùng vẫn gọn, còn contract nội bộ không bị đẩy ra trước trình duyệt.',
       },
       {
         title: 'Bàn giao vận hành rõ hơn',
         description:
-          'Compose, Kustomize và kiểm chứng registry dễ đọc hơn vì mỗi domain sở hữu một bề mặt nhỏ hơn.',
+          'Đội vận hành có thể xử lý sự cố và triển khai theo từng domain thay vì gỡ một khối khổng lồ.',
       },
     ],
     footerSubtitle: 'Workspace vận hành',
     footerDescription:
-      'Nền tảng campus theo hướng microservices, tập trung vào browser auth ổn định, owner dịch vụ rõ ràng và runtime đã được xác minh.',
+      'Nền tảng campus tập trung vào đăng nhập ổn định, owner rõ ràng và vận hành hằng ngày bớt rối hơn.',
     footerWorkspace: 'Workspace',
     footerDelivery: 'Triển khai',
     footerLinks: {
       workspace: ['Khu sinh viên', 'Luồng giảng viên', 'Vận hành quản trị'],
-      delivery: ['Compose và K8s', 'Phát hành image theo semver', 'Kiểm edge và bảo mật'],
+      delivery: ['Bàn giao triển khai', 'Xác minh phát hành', 'Theo dõi vận hành'],
     },
     footerCopyright: 'Mọi quyền được bảo lưu.',
   },
   authShell: {
+    desktopSubtitle: 'Không gian vận hành campus',
     mobileSubtitle: 'Truy cập học vụ',
   },
   login: {
     eyebrow: 'Truy cập an toàn',
-    title: 'Đăng nhập vào workspace campus.',
+    title: 'Đăng nhập vào không gian vận hành campus.',
     description:
-      'Dùng cùng một browser session đã được bảo vệ để di chuyển giữa học vụ, tài chính, thông báo và dashboard vận hành.',
-    featureTitles: ['Theo role đúng chỗ', 'Bảo vệ phiên', 'Luồng vận hành liên tục'],
+      'Dùng cùng một phiên trình duyệt đã được bảo vệ để di chuyển giữa học vụ, tài chính, thông báo và bảng điều khiển vận hành.',
+    featureTitles: ['Vào đúng vai trò', 'Phiên đăng nhập an toàn', 'Luồng vận hành liền mạch'],
     featureDescriptions: [
-      'Quản trị, giảng viên và sinh viên vào đúng workspace mà không cần bước đăng nhập thứ hai.',
-      'Auth trên trình duyệt vẫn dùng cookie session với CSRF protection và refresh handling.',
-      'Các luồng học vụ, tài chính, tương tác và phân tích luôn đi qua cùng một portal.',
+      'Quản trị, giảng viên và sinh viên đi vào đúng không gian làm việc mà không cần một bước đăng nhập thứ hai.',
+      'Đăng nhập được giữ nhất quán trên những màn quan trọng nhất trong ngày học vụ.',
+      'Các luồng học vụ, tài chính, tương tác và báo cáo luôn đi qua cùng một điểm vào điềm tĩnh.',
     ],
     sectionEyebrow: 'Truy cập tài khoản',
     heading: 'Chào mừng bạn quay lại',
@@ -1006,9 +1110,9 @@ export const vi: I18nMessages = {
     showPassword: 'Hiện mật khẩu',
     hidePassword: 'Ẩn mật khẩu',
     signingIn: 'Đang đăng nhập',
-    sessionBehaviorTitle: 'Cách phiên hoạt động',
+    sessionBehaviorTitle: 'Một phiên làm việc liền mạch',
     sessionBehaviorDescription:
-      'CampusCore dùng browser session dựa trên cookie với refresh tự động và CSRF protection cho các request thay đổi dữ liệu.',
+      'Tiếp tục công việc giữa các khu vực sinh viên, giảng viên và quản trị mà không phải bắt đầu lại từ đầu.',
     reasonMessages: {
       sessionExpired: {
         title: 'Phiên của bạn đã kết thúc',
@@ -1020,23 +1124,22 @@ export const vi: I18nMessages = {
       },
       signedOut: {
         title: 'Đã đăng xuất',
-        body: 'Bạn đã được đăng xuất khỏi workspace.',
+        body: 'Bạn đã được đăng xuất khỏi không gian làm việc.',
       },
     },
     runtimeNotice: {
-      infoTitle: 'Bản xem trước cho phát triển',
-      infoBody:
-        'Frontend local này đang đi qua edge proxy. Nếu đăng nhập ngừng phản hồi, hãy bật local edge helper hoặc dùng domain public.',
-      warningTitle: 'Local edge chưa sẵn sàng',
+      infoTitle: 'Bản xem trước đã sẵn sàng',
+      infoBody: 'Bản xem trước này đã sẵn sàng để rà giao diện workspace.',
+      warningTitle: 'Đăng nhập chưa sẵn sàng trên bản xem trước này',
       warningBody:
-        'Bản preview này chưa chạm được local edge. Hãy bật edge helper tại {origin} hoặc dùng domain public thay vì dựa vào chế độ preview chỉ có frontend.',
+        'Bản xem trước hiện chưa kết nối được tới các dịch vụ workspace. Hãy mở lối vào chính của workspace hoặc thử lại sau ít phút.',
     },
     errors: {
       fallback: 'Hiện chưa thể đăng nhập.',
       invalidCredentials: 'Email hoặc mật khẩu không đúng.',
       blocked: 'Lần đăng nhập này đã bị chặn. Hãy làm mới trang rồi thử lại.',
       backendUnavailable:
-        'CampusCore chưa chạm được local edge hoặc auth service. Hãy bật edge helper, kiểm tra proxy target đang khỏe, hoặc dùng domain public.',
+        'CampusCore hiện chưa kết nối được tới dịch vụ đăng nhập. Hãy thử lại sau ít phút.',
       temporaryUnavailable:
         'Đăng nhập tạm thời chưa sẵn sàng. Vui lòng thử lại sau ít phút.',
     },
@@ -1049,7 +1152,7 @@ export const vi: I18nMessages = {
       'Dùng email campus để yêu cầu liên kết đặt lại mật khẩu. Phản hồi sẽ giữ nhất quán dù tài khoản có tồn tại hay không.',
     featureTitles: ['Bàn giao đã xác minh', 'Bước kế tiếp rõ ràng', 'Thông điệp an toàn hơn'],
     featureDescriptions: [
-      'Khôi phục mật khẩu vẫn nằm trong cùng browser contract với đăng nhập và refresh phiên.',
+      'Khôi phục mật khẩu vẫn đi cùng một trải nghiệm đăng nhập nhất quán trong toàn bộ workspace.',
       'Màn hình luôn giữ hướng dẫn khôi phục hiển thị thay vì đưa bạn vào ngõ cụt.',
       'Phản hồi được giữ mơ hồ có chủ đích để không xác nhận email có tồn tại hay không.',
     ],
@@ -1150,8 +1253,8 @@ export const vi: I18nMessages = {
       'Sinh viên',
       'Giảng viên',
       'Môn học',
-      'Section',
-      'Enrollment',
+      'Lớp học phần',
+      'Đăng ký học',
       'Bộ môn',
       'Khoa',
       'Phòng học',
@@ -1159,9 +1262,9 @@ export const vi: I18nMessages = {
     statDetails: [
       'Bản ghi sinh viên đang hoạt động trong snapshot analytics hiện tại.',
       'Danh tính hướng giảng dạy hiện sẵn sàng cho vận hành học vụ.',
-      'Các dòng catalog đang cấp dữ liệu cho section và đăng ký.',
-      'Các bản ghi section trực tiếp hiện hiển thị trong reporting.',
-      'Lưu lượng enrollment đang được phản ánh xuyên suốt các báo cáo học vụ.',
+      'Các dòng catalog đang cấp dữ liệu cho lớp học phần và đăng ký.',
+      'Các bản ghi lớp học phần trực tiếp hiện hiển thị trong báo cáo.',
+      'Lưu lượng đăng ký học đang được phản ánh xuyên suốt các báo cáo học vụ.',
       'Bản ghi bộ môn gắn với góc nhìn khoa và nhân sự.',
       'Các nhóm khoa đang sẵn sàng cho phân đoạn học vụ.',
       'Các phòng hiện sẵn sàng cho việc theo dõi mức đầy của section.',
@@ -1181,28 +1284,28 @@ export const vi: I18nMessages = {
           'Theo dõi cách điểm số đã công bố đang phân bổ theo khối lượng học vụ hiện tại.',
         emptyTitle: 'Chưa có điểm đã công bố',
         emptyDescription:
-          'Khối này sẽ hữu ích hơn khi các section bắt đầu publish điểm cuối kỳ.',
+          'Khối này sẽ hữu ích hơn khi các lớp học phần bắt đầu công bố điểm cuối kỳ.',
       },
       sectionOccupancy: {
-        title: 'Mức đầy của section',
+        title: 'Mức đầy của lớp học phần',
         description:
-          'Đưa các section gần đầy lên sớm trước khi chúng trở thành vấn đề vận hành.',
+          'Đưa các lớp học phần gần đầy lên sớm trước khi chúng trở thành vấn đề vận hành.',
         emptyTitle: 'Chưa có dữ liệu mức đầy',
         emptyDescription:
-          'Cần có số lượng section và enrollment trước khi hiển thị được mức đầy.',
+          'Cần có số lượng lớp học phần và đăng ký học trước khi hiển thị được mức đầy.',
       },
       enrollmentTrends: {
-        title: 'Xu hướng enrollment',
+        title: 'Xu hướng đăng ký học',
         description:
-          'Xem intake hàng tháng, completion và drop trong một màn đọc vận hành thống nhất.',
+          'Xem lượt vào học, hoàn tất và rút môn theo tháng trong một màn đọc vận hành thống nhất.',
         emptyTitle: 'Chưa có dữ liệu xu hướng gần đây',
         emptyDescription:
-          'Các thẻ xu hướng sẽ xuất hiện khi có hoạt động enrollment theo tháng.',
+          'Các thẻ xu hướng sẽ xuất hiện khi có hoạt động đăng ký học theo tháng.',
       },
     },
     tableHeaders: {
       course: 'Môn học',
-      section: 'Section',
+      section: 'Lớp học phần',
       semester: 'Học kỳ',
       capacity: 'Sức chứa',
       enrolled: 'Đã đăng ký',
@@ -1214,6 +1317,68 @@ export const vi: I18nMessages = {
         dropped: 'Rút môn',
       },
     },
+    cockpit: {
+      kpis: {
+        serviceHealth: 'Sức khỏe service',
+        serviceHealthDetail: 'Các service target đang được operator stack theo dõi.',
+        registrationPressure: 'Áp lực đăng ký',
+        registrationPressureDetail: 'Lớp đã đầy hoặc gần đầy cần được chú ý.',
+        paymentRisk: 'Rủi ro thanh toán',
+        paymentRiskDetail: 'Thanh toán lỗi, quá hạn hoặc còn chờ xử lý.',
+        notificationHealth: 'Tình trạng thông báo',
+        notificationHealthDetail: 'Thông báo chưa đọc hoặc cảnh báo cần theo dõi.',
+      },
+      labels: {
+        healthy: 'ổn định',
+        sectionsAtRisk: 'lớp có rủi ro',
+        failedPayments: 'thanh toán lỗi',
+        unreadNotifications: 'chưa đọc',
+        totalInvoiced: 'Đã lập hóa đơn',
+        paidAmount: 'Đã thanh toán',
+        outstanding: 'Còn phải thu',
+        waitlist: 'Danh sách chờ',
+        full: 'Đã đầy',
+        nearCapacity: 'Gần đầy',
+        averageOccupancy: 'Mức đầy trung bình',
+        noAttention: 'Hiện chưa có tác vụ vận hành cần xử lý ngay.',
+      },
+      panels: {
+        enrollmentFlow: {
+          title: 'Dòng đăng ký học',
+          description:
+            'Hoạt động đăng ký, hoàn tất và rút môn trong 12 tháng với bucket có cấu trúc cho báo cáo song ngữ.',
+        },
+        registrationPressure: {
+          title: 'Áp lực đăng ký',
+          description:
+            'Các lớp gần đạt sức chứa nhất, kèm tín hiệu danh sách chờ trước khi sinh viên gặp ngõ cụt.',
+        },
+        financeFunnel: {
+          title: 'Tình trạng checkout học phí',
+          description:
+            'Mức phải thu và hoạt động thanh toán theo provider trong một góc nhìn đối soát.',
+        },
+        notificationDelivery: {
+          title: 'Luồng thông báo',
+          description:
+            'Thông báo chưa đọc, cảnh báo và lỗi có thể cần quản trị viên theo dõi.',
+        },
+        operatorLinks: {
+          title: 'Đi sâu vận hành',
+          description:
+            'Dùng các liên kết nội bộ này để xem metric, log, trace và alert chi tiết.',
+        },
+        actionQueue: {
+          title: 'Hàng đợi cần chú ý',
+          description:
+            'Các việc vận hành đáng xử lý nhất từ tín hiệu đăng ký, tài chính và thông báo.',
+        },
+      },
+      actions: {
+        open: 'Mở',
+        opensInNewTab: 'mở trong tab mới',
+      },
+    },
   },
   dashboardShell: {
     roles: {
@@ -1223,6 +1388,43 @@ export const vi: I18nMessages = {
     },
     roleDescription:
       'Giữ tác vụ kế tiếp trong tầm tay mà không làm mất ngữ cảnh xung quanh.',
+    studentRail: {
+      title: 'Ngữ cảnh sinh viên',
+      subtitle:
+        'Giữ lối đi hiện tại, tín hiệu học phí và lối tắt đăng ký ở gần mà không làm chật khu làm việc chính.',
+      currentViewLabel: 'Màn hiện tại',
+      signalsTitle: 'Tín hiệu nhanh',
+      notificationLabel: 'Cập nhật chưa đọc',
+      localeLabel: 'Ngôn ngữ',
+      sessionSummary:
+        'Không gian sinh viên giữ cùng một ngữ cảnh đăng nhập khi bạn chuyển giữa đăng ký, hóa đơn và hồ sơ học tập.',
+      quickActionsTitle: 'Lối tắt nhanh',
+      collapse: 'Thu gọn cột ngữ cảnh sinh viên',
+      expand: 'Mở rộng cột ngữ cảnh sinh viên',
+      closeDrawer: 'Đóng cột ngữ cảnh sinh viên',
+      quickLinks: {
+        registration: {
+          title: 'Kế hoạch đăng ký',
+          description:
+            'Xem section đang mở, danh sách chờ và cửa sổ đăng ký hiện tại.',
+        },
+        schedule: {
+          title: 'Lịch học trong tuần',
+          description:
+            'Giữ lịch học kỳ này ở gần khi bạn so sánh các section.',
+        },
+        billing: {
+          title: 'Tình trạng học phí',
+          description:
+            'Kiểm tra số dư và việc cần theo dõi về thanh toán mà không rời khỏi workspace.',
+        },
+        announcements: {
+          title: 'Cập nhật campus',
+          description:
+            'Mở các thông báo chung ảnh hưởng đến lớp học, học phí và hoạt động sinh viên.',
+        },
+      },
+    },
     menu: {
       dashboard: 'Dashboard',
       courseRegistration: 'Đăng ký học phần',
@@ -1250,20 +1452,24 @@ export const vi: I18nMessages = {
     controls: {
       openSidebar: 'Mở điều hướng sidebar',
       closeSidebar: 'Đóng điều hướng sidebar',
+      collapseSidebar: 'Thu gọn điều hướng sidebar',
+      expandSidebar: 'Mở rộng điều hướng sidebar',
       closeOverlay: 'Đóng lớp phủ sidebar',
+      openStudentRail: 'Mở cột ngữ cảnh sinh viên',
+      closeStudentRailOverlay: 'Đóng lớp phủ cột ngữ cảnh sinh viên',
       toggleNotifications: 'Bật tắt bảng thông báo',
       toggleProfile: 'Bật tắt menu hồ sơ',
     },
     pageDefaults: {
       description:
-        'Đi giữa các bước hiện tại mà không rời khỏi workspace shell.',
-      title: 'Workspace Campus',
+        'Đi giữa các bước hiện tại mà không rời khỏi không gian làm việc.',
+      title: 'Không gian campus',
       fallbackDescription:
-        'Di chuyển trong bề mặt theo role hiện tại với contract phiên nhất quán.',
+        'Di chuyển trong khu vực theo vai trò hiện tại với phiên đăng nhập nhất quán.',
     },
     routeDescriptions: {
       dashboard:
-        'Giữ đăng ký, môn học, hóa đơn và tác vụ hồ sơ trong cùng một student shell.',
+        'Giữ đăng ký, môn học, hóa đơn và tác vụ hồ sơ trong cùng một không gian sinh viên.',
       profile:
         'Giữ thông tin liên hệ và vòng đời thông tin xác thực khớp với phiên trình duyệt đang hoạt động.',
       register:
@@ -1277,20 +1483,20 @@ export const vi: I18nMessages = {
       invoices: 'Xem tình trạng hóa đơn và lịch sử thanh toán.',
       announcements: 'Đọc các cập nhật dùng chung trên toàn campus.',
       lecturer:
-        'Giữ tác vụ giảng dạy, hàng chờ chấm điểm, ngữ cảnh section và thông báo trong cùng một lecturer shell.',
+        'Giữ tác vụ giảng dạy, hàng chờ chấm điểm, ngữ cảnh section và thông báo trong cùng một không gian giảng viên.',
       lecturerSchedule: 'Theo dõi section được giao, phòng học và khung giờ lên lớp.',
       lecturerGrades:
-        'Xem hàng chờ chấm điểm, lọc theo học kỳ và đẩy các section sẵn sàng sang bước publish.',
+        'Xem hàng chờ chấm điểm, lọc theo học kỳ và đẩy các lớp học phần sẵn sàng sang bước công bố.',
       lecturerAnnouncements:
         'Chia sẻ cập nhật với sinh viên đang gắn với các section của bạn.',
     },
     loading: 'Đang tải workspace',
   },
   studentDashboard: {
-    eyebrow: 'Workspace sinh viên',
+    eyebrow: 'Không gian sinh viên',
     title: 'Chào mừng quay lại, {name}',
     description:
-      'Học kỳ hiện tại là {semester}. Di chuyển giữa đăng ký, môn học, hóa đơn và cập nhật hồ sơ mà không rời student shell.',
+      'Học kỳ hiện tại là {semester}. Di chuyển giữa đăng ký, môn học, hóa đơn và cập nhật hồ sơ mà không rời khỏi không gian sinh viên.',
     currentTermFallback: 'Chưa có học kỳ hoạt động',
     currentDateLabel: 'Hôm nay',
     metrics: {
@@ -1299,10 +1505,10 @@ export const vi: I18nMessages = {
       pendingDecisions: 'Mục chờ xử lý',
       currentSemester: 'Học kỳ hiện tại',
       details: [
-        'Registration, section context và coursework hiện tại luôn ở cùng một student shell.',
-        'Các section đã xác nhận ở gần để bạn chuyển qua schedule, grades và transcript mà không mất ngữ cảnh.',
+        'Đăng ký, ngữ cảnh section và coursework hiện tại luôn ở cùng một không gian sinh viên.',
+        'Các section đã xác nhận luôn ở gần để bạn chuyển qua lịch học, điểm số và bảng điểm mà không mất ngữ cảnh.',
         'Những mục còn cần xử lý vẫn hiển thị sớm trước khi thành bất ngờ trong đợt đăng ký.',
-        'Dashboard giữ một ngữ cảnh học vụ đang hoạt động để các công cụ còn lại luôn đồng bộ.',
+        'Bảng điều khiển giữ một ngữ cảnh học vụ đang hoạt động để các công cụ còn lại luôn đồng bộ.',
       ],
     },
     panels: {
@@ -1314,16 +1520,16 @@ export const vi: I18nMessages = {
       currentCourses: {
         title: 'Môn học hiện tại',
         description:
-          'Các enrollment đã xác nhận luôn nằm ở đây để bạn xem lại ngữ cảnh trước khi đi sâu hơn.',
+          'Các đăng ký đã xác nhận luôn nằm ở đây để bạn xem lại ngữ cảnh trước khi đi sâu hơn.',
         emptyTitle: 'Chưa có môn học đã xác nhận',
         emptyDescription:
-          'Khi enrollment được xác nhận, các môn hiện tại sẽ xuất hiện tại đây.',
-        sectionLabel: 'Section {section}',
+          'Khi đăng ký được xác nhận, các môn hiện tại sẽ xuất hiện tại đây.',
+        sectionLabel: 'Lớp học phần {section}',
       },
       referenceLinks: {
         title: 'Liên kết tham chiếu',
         description:
-          'Giữ các màn hỗ trợ trong tầm tay mà vẫn ở trong cùng session-backed shell.',
+          'Giữ các màn hỗ trợ trong tầm tay mà vẫn ở trong cùng một không gian có phiên đăng nhập bảo vệ.',
       },
       currentStatus: {
         title: 'Trạng thái hiện tại',
@@ -1333,7 +1539,7 @@ export const vi: I18nMessages = {
         semesterSelectionActive:
           'Dashboard đang dùng {semester} làm ngữ cảnh học vụ hiện tại.',
         semesterSelectionEmpty: 'Chưa có học kỳ ưu tiên nào đang hoạt động.',
-        enrollmentHealthTitle: 'Sức khỏe enrollment',
+        enrollmentHealthTitle: 'Tình trạng đăng ký',
         enrollmentHealthPending:
           'Vẫn còn {count} mục đăng ký cần được xử lý.',
         enrollmentHealthClear:
@@ -1341,7 +1547,7 @@ export const vi: I18nMessages = {
       },
     },
     quickActions: [
-      ['Đăng ký học phần', 'Xem các section đang mở và đưa ra quyết định enrollment.'],
+      ['Đăng ký học phần', 'Xem các section đang mở và đưa ra quyết định đăng ký.'],
       ['Mở thời khóa biểu', 'Kiểm tra lịch học của tuần này.'],
       ['Xem điểm số', 'Xem kết quả đã công bố và tình trạng học tập.'],
       ['Kiểm tra hóa đơn', 'Theo dõi số dư chưa thanh toán và trạng thái thanh toán.'],
@@ -1361,7 +1567,7 @@ export const vi: I18nMessages = {
     eyebrow: 'Cài đặt tài khoản',
     title: 'Cài đặt hồ sơ',
     description:
-      'Cập nhật thông tin cá nhân, giữ dữ liệu liên hệ mới nhất và xoay vòng thông tin xác thực mà không rời workspace shell.',
+      'Cập nhật thông tin cá nhân, giữ dữ liệu liên hệ mới nhất và xoay vòng thông tin xác thực mà không rời khỏi không gian làm việc.',
     profileTitle: 'Hồ sơ tài khoản',
     profileDescription:
       'Giữ hồ sơ tài khoản khớp với thông tin mà các nhóm campus đang dựa vào.',
@@ -1406,10 +1612,10 @@ export const vi: I18nMessages = {
     },
   },
   lecturerDashboard: {
-    eyebrow: 'Workspace giảng viên',
+    eyebrow: 'Không gian giảng viên',
     title: 'Chào mừng quay lại, {name}',
     description:
-      'Giữ vận hành section, hàng chờ chấm điểm và cập nhật giảng dạy trong cùng một lecturer shell.',
+      'Giữ vận hành section, hàng chờ chấm điểm và cập nhật giảng dạy trong cùng một không gian giảng viên.',
     quickActionsTitle: 'Tác vụ nhanh',
     quickActionsDescription:
       'Mở các công cụ giảng viên thường dẫn đến tác vụ tiếp theo trong ngày.',
@@ -1430,22 +1636,22 @@ export const vi: I18nMessages = {
       'Các cập nhật ảnh hưởng đến giảng dạy được đưa lên đây mà không làm bạn rời khỏi khối lượng công việc hiện tại.',
     announcementsEmptyTitle: 'Chưa có thông báo mới',
     announcementsEmptyDescription:
-      'Các thông báo chung cho workspace giảng viên sẽ xuất hiện ở đây sau khi được phát hành.',
+      'Các thông báo chung cho không gian giảng viên sẽ xuất hiện ở đây sau khi được phát hành.',
     quickLinks: [
-      ['Lịch giảng dạy', 'Kiểm tra phòng học, section và thời gian dạy của học kỳ hiện tại.'],
-      ['Quản lý điểm', 'Xử lý hàng chờ chấm điểm và đẩy các section đã sẵn sàng sang bước publish.'],
-      ['Thông báo', 'Xem các cập nhật broadcast ảnh hưởng đến section và ngày giảng dạy của bạn.'],
+      ['Lịch giảng dạy', 'Kiểm tra phòng học, lớp học phần và thời gian dạy của học kỳ hiện tại.'],
+      ['Quản lý điểm', 'Xử lý hàng chờ chấm điểm và đưa các lớp học phần đã sẵn sàng sang bước công bố.'],
+      ['Thông báo', 'Xem các cập nhật chung ảnh hưởng đến lớp học phần và ngày giảng dạy của bạn.'],
     ],
     metrics: {
-      labels: ['Section', 'Sinh viên', 'Sẵn sàng publish', 'Thông báo mới'],
+      labels: ['Lớp học phần', 'Sinh viên', 'Sẵn sàng công bố', 'Thông báo mới'],
       details: [
-        'Các section giảng dạy luôn hiển thị để quyết định về lịch và chấm điểm vẫn bám theo đúng học kỳ.',
-        'Khối lượng enrollment luôn ở gần lecturer shell để việc theo dõi theo section không bị mất.',
-        'Công việc chấm điểm sẵn sàng publish nổi lên sớm để không bị chìm giữa các việc khác.',
+        'Các lớp học phần giảng dạy luôn hiển thị để quyết định về lịch và chấm điểm vẫn bám theo đúng học kỳ.',
+        'Khối lượng đăng ký luôn ở gần không gian giảng viên để việc theo dõi theo lớp học phần không bị mất.',
+        'Công việc chấm điểm sẵn sàng công bố nổi lên sớm để không bị chìm giữa các việc khác.',
         'Các cập nhật broadcast ảnh hưởng đến giảng dạy vẫn hiện ra mà không kéo sự chú ý khỏi hàng chờ chấm điểm.',
       ],
     },
-    queueStatusReady: 'Sẵn sàng publish',
+    queueStatusReady: 'Sẵn sàng công bố',
     queueStatusProgress: 'Đang xử lý',
     studentsSuffix: 'sinh viên',
     gradedSuffix: 'đã chấm',
@@ -1456,36 +1662,36 @@ export const vi: I18nMessages = {
     },
   },
   lecturerGrades: {
-    eyebrow: 'Workspace giảng viên',
+    eyebrow: 'Không gian giảng viên',
     title: 'Quản lý điểm',
     description:
-      'Theo dõi tiến độ chấm điểm cho {semester}, rồi đưa các section đã sẵn sàng sang bước rà soát cuối.',
+      'Theo dõi tiến độ chấm điểm cho {semester}, rồi đưa các lớp học phần đã sẵn sàng sang bước rà soát cuối.',
     allSemesters: 'tất cả học kỳ',
     allSemestersOption: 'Tất cả học kỳ',
     selectSemester: 'Chọn học kỳ cho quản lý điểm',
     queueTitle: 'Hàng chờ quản lý điểm',
     queueDescription:
-      'Lọc theo học kỳ, xem tiến độ từng section và đi tiếp vào route chi tiết để nhập điểm và publish.',
-    emptyTitle: 'Chưa có section chấm điểm',
+      'Lọc theo học kỳ, xem tiến độ từng lớp học phần và đi tiếp vào màn chi tiết để nhập điểm và công bố.',
+    emptyTitle: 'Chưa có lớp học phần cần chấm điểm',
     emptyDescription:
       'Các section có trách nhiệm chấm điểm sẽ xuất hiện tại đây khi phân công giảng dạy đã sẵn sàng.',
     labels: {
-      sections: 'Section',
+      sections: 'Lớp học phần',
       gradesCaptured: 'Điểm đã nhập',
-      readyToPublish: 'Sẵn sàng publish',
+      readyToPublish: 'Sẵn sàng công bố',
       credits: 'tín chỉ',
       enrolled: 'đăng ký',
       graded: 'đã chấm',
-      published: 'đã publish',
-      sectionPrefix: 'Section',
-      readyStatus: 'Sẵn sàng publish',
+      published: 'đã công bố',
+      sectionPrefix: 'Lớp học phần',
+      readyStatus: 'Sẵn sàng công bố',
       manageGrades: 'Quản lý điểm',
       enterGrades: 'Nhập điểm',
     },
     details: [
       'Các trách nhiệm chấm điểm đang hoạt động được gom vào cùng một hàng chờ theo học kỳ đã chọn.',
-      'Các bản ghi điểm đã nhập luôn hiện ra trước khi bạn chuyển section sang bước publish cuối.',
-      'Các section có thể đi sang bước rà soát cuối được làm nổi bật mà không thay đổi grading contract.',
+      'Các bản ghi điểm đã nhập luôn hiện ra trước khi bạn chuyển lớp học phần sang bước công bố cuối.',
+      'Các lớp học phần có thể đi sang bước rà soát cuối được làm nổi bật mà không thay đổi quy trình chấm điểm.',
     ],
     errors: {
       loadFailed: 'Hiện chưa thể tải dữ liệu quản lý điểm.',

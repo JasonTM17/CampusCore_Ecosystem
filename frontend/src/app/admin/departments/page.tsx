@@ -28,12 +28,20 @@ import {
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { toast } from 'sonner';
 import { useI18n } from '@/i18n';
+import {
+  getLocalizedDescription,
+  getLocalizedName,
+} from '@/lib/academic-content';
 
 interface Department {
   id: string;
   name: string;
+  nameEn?: string;
+  nameVi?: string;
   code: string;
   description?: string;
+  descriptionEn?: string;
+  descriptionVi?: string;
   isActive: boolean;
 }
 
@@ -53,9 +61,11 @@ export default function AdminDepartmentsPage() {
   );
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
+    nameEn: '',
+    nameVi: '',
     code: '',
-    description: '',
+    descriptionEn: '',
+    descriptionVi: '',
   });
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
   const { confirm, confirmationDialog } = useConfirmationDialog();
@@ -76,6 +86,8 @@ export default function AdminDepartmentsPage() {
         ? response.data.filter(
             (department) =>
               department.name.toLowerCase().includes(search.toLowerCase()) ||
+              department.nameEn?.toLowerCase().includes(search.toLowerCase()) ||
+              department.nameVi?.toLowerCase().includes(search.toLowerCase()) ||
               department.code.toLowerCase().includes(search.toLowerCase()),
           )
         : response.data;
@@ -213,7 +225,13 @@ export default function AdminDepartmentsPage() {
 
   const resetForm = () => {
     setEditingDepartment(null);
-    setFormData({ name: '', code: '', description: '' });
+    setFormData({
+      nameEn: '',
+      nameVi: '',
+      code: '',
+      descriptionEn: '',
+      descriptionVi: '',
+    });
   };
 
   const openCreate = () => {
@@ -224,9 +242,11 @@ export default function AdminDepartmentsPage() {
   const openEdit = (department: Department) => {
     setEditingDepartment(department);
     setFormData({
-      name: department.name,
+      nameEn: department.nameEn || department.name,
+      nameVi: department.nameVi || '',
       code: department.code,
-      description: department.description || '',
+      descriptionEn: department.descriptionEn || department.description || '',
+      descriptionVi: department.descriptionVi || '',
     });
     setIsModalOpen(true);
   };
@@ -243,9 +263,14 @@ export default function AdminDepartmentsPage() {
   };
 
   const handleDelete = async (department: Department) => {
+    const departmentLabel = getLocalizedName(
+      locale,
+      department,
+      department.name,
+    );
     const shouldDelete = await confirm({
       title: copy.deleteTitle,
-      message: copy.deleteMessage(department.name),
+      message: copy.deleteMessage(departmentLabel),
       confirmText: copy.deleteConfirm,
       variant: 'destructive',
     });
@@ -268,11 +293,16 @@ export default function AdminDepartmentsPage() {
     setIsSaving(true);
 
     try {
+      const payload = {
+        ...formData,
+        name: formData.nameEn || formData.nameVi,
+        description: formData.descriptionEn || formData.descriptionVi,
+      };
       if (editingDepartment) {
-        await departmentsApi.update(editingDepartment.id, formData);
+        await departmentsApi.update(editingDepartment.id, payload);
         toast.success(copy.updated);
       } else {
-        await departmentsApi.create(formData);
+        await departmentsApi.create(payload);
         toast.success(copy.created);
       }
 
@@ -367,16 +397,37 @@ export default function AdminDepartmentsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
-                    {departments.map((department) => (
+                    {departments.map((department) => {
+                      const departmentLabel = getLocalizedName(
+                        locale,
+                        department,
+                        department.name,
+                      );
+                      const departmentDescription = getLocalizedDescription(
+                        locale,
+                        department,
+                        copy.noDescription,
+                      );
+
+                      return (
                       <tr key={department.id}>
                         <td className="px-2 py-4 font-medium text-foreground">
                           {department.code}
                         </td>
                         <td className="px-2 py-4 text-foreground">
-                          {department.name}
+                          <div className="space-y-1">
+                            <div>{departmentLabel}</div>
+                            {department.nameEn && department.nameVi ? (
+                              <div className="text-xs text-muted-foreground">
+                                {locale === 'vi'
+                                  ? department.nameEn
+                                  : department.nameVi}
+                              </div>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
-                          {department.description || copy.noDescription}
+                          {departmentDescription}
                         </td>
                         <td className="px-2 py-4">
                           <span className="inline-flex rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
@@ -389,8 +440,8 @@ export default function AdminDepartmentsPage() {
                               size="icon"
                               variant="ghost"
                               onClick={() => openEdit(department)}
-                              aria-label={copy.editLabel(department.name)}
-                              title={copy.editLabel(department.name)}
+                              aria-label={copy.editLabel(departmentLabel)}
+                              title={copy.editLabel(departmentLabel)}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -399,15 +450,16 @@ export default function AdminDepartmentsPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(department)}
-                              aria-label={copy.deleteLabel(department.name)}
-                              title={copy.deleteLabel(department.name)}
+                              aria-label={copy.deleteLabel(departmentLabel)}
+                              title={copy.deleteLabel(departmentLabel)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </AdminRowActions>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </AdminTableScroll>
@@ -436,14 +488,29 @@ export default function AdminDepartmentsPage() {
                 required
               />
             </AdminFormField>
-            <AdminFormField label={copy.fields.name}>
+            <AdminFormField label={locale === 'vi' ? 'Tên tiếng Anh' : 'English name'}>
               <Input
                 type="text"
-                value={formData.name}
+                value={formData.nameEn}
                 onChange={(event) =>
                   setFormData((current) => ({
                     ...current,
-                    name: event.target.value,
+                    nameEn: event.target.value,
+                  }))
+                }
+                required
+              />
+            </AdminFormField>
+            <AdminFormField
+              label={locale === 'vi' ? 'Tên tiếng Việt' : 'Vietnamese name'}
+            >
+              <Input
+                type="text"
+                value={formData.nameVi}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    nameVi: event.target.value,
                   }))
                 }
                 required
@@ -451,18 +518,36 @@ export default function AdminDepartmentsPage() {
             </AdminFormField>
           </div>
 
-          <AdminFormField label={copy.fields.description}>
-            <Textarea
-              value={formData.description}
-              onChange={(event) =>
-                setFormData((current) => ({
-                  ...current,
-                  description: event.target.value,
-                }))
-              }
-              rows={4}
-            />
-          </AdminFormField>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <AdminFormField
+              label={locale === 'vi' ? 'Mô tả tiếng Anh' : 'English description'}
+            >
+              <Textarea
+                value={formData.descriptionEn}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    descriptionEn: event.target.value,
+                  }))
+                }
+                rows={4}
+              />
+            </AdminFormField>
+            <AdminFormField
+              label={locale === 'vi' ? 'Mô tả tiếng Việt' : 'Vietnamese description'}
+            >
+              <Textarea
+                value={formData.descriptionVi}
+                onChange={(event) =>
+                  setFormData((current) => ({
+                    ...current,
+                    descriptionVi: event.target.value,
+                  }))
+                }
+                rows={4}
+              />
+            </AdminFormField>
+          </div>
 
           <AdminDialogFooter>
             <Button type="button" variant="outline" onClick={closeModal}>

@@ -14,6 +14,7 @@ import {
   LoadingState,
 } from '@/components/ui/state-block';
 import { useI18n } from '@/i18n';
+import { getLocalizedFlatLabel } from '@/lib/academic-content';
 
 type Announcement = {
   id: string;
@@ -21,10 +22,10 @@ type Announcement = {
   content: string;
   priority: string;
   createdAt: string;
-  semester?: { name: string } | null;
+  semester?: { name: string; nameEn?: string; nameVi?: string } | null;
   section?: {
     sectionNumber: string;
-    course?: { code?: string; name?: string };
+    course?: { code?: string; name?: string; nameEn?: string; nameVi?: string };
   } | null;
 };
 
@@ -181,7 +182,14 @@ export default function LecturerAnnouncementsPage() {
                   <div className="flex flex-wrap gap-3 text-xs uppercase tracking-[0.16em] text-muted-foreground">
                     {announcement.semester?.name ? (
                       <span>
-                        {copy.semesterPrefix} {announcement.semester.name}
+                        {copy.semesterPrefix}{' '}
+                        {getLocalizedFlatLabel(
+                          locale,
+                          announcement.semester.name,
+                          announcement.semester.nameEn,
+                          announcement.semester.nameVi,
+                          announcement.semester.name,
+                        )}
                       </span>
                     ) : null}
                     {announcement.section?.course?.code ? (

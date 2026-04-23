@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Calendar, Clock, MapPin, Users } from 'lucide-react';
 import { useRequireAuth } from '@/context/AuthContext';
 import { sectionsApi, semestersApi } from '@/lib/api';
+import {
+  getLocalizedCourseLabel,
+  getLocalizedFlatLabel,
+  getLocalizedName,
+} from '@/lib/academic-content';
 import { LecturerSection, Semester } from '@/types/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +25,8 @@ type TeachingSlot = {
   id: string;
   courseCode: string;
   courseName: string;
+  courseNameEn?: string;
+  courseNameVi?: string;
   sectionNumber: string;
   dayOfWeek: number;
   startTime: string;
@@ -27,6 +34,9 @@ type TeachingSlot = {
   building: string;
   roomNumber: string;
   enrolledCount: number;
+  departmentName?: string;
+  departmentNameEn?: string;
+  departmentNameVi?: string;
 };
 
 const dayNames = [
@@ -90,6 +100,8 @@ export default function LecturerSchedulePage() {
           id: `${section.id}-${index}`,
           courseCode: section.courseCode,
           courseName: section.courseName,
+          courseNameEn: section.courseNameEn,
+          courseNameVi: section.courseNameVi,
           sectionNumber: section.sectionNumber,
           dayOfWeek: schedule.dayOfWeek,
           startTime: schedule.startTime,
@@ -97,6 +109,9 @@ export default function LecturerSchedulePage() {
           building: schedule.building,
           roomNumber: schedule.roomNumber,
           enrolledCount: section.enrolledCount,
+          departmentName: section.departmentName,
+          departmentNameEn: section.departmentNameEn,
+          departmentNameVi: section.departmentNameVi,
         })),
       )
       .sort((left, right) => {
@@ -120,7 +135,11 @@ export default function LecturerSchedulePage() {
 
   const selectedSemesterName = useMemo(() => {
     return (
-      semesters.find((semester) => semester.id === selectedSemester)?.name ??
+      getLocalizedName(
+        locale,
+        semesters.find((semester) => semester.id === selectedSemester),
+        locale === 'vi' ? 't\u1ea5t c\u1ea3 h\u1ecdc k\u1ef3' : 'all semesters',
+      ) ??
       (locale === 'vi' ? 'tất cả học kỳ' : 'all semesters')
     );
   }, [locale, selectedSemester, semesters]);
@@ -133,25 +152,25 @@ export default function LecturerSchedulePage() {
   const copy =
     locale === 'vi'
       ? {
-          eyebrow: 'Workspace giảng viên',
+          eyebrow: 'Không gian giảng viên',
           title: 'Lịch giảng dạy',
-          description: `Giữ thời khóa biểu của ${selectedSemesterName} luôn hiển thị trong khi chấm điểm và vận hành section vẫn chỉ cách một lần chạm.`,
+          description: `Giữ thời khóa biểu của ${selectedSemesterName} luôn hiển thị trong khi chấm điểm và vận hành lớp học phần vẫn chỉ cách một lần chạm.`,
           selectSemester: 'Chọn học kỳ cho lịch giảng dạy',
           allSemesters: 'Tất cả học kỳ',
           loading: 'Đang tải lịch giảng dạy',
           unavailableTitle: 'Lịch giảng dạy chưa sẵn sàng',
           emptyTitle: 'Chưa có phân công giảng dạy',
           emptyDescription:
-            'Các section có lịch học đang hoạt động sẽ xuất hiện tại đây sau khi được phân công.',
+            'Các lớp học phần có lịch học đang hoạt động sẽ xuất hiện tại đây sau khi được phân công.',
           teachingSlots: 'Ca giảng dạy',
-          assignedSections: 'Section được giao',
+          assignedSections: 'Lớp học phần được giao',
           studentsInScope: 'Sinh viên trong phạm vi',
           weeklyAgenda: 'Lịch dạy theo tuần',
-          assignedSectionsTitle: 'Section được giao',
+          assignedSectionsTitle: 'Lớp học phần được giao',
           noTeachingSlot: 'Chưa có ca giảng dạy nào.',
           items: 'mục',
           item: 'mục',
-          sectionPrefix: 'Section',
+          sectionPrefix: 'Lớp học phần',
           studentsSuffix: 'sinh viên',
         }
       : {
@@ -197,7 +216,7 @@ export default function LecturerSchedulePage() {
                 { value: '', label: copy.allSemesters },
                 ...semesters.map((semester) => ({
                   value: semester.id,
-                  label: semester.name,
+                  label: getLocalizedName(locale, semester, semester.name),
                 })),
               ]}
             />
@@ -300,7 +319,16 @@ export default function LecturerSchedulePage() {
                               className="rounded-lg border border-border/60 bg-secondary/30 px-4 py-3"
                             >
                               <div className="font-medium text-foreground">
-                                {slot.courseCode} - {slot.courseName}
+                                {getLocalizedCourseLabel(
+                                  locale,
+                                  {
+                                    code: slot.courseCode,
+                                    name: slot.courseName,
+                                    nameEn: slot.courseNameEn,
+                                    nameVi: slot.courseNameVi,
+                                  },
+                                  `${slot.courseCode} - ${slot.courseName}`,
+                                )}
                               </div>
                               <div className="mt-1 text-sm text-muted-foreground">
                                 {copy.sectionPrefix} {slot.sectionNumber}
@@ -338,10 +366,25 @@ export default function LecturerSchedulePage() {
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <div className="font-medium text-foreground">
-                          {section.courseCode} - {section.courseName}
+                          {getLocalizedCourseLabel(
+                            locale,
+                            {
+                              code: section.courseCode,
+                              name: section.courseName,
+                              nameEn: section.courseNameEn,
+                              nameVi: section.courseNameVi,
+                            },
+                            `${section.courseCode} - ${section.courseName}`,
+                          )}
                         </div>
                         <div className="mt-1 text-sm text-muted-foreground">
-                          {copy.sectionPrefix} {section.sectionNumber} - {section.departmentName}
+                          {copy.sectionPrefix} {section.sectionNumber} - {getLocalizedFlatLabel(
+                            locale,
+                            section.departmentName,
+                            section.departmentNameEn,
+                            section.departmentNameVi,
+                            section.departmentName,
+                          )}
                         </div>
                       </div>
                       <div className="text-sm text-muted-foreground sm:text-right">

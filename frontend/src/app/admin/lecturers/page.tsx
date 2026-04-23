@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import { getLocalizedName } from '@/lib/academic-content';
 
 interface Lecturer {
   id: string;
@@ -37,12 +38,14 @@ interface Lecturer {
   specialization?: string;
   isActive: boolean;
   user?: { firstName: string; lastName: string; email: string };
-  department?: { name: string };
+  department?: { name: string; nameEn?: string; nameVi?: string };
 }
 
 interface Department {
   id: string;
   name: string;
+  nameEn?: string;
+  nameVi?: string;
 }
 
 export default function AdminLecturersPage() {
@@ -255,10 +258,10 @@ export default function AdminLecturersPage() {
       { value: '', label: copy.selectDepartment },
       ...departments.map((department) => ({
         value: department.id,
-        label: department.name,
+        label: getLocalizedName(locale, department, department.name),
       })),
     ],
-    [copy.selectDepartment, departments],
+    [copy.selectDepartment, departments, locale],
   );
 
   if (!canAccess) {
@@ -443,7 +446,11 @@ export default function AdminLecturersPage() {
                           {lecturer.user?.email || copy.noEmail}
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
-                          {lecturer.department?.name || copy.unassigned}
+                          {getLocalizedName(
+                            locale,
+                            lecturer.department,
+                            lecturer.department?.name || copy.unassigned,
+                          )}
                         </td>
                         <td className="px-2 py-4 text-muted-foreground">
                           {lecturer.specialization || copy.notProvided}

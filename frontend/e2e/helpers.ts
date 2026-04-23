@@ -334,10 +334,13 @@ export const adminRoutes: RouteSpec[] = [
     ],
     ready: async (page, timeoutMs) => {
       await expect(
-        page.getByRole('heading', { name: /Enrollments by semester/i }).first(),
+        page.getByRole('heading', { name: /Enrollment movement/i }).first(),
       ).toBeVisible({ timeout: timeoutMs });
       await expect(
-        page.getByRole('heading', { name: /Section occupancy/i }).first(),
+        page.getByRole('heading', { name: /Registration pressure/i }).first(),
+      ).toBeVisible({ timeout: timeoutMs });
+      await expect(
+        page.getByRole('heading', { name: /Finance checkout posture/i }).first(),
       ).toBeVisible({ timeout: timeoutMs });
     },
   },

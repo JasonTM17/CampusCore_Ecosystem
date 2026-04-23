@@ -5,6 +5,7 @@ import { Award, FileText, GraduationCap, TrendingUp } from 'lucide-react';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { useRequireAuth } from '@/context/AuthContext';
 import { gradesApi, semestersApi } from '@/lib/api';
+import { getLocalizedFlatLabel, getLocalizedName } from '@/lib/academic-content';
 import {
   Semester,
   StudentGradeRecord,
@@ -140,7 +141,11 @@ export default function TranscriptPage() {
 
   const selectedSemesterName = useMemo(() => {
     return (
-      semesters.find((semester) => semester.id === selectedSemester)?.name ??
+      getLocalizedName(
+        locale,
+        semesters.find((semester) => semester.id === selectedSemester),
+        locale === 'vi' ? 't\u1ea5t c\u1ea3 h\u1ecdc k\u1ef3' : 'all semesters',
+      ) ??
       (locale === 'vi' ? 'tất cả học kỳ' : 'all semesters')
     );
   }, [locale, selectedSemester, semesters]);
@@ -231,7 +236,7 @@ export default function TranscriptPage() {
                   { value: '', label: copy.allSemesters },
                   ...semesters.map((semester) => ({
                     value: semester.id,
-                    label: semester.name,
+                    label: getLocalizedName(locale, semester, semester.name),
                   })),
                 ]}
               />
@@ -323,7 +328,15 @@ export default function TranscriptPage() {
             {transcriptSemesters.map((semester) => (
               <Card key={semester.semesterId} variant="muted">
                 <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <CardTitle className="text-xl">{semester.semesterName}</CardTitle>
+                  <CardTitle className="text-xl">
+                    {getLocalizedFlatLabel(
+                      locale,
+                      semester.semesterName,
+                      semester.semesterNameEn,
+                      semester.semesterNameVi,
+                      semester.semesterName,
+                    )}
+                  </CardTitle>
                   <div className="text-sm text-muted-foreground">
                     {formatNumber(semester.records.length)}{' '}
                     {semester.records.length === 1 ? copy.courseWord : copy.coursesWord}{' '}
@@ -355,7 +368,13 @@ export default function TranscriptPage() {
                                 {record.courseCode}
                               </div>
                               <div className="text-muted-foreground">
-                                {record.courseName}
+                                {getLocalizedFlatLabel(
+                                  locale,
+                                  record.courseName,
+                                  record.courseNameEn,
+                                  record.courseNameVi,
+                                  record.courseName,
+                                )}
                               </div>
                             </td>
                             <td className="px-2 py-4 text-muted-foreground">

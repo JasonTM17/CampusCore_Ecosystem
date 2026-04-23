@@ -325,8 +325,13 @@ function collectImplementedAppRoutes() {
         .relative(appRoot, path.dirname(filePath))
         .replace(/\\/g, '/');
 
-      return routePath === '' ? '/' : `/${routePath}`;
+      const normalizedRoute = routePath === '' ? '/' : `/${routePath}`;
+      return (
+        normalizedRoute.replace(/^\/(?:\[locale\]|en|vi)(?=\/|$)/, '') ||
+        '/'
+      );
     })
+    .filter((route, index, routes) => routes.indexOf(route) === index)
     .sort();
 }
 
@@ -522,16 +527,24 @@ test('frontend config exposes local edge rewrites and SEO runtime files', () => 
   const envExampleSource = read('.env.example');
   const layoutSource = read('src/app/layout.tsx');
   const serverMetadataSource = read('src/i18n/server.ts');
+  const proxyHelperSource = read('src/lib/local-edge-proxy.ts');
 
   assert.match(nextConfigSource, /source:\s*'\/api\/v1\/:path\*'/);
   assert.match(nextConfigSource, /LOCAL_EDGE_ORIGIN/);
+  assert.match(nextConfigSource, /ENABLE_LOCAL_EDGE_REWRITES/);
   assert.match(envExampleSource, /NEXT_PUBLIC_SITE_URL=https:\/\/tienson\.io\.vn/);
   assert.match(envExampleSource, /NEXT_PUBLIC_API_URL=\/api\/v1/);
   assert.match(envExampleSource, /LOCAL_EDGE_ORIGIN=http:\/\/127\.0\.0\.1:8080/);
+  assert.match(envExampleSource, /ENABLE_LOCAL_EDGE_REWRITES=0/);
   assert.match(layoutSource, /<html lang=\{htmlLang\}/);
   assert.match(serverMetadataSource, /metadataBase:\s*new URL\(getSiteUrl\(\)\)/);
   assert.match(serverMetadataSource, /alternates:/);
+  assert.match(serverMetadataSource, /themeColor:/);
   assert.match(serverMetadataSource, /manifest:\s*'\/manifest\.webmanifest'/);
+  assert.match(proxyHelperSource, /proxyToLocalEdge/);
+  assert.ok(fs.existsSync(path.join(root, 'src', 'app', 'api', 'v1', '[...path]', 'route.ts')));
+  assert.ok(fs.existsSync(path.join(root, 'src', 'app', 'api', 'docs', '[[...path]]', 'route.ts')));
+  assert.ok(fs.existsSync(path.join(root, 'src', 'app', 'health', 'route.ts')));
   assert.ok(fs.existsSync(path.join(root, 'src', 'app', 'robots.ts')));
   assert.ok(fs.existsSync(path.join(root, 'src', 'app', 'sitemap.ts')));
   assert.ok(fs.existsSync(path.join(root, 'src', 'app', 'manifest.ts')));
@@ -576,14 +589,12 @@ test('shared UI no longer contains obvious mojibake arrows', () => {
   assert.doesNotMatch(source, /â†‘|â†“/);
 });
 
-test('root layout configures a latin-ext font stack for Vietnamese UI copy', () => {
+test('root layout uses a stable internal font stack for Vietnamese UI copy', () => {
   const layoutSource = read('src/app/layout.tsx');
   const globalsSource = read('src/app/globals.css');
 
-  assert.match(layoutSource, /next\/font\/google/);
-  assert.match(layoutSource, /Inter\(/);
-  assert.match(layoutSource, /subsets:\s*\[\s*"latin"\s*,\s*"latin-ext"\s*\]/);
-  assert.match(layoutSource, /variable:\s*"--font-sans"/);
+  assert.doesNotMatch(layoutSource, /next\/font\/google/);
+  assert.match(globalsSource, /--font-sans:\s*system-ui,\s*"Segoe UI",\s*Roboto,\s*"Helvetica Neue",\s*Arial,\s*sans-serif;/);
   assert.match(globalsSource, /font-family:\s*var\(--font-sans\),/);
   assert.match(globalsSource, /button,\s*[\r\n]+\s*input,\s*[\r\n]+\s*select,\s*[\r\n]+\s*textarea\s*\{/);
 });
@@ -696,6 +707,8 @@ test('key frontend surfaces label icon-only buttons', () => {
   ]);
   assertPatterns('src/app/dashboard/invoices/page.tsx', [
     /closeLabel=\{copy\.closeDetail\}/,
+    /handleContinueCheckout/,
+    /getCheckoutActionLabel/,
   ]);
   assertPatterns('src/app/admin/academic-years/page.tsx', [
     /aria-label=\{copy\.editLabel\(record\.year\)\}/,
@@ -710,12 +723,12 @@ test('key frontend surfaces label icon-only buttons', () => {
     /aria-label=\{copy\.deleteLabel\(room\.building, room\.roomNumber\)\}/,
   ]);
   assertPatterns('src/app/admin/courses/page.tsx', [
-    /aria-label=\{copy\.editLabel\(course\.code\)\}/,
-    /aria-label=\{copy\.deleteLabel\(course\.code\)\}/,
+    /aria-label=\{copy\.editLabel\(courseLabel\)\}/,
+    /aria-label=\{copy\.deleteLabel\(courseLabel\)\}/,
   ]);
   assertPatterns('src/app/admin/departments/page.tsx', [
-    /aria-label=\{copy\.editLabel\(department\.name\)\}/,
-    /aria-label=\{copy\.deleteLabel\(department\.name\)\}/,
+    /aria-label=\{copy\.editLabel\(departmentLabel\)\}/,
+    /aria-label=\{copy\.deleteLabel\(departmentLabel\)\}/,
   ]);
   assertPatterns('src/app/admin/enrollments/page.tsx', [
     /aria-label=\{copy\.viewLabel\(learnerLabel\)\}/,
@@ -737,8 +750,8 @@ test('key frontend surfaces label icon-only buttons', () => {
     /aria-label=\{copy\.removeSchedule\(idx \+ 1\)\}/,
   ]);
   assertPatterns('src/app/admin/semesters/page.tsx', [
-    /aria-label=\{copy\.editLabel\(semester\.name\)\}/,
-    /aria-label=\{copy\.deleteLabel\(semester\.name\)\}/,
+    /aria-label=\{copy\.editLabel\(semesterLabel\)\}/,
+    /aria-label=\{copy\.deleteLabel\(semesterLabel\)\}/,
   ]);
   assertPatterns('src/app/admin/users/page.tsx', [
     /aria-label=\{copy\.editUserLabel\(/,
@@ -758,6 +771,14 @@ test('key frontend surfaces label icon-only buttons', () => {
   assertPatterns('src/app/dashboard/lecturer/grades/\[id\]/page.tsx', [
     /aria-label=\{copy\.backToGrades\}/,
   ]);
+});
+
+test('student invoice checkout uses provider handoff instead of inline sandbox status controls', () => {
+  const source = read('src/app/dashboard/invoices/page.tsx');
+
+  assert.match(source, /handleContinueCheckout/);
+  assert.match(source, /nextAction\?\.flow/);
+  assert.doesNotMatch(source, /handleSandboxSignal/);
 });
 
 test('admin CRUD routes rely on localized AdminFrame back labels', () => {
