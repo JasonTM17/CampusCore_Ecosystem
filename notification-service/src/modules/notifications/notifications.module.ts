@@ -7,6 +7,7 @@ import { NotificationsService } from './notifications.service';
 import { NotificationsGateway } from './notifications.gateway';
 import { NotificationsConsumer } from './notifications.consumer';
 import { ENV } from '../../config/env.constants';
+import { EmailService } from '../common/services/email.service';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { ENV } from '../../config/env.constants';
     NotificationsService,
     NotificationsGateway,
     NotificationsConsumer,
+    EmailService,
   ],
   exports: [NotificationsService, NotificationsGateway],
 })
