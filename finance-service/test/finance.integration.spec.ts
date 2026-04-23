@@ -1,10 +1,12 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { once } from 'events';
+import { Socket } from 'net';
 import { Test, TestingModule } from '@nestjs/testing';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import * as amqp from 'amqplib';
 import * as supertest from 'supertest';
 import { JwtService } from '@nestjs/jwt';
+import { PaymentProvider } from '@prisma/client';
 import { configureHttpApp } from '../src/bootstrap';
 import { PrismaService } from '../src/modules/common/prisma/prisma.service';
 import { CSRF_HEADER } from '../src/modules/auth/auth-session.util';
@@ -12,6 +14,10 @@ import {
   FINANCE_EVENT_TYPES,
   NOTIFICATION_EVENTS_QUEUE,
 } from '../src/modules/rabbitmq/rabbitmq.events';
+import {
+  SandboxPaymentSignalStatus,
+  signSandboxPaymentSignal,
+} from '../src/modules/finance/payment-orchestration.util';
 
 type TestUser = {
   id: string;
@@ -68,6 +74,25 @@ describe('Finance service integration', () => {
     process.env.HEALTH_READINESS_KEY ??= 'finance-readiness-key';
     process.env.COOKIE_SECURE ??= 'false';
     process.env.INTERNAL_SERVICE_TOKEN ??= 'finance-service-token-12345';
+    process.env.PAYMENT_SANDBOX_SHARED_SECRET ??= 'finance-sandbox-secret';
+    process.env.DATABASE_URL ??=
+      'postgresql://campuscore:campuscore_password@127.0.0.1:5432/campuscore?schema=finance';
+    process.env.RABBITMQ_URL ??=
+      'amqp://campuscore:campuscore_password@127.0.0.1:5672';
+
+    const databaseUrl = getRequiredEnv('DATABASE_URL');
+    const rabbitmqUrl = getRequiredEnv('RABBITMQ_URL');
+
+    await assertSchemeReachable(
+      'Finance integration database',
+      databaseUrl,
+      5432,
+    );
+    await assertSchemeReachable(
+      'Finance integration RabbitMQ',
+      rabbitmqUrl,
+      5672,
+    );
 
     internalCoreServer = createInternalCoreStub();
     internalCoreServer.listen(0, '127.0.0.1');
@@ -78,8 +103,6 @@ describe('Finance service integration', () => {
     }
     internalCoreBaseUrl = `http://127.0.0.1:${address.port}`;
     process.env.CORE_API_INTERNAL_URL = internalCoreBaseUrl;
-
-    const rabbitmqUrl = getRequiredEnv('RABBITMQ_URL');
 
     const { AppModule } = await import('../src/app.module');
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -101,7 +124,10 @@ describe('Finance service integration', () => {
   });
 
   beforeEach(async () => {
+    await prisma.paymentIntentEvent.deleteMany();
+    await prisma.paymentAttempt.deleteMany();
     await prisma.payment.deleteMany();
+    await prisma.paymentIntent.deleteMany();
     await prisma.invoiceItem.deleteMany();
     await prisma.invoice.deleteMany();
     await prisma.studentScholarship.deleteMany();
@@ -110,8 +136,14 @@ describe('Finance service integration', () => {
   });
 
   afterAll(async () => {
-    await app.close();
-    internalCoreServer.close();
+    if (app) {
+      await app.close();
+    }
+
+    if (internalCoreServer) {
+      await new Promise((resolve) => internalCoreServer.close(resolve));
+    }
+
     if (rabbitChannel) {
       await rabbitChannel.close();
     }
@@ -138,7 +170,13 @@ describe('Finance service integration', () => {
           },
         ],
       })
-      .expect(201);
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body.semester.nameEn).toBe('Fall 2026');
+        expect(body.semester.nameVi).toBe('Học kỳ Thu 2026');
+        expect(body.semesterNameEn).toBe('Fall 2026');
+        expect(body.semesterNameVi).toBe('Học kỳ Thu 2026');
+      });
 
     await expectFinanceEvent(FINANCE_EVENT_TYPES.INVOICE_CREATED);
 
@@ -151,6 +189,7 @@ describe('Finance service integration', () => {
       .expect(({ body }) => {
         expect(body).toHaveLength(1);
         expect(body[0].invoiceNumber).toBe(createResponse.body.invoiceNumber);
+        expect(body[0].semesterNameVi).toBe('Học kỳ Thu 2026');
       });
 
     await supertest(baseUrl)
@@ -195,6 +234,121 @@ describe('Finance service integration', () => {
     const invoices = await prisma.invoice.findMany();
     expect(invoices.length).toBeGreaterThanOrEqual(1);
   }, 15_000);
+
+  it('initiates sandbox checkout and completes it idempotently through provider webhooks', async () => {
+    const adminAuth = await issueAuth(adminUser);
+    const studentAuth = await issueAuth(studentUser);
+
+    const createResponse = await supertest(baseUrl)
+      .post('/api/v1/finance/invoices')
+      .set(adminAuth.bearer)
+      .send({
+        studentId: studentUser.studentId,
+        semesterId: SEMESTER_ID,
+        dueDate: '2026-12-20T00:00:00.000Z',
+        items: [
+          {
+            description: 'COMP101 - Intro to CS (3 credits)',
+            quantity: 3,
+            unitPrice: 150,
+          },
+        ],
+      })
+      .expect(201);
+
+    const invoiceId = createResponse.body.id;
+
+    const checkoutResponse = await supertest(baseUrl)
+      .post(`/api/v1/finance/my/invoices/${invoiceId}/checkout`)
+      .set(studentAuth.cookie)
+      .set(studentAuth.csrf)
+      .send({
+        provider: 'MOMO',
+        idempotencyKey: 'sandbox-idem-001',
+        returnUrl: 'http://127.0.0.1:3100/return',
+        cancelUrl: 'http://127.0.0.1:3100/cancel',
+      })
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body.status).toBe('REQUIRES_ACTION');
+        expect(body.latestAttempt.publicToken).toBeTruthy();
+        expect(body.sandbox.webhookUrl).toBeTruthy();
+        expect(body.nextAction.flow).toBe('REDIRECT');
+        expect(body.nextAction.redirectUrl).toMatch(
+          /\/api\/v1\/finance\/payment-providers\/momo\/handoff\//,
+        );
+        expect(body.latestAttempt.nextAction.redirectUrl).toBe(
+          body.nextAction.redirectUrl,
+        );
+      });
+
+    await supertest(baseUrl)
+      .get(checkoutResponse.body.nextAction.redirectUrl)
+      .expect(200)
+      .expect(({ text }) => {
+        expect(text).toContain('MoMo');
+        expect(text).toContain(createResponse.body.invoiceNumber);
+      });
+
+    const signature = signSandboxPaymentSignal(
+      process.env.PAYMENT_SANDBOX_SHARED_SECRET ?? 'finance-sandbox-secret',
+      {
+        provider: PaymentProvider.MOMO,
+        attemptToken: checkoutResponse.body.latestAttempt.publicToken,
+        status: SandboxPaymentSignalStatus.SUCCESS,
+        providerTransactionId: 'momo-tx-001',
+      },
+    );
+
+    const webhookBody = {
+      status: 'SUCCESS',
+      signature,
+      providerTransactionId: 'momo-tx-001',
+      payload: {
+        source: 'integration-test',
+      },
+    };
+
+    await supertest(baseUrl)
+      .post(checkoutResponse.body.sandbox.webhookUrl)
+      .send(webhookBody)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.verified).toBe(true);
+        expect(body.intentStatus).toBe('SUCCEEDED');
+        expect(body.paymentId).toBeTruthy();
+      });
+
+    await expectFinanceEvent(FINANCE_EVENT_TYPES.PAYMENT_COMPLETED);
+
+    await supertest(baseUrl)
+      .post(checkoutResponse.body.sandbox.webhookUrl)
+      .send(webhookBody)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.verified).toBe(true);
+        expect(body.intentStatus).toBe('SUCCEEDED');
+      });
+
+    const checkoutIntent = await supertest(baseUrl)
+      .get(`/api/v1/finance/my/payment-intents/${checkoutResponse.body.id}`)
+      .set(studentAuth.cookie)
+      .expect(200);
+
+    expect(checkoutIntent.body.status).toBe('SUCCEEDED');
+
+    const payments = await prisma.payment.findMany({
+      where: {
+        paymentIntentId: checkoutResponse.body.id,
+      },
+    });
+    expect(payments).toHaveLength(1);
+
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+    });
+    expect(invoice?.status).toBe('PAID');
+  });
 
   async function issueAuth(user: TestUser): Promise<AuthContext> {
     const token = await jwtService.signAsync({
@@ -258,6 +412,8 @@ describe('Finance service integration', () => {
         respondJson(res, {
           id: SEMESTER_ID,
           name: 'Fall 2026',
+          nameEn: 'Fall 2026',
+          nameVi: 'Học kỳ Thu 2026',
           endDate: '2026-12-20T00:00:00.000Z',
         });
         return;
@@ -323,3 +479,56 @@ describe('Finance service integration', () => {
     expect(parsed.type).toBe(type);
   }
 });
+
+async function assertSchemeReachable(
+  label: string,
+  value: string,
+  defaultPort: number,
+) {
+  const endpoint = new URL(value);
+  const port = Number(endpoint.port || String(defaultPort));
+
+  await assertTcpReachable(label, endpoint.hostname, port);
+}
+
+async function assertTcpReachable(
+  label: string,
+  host: string,
+  port: number,
+  timeoutMs = 3_000,
+) {
+  await new Promise<void>((resolve, reject) => {
+    const socket = new Socket();
+
+    const finalize = (error?: Error) => {
+      socket.removeAllListeners();
+      socket.destroy();
+
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    };
+
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => finalize());
+    socket.once('timeout', () => {
+      finalize(
+        new Error(
+          `${label} is not reachable at ${host}:${port}. Start the local dependency stack and rerun the integration lane.`,
+        ),
+      );
+    });
+    socket.once('error', (error) => {
+      finalize(
+        new Error(
+          `${label} is not reachable at ${host}:${port}: ${error.message}`,
+        ),
+      );
+    });
+
+    socket.connect(port, host);
+  });
+}

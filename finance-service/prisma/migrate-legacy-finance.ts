@@ -64,7 +64,8 @@ async function migrateLegacyFinance() {
     await prisma.$executeRawUnsafe(`
       INSERT INTO "finance"."Invoice" (
         "id", "invoiceNumber", "studentId", "studentUserId", "studentDisplayName",
-        "studentEmail", "studentCode", "semesterId", "semesterName", "status",
+        "studentEmail", "studentCode", "semesterId", "semesterName", "semesterNameEn",
+        "semesterNameVi", "status",
         "subtotal", "discount", "total", "dueDate", "paidAt", "notes",
         "createdAt", "updatedAt"
       )
@@ -78,6 +79,8 @@ async function migrateLegacyFinance() {
         COALESCE(stu."studentId", inv."studentId") AS "studentCode",
         inv."semesterId",
         COALESCE(sem."name", inv."semesterId") AS "semesterName",
+        COALESCE(sem."nameEn", sem."name", inv."semesterId") AS "semesterNameEn",
+        sem."nameVi" AS "semesterNameVi",
         inv."status"::text::"finance"."InvoiceStatus",
         inv."subtotal",
         inv."discount",
@@ -118,6 +121,37 @@ async function migrateLegacyFinance() {
         p."status"::text::"finance"."PaymentStatus", p."paidAt", p."transactionId",
         p."notes", p."createdAt", p."updatedAt"
       FROM "public"."Payment" p
+      ON CONFLICT ("id") DO NOTHING
+    `);
+  }
+
+  if (hasInvoice) {
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "finance"."Payment" (
+        "id", "paymentNumber", "invoiceId", "studentId", "amount", "method",
+        "status", "paidAt", "transactionId", "notes", "createdAt", "updatedAt"
+      )
+      SELECT
+        inv."id" || '-legacy-payment',
+        'PAY-LEGACY-' || regexp_replace(inv."invoiceNumber", '[^A-Za-z0-9]+', '', 'g'),
+        inv."id",
+        inv."studentId",
+        inv."total",
+        'BANK_TRANSFER',
+        'COMPLETED'::"finance"."PaymentStatus",
+        COALESCE(inv."paidAt", inv."updatedAt", inv."createdAt"),
+        'legacy-sync-' || inv."id",
+        'Backfilled payment history for a legacy paid invoice.',
+        COALESCE(inv."paidAt", inv."createdAt"),
+        COALESCE(inv."updatedAt", inv."createdAt")
+      FROM "finance"."Invoice" inv
+      WHERE inv."status" = 'PAID'::"finance"."InvoiceStatus"
+        AND NOT EXISTS (
+          SELECT 1
+          FROM "finance"."Payment" pay
+          WHERE pay."invoiceId" = inv."id"
+            AND pay."status" = 'COMPLETED'::"finance"."PaymentStatus"
+        )
       ON CONFLICT ("id") DO NOTHING
     `);
   }

@@ -49,6 +49,7 @@ const schema = z.object({
   [ENV.RABBITMQ_URL]: z.string().min(1).optional(),
   [ENV.CORE_API_INTERNAL_URL]: z.string().url().optional(),
   [ENV.INTERNAL_SERVICE_TOKEN]: z.string().min(16),
+  [ENV.PAYMENT_SANDBOX_SHARED_SECRET]: z.string().min(8).optional(),
   [ENV.SMTP_HOST]: z.string().min(1).optional(),
   [ENV.SMTP_PORT]: maybeNumber.optional(),
   [ENV.SMTP_USER]: z.string().min(1).optional(),
@@ -99,5 +100,8 @@ export function validateEnvironment(env: Record<string, unknown>) {
     [ENV.CORE_API_INTERNAL_URL]:
       parsed.data[ENV.CORE_API_INTERNAL_URL] ??
       ENV_DEFAULTS.CORE_API_INTERNAL_URL,
+    [ENV.PAYMENT_SANDBOX_SHARED_SECRET]:
+      parsed.data[ENV.PAYMENT_SANDBOX_SHARED_SECRET] ??
+      ENV_DEFAULTS.PAYMENT_SANDBOX_SHARED_SECRET,
   };
 }

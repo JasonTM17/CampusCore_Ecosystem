@@ -1,6 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { InvoiceStatus, PaymentStatus } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import {
+  InvoiceStatus,
+  PaymentAttemptStatus,
+  PaymentIntentStatus,
+  PaymentProvider,
+  PaymentStatus,
+} from '@prisma/client';
 import { FinanceService } from './finance.service';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CsvExportService } from '../common/services/csv-export.service';
@@ -11,7 +18,7 @@ import { CoreFinanceContextService } from './core-finance-context.service';
 describe('FinanceService', () => {
   let service: FinanceService;
 
-  const mockPrisma = {
+  const mockPrisma: any = {
     invoice: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
@@ -29,7 +36,29 @@ describe('FinanceService', () => {
       delete: jest.fn(),
       count: jest.fn(),
     },
+    paymentIntent: {
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+      count: jest.fn(),
+    },
+    paymentAttempt: {
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    paymentIntentEvent: {
+      create: jest.fn(),
+    },
   };
+  mockPrisma.$transaction = jest.fn(
+    async (callback: (prisma: typeof mockPrisma) => unknown) =>
+      callback(mockPrisma),
+  );
 
   const mockCsvExportService = {
     generateCsv: jest.fn().mockResolvedValue('csv'),
@@ -49,6 +78,20 @@ describe('FinanceService', () => {
     getBillableStudents: jest.fn(),
   };
 
+  const mockConfigService = {
+    get: jest.fn((key: string) => {
+      if (key === 'PAYMENT_SANDBOX_SHARED_SECRET') {
+        return 'sandbox-secret';
+      }
+
+      if (key === 'INTERNAL_SERVICE_TOKEN') {
+        return 'internal-service-token-12345';
+      }
+
+      return undefined;
+    }),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -61,6 +104,7 @@ describe('FinanceService', () => {
           provide: CoreFinanceContextService,
           useValue: mockCoreContextService,
         },
+        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 
@@ -79,6 +123,8 @@ describe('FinanceService', () => {
     mockCoreContextService.getSemester.mockResolvedValue({
       id: 'semester-1',
       name: 'Fall 2026',
+      nameEn: 'Fall 2026',
+      nameVi: 'Học kỳ Thu 2026',
       endDate: '2026-12-20T00:00:00.000Z',
     });
     mockPrisma.invoice.count.mockResolvedValue(0);
@@ -92,6 +138,8 @@ describe('FinanceService', () => {
       studentCode: 'STU001',
       semesterId: 'semester-1',
       semesterName: 'Fall 2026',
+      semesterNameEn: 'Fall 2026',
+      semesterNameVi: 'Học kỳ Thu 2026',
       status: InvoiceStatus.DRAFT,
       subtotal: 450,
       discount: 0,
@@ -113,6 +161,8 @@ describe('FinanceService', () => {
     });
 
     expect(result.invoiceNumber).toBe('INV-2026-00001');
+    expect(result.semester.nameEn).toBe('Fall 2026');
+    expect(result.semester.nameVi).toBe('Học kỳ Thu 2026');
     expect(mockPrisma.invoice.create).toHaveBeenCalled();
     expect(mockRabbitMqService.publishMessage).toHaveBeenCalled();
   });
@@ -128,6 +178,8 @@ describe('FinanceService', () => {
       studentCode: 'STU001',
       semesterId: 'semester-1',
       semesterName: 'Fall 2026',
+      semesterNameEn: 'Fall 2026',
+      semesterNameVi: 'Học kỳ Thu 2026',
       status: InvoiceStatus.PENDING,
       subtotal: 500,
       discount: 0,
@@ -156,11 +208,131 @@ describe('FinanceService', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  it('normalizes stale paid invoice data when no completed payments exist', async () => {
+    mockPrisma.invoice.findMany.mockResolvedValue([
+      {
+        id: 'invoice-1',
+        invoiceNumber: 'INV-1',
+        studentId: 'student-1',
+        studentUserId: 'user-1',
+        studentDisplayName: 'Student One',
+        studentEmail: 'student1@campuscore.edu',
+        studentCode: 'STU001',
+        semesterId: 'semester-1',
+        semesterName: 'Fall 2026',
+        semesterNameEn: 'Fall 2026',
+        semesterNameVi: 'Học kỳ Thu 2026',
+        status: InvoiceStatus.PAID,
+        subtotal: 500,
+        discount: 0,
+        total: 500,
+        dueDate: new Date(Date.now() + 86_400_000),
+        paidAt: new Date(),
+        notes: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        payments: [],
+      },
+    ]);
+
+    const [invoice] = await service.getStudentInvoices('student-1');
+
+    expect(invoice.status).toBe(InvoiceStatus.PENDING);
+    expect(invoice.paidAmount).toBe(0);
+    expect(invoice.balance).toBe(500);
+    expect(invoice.paidAt).toBeNull();
+  });
+
   it('throws when invoice is missing', async () => {
     mockPrisma.invoice.findUnique.mockResolvedValue(null);
 
     await expect(service.findOneInvoice('missing')).rejects.toThrow(
       NotFoundException,
     );
+  });
+
+  it('reuses an existing attempt when checkout initiation is retried with the same idempotency key', async () => {
+    mockPrisma.paymentAttempt.findFirst.mockResolvedValue({
+      id: 'attempt-1',
+      attemptNumber: 'PATT-20260422-EXAMPLE',
+      intentId: 'intent-1',
+      invoiceId: 'invoice-1',
+      studentId: 'student-1',
+      provider: PaymentProvider.MOMO,
+      status: PaymentAttemptStatus.REDIRECT_REQUIRED,
+      idempotencyKey: 'idem-checkout-001',
+      publicToken: 'token-1',
+      amount: 450,
+      currency: 'VND',
+      providerReference: null,
+      redirectUrl: null,
+      callbackUrl: '/api/v1/finance/payment-providers/momo/callback/token-1',
+      webhookUrl: '/api/v1/finance/payment-providers/momo/webhook/token-1',
+      returnUrl: 'http://localhost/return',
+      cancelUrl: 'http://localhost/cancel',
+      providerPayload: null,
+      occurredAt: null,
+      finalizedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      intent: {
+        id: 'intent-1',
+        intentNumber: 'PINT-20260422-EXAMPLE',
+        invoiceId: 'invoice-1',
+        studentId: 'student-1',
+        provider: PaymentProvider.MOMO,
+        status: PaymentIntentStatus.REQUIRES_ACTION,
+        amount: 450,
+        currency: 'VND',
+        metadata: null,
+        expiresAt: new Date(Date.now() + 60_000),
+        lastSignalAt: null,
+        finalizedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        payment: null,
+        invoice: {
+          id: 'invoice-1',
+          invoiceNumber: 'INV-1',
+          studentId: 'student-1',
+          studentUserId: 'user-1',
+          studentDisplayName: 'Student One',
+          studentEmail: 'student1@campuscore.edu',
+          studentCode: 'STU001',
+          semesterId: 'semester-1',
+          semesterName: 'Fall 2026',
+          semesterNameEn: 'Fall 2026',
+          semesterNameVi: 'Học kỳ Thu 2026',
+          status: InvoiceStatus.PENDING,
+          subtotal: 450,
+          discount: 0,
+          total: 450,
+          dueDate: new Date('2026-12-20T00:00:00.000Z'),
+          paidAt: null,
+          notes: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          payments: [],
+        },
+        attempts: [],
+        events: [],
+      },
+    });
+
+    const result = await service.initiateStudentInvoiceCheckout(
+      'student-1',
+      'invoice-1',
+      {
+        provider: PaymentProvider.MOMO,
+        idempotencyKey: 'idem-checkout-001',
+        returnUrl: 'http://localhost/return',
+        cancelUrl: 'http://localhost/cancel',
+      },
+      undefined,
+    );
+
+    expect(result.intentNumber).toBe('PINT-20260422-EXAMPLE');
+    expect(mockPrisma.paymentIntent.create).not.toHaveBeenCalled();
+    expect(mockPrisma.paymentAttempt.create).not.toHaveBeenCalled();
   });
 });
