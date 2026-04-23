@@ -62,6 +62,35 @@ export class HealthService {
     return this.readiness();
   }
 
+  async metrics() {
+    const readiness = await this.readiness();
+    const services = readiness.services;
+    const rssBytes = process.memoryUsage().rss;
+    const heapUsedBytes = process.memoryUsage().heapUsed;
+
+    return [
+      '# HELP campuscore_service_up Service liveness status.',
+      '# TYPE campuscore_service_up gauge',
+      'campuscore_service_up{service="campuscore-api"} 1',
+      '# HELP campuscore_dependency_up Dependency status by service.',
+      '# TYPE campuscore_dependency_up gauge',
+      `campuscore_dependency_up{service="campuscore-api",dependency="database"} ${services.database.status === 'up' ? 1 : 0}`,
+      `campuscore_dependency_up{service="campuscore-api",dependency="redis"} ${services.redis.status === 'up' ? 1 : 0}`,
+      `campuscore_dependency_up{service="campuscore-api",dependency="rabbitmq"} ${services.rabbitmq.status === 'up' ? 1 : 0}`,
+      '# HELP campuscore_dependency_latency_ms Dependency latency in milliseconds.',
+      '# TYPE campuscore_dependency_latency_ms gauge',
+      `campuscore_dependency_latency_ms{service="campuscore-api",dependency="database"} ${services.database.latency ?? 0}`,
+      `campuscore_dependency_latency_ms{service="campuscore-api",dependency="redis"} ${services.redis.latency ?? 0}`,
+      `campuscore_dependency_latency_ms{service="campuscore-api",dependency="rabbitmq"} ${services.rabbitmq.latency ?? 0}`,
+      '# HELP process_resident_memory_bytes Resident memory usage in bytes.',
+      '# TYPE process_resident_memory_bytes gauge',
+      `process_resident_memory_bytes{service="campuscore-api"} ${rssBytes}`,
+      '# HELP process_heap_used_bytes Heap usage in bytes.',
+      '# TYPE process_heap_used_bytes gauge',
+      `process_heap_used_bytes{service="campuscore-api"} ${heapUsedBytes}`,
+    ].join('\n');
+  }
+
   private async checkDatabase(): Promise<DependencyStatus> {
     try {
       const start = Date.now();

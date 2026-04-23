@@ -7,8 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type { StringValue } from 'ms';
 import * as bcrypt from 'bcrypt';
-import { createHash } from 'crypto';
-import { v4 as uuidv4 } from 'uuid';
+import { createHash, randomUUID } from 'crypto';
 import { UserStatus } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
@@ -360,7 +359,7 @@ export class AuthService {
       return { message: 'If the email exists, a reset link will be sent' };
     }
 
-    const resetToken = uuidv4();
+    const resetToken = randomUUID();
     const resetExpires = new Date(
       Date.now() + this.getPasswordResetExpiryMinutes() * 60 * 1000,
     );
@@ -476,7 +475,7 @@ export class AuthService {
       throw new BadRequestException('Email is already verified');
     }
 
-    const verificationToken = uuidv4();
+    const verificationToken = randomUUID();
     await this.prisma.user.update({
       where: { id: user.id },
       data: { verificationToken },
