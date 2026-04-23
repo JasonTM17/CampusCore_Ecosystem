@@ -5,6 +5,13 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log('Starting seed...');
+
+  const existingAcademicYears = await prisma.academicYear.count();
+  if (existingAcademicYears > 0) {
+    console.log('Seed data already exists; skipping public seed.');
+    return;
+  }
+
   const adminPasswordHash = await bcrypt.hash('admin123', 12);
   const defaultPasswordHash = await bcrypt.hash('password123', 12);
 
@@ -23,6 +30,8 @@ async function main() {
   const springSemester = await prisma.semester.create({
     data: {
       name: 'Spring 2025',
+      nameEn: 'Spring 2025',
+      nameVi: 'Học kỳ Xuân 2025',
       type: 'SPRING',
       academicYearId: academicYear.id,
       startDate: new Date('2025-01-15'),
@@ -38,6 +47,8 @@ async function main() {
   await prisma.semester.create({
     data: {
       name: 'Summer 2025',
+      nameEn: 'Summer 2025',
+      nameVi: 'Học kỳ Hè 2025',
       type: 'SUMMER',
       academicYearId: academicYear.id,
       startDate: new Date('2025-06-01'),
@@ -51,6 +62,8 @@ async function main() {
   const fallSemester = await prisma.semester.create({
     data: {
       name: 'Fall 2025',
+      nameEn: 'Fall 2025',
+      nameVi: 'Học kỳ Thu 2025',
       type: 'FALL',
       academicYearId: academicYear.id,
       startDate: new Date('2025-09-01'),
@@ -66,8 +79,12 @@ async function main() {
   const facCS = await prisma.faculty.create({
     data: {
       name: 'Faculty of Computer Science',
+      nameEn: 'Faculty of Computer Science',
+      nameVi: 'Khoa Khoa học máy tính',
       code: 'FCS',
       description: 'Faculty of Computer Science and Information Technology',
+      descriptionEn: 'Faculty of Computer Science and Information Technology',
+      descriptionVi: 'Khoa Khoa học máy tính và công nghệ thông tin',
       isActive: true,
     },
   });
@@ -75,8 +92,12 @@ async function main() {
   const facEngineering = await prisma.faculty.create({
     data: {
       name: 'Faculty of Engineering',
+      nameEn: 'Faculty of Engineering',
+      nameVi: 'Khoa Kỹ thuật',
       code: 'FE',
       description: 'Faculty of Engineering',
+      descriptionEn: 'Faculty of Engineering',
+      descriptionVi: 'Khoa Kỹ thuật',
       isActive: true,
     },
   });
@@ -84,8 +105,12 @@ async function main() {
   const facBusiness = await prisma.faculty.create({
     data: {
       name: 'Faculty of Business Administration',
+      nameEn: 'Faculty of Business Administration',
+      nameVi: 'Khoa Quản trị kinh doanh',
       code: 'FBA',
       description: 'Faculty of Business Administration',
+      descriptionEn: 'Faculty of Business Administration',
+      descriptionVi: 'Khoa Quản trị kinh doanh',
       isActive: true,
     },
   });
@@ -95,8 +120,12 @@ async function main() {
   const deptCS = await prisma.department.create({
     data: {
       name: 'Computer Science',
+      nameEn: 'Computer Science',
+      nameVi: 'Khoa học máy tính',
       code: 'CS',
       description: 'Department of Computer Science',
+      descriptionEn: 'Department of Computer Science',
+      descriptionVi: 'Bộ môn Khoa học máy tính',
       facultyId: facCS.id,
       isActive: true,
     },
@@ -105,8 +134,12 @@ async function main() {
   const deptSE = await prisma.department.create({
     data: {
       name: 'Software Engineering',
+      nameEn: 'Software Engineering',
+      nameVi: 'Kỹ thuật phần mềm',
       code: 'SE',
       description: 'Department of Software Engineering',
+      descriptionEn: 'Department of Software Engineering',
+      descriptionVi: 'Bộ môn Kỹ thuật phần mềm',
       facultyId: facCS.id,
       isActive: true,
     },
@@ -115,8 +148,12 @@ async function main() {
   const deptCE = await prisma.department.create({
     data: {
       name: 'Computer Engineering',
+      nameEn: 'Computer Engineering',
+      nameVi: 'Kỹ thuật máy tính',
       code: 'CE',
       description: 'Department of Computer Engineering',
+      descriptionEn: 'Department of Computer Engineering',
+      descriptionVi: 'Bộ môn Kỹ thuật máy tính',
       facultyId: facEngineering.id,
       isActive: true,
     },
@@ -125,8 +162,12 @@ async function main() {
   const deptBA = await prisma.department.create({
     data: {
       name: 'Business Administration',
+      nameEn: 'Business Administration',
+      nameVi: 'Quản trị kinh doanh',
       code: 'BA',
       description: 'Department of Business Administration',
+      descriptionEn: 'Department of Business Administration',
+      descriptionVi: 'Bộ môn Quản trị kinh doanh',
       facultyId: facBusiness.id,
       isActive: true,
     },
@@ -137,11 +178,15 @@ async function main() {
   const curriculumCS = await prisma.curriculum.create({
     data: {
       name: 'Computer Science 2025',
+      nameEn: 'Computer Science 2025',
+      nameVi: 'Chương trình Khoa học máy tính 2025',
       code: 'CS2025',
       departmentId: deptCS.id,
       academicYearId: academicYear.id,
       totalCredits: 150,
       description: 'Computer Science Curriculum 2025',
+      descriptionEn: 'Computer Science curriculum for the 2025 intake',
+      descriptionVi: 'Chương trình Khoa học máy tính cho khóa tuyển sinh 2025',
       isActive: true,
     },
   });
@@ -149,11 +194,15 @@ async function main() {
   const curriculumSE = await prisma.curriculum.create({
     data: {
       name: 'Software Engineering 2025',
+      nameEn: 'Software Engineering 2025',
+      nameVi: 'Chương trình Kỹ thuật phần mềm 2025',
       code: 'SE2025',
       departmentId: deptSE.id,
       academicYearId: academicYear.id,
       totalCredits: 152,
       description: 'Software Engineering Curriculum 2025',
+      descriptionEn: 'Software Engineering curriculum for the 2025 intake',
+      descriptionVi: 'Chương trình Kỹ thuật phần mềm cho khóa tuyển sinh 2025',
       isActive: true,
     },
   });
@@ -396,34 +445,91 @@ async function main() {
     {
       code: 'CS101',
       name: 'Introduction to Programming',
+      nameEn: 'Introduction to Programming',
+      nameVi: 'Nhập môn lập trình',
       credits: 3,
       dept: deptCS,
     },
-    { code: 'CS201', name: 'Data Structures', credits: 4, dept: deptCS },
-    { code: 'CS301', name: 'Algorithms', credits: 4, dept: deptCS },
+    {
+      code: 'CS201',
+      name: 'Data Structures',
+      nameEn: 'Data Structures',
+      nameVi: 'Cấu trúc dữ liệu',
+      credits: 4,
+      dept: deptCS,
+    },
+    {
+      code: 'CS301',
+      name: 'Algorithms',
+      nameEn: 'Algorithms',
+      nameVi: 'Giải thuật',
+      credits: 4,
+      dept: deptCS,
+    },
     {
       code: 'CS401',
       name: 'Artificial Intelligence',
+      nameEn: 'Artificial Intelligence',
+      nameVi: 'Trí tuệ nhân tạo',
       credits: 3,
       dept: deptCS,
     },
     {
       code: 'SE201',
       name: 'Software Engineering Principles',
+      nameEn: 'Software Engineering Principles',
+      nameVi: 'Nguyên lý kỹ thuật phần mềm',
       credits: 3,
       dept: deptSE,
     },
-    { code: 'SE301', name: 'Database Systems', credits: 4, dept: deptSE },
-    { code: 'SE401', name: 'Web Development', credits: 3, dept: deptSE },
-    { code: 'CE201', name: 'Computer Architecture', credits: 3, dept: deptCE },
-    { code: 'CE301', name: 'Computer Networks', credits: 4, dept: deptCE },
+    {
+      code: 'SE301',
+      name: 'Database Systems',
+      nameEn: 'Database Systems',
+      nameVi: 'Hệ quản trị cơ sở dữ liệu',
+      credits: 4,
+      dept: deptSE,
+    },
+    {
+      code: 'SE401',
+      name: 'Web Development',
+      nameEn: 'Web Development',
+      nameVi: 'Phát triển web',
+      credits: 3,
+      dept: deptSE,
+    },
+    {
+      code: 'CE201',
+      name: 'Computer Architecture',
+      nameEn: 'Computer Architecture',
+      nameVi: 'Kiến trúc máy tính',
+      credits: 3,
+      dept: deptCE,
+    },
+    {
+      code: 'CE301',
+      name: 'Computer Networks',
+      nameEn: 'Computer Networks',
+      nameVi: 'Mạng máy tính',
+      credits: 4,
+      dept: deptCE,
+    },
     {
       code: 'BA101',
       name: 'Introduction to Business',
+      nameEn: 'Introduction to Business',
+      nameVi: 'Nhập môn kinh doanh',
       credits: 3,
       dept: deptBA,
     },
-    { code: 'BA201', name: 'Management Principles', credits: 3, dept: deptBA },
+    {
+      code: 'BA201',
+      name: 'Management Principles',
+      nameEn: 'Management Principles',
+      nameVi: 'Nguyên lý quản trị',
+      credits: 3,
+      dept: deptBA,
+    },
   ];
 
   const createdCourses = [];
@@ -432,6 +538,8 @@ async function main() {
       data: {
         code: c.code,
         name: c.name,
+        nameEn: c.nameEn,
+        nameVi: c.nameVi,
         credits: c.credits,
         departmentId: c.dept.id,
         isActive: true,

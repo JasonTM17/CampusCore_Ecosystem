@@ -44,6 +44,8 @@ export class FinanceContextService {
     return {
       id: semester.id,
       name: semester.name,
+      nameEn: semester.nameEn,
+      nameVi: semester.nameVi,
       endDate: semester.endDate?.toISOString() ?? null,
     };
   }

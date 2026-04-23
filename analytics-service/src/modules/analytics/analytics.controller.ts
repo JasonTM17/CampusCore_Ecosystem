@@ -46,8 +46,48 @@ export class AnalyticsController {
   @Get('enrollment-trends')
   @Roles('ADMIN', 'SUPER_ADMIN')
   @ApiOperation({ summary: 'Get enrollment trends (admin only)' })
-  getEnrollmentTrends() {
-    return this.analyticsService.getEnrollmentTrends();
+  getEnrollmentTrends(@Query('months') months?: string) {
+    const parsedMonths = months ? Number(months) : undefined;
+    return this.analyticsService.getEnrollmentTrends(parsedMonths);
+  }
+
+  @Get('finance-summary')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'FINANCE_OFFICER')
+  @ApiOperation({ summary: 'Get finance summary for admin cockpit' })
+  getFinanceSummary() {
+    return this.analyticsService.getFinanceSummary();
+  }
+
+  @Get('notification-summary')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({
+    summary: 'Get notification delivery summary for admin cockpit',
+  })
+  getNotificationSummary() {
+    return this.analyticsService.getNotificationSummary();
+  }
+
+  @Get('registration-pressure')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({
+    summary: 'Get registration pressure summary for admin cockpit',
+  })
+  getRegistrationPressure() {
+    return this.analyticsService.getRegistrationPressure();
+  }
+
+  @Get('operator-summary')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Get operator summary links and health posture' })
+  getOperatorSummary() {
+    return this.analyticsService.getOperatorSummary();
+  }
+
+  @Get('cockpit')
+  @Roles('ADMIN', 'SUPER_ADMIN')
+  @ApiOperation({ summary: 'Get the admin analytics cockpit payload' })
+  getCockpit() {
+    return this.analyticsService.getCockpit();
   }
 
   @Get('revenue')
