@@ -1,15 +1,24 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import {
+  hydrateLocalizedCatalogRecord,
+  normalizeLocalizedCatalogData,
+} from '../common/catalog-localization';
 
 @Injectable()
 export class DepartmentsService {
   constructor(private prisma: PrismaService) {}
 
   async create(data: any) {
-    return this.prisma.department.create({
-      data,
+    const department = await this.prisma.department.create({
+      data: {
+        ...data,
+        ...normalizeLocalizedCatalogData('department', data),
+      },
       include: { faculty: true, lecturers: true },
     });
+
+    return this.hydrateDepartment(department);
   }
 
   async findAll(page = 1, limit = 20) {
@@ -24,7 +33,7 @@ export class DepartmentsService {
       this.prisma.department.count(),
     ]);
     return {
-      data: departments,
+      data: departments.map((department) => this.hydrateDepartment(department)),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -35,21 +44,41 @@ export class DepartmentsService {
       include: { faculty: true, lecturers: true },
     });
     if (!department) throw new NotFoundException('Department not found');
-    return department;
+    return this.hydrateDepartment(department);
   }
 
   async update(id: string, data: any) {
-    await this.findOne(id);
-    return this.prisma.department.update({
+    const existing = await this.prisma.department.findUnique({
       where: { id },
-      data,
+    });
+    if (!existing) {
+      throw new NotFoundException('Department not found');
+    }
+
+    const department = await this.prisma.department.update({
+      where: { id },
+      data: {
+        ...data,
+        ...normalizeLocalizedCatalogData('department', data, existing),
+      },
       include: { faculty: true },
     });
+
+    return this.hydrateDepartment(department);
   }
 
   async remove(id: string) {
     await this.findOne(id);
     await this.prisma.department.delete({ where: { id } });
     return { message: 'Department deleted successfully' };
+  }
+
+  private hydrateDepartment<T extends { faculty?: any }>(department: T) {
+    return {
+      ...hydrateLocalizedCatalogRecord('department', department as any),
+      faculty: department.faculty
+        ? hydrateLocalizedCatalogRecord('faculty', department.faculty)
+        : department.faculty,
+    };
   }
 }

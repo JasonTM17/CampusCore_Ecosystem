@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { hydrateLocalizedCatalogRecord } from '../common/catalog-localization';
 
 @Injectable()
 export class AcademicContextService {
@@ -40,15 +41,9 @@ export class AcademicContextService {
     }
 
     return {
-      id: curriculum.id,
-      code: curriculum.code,
-      name: curriculum.name,
+      ...hydrateLocalizedCatalogRecord('curriculum', curriculum),
       department: curriculum.department
-        ? {
-            id: curriculum.department.id,
-            code: curriculum.department.code,
-            name: curriculum.department.name,
-          }
+        ? hydrateLocalizedCatalogRecord('department', curriculum.department)
         : null,
     };
   }
@@ -62,10 +57,15 @@ export class AcademicContextService {
       throw new NotFoundException('Department not found');
     }
 
-    return {
+    return hydrateLocalizedCatalogRecord('department', {
       id: department.id,
       code: department.code,
       name: department.name,
-    };
+      nameEn: department.nameEn,
+      nameVi: department.nameVi,
+      description: department.description,
+      descriptionEn: department.descriptionEn,
+      descriptionVi: department.descriptionVi,
+    });
   }
 }

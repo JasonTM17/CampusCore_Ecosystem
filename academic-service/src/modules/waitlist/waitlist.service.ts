@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { EnrollmentStatus, WaitlistStatus } from '@prisma/client';
+import { WaitlistStatus } from '@prisma/client';
+import { EnrollmentsService } from '../enrollments/enrollments.service';
 
 @Injectable()
 export class WaitlistService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private enrollmentsService: EnrollmentsService,
+  ) {}
 
   async findAll(page = 1, limit = 20, sectionId?: string) {
     const skip = (page - 1) * limit;
@@ -49,67 +53,38 @@ export class WaitlistService {
     });
   }
 
-  async remove(id: string) {
-    const entry = await this.prisma.waitlist.findUnique({ where: { id } });
-    if (!entry) throw new NotFoundException('Waitlist entry not found');
-
-    await this.prisma.waitlist.delete({ where: { id } });
-
-    // Update positions
-    const remaining = await this.prisma.waitlist.findMany({
-      where: { sectionId: entry.sectionId, status: WaitlistStatus.ACTIVE },
-      orderBy: { position: 'asc' },
+  async findByStudent(studentId: string) {
+    return this.prisma.waitlist.findMany({
+      where: {
+        studentId,
+        status: WaitlistStatus.ACTIVE,
+      },
+      include: {
+        section: {
+          include: {
+            course: {
+              include: {
+                department: true,
+              },
+            },
+            semester: true,
+            schedules: {
+              include: {
+                classroom: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ addedAt: 'desc' }, { position: 'asc' }],
     });
+  }
 
-    for (let i = 0; i < remaining.length; i++) {
-      await this.prisma.waitlist.update({
-        where: { id: remaining[i].id },
-        data: { position: i + 1 },
-      });
-    }
-
-    return { message: 'Waitlist entry removed successfully' };
+  async remove(id: string, studentId?: string) {
+    return this.enrollmentsService.removeWaitlistEntry(id, studentId);
   }
 
   async promoteStudent(waitlistEntryId: string) {
-    const entry = await this.prisma.waitlist.findUnique({
-      where: { id: waitlistEntryId },
-      include: { section: true },
-    });
-
-    if (!entry) {
-      throw new NotFoundException('Waitlist entry not found');
-    }
-
-    // Create enrollment for the promoted student
-    await this.prisma.enrollment.create({
-      data: {
-        studentId: entry.studentId,
-        sectionId: entry.sectionId,
-        semesterId: entry.section.semesterId,
-        status: EnrollmentStatus.PENDING,
-      },
-    });
-
-    // Update waitlist entry
-    await this.prisma.waitlist.update({
-      where: { id: waitlistEntryId },
-      data: { status: WaitlistStatus.CONVERTED, convertedAt: new Date() },
-    });
-
-    // Update remaining positions
-    const remaining = await this.prisma.waitlist.findMany({
-      where: { sectionId: entry.sectionId, status: WaitlistStatus.ACTIVE },
-      orderBy: { position: 'asc' },
-    });
-
-    for (let i = 0; i < remaining.length; i++) {
-      await this.prisma.waitlist.update({
-        where: { id: remaining[i].id },
-        data: { position: i + 1 },
-      });
-    }
-
-    return { message: 'Student promoted from waitlist' };
+    return this.enrollmentsService.promoteWaitlistEntry(waitlistEntryId);
   }
 }

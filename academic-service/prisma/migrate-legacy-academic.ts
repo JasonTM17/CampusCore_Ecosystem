@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { normalizeLocalizedCatalogData } from '../src/modules/common/catalog-localization';
 
 function getTargetSchema(databaseUrl: string) {
   const parsed = new URL(databaseUrl);
@@ -26,6 +27,111 @@ async function tableExists(
   `;
 
   return result[0]?.exists === true;
+}
+
+async function columnExists(
+  prisma: PrismaClient,
+  schema: string,
+  table: string,
+  column: string,
+) {
+  const result = await prisma.$queryRaw<Array<{ exists: boolean }>>`
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = ${schema}
+        AND table_name = ${table}
+        AND column_name = ${column}
+    ) AS "exists"
+  `;
+
+  return result[0]?.exists === true;
+}
+
+function hasLocalizedChanges(
+  record: Record<string, unknown>,
+  patch: Record<string, unknown>,
+) {
+  return Object.entries(patch).some(([key, value]) => record[key] !== value);
+}
+
+async function backfillLocalizedCatalogData(prisma: PrismaClient) {
+  const academicYears = await prisma.academicYear.findMany({
+    select: { id: true, year: true },
+  });
+  const yearById = new Map(academicYears.map((year) => [year.id, year.year]));
+
+  for (const faculty of await prisma.faculty.findMany()) {
+    const patch = normalizeLocalizedCatalogData('faculty', faculty, faculty);
+    if (hasLocalizedChanges(faculty as Record<string, unknown>, patch)) {
+      await prisma.faculty.update({
+        where: { id: faculty.id },
+        data: patch,
+      });
+    }
+  }
+
+  for (const department of await prisma.department.findMany()) {
+    const patch = normalizeLocalizedCatalogData(
+      'department',
+      department,
+      department,
+    );
+    if (hasLocalizedChanges(department as Record<string, unknown>, patch)) {
+      await prisma.department.update({
+        where: { id: department.id },
+        data: patch,
+      });
+    }
+  }
+
+  for (const course of await prisma.course.findMany()) {
+    const patch = normalizeLocalizedCatalogData('course', course, course);
+    if (hasLocalizedChanges(course as Record<string, unknown>, patch)) {
+      await prisma.course.update({
+        where: { id: course.id },
+        data: patch,
+      });
+    }
+  }
+
+  for (const curriculum of await prisma.curriculum.findMany()) {
+    const patch = normalizeLocalizedCatalogData(
+      'curriculum',
+      curriculum,
+      curriculum,
+    );
+    if (hasLocalizedChanges(curriculum as Record<string, unknown>, patch)) {
+      await prisma.curriculum.update({
+        where: { id: curriculum.id },
+        data: patch,
+      });
+    }
+  }
+
+  for (const semester of await prisma.semester.findMany()) {
+    const patch = normalizeLocalizedCatalogData(
+      'semester',
+      {
+        ...semester,
+        academicYear: {
+          year: yearById.get(semester.academicYearId),
+        },
+      },
+      {
+        ...semester,
+        academicYear: {
+          year: yearById.get(semester.academicYearId),
+        },
+      },
+    );
+    if (hasLocalizedChanges(semester as Record<string, unknown>, patch)) {
+      await prisma.semester.update({
+        where: { id: semester.id },
+        data: patch,
+      });
+    }
+  }
 }
 
 async function main() {
@@ -66,6 +172,37 @@ async function main() {
     for (const table of requiredTables) {
       existing.set(table, await tableExists(prisma, 'public', table));
     }
+
+    const sourceHasLocalizedFacultyColumns = await columnExists(
+      prisma,
+      'public',
+      'Faculty',
+      'nameEn',
+    );
+    const sourceHasLocalizedDepartmentColumns = await columnExists(
+      prisma,
+      'public',
+      'Department',
+      'nameEn',
+    );
+    const sourceHasLocalizedSemesterColumns = await columnExists(
+      prisma,
+      'public',
+      'Semester',
+      'nameEn',
+    );
+    const sourceHasLocalizedCourseColumns = await columnExists(
+      prisma,
+      'public',
+      'Course',
+      'nameEn',
+    );
+    const sourceHasLocalizedCurriculumColumns = await columnExists(
+      prisma,
+      'public',
+      'Curriculum',
+      'nameEn',
+    );
 
     if (
       !existing.get('Student') &&
@@ -114,31 +251,63 @@ async function main() {
     }
 
     if (existing.get('Faculty')) {
-      await prisma.$executeRawUnsafe(`
-        INSERT INTO "${targetSchema}"."Faculty" (
-          "id", "name", "code", "description", "dean", "phone", "email",
-          "building", "createdAt", "updatedAt", "isActive"
-        )
-        SELECT
-          "id", "name", "code", "description", "dean", "phone", "email",
-          "building", "createdAt", "updatedAt", "isActive"
-        FROM "public"."Faculty"
-        ON CONFLICT ("id") DO NOTHING
-      `);
+      if (sourceHasLocalizedFacultyColumns) {
+        await prisma.$executeRawUnsafe(`
+          INSERT INTO "${targetSchema}"."Faculty" (
+            "id", "name", "nameEn", "nameVi", "code", "description", "descriptionEn",
+            "descriptionVi", "dean", "phone", "email", "building", "createdAt",
+            "updatedAt", "isActive"
+          )
+          SELECT
+            "id", "name", "nameEn", "nameVi", "code", "description", "descriptionEn",
+            "descriptionVi", "dean", "phone", "email", "building", "createdAt",
+            "updatedAt", "isActive"
+          FROM "public"."Faculty"
+          ON CONFLICT ("id") DO NOTHING
+        `);
+      } else {
+        await prisma.$executeRawUnsafe(`
+          INSERT INTO "${targetSchema}"."Faculty" (
+            "id", "name", "code", "description", "dean", "phone", "email",
+            "building", "createdAt", "updatedAt", "isActive"
+          )
+          SELECT
+            "id", "name", "code", "description", "dean", "phone", "email",
+            "building", "createdAt", "updatedAt", "isActive"
+          FROM "public"."Faculty"
+          ON CONFLICT ("id") DO NOTHING
+        `);
+      }
     }
 
     if (existing.get('Department')) {
-      await prisma.$executeRawUnsafe(`
-        INSERT INTO "${targetSchema}"."Department" (
-          "id", "name", "code", "description", "chair", "phone", "email",
-          "building", "facultyId", "createdAt", "updatedAt", "isActive"
-        )
-        SELECT
-          "id", "name", "code", "description", "chair", "phone", "email",
-          "building", "facultyId", "createdAt", "updatedAt", "isActive"
-        FROM "public"."Department"
-        ON CONFLICT ("id") DO NOTHING
-      `);
+      if (sourceHasLocalizedDepartmentColumns) {
+        await prisma.$executeRawUnsafe(`
+          INSERT INTO "${targetSchema}"."Department" (
+            "id", "name", "nameEn", "nameVi", "code", "description", "descriptionEn",
+            "descriptionVi", "chair", "phone", "email", "building", "facultyId",
+            "createdAt", "updatedAt", "isActive"
+          )
+          SELECT
+            "id", "name", "nameEn", "nameVi", "code", "description", "descriptionEn",
+            "descriptionVi", "chair", "phone", "email", "building", "facultyId",
+            "createdAt", "updatedAt", "isActive"
+          FROM "public"."Department"
+          ON CONFLICT ("id") DO NOTHING
+        `);
+      } else {
+        await prisma.$executeRawUnsafe(`
+          INSERT INTO "${targetSchema}"."Department" (
+            "id", "name", "code", "description", "chair", "phone", "email",
+            "building", "facultyId", "createdAt", "updatedAt", "isActive"
+          )
+          SELECT
+            "id", "name", "code", "description", "chair", "phone", "email",
+            "building", "facultyId", "createdAt", "updatedAt", "isActive"
+          FROM "public"."Department"
+          ON CONFLICT ("id") DO NOTHING
+        `);
+      }
     }
 
     if (existing.get('AcademicYear')) {
@@ -154,34 +323,67 @@ async function main() {
     }
 
     if (existing.get('Semester')) {
-      await prisma.$executeRawUnsafe(`
-        INSERT INTO "${targetSchema}"."Semester" (
-          "id", "name", "type", "academicYearId", "startDate", "endDate",
-          "registrationStart", "registrationEnd", "addDropStart", "addDropEnd",
-          "status", "createdAt", "updatedAt"
-        )
-        SELECT
-          "id", "name", "type", "academicYearId", "startDate", "endDate",
-          "registrationStart", "registrationEnd", "addDropStart", "addDropEnd",
-          "status"::text::"${targetSchema}"."SemesterStatus",
-          "createdAt", "updatedAt"
-        FROM "public"."Semester"
-        ON CONFLICT ("id") DO NOTHING
-      `);
+      if (sourceHasLocalizedSemesterColumns) {
+        await prisma.$executeRawUnsafe(`
+          INSERT INTO "${targetSchema}"."Semester" (
+            "id", "name", "nameEn", "nameVi", "type", "academicYearId", "startDate",
+            "endDate", "registrationStart", "registrationEnd", "addDropStart",
+            "addDropEnd", "status", "createdAt", "updatedAt"
+          )
+          SELECT
+            "id", "name", "nameEn", "nameVi", "type", "academicYearId", "startDate",
+            "endDate", "registrationStart", "registrationEnd", "addDropStart",
+            "addDropEnd", "status"::text::"${targetSchema}"."SemesterStatus",
+            "createdAt", "updatedAt"
+          FROM "public"."Semester"
+          ON CONFLICT ("id") DO NOTHING
+        `);
+      } else {
+        await prisma.$executeRawUnsafe(`
+          INSERT INTO "${targetSchema}"."Semester" (
+            "id", "name", "type", "academicYearId", "startDate", "endDate",
+            "registrationStart", "registrationEnd", "addDropStart", "addDropEnd",
+            "status", "createdAt", "updatedAt"
+          )
+          SELECT
+            "id", "name", "type", "academicYearId", "startDate", "endDate",
+            "registrationStart", "registrationEnd", "addDropStart", "addDropEnd",
+            "status"::text::"${targetSchema}"."SemesterStatus",
+            "createdAt", "updatedAt"
+          FROM "public"."Semester"
+          ON CONFLICT ("id") DO NOTHING
+        `);
+      }
     }
 
     if (existing.get('Course')) {
-      await prisma.$executeRawUnsafe(`
-        INSERT INTO "${targetSchema}"."Course" (
-          "id", "code", "name", "description", "credits", "departmentId",
-          "semesterId", "isActive", "createdAt", "updatedAt"
-        )
-        SELECT
-          "id", "code", "name", "description", "credits", "departmentId",
-          "semesterId", "isActive", "createdAt", "updatedAt"
-        FROM "public"."Course"
-        ON CONFLICT ("id") DO NOTHING
-      `);
+      if (sourceHasLocalizedCourseColumns) {
+        await prisma.$executeRawUnsafe(`
+          INSERT INTO "${targetSchema}"."Course" (
+            "id", "code", "name", "nameEn", "nameVi", "description", "descriptionEn",
+            "descriptionVi", "credits", "departmentId", "semesterId", "isActive",
+            "createdAt", "updatedAt"
+          )
+          SELECT
+            "id", "code", "name", "nameEn", "nameVi", "description", "descriptionEn",
+            "descriptionVi", "credits", "departmentId", "semesterId", "isActive",
+            "createdAt", "updatedAt"
+          FROM "public"."Course"
+          ON CONFLICT ("id") DO NOTHING
+        `);
+      } else {
+        await prisma.$executeRawUnsafe(`
+          INSERT INTO "${targetSchema}"."Course" (
+            "id", "code", "name", "description", "credits", "departmentId",
+            "semesterId", "isActive", "createdAt", "updatedAt"
+          )
+          SELECT
+            "id", "code", "name", "description", "credits", "departmentId",
+            "semesterId", "isActive", "createdAt", "updatedAt"
+          FROM "public"."Course"
+          ON CONFLICT ("id") DO NOTHING
+        `);
+      }
     }
 
     if (existing.get('CoursePrerequisite')) {
@@ -197,17 +399,33 @@ async function main() {
     }
 
     if (existing.get('Curriculum')) {
-      await prisma.$executeRawUnsafe(`
-        INSERT INTO "${targetSchema}"."Curriculum" (
-          "id", "name", "code", "departmentId", "academicYearId", "semesterId",
-          "totalCredits", "description", "isActive", "createdAt", "updatedAt"
-        )
-        SELECT
-          "id", "name", "code", "departmentId", "academicYearId", "semesterId",
-          "totalCredits", "description", "isActive", "createdAt", "updatedAt"
-        FROM "public"."Curriculum"
-        ON CONFLICT ("id") DO NOTHING
-      `);
+      if (sourceHasLocalizedCurriculumColumns) {
+        await prisma.$executeRawUnsafe(`
+          INSERT INTO "${targetSchema}"."Curriculum" (
+            "id", "name", "nameEn", "nameVi", "code", "departmentId", "academicYearId",
+            "semesterId", "totalCredits", "description", "descriptionEn",
+            "descriptionVi", "isActive", "createdAt", "updatedAt"
+          )
+          SELECT
+            "id", "name", "nameEn", "nameVi", "code", "departmentId", "academicYearId",
+            "semesterId", "totalCredits", "description", "descriptionEn",
+            "descriptionVi", "isActive", "createdAt", "updatedAt"
+          FROM "public"."Curriculum"
+          ON CONFLICT ("id") DO NOTHING
+        `);
+      } else {
+        await prisma.$executeRawUnsafe(`
+          INSERT INTO "${targetSchema}"."Curriculum" (
+            "id", "name", "code", "departmentId", "academicYearId", "semesterId",
+            "totalCredits", "description", "isActive", "createdAt", "updatedAt"
+          )
+          SELECT
+            "id", "name", "code", "departmentId", "academicYearId", "semesterId",
+            "totalCredits", "description", "isActive", "createdAt", "updatedAt"
+          FROM "public"."Curriculum"
+          ON CONFLICT ("id") DO NOTHING
+        `);
+      }
     }
 
     if (existing.get('CurriculumCourse')) {
@@ -362,6 +580,8 @@ async function main() {
         ON CONFLICT ("id") DO NOTHING
       `);
     }
+
+    await backfillLocalizedCatalogData(prisma);
 
     console.log(
       `[academic-service] Legacy academic migration completed into schema "${targetSchema}".`,

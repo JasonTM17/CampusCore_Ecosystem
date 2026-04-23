@@ -101,6 +101,8 @@ export class AttendanceService {
           sectionId: a.sectionId,
           courseCode: a.section.course.code,
           courseName: a.section.course.name,
+          courseNameEn: a.section.course.nameEn,
+          courseNameVi: a.section.course.nameVi,
           total: 0,
           present: 0,
           absent: 0,

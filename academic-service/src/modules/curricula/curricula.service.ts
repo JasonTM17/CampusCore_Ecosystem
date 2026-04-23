@@ -1,15 +1,24 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import {
+  hydrateLocalizedCatalogRecord,
+  normalizeLocalizedCatalogData,
+} from '../common/catalog-localization';
 
 @Injectable()
 export class CurriculaService {
   constructor(private prisma: PrismaService) {}
 
   async create(data: any) {
-    return this.prisma.curriculum.create({
-      data,
+    const curriculum = await this.prisma.curriculum.create({
+      data: {
+        ...data,
+        ...normalizeLocalizedCatalogData('curriculum', data),
+      },
       include: { department: true, courses: true },
     });
+
+    return this.hydrateCurriculum(curriculum);
   }
 
   async findAll(page = 1, limit = 20) {
@@ -24,7 +33,7 @@ export class CurriculaService {
       this.prisma.curriculum.count(),
     ]);
     return {
-      data: curricula,
+      data: curricula.map((curriculum) => this.hydrateCurriculum(curriculum)),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -35,21 +44,41 @@ export class CurriculaService {
       include: { department: true, courses: true },
     });
     if (!curriculum) throw new NotFoundException('Curriculum not found');
-    return curriculum;
+    return this.hydrateCurriculum(curriculum);
   }
 
   async update(id: string, data: any) {
-    await this.findOne(id);
-    return this.prisma.curriculum.update({
+    const existing = await this.prisma.curriculum.findUnique({
       where: { id },
-      data,
+    });
+    if (!existing) {
+      throw new NotFoundException('Curriculum not found');
+    }
+
+    const curriculum = await this.prisma.curriculum.update({
+      where: { id },
+      data: {
+        ...data,
+        ...normalizeLocalizedCatalogData('curriculum', data, existing),
+      },
       include: { department: true },
     });
+
+    return this.hydrateCurriculum(curriculum);
   }
 
   async remove(id: string) {
     await this.findOne(id);
     await this.prisma.curriculum.delete({ where: { id } });
     return { message: 'Curriculum deleted successfully' };
+  }
+
+  private hydrateCurriculum<T extends { department?: any }>(curriculum: T) {
+    return {
+      ...hydrateLocalizedCatalogRecord('curriculum', curriculum as any),
+      department: curriculum.department
+        ? hydrateLocalizedCatalogRecord('department', curriculum.department)
+        : curriculum.department,
+    };
   }
 }

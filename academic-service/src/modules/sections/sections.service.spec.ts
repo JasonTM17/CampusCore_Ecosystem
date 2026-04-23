@@ -72,7 +72,17 @@ describe('SectionsService', () => {
 
       const result = await service.findOneSection('1');
 
-      expect(result).toEqual(mockSection);
+      expect(result).toEqual(
+        expect.objectContaining({
+          id: '1',
+          sectionNumber: '001',
+          course: expect.objectContaining({
+            code: 'CS101',
+            nameEn: 'Introduction to Programming',
+            nameVi: 'Nhập môn lập trình',
+          }),
+        }),
+      );
     });
 
     it('should throw NotFoundException if section not found', async () => {
@@ -170,22 +180,28 @@ describe('SectionsService', () => {
         }),
       );
       expect(result).toEqual([
-        {
+        expect.objectContaining({
           id: 'section-1',
           sectionId: 'section-1',
           sectionNumber: '01',
           courseCode: 'CS101',
           courseName: 'Introduction to Programming',
+          courseNameEn: 'Introduction to Programming',
+          courseNameVi: 'Nhập môn lập trình',
           credits: 3,
           departmentName: 'Computer Science',
+          departmentNameEn: 'Computer Science',
+          departmentNameVi: undefined,
           semester: 'Spring 2025',
           semesterName: 'Spring 2025',
+          semesterNameEn: 'Spring 2025',
+          semesterNameVi: undefined,
           enrolledCount: 3,
           gradedCount: 2,
           publishedCount: 1,
           gradeStatus: 'PARTIAL',
           canPublish: false,
-        },
+        }),
       ]);
     });
   });
@@ -207,7 +223,7 @@ describe('SectionsService', () => {
         semesterId: 'semester-1',
       } as any);
 
-      expect(result).toEqual(mockSection);
+      expect(result).toEqual(expect.objectContaining(mockSection));
     });
   });
 

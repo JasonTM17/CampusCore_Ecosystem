@@ -120,7 +120,7 @@ export class GradesService {
       where: { sectionId },
       include: {
         student: { include: { user: true } },
-        section: { include: { course: true } },
+        section: { include: { course: true, semester: true } },
         gradeItems: {
           include: { gradeItem: true },
         },
@@ -157,6 +157,11 @@ export class GradesService {
         studentNumber: enrollment.student.studentId,
         courseCode: enrollment.section.course.code,
         courseName: enrollment.section.course.name,
+        courseNameEn: enrollment.section.course.nameEn,
+        courseNameVi: enrollment.section.course.nameVi,
+        semester: enrollment.section.semester.name,
+        semesterNameEn: enrollment.section.semester.nameEn,
+        semesterNameVi: enrollment.section.semester.nameVi,
         finalGrade: enrollment.finalGrade
           ? Number(enrollment.finalGrade)
           : null,
@@ -185,7 +190,7 @@ export class GradesService {
       where: { sectionId: { in: sectionIds } },
       include: {
         student: { include: { user: true } },
-        section: { include: { course: true } },
+        section: { include: { course: true, semester: true } },
         gradeItems: {
           include: { gradeItem: true },
         },
@@ -203,6 +208,11 @@ export class GradesService {
       sectionNumber: enrollment.section.sectionNumber,
       courseCode: enrollment.section.course.code,
       courseName: enrollment.section.course.name,
+      courseNameEn: enrollment.section.course.nameEn,
+      courseNameVi: enrollment.section.course.nameVi,
+      semester: enrollment.section.semester.name,
+      semesterNameEn: enrollment.section.semester.nameEn,
+      semesterNameVi: enrollment.section.semester.nameVi,
       finalGrade: enrollment.finalGrade ? Number(enrollment.finalGrade) : null,
       letterGrade: enrollment.letterGrade,
       gradeStatus: enrollment.gradeStatus,
@@ -223,7 +233,7 @@ export class GradesService {
       where: { id: enrollmentId },
       include: {
         student: { include: { user: true } },
-        section: { include: { course: true } },
+        section: { include: { course: true, semester: true } },
       },
     });
 
@@ -257,6 +267,11 @@ export class GradesService {
           : '',
         courseCode: enrollment.section.course.code,
         courseName: enrollment.section.course.name,
+        courseNameEn: enrollment.section.course.nameEn,
+        courseNameVi: enrollment.section.course.nameVi,
+        semester: enrollment.section.semester.name,
+        semesterNameEn: enrollment.section.semester.nameEn,
+        semesterNameVi: enrollment.section.semester.nameVi,
       },
       grades: grades.map((g) => ({
         id: g.id,
