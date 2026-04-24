@@ -44,6 +44,9 @@ jobs:
       - name: Enforce architecture guard
         run: node scripts/check-architecture.mjs
 
+      - name: Enforce documentation hygiene guard
+        run: node scripts/check-doc-hygiene.mjs
+
   core-quality:
     name: core-quality
     runs-on: ubuntu-latest
