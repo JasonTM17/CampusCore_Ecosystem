@@ -13,7 +13,6 @@ import {
   CSRF_COOKIE,
   CSRF_HEADER,
   REFRESH_TOKEN_COOKIE,
-  extractAccessTokenFromRequest,
   hasBearerAuthorization,
   hasSessionCookie,
 } from '@campuscore/platform-auth';

@@ -26,12 +26,3 @@ scrape_configs:
         target_label: stream
       - target_label: job
         replacement: docker
-
-  - job_name: nginx-file
-    static_configs:
-      - targets:
-          - localhost
-        labels:
-          job: nginx-file
-          service: nginx
-          __path__: /var/log/nginx/*.log
