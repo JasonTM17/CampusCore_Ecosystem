@@ -9,6 +9,13 @@ CampusCore là một nền tảng vận hành đại học theo hướng product
 
 ![Trang chủ công khai CampusCore](./docs/assets/screenshots/campuscore-home-vi.png)
 
+## Trạng thái release
+
+- Release hiện tại: [`v1.4.0`](https://github.com/JasonTM17/CampusCore_FullStack_Individual/releases/tag/v1.4.0)
+- Release notes: [docs/releases/v1.4.0.md](./docs/releases/v1.4.0.md)
+- Topology publish: 9 image trên GHCR và Docker Hub
+- Gate kiểm chứng: CI quality gate, CD publish, manifest verification, image smoke, edge E2E và security scan
+
 ## Điểm nổi bật
 
 - Contract đăng nhập trình duyệt ổn định với `cc_access_token`, `cc_refresh_token`, `cc_csrf`, và `X-CSRF-Token`
