@@ -87,6 +87,8 @@ Các surface vận hành local được giữ internal-only:
 
 Xem thêm:
 
+- Kiểm tra runtime local: `node scripts/run-container-inventory.mjs`
+- Handoff Cloudflare/local edge: [docs/CLOUDFLARE.md](./docs/CLOUDFLARE.md)
 - [docs/OPERATIONS.md](./docs/OPERATIONS.md)
 - [docs/SECURITY.md](./docs/SECURITY.md)
 - [docs/RELEASE.md](./docs/RELEASE.md)

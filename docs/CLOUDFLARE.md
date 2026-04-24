@@ -125,6 +125,52 @@ Expected:
 - `/api/v1/internal/*` trả `403`
 - `/api/v1/health/readiness` trả `403`
 
+## Tunnel troubleshooting
+
+Cloudflare accepting the domain is only DNS/proxy ownership. The app is reachable
+only when an origin is running behind the hostname route.
+
+Common cases:
+
+- **Tunnel is healthy but the hostname does not load**: check the tunnel detail
+  page under **Published application routes**. For the Docker connector, the
+  CampusCore route should point to `http://host.docker.internal:8080`. Do not use
+  the CIDR route or private hostname route for the public web app. A Cloudflare
+  `530` response usually means the hostname is routed through Cloudflare but the
+  tunnel connector or origin service is not currently reachable.
+- **Cloudflare shows a catch-all `http_status:404` rule**: this is expected. It
+  catches unmatched tunnel routes and does not block the published CampusCore
+  hostname.
+- **Root domain or `www` does not resolve**: only the hostname that has a
+  published application route will work. If the route is
+  `campuscore.tienson.io.vn`, then `tienson.io.vn` and `www.tienson.io.vn` still
+  need their own DNS/tunnel routes or a production ingress.
+- **The site loads an older UI**: the tunnel is forwarding correctly, but the
+  local origin is stale. Verify image tags with
+  `kubectl -n campuscore get deploy -o wide` or rerun the local deploy helper so
+  the namespace uses the intended release image, for example `v1.4.0`.
+- **The local helper fails with “Kubernetes cluster is not reachable”**: Docker
+  Desktop Kubernetes is down or `kubectl` is pointed at another context. Start
+  Docker Desktop, enable Kubernetes, and confirm the context before rerunning
+  `node scripts/run-k8s-local-edge.mjs`.
+- **The page is slower through Cloudflare than local edge**: a Tunnel from a home
+  machine is constrained by the local computer, local network upload, and the
+  connector process. This is acceptable for demo/staging; production traffic
+  should use a stable origin such as cloud Kubernetes or a VPS.
+- **Cloudflare Zero Trust asks for a payment method**: Zero Trust may request
+  billing setup for account management even on a free plan. Do not paste payment
+  details into repo docs or scripts. The tunnel token remains secret material and
+  must stay in private environment configuration only.
+
+Quick operator checks:
+
+```bash
+node scripts/run-container-inventory.mjs
+node scripts/run-observability-smoke.mjs
+curl -i https://campuscore.tienson.io.vn/health
+curl -i https://campuscore.tienson.io.vn/vi
+```
+
 ## Các file cần điền trong private overlay
 
 Copy một template ra private repo hoặc private folder ngoài repo public:

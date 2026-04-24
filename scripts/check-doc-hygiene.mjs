@@ -21,12 +21,30 @@ const requiredFiles = [
   'docs/assets/screenshots/campuscore-home-vi.png',
   'docs/releases/TEMPLATE.md',
   'docs/releases/v1.4.0.md',
+  'scripts/run-container-inventory.mjs',
 ];
 
 const requiredReadmeSnippets = [
   './docs/assets/screenshots/campuscore-home-en.png',
   './docs/releases/v1.4.0.md',
   'https://github.com/JasonTM17/CampusCore_FullStack_Individual/releases/tag/v1.4.0',
+  'node scripts/run-container-inventory.mjs',
+  './docs/CLOUDFLARE.md',
+];
+
+const requiredDocSnippets = [
+  {
+    file: 'docs/OPERATIONS.md',
+    snippets: ['## Runtime container inventory', 'CONTAINER_INVENTORY_STRICT=1'],
+  },
+  {
+    file: 'docs/CLOUDFLARE.md',
+    snippets: ['## Tunnel troubleshooting', 'Published application routes'],
+  },
+  {
+    file: 'docs/ARCHITECTURE.md',
+    snippets: ['## Runtime surfaces', 'node scripts/run-container-inventory.mjs'],
+  },
 ];
 
 const mojibakeMarkers = ['Ã', 'Ä', 'Æ', '\uFFFD'];
@@ -38,6 +56,7 @@ function main() {
 
   assertRequiredFiles(errors);
   assertReadmeSnippets(errors);
+  assertRequiredDocSnippets(errors);
   assertNoMojibake(errors);
   assertMarkdownLinks(errors);
 
@@ -64,6 +83,23 @@ function assertReadmeSnippets(errors) {
   for (const snippet of requiredReadmeSnippets) {
     if (!readme.includes(snippet)) {
       errors.push(`README.md is missing required snippet: ${snippet}`);
+    }
+  }
+}
+
+function assertRequiredDocSnippets(errors) {
+  for (const { file, snippets } of requiredDocSnippets) {
+    const fullPath = path.join(repoRoot, file);
+    if (!fs.existsSync(fullPath)) {
+      errors.push(`${file} is missing`);
+      continue;
+    }
+
+    const source = fs.readFileSync(fullPath, 'utf8');
+    for (const snippet of snippets) {
+      if (!source.includes(snippet)) {
+        errors.push(`${file} is missing required snippet: ${snippet}`);
+      }
     }
   }
 }

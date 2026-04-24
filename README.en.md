@@ -97,6 +97,8 @@ Current public images:
 
 ## Related docs
 
+- Runtime inventory: `node scripts/run-container-inventory.mjs`
+- Cloudflare/local edge handoff: [docs/CLOUDFLARE.md](./docs/CLOUDFLARE.md)
 - [README.md](./README.md)
 - [README.vi.md](./README.vi.md)
 - [docs/releases/TEMPLATE.md](./docs/releases/TEMPLATE.md)
