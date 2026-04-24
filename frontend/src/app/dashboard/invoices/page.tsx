@@ -45,6 +45,7 @@ import {
 import { useI18n } from '@/i18n';
 import type { Semester } from '@/types/api';
 import { getLocalizedFlatLabel, getLocalizedName } from '@/lib/academic-content';
+import { getLocalizedInvoiceItemDescription } from '@/lib/finance-content';
 import { toast } from 'sonner';
 
 const invoiceStatusTone: Record<string, string> = {
@@ -1175,7 +1176,10 @@ export default function StudentInvoicesPage() {
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                           <div className="min-w-0">
                             <div className="font-medium text-foreground">
-                              {item.description}
+                              {getLocalizedInvoiceItemDescription(
+                                locale,
+                                item.description,
+                              )}
                             </div>
                             <div className="mt-1 text-sm text-muted-foreground">
                               {formatNumber(item.quantity)} {copy.modal.itemQuantity}{' '}
