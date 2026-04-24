@@ -1,10 +1,16 @@
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { access } from 'node:fs/promises';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const assetDir = path.join(repoRoot, 'docs', 'assets');
+const screenshotPath = path.join(
+  assetDir,
+  'screenshots',
+  'campuscore-home-en.png',
+);
 const sourceSvg = path.join(assetDir, 'github-social-preview.svg');
 const outputPng = path.join(assetDir, 'github-social-preview.png');
 const playwrightPath = path.join(
@@ -16,6 +22,8 @@ const playwrightPath = path.join(
 );
 
 const { chromium } = await import(pathToFileURL(playwrightPath).href);
+
+await access(screenshotPath);
 
 const browser = await chromium.launch({ headless: true });
 
