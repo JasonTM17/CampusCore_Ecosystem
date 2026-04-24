@@ -144,6 +144,8 @@ test('student invoice surface stays localized on the Vietnamese route', async ({
       await expect(page.getByText(/MoMo/)).toBeVisible();
       await expect(page.getByText(/ZaloPay/)).toBeVisible();
       await expect(page.getByText(/VNPay/)).toBeVisible();
+      await expect(page.getByText(/PayPal/)).toBeVisible();
+      await expect(page.getByText(/Visa|thẻ quốc tế/i)).toBeVisible();
     }
   } finally {
     await studentApi.dispose();

@@ -326,11 +326,11 @@ export default function AdminAnalyticsPage() {
             />
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+          <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.3fr)_minmax(380px,0.7fr)]">
             <AdminTableCard
               title={cockpitCopy.panels.enrollmentFlow.title}
               description={cockpitCopy.panels.enrollmentFlow.description}
-              className="h-full"
+              className="h-full min-w-0"
             >
               <div className="flex min-h-[300px] items-end gap-3 overflow-x-auto pb-2">
                 {cockpit.enrollmentTrends.map((trend) => {
@@ -400,37 +400,39 @@ export default function AdminAnalyticsPage() {
               </div>
             </AdminTableCard>
 
-            <AdminTableCard
-              title={cockpitCopy.panels.actionQueue.title}
-              description={cockpitCopy.panels.actionQueue.description}
-              className="h-full"
-            >
-              {attentionQueue.length === 0 ? (
-                <EmptyState
-                  title={cockpitCopy.labels.noAttention}
-                  description={
-                    locale === 'vi'
-                      ? 'Các tín hiệu đăng ký, thanh toán và thông báo đang ở trạng thái ổn định.'
-                      : 'Registration, payment, and notification signals are currently steady.'
-                  }
-                  className="border-none bg-transparent px-0 py-0"
-                />
-              ) : (
-                <div className="space-y-3">
-                  {attentionQueue.map((item) => (
-                    <div
-                      key={`${item.title}-${item.detail}`}
-                      className={`rounded-lg border p-4 ${item.tone}`}
-                    >
-                      <div className="font-medium text-foreground">{item.title}</div>
-                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                        {item.detail}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </AdminTableCard>
+            <div data-testid="admin-analytics-action-queue" className="min-w-0">
+              <AdminTableCard
+                title={cockpitCopy.panels.actionQueue.title}
+                description={cockpitCopy.panels.actionQueue.description}
+                className="h-full min-w-0"
+              >
+                {attentionQueue.length === 0 ? (
+                  <EmptyState
+                    title={cockpitCopy.labels.noAttention}
+                    description={
+                      locale === 'vi'
+                        ? 'Các tín hiệu đăng ký, thanh toán và thông báo đang ở trạng thái ổn định.'
+                        : 'Registration, payment, and notification signals are currently steady.'
+                    }
+                    className="border-none bg-transparent px-0 py-0"
+                  />
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-1">
+                    {attentionQueue.map((item) => (
+                      <div
+                        key={`${item.title}-${item.detail}`}
+                        className={`rounded-lg border p-4 ${item.tone}`}
+                      >
+                        <div className="font-medium text-foreground">{item.title}</div>
+                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                          {item.detail}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </AdminTableCard>
+            </div>
           </div>
 
           <div className="grid gap-6 xl:grid-cols-2">

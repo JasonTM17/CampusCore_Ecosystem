@@ -62,7 +62,7 @@ export default defineConfig({
           },
         },
         {
-          command: 'npm run dev -- --hostname 127.0.0.1 --port 3100',
+          command: 'npm run dev -- --hostname 127.0.0.1 --port 3101',
           cwd: __dirname,
           url: frontendBaseURL,
           timeout: 120_000,
