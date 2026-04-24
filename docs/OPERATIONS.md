@@ -33,6 +33,47 @@ One-shot init hiện tại:
 - Kubernetes local destroy: `node scripts/run-k8s-local-destroy.mjs`
 - Cloudflare local tunnel: `node scripts/run-cloudflare-tunnel-local.mjs`
 - Cloudflare local tunnel stop: `node scripts/stop-cloudflare-tunnel-local.mjs`
+- Runtime container inventory: `node scripts/run-container-inventory.mjs`
+
+## Runtime container inventory
+
+Use the read-only inventory when the local machine has many containers from
+CampusCore, monitoring, one-shot init jobs, and older projects:
+
+```bash
+node scripts/run-container-inventory.mjs
+```
+
+The script does not stop, remove, or mutate Docker containers or Kubernetes
+resources. It reports:
+
+- Docker container name, image, health, restart count, exposed ports, and recent
+  error-log signal summary.
+- Kubernetes pods, deployments, services, image tags, readiness, restart count,
+  and recent error-log signal summary for the `campuscore` namespace.
+- A clear classification for each item:
+  - `healthy`: long-running CampusCore runtime or Kubernetes workload is ready.
+  - `expected exited`: completed init/bootstrap jobs or transient probe
+    containers that are not part of the runtime path.
+  - `needs attention`: CampusCore runtime item with unhealthy status, unexpected
+    exit, or restart history. Recent log signals are also printed beside healthy
+    items so operators can decide whether they are normal component noise or a
+    follow-up issue.
+  - `external residue`: containers from other projects or old experiments. The
+    audit records them but never removes them.
+
+`campuscore-mailhog` is local-only developer tooling and may appear as running
+without a Docker healthcheck. That is informational, not a production runtime
+failure.
+
+For CI-like behavior, set strict mode:
+
+```bash
+CONTAINER_INVENTORY_STRICT=1 node scripts/run-container-inventory.mjs
+```
+
+Strict mode exits non-zero when a CampusCore runtime item lands in
+`needs attention`. It still ignores external residue.
 
 ## Health model
 

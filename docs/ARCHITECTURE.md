@@ -17,6 +17,22 @@ CampusCore hiện chạy như một stack microservices production-like với m�
 | `frontend`             | Next.js standalone web app                                                                       |
 | `nginx`                | single public edge and path router                                                               |
 
+## Runtime surfaces
+
+CampusCore has several runtime surfaces that intentionally serve different
+operator needs:
+
+| Surface | Purpose | Public exposure |
+| --- | --- | --- |
+| Docker Compose | Local development, image smoke, observability smoke, and fast runtime inspection. | Local machine only. `nginx` may expose the app on localhost; Grafana/Prometheus stay operator-only. |
+| Docker Desktop Kubernetes | Production-like local handoff for Kustomize manifests, namespace isolation, and edge contract validation. | Local machine only unless explicitly routed through Cloudflare Tunnel. |
+| Cloudflare Tunnel | Demo/staging exposure for a local or private origin when there is no public LoadBalancer. | Only the configured public hostname is exposed; tunnel tokens stay private. |
+| Cloudflare DNS/WAF/CDN + Ingress | Preferred production-style path when a real cloud Kubernetes ingress has a public address. | Browser traffic enters Cloudflare first, then reaches the ingress origin. |
+| Observability stack | Prometheus metrics, Loki logs, Tempo traces, and Grafana dashboards for operators. | Internal/operator-only. `/metrics`, logs, and traces are not routed through the public edge. |
+
+Use `node scripts/run-container-inventory.mjs` to read the local Docker/K8s
+runtime state without deleting or restarting anything.
+
 ## Data layout
 
 - PostgreSQL dùng một cluster chung nhưng tách schema theo service.

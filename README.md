@@ -95,6 +95,9 @@ Local operator tooling stays internal-only:
 
 See [docs/OPERATIONS.md](./docs/OPERATIONS.md), [docs/SECURITY.md](./docs/SECURITY.md), and [docs/RELEASE.md](./docs/RELEASE.md) for runtime and release details.
 
+For local operator checks, run `node scripts/run-container-inventory.mjs` and
+read the Cloudflare/local edge notes in [docs/CLOUDFLARE.md](./docs/CLOUDFLARE.md).
+
 ## Documentation Map
 
 - [README.en.md](./README.en.md)
