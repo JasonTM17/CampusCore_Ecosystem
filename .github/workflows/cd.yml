@@ -2,6 +2,7 @@ name: CD - Gated Registry Publish
 
 on:
   push:
+    branches: [master, main]
     tags:
       - 'v*.*.*'
 
@@ -26,9 +27,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  branch-preflight:
+    name: Branch CD preflight
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/heads/')
+    steps:
+      - name: Explain gated publish behavior
+        run: |
+          {
+            echo "## Branch CD preflight"
+            echo ""
+            echo "- Branch: $GITHUB_REF_NAME"
+            echo "- Source SHA: $GITHUB_SHA"
+            echo "- Registry publishing is intentionally gated to semantic release tags only."
+            echo "- Push a tag like v1.4.0 to build and publish the 9 release images."
+          } >> "$GITHUB_STEP_SUMMARY"
+
   release-plan:
     name: Resolve image publish plan
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
     outputs:
       image_tag: ${{ steps.gate.outputs.image_tag }}
       short_sha: ${{ steps.gate.outputs.short_sha }}
