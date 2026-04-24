@@ -49,7 +49,7 @@ const engagementDatabaseUrl = publicDatabaseUrl.replace(
 const peopleDatabaseUrl = publicDatabaseUrl.replace('schema=public', 'schema=people');
 const analyticsDatabaseUrl = publicDatabaseUrl;
 
-const frontendBaseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3100';
+const frontendBaseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3101';
 const frontendPort = Number(new URL(frontendBaseURL).port || '80');
 const proxyPort = Number(process.env.E2E_GATEWAY_PORT ?? '4180');
 const apiBaseURL = process.env.E2E_API_URL ?? `http://127.0.0.1:${proxyPort}/api/v1`;

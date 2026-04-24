@@ -12,6 +12,7 @@ const docRoots = [
   'README.vi.md',
   'docs',
   '.github',
+  'load-tests',
 ];
 
 const requiredFiles = [
@@ -22,6 +23,8 @@ const requiredFiles = [
   'docs/releases/TEMPLATE.md',
   'docs/releases/v1.4.0.md',
   'scripts/run-container-inventory.mjs',
+  'scripts/run-production-validation.mjs',
+  'load-tests/src/production-validation.js',
 ];
 
 const requiredReadmeSnippets = [
@@ -45,9 +48,17 @@ const requiredDocSnippets = [
     file: 'docs/ARCHITECTURE.md',
     snippets: ['## Runtime surfaces', 'node scripts/run-container-inventory.mjs'],
   },
+  {
+    file: 'load-tests/README.md',
+    snippets: [
+      '## Production validation profiles',
+      'node scripts/run-production-validation.mjs --profile=balanced',
+      'Dockerized k6 fallback',
+    ],
+  },
 ];
 
-const mojibakeMarkers = ['Ã', 'Ä', 'Æ', '\uFFFD'];
+const mojibakeMarkers = ['Ã', 'Ä', 'Æ', 'Â', 'â€', '\uFFFD'];
 const textFilePattern = /\.(?:md|mdx|yml|yaml)$/iu;
 const markdownLinkPattern = /!?\[[^\]]*\]\(([^)]+)\)/gu;
 

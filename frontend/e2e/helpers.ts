@@ -11,7 +11,7 @@ import { io, type Socket } from 'socket.io-client';
 export const isExternalStack = process.env.E2E_EXTERNAL_STACK === '1';
 export const frontendBaseURL =
   process.env.E2E_BASE_URL ??
-  (isExternalStack ? 'http://127.0.0.1' : 'http://127.0.0.1:3100');
+  (isExternalStack ? 'http://127.0.0.1' : 'http://127.0.0.1:3101');
 export const apiBaseURL =
   process.env.E2E_API_URL ??
   (isExternalStack

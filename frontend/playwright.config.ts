@@ -8,7 +8,7 @@ const apiBaseURL =
   (isExternalStack ? 'http://127.0.0.1/api/v1' : 'http://127.0.0.1:4100/api/v1');
 const frontendBaseURL =
   process.env.E2E_BASE_URL ??
-  (isExternalStack ? 'http://127.0.0.1' : 'http://127.0.0.1:3100');
+  (isExternalStack ? 'http://127.0.0.1' : 'http://127.0.0.1:3101');
 const databaseUrl =
   process.env.E2E_DATABASE_URL ??
   'postgresql://campuscore:campuscore_password@127.0.0.1:5433/campuscore_e2e?schema=public';
