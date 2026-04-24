@@ -1,78 +1,24 @@
 # CampusCore (Tiếng Việt)
 
-CampusCore là một microservices portfolio cho bài toán quản lý học vụ đại học. Repo hiện chạy với một `core-api`, một `auth-service`, sáu domain service (`notification-service`, `finance-service`, `academic-service`, `engagement-service`, `people-service`, `analytics-service`), một `frontend`, và một `nginx gateway`.
+CampusCore là một nền tảng vận hành đại học theo hướng production-like, được xây như một portfolio microservices có thể release, kiểm chứng và handoff thật sự. Hệ thống hiện kết hợp frontend Next.js, các dịch vụ NestJS, một `nginx` public edge duy nhất, giao diện song ngữ, thanh toán sinh viên ở mức sandbox-ready, và lớp observability dành cho operator.
 
-## Stack hiện tại
+- Website public: [https://tienson.io.vn](https://tienson.io.vn)
+- Release mới nhất: [`v1.4.0`](./docs/releases/v1.4.0.md)
+- Tài liệu tiếng Anh: [README.en.md](./README.en.md)
+- Tài liệu gốc repo: [README.md](./README.md)
 
-- `core-api`: audit logs, finance-context, compatibility shadow, public health
-- `auth-service`: auth, sessions, users, roles, permissions, JWT cookie + CSRF contract
-- `notification-service`: inbox, unread count, websocket `/notifications`
-- `finance-service`: invoices, payments, scholarships, finance events
-- `academic-service`: public academic APIs và academic master-data
-- `engagement-service`: thông báo, phiếu hỗ trợ
-- `people-service`: service công khai sở hữu `students` và `lecturers`
-- `analytics-service`: service công khai sở hữu `/api/v1/analytics/*`
-- `frontend`: Next.js 15 standalone runtime
-- `nginx`: public edge duy nhất
+## Điểm nổi bật
 
-## Public contract
+- Contract đăng nhập trình duyệt ổn định với `cc_access_token`, `cc_refresh_token`, `cc_csrf`, và `X-CSRF-Token`
+- Shell song ngữ với route canonical `/en/*` và `/vi/*`
+- Topology release gồm 9 image public cho platform, domain service và frontend
+- Luồng thanh toán sinh viên sandbox-ready cho VNPay, ZaloPay, MoMo, PayPal và hosted card checkout
+- Lớp observability cho operator với Grafana, Prometheus, Loki, Promtail và Tempo
+- Đường local-first bằng Docker Compose và đường handoff Kubernetes có guardrail rõ ràng
 
-Public path phía frontend không đổi:
+## Topology runtime
 
-- `/api/v1/students/*` -> `people-service`
-- `/api/v1/lecturers/*` -> `people-service`
-- `/api/v1/notifications/*`, `/socket.io/*` -> `notification-service`
-- `/api/v1/finance/*` -> `finance-service`
-- public academic routes -> `academic-service`
-- announcements và support tickets -> `engagement-service`
-- `/api/v1/analytics/*` -> `analytics-service`
-- `/api/v1/auth/*`, `/api/v1/users/*`, `/api/v1/roles/*`, `/api/v1/permissions/*` -> `auth-service`
-- `/health` -> `core-api`
-
-Không public:
-
-- `/internal/*`
-- `/api/v1/internal/*`
-- readiness nội bộ
-
-## Auth model
-
-Browser flow dùng:
-
-- `cc_access_token`
-- `cc_refresh_token`
-- `cc_csrf`
-- `X-CSRF-Token`
-
-Legacy bearer vẫn được giữ để tương thích.
-
-## Internal contract canonical
-
-Internal service contract canonical hiện tại là:
-
-- `/api/v1/internal/academic-context/*`
-- `/api/v1/internal/auth-context/*`
-- `/api/v1/internal/finance-context/*`
-
-## Shared auth contract
-
-Toàn bộ service backend đang dùng chung package nội bộ `packages/platform-auth` làm nguồn chuẩn cho:
-
-- cookie `cc_access_token`, `cc_refresh_token`, `cc_csrf`
-- header `X-CSRF-Token`
-- header `X-Service-Token`
-- header `X-Health-Key`
-- helper parse cookie, JWT claims, và wrapper auth dùng chung
-
-Các route này chỉ dùng cho service-to-service với `X-Service-Token`.
-
-## Release policy
-
-- Branch push chỉ chạy CI
-- Public registry chỉ publish từ tag `vX.Y.Z`
-- `latest` chỉ cập nhật cùng semver release
-
-Các image public hiện tại:
+CampusCore hiện publish 9 image public:
 
 1. `campuscore-backend`
 2. `campuscore-auth-service`
@@ -84,13 +30,64 @@ Các image public hiện tại:
 8. `campuscore-analytics-service`
 9. `campuscore-frontend`
 
-## Tài liệu liên quan
+Public edge được giữ gọn và rõ vai trò:
+
+- `nginx` là gateway duy nhất đi ra trình duyệt
+- `frontend` là product shell
+- `core-api` giữ health và compatibility ở tầng platform
+- các domain service sở hữu public contract của chính mình phía sau gateway
+
+## Boundary public hiện tại
+
+- `/api/v1/auth/*`, `/api/v1/users/*`, `/api/v1/roles/*`, `/api/v1/permissions/*` -> `auth-service`
+- `/api/v1/students/*`, `/api/v1/lecturers/*` -> `people-service`
+- `/api/v1/notifications/*`, `/socket.io/*` -> `notification-service`
+- `/api/v1/finance/*` -> `finance-service`
+- public academic routes -> `academic-service`
+- announcements và support tickets -> `engagement-service`
+- `/api/v1/analytics/*` -> `analytics-service`
+- `/health` -> `core-api`
+
+Không public:
+
+- `/internal/*`
+- `/api/v1/internal/*`
+- readiness nội bộ
+- các surface monitoring nội bộ như `/metrics`
+
+## Vì sao repo này đáng giữ ở dạng microservices
+
+CampusCore được tổ chức để gần với sản phẩm thương mại hơn là demo:
+
+- auth và IAM có owner riêng
+- học vụ, tài chính, tương tác, people data và analytics tách boundary rõ ràng
+- release được verify theo image đã publish, không chỉ theo source
+- trải nghiệm student và operator đều là surface chính thức
+- local development vẫn gần runtime thật nhưng không giả vờ là production
+
+## Surface cho operator
+
+Các surface vận hành local được giữ internal-only:
+
+- CampusCore app qua edge local hoặc domain
+- Admin analytics cockpit trong app
+- Grafana tại `127.0.0.1:3002`
+- Prometheus tại `127.0.0.1:9090`
+
+Xem thêm:
+
+- [docs/OPERATIONS.md](./docs/OPERATIONS.md)
+- [docs/SECURITY.md](./docs/SECURITY.md)
+- [docs/RELEASE.md](./docs/RELEASE.md)
+
+## Bản đồ tài liệu
 
 - [README.md](./README.md)
 - [README.en.md](./README.en.md)
-- [k8s/README.md](./k8s/README.md)
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - [docs/OPERATIONS.md](./docs/OPERATIONS.md)
 - [docs/SECURITY.md](./docs/SECURITY.md)
 - [docs/RELEASE.md](./docs/RELEASE.md)
-- [DOCKER_HUB.md](./DOCKER_HUB.md)
+- [docs/CLOUDFLARE.md](./docs/CLOUDFLARE.md)
+- [docs/K8S_HANDOFF.md](./docs/K8S_HANDOFF.md)
+- [k8s/README.md](./k8s/README.md)
