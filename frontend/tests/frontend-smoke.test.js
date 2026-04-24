@@ -775,10 +775,15 @@ test('key frontend surfaces label icon-only buttons', () => {
 
 test('student invoice checkout uses provider handoff instead of inline sandbox status controls', () => {
   const source = read('src/app/dashboard/invoices/page.tsx');
+  const adminInvoiceSource = read('src/app/admin/invoices/page.tsx');
+  const financeContentSource = read('src/lib/finance-content.ts');
 
   assert.match(source, /handleContinueCheckout/);
   assert.match(source, /nextAction\?\.flow/);
   assert.doesNotMatch(source, /handleSandboxSignal/);
+  assert.match(source, /getLocalizedInvoiceItemDescription/);
+  assert.match(adminInvoiceSource, /getLocalizedInvoiceItemDescription/);
+  assert.match(financeContentSource, /Học phí và dịch vụ campus/);
 });
 
 test('admin CRUD routes rely on localized AdminFrame back labels', () => {

@@ -33,6 +33,7 @@ import {
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
 import { getLocalizedName } from '@/lib/academic-content';
+import { getLocalizedInvoiceItemDescription } from '@/lib/finance-content';
 
 interface Invoice {
   id: string;
@@ -673,7 +674,9 @@ export default function AdminInvoicesPage() {
                   <tbody className="divide-y divide-border/60">
                     {selectedInvoice.items?.map((item) => (
                       <tr key={item.id}>
-                        <td className="py-3 pr-4 text-foreground">{item.description}</td>
+                        <td className="py-3 pr-4 text-foreground">
+                          {getLocalizedInvoiceItemDescription(locale, item.description)}
+                        </td>
                         <td className="py-3 pr-4 text-right text-muted-foreground">
                           {item.quantity}
                         </td>
