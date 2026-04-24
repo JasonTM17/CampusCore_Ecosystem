@@ -10,7 +10,10 @@ const frontendDir = path.join(repoRoot, 'frontend');
 const composeFile = path.join(repoRoot, 'docker-compose.e2e.yml');
 const logsDir = path.join(frontendDir, 'test-results', 'image-smoke-stack');
 const projectName = process.env.IMAGE_SMOKE_COMPOSE_PROJECT ?? 'campuscore-image-smoke';
-const edgePort = Number(process.env.IMAGE_SMOKE_EDGE_PORT ?? '8080');
+// Use a high default host port so image-smoke does not collide with a live
+// local edge or unrelated services that already occupy 8080 on developer
+// machines.
+const edgePort = Number(process.env.IMAGE_SMOKE_EDGE_PORT ?? '18081');
 const baseURL = `http://127.0.0.1:${edgePort}`;
 const internalEdgeURL = process.env.IMAGE_SMOKE_INTERNAL_EDGE_URL ?? 'http://nginx';
 const internalEdgeProbeService =
