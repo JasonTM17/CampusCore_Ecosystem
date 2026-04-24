@@ -9,6 +9,8 @@ CampusCore là một nền tảng vận hành đại học theo hướng product
 
 ![Trang chủ công khai CampusCore](./docs/assets/screenshots/campuscore-home-vi.png)
 
+> **Ghi chú về domain:** `https://tienson.io.vn` đang được quản lý bằng Cloudflare. Domain chỉ vào được CampusCore khi có production origin hoặc Cloudflare Tunnel/local edge trong tài liệu đang chạy. Nếu domain chưa vào được, hãy dùng hướng dẫn local edge trong [docs/CLOUDFLARE.md](./docs/CLOUDFLARE.md) hoặc chạy stack local bằng các lệnh bên dưới.
+
 ## Trạng thái release
 
 - Release hiện tại: [`v1.4.0`](https://github.com/JasonTM17/CampusCore_FullStack_Individual/releases/tag/v1.4.0)

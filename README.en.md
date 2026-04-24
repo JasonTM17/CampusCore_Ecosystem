@@ -4,6 +4,8 @@ CampusCore is a production-like university operations platform built as a releas
 
 ![CampusCore public homepage](./docs/assets/screenshots/campuscore-home-en.png)
 
+> **Live domain note:** `https://tienson.io.vn` is Cloudflare-managed. It resolves to CampusCore only when a production origin or the documented Cloudflare Tunnel/local edge is running. If the domain is unavailable, use the local edge workflow in [docs/CLOUDFLARE.md](./docs/CLOUDFLARE.md) or run the stack locally from the commands below.
+
 ## Release status
 
 - Current release: [`v1.4.0`](https://github.com/JasonTM17/CampusCore_FullStack_Individual/releases/tag/v1.4.0)
