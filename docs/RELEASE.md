@@ -2,19 +2,19 @@
 
 ## Release policy
 
-- Branch push chỉ chạy CI.
-- Public registry chỉ publish từ tag semver `vX.Y.Z`.
-- `latest` chỉ được cập nhật khi có semver release.
-- GitHub Actions ưu tiên `DOCKERHUB_TOKEN`; `DOCKERHUB_PASSWORD` chỉ còn là legacy fallback.
-- Badge CD trong `README.md` phải trỏ tới tag release mới nhất vì workflow CD chỉ chạy từ semver tag.
+- Branch pushes run CI only.
+- Public registries publish only from semver tags such as `vX.Y.Z`.
+- `latest` moves only with a semver release.
+- GitHub Actions prefers `DOCKERHUB_TOKEN`; `DOCKERHUB_PASSWORD` remains a legacy fallback only.
+- The CD badge in [README.md](../README.md) should point to the latest public semver tag because the gated publish workflow runs from release tags.
 
-Release công khai kế tiếp của vòng bilingual frontend, student-core payments, observability, và analytics cockpit được chuẩn bị là **`v1.4.0`**. `v1.3.6` vẫn là baseline public trước đó cho Kubernetes/local edge hardening.
+The current public release is **`v1.4.0`**. It follows the earlier `v1.3.6` Kubernetes and local-edge hardening baseline.
 
 ## Required quality gate
 
-Một tag release chỉ hợp lệ khi `quality-gate` xanh trên đúng SHA đó.
+A release tag is valid only when `quality-gate` succeeds on that exact SHA.
 
-Lanes bắt buộc hiện tại:
+Current required lanes:
 
 - `core-quality`
 - `core-integration`
@@ -42,7 +42,7 @@ Lanes bắt buộc hiện tại:
 
 ## Public images
 
-Release hiện tại phải publish đủ 9 image:
+Each public release must publish these nine images:
 
 1. `campuscore-backend`
 2. `campuscore-auth-service`
@@ -54,20 +54,21 @@ Release hiện tại phải publish đủ 9 image:
 8. `campuscore-analytics-service`
 9. `campuscore-frontend`
 
-Tag strategy cho mỗi release:
+Every release is verified with:
 
-- semver tag, ví dụ `v1.4.0`
-- short SHA immutable tag
+- a semver tag such as `v1.4.0`
+- an immutable short SHA tag
 - `latest`
 
 ## Post-publish verification
 
-- verify manifest của đủ 9 image bằng `node scripts/verify-release-manifests.mjs`
-- verify digest và SBOM/provenance trong release summary
-- smoke published images qua GHCR
-- smoke published images qua Docker Hub nếu credentials đã cấu hình
+After CD finishes, verify:
 
-Kiểm tra local sau release:
+- manifests for all nine images with `node scripts/verify-release-manifests.mjs`
+- published GHCR images with image smoke
+- published Docker Hub images when Docker Hub credentials are configured
+
+Example local verification:
 
 ```powershell
 $env:RELEASE_TAG='v1.4.0'
@@ -75,27 +76,26 @@ $env:RELEASE_SHORT_SHA=(git rev-parse --short HEAD).Trim()
 node scripts/verify-release-manifests.mjs
 ```
 
-Script này kiểm GHCR và Docker Hub cho đủ 9 image với tag semver, short SHA và `latest`. Mặc định script dùng concurrency `4`, timeout `45s` cho mỗi manifest và retry `2` lần để tránh lỗi mạng cục bộ làm hỏng kết luận. Nếu Docker Hub trả rate-limit `429` khi verify cục bộ, script fallback sang Docker Hub tag API để xác nhận tag public vẫn tồn tại. Nếu verify local bị timeout nhưng job CD `Verify published release artifacts` đã xanh trên GitHub runner, release vẫn được coi là hợp lệ.
+The verifier checks GHCR and Docker Hub for all nine images across the semver tag, short SHA, and `latest`. It uses modest concurrency, per-request timeouts, and retries to reduce false negatives from transient registry behavior.
 
-## Kubernetes hand-off
+## Kubernetes handoff
 
-- Repo hiện có manifests Kustomize dưới `k8s/` cho topology 9 image.
-- Base deploy target mặc định dùng GHCR public images của release hiện tại.
-- Local-first path dùng `k8s/overlays/docker-desktop` cùng:
-  - `node scripts/run-k8s-preflight.mjs`
-  - `node scripts/run-k8s-local-smoke.mjs`
-- Nếu cần giữ nguyên stack để kiểm trực tiếp bằng Docker Desktop Kubernetes UI:
-  - `node scripts/run-k8s-local-deploy.mjs`
-  - đổi namespace UI từ `default` sang `campuscore`
-  - khi dọn local cluster state, chạy `node scripts/run-k8s-local-destroy.mjs`
-- Khi cần chuyển sang Docker Hub, chỉ cần override image names trong Kustomize thay vì đổi runtime topology.
-- Handoff staging/prod tiếp tục đi theo hai lớp:
-  - `k8s/overlays/staging-generic` / `k8s/overlays/prod-generic` cho lớp cloud-agnostic công khai
-  - `k8s/overlays/staging-operator` / `k8s/overlays/prod-operator` cho cluster đã có `ExternalSecret` + `cert-manager`
-- Template copy-out cho overlay private nằm tại `k8s/templates/private-operator/staging` và `k8s/templates/private-operator/prod`.
-- Checklist ingress/TLS/secrets nằm tại `docs/K8S_HANDOFF.md`; nếu đặt domain qua Cloudflare, dùng thêm `docs/CLOUDFLARE.md`.
-- Preflight release phải render sạch cả public overlays lẫn private operator template pack:
-  - `kubectl kustomize k8s/templates/private-operator/staging`
-  - `kubectl kustomize k8s/templates/private-operator/staging/bootstrap`
-  - `kubectl kustomize k8s/templates/private-operator/prod`
-  - `kubectl kustomize k8s/templates/private-operator/prod/bootstrap`
+The repository ships Kustomize manifests under `k8s/` for the full nine-image topology.
+
+Local-first path:
+
+- `node scripts/run-k8s-preflight.mjs`
+- `node scripts/run-k8s-local-smoke.mjs`
+- `node scripts/run-k8s-local-deploy.mjs`
+- `node scripts/run-k8s-local-edge.mjs`
+
+Public/operator handoff path:
+
+- `k8s/overlays/staging-generic`
+- `k8s/overlays/prod-generic`
+- `k8s/overlays/staging-operator`
+- `k8s/overlays/prod-operator`
+- `k8s/templates/private-operator/staging`
+- `k8s/templates/private-operator/prod`
+
+Use [docs/K8S_HANDOFF.md](./K8S_HANDOFF.md) for staging and production overlay handoff, and [docs/CLOUDFLARE.md](./CLOUDFLARE.md) when the public domain is fronted through Cloudflare.
