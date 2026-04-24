@@ -1,6 +1,8 @@
 # CampusCore (English)
 
-CampusCore is a production-like university operations microservices portfolio. The repository currently runs with one `core-api`, one `auth-service`, six domain services (`notification-service`, `finance-service`, `academic-service`, `engagement-service`, `people-service`, `analytics-service`), one `frontend`, and one `nginx gateway`.
+CampusCore is a production-like university operations platform built as a release-verified microservices portfolio. It brings together a Next.js product shell, NestJS domain services, bilingual UX, student payments, operator observability, and Kubernetes handoff assets without changing the public auth/session contract.
+
+![CampusCore public homepage](./docs/assets/screenshots/campuscore-home-en.png)
 
 ## Current stack
 
@@ -88,6 +90,8 @@ Current public images:
 
 - [README.md](./README.md)
 - [README.vi.md](./README.vi.md)
+- [docs/releases/TEMPLATE.md](./docs/releases/TEMPLATE.md)
+- [docs/releases/v1.4.0.md](./docs/releases/v1.4.0.md)
 - [k8s/README.md](./k8s/README.md)
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - [docs/OPERATIONS.md](./docs/OPERATIONS.md)

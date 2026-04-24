@@ -7,6 +7,8 @@ CampusCore là một nền tảng vận hành đại học theo hướng product
 - Tài liệu tiếng Anh: [README.en.md](./README.en.md)
 - Tài liệu gốc repo: [README.md](./README.md)
 
+![Trang chủ công khai CampusCore](./docs/assets/screenshots/campuscore-home-vi.png)
+
 ## Điểm nổi bật
 
 - Contract đăng nhập trình duyệt ổn định với `cc_access_token`, `cc_refresh_token`, `cc_csrf`, và `X-CSRF-Token`
@@ -84,6 +86,8 @@ Xem thêm:
 
 - [README.md](./README.md)
 - [README.en.md](./README.en.md)
+- [docs/releases/TEMPLATE.md](./docs/releases/TEMPLATE.md)
+- [docs/releases/v1.4.0.md](./docs/releases/v1.4.0.md)
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - [docs/OPERATIONS.md](./docs/OPERATIONS.md)
 - [docs/SECURITY.md](./docs/SECURITY.md)

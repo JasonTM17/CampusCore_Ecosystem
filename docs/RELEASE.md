@@ -78,6 +78,15 @@ node scripts/verify-release-manifests.mjs
 
 The verifier checks GHCR and Docker Hub for all nine images across the semver tag, short SHA, and `latest`. It uses modest concurrency, per-request timeouts, and retries to reduce false negatives from transient registry behavior.
 
+## Release notes
+
+Each release should have a tracked note under `docs/releases/` and a matching GitHub release page.
+
+- Use [docs/releases/TEMPLATE.md](./releases/TEMPLATE.md) as the starting point.
+- Keep compatibility and operator notes explicit so the release page is useful without reading the full repo.
+- Attach the current GitHub social preview PNG when the release includes repo-facing asset changes.
+- Do not move an existing release tag to include docs-only follow-up commits; publish a new patch tag only when runtime artifacts change.
+
 ## Kubernetes handoff
 
 The repository ships Kustomize manifests under `k8s/` for the full nine-image topology.

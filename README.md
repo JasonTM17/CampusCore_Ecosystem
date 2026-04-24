@@ -15,6 +15,8 @@ CampusCore is a production-like university operations platform built as a releas
 - English docs: [README.en.md](./README.en.md)
 - Vietnamese docs: [README.vi.md](./README.vi.md)
 
+![CampusCore public homepage](./docs/assets/screenshots/campuscore-home-en.png)
+
 ## Highlights
 
 - Stable browser auth contract with `cc_access_token`, `cc_refresh_token`, `cc_csrf`, and `X-CSRF-Token`
@@ -88,6 +90,8 @@ See [docs/OPERATIONS.md](./docs/OPERATIONS.md), [docs/SECURITY.md](./docs/SECURI
 
 - [README.en.md](./README.en.md)
 - [README.vi.md](./README.vi.md)
+- [docs/releases/TEMPLATE.md](./docs/releases/TEMPLATE.md)
+- [docs/releases/v1.4.0.md](./docs/releases/v1.4.0.md)
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - [docs/OPERATIONS.md](./docs/OPERATIONS.md)
 - [docs/SECURITY.md](./docs/SECURITY.md)
