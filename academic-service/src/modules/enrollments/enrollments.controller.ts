@@ -31,9 +31,13 @@ export class EnrollmentsController {
   @ApiOperation({ summary: 'Enroll current student in a section' })
   enrollStudent(
     @CurrentStudent() studentId: string,
-    @Body() body: { sectionId: string },
+    @Body() body: { sectionId: string; locale?: 'en' | 'vi' },
   ) {
-    return this.enrollmentsService.enrollStudent(studentId, body.sectionId);
+    return this.enrollmentsService.enrollStudent(
+      studentId,
+      body.sectionId,
+      body.locale,
+    );
   }
 
   @Post(':id/drop')

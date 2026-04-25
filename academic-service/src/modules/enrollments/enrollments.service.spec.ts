@@ -155,6 +155,7 @@ describe('EnrollmentsService', () => {
             email: expect.objectContaining({
               to: 'student@example.edu',
               template: 'enrollment.waitlisted',
+              locale: 'en',
               courseNameVi: 'Hệ thống phân tán',
               semesterNameVi: 'Học kỳ Xuân 2025',
             }),
@@ -205,7 +206,7 @@ describe('EnrollmentsService', () => {
         },
       });
 
-      const result = await service.enrollStudent(studentId, sectionId);
+      const result = await service.enrollStudent(studentId, sectionId, 'vi');
 
       expect(mockPrisma.enrollment.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -236,6 +237,7 @@ describe('EnrollmentsService', () => {
             email: expect.objectContaining({
               to: 'student@example.edu',
               template: 'enrollment.confirmed',
+              locale: 'vi',
               studentName: 'Ava Nguyen',
               courseCode: 'CS301',
               courseName: 'Distributed Systems',

@@ -106,6 +106,7 @@ type EnrollmentNotificationTemplate =
   | 'enrollment.waitlisted'
   | 'enrollment.promoted'
   | 'enrollment.dropped';
+type EnrollmentNotificationLocale = 'en' | 'vi';
 
 @Injectable()
 export class EnrollmentsService {
@@ -117,7 +118,11 @@ export class EnrollmentsService {
     private rabbitMQService: RabbitMQService,
   ) {}
 
-  async enrollStudent(studentId: string, sectionId: string) {
+  async enrollStudent(
+    studentId: string,
+    sectionId: string,
+    locale: EnrollmentNotificationLocale = 'en',
+  ) {
     const result = await this.withSerializableTransaction(async (tx) => {
       const section = await this.getSectionEnrollmentContext(tx, sectionId);
 
@@ -162,11 +167,16 @@ export class EnrollmentsService {
     });
 
     if (result.kind === 'enrollment') {
-      this.publishEnrollmentNotification(result.record, 'enrollment.confirmed');
+      this.publishEnrollmentNotification(
+        result.record,
+        'enrollment.confirmed',
+        locale,
+      );
     } else {
       this.publishEnrollmentNotification(
         result.record,
         'enrollment.waitlisted',
+        locale,
       );
     }
 
@@ -1205,8 +1215,9 @@ export class EnrollmentsService {
   private publishEnrollmentNotification(
     enrollment: EnrollmentNotificationRecord,
     template: EnrollmentNotificationTemplate,
+    locale: EnrollmentNotificationLocale = 'en',
   ) {
-    this.publishEnrollmentNotificationEvent(enrollment, template).catch(
+    this.publishEnrollmentNotificationEvent(enrollment, template, locale).catch(
       (error) => {
         this.logger.warn(
           `Enrollment notification fanout failed for ${enrollment.id}: ${
@@ -1220,6 +1231,7 @@ export class EnrollmentsService {
   private async publishEnrollmentNotificationEvent(
     enrollment: EnrollmentNotificationRecord,
     template: EnrollmentNotificationTemplate,
+    locale: EnrollmentNotificationLocale,
   ) {
     const user = enrollment.student.user;
     const course = enrollment.section?.course;
@@ -1295,7 +1307,7 @@ export class EnrollmentsService {
         email: {
           to: user.email,
           template,
-          locale: 'en',
+          locale,
           studentName:
             `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() ||
             user.email,

@@ -1,4 +1,9 @@
 export const PEOPLE_SHADOW_QUEUE = 'people-shadow' as const;
+export const PEOPLE_SHADOW_ACADEMIC_QUEUE = 'people-shadow.academic' as const;
+export const PEOPLE_SHADOW_QUEUES = [
+  PEOPLE_SHADOW_QUEUE,
+  PEOPLE_SHADOW_ACADEMIC_QUEUE,
+] as const;
 
 export const PEOPLE_EVENT_TYPES = {
   STUDENT_UPSERTED: 'student.upserted',

@@ -1,4 +1,5 @@
 export const NOTIFICATION_EVENTS_QUEUE = 'notifications' as const;
+export const PEOPLE_SHADOW_ACADEMIC_QUEUE = 'people-shadow.academic' as const;
 
 export const ACADEMIC_NOTIFICATION_EVENT_TYPES = {
   NOTIFICATION_USER_CREATED: 'notification.user.created',

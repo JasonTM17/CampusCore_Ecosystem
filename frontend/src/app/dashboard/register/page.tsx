@@ -25,8 +25,6 @@ import { useRequireAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import {
   financeApi,
-  coursesApi,
-  departmentsApi,
   enrollmentsApi,
   sectionsApi,
   semestersApi,
@@ -147,6 +145,35 @@ function getRegistrationWindowState(semester?: Semester | null) {
   }
 
   return 'planning-only' as const;
+}
+
+function deriveDepartmentsFromSections(sections: Section[]) {
+  const departments = new Map<string, Department>();
+
+  for (const section of sections) {
+    const department = section.course?.department;
+    if (department?.id) {
+      departments.set(department.id, department);
+    }
+  }
+
+  return [...departments.values()].sort((left, right) =>
+    left.name.localeCompare(right.name),
+  );
+}
+
+function deriveCoursesFromSections(sections: Section[], departmentId: string) {
+  const courses = new Map<string, Course>();
+
+  for (const section of sections) {
+    if (section.course?.id && section.course.departmentId === departmentId) {
+      courses.set(section.course.id, section.course);
+    }
+  }
+
+  return [...courses.values()].sort((left, right) =>
+    left.code.localeCompare(right.code),
+  );
 }
 
 export default function RegisterPage() {
@@ -479,14 +506,12 @@ export default function RegisterPage() {
         enrollmentsResult,
         waitlistResult,
         semestersResult,
-        departmentsResult,
         invoicesResult,
       ] = await Promise.allSettled([
         sectionsApi.getAll({ limit: 150 }),
         enrollmentsApi.getMyEnrollments(),
         waitlistApi.getMyWaitlist(),
         semestersApi.getAll(),
-        departmentsApi.getAll(),
         financeApi.getMyInvoices(),
       ]);
 
@@ -516,15 +541,12 @@ export default function RegisterPage() {
         return;
       }
 
-      setSections(sectionsResult.value.data ?? []);
+      const loadedSections = sectionsResult.value.data ?? [];
+      setSections(loadedSections);
       setEnrollments(enrollmentsResult.value);
       setWaitlistEntries(waitlistResult.status === 'fulfilled' ? waitlistResult.value : []);
       setSemesters(semestersResult.value.data ?? []);
-      setDepartments(
-        departmentsResult.status === 'fulfilled'
-          ? departmentsResult.value.data ?? []
-          : [],
-      );
+      setDepartments(deriveDepartmentsFromSections(loadedSections));
       setInvoices(
         invoicesResult.status === 'fulfilled'
           ? invoicesResult.value.map((invoice) => ({
@@ -600,32 +622,8 @@ export default function RegisterPage() {
       return;
     }
 
-    let cancelled = false;
-
-    const fetchDepartmentCourses = async () => {
-      try {
-        const response = await coursesApi.getAll({
-          departmentId: selectedDepartment,
-          limit: 200,
-        });
-
-        if (!cancelled) {
-          setCourses(response.data ?? []);
-        }
-      } catch {
-        if (!cancelled) {
-          setCourses([]);
-          toast.error(copy.states.unavailableDescription);
-        }
-      }
-    };
-
-    void fetchDepartmentCourses();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [copy.states.unavailableDescription, selectedDepartment]);
+    setCourses(deriveCoursesFromSections(sections, selectedDepartment));
+  }, [sections, selectedDepartment]);
 
   const selectedSemesterRecord = useMemo(
     () => semesters.find((semester) => semester.id === selectedSemester) ?? null,
@@ -797,7 +795,7 @@ export default function RegisterPage() {
     setIsEnrolling(section.id);
 
     try {
-      const result = await enrollmentsApi.enroll(section.id);
+      const result = await enrollmentsApi.enroll(section.id, locale);
 
       if (result.kind === 'waitlist' && result.record.status === 'ACTIVE') {
         toast.success(copy.toasts.waitlistSuccess(result.record.position));
@@ -849,7 +847,7 @@ export default function RegisterPage() {
           continue;
         }
 
-        const result = await enrollmentsApi.enroll(section.id);
+        const result = await enrollmentsApi.enroll(section.id, locale);
         if (result.kind === 'waitlist' && result.record.status === 'ACTIVE') {
           waitlistedCount += 1;
         } else {

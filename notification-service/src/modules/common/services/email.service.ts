@@ -64,16 +64,20 @@ export class EmailService {
     const password = this.configService.get<string>(ENV.SMTP_PASSWORD);
     const secure = this.configService.get<boolean>(ENV.SMTP_SECURE) === true;
 
-    this.configured = Boolean(host && user && password);
+    this.configured = Boolean(host);
     this.transporter = this.configured
       ? nodemailer.createTransport({
           host,
           port,
           secure,
-          auth: {
-            user,
-            pass: password,
-          },
+          ...(user && password
+            ? {
+                auth: {
+                  user,
+                  pass: password,
+                },
+              }
+            : {}),
         })
       : nodemailer.createTransport({ jsonTransport: true });
 

@@ -897,7 +897,7 @@ export default function StudentInvoicesPage() {
           title={copy.emptyTitle}
           description={copy.emptyDescription}
           action={
-            <LocalizedLink href="/dashboard/courses">
+            <LocalizedLink href="/dashboard/enrollments">
               <Button type="button" variant="outline">
                 {copy.actions.openCourses}
               </Button>
