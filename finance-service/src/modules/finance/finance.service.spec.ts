@@ -335,4 +335,147 @@ describe('FinanceService', () => {
     expect(mockPrisma.paymentIntent.create).not.toHaveBeenCalled();
     expect(mockPrisma.paymentAttempt.create).not.toHaveBeenCalled();
   });
+
+  it('cancels a previous unfinished provider checkout when the student switches provider', async () => {
+    const now = new Date();
+    const invoice = {
+      id: 'invoice-1',
+      invoiceNumber: 'INV-1',
+      studentId: 'student-1',
+      studentUserId: 'user-1',
+      studentDisplayName: 'Student One',
+      studentEmail: 'student1@campuscore.edu',
+      studentCode: 'STU001',
+      semesterId: 'semester-1',
+      semesterName: 'Fall 2026',
+      semesterNameEn: 'Fall 2026',
+      semesterNameVi: 'Hoc ky Thu 2026',
+      status: InvoiceStatus.PENDING,
+      subtotal: 450,
+      discount: 0,
+      total: 450,
+      dueDate: new Date('2026-12-20T00:00:00.000Z'),
+      paidAt: null,
+      notes: null,
+      createdAt: now,
+      updatedAt: now,
+      payments: [],
+    };
+    const activeAttempt = {
+      id: 'attempt-momo',
+      attemptNumber: 'PATT-20260422-MOMO',
+      intentId: 'intent-momo',
+      invoiceId: 'invoice-1',
+      studentId: 'student-1',
+      provider: PaymentProvider.MOMO,
+      status: PaymentAttemptStatus.REDIRECT_REQUIRED,
+      idempotencyKey: 'idem-momo-001',
+      publicToken: 'token-momo',
+      amount: 450,
+      currency: 'VND',
+      providerReference: null,
+      redirectUrl: null,
+      callbackUrl: '/api/v1/finance/payment-providers/momo/callback/token-momo',
+      webhookUrl: '/api/v1/finance/payment-providers/momo/webhook/token-momo',
+      returnUrl: 'http://localhost/return',
+      cancelUrl: 'http://localhost/cancel',
+      providerPayload: null,
+      occurredAt: null,
+      finalizedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const activeIntent = {
+      id: 'intent-momo',
+      intentNumber: 'PINT-20260422-MOMO',
+      invoiceId: 'invoice-1',
+      studentId: 'student-1',
+      provider: PaymentProvider.MOMO,
+      status: PaymentIntentStatus.REQUIRES_ACTION,
+      amount: 450,
+      currency: 'VND',
+      metadata: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      lastSignalAt: null,
+      finalizedAt: null,
+      createdAt: now,
+      updatedAt: now,
+      payment: null,
+      invoice,
+      attempts: [activeAttempt],
+      events: [],
+    };
+    const createdIntent = {
+      id: 'intent-zalopay',
+      status: PaymentIntentStatus.REQUIRES_ACTION,
+    };
+    const createdAttempt = {
+      ...activeAttempt,
+      id: 'attempt-zalopay',
+      attemptNumber: 'PATT-20260422-ZALOPAY',
+      intentId: 'intent-zalopay',
+      provider: PaymentProvider.ZALOPAY,
+      status: PaymentAttemptStatus.REDIRECT_REQUIRED,
+      idempotencyKey: 'idem-zalopay-001',
+      publicToken: 'token-zalopay',
+      callbackUrl:
+        '/api/v1/finance/payment-providers/zalopay/callback/token-zalopay',
+      webhookUrl:
+        '/api/v1/finance/payment-providers/zalopay/webhook/token-zalopay',
+    };
+    const newIntent = {
+      ...activeIntent,
+      id: 'intent-zalopay',
+      intentNumber: 'PINT-20260422-ZALOPAY',
+      provider: PaymentProvider.ZALOPAY,
+      attempts: [createdAttempt],
+      events: [],
+    };
+
+    mockPrisma.paymentAttempt.findFirst.mockResolvedValue(null);
+    mockPrisma.invoice.findFirst.mockResolvedValue(invoice);
+    mockPrisma.paymentIntent.findFirst.mockResolvedValue(activeIntent);
+    mockPrisma.paymentIntent.findUnique
+      .mockResolvedValueOnce(activeIntent)
+      .mockResolvedValueOnce(newIntent);
+    mockPrisma.paymentIntent.create.mockResolvedValue(createdIntent);
+    mockPrisma.paymentAttempt.create.mockResolvedValue(createdAttempt);
+
+    const result = await service.initiateStudentInvoiceCheckout(
+      'student-1',
+      'invoice-1',
+      {
+        provider: PaymentProvider.ZALOPAY,
+        idempotencyKey: 'idem-zalopay-001',
+        returnUrl: 'http://localhost/return',
+        cancelUrl: 'http://localhost/cancel',
+      },
+      undefined,
+    );
+
+    expect(mockPrisma.paymentIntent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'intent-momo' },
+        data: expect.objectContaining({
+          status: PaymentIntentStatus.CANCELLED,
+        }),
+      }),
+    );
+    expect(mockPrisma.paymentAttempt.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ intentId: 'intent-momo' }),
+        data: expect.objectContaining({
+          status: PaymentAttemptStatus.CANCELLED,
+        }),
+      }),
+    );
+    expect(mockPrisma.paymentIntent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          provider: PaymentProvider.ZALOPAY,
+        }),
+      }),
+    );
+    expect(result.provider).toBe(PaymentProvider.ZALOPAY);
+  });
 });

@@ -108,7 +108,7 @@ test('cookie session refresh and logout require CSRF and clear the browser sessi
       .click();
     await page
       .locator('#dashboard-profile-menu')
-      .getByRole('button', { name: /Sign out|Logout/i })
+      .getByRole('link', { name: /Sign out|Logout|Đăng xuất/i })
       .click();
     await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
     await expect(

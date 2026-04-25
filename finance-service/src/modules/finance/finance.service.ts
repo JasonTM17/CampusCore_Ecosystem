@@ -482,14 +482,16 @@ export class FinanceService {
       activeIntent = null;
     }
 
-    if (activeIntent && activeIntent.provider !== provider) {
-      throw new BadRequestException(
-        'Another payment provider checkout is already active for this invoice',
-      );
-    }
-
     if (activeIntent?.status === PaymentIntentStatus.PROCESSING) {
       throw new BadRequestException('The current checkout is still processing');
+    }
+
+    if (activeIntent && activeIntent.provider !== provider) {
+      await this.cancelPaymentIntent(
+        activeIntent,
+        'provider-switch-before-checkout',
+      );
+      activeIntent = null;
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -2038,6 +2040,74 @@ export class FinanceService {
         fromAttemptStatus: activeAttempt?.status,
         toAttemptStatus: activeAttempt
           ? PaymentAttemptStatus.EXPIRED
+          : undefined,
+        payload: {
+          reason,
+        },
+      });
+    });
+  }
+
+  private async cancelPaymentIntent(
+    intent: PaymentIntentDetail,
+    reason: string,
+  ) {
+    if (this.isIntentTerminal(intent.status)) {
+      return;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const current = await tx.paymentIntent.findUnique({
+        where: { id: intent.id },
+        include: paymentIntentDetailInclude,
+      });
+
+      if (
+        !current ||
+        this.isIntentTerminal(current.status) ||
+        current.status === PaymentIntentStatus.PROCESSING
+      ) {
+        return;
+      }
+
+      const now = new Date();
+      const activeAttempt = current.attempts.find(
+        (attempt) => !this.isAttemptTerminal(attempt.status),
+      );
+
+      await tx.paymentIntent.update({
+        where: { id: current.id },
+        data: {
+          status: PaymentIntentStatus.CANCELLED,
+          finalizedAt: now,
+          lastSignalAt: now,
+        },
+      });
+
+      await tx.paymentAttempt.updateMany({
+        where: {
+          intentId: current.id,
+          status: {
+            in: ACTIVE_ATTEMPT_STATUSES,
+          },
+        },
+        data: {
+          status: PaymentAttemptStatus.CANCELLED,
+          finalizedAt: now,
+        },
+      });
+
+      await this.appendPaymentIntentEventTx(tx, {
+        paymentIntentId: current.id,
+        paymentAttemptId: activeAttempt?.id,
+        type: PaymentIntentEventType.STATE_TRANSITION,
+        source: PaymentSignalSource.SYSTEM,
+        provider: current.provider,
+        fromIntentStatus: current.status,
+        toIntentStatus: PaymentIntentStatus.CANCELLED,
+        fromAttemptStatus: activeAttempt?.status,
+        toAttemptStatus: activeAttempt
+          ? PaymentAttemptStatus.CANCELLED
           : undefined,
         payload: {
           reason,

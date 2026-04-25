@@ -336,7 +336,11 @@ function collectImplementedAppRoutes() {
 }
 
 function collectCoveredE2ERoutes() {
-  const coveredRoutes = new Set(['/admin', '/dashboard/lecturer/grades/[id]']);
+  const coveredRoutes = new Set([
+    '/admin',
+    '/dashboard/lecturer/grades/[id]',
+    '/dashboard/sign-out',
+  ]);
 
   const e2eFiles = walkFiles(path.join(root, 'e2e'), (filePath) =>
     filePath.endsWith('.ts'),
@@ -537,9 +541,10 @@ test('frontend config exposes local edge rewrites and SEO runtime files', () => 
   assert.match(envExampleSource, /LOCAL_EDGE_ORIGIN=http:\/\/127\.0\.0\.1:8080/);
   assert.match(envExampleSource, /ENABLE_LOCAL_EDGE_REWRITES=0/);
   assert.match(layoutSource, /<html lang=\{htmlLang\}/);
+  assert.match(layoutSource, /themeColor:/);
   assert.match(serverMetadataSource, /metadataBase:\s*new URL\(getSiteUrl\(\)\)/);
   assert.match(serverMetadataSource, /alternates:/);
-  assert.match(serverMetadataSource, /themeColor:/);
+  assert.doesNotMatch(serverMetadataSource, /themeColor:/);
   assert.match(serverMetadataSource, /manifest:\s*'\/manifest\.webmanifest'/);
   assert.match(proxyHelperSource, /proxyToLocalEdge/);
   assert.ok(fs.existsSync(path.join(root, 'src', 'app', 'api', 'v1', '[...path]', 'route.ts')));
