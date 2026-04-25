@@ -192,6 +192,10 @@ export class EmailService {
     template: EnrollmentEmailTemplate,
   ) {
     const copyKey = this.getEnrollmentCopyKey(template);
+    if (locale === 'vi') {
+      return this.getVietnameseEnrollmentCopy(copyKey);
+    }
+
     const dictionaries: Record<
       'en' | 'vi',
       Record<EnrollmentCopyKey, EnrollmentCopy>
@@ -299,6 +303,61 @@ export class EmailService {
     };
 
     return dictionaries[locale][copyKey];
+  }
+
+  private getVietnameseEnrollmentCopy(copyKey: EnrollmentCopyKey): EnrollmentCopy {
+    const dictionary: Record<EnrollmentCopyKey, EnrollmentCopy> = {
+      confirmed: {
+        subjectPrefix: 'Đăng ký học phần đã được ghi nhận',
+        title: 'Đăng ký học phần đã được ghi nhận',
+        greeting: 'Xin chào',
+        body: (course: string, section: string, semester?: string) =>
+          `Bạn đã đăng ký ${course}, lớp học phần ${section}${
+            semester ? ` cho ${semester}` : ''
+          }. Hãy kiểm tra lịch học và các thông báo liên quan trong CampusCore.`,
+        ctaText: 'Mở trang môn học của tôi:',
+        ctaLabel: 'Xem môn học của tôi',
+        signoff: 'Trân trọng,',
+      },
+      waitlisted: {
+        subjectPrefix: 'Bạn đã vào danh sách chờ',
+        title: 'Bạn đã vào danh sách chờ',
+        greeting: 'Xin chào',
+        body: (course: string, section: string, semester?: string) =>
+          `${course}, lớp học phần ${section}${
+            semester ? ` trong ${semester}` : ''
+          } hiện chưa còn chỗ. CampusCore đã ghi nhận bạn vào danh sách chờ.`,
+        ctaText: 'Theo dõi trạng thái đăng ký:',
+        ctaLabel: 'Theo dõi đăng ký',
+        signoff: 'Trân trọng,',
+      },
+      promoted: {
+        subjectPrefix: 'Bạn đã được chuyển từ danh sách chờ',
+        title: 'Bạn đã được chuyển từ danh sách chờ',
+        greeting: 'Xin chào',
+        body: (course: string, section: string, semester?: string) =>
+          `Một chỗ đã mở cho ${course}, lớp học phần ${section}${
+            semester ? ` trong ${semester}` : ''
+          }. CampusCore đã chuyển bạn sang trạng thái đăng ký.`,
+        ctaText: 'Kiểm tra lịch học mới:',
+        ctaLabel: 'Mở thời khóa biểu',
+        signoff: 'Trân trọng,',
+      },
+      dropped: {
+        subjectPrefix: 'Đã rút khỏi học phần',
+        title: 'Đã rút khỏi học phần',
+        greeting: 'Xin chào',
+        body: (course: string, section: string, semester?: string) =>
+          `Bạn đã rút khỏi ${course}, lớp học phần ${section}${
+            semester ? ` trong ${semester}` : ''
+          }. Hãy kiểm tra lại thời khóa biểu và số tín chỉ hiện tại trong CampusCore.`,
+        ctaText: 'Kiểm tra môn học của tôi:',
+        ctaLabel: 'Xem môn học của tôi',
+        signoff: 'Trân trọng,',
+      },
+    };
+
+    return dictionary[copyKey];
   }
 
   private getEnrollmentCopyKey(
