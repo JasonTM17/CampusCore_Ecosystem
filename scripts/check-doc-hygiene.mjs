@@ -21,7 +21,7 @@ const requiredFiles = [
   'docs/assets/screenshots/campuscore-home-en.png',
   'docs/assets/screenshots/campuscore-home-vi.png',
   'docs/releases/TEMPLATE.md',
-  'docs/releases/v1.4.0.md',
+  'docs/releases/v1.4.1.md',
   'scripts/run-container-inventory.mjs',
   'scripts/run-production-validation.mjs',
   'scripts/check-text-encoding.mjs',
@@ -30,8 +30,8 @@ const requiredFiles = [
 
 const requiredReadmeSnippets = [
   './docs/assets/screenshots/campuscore-home-en.png',
-  './docs/releases/v1.4.0.md',
-  'https://github.com/JasonTM17/CampusCore_FullStack_Individual/releases/tag/v1.4.0',
+  './docs/releases/v1.4.1.md',
+  'https://github.com/JasonTM17/CampusCore_FullStack_Individual/releases/tag/v1.4.1',
   'node scripts/run-container-inventory.mjs',
   './docs/CLOUDFLARE.md',
 ];

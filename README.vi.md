@@ -3,7 +3,7 @@
 CampusCore là một nền tảng vận hành đại học theo hướng production-like, được xây như một portfolio microservices có thể release, kiểm chứng và handoff thật sự. Hệ thống hiện kết hợp frontend Next.js, các dịch vụ NestJS, một `nginx` public edge duy nhất, giao diện song ngữ, thanh toán sinh viên ở mức sandbox-ready, và lớp observability dành cho operator.
 
 - Website public: [https://tienson.io.vn](https://tienson.io.vn)
-- Release mới nhất: [`v1.4.0`](./docs/releases/v1.4.0.md)
+- Release mới nhất: [`v1.4.1`](./docs/releases/v1.4.1.md)
 - Tài liệu tiếng Anh: [README.en.md](./README.en.md)
 - Tài liệu gốc repo: [README.md](./README.md)
 
@@ -13,8 +13,8 @@ CampusCore là một nền tảng vận hành đại học theo hướng product
 
 ## Trạng thái release
 
-- Release hiện tại: [`v1.4.0`](https://github.com/JasonTM17/CampusCore_FullStack_Individual/releases/tag/v1.4.0)
-- Release notes: [docs/releases/v1.4.0.md](./docs/releases/v1.4.0.md)
+- Release hiện tại: [`v1.4.1`](https://github.com/JasonTM17/CampusCore_FullStack_Individual/releases/tag/v1.4.1)
+- Release notes: [docs/releases/v1.4.1.md](./docs/releases/v1.4.1.md)
 - Topology publish: 9 image trên GHCR và Docker Hub
 - Gate kiểm chứng: CI quality gate, CD publish, manifest verification, image smoke, edge E2E và security scan
 
@@ -98,7 +98,7 @@ Xem thêm:
 - [README.md](./README.md)
 - [README.en.md](./README.en.md)
 - [docs/releases/TEMPLATE.md](./docs/releases/TEMPLATE.md)
-- [docs/releases/v1.4.0.md](./docs/releases/v1.4.0.md)
+- [docs/releases/v1.4.1.md](./docs/releases/v1.4.1.md)
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - [docs/OPERATIONS.md](./docs/OPERATIONS.md)
 - [docs/SECURITY.md](./docs/SECURITY.md)

@@ -148,7 +148,7 @@ Common cases:
 - **The site loads an older UI**: the tunnel is forwarding correctly, but the
   local origin is stale. Verify image tags with
   `kubectl -n campuscore get deploy -o wide` or rerun the local deploy helper so
-  the namespace uses the intended release image, for example `v1.4.0`.
+  the namespace uses the intended release image, for example `v1.4.1`.
 - **The local helper fails with “Kubernetes cluster is not reachable”**: Docker
   Desktop Kubernetes is down or `kubectl` is pointed at another context. Start
   Docker Desktop, enable Kubernetes, and confirm the context before rerunning
