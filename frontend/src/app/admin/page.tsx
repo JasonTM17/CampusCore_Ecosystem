@@ -100,7 +100,7 @@ const menuItems = [
 ];
 
 export default function AdminDashboardPage() {
-  const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { formatNumber, href, messages } = useI18n();
   const router = useRouter();
   const [stats, setStats] = useState<QuickStats>({
@@ -111,12 +111,22 @@ export default function AdminDashboardPage() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
 
   useEffect(() => {
-    if (user && !isAdmin && !isSuperAdmin) {
-      router.push(href('/dashboard'));
+    if (isAuthLoading || isLoggingOut) {
+      return;
     }
-  }, [href, user, isAdmin, isSuperAdmin, router]);
+
+    if (!user) {
+      router.replace(`${href('/login')}?reason=session-expired`);
+      return;
+    }
+
+    if (!isAdmin && !isSuperAdmin) {
+      router.replace(href('/dashboard'));
+    }
+  }, [href, isAdmin, isSuperAdmin, isAuthLoading, isLoggingOut, router, user]);
 
   const fetchStats = useCallback(async () => {
     setIsLoading(true);
@@ -138,14 +148,14 @@ export default function AdminDashboardPage() {
   }, [messages.admin.unavailableDescription]);
 
   useEffect(() => {
-    if (!user || (!isAdmin && !isSuperAdmin)) {
+    if (!canAccess) {
       return;
     }
 
     void fetchStats();
-  }, [fetchStats, isAdmin, isSuperAdmin, user]);
+  }, [canAccess, fetchStats]);
 
-  if (!user || (!isAdmin && !isSuperAdmin)) {
+  if (isAuthLoading || isLoggingOut || !canAccess) {
     return <LoadingState label={messages.admin.loading} className="m-8" />;
   }
 

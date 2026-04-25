@@ -1,6 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Bell, Calendar, ChevronLeft, ChevronRight, ClipboardList, CreditCard, FileText, LayoutDashboard, LogOut, Menu, School, Settings, User, Users, X, BookOpen, DoorOpen, BarChart3 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -46,7 +51,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, isLoading, logout, isLecturer, isAdmin } = useAuth();
+  const { user, isLoading, isLoggingOut, isLecturer, isAdmin } = useAuth();
   const { href, messages } = useI18n();
   const router = useRouter();
   const visiblePathname = usePathname();
@@ -61,7 +66,6 @@ export default function DashboardLayout({
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
-
   const menuLabels = messages.dashboardShell.menu;
   const showStudentRail = !isAdmin && !isLecturer;
   const menuItems = isAdmin
@@ -105,6 +109,10 @@ export default function DashboardLayout({
         title: messages.dashboardShell.menu.invoices,
         description: messages.dashboardShell.routeDescriptions.invoices,
       },
+      '/dashboard/sign-out': {
+        title: messages.dashboardShell.signOutPage.title,
+        description: messages.dashboardShell.signOutPage.description,
+      },
       '/dashboard/announcements': {
         title: messages.dashboardShell.menu.announcements,
         description: messages.dashboardShell.routeDescriptions.announcements,
@@ -130,11 +138,11 @@ export default function DashboardLayout({
   );
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || isLoggingOut) return;
     if (!user) {
       router.replace(`${href('/login')}?reason=unauthorized`);
     }
-  }, [href, user, isLoading, router]);
+  }, [href, user, isLoading, isLoggingOut, router]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -411,9 +419,9 @@ export default function DashboardLayout({
             <Settings className="h-4.5 w-4.5" />
             {!sidebarCollapsed ? messages.dashboardShell.menu.profileSettings : null}
           </LocalizedLink>
-          <button
-            type="button"
-            onClick={() => void logout()}
+          <LocalizedLink
+            href="/dashboard/sign-out"
+            onClick={() => setSidebarOpen(false)}
             aria-label={messages.common.actions.signOut}
             title={sidebarCollapsed ? messages.common.actions.signOut : undefined}
             className={cn(
@@ -423,7 +431,7 @@ export default function DashboardLayout({
           >
             <LogOut className="h-4.5 w-4.5" />
             {!sidebarCollapsed ? messages.common.actions.signOut : null}
-          </button>
+          </LocalizedLink>
         </div>
       </aside>
 
@@ -592,14 +600,14 @@ export default function DashboardLayout({
                         <Settings className="h-4 w-4" />
                         {messages.dashboardShell.menu.settings}
                       </LocalizedLink>
-                      <button
-                        type="button"
-                        onClick={() => void logout()}
+                      <LocalizedLink
+                        href="/dashboard/sign-out"
                         className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-red-500 transition-colors hover:bg-red-500/10"
+                        onClick={() => setProfileOpen(false)}
                       >
                         <LogOut className="h-4 w-4" />
                         {messages.common.actions.signOut}
-                      </button>
+                      </LocalizedLink>
                     </div>
                   </div>
                 ) : null}

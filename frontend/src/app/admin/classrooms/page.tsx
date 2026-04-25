@@ -39,7 +39,7 @@ interface Classroom {
 }
 
 export default function AdminClassroomsPage() {
-  const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { formatNumber, href, locale, messages } = useI18n();
   const router = useRouter();
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
@@ -61,10 +61,19 @@ export default function AdminClassroomsPage() {
   const { confirm, confirmationDialog } = useConfirmationDialog();
 
   useEffect(() => {
-    if (user && !isAdmin && !isSuperAdmin) {
-      router.push(href('/dashboard'));
+    if (isAuthLoading || isLoggingOut) {
+      return;
     }
-  }, [href, isAdmin, isSuperAdmin, router, user]);
+
+    if (!user) {
+      router.replace(`${href('/login')}?reason=session-expired`);
+      return;
+    }
+
+    if (!isAdmin && !isSuperAdmin) {
+      router.replace(href('/dashboard'));
+    }
+  }, [href, isAdmin, isSuperAdmin, isAuthLoading, isLoggingOut, router, user]);
 
   const fetchClassrooms = useCallback(async () => {
     setIsLoading(true);
@@ -223,7 +232,7 @@ export default function AdminClassroomsPage() {
     return copy.pageSummary(page, totalPages);
   }, [classrooms.length, copy, page, totalPages]);
 
-  if (!canAccess) {
+  if (isAuthLoading || isLoggingOut || !canAccess) {
     return <LoadingState label={copy.loading} className="m-8" />;
   }
 

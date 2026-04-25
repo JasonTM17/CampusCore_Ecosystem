@@ -155,7 +155,7 @@ function statusTone(status: string) {
 }
 
 export default function AdminAnalyticsPage() {
-  const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { formatCurrency, formatDateTime, formatNumber, href, locale, messages } =
     useI18n();
   const router = useRouter();
@@ -166,10 +166,19 @@ export default function AdminAnalyticsPage() {
   const cockpitCopy = messages.adminAnalytics.cockpit;
 
   useEffect(() => {
-    if (user && !isAdmin && !isSuperAdmin) {
-      router.push(href('/dashboard'));
+    if (isAuthLoading || isLoggingOut) {
+      return;
     }
-  }, [href, user, isAdmin, isSuperAdmin, router]);
+
+    if (!user) {
+      router.replace(`${href('/login')}?reason=session-expired`);
+      return;
+    }
+
+    if (!isAdmin && !isSuperAdmin) {
+      router.replace(href('/dashboard'));
+    }
+  }, [href, isAdmin, isSuperAdmin, isAuthLoading, isLoggingOut, router, user]);
 
   const fetchAnalytics = useCallback(async () => {
     setIsLoading(true);
@@ -242,7 +251,7 @@ export default function AdminAnalyticsPage() {
     return items;
   }, [cockpit, locale]);
 
-  if (!canAccess) {
+  if (isAuthLoading || isLoggingOut || !canAccess) {
     return <LoadingState label={messages.adminAnalytics.loading} className="m-8" />;
   }
 

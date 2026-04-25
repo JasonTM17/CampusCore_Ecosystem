@@ -34,7 +34,7 @@ interface UserRecord {
 }
 
 export default function AdminUsersPage() {
-  const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { href, locale, formatDate, messages } = useI18n();
   const router = useRouter();
   const [users, setUsers] = useState<UserRecord[]>([]);
@@ -57,10 +57,19 @@ export default function AdminUsersPage() {
   const { confirm, confirmationDialog } = useConfirmationDialog();
 
   useEffect(() => {
-    if (user && !isAdmin && !isSuperAdmin) {
-      router.push(href('/dashboard'));
+    if (isAuthLoading || isLoggingOut) {
+      return;
     }
-  }, [href, isAdmin, isSuperAdmin, router, user]);
+
+    if (!user) {
+      router.replace(`${href('/login')}?reason=session-expired`);
+      return;
+    }
+
+    if (!isAdmin && !isSuperAdmin) {
+      router.replace(href('/dashboard'));
+    }
+  }, [href, isAdmin, isSuperAdmin, isAuthLoading, isLoggingOut, router, user]);
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
@@ -193,7 +202,7 @@ export default function AdminUsersPage() {
             `Delete user ${firstName} ${lastName}`,
         };
 
-  if (!canAccess) {
+  if (isAuthLoading || isLoggingOut || !canAccess) {
     return <LoadingState label={copy.loading} className="m-8" />;
   }
 

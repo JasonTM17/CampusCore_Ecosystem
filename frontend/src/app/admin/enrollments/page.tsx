@@ -87,7 +87,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function AdminEnrollmentsPage() {
-  const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { formatDate, formatDateTime, formatNumber, href, locale, messages } =
     useI18n();
   const router = useRouter();
@@ -114,10 +114,19 @@ export default function AdminEnrollmentsPage() {
   const { confirm, confirmationDialog } = useConfirmationDialog();
 
   useEffect(() => {
-    if (user && !isAdmin && !isSuperAdmin) {
-      router.push(href('/dashboard'));
+    if (isAuthLoading || isLoggingOut) {
+      return;
     }
-  }, [href, isAdmin, isSuperAdmin, router, user]);
+
+    if (!user) {
+      router.replace(`${href('/login')}?reason=session-expired`);
+      return;
+    }
+
+    if (!isAdmin && !isSuperAdmin) {
+      router.replace(href('/dashboard'));
+    }
+  }, [href, isAdmin, isSuperAdmin, isAuthLoading, isLoggingOut, router, user]);
 
   const fetchDropdownData = useCallback(async () => {
     try {
@@ -390,7 +399,7 @@ export default function AdminEnrollmentsPage() {
     [copy.allStatuses, copy.statusOptions],
   );
 
-  if (!canAccess) {
+  if (isAuthLoading || isLoggingOut || !canAccess) {
     return <LoadingState label={copy.loading} className="m-8" />;
   }
 

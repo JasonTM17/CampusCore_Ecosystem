@@ -1,4 +1,5 @@
 import "./globals.css";
+import type { Viewport } from "next";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "sonner";
@@ -12,6 +13,13 @@ import {
 } from "@/i18n/server";
 
 export const dynamic = 'force-dynamic';
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f7f4ef' },
+    { media: '(prefers-color-scheme: dark)', color: '#12161d' },
+  ],
+};
 
 export async function generateMetadata() {
   return getLocalizedMetadata();

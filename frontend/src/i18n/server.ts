@@ -151,10 +151,6 @@ export async function getLocalizedMetadata(): Promise<Metadata> {
       description: routeMetadata.description,
       images: [buildSiteUrl(socialImagePath)],
     },
-    themeColor: [
-      { media: '(prefers-color-scheme: light)', color: '#f7f4ef' },
-      { media: '(prefers-color-scheme: dark)', color: '#12161d' },
-    ],
     robots: routeMetadata.robots,
     manifest: '/manifest.webmanifest',
   };

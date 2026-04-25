@@ -612,6 +612,13 @@ export const en = {
       fallbackDescription:
         'Move through your current role surface with consistent session handling.',
     },
+    signOutPage: {
+      eyebrow: 'Session handoff',
+      title: 'Signing you out',
+      description:
+        'We are closing your current workspace session and returning you to sign-in.',
+      progress: 'Ending your session...',
+    },
     routeDescriptions: {
       dashboard:
         'Registration, coursework, billing, and profile tasks stay in one student workspace.',
@@ -1466,6 +1473,13 @@ export const vi: I18nMessages = {
       title: 'Không gian campus',
       fallbackDescription:
         'Di chuyển trong khu vực theo vai trò hiện tại với phiên đăng nhập nhất quán.',
+    },
+    signOutPage: {
+      eyebrow: 'Kết thúc phiên',
+      title: 'Đang đăng xuất',
+      description:
+        'Hệ thống đang đóng phiên làm việc hiện tại và đưa bạn trở lại màn hình đăng nhập.',
+      progress: 'Đang kết thúc phiên làm việc...',
     },
     routeDescriptions: {
       dashboard:
