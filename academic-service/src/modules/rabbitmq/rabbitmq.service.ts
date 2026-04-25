@@ -7,7 +7,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as amqp from 'amqplib';
 import { ENV } from '../../config/env.constants';
-import { NOTIFICATION_EVENTS_QUEUE } from './rabbitmq.events';
+import {
+  NOTIFICATION_EVENTS_QUEUE,
+  PEOPLE_SHADOW_ACADEMIC_QUEUE,
+} from './rabbitmq.events';
 
 @Injectable()
 export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
@@ -64,6 +67,36 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async consumeMessages(
+    queue: typeof PEOPLE_SHADOW_ACADEMIC_QUEUE,
+    callback: (message: unknown) => Promise<void> | void,
+  ): Promise<void> {
+    const connected = await this.ensureConnected();
+    if (!connected || !this.channel) {
+      this.logger.warn('RabbitMQ channel not initialized');
+      return;
+    }
+
+    await this.channel.assertQueue(queue, {
+      durable: true,
+    });
+
+    await this.channel.consume(queue, async (msg) => {
+      if (!msg) {
+        return;
+      }
+
+      try {
+        const content = JSON.parse(msg.content.toString()) as unknown;
+        await callback(content);
+        this.channel?.ack(msg);
+      } catch (error) {
+        this.logger.error(`Failed to consume message from ${queue}`, error);
+        this.channel?.nack(msg, false, false);
+      }
+    });
+  }
+
   isConfigured() {
     return this.configured;
   }
@@ -103,9 +136,14 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
         this.registerConnectionListeners(connection);
         this.registerChannelListeners(channel);
 
-        await channel.assertQueue(NOTIFICATION_EVENTS_QUEUE, {
-          durable: true,
-        });
+        for (const queue of [
+          NOTIFICATION_EVENTS_QUEUE,
+          PEOPLE_SHADOW_ACADEMIC_QUEUE,
+        ]) {
+          await channel.assertQueue(queue, {
+            durable: true,
+          });
+        }
 
         this.logger.log(`Connected to RabbitMQ on attempt ${attempt}`);
         return true;

@@ -7,7 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as amqp from 'amqplib';
 import { ENV } from '../../config/env.constants';
-import { PEOPLE_SHADOW_QUEUE } from './rabbitmq.events';
+import { PEOPLE_SHADOW_QUEUES } from './rabbitmq.events';
 
 @Injectable()
 export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
@@ -51,13 +51,17 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      return this.channel.sendToQueue(
-        PEOPLE_SHADOW_QUEUE,
-        Buffer.from(JSON.stringify(message)),
-        {
-          persistent: true,
-        },
-      );
+      const payload = Buffer.from(JSON.stringify(message));
+      let accepted = false;
+
+      for (const queue of PEOPLE_SHADOW_QUEUES) {
+        accepted =
+          this.channel.sendToQueue(queue, payload, {
+            persistent: true,
+          }) || accepted;
+      }
+
+      return accepted;
     } catch (error) {
       this.logger.error('Failed to publish people event', error as Error);
       return false;
@@ -103,9 +107,11 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
         this.registerConnectionListeners(connection);
         this.registerChannelListeners(channel);
 
-        await channel.assertQueue(PEOPLE_SHADOW_QUEUE, {
-          durable: true,
-        });
+        for (const queue of PEOPLE_SHADOW_QUEUES) {
+          await channel.assertQueue(queue, {
+            durable: true,
+          });
+        }
 
         this.logger.log(`Connected to RabbitMQ on attempt ${attempt}`);
         return true;

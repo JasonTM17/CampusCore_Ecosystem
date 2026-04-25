@@ -9,6 +9,14 @@ jest.mock('nodemailer', () => ({
 describe('EmailService', () => {
   const sendMail = jest.fn();
   const verify = jest.fn();
+  const configWithFrontendUrl = {
+    get: jest.fn((key: string) => {
+      if (key === ENV.FRONTEND_URL) {
+        return 'https://tienson.io.vn';
+      }
+      return undefined;
+    }),
+  } as never;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -20,15 +28,36 @@ describe('EmailService', () => {
     verify.mockResolvedValue(true);
   });
 
-  it('renders a Vietnamese enrollment waitlist email without mojibake', async () => {
-    const service = new EmailService({
-      get: jest.fn((key: string) => {
-        if (key === ENV.FRONTEND_URL) {
-          return 'https://tienson.io.vn';
-        }
-        return undefined;
+  it('renders an English enrollment confirmation email by default', async () => {
+    const service = new EmailService(configWithFrontendUrl);
+
+    const result = await service.sendEnrollmentNotification({
+      to: 'student@example.edu',
+      template: 'enrollment.confirmed',
+      studentName: 'Ava Nguyen',
+      courseCode: 'CS301',
+      courseName: 'Distributed Systems',
+      courseNameVi: 'Hệ thống phân tán',
+      sectionNumber: 'A1',
+      semesterName: 'Spring 2025',
+      semesterNameVi: 'Học kỳ Xuân 2025',
+      link: '/dashboard/enrollments',
+    });
+
+    expect(result).toBe(true);
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: `"${ENV_DEFAULTS.EMAIL_FROM_NAME}" <${ENV_DEFAULTS.EMAIL_FROM}>`,
+        to: 'student@example.edu',
+        subject: expect.stringContaining('Enrollment recorded'),
+        text: expect.stringContaining('Distributed Systems'),
+        html: expect.stringContaining('Enrollment recorded'),
       }),
-    } as never);
+    );
+  });
+
+  it('renders a Vietnamese enrollment waitlist email without mojibake', async () => {
+    const service = new EmailService(configWithFrontendUrl);
 
     const result = await service.sendEnrollmentNotification({
       to: 'student@example.edu',
@@ -79,6 +108,32 @@ describe('EmailService', () => {
           user: 'sender@example.com',
           pass: 'private-app-password',
         },
+      }),
+    );
+  });
+
+  it('uses unauthenticated SMTP transport for local MailHog', () => {
+    new EmailService({
+      get: jest.fn((key: string) => {
+        const values: Record<string, unknown> = {
+          [ENV.SMTP_HOST]: 'mailhog',
+          [ENV.SMTP_PORT]: 1025,
+          [ENV.SMTP_SECURE]: false,
+        };
+        return values[key];
+      }),
+    } as never);
+
+    expect(nodemailer.createTransport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: 'mailhog',
+        port: 1025,
+        secure: false,
+      }),
+    );
+    expect(nodemailer.createTransport).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        auth: expect.anything(),
       }),
     );
   });

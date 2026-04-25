@@ -685,10 +685,13 @@ export const sectionsApi = {
 
 // Enrollments API
 export const enrollmentsApi = {
-  enroll: async (sectionId: string): Promise<EnrollmentActionResult> => {
+  enroll: async (
+    sectionId: string,
+    locale?: 'en' | 'vi',
+  ): Promise<EnrollmentActionResult> => {
     const response = await api.post<EnrollmentActionResult>(
       '/enrollments/enroll',
-      { sectionId },
+      { sectionId, locale },
     );
     return response.data;
   },

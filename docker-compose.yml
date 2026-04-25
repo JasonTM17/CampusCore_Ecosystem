@@ -335,6 +335,9 @@ services:
       HEALTH_READINESS_KEY: ${HEALTH_READINESS_KEY:-local-dev-readiness-key-12345}
       RABBITMQ_URL: amqp://campuscore:${RABBITMQ_PASSWORD:-campuscore_password}@rabbitmq:5672
       FRONTEND_URL: http://localhost
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_SECURE: "false"
       PORT: 4001
       NODE_ENV: production
     ports:
