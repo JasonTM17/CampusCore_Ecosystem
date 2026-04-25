@@ -305,7 +305,9 @@ export class EmailService {
     return dictionaries[locale][copyKey];
   }
 
-  private getVietnameseEnrollmentCopy(copyKey: EnrollmentCopyKey): EnrollmentCopy {
+  private getVietnameseEnrollmentCopy(
+    copyKey: EnrollmentCopyKey,
+  ): EnrollmentCopy {
     const dictionary: Record<EnrollmentCopyKey, EnrollmentCopy> = {
       confirmed: {
         subjectPrefix: 'Đăng ký học phần đã được ghi nhận',
