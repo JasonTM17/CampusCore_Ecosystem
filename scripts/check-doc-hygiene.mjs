@@ -24,6 +24,7 @@ const requiredFiles = [
   'docs/releases/v1.4.0.md',
   'scripts/run-container-inventory.mjs',
   'scripts/run-production-validation.mjs',
+  'scripts/check-text-encoding.mjs',
   'load-tests/src/production-validation.js',
 ];
 
@@ -58,7 +59,14 @@ const requiredDocSnippets = [
   },
 ];
 
-const mojibakeMarkers = ['Ã', 'Ä', 'Æ', 'Â', 'â€', '\uFFFD'];
+const mojibakeMarkers = [
+  '\u00c3',
+  '\u00c4',
+  '\u00c6',
+  '\u00c2',
+  '\u00e2\u20ac',
+  '\uFFFD',
+];
 const textFilePattern = /\.(?:md|mdx|yml|yaml)$/iu;
 const markdownLinkPattern = /!?\[[^\]]*\]\(([^)]+)\)/gu;
 

@@ -85,6 +85,35 @@ describe('EmailService', () => {
     );
   });
 
+  it('renders Vietnamese course and semester names without replacement marks', async () => {
+    const service = new EmailService(configWithFrontendUrl);
+
+    const result = await service.sendEnrollmentNotification({
+      to: 'student@example.edu',
+      template: 'enrollment.confirmed',
+      locale: 'vi',
+      studentName: 'Jason Bui',
+      courseCode: 'CS101',
+      courseName: 'Introduction to Programming',
+      courseNameVi: 'Nhập môn lập trình',
+      sectionNumber: '01',
+      semesterName: 'Summer 2026',
+      semesterNameVi: 'Học kỳ Hè 2026',
+      link: '/vi/dashboard/enrollments',
+    });
+
+    expect(result).toBe(true);
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: expect.stringContaining('CS101 - Nhập môn lập trình'),
+        text: expect.stringContaining('Học kỳ Hè 2026'),
+        html: expect.stringContaining('Nhập môn lập trình'),
+      }),
+    );
+    expect(sendMail.mock.calls.at(-1)?.[0].text).not.toMatch(/\p{L}\?\p{L}/u);
+    expect(sendMail.mock.calls.at(-1)?.[0].html).not.toMatch(/\p{L}\?\p{L}/u);
+  });
+
   it('uses SMTP transport when server-side SMTP secrets are configured', () => {
     new EmailService({
       get: jest.fn((key: string) => {
