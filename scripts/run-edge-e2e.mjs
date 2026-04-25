@@ -2,6 +2,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+import net from 'node:net';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,9 +11,10 @@ const frontendDir = path.join(repoRoot, 'frontend');
 const composeFile = path.join(repoRoot, 'docker-compose.e2e.yml');
 const logsDir = path.join(frontendDir, 'test-results', 'edge-e2e-stack');
 const projectName = process.env.E2E_COMPOSE_PROJECT ?? 'campuscore-edge-e2e';
-const edgePort = Number(process.env.E2E_EDGE_PORT ?? '80');
-const baseURL = `http://127.0.0.1${edgePort === 80 ? '' : `:${edgePort}`}`;
-const apiURL = `${baseURL}/api/v1`;
+const requestedEdgePort = Number(process.env.E2E_EDGE_PORT ?? '80');
+let edgePort = requestedEdgePort;
+let baseURL = `http://127.0.0.1${edgePort === 80 ? '' : `:${edgePort}`}`;
+let apiURL = `${baseURL}/api/v1`;
 const keepStack = process.env.E2E_KEEP_STACK === '1';
 const usePrebuiltImages = process.env.E2E_USE_PREBUILT_IMAGES === '1';
 const playwrightCli = path.join(frontendDir, 'node_modules', 'playwright', 'cli.js');
@@ -78,6 +80,9 @@ const servicesForLogs = [
 async function main() {
   await rm(logsDir, { recursive: true, force: true });
   await mkdir(logsDir, { recursive: true });
+  edgePort = await resolveEdgePort();
+  baseURL = `http://127.0.0.1${edgePort === 80 ? '' : `:${edgePort}`}`;
+  apiURL = `${baseURL}/api/v1`;
 
   try {
     await compose(['down', '-v', '--remove-orphans'], { allowFailure: true });
@@ -368,6 +373,42 @@ function run(command, args, options = {}) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function resolveEdgePort() {
+  if (process.env.E2E_EDGE_PORT) {
+    return requestedEdgePort;
+  }
+
+  if (await isPortAvailable(requestedEdgePort)) {
+    return requestedEdgePort;
+  }
+
+  for (const fallbackPort of [8088, 8089, 18080]) {
+    if (await isPortAvailable(fallbackPort)) {
+      console.warn(
+        `[run-edge-e2e] Port ${requestedEdgePort} is already in use; falling back to ${fallbackPort}.`,
+      );
+      return fallbackPort;
+    }
+  }
+
+  throw new Error(
+    `[run-edge-e2e] Port ${requestedEdgePort} is busy and no fallback port was available. Set E2E_EDGE_PORT explicitly to an open port and retry.`,
+  );
+}
+
+async function isPortAvailable(port) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+
+    server.once('error', () => resolve(false));
+    server.once('listening', () => {
+      server.close(() => resolve(true));
+    });
+
+    server.listen(port, '127.0.0.1');
+  });
 }
 
 await main();

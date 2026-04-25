@@ -11,7 +11,7 @@ function escapeForRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-test('student checkout completes through the provider handoff and syncs the invoice timeline', async ({
+test('student checkout can switch providers before completing the sandbox handoff', async ({
   page,
   playwright,
 }) => {
@@ -32,7 +32,10 @@ test('student checkout completes through the provider handoff and syncs the invo
     }>;
     const targetInvoice = invoices.find((invoice) => invoice.balance > 0);
 
-    expect(targetInvoice, 'Expected at least one invoice with an outstanding balance').toBeTruthy();
+    expect(
+      targetInvoice,
+      'Expected at least one invoice with an outstanding balance',
+    ).toBeTruthy();
 
     await seedBrowserSession(page, playwright, 'student', { shared: true });
     await page.goto('/dashboard/invoices');
@@ -52,14 +55,29 @@ test('student checkout completes through the provider handoff and syncs the invo
       page.getByRole('heading', { name: /Invoice details|Chi tiết hóa đơn/i }),
     ).toBeVisible();
 
-    await page.getByRole('button', { name: /^MoMo$/i }).click();
-    await expect(
-      page.getByRole('button', { name: /Continue to provider/i }),
-    ).toBeVisible();
+    const providerChecks = [
+      { button: /^MoMo$/i, action: /Continue to provider/i },
+      { button: /^ZaloPay$/i, action: /Open QR confirmation/i },
+      { button: /^VNPay$/i, action: /Continue to provider/i },
+      { button: /^PayPal$/i, action: /Continue to approval/i },
+      {
+        button: /^Visa \/ international card$/i,
+        action: /Open secure card checkout/i,
+      },
+    ];
 
-    await page.getByRole('button', { name: /Continue to provider/i }).click();
+    for (const provider of providerChecks) {
+      await page.getByRole('button', { name: provider.button }).click();
+      await expect(
+        page.getByRole('button', { name: provider.action }),
+      ).toBeVisible();
+    }
+
+    await page
+      .getByRole('button', { name: /Open secure card checkout/i })
+      .click();
     await expect(page).toHaveURL(
-      /\/api\/v1\/finance\/payment-providers\/momo\/handoff\//,
+      /\/api\/v1\/finance\/payment-providers\/card\/handoff\//,
     );
     await expect(
       page.getByRole('link', { name: /Complete payment/i }),
@@ -112,9 +130,7 @@ test('student invoice surface stays localized on the Vietnamese route', async ({
     await page.goto('/vi/dashboard/invoices');
 
     await expect(page).toHaveURL(/\/vi\/dashboard\/invoices$/);
-    await expect(
-      page.getByRole('heading', { name: /Hóa đơn/ }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Hóa đơn/ })).toBeVisible();
     await expect(
       page.getByRole('combobox', { name: /Chọn học kỳ cho hóa đơn/ }),
     ).toBeVisible();

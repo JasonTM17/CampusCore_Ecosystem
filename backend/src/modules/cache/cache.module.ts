@@ -1,4 +1,4 @@
-import { Module, Global } from '@nestjs/common';
+import { Module, Global, Logger } from '@nestjs/common';
 import { CacheModule as NestCacheModule } from '@nestjs/cache-manager';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { KeyvAdapter } from 'cache-manager';
@@ -9,6 +9,7 @@ import { CACHE_RUNTIME_STATUS, CacheRuntimeStatus } from './cache.constants';
 
 const CACHE_NAMESPACE = 'campuscore';
 const CACHE_TTL = 300;
+const cacheLogger = new Logger('CacheModule');
 
 const cacheRuntimeStatus: CacheRuntimeStatus = {
   backend: 'memory',
@@ -47,9 +48,9 @@ const cacheRuntimeStatus: CacheRuntimeStatus = {
               ttl: CACHE_TTL,
             });
             cacheRuntimeStatus.backend = 'redis';
-            console.log('Redis caching enabled');
+            cacheLogger.log('Redis caching enabled');
           } catch (error) {
-            console.warn(
+            cacheLogger.warn(
               'Failed to initialize Redis store, falling back to memory store:',
               error,
             );
@@ -58,7 +59,7 @@ const cacheRuntimeStatus: CacheRuntimeStatus = {
             cacheRuntimeStatus.fallbackToMemory = true;
           }
         } else {
-          console.log('Using in-memory cache store');
+          cacheLogger.log('Using in-memory cache store');
           store = undefined;
           cacheRuntimeStatus.backend = 'memory';
         }

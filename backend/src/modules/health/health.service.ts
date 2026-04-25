@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CachingService } from '../cache/caching.service';
 import { RabbitMQService } from '../rabbitmq/rabbitmq.service';
@@ -116,8 +117,8 @@ export class HealthService {
     try {
       const start = Date.now();
       // Test Redis connection by setting and getting a value
-      const testKey = 'health:check';
-      await this.cachingService.set(testKey, 'ok', 10);
+      const testKey = `health:check:${randomUUID()}`;
+      await this.cachingService.set(testKey, 'ok', 30_000);
       const result = await this.cachingService.get<string>(testKey);
       await this.cachingService.del(testKey);
       const latency = Date.now() - start;

@@ -256,8 +256,8 @@ function getProviderDefinitions(locale: 'en' | 'vi') {
       label: locale === 'vi' ? 'Visa / thẻ quốc tế' : 'Visa / international card',
       description:
         locale === 'vi'
-          ? 'Phiên thanh toán thẻ qua hosted checkout, không nhập thẻ trực tiếp tại CampusCore.'
-          : 'Hosted card checkout without collecting card numbers inside CampusCore.',
+          ? 'Thanh toán an toàn qua cổng thẻ được xác minh cho học phí và lệ phí.'
+          : 'A verified card checkout for tuition and service payments.',
       icon: CreditCard,
       toneClassName: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300',
     },
@@ -290,7 +290,7 @@ function getCheckoutActionLabel(
   };
   const en: Record<StudentCheckoutFlow, string> = {
     REDIRECT: 'Continue to provider',
-    QR: 'Open QR handoff',
+    QR: 'Open QR confirmation',
     APPROVAL: 'Continue to approval',
     HOSTED_CARD: 'Open secure card checkout',
   };
@@ -310,21 +310,21 @@ function getCheckoutActionDescription(
     REDIRECT:
       'Bạn sẽ được chuyển sang bước xác nhận an toàn của nhà cung cấp rồi quay lại CampusCore.',
     QR:
-      'Dùng payload hoặc deeplink bên dưới để mô phỏng bước quét mã trước khi đồng bộ trạng thái hóa đơn.',
+      'Dùng mã xác nhận hoặc liên kết mở ứng dụng bên dưới để hoàn tất bước xác nhận với nhà cung cấp.',
     APPROVAL:
       'Mở bước phê duyệt của nhà cung cấp và quay lại để xem trạng thái đối soát.',
     HOSTED_CARD:
-      'Thanh toán thẻ đi qua hosted checkout, CampusCore không thu thập dữ liệu thẻ trực tiếp.',
+      'Bạn sẽ hoàn tất bước xác nhận trên cổng thẻ an toàn rồi quay lại CampusCore.',
   };
   const en: Record<StudentCheckoutFlow, string> = {
     REDIRECT:
       'You will continue through the provider confirmation step and then return to CampusCore.',
     QR:
-      'Use the payload or deeplink below to simulate a provider QR handoff before invoice status syncs back.',
+      'Use the confirmation code or app link below to complete the provider confirmation step.',
     APPROVAL:
       'Open the approval step in the provider handoff and then return to review reconciliation status.',
     HOSTED_CARD:
-      'Card checkout stays on a hosted flow, and CampusCore never collects raw card details directly.',
+      'You will finish the secure card confirmation step and then return to CampusCore.',
   };
 
   if (!flow) {
@@ -465,9 +465,9 @@ export default function StudentInvoicesPage() {
           checkout: {
             title: 'Phương thức thanh toán',
             description:
-              'Chọn cổng thanh toán để mở phiên thanh toán và theo dõi trạng thái đối soát.',
+              'Chọn cổng thanh toán phù hợp để tiếp tục xử lý hóa đơn này.',
             sandboxNotice:
-              'Bạn sẽ hoàn tất bước xác nhận tại cổng thanh toán rồi quay lại CampusCore để theo dõi đối soát.',
+              'Bạn sẽ hoàn tất bước xác nhận tại cổng thanh toán rồi quay lại CampusCore để xem trạng thái mới nhất.',
             chooseProvider: 'Chọn phương thức',
             readyToPay: 'Sẵn sàng thanh toán',
             settled: 'Hóa đơn này đã được thanh toán đủ.',
@@ -486,9 +486,9 @@ export default function StudentInvoicesPage() {
             timeline: 'Dòng thời gian thanh toán',
             noTimeline:
               'Dòng thời gian sẽ xuất hiện khi phiên thanh toán được tạo.',
-            simulateTitle: 'Theo dõi phiên thanh toán',
+            simulateTitle: 'Theo dõi tiến trình thanh toán',
             simulateDescription:
-              'Các trạng thái dưới đây giúp kiểm tra hành trình thanh toán và đối soát mà không lộ thông tin nhạy cảm.',
+              'Các bước dưới đây mô phỏng phản hồi từ cổng thanh toán để bạn kiểm tra luồng xử lý mà không dùng tiền thật.',
             simulateProcessing: 'Đánh dấu đang xử lý',
             simulateSuccess: 'Xác nhận đã thanh toán',
             simulateFailure: 'Giả lập thất bại',
@@ -554,9 +554,9 @@ export default function StudentInvoicesPage() {
           checkout: {
             title: 'Payment methods',
             description:
-              'Choose a provider to start checkout and track reconciliation status.',
+              'Choose the provider that best fits this invoice.',
             sandboxNotice:
-              'You will finish the provider confirmation step outside CampusCore and then return here to track reconciliation.',
+              'You will complete the confirmation step with the provider and then return here to review the latest status.',
             chooseProvider: 'Choose a provider',
             readyToPay: 'Ready to pay',
             settled: 'This invoice is already fully settled.',
@@ -574,9 +574,9 @@ export default function StudentInvoicesPage() {
             timeline: 'Payment timeline',
             noTimeline:
               'Timeline events will appear after a checkout session is created.',
-            simulateTitle: 'Payment session follow-up',
+            simulateTitle: 'Track payment progress',
             simulateDescription:
-              'Use these states to verify checkout and reconciliation without exposing sensitive payment data.',
+              'These demo updates simulate provider callbacks so you can review the payment flow without using real money.',
             simulateProcessing: 'Mark processing',
             simulateSuccess: 'Confirm paid',
             simulateFailure: 'Simulate failure',
@@ -946,8 +946,8 @@ export default function StudentInvoicesPage() {
             title={copy.billingRecords}
             description={
               locale === 'vi'
-                ? 'Mở chi tiết để xem khoản mục, lịch sử thanh toán và các lựa chọn checkout ở chế độ test.'
-                : 'Open any invoice to review line items, payment history, and test-mode checkout options.'
+                ? 'Mở chi tiết để xem khoản mục, lịch sử thanh toán và các lựa chọn thanh toán hiện có.'
+                : 'Open any invoice to review line items, payment history, and the available payment options.'
             }
             contentClassName="space-y-4"
           >
@@ -1377,21 +1377,29 @@ export default function StudentInvoicesPage() {
                           {activeCheckout.nextAction?.qrPayload ? (
                             <div className="rounded-lg border border-border/70 bg-background/50 px-4 py-3">
                               <div className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                                QR payload
+                                {locale === 'vi'
+                                  ? 'Mã xác nhận QR'
+                                  : 'QR confirmation code'}
                               </div>
-                              <code className="mt-2 block break-all text-sm text-foreground">
-                                {activeCheckout.nextAction.qrPayload}
-                              </code>
+                              <p className="mt-2 text-sm leading-6 text-foreground">
+                                {locale === 'vi'
+                                  ? 'Đã tạo mã xác nhận cho bước thanh toán với nhà cung cấp.'
+                                  : 'A provider confirmation code is ready for the payment step.'}
+                              </p>
                             </div>
                           ) : null}
                           {activeCheckout.nextAction?.deeplinkUrl ? (
                             <div className="rounded-lg border border-border/70 bg-background/50 px-4 py-3">
                               <div className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                                Deeplink
+                                {locale === 'vi'
+                                  ? 'Liên kết mở ứng dụng'
+                                  : 'App payment link'}
                               </div>
-                              <code className="mt-2 block break-all text-sm text-foreground">
-                                {activeCheckout.nextAction.deeplinkUrl}
-                              </code>
+                              <p className="mt-2 text-sm leading-6 text-foreground">
+                                {locale === 'vi'
+                                  ? 'Liên kết ứng dụng đã sẵn sàng và sẽ được dùng khi bạn tiếp tục.'
+                                  : 'The app payment link is ready and will be used when you continue.'}
+                              </p>
                             </div>
                           ) : null}
                           <div className="grid gap-2 sm:grid-cols-2">
