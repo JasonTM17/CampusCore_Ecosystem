@@ -330,7 +330,7 @@ async function runStep(name, action) {
 
 async function runNpmAudit(cwd, outputPath) {
   if (process.platform === 'win32') {
-    await run('cmd.exe', ['/d', '/s', '/c', 'npm audit --json'], {
+    await run('cmd.exe', ['/d', '/s', '/c', 'npm audit --audit-level=high --json'], {
       cwd,
       captureOutput: true,
       outputPath,
@@ -338,7 +338,7 @@ async function runNpmAudit(cwd, outputPath) {
     return;
   }
 
-  await run('npm', ['audit', '--json'], {
+  await run('npm', ['audit', '--audit-level=high', '--json'], {
     cwd,
     captureOutput: true,
     outputPath,
