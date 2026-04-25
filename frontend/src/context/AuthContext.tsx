@@ -16,6 +16,7 @@ import { authApi } from '@/lib/api';
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
+  isLoggingOut: boolean;
   isStudent: boolean;
   isLecturer: boolean;
   isAdmin: boolean;
@@ -32,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { href } = useI18n();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const refreshUser = useCallback(async () => {
     try {
@@ -56,11 +58,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const response = await authApi.login(email, password);
+    setIsLoggingOut(false);
     setUser(response.user);
     return response.user;
   }, []);
 
   const logout = useCallback(async () => {
+    setIsLoggingOut(true);
     try {
       await authApi.logout();
     } catch {
@@ -81,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isLoading,
+        isLoggingOut,
         isStudent,
         isLecturer,
         isAdmin,
@@ -106,13 +111,13 @@ export function useAuth() {
 export function useRequireAuth(
   requiredRoles?: ('STUDENT' | 'LECTURER' | 'ADMIN' | 'SUPER_ADMIN')[],
 ) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isLoggingOut } = useAuth();
   const router = useRouter();
   const { href } = useI18n();
   const [hasAccess, setHasAccess] = useState(false);
 
   useEffect(() => {
-    if (isLoading) {
+    if (isLoading || isLoggingOut) {
       return;
     }
 
@@ -144,7 +149,7 @@ export function useRequireAuth(
     }
 
     setHasAccess(true);
-  }, [href, user, isLoading, requiredRoles, router]);
+  }, [href, user, isLoading, isLoggingOut, requiredRoles, router]);
 
   return { user, isLoading, hasAccess };
 }

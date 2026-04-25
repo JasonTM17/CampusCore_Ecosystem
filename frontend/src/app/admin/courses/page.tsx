@@ -57,7 +57,7 @@ interface Department {
 }
 
 export default function AdminCoursesPage() {
-  const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { href, locale, formatNumber, messages } = useI18n();
   const router = useRouter();
   const [courses, setCourses] = useState<Course[]>([]);
@@ -84,10 +84,19 @@ export default function AdminCoursesPage() {
   const { confirm, confirmationDialog } = useConfirmationDialog();
 
   useEffect(() => {
-    if (user && !isAdmin && !isSuperAdmin) {
-      router.push(href('/dashboard'));
+    if (isAuthLoading || isLoggingOut) {
+      return;
     }
-  }, [href, isAdmin, isSuperAdmin, router, user]);
+
+    if (!user) {
+      router.replace(`${href('/login')}?reason=session-expired`);
+      return;
+    }
+
+    if (!isAdmin && !isSuperAdmin) {
+      router.replace(href('/dashboard'));
+    }
+  }, [href, isAdmin, isSuperAdmin, isAuthLoading, isLoggingOut, router, user]);
 
   const fetchDepartments = useCallback(async () => {
     try {
@@ -263,7 +272,7 @@ export default function AdminCoursesPage() {
           deleteLabel: (code: string) => `Delete course ${code}`,
         };
 
-  if (!canAccess) {
+  if (isAuthLoading || isLoggingOut || !canAccess) {
     return <LoadingState label={copy.loading} className="m-8" />;
   }
 

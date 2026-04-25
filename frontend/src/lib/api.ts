@@ -33,11 +33,13 @@ type AuthRequestConfig = AxiosRequestConfig & {
   skipAuthRefresh?: boolean;
   skipAuthRedirect?: boolean;
   _retry?: boolean;
+  _retryNoCache?: boolean;
 };
 type AuthInternalRequestConfig = InternalAxiosRequestConfig & {
   skipAuthRefresh?: boolean;
   skipAuthRedirect?: boolean;
   _retry?: boolean;
+  _retryNoCache?: boolean;
 };
 type AnnouncementRecord = {
   id: string;
@@ -405,6 +407,29 @@ function shouldAttemptSessionRefresh(config?: AuthRequestConfig) {
   return !AUTH_REFRESH_ROUTE_PATTERN.test(getRequestPath(config));
 }
 
+function isSafeRequest(config?: AxiosRequestConfig) {
+  const method = (config?.method ?? 'get').toLowerCase();
+  return method === 'get' || method === 'head';
+}
+
+function appendNoCacheParam(config: AuthRequestConfig) {
+  const cacheBustKey = '_cc_nocache';
+  const cacheBustValue = `${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+
+  if (config.params && typeof config.params === 'object') {
+    config.params = {
+      ...(config.params as Record<string, unknown>),
+      [cacheBustKey]: cacheBustValue,
+    };
+    return config;
+  }
+
+  config.params = { [cacheBustKey]: cacheBustValue };
+  return config;
+}
+
 function applyCsrfHeader(config: AuthInternalRequestConfig) {
   if (!isBrowser() || !isMutatingRequest(config)) {
     return config;
@@ -424,6 +449,9 @@ const api = axios.create({
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
+    'Cache-Control': 'no-store',
+    Pragma: 'no-cache',
+    Expires: '0',
   },
 });
 
@@ -436,6 +464,12 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalConfig = error.config as AuthRequestConfig | undefined;
     const unauthorized = error.response?.status === 401;
+    const notModified = error.response?.status === 304;
+
+    if (notModified && originalConfig && isSafeRequest(originalConfig) && !originalConfig._retryNoCache) {
+      originalConfig._retryNoCache = true;
+      return api(appendNoCacheParam(originalConfig));
+    }
 
     if (unauthorized && originalConfig && shouldAttemptSessionRefresh(originalConfig) && !originalConfig._retry) {
       originalConfig._retry = true;
