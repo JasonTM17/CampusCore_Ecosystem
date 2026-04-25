@@ -1,7 +1,7 @@
 # CampusCore
 
 [![CI](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/ci.yml/badge.svg)](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/ci.yml)
-[![CD](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml/badge.svg?branch=v1.4.0)](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml?query=branch%3Av1.4.0)
+[![CD](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml/badge.svg?branch=v1.4.1)](https://github.com/JasonTM17/CampusCore_FullStack_Individual/actions/workflows/cd.yml?query=branch%3Av1.4.1)
 ![Frontend](https://img.shields.io/badge/frontend-Next.js%2015-111827)
 ![Core API](https://img.shields.io/badge/core--api-NestJS%2011-e11d48)
 ![Microservices](https://img.shields.io/badge/runtime-9%20images-0f766e)
@@ -11,7 +11,7 @@
 CampusCore is a production-like university operations platform built as a release-verified microservices portfolio. It combines a Next.js frontend, a NestJS service mesh, a single public `nginx` edge, bilingual product UX, sandbox-ready student payments, and an operator monitoring stack designed for realistic local and Kubernetes handoff workflows.
 
 - Public site: [https://tienson.io.vn](https://tienson.io.vn)
-- Latest release: [`v1.4.0`](./docs/releases/v1.4.0.md)
+- Latest release: [`v1.4.1`](./docs/releases/v1.4.1.md)
 - English docs: [README.en.md](./README.en.md)
 - Vietnamese docs: [README.vi.md](./README.vi.md)
 
@@ -21,8 +21,8 @@ CampusCore is a production-like university operations platform built as a releas
 
 ## Release Status
 
-- Current release: [`v1.4.0`](https://github.com/JasonTM17/CampusCore_FullStack_Individual/releases/tag/v1.4.0)
-- Release notes: [docs/releases/v1.4.0.md](./docs/releases/v1.4.0.md)
+- Current release: [`v1.4.1`](https://github.com/JasonTM17/CampusCore_FullStack_Individual/releases/tag/v1.4.1)
+- Release notes: [docs/releases/v1.4.1.md](./docs/releases/v1.4.1.md)
 - Published topology: 9 images across GHCR and Docker Hub
 - Verification posture: CI quality gate, CD publish, manifest verification, image smoke, edge E2E, and security scan
 
@@ -103,7 +103,7 @@ read the Cloudflare/local edge notes in [docs/CLOUDFLARE.md](./docs/CLOUDFLARE.m
 - [README.en.md](./README.en.md)
 - [README.vi.md](./README.vi.md)
 - [docs/releases/TEMPLATE.md](./docs/releases/TEMPLATE.md)
-- [docs/releases/v1.4.0.md](./docs/releases/v1.4.0.md)
+- [docs/releases/v1.4.1.md](./docs/releases/v1.4.1.md)
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - [docs/OPERATIONS.md](./docs/OPERATIONS.md)
 - [docs/SECURITY.md](./docs/SECURITY.md)

@@ -8,7 +8,7 @@
 - GitHub Actions prefers `DOCKERHUB_TOKEN`; `DOCKERHUB_PASSWORD` remains a legacy fallback only.
 - The CD badge in [README.md](../README.md) should point to the latest public semver tag because the gated publish workflow runs from release tags.
 
-The current public release is **`v1.4.0`**. It follows the earlier `v1.3.6` Kubernetes and local-edge hardening baseline.
+The current public release is **`v1.4.1`**. It follows the `v1.4.0` bilingual product, payment orchestration, and release verification baseline.
 
 ## Required quality gate
 
@@ -35,6 +35,7 @@ Current required lanes:
 - `frontend-quality`
 - `frontend-fast-e2e`
 - `compose-contract`
+- `k8s-contract`
 - `image-smoke`
 - `edge-e2e`
 - `security-scan`
@@ -56,7 +57,7 @@ Each public release must publish these nine images:
 
 Every release is verified with:
 
-- a semver tag such as `v1.4.0`
+- a semver tag such as `v1.4.1`
 - an immutable short SHA tag
 - `latest`
 
@@ -71,7 +72,7 @@ After CD finishes, verify:
 Example local verification:
 
 ```powershell
-$env:RELEASE_TAG='v1.4.0'
+$env:RELEASE_TAG='v1.4.1'
 $env:RELEASE_SHORT_SHA=(git rev-parse --short HEAD).Trim()
 node scripts/verify-release-manifests.mjs
 ```

@@ -8,8 +8,8 @@ CampusCore is a production-like university operations platform built as a releas
 
 ## Release status
 
-- Current release: [`v1.4.0`](https://github.com/JasonTM17/CampusCore_FullStack_Individual/releases/tag/v1.4.0)
-- Release notes: [docs/releases/v1.4.0.md](./docs/releases/v1.4.0.md)
+- Current release: [`v1.4.1`](https://github.com/JasonTM17/CampusCore_FullStack_Individual/releases/tag/v1.4.1)
+- Release notes: [docs/releases/v1.4.1.md](./docs/releases/v1.4.1.md)
 - Published topology: 9 images across GHCR and Docker Hub
 - Verification posture: CI quality gate, CD publish, manifest verification, image smoke, edge E2E, and security scan
 
@@ -102,7 +102,7 @@ Current public images:
 - [README.md](./README.md)
 - [README.vi.md](./README.vi.md)
 - [docs/releases/TEMPLATE.md](./docs/releases/TEMPLATE.md)
-- [docs/releases/v1.4.0.md](./docs/releases/v1.4.0.md)
+- [docs/releases/v1.4.1.md](./docs/releases/v1.4.1.md)
 - [k8s/README.md](./k8s/README.md)
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 - [docs/OPERATIONS.md](./docs/OPERATIONS.md)

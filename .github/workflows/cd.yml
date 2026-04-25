@@ -40,7 +40,7 @@ jobs:
             echo "- Branch: $GITHUB_REF_NAME"
             echo "- Source SHA: $GITHUB_SHA"
             echo "- Registry publishing is intentionally gated to semantic release tags only."
-            echo "- Push a tag like v1.4.0 to build and publish the 9 release images."
+            echo "- Push a tag like v1.4.1 to build and publish the 9 release images."
           } >> "$GITHUB_STEP_SUMMARY"
 
   release-plan:
