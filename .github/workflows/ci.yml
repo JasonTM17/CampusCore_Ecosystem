@@ -1684,6 +1684,7 @@ jobs:
           output: security-results/trivy-platform-auth-fs.sarif
           severity: HIGH,CRITICAL
           exit-code: '1'
+          limit-severities-for-sarif: true
 
       - name: Filesystem scan
         id: trivy-fs
@@ -1696,6 +1697,7 @@ jobs:
           output: security-results/trivy-fs.sarif
           severity: HIGH,CRITICAL
           exit-code: '1'
+          limit-severities-for-sarif: true
 
       - name: Auth service filesystem scan
         id: trivy-auth-fs
@@ -1708,6 +1710,7 @@ jobs:
           output: security-results/trivy-auth-fs.sarif
           severity: HIGH,CRITICAL
           exit-code: '1'
+          limit-severities-for-sarif: true
 
       - name: Academic service filesystem scan
         id: trivy-academic-fs
@@ -1720,6 +1723,7 @@ jobs:
           output: security-results/trivy-academic-fs.sarif
           severity: HIGH,CRITICAL
           exit-code: '1'
+          limit-severities-for-sarif: true
 
       - name: Engagement service filesystem scan
         id: trivy-engagement-fs
@@ -1732,6 +1736,7 @@ jobs:
           output: security-results/trivy-engagement-fs.sarif
           severity: HIGH,CRITICAL
           exit-code: '1'
+          limit-severities-for-sarif: true
 
       - name: People service filesystem scan
         id: trivy-people-fs
@@ -1744,6 +1749,7 @@ jobs:
           output: security-results/trivy-people-fs.sarif
           severity: HIGH,CRITICAL
           exit-code: '1'
+          limit-severities-for-sarif: true
 
       - name: Analytics service filesystem scan
         id: trivy-analytics-fs
@@ -1756,6 +1762,7 @@ jobs:
           output: security-results/trivy-analytics-fs.sarif
           severity: HIGH,CRITICAL
           exit-code: '1'
+          limit-severities-for-sarif: true
 
       - name: Build backend image for scan
         run: docker build -f backend/Dockerfile -t campuscore-backend:security .
@@ -1796,6 +1803,7 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+          limit-severities-for-sarif: true
 
       - name: Auth service image scan
         id: trivy-auth-image
@@ -1809,6 +1817,7 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+          limit-severities-for-sarif: true
 
       - name: Frontend image scan
         id: trivy-frontend-image
@@ -1822,6 +1831,7 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+          limit-severities-for-sarif: true
 
       - name: Notification service image scan
         id: trivy-notification-image
@@ -1835,6 +1845,7 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+          limit-severities-for-sarif: true
 
       - name: Finance service image scan
         id: trivy-finance-image
@@ -1848,6 +1859,7 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+          limit-severities-for-sarif: true
 
       - name: Academic service image scan
         id: trivy-academic-image
@@ -1861,6 +1873,7 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+          limit-severities-for-sarif: true
 
       - name: Engagement service image scan
         id: trivy-engagement-image
@@ -1874,6 +1887,7 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+          limit-severities-for-sarif: true
 
       - name: People service image scan
         id: trivy-people-image
@@ -1887,6 +1901,7 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+          limit-severities-for-sarif: true
 
       - name: Analytics service image scan
         id: trivy-analytics-image
@@ -1900,6 +1915,7 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+          limit-severities-for-sarif: true
 
       - name: Upload gitleaks SARIF
         if: always() && hashFiles('security-results/gitleaks.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
