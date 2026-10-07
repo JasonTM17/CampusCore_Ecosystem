@@ -428,16 +428,14 @@ test('demo polish: weekend meetings remain visible in both languages', async ({ 
     const sunday = locale === 'en' ? 'Sunday' : 'Chủ Nhật';
     const saturday = locale === 'en' ? 'Saturday' : 'Thứ Bảy';
     if ((testInfo.project.use.viewport?.width ?? 1280) < 768) {
-      const sundayCard = page.locator('div.rounded-xl').filter({
-        has: page.getByRole('heading', { name: sunday, exact: true }),
-      }).filter({ visible: true }).last();
+      const sundayCard = page.getByRole('heading', { name: sunday, exact: true })
+        .locator('xpath=../../..');
       await expect(sundayCard).toBeVisible();
       await expect(sundayCard.getByText('WEEKEND0', { exact: true })).toBeVisible();
       await expect(sundayCard.getByText('WEEKEND2', { exact: true })).toBeVisible();
 
-      const saturdayCard = page.locator('div.rounded-xl').filter({
-        has: page.getByRole('heading', { name: saturday, exact: true }),
-      }).filter({ visible: true }).last();
+      const saturdayCard = page.getByRole('heading', { name: saturday, exact: true })
+        .locator('xpath=../../..');
       await expect(saturdayCard).toBeVisible();
       await expect(saturdayCard.getByText('WEEKEND1', { exact: true })).toBeVisible();
     } else {

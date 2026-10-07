@@ -33,6 +33,12 @@ export interface WeeklyGrid {
   cells: Record<string, WeeklyGridItem[]>;
 }
 
+/** Copy before sorting so API/query-cache arrays are never mutated. */
+export function sortWeeklyMeetings<T extends WeeklyGridItem>(items: T[]): T[] {
+  return [...items].sort((a, b) => a.startTime.localeCompare(b.startTime)
+    || a.endTime.localeCompare(b.endTime));
+}
+
 /**
  * Builds a deterministic weekly grid from flat schedule items. The backend
  * stores Sunday as 1; legacy JS-shaped records may still send Sunday as 0.

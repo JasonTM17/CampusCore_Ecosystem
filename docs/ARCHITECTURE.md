@@ -252,6 +252,12 @@ Giao diện người dùng của CampusCore được thiết kế dựa trên ng
 - **Bảng dữ liệu xanh đậm (Blue Header Tables)**: Hiển thị dày đặc thông tin điểm số, thời khóa biểu, danh sách lớp học phần theo chuẩn học vụ truyền thống.
 - **Xử lý trạng thái tường minh**: Toàn bộ các trạng thái Tải dữ liệu (Loading skeleton), Dữ liệu rỗng (Empty state), Lỗi mạng (Error state), và Cấm truy cập (Forbidden 403) đều được xử lý với thông báo rõ ràng, song ngữ.
 
+Sinh viên cần tra cứu kết quả đăng ký và lịch học cả sau khi đợt đăng ký đóng, nên quyền xem phải độc lập với thời hạn thêm/rút học phần và dữ liệu phải gắn với tài khoản, học kỳ đang xem. Điểm vào: [trang đăng ký](../frontend/src/app/dashboard/register/page.tsx), [tab điều hướng](../frontend/src/components/registration/registration-tabs.tsx) và [khung học phần đã đăng ký](../frontend/src/components/registration/registered-courses-panel.tsx); lịch học dùng [WeeklyGrid](../frontend/src/components/schedule/weekly-grid.tsx). Bằng chứng tương tác nằm trong [kiểm thử trình duyệt](../frontend/e2e/registration-details.spec.ts).
+
+Kết quả chưa xác nhận khi mạng lỗi không được xem là chưa đăng ký: sinh viên cần biết độ tin cậy của dữ liệu trước khi quyết định tín chỉ hoặc lịch học. Ngữ cảnh tab, học kỳ và bộ lọc trong URL phục vụ việc chia sẻ, tải lại và quay về đúng góc nhìn; chủ sở hữu hợp đồng này là trang đăng ký và khung học phần đã đăng ký ở trên. Cùng một buổi học phải có tên thứ thống nhất và thứ tự thời gian rõ ràng ở mọi góc nhìn; ranh giới quy ước ngày học, kể cả dữ liệu Chủ Nhật cũ, nằm tại WeeklyGrid và [hàm xử lý lịch tuần](../frontend/src/lib/weekly-grid.ts). Các trường hợp biên được định nghĩa trong [kiểm thử lịch và nhãn thứ](../frontend/tests/registration-ux.test.js).
+
+Trên màn hình hẹp, truy cập trợ lý phải giữ chỗ cho thao tác học phần và xem lịch; điểm sở hữu lựa chọn hiển thị nút nổi là [AssistantPanel](../frontend/src/components/assistant/AssistantPanel.tsx). Điều hướng bàn phím, tên điều khiển và thông báo lỗi phải giúp sinh viên hiểu trạng thái mà không phụ thuộc màu sắc hoặc thông báo thoáng qua. Các điểm vào là tab điều hướng, trang đăng ký và [nội dung song ngữ](../frontend/src/i18n/messages.ts); kiểm thử trình duyệt ở trên sở hữu các kịch bản tương tác, còn kết quả chạy và bằng chứng phát hành thuộc hồ sơ kế hoạch/phát hành.
+
 ---
 
 ## 7. Ranh giới ngoài phạm vi (Non-goals)

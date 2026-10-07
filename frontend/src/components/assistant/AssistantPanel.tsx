@@ -570,7 +570,8 @@ export function AssistantPanel() {
             open
               ? // Mobile: full-screen sheet; desktop: floating card bottom-right.
                 'inset-0 md:inset-auto md:bottom-6 md:right-6 md:w-[min(24rem,calc(100vw-2rem))]'
-              : 'bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 md:bottom-6 md:right-6',
+              : cn('bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 md:bottom-6 md:right-6',
+                  pathname === '/dashboard/register' ? 'hidden md:block' : ''),
           )}
         >
         {open ? (

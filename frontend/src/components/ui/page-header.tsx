@@ -39,6 +39,8 @@ interface PageHeaderProps {
   tabLabel?: React.ReactNode;
   description?: React.ReactNode;
   actions?: React.ReactNode;
+  /** Optional page-specific navigation; the page title remains an h1. */
+  leadingContent?: React.ReactNode;
   className?: string;
 }
 
@@ -48,14 +50,20 @@ export function PageHeader({
   tabLabel,
   description: _description,
   actions,
+  leadingContent,
   className,
 }: PageHeaderProps) {
   return (
     <header className={cn('min-w-0', className)}>
       <div className="relative flex flex-col gap-2 border-b border-border sm:flex-row sm:items-center sm:gap-x-4">
-        <div className="portal-page-tab inline-flex max-w-full self-start rounded-t-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground">
+        {leadingContent ? (
+          <div className="min-w-0 max-w-full self-start">
+            <h1 className="sr-only">{title}</h1>
+            {leadingContent}
+          </div>
+        ) : <div className="portal-page-tab inline-flex max-w-full self-start rounded-t-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground">
           <h1 className="truncate">{tabLabel ?? title}</h1>
-        </div>
+        </div>}
         {actions ? (
           <div className="flex flex-wrap items-center gap-2 py-1.5 sm:ml-auto">
             {actions}
