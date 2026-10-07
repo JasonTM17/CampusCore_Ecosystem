@@ -106,16 +106,27 @@ test('student and admin surfaces keep copy task-focused', () => {
   assert.doesNotMatch(source, /\{sectionData\.status/);
 });
 
-test('student enrollment cards progressively disclose dense class details on mobile', () => {
+test('student enrollments use complete mobile cards and a separate desktop table', () => {
   const page = read('src/app/dashboard/enrollments/page.tsx');
 
-  assert.match(page, /detailsLabel: 'Chi tiết lớp'/);
-  assert.match(page, /detailsLabel: 'Class details'/);
-  assert.match(page, /<details className="group mt-3 sm:hidden">/);
-  assert.match(page, /className="mt-3 hidden space-y-3 sm:block"/);
-  assert.match(page, /className="hidden shrink-0 sm:inline-flex"/);
-  assert.match(page, /className="w-full"/);
-  assert.match(page, /Theo dõi chương trình đào tạo và các lớp đã đăng ký\./);
+  const mobileStart = page.indexOf('<ul className="divide-y divide-border/60 sm:hidden">');
+  const mobileEnd = page.indexOf('</ul>', mobileStart);
+  assert.ok(mobileStart >= 0 && mobileEnd > mobileStart, 'mobile enrollment cards must exist');
+  const mobileCards = page.slice(mobileStart, mobileEnd);
+  assert.match(page, /<div className="hidden overflow-x-auto sm:block">\s*<table/);
+  assert.match(mobileCards, /group\.items\.map\(\(enrollment\) =>/);
+  assert.match(mobileCards, /getLocalizedName\(/);
+  assert.match(mobileCards, /enrollment\.section\.schedules\.map\(\(schedule, index\) =>/);
+  assert.match(mobileCards, /getDayName\(schedule\.dayOfWeek, locale\)/);
+  assert.match(mobileCards, /lecturerName\(enrollment\)/);
+  assert.match(mobileCards, /classroomLabel\(/);
+  assert.match(mobileCards, /formatDate\(enrollment\.enrolledAt\)/);
+  assert.match(mobileCards, /messages\.common\.statuses\.UNKNOWN/);
+  assert.match(mobileCards, /isDroppableEnrollment\(enrollment\.status\)/);
+  assert.match(mobileCards, /onClick=\{\(\) => void handleDrop\(enrollment\.id, courseLabel\)\}/);
+  assert.match(page, /title: 'Môn học của tôi'/);
+  assert.match(page, /title: 'My courses'/);
+  assert.doesNotMatch(mobileCards, /<details/);
   assert.doesNotMatch(
     page,
     /Theo dõi lộ trình toàn khóa theo chương trình đào tạo và cập nhật lớp học phần đã đăng ký\./,
@@ -332,4 +343,3 @@ test('milestone 2: a11y keyboard focus indicators and accessible names', () => {
   );
   assert.ok(matches && matches.length >= 2, 'both featured and standard share buttons must have focus rings');
 });
-

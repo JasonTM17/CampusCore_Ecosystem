@@ -146,12 +146,13 @@ test('feedback polish: registration groups classes, filters browse-first, and ke
   assert.match(page, /matchesSectionSearch/);
   assert.match(page, /curriculumFilter/);
   assert.match(page, /aria-pressed/);
-  // Sections are grouped by course with expandable section rows. The two-column
-  // catalog/rail split starts at xl so the registered rail stays readable (a
-  // 3/12 rail at 1024-1280 collapsed cards to ~180px).
+  // The current registration layout intentionally starts its balanced 8/4
+  // catalog/rail split at lg; all three grid participants use the same breakpoint.
   assert.match(page, /courseGroups/);
-  assert.match(page, /xl:col-span-8/);
-  assert.match(page, /xl:col-span-4/);
+  assert.match(page, /grid-cols-1 gap-6 lg:grid-cols-12/);
+  assert.match(page, /lg:col-span-8/);
+  assert.match(page, /lg:col-span-4/);
+  assert.match(page, /lg:col-span-12/);
   assert.doesNotMatch(page, /lg:col-span-[39]/);
   assert.match(page, /registered\.map\(\(item\) =>/);
   assert.match(page, /onClick=\{\(\) => void drop\(item\)\}/);
@@ -527,7 +528,15 @@ test('dogfood audit: i18n, metadata, and language toggle regressions stay guarde
   assert.match(server, /pathname === '\/register'/);
   assert.match(server, /messages\.meta\.register\.title/);
   assert.doesNotMatch(sitemap, /forgot-password/);
-  assert.match(languageToggle, /if \(nextLocale === locale\) \{\s*return;\s*\}/);
+  // The active locale is a noninteractive span; other locales are real links
+  // that work before hydration and retain query/hash when navigating.
+  assert.match(languageToggle, /if \(isActive\) \{\s*return\s*\(\s*<span/);
+  assert.match(languageToggle, /aria-current="true"/);
+  assert.match(languageToggle, /<Link[\s\S]*?href=\{targetPath\(item\)\}/);
+  assert.match(languageToggle, /switchLocalePath\(pathname, nextLocale, search\)/);
+  assert.match(languageToggle, /window\.location\.hash/);
+  assert.match(languageToggle, /router\.push\(`\$\{targetPath\(nextLocale\)\}\$\{hash\}`\)/);
+  assert.doesNotMatch(languageToggle, /<button/);
   assert.match(thesis, /messages\.thesis\.allFieldsRequired/);
   assert.match(thesis, /messages\.thesis\.reasonTooLong/);
   assert.doesNotMatch(thesis, /'Reason must be at most 500 characters\.'/);

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Clock, GraduationCap, MapPin, Users } from 'lucide-react';
 import {
   buildWeeklyGrid,
+  sortWeeklyMeetings,
   type WeeklyGridItem,
 } from '@/lib/weekly-grid';
 import { getLocalizedCourseLabel, getLocalizedName } from '@/lib/academic-content';
@@ -59,11 +60,15 @@ export const SHORT_DAY_LABELS_EN: Record<number, string> = {
 export const ORDERED_DAYS = [2, 3, 4, 5, 6, 7, 1];
 
 export function dayLabel(locale: Locale, day: number): string {
-  return locale === 'vi' ? DAY_LABELS_VI[day] : DAY_LABELS_EN[day];
+  const normalized = day === 0 ? 1 : day;
+  return (locale === 'vi' ? DAY_LABELS_VI[normalized] : DAY_LABELS_EN[normalized])
+    ?? (locale === 'vi' ? 'Chưa xác định ngày' : 'Unknown day');
 }
 
 export function shortDayLabel(locale: Locale, day: number): string {
-  return locale === 'vi' ? SHORT_DAY_LABELS_VI[day] : SHORT_DAY_LABELS_EN[day];
+  const normalized = day === 0 ? 1 : day;
+  return (locale === 'vi' ? SHORT_DAY_LABELS_VI[normalized] : SHORT_DAY_LABELS_EN[normalized])
+    ?? (locale === 'vi' ? 'Chưa xác định ngày' : 'Unknown day');
 }
 
 /**
@@ -196,7 +201,7 @@ export function WeeklyGrid({
     return () => observer.disconnect();
   }, [compact]);
   const compactNarrow = compact && railNarrow;
-  const agendaByDay = items.reduce<Record<number, WeeklyGridAgendaItem[]>>((groups, item) => {
+  const agendaByDay = sortWeeklyMeetings(items).reduce<Record<number, WeeklyGridAgendaItem[]>>((groups, item) => {
     const day = item.dayOfWeek === 0 ? 1 : item.dayOfWeek;
     if (!groups[day]) {
       groups[day] = [];
@@ -253,7 +258,7 @@ export function WeeklyGrid({
                 <div className={compact ? '' : 'text-xs uppercase tracking-wider'}>
                   {compact ? shortDayLabel(locale, dayNum) : dayName}
                 </div>
-                {isToday && !compact ? (
+                {isToday ? (
                   <span className="mt-0.5 inline-block rounded-md bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
                     {labels.today}
                   </span>

@@ -58,6 +58,8 @@ import { WeeklyGrid, shortDayLabel, type WeeklyGridAgendaItem } from '@/componen
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { campusCodeMessage, campusErrorCode } from '@/lib/campus-error';
 import { toast } from 'sonner';
+import { RegisteredCoursesPanel } from '@/components/registration/registered-courses-panel';
+import { RegistrationTabs, type RegistrationTab } from '@/components/registration/registration-tabs';
 
 const ROUND_UNAVAILABLE_CODES = new Set(['WINDOW_CLOSED', 'COHORT_INELIGIBLE', 'ROUND_NOT_FOUND']);
 
@@ -122,6 +124,19 @@ export default function RegisterPage() {
   const { locale, messages, formatNumber, formatDate } = useI18n();
   const copy = messages.courseRegistration;
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeTab: RegistrationTab = searchParams.get('tab') === 'registered' ? 'registered' : 'catalog';
+  const selectedDetailSemester = searchParams.get('semester') ?? '';
+  const changeView = (tab: RegistrationTab, term?: string) => {
+    const params = new URLSearchParams(window.location.search);
+    if (tab === 'registered') params.set('tab', tab);
+    else params.delete('tab');
+    if (term) params.set('semester', term);
+    const query = params.toString();
+    router.push(`${pathname}${query ? `?${query}` : ''}${window.location.hash}`, { scroll: false });
+  };
 
   // ---- browse state (kept across mutations; no full reload anywhere) ----
   const [searchText, setSearchText] = useState('');
@@ -141,14 +156,15 @@ export default function RegisterPage() {
   // Feedback item 10: enrollment failures also render inline above the
   // catalog instead of vanishing with the toast.
   const [actionError, setActionError] = useState('');
+  const actionErrorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (actionError) actionErrorRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [actionError]);
   const [downloadingSlip, setDownloadingSlip] = useState(false);
 
   // ---- filters persist in the URL (Advisor #8): read once on mount, then
   // mirror every change back with router.replace so copying the URL
   // reproduces the same filtered view after a reload. ----
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [filtersHydrated, setFiltersHydrated] = useState(false);
   const hydratedRef = useRef(false);
 
@@ -180,7 +196,8 @@ export default function RegisterPage() {
     if (!filtersHydrated) {
       return;
     }
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(window.location.search);
+    for (const key of ['q', 'curriculum', 'seats', 'noconflict', 'sort']) params.delete(key);
     if (searchText.trim()) {
       params.set('q', searchText.trim());
     }
@@ -201,7 +218,7 @@ export default function RegisterPage() {
     // replace-loop: the effect does not depend on searchParams.
     const currentQuery = window.location.search.replace(/^\?/, '');
     if (query !== currentQuery) {
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      router.replace(`${query ? `${pathname}?${query}` : pathname}${window.location.hash}`, { scroll: false });
     }
   }, [
     curriculumFilter,
@@ -261,7 +278,7 @@ export default function RegisterPage() {
     { enabled: hasAccess && Boolean(roundId), staleTime: 30_000 },
   );
   const enrollmentsQuery = useApiQuery(
-    ['registration', 'enrollments', semesterId ?? ''],
+    ['registration', 'enrollments', semesterId ?? '', user?.id ?? ''],
     () => enrollmentsApi.getMyEnrollments(semesterId),
     { enabled: hasAccess && Boolean(semesterId), staleTime: 30_000 },
   );
@@ -284,6 +301,7 @@ export default function RegisterPage() {
 
   const sections = useMemo(() => sectionsQuery.data ?? [], [sectionsQuery.data]);
   const enrollments = useMemo(() => enrollmentsQuery.data ?? [], [enrollmentsQuery.data]);
+  const enrollmentDataReady = enrollmentsQuery.isSuccess;
 
   const enrollmentBySection = useMemo(() => {
     const map = new Map<string, Enrollment>();
@@ -379,9 +397,9 @@ export default function RegisterPage() {
   const rollbackKeys = useCallback(
     (round: { id: string; semesterId: string }) => ({
       sections: ['registration', 'sections', round.id] as const,
-      enrollments: ['registration', 'enrollments', round.semesterId] as const,
+      enrollments: ['registration', 'enrollments', round.semesterId, user?.id ?? ''] as const,
     }),
-    [],
+    [user?.id],
   );
 
   const patchSection = (sectionId: string, patch: (section: RegistrationSection) => RegistrationSection) => {
@@ -533,6 +551,7 @@ export default function RegisterPage() {
 
   /** Confirms and submits one section enrollment without a page reload. */
   const register = async (sectionId: string) => {
+    if (!enrollmentDataReady) return;
     const section = sectionsById.get(sectionId);
     if (!section) return;
     if (creditLimit !== null && totalRegisteredCredits + section.credits > creditLimit) {
@@ -575,6 +594,7 @@ export default function RegisterPage() {
 
   /** Confirms and drops one active enrollment without a page reload. */
   const drop = async (enrollment: Enrollment) => {
+    if (!enrollmentDataReady) return;
     const ok = await confirm({
       title: copy.confirmDrop,
       message: copy.confirmDropMessage.replace(
@@ -682,7 +702,7 @@ export default function RegisterPage() {
 
   const previewTimetable = useMemo<WeeklyGridAgendaItem[]>(() => {
     const section = previewSectionId ? sectionsById.get(previewSectionId) : undefined;
-    if (!section || section.alreadyEnrolled) return [];
+    if (!section || enrollmentBySection.has(section.id)) return [];
     return (section.schedules ?? []).map((schedule, index) => ({
       id: `preview:${index}`,
       dayOfWeek: schedule.dayOfWeek,
@@ -693,7 +713,7 @@ export default function RegisterPage() {
       courseName: section.courseName,
       roomNumber: schedule.room ?? undefined,
     }));
-  }, [previewSectionId, sectionsById]);
+  }, [previewSectionId, sectionsById, enrollmentBySection]);
 
   const previewConflictIds = useMemo(() => {
     const conflicts = new Set<string>();
@@ -771,6 +791,12 @@ export default function RegisterPage() {
     void eligibilityQuery.refetch();
     void sectionsQuery.refetch();
     void summaryQuery.refetch();
+    void enrollmentsQuery.refetch();
+  };
+
+  const refreshCatalogForSemester = async (term: string) => {
+    if (term !== semesterId) return;
+    await Promise.all([sectionsQuery.refetch(), summaryQuery.refetch(), eligibilityQuery.refetch()]);
   };
 
   const workspaceError =
@@ -922,11 +948,13 @@ export default function RegisterPage() {
         eyebrow={<SectionEyebrow>{copy.eyebrow}</SectionEyebrow>}
         title={copy.title}
         description={copy.description}
+        leadingContent={<RegistrationTabs activeTab={activeTab} onChange={(tab) => changeView(tab)} />}
         actions={
+          activeTab === 'catalog' ?
           <>
             {/* At-a-glance registration summary beside the page title so the
                 key numbers stay visible without scrolling to the rail. */}
-            {!roundsQuery.isLoading && !roundsQuery.isError && roundOpen ? (
+            {!roundsQuery.isLoading && !roundsQuery.isError && roundOpen && enrollmentDataReady ? (
               <div className="inline-flex max-w-full items-center gap-2.5 rounded-lg border border-border/70 bg-secondary/40 px-3 py-1.5 text-xs">
                 <span className="inline-flex shrink-0 items-center gap-1.5 font-semibold text-foreground">
                   <BookOpen className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
@@ -944,6 +972,7 @@ export default function RegisterPage() {
                     <span
                       className="hidden h-1.5 w-14 overflow-hidden rounded-full bg-secondary sm:inline-block"
                       role="progressbar"
+                      aria-label={copy.creditsUsedLabel}
                       aria-valuenow={totalRegisteredCredits}
                       aria-valuemax={creditLimit}
                     >
@@ -992,8 +1021,19 @@ export default function RegisterPage() {
               </Button>
             ) : null}
           </>
+          : undefined
         }
       />
+      <div role="tabpanel" id="registration-panel-registered" aria-labelledby="registration-tab-registered"
+        hidden={activeTab !== 'registered'} tabIndex={0}>
+        <RegisteredCoursesPanel key={user?.id} userId={user?.id ?? ''}
+          active={activeTab === 'registered'} initialSemesterId={semesterId}
+          selectedSemesterId={selectedDetailSemester}
+          onSemesterChange={(term) => changeView('registered', term)}
+          onRefresh={refreshCatalogForSemester} />
+      </div>
+      <div role="tabpanel" id="registration-panel-catalog" aria-labelledby="registration-tab-catalog"
+        hidden={activeTab !== 'catalog'} tabIndex={0} className="space-y-6">
       {roundsQuery.isLoading ? (
         <LoadingState label={messages.common.states.loadingContent} />
       ) : roundsQuery.isError ? (
@@ -1004,12 +1044,16 @@ export default function RegisterPage() {
         />
       ) : !roundOpen ? (
         <EmptyState icon={CalendarClock} title={copy.roundUnavailable} description={copy.roundUnavailableDescription} />
+      ) : enrollmentsQuery.isLoading ? (
+        <LoadingState label={messages.common.states.loadingContent} />
+      ) : enrollmentsQuery.isError && !enrollmentsQuery.data ? (
+        <ErrorState title={copy.registeredLoadFailed} description={copy.registeredLoadFailedDescription}
+          onRetry={retryRegistrationData} />
       ) : (
         <>
           {/* Sticky round banner with a live countdown to the window end. */}
           <div
             className="sticky top-[var(--portal-header-height)] z-20 -mx-1 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-primary/25 bg-card/95 px-4 py-3 shadow-sm backdrop-blur"
-            role="status"
           >
             <div className="flex min-w-0 items-center gap-2.5">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -1031,13 +1075,13 @@ export default function RegisterPage() {
             </div>
             <div className="ml-auto flex items-center gap-2">
               {roundClosed ? (
-                <span className="rounded-md bg-secondary px-3 py-1.5 text-xs font-bold text-muted-foreground">
+                <span role="status" className="rounded-md bg-secondary px-3 py-1.5 text-xs font-bold text-muted-foreground">
                   {copy.roundClosedBadge}
                 </span>
               ) : showCountdown && countdown ? (
                 <span
                   className="rounded-md bg-primary/10 px-3 py-1.5 text-xs font-bold tabular-nums text-primary"
-                  aria-live="polite"
+                  data-testid="registration-countdown"
                 >
                   {copy.roundCountdownPrefix}:{' '}
                   {countdown.days > 0
@@ -1057,6 +1101,18 @@ export default function RegisterPage() {
             />
           ) : null}
 
+          {enrollmentsQuery.isError ? (
+            <div role="alert" className="rounded-lg border border-status-warning/40 bg-status-warning/10 p-3 text-sm">
+              <p>{copy.registeredRefreshFailed}</p>
+              <Button type="button" variant="outline" size="sm" onClick={retryRegistrationData}>{messages.common.actions.retry}</Button>
+            </div>
+          ) : null}
+          {actionError ? (
+            <div ref={actionErrorRef} data-testid="registration-action-error" role="alert"
+              className="scroll-mt-[calc(var(--portal-header-height)+5rem)] rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {actionError}
+            </div>
+          ) : null}
           <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-12">
             {/* The policy card takes a full-width row so the enrolled rail and
                 weekly timetable line up beside the catalog instead of beside it. */}
@@ -1203,7 +1259,7 @@ export default function RegisterPage() {
                             <div className="space-y-2 p-3 sm:p-4">
                               {group.sections.map((section) => {
                                 const enrollment = enrollmentBySection.get(section.id);
-                                const isRegistered = Boolean(enrollment) || section.alreadyEnrolled;
+                                const isRegistered = Boolean(enrollment);
                                 const tier = seatTier(section);
                                 const isFull = tier === 'full';
                                 const willExceedLimit =
@@ -1227,7 +1283,7 @@ export default function RegisterPage() {
                                           : undefined;
                                 const isDisabled =
                                   !isRegistered
-                                  && (Boolean(disabledTitle) || pending === section.id || !roundOpen);
+                                  && (Boolean(disabledTitle) || pending === section.id || !roundOpen || !enrollmentDataReady);
                                 const schedules: RegistrationSectionSchedule[] = section.schedules ?? [];
                                 return (
                                   <article
@@ -1311,7 +1367,7 @@ export default function RegisterPage() {
                                             size="sm"
                                             variant="outline"
                                             onClick={() => void drop(enrollment)}
-                                            disabled={pending === enrollment.id || enrollment.id.startsWith('pending:')}
+                                            disabled={pending === enrollment.id || enrollment.id.startsWith('pending:') || !enrollmentDataReady}
                                           >
                                             <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
                                             {pending === enrollment.id ? copy.working : copy.drop}
@@ -1445,7 +1501,7 @@ export default function RegisterPage() {
                     </div>
                 )}
 
-                {registered.length > 0 ? (
+                {(
                   <Button
                     type="button"
                     variant="ghost"
@@ -1460,7 +1516,7 @@ export default function RegisterPage() {
                     />
                     {railDetailsOpen ? copy.railCollapseDetails : copy.railExpandDetails}
                   </Button>
-                ) : null}
+                )}
 
                 <div className={`space-y-3 ${railDetailsOpen ? '' : 'hidden'} lg:block`}>
                 {registered.length > 0 ? (
@@ -1553,10 +1609,10 @@ export default function RegisterPage() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                          aria-label={copy.drop}
-                          title={copy.drop}
+                          aria-label={`${copy.drop} ${sectionLabel(section ?? catalogSection, item.sectionId)}`}
+                          title={`${copy.drop} ${sectionLabel(section ?? catalogSection, item.sectionId)}`}
                           onClick={() => void drop(item)}
-                          disabled={pending === item.id || item.id.startsWith('pending:')}
+                          disabled={pending === item.id || item.id.startsWith('pending:') || !enrollmentDataReady}
                         >
                           <Trash2 className="h-4 w-4" aria-hidden="true" />
                         </Button>
@@ -1572,6 +1628,7 @@ export default function RegisterPage() {
             {/* Own card beside the enrolled list — follows the same collapse
                 toggle on small screens, sticks under the header on desktop. */}
             <Card
+              data-testid="registration-preview"
               className={`${railDetailsOpen ? '' : 'hidden'} lg:block lg:sticky lg:top-[calc(var(--portal-header-height)+0.75rem)]`}
             >
               <CardHeader className="pb-3">
@@ -1584,7 +1641,7 @@ export default function RegisterPage() {
                     locale={locale}
                     labels={{
                       gridAriaLabel: copy.miniTimetableTitle,
-                      today: copy.legendRegistered,
+                      today: copy.timetableToday,
                       sectionPrefix: copy.columns.section,
                       roomPending: copy.scheduleNone,
                       noSlot: copy.scheduleNone,
@@ -1620,17 +1677,9 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          {actionError ? (
-            <div
-              role="alert"
-              aria-live="polite"
-              className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-            >
-              {actionError}
-            </div>
-          ) : null}
         </>
       )}
+      </div>
       {confirmationDialog}
     </div>
   );
