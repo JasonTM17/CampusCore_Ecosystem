@@ -95,4 +95,16 @@ Hệ thống trợ lý học vụ AI (`ThesisAssistantService`) áp dụng kiế
   - **Truy vấn Điểm rèn luyện**: Định tuyến thành công tới DeepSeek V4 Flash (`model: deepseek-v4-flash`, `degraded: false`), tổng hợp 5 tiêu chí thang điểm 100 từ tài liệu `student-conduct-score-handbook-vi`.
   - **Truy vấn Thời hạn học phí**: DeepSeek V4 Flash giải đáp chi tiết mốc 4 tuần và chế tài nợ học phí từ tài liệu `tuition-payment-deadline-rules-vi`.
 
+### Phát hành giao diện đăng ký học phần — 07/10/2026 (UTC+7)
+
+Phát hành phần xem học phần đã đăng ký và lịch tuần, các sửa lỗi/tăng cường U01–U08, E01–E06 cùng những sửa nền liên quan. Rationale và điểm sở hữu nằm trong [kiến trúc giao diện](ARCHITECTURE.md); các kịch bản kiểm chứng nằm trong [kiểm thử đăng ký](../frontend/e2e/registration-details.spec.ts).
+
+- **Nguồn triển khai**: commit `bdcc922909a910f50acdb423461e85574157e133`, cây frontend `dd64b051a1b3f7fd327ae52b98189b28168a18bb`. Metadata Vercel `gitCommitSha` và `releaseCommit` đều khớp commit này. Commit tài liệu bổ sung sau phát hành không thay thế SHA nguồn triển khai.
+- **Vercel Production**: `dpl_5suCtSu3UpT9HriStRnNPG2PtsQR`, trạng thái **READY**, [URL deployment](https://campusute-m4p3qmh0i-nguyen-sons-projects-4f98af92.vercel.app). Alias [campusute.io.vn](https://campusute.io.vn) đã được xác nhận trỏ tới đúng deployment này.
+- **Đầu vào**: xuất từ cây frontend đã commit, không sao chép `.env`, `node_modules`, `.next` hoặc trạng thái xác thực. Cấu hình Vercel `rootDirectory=frontend` yêu cầu giữ thư mục `frontend` dưới gốc gói triển khai; lần đầu dừng trước build do bố trí sai thư mục, lần tiếp theo chỉ sửa cách đóng gói, không sửa nguồn.
+- **Kiểm chứng trước phát hành**: 520 unit test PASS, hai kiểm thử viewport tùy chọn SKIP vì không có server riêng cổng 4317; lint, typecheck, build PASS; 66 trường hợp trình duyệt đăng ký và bốn trường hợp lịch dùng chung PASS. Review độc lập chấp nhận snapshot 16 đường dẫn đã đóng băng.
+- **Kiểm chứng sau phát hành**: trang công khai VI/EN HTTP 200; đăng nhập demo thực HTTP 200. Sáu hành trình đọc dữ liệu thực VI/EN tại độ rộng 390/768/1440 PASS: API học phần HTTP 200, có thẻ học phần, xem lịch/chuyển focus, lịch sử URL/tải lại và không tràn ngang; không đăng ký/rút học phần. Đây là bằng chứng trình duyệt theo viewport, chưa chứng minh thiết bị vật lý, trình đọc màn hình thực hay toàn bộ WCAG.
+- **Ranh giới**: chỉ triển khai frontend; backend liveness HTTP 200 là kiểm tra dịch vụ hiện hữu. Không phát hành backend, schema hoặc dữ liệu; không Git push, không có lượt CI cho phát hành này.
+- **Khôi phục**: deployment trước là `dpl_G5n256qdHSgw2kk453nTXZaTpeaF` ([URL](https://campusute-j1ada315h-nguyen-sons-projects-4f98af92.vercel.app)). Lệnh đã lưu: `vercel rollback dpl_G5n256qdHSgw2kk453nTXZaTpeaF --yes`; **chưa thực thi rollback**.
+
 
