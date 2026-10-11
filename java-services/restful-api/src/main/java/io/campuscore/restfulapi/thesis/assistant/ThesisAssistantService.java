@@ -2784,8 +2784,10 @@ public class ThesisAssistantService {
 
     private static String sensitiveMessage(String locale) { return "vi".equals(locale) ? "Vui lòng không nhập email, số điện thoại, mã sinh viên hoặc thông tin bí mật vào trợ lý." : "Please do not enter email addresses, phone numbers, student IDs, or secrets into the assistant."; }
     private static String promptInjectionMessage(String locale) { return "vi".equals(locale) ? "Trợ lý chỉ xử lý câu hỏi học vụ công khai và không thể thực hiện yêu cầu thay đổi chỉ dẫn hệ thống." : "The assistant only handles public academic questions and cannot follow requests to change its system instructions."; }
+    private static String credentialRequestMessage(String locale) { return "vi".equals(locale) ? "Mình không thể cung cấp hay tiết lộ mật khẩu, mã xác thực, token hay thông tin đăng nhập của người khác. Nếu bạn quên mật khẩu của chính mình, hãy dùng chức năng 'Quên mật khẩu' trên trang đăng nhập hoặc liên hệ Phòng Đào tạo." : "I can't reveal or provide passwords, verification codes, tokens, or sign-in credentials belonging to anyone else. If you forgot your own password, use 'Forgot password' on the sign-in page or contact the Academic Affairs Office."; }
     static String guardMessage(String reasonCode, String locale) {
         if ("PROMPT_INJECTION".equals(reasonCode)) return promptInjectionMessage(locale);
+        if ("CREDENTIAL_REQUEST".equals(reasonCode)) return credentialRequestMessage(locale);
         if ("TECHNICAL_REQUEST_BLOCKED".equals(reasonCode)) return technicalOutputMessage(locale);
         return sensitiveMessage(locale);
     }
