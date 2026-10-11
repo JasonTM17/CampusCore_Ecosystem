@@ -261,11 +261,6 @@ public class AdminUserMutationService {
         String requestedRole = rawRole == null || rawRole.toString().isBlank()
                 ? null
                 : text(input, "role", "STUDENT").toUpperCase(java.util.Locale.ROOT);
-        if (requestedRole != null) {
-            guardRoleMutation(id, requestedRole, canManageSuperAdmin);
-        } else {
-            requireSuperAdminForProtectedAccount(id, canManageSuperAdmin, "manage");
-        }
         if (currentUserId != null && currentUserId.equals(id)) {
             if (requestedRole != null && !hasRole(id, requestedRole)) {
                 throw problem(
@@ -280,6 +275,11 @@ public class AdminUserMutationService {
                         "SELF_DEACTIVATION_NOT_ALLOWED",
                         "You cannot deactivate or lock your own account");
             }
+        }
+        if (requestedRole != null) {
+            guardRoleMutation(id, requestedRole, canManageSuperAdmin);
+        } else {
+            requireSuperAdminForProtectedAccount(id, canManageSuperAdmin, "manage");
         }
         if (!canManageSuperAdmin && requestedRole == null && (hasRole(id, "ADMIN") || hasRole(id, "SUPER_ADMIN"))) {
             throw problem(

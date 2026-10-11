@@ -1,12 +1,13 @@
 package io.campuscore.restfulapi.academic;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.campuscore.restfulapi.academic.service.AdminAnalyticsService;
+import io.campuscore.restfulapi.testsupport.AccountAuthorityFixture;
+import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,6 +63,7 @@ class AdminAnalyticsOverviewTest {
                 )
                 """);
         jdbc.execute("DELETE FROM \"campuscore_auth\".\"User\"");
+        AccountAuthorityFixture.ensureSchema(jdbc);
         io.campuscore.restfulapi.security.DatabaseAvailabilityTracker.recordSuccess();
         jdbc.execute("DROP TABLE IF EXISTS academic.\"Enrollment\"");
         jdbc.execute("DROP TABLE IF EXISTS academic.\"Section\"");
@@ -194,19 +196,11 @@ class AdminAnalyticsOverviewTest {
                 .andExpect(status().isUnauthorized());
 
         mvc.perform(get("/api/v1/academic/distribution-overview/overview")
-                        .with(jwt().jwt(token -> token
-                                .subject("student-1")
-                                .claim("email", "student-1@campuscore.edu")
-                                .claim("roles", List.of("STUDENT")))
-                                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-1", "STUDENT")))
                 .andExpect(status().isForbidden());
 
         mvc.perform(get("/api/v1/academic/distribution-overview/overview")
-                        .with(jwt().jwt(token -> token
-                                .subject("admin-1")
-                                .claim("email", "admin-1@campuscore.edu")
-                                .claim("roles", List.of("ADMIN")))
-                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "admin-1", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.departments[0].code").value("CNTT"))
                 .andExpect(jsonPath("$.departments[0].students").value(4))

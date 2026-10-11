@@ -72,8 +72,14 @@ public class AnnouncementReadController {
     @GetMapping("{id}")
     @PreAuthorize("hasAnyRole('LECTURER', 'ADMIN', 'SUPER_ADMIN')")
     public AnnouncementResponse getAnnouncement(
-            @Parameter(description = "Mã định danh thông báo") @PathVariable String id) {
-        return announcements.get(id);
+            @Parameter(description = "Mã định danh thông báo") @PathVariable String id,
+            @AuthenticationPrincipal Jwt jwt) {
+        List<String> roles = requireIdentity(jwt);
+        String studentId = stringClaim(jwt, "studentId");
+        Integer studentYear = studentYear(jwt);
+        String lecturerId = stringClaim(jwt, "lecturerId");
+        requireProfileClaims(roles, studentId, studentYear, lecturerId);
+        return announcements.get(id, jwt.getSubject(), roles, studentId, studentYear, lecturerId);
     }
 
     @Operation(summary = "Lấy danh sách thông báo dành riêng cho người dùng", description = "Truy vấn thông báo phân quyền theo vai trò (Sinh viên, Giảng viên, Quản trị viên) và đối tượng lớp/học kỳ")

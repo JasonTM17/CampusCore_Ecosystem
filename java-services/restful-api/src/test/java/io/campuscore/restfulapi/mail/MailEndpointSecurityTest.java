@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi.mail;
 
+import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -43,6 +45,9 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
         "spring.flyway.locations=classpath:db/migration-h2"
 })
 class MailEndpointSecurityTest {
+
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     private static final String VALID_GRADE_ALERT = """
             {"to":"sv@campuscore.edu","studentName":"Nguyen Van A","studentId":"SV1234",
@@ -144,24 +149,26 @@ class MailEndpointSecurityTest {
     }
 
     private RequestPostProcessor studentJwt() {
-        return jwt().jwt(token -> token
+        return fixtureJwt(jdbc, "mail-student-user", token -> token
                         .subject("mail-student-user")
-                        .claim("roles", List.of("STUDENT")))
+                        .claim("roles", List.of("STUDENT")), "STUDENT")
                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
     }
 
     private RequestPostProcessor lecturerJwt() {
-        return jwt().jwt(token -> token
+        fixtureJwt(jdbc, "mail-lecturer-user", "LECTURER");
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.lecturer(jdbc, "mail-lecturer-user", "mail-lecturer-id");
+        return fixtureJwt(jdbc, "mail-lecturer-user", token -> token
                         .subject("mail-lecturer-user")
                         .claim("lecturerId", "mail-lecturer-id")
-                        .claim("roles", List.of("LECTURER")))
+                        .claim("roles", List.of("LECTURER")), "LECTURER")
                 .authorities(new SimpleGrantedAuthority("ROLE_LECTURER"));
     }
 
     private RequestPostProcessor superAdminJwt() {
-        return jwt().jwt(token -> token
+        return fixtureJwt(jdbc, "mail-super-admin-user", token -> token
                         .subject("mail-super-admin-user")
-                        .claim("roles", List.of("SUPER_ADMIN")))
+                        .claim("roles", List.of("SUPER_ADMIN")), "SUPER_ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"));
     }
 }

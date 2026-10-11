@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi.auth;
 
+import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -215,8 +217,7 @@ class AuthLoginPersistenceTest {
     @Test
     void adminUserCreationCreatesTheMatchingAcademicProfile() throws Exception {
         MvcResult result = mvc.perform(post("/api/v1/users")
-                        .with(jwt()
-                                .jwt(token -> token.subject("admin-user").claim("roles", java.util.List.of("ADMIN")))
+                        .with(fixtureJwt(jdbc, "admin-user", token -> token.subject("admin-user").claim("roles", java.util.List.of("ADMIN")), "ADMIN")
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""

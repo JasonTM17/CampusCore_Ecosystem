@@ -9,6 +9,8 @@ import java.sql.PreparedStatement;
 import java.sql.Types;
 import java.time.Instant;
 import java.util.List;
+import io.campuscore.restfulapi.testsupport.AccountAuthorityFixture;
+import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,6 +57,7 @@ class AcademicReadPersistenceTest {
                     "minLetterGrade" VARCHAR(16)
                 )
                 """);
+        AccountAuthorityFixture.ensureSchema(jdbc);
         jdbc.execute("""
                 CREATE TABLE IF NOT EXISTS "campuscore_auth"."User" (
                     "id" VARCHAR(120) PRIMARY KEY,
@@ -251,7 +254,7 @@ class AcademicReadPersistenceTest {
         mvc.perform(get("/api/v1/semesters")
                         .queryParam("page", "1")
                         .queryParam("limit", "1")
-                        .with(jwt().jwt(token -> token.subject("student-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-user")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))
                 .andExpect(jsonPath("$.data[0].id").value("fall-2026"))
@@ -263,7 +266,7 @@ class AcademicReadPersistenceTest {
                 .andExpect(jsonPath("$.meta.totalPages").value(2));
 
         mvc.perform(get("/api/v1/semesters/spring-2026")
-                        .with(jwt().jwt(token -> token.subject("lecturer-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "lecturer-user")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("spring-2026"))
                 .andExpect(jsonPath("$.nameEn").value("Spring 2026 Custom"))
@@ -281,7 +284,7 @@ class AcademicReadPersistenceTest {
         mvc.perform(get("/api/v1/academic-years")
                         .queryParam("page", "1")
                         .queryParam("limit", "1")
-                        .with(jwt().jwt(token -> token.subject("student-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-user")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))
                 .andExpect(jsonPath("$.data[0].id").value("ay-2026"))
@@ -293,7 +296,7 @@ class AcademicReadPersistenceTest {
                 .andExpect(jsonPath("$.meta.totalPages").value(2));
 
         mvc.perform(get("/api/v1/academic-years/ay-2025")
-                        .with(jwt().jwt(token -> token.subject("lecturer-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "lecturer-user")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.year").value(2025))
                 .andExpect(jsonPath("$.semesters[0].id").value("fall-2025"));
@@ -438,7 +441,7 @@ class AcademicReadPersistenceTest {
         mvc.perform(get("/api/v1/courses")
                         .queryParam("page", "1")
                         .queryParam("limit", "20")
-                        .with(jwt().jwt(token -> token.subject("student-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-user")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.data[0].id").value("cs101"))
@@ -451,7 +454,7 @@ class AcademicReadPersistenceTest {
                 .andExpect(jsonPath("$.meta.total").value(2));
 
         mvc.perform(get("/api/v1/courses/se401")
-                        .with(jwt().jwt(token -> token.subject("student-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-user")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("SE401"))
                 .andExpect(jsonPath("$.credits").value(3))
@@ -536,7 +539,7 @@ class AcademicReadPersistenceTest {
         mvc.perform(get("/api/v1/classrooms")
                         .queryParam("page", "1")
                         .queryParam("limit", "20")
-                        .with(jwt().jwt(token -> token.subject("student-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-user")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.data[0].id").value("classroom-a101"))
@@ -549,7 +552,7 @@ class AcademicReadPersistenceTest {
                 .andExpect(jsonPath("$.meta.total").value(2));
 
         mvc.perform(get("/api/v1/classrooms/classroom-a101")
-                        .with(jwt().jwt(token -> token.subject("student-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-user")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.isActive").value(true))
                 .andExpect(jsonPath("$.sections.length()").value(2))
@@ -566,55 +569,55 @@ class AcademicReadPersistenceTest {
 
         mvc.perform(get("/api/v1/courses")
                         .queryParam("limit", "201")
-                        .with(jwt().jwt(token -> token.subject("student-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-user")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
         mvc.perform(get("/api/v1/semesters")
                         .queryParam("page", "1", "2")
-                        .with(jwt().jwt(token -> token.subject("student-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-user")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
         mvc.perform(get("/api/v1/courses")
                         .queryParam("status", "ACTIVE")
-                        .with(jwt().jwt(token -> token.subject("student-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-user")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
         mvc.perform(get("/api/v1/courses/missing")
-                        .with(jwt().jwt(token -> token.subject("student-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-user")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
 
         mvc.perform(get("/api/v1/academic-years/missing")
-                        .with(jwt().jwt(token -> token.subject("student-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-user")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
 
         mvc.perform(get("/api/v1/classrooms/missing")
-                        .with(jwt().jwt(token -> token.subject("student-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-user")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
 
         mvc.perform(get("/api/v1/faculties/missing")
-                        .with(jwt().jwt(token -> token.subject("student-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-user")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
 
         mvc.perform(get("/api/v1/departments/missing")
-                        .with(jwt().jwt(token -> token.subject("student-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-user")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
 
         mvc.perform(get("/api/v1/curricula/missing")
-                        .with(jwt().jwt(token -> token.subject("student-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-user")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
 
         mvc.perform(get("/api/v1/classrooms")
                         .queryParam("building", "A")
-                        .with(jwt().jwt(token -> token.subject("student-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-user")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
@@ -626,7 +629,7 @@ class AcademicReadPersistenceTest {
 
         mvc.perform(get("/api/v1/curricula")
                         .queryParam("status", "ACTIVE")
-                        .with(jwt().jwt(token -> token.subject("student-user"))))
+                        .with(CurrentAccountJwt.fixtureJwt(jdbc, "student-user")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
@@ -1279,18 +1282,12 @@ class AcademicReadPersistenceTest {
                 "OPEN");
     }
 
-    private static RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token
-                .subject("admin-user")
-                .claim("roles", List.of("ADMIN")))
-                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+    private RequestPostProcessor adminJwt() {
+        return CurrentAccountJwt.fixtureJwt(jdbc, "admin-user", "ADMIN");
     }
 
-    private static RequestPostProcessor studentJwt() {
-        return jwt().jwt(token -> token
-                .subject("student-user")
-                .claim("roles", List.of("STUDENT")))
-                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+    private RequestPostProcessor studentJwt() {
+        return CurrentAccountJwt.fixtureJwt(jdbc, "student-user", "STUDENT");
     }
 
     private static void timestamp(PreparedStatement statement, int index, Instant value)

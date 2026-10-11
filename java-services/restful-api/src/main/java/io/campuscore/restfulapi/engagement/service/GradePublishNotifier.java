@@ -16,8 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
  * Grade-publish fan-out: every student whose enrollment was just marked
  * PUBLISHED/COMPLETED gets one inbox notification deep-linking the
  * transcript. Mirrors {@link AnnouncementStudentNotifier}: {@code REQUIRES_NEW}
- * keeps a notification-side failure from rolling back the grade publish, and
- * the caller swallows the failure after logging.
+ * keeps a notification-side failure from affecting committed grades. The
+ * caller invokes this only after the publication transaction commits.
  */
 @Service
 @Profile("persistence")

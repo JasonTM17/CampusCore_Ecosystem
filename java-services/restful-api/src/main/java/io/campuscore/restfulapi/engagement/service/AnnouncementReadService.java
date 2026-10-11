@@ -32,17 +32,21 @@ public class AnnouncementReadService {
         this.announcements = announcements;
     }
 
-    /**
-     * Round-3 ct-9: detail-by-id for authed staff clients — the collection
-     * endpoints existed but a single id used to answer 405 METHOD_NOT_ALLOWED.
-     * Archived rows included: the caller asked for one specific record.
-     */
+    /** Staff may manage their own rows; other details must pass the feed audience policy. */
     @Transactional(readOnly = true)
-    public AnnouncementResponse get(String id) {
+    public AnnouncementResponse get(String id, String actorId, List<String> roles,
+            String studentId, Integer studentYear, String lecturerId) {
         if (id == null || id.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "announcement id is required");
         }
-        return announcements.findById(id)
+        AnnouncementResponse row = announcements.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Announcement not found"));
+        if (roles.contains("ADMIN") || roles.contains("SUPER_ADMIN")
+                || actorId.equals(row.publishedBy())
+                || (lecturerId != null && lecturerId.equals(row.lecturerId()))) {
+            return row;
+        }
+        return announcements.findByIdForUser(id, new UserVisibility(roles, studentId, studentYear, lecturerId, Instant.now()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Announcement not found"));
     }
 

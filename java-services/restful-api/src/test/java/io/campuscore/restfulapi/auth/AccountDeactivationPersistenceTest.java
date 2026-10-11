@@ -74,6 +74,36 @@ class AccountDeactivationPersistenceTest {
      * administrator, and the target row plus its sessions survive.
      */
     @Test
+    void actuallyIssuedAdminAccessTokenStopsAfterCommittedRoleChange() throws Exception {
+        String accessToken = issuedAdminToken();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/auth/me")
+                .header("Authorization", "Bearer " + accessToken)).andExpect(status().isOk());
+        jdbc.update("UPDATE \"campuscore_auth\".\"UserRole\" SET \"roleId\"='role-student' WHERE \"userId\"='admin2-user'");
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/users")
+                .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("SESSION_INVALID"));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/auth/me")
+                .header("Authorization", "Bearer " + accessToken)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void actuallyIssuedAccessTokenStopsAfterHardDelete() throws Exception {
+        String accessToken = issuedAdminToken();
+        jdbc.update("DELETE FROM \"campuscore_auth\".\"User\" WHERE \"id\"='admin2-user'");
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/users")
+                .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("SESSION_INVALID"));
+    }
+
+    private String issuedAdminToken() throws Exception {
+        var response = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .header("User-Agent", "account-authority-test")
+                .content("{\"email\":\"admin002@campuscore.edu\",\"password\":\"admin-secret-2\"}"))
+                .andExpect(status().isOk()).andReturn();
+        return objectMapper.readTree(response.getResponse().getContentAsString()).get("accessToken").asText();
+    }
+
+    @Test
     void plainAdminCannotHardDeleteAnotherAdministrator() throws Exception {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .delete("/api/v1/users/admin2-user")

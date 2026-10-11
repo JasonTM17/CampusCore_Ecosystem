@@ -90,6 +90,9 @@ public final class AnnouncementHtmlSanitizer {
                 "",
                 POLICY,
                 new Document.OutputSettings().prettyPrint(false)));
+        // The second parse has independent output settings; retain the compact
+        // persisted/editor contract across parser version upgrades.
+        cleaned.outputSettings().prettyPrint(false);
         // An <img> whose src failed the scheme check survives cleaning as a
         // bare tag — a broken frame for every reader and 0 counted removals.
         // Drop it (counted) so the stored body carries no dead markup.

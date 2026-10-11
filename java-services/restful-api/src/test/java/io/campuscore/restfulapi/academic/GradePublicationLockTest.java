@@ -11,6 +11,8 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import io.campuscore.restfulapi.testsupport.AccountAuthorityFixture;
+import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,6 +55,7 @@ class GradePublicationLockTest {
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS \"campuscore_auth\"");
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS \"academic\"");
         createTables();
+        AccountAuthorityFixture.ensureSchema(jdbc);
         clearTables();
         insertFixture();
     }
@@ -282,12 +285,8 @@ class GradePublicationLockTest {
                 .containsEntry("gradeStatus", gradeStatus);
     }
 
-    private static RequestPostProcessor lecturerJwt(String lecturerId) {
-        return jwt().jwt(token -> token
-                        .subject("lecturer-user-1")
-                        .claim("roles", List.of("LECTURER"))
-                        .claim("lecturerId", lecturerId))
-                .authorities(new SimpleGrantedAuthority("ROLE_LECTURER"));
+    private RequestPostProcessor lecturerJwt(String lecturerId) {
+        return CurrentAccountJwt.currentJwt(jdbc, "lecturer-user-1");
     }
 
     private void createTables() {
@@ -493,6 +492,7 @@ class GradePublicationLockTest {
                         + " \"gradeStatus\", \"finalGrade\", \"letterGrade\", \"createdAt\", \"updatedAt\")"
                         + " VALUES ('enrollment-1', 'student-1', 'section-1', 'semester-1', 'ENROLLED', ?, NULL, 'DRAFT', NULL, NULL, ?, ?)",
                 timestamp(BASE_TIME), timestamp(BASE_TIME), timestamp(BASE_TIME));
+        AccountAuthorityFixture.lecturer(jdbc, "lecturer-user-1", "lecturer-1");
     }
 
     private void insertUser(String id, String email, String firstName, String lastName) {

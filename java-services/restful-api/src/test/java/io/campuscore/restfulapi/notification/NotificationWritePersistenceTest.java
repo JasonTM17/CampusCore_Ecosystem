@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi.notification;
 
+import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -29,7 +31,8 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @AutoConfigureMockMvc
 @ActiveProfiles({"test", "persistence"})
 @TestPropertySource(properties = {
-        "spring.flyway.enabled=false"
+        "spring.flyway.enabled=false",
+        "spring.datasource.url=jdbc:h2:mem:repair_NotificationWritePersistenceTest;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"
 })
 class NotificationWritePersistenceTest {
 
@@ -122,7 +125,7 @@ class NotificationWritePersistenceTest {
         insert("other-unread", OTHER_USER, false, now.plusSeconds(60));
 
         mvc.perform(patch("/api/v1/notifications/my/mine-unread/read")
-                        .with(jwt().jwt(token -> token.subject(STUDENT))))
+                        .with(fixtureJwt(jdbc, STUDENT, token -> token.subject(STUDENT))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("mine-unread"))
                 .andExpect(jsonPath("$.userId").value(STUDENT))
@@ -141,12 +144,12 @@ class NotificationWritePersistenceTest {
         insert("other-unread", OTHER_USER, false, now);
 
         mvc.perform(patch("/api/v1/notifications/my/missing/read")
-                        .with(jwt().jwt(token -> token.subject(STUDENT))))
+                        .with(fixtureJwt(jdbc, STUDENT, token -> token.subject(STUDENT))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
 
         mvc.perform(patch("/api/v1/notifications/my/other-unread/read")
-                        .with(jwt().jwt(token -> token.subject(STUDENT))))
+                        .with(fixtureJwt(jdbc, STUDENT, token -> token.subject(STUDENT))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("HTTP_403"));
 
@@ -162,7 +165,7 @@ class NotificationWritePersistenceTest {
         insert("other-unread", OTHER_USER, false, now.plusSeconds(60));
 
         mvc.perform(patch("/api/v1/notifications/my/read-all")
-                        .with(jwt().jwt(token -> token.subject(STUDENT))))
+                        .with(fixtureJwt(jdbc, STUDENT, token -> token.subject(STUDENT))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.updated").value(2));
 
@@ -237,9 +240,9 @@ class NotificationWritePersistenceTest {
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
         mvc.perform(post("/api/v1/notifications")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, STUDENT, token -> token
                                 .subject(STUDENT)
-                                .claim("roles", List.of("STUDENT")))
+                                .claim("roles", List.of("STUDENT")), "STUDENT")
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -263,12 +266,12 @@ class NotificationWritePersistenceTest {
         insert("other", OTHER_USER, false, now.plusSeconds(60));
 
         mvc.perform(delete("/api/v1/notifications/my/mine")
-                        .with(jwt().jwt(token -> token.subject(STUDENT))))
+                        .with(fixtureJwt(jdbc, STUDENT, token -> token.subject(STUDENT))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Notification deleted successfully"));
 
         mvc.perform(delete("/api/v1/notifications/my/other")
-                        .with(jwt().jwt(token -> token.subject(STUDENT))))
+                        .with(fixtureJwt(jdbc, STUDENT, token -> token.subject(STUDENT))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("HTTP_403"))
                 .andExpect(jsonPath("$.message").value("Cannot delete this notification"));
@@ -293,9 +296,9 @@ class NotificationWritePersistenceTest {
                 .andExpect(jsonPath("$.message").value("Notification not found"));
 
         mvc.perform(delete("/api/v1/notifications/other")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, STUDENT, token -> token
                                 .subject(STUDENT)
-                                .claim("roles", List.of("STUDENT")))
+                                .claim("roles", List.of("STUDENT")), "STUDENT")
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
@@ -365,9 +368,9 @@ class NotificationWritePersistenceTest {
                 .andExpect(jsonPath("$.message").value("Notification not found"));
 
         mvc.perform(put("/api/v1/notifications/target")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, STUDENT, token -> token
                                 .subject(STUDENT)
-                                .claim("roles", List.of("STUDENT")))
+                                .claim("roles", List.of("STUDENT")), "STUDENT")
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"Student edit\"}"))
@@ -440,9 +443,9 @@ class NotificationWritePersistenceTest {
     }
 
     private RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token
+        return fixtureJwt(jdbc, "admin-user", token -> token
                         .subject("admin-user")
-                        .claim("roles", List.of("ADMIN")))
+                        .claim("roles", List.of("ADMIN")), "ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
 }

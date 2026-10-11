@@ -129,7 +129,7 @@ public class AcademicAttendanceWriteService {
         }
         String trimmed = value.trim();
         try {
-            return Instant.parse(trimmed);
+            return Instant.parse(trimmed).truncatedTo(java.time.temporal.ChronoUnit.DAYS);
         } catch (DateTimeParseException ignored) {
             try {
                 return LocalDate.parse(trimmed).atStartOfDay().toInstant(ZoneOffset.UTC);

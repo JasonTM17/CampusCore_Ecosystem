@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi.engagement;
 
+import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -184,11 +186,11 @@ class ArticleTaxonomyV2PersistenceTest {
      *
      * @return MockMvc post-processor that attaches an active portal admin JWT
      */
-    private static RequestPostProcessor portalUser() {
-        return jwt().jwt(token -> token
+    private RequestPostProcessor portalUser() {
+        return fixtureJwt(jdbc, "portal-admin-1", token -> token
                         .subject("portal-admin-1")
                         .claim("email", "portal-admin-1@campuscore.edu")
-                        .claim("roles", List.of("ADMIN")))
+                        .claim("roles", List.of("ADMIN")), "ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
 

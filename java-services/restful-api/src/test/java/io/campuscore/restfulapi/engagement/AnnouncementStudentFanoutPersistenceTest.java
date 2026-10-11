@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi.engagement;
 
+import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -32,7 +34,8 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @AutoConfigureMockMvc
 @ActiveProfiles({"test", "persistence"})
 @TestPropertySource(properties = {
-        "spring.flyway.enabled=false"
+        "spring.flyway.enabled=false",
+        "spring.datasource.url=jdbc:h2:mem:repair_AnnouncementStudentFanoutPersistenceTest;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"
 })
 class AnnouncementStudentFanoutPersistenceTest {
 
@@ -57,6 +60,12 @@ class AnnouncementStudentFanoutPersistenceTest {
 
     @Autowired
     private MockMvc mvc;
+
+    @Autowired
+    private io.campuscore.restfulapi.engagement.service.AnnouncementStudentNotifier notifier;
+
+    @Autowired
+    private org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     @BeforeEach
     void prepareFanoutFixture() {
@@ -167,6 +176,11 @@ class AnnouncementStudentFanoutPersistenceTest {
                 ('fanout-st-4', 'fanout-u-4', 'DH04', 4, 'GRADUATED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
                 ('fanout-st-5', 'fanout-u-ghost', 'DH05', 5, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """);
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.ensureSchema(jdbc);
+        jdbc.execute("CREATE TABLE IF NOT EXISTS academic.\"Enrollment\" (\"id\" VARCHAR PRIMARY KEY, \"studentId\" VARCHAR, \"sectionId\" VARCHAR, \"semesterId\" VARCHAR, \"status\" VARCHAR)");
+        for (int index = 1; index <= 4; index++) {
+            io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.replaceRoles(jdbc, "fanout-u-" + index, "STUDENT");
+        }
     }
 
     @AfterEach
@@ -188,7 +202,7 @@ class AnnouncementStudentFanoutPersistenceTest {
         mvc.perform(post("/api/v1/announcements")
                         .with(adminJwt("fanout-admin"))
                         .contentType("application/json")
-                        .content("{\"title\":\"Học phí học kỳ 1\",\"content\":\"" + content + "\"}"))
+                        .content("{\"title\":\"Học phí học kỳ 1\",\"content\":\"" + content + "\",\"isGlobal\":true}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.title").value("Học phí học kỳ 1"));
 
@@ -223,7 +237,7 @@ class AnnouncementStudentFanoutPersistenceTest {
         mvc.perform(post("/api/v1/announcements")
                         .with(adminJwt("fanout-admin"))
                         .contentType("application/json")
-                        .content("{\"title\":\"Thông báo ảnh\",\"content\":\"" + content + "\"}"))
+                        .content("{\"title\":\"Thông báo ảnh\",\"content\":\"" + content + "\",\"isGlobal\":true}"))
                 .andExpect(status().isCreated());
 
         List<String> messages = jdbc.queryForList(
@@ -245,7 +259,7 @@ class AnnouncementStudentFanoutPersistenceTest {
         mvc.perform(post("/api/v1/announcements")
                         .with(adminJwt("fanout-admin"))
                         .contentType("application/json")
-                        .content("{\"title\":\"Báo lỗi fan-out\",\"content\":\"Vẫn phải 201\"}"))
+                        .content("{\"title\":\"Báo lỗi fan-out\",\"content\":\"Vẫn phải 201\",\"isGlobal\":true}"))
                 .andExpect(status().isCreated());
 
         Integer announcements = jdbc.queryForObject(
@@ -260,14 +274,93 @@ class AnnouncementStudentFanoutPersistenceTest {
                 Integer.class);
         assertNotNull(audits);
         assertEquals(1, audits);
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM \"engagement\".\"Announcement\""
+                + " WHERE \"title\"='Báo lỗi fan-out' AND \"notifiedAt\" IS NULL", Integer.class));
     }
 
-    private static RequestPostProcessor adminJwt(String subject) {
-        return jwt()
-                .jwt(token -> token
+    @Test
+    void sectionRecipientsMustBeEnrolledAndMatchYearAndActiveAccount() {
+        jdbc.execute("CREATE TABLE IF NOT EXISTS academic.\"Enrollment\" (\"id\" VARCHAR(120) PRIMARY KEY,"
+                + " \"studentId\" VARCHAR(120), \"sectionId\" VARCHAR(120), \"semesterId\" VARCHAR(120), \"status\" VARCHAR(40))");
+        jdbc.update("DELETE FROM academic.\"Enrollment\"");
+        jdbc.update("INSERT INTO academic.\"Enrollment\" (\"id\",\"studentId\",\"sectionId\",\"semesterId\",\"status\") VALUES"
+                + " ('in','fanout-st-1','section-1','semester-1','ENROLLED'),"
+                + " ('drop','fanout-st-2','section-1','semester-1','DROPPED'),"
+                + " ('other','fanout-st-3','section-2','semester-1','ENROLLED')");
+        var record = scopedNotice("section-1", List.of(1, 2, 3), null, null, List.of("STUDENT"), false);
+        assertEquals(1, notifier.fanOutToActiveStudents(record));
+        assertEquals(List.of("fanout-u-1"), jdbc.queryForList("SELECT user_id FROM notifications.notification", String.class));
+        jdbc.update("DELETE FROM notifications.notification");
+        jdbc.update("UPDATE \"campuscore_auth\".\"User\" SET \"status\"='INACTIVE' WHERE \"id\"='fanout-u-1'");
+        assertEquals(0, notifier.fanOutToActiveStudents(record));
+        assertEquals(0, notifier.fanOutToActiveStudents(scopedNotice("section-1", List.of(2), null, null, List.of("STUDENT"), false)));
+    }
+
+    @Test
+    void invisibleExpiredAndArchivedNoticesNeverEnterAnInbox() {
+        assertEquals(0, notifier.fanOutToActiveStudents(scopedNotice(null, List.of(), java.time.Instant.EPOCH, null, List.of("STUDENT"), false)));
+        assertEquals(0, notifier.fanOutToActiveStudents(scopedNotice(null, List.of(), null, java.time.Instant.EPOCH, List.of("STUDENT"), false)));
+        assertEquals(0, notifier.fanOutToActiveStudents(scopedNotice(null, List.of(), null, null, List.of(), false)));
+        assertEquals(0, notifier.fanOutToActiveStudents(scopedNotice(null, List.of(), null, null, List.of("LECTURER"), false)));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM notifications.notification", Integer.class));
+    }
+
+    @Test
+    void rollingBackAnnouncementCreationMustNotCommitNotificationContent() {
+        new org.springframework.transaction.support.TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+            try {
+                mvc.perform(post("/api/v1/announcements").with(adminJwt("fanout-admin"))
+                        .contentType("application/json").content("{\"title\":\"Rollback notice\",\"content\":\"Private preview\",\"isGlobal\":true}"))
+                        .andExpect(status().isCreated());
+            } catch (Exception exception) {
+                throw new IllegalStateException(exception);
+            }
+            tx.setRollbackOnly();
+        });
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM \"engagement\".\"Announcement\" WHERE \"title\"='Rollback notice'", Integer.class));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM notifications.notification WHERE title='[Announcement] Rollback notice'", Integer.class));
+    }
+
+    @Test
+    void revokedStudentRoleCannotReceivePrivateStudentNoticeThroughInbox() throws Exception {
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.student(jdbc, "fanout-u-1", "fanout-st-1", 1);
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.lecturer(jdbc, "fanout-u-1", "revoked-lecturer");
+        var currentLecturer = fixtureJwt(jdbc, "fanout-u-1", "LECTURER");
+        mvc.perform(post("/api/v1/announcements").with(adminJwt("fanout-admin"))
+                .contentType("application/json")
+                .content("{\"title\":\"Private student notice\",\"content\":\"Private body\",\"isGlobal\":false,\"targetRoles\":[\"STUDENT\"],\"targetYears\":[1]}"))
+                .andExpect(status().isCreated());
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM notifications.notification WHERE user_id='fanout-u-1'", Integer.class));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/announcements/my").with(currentLecturer))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.meta.total").value(0));
+    }
+
+    @Test
+    void dualRoleRecipientsMatchTheNoticeLecturerScope() throws Exception {
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.lecturer(jdbc, "fanout-u-1", "recipient-lecturer");
+        fixtureJwt(jdbc, "fanout-u-1", "STUDENT", "LECTURER");
+        jdbc.update("INSERT INTO academic.\"Enrollment\" VALUES ('scoped-enrollment', 'fanout-st-1', 'scoped-section', 'semester', 'ENROLLED')");
+        mvc.perform(post("/api/v1/announcements").with(adminJwt("fanout-admin"))
+                .contentType("application/json")
+                .content("{\"title\":\"Other lecturer notice\",\"content\":\"Private body\",\"isGlobal\":false,\"targetRoles\":[\"STUDENT\"],\"targetYears\":[1],\"sectionId\":\"scoped-section\",\"lecturerId\":\"other-lecturer\"}"))
+                .andExpect(status().isCreated());
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM notifications.notification WHERE user_id='fanout-u-1'", Integer.class));
+    }
+
+    private static io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.AnnouncementResponse scopedNotice(
+            String section, List<Integer> years, java.time.Instant expires, java.time.Instant archived,
+            List<String> roles, boolean global) {
+        return new io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.AnnouncementResponse(
+                "scoped", "Private title", "Private content", "NORMAL", roles, years, global,
+                null, expires, "publisher", null, null, section, null, null, null, null, null,
+                java.time.Instant.now(), java.time.Instant.now(), 0, archived, null, null, null, null);
+    }
+
+    private RequestPostProcessor adminJwt(String subject) {
+        return fixtureJwt(jdbc, subject, token -> token
                         .subject(subject)
                         .claim("email", subject + "@campuscore.edu")
-                        .claim("roles", List.of("ADMIN")))
+                        .claim("roles", List.of("ADMIN")), "ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
 }

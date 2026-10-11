@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi.security;
 
+import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
+
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -75,6 +77,9 @@ import org.springframework.web.server.ResponseStatusException;
 })
 class RbacAndApiErrorSecurityChallengeTest {
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
     private static final UUID ROUND_ID = UUID.fromString("22222222-2222-2222-2222-222222222101");
     private static final UUID GROUP_ID = UUID.fromString("33333333-3333-3333-3333-333333333301");
 
@@ -140,38 +145,40 @@ class RbacAndApiErrorSecurityChallengeTest {
     // --- Helpers for JWT Principals ---
 
     private RequestPostProcessor superAdminJwt() {
-        return jwt().jwt(token -> token
+        return fixtureJwt(jdbc, "challenger-super-admin", token -> token
                         .subject("challenger-super-admin")
-                        .claim("roles", List.of("SUPER_ADMIN")))
+                        .claim("roles", List.of("SUPER_ADMIN")), "SUPER_ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"));
     }
 
     private RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token
+        return fixtureJwt(jdbc, "challenger-admin", token -> token
                         .subject("challenger-admin")
-                        .claim("roles", List.of("ADMIN")))
+                        .claim("roles", List.of("ADMIN")), "ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
 
     private RequestPostProcessor lecturerJwt() {
-        return jwt().jwt(token -> token
+        fixtureJwt(jdbc, "challenger-lecturer", "LECTURER");
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.lecturer(jdbc, "challenger-lecturer", "challenger-lecturer-id");
+        return fixtureJwt(jdbc, "challenger-lecturer", token -> token
                         .subject("challenger-lecturer")
                         .claim("lecturerId", "challenger-lecturer-id")
-                        .claim("roles", List.of("LECTURER")))
+                        .claim("roles", List.of("LECTURER")), "LECTURER")
                 .authorities(new SimpleGrantedAuthority("ROLE_LECTURER"));
     }
 
     private RequestPostProcessor studentJwt() {
-        return jwt().jwt(token -> token
+        return fixtureJwt(jdbc, "challenger-student", token -> token
                         .subject("challenger-student")
-                        .claim("roles", List.of("STUDENT")))
+                        .claim("roles", List.of("STUDENT")), "STUDENT")
                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
     }
 
     private RequestPostProcessor guestJwt() {
-        return jwt().jwt(token -> token
+        return fixtureJwt(jdbc, "challenger-guest", token -> token
                         .subject("challenger-guest")
-                        .claim("roles", List.of("GUEST")))
+                        .claim("roles", List.of("GUEST")), "GUEST")
                 .authorities(new SimpleGrantedAuthority("ROLE_GUEST"));
     }
 

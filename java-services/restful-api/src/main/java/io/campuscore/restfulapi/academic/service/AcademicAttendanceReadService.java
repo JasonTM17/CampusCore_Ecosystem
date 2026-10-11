@@ -227,7 +227,7 @@ public class AcademicAttendanceReadService {
             return null;
         }
         try {
-            return Instant.parse(normalized);
+            return Instant.parse(normalized).truncatedTo(java.time.temporal.ChronoUnit.DAYS);
         } catch (DateTimeParseException ignored) {
             try {
                 return LocalDate.parse(normalized).atStartOfDay().toInstant(ZoneOffset.UTC);

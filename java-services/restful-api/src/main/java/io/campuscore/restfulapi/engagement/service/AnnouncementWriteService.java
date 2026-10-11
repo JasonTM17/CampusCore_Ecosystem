@@ -115,30 +115,32 @@ public class AnnouncementWriteService {
      * roll back the announcement that was just published.
      */
     private void notifyActiveStudents(AnnouncementResponse created) {
-        boolean dueNow = created.publishAt() == null
-                || !created.publishAt().isAfter(Instant.now(clock));
-        Instant claimedAt = dueNow ? Instant.now(clock) : null;
-        if (dueNow) {
-            // Claim before send, same contract as the scheduled job: a tick
-            // landing between this commit and the fan-out sees the marker
-            // and skips, so an immediate announcement can never double-send.
-            announcements.markNotified(created.id(), claimedAt);
+        if (created.publishAt() != null && created.publishAt().isAfter(Instant.now(clock))) {
+            return;
         }
+        // Never commit inbox content from an announcement whose outer write can
+        // still roll back. A scheduled sweep can recover a missed after-commit send.
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            sendPublishedNotification(created.id());
+                        }
+                    });
+        } else {
+            sendPublishedNotification(created.id());
+        }
+    }
+
+    private void sendPublishedNotification(String id) {
         try {
-            int sent = studentNotifier.fanOutToActiveStudents(created);
-            LOGGER.info("Announcement {} fanned out to {} active students", created.id(), sent);
+            int sent = studentNotifier.notifyAfterPublication(id);
+            LOGGER.info("Announcement {} fanned out to {} active students", id, sent);
         } catch (RuntimeException exception) {
-            if (dueNow) {
-                // Re-arm the marker so ScheduledAnnouncementNotifyJob retries
-                // the send instead of a transient outage silently dropping
-                // it; claim-scoped so a later competitor's marker survives.
-                announcements.clearNotifiedAt(created.id(), claimedAt);
-            }
-            LOGGER.warn(
-                    "Announcement {} was created but the student notification fan-out failed: {}",
-                    created.id(),
-                    exception.getMessage(),
-                    exception);
+            // REQUIRES_NEW rolled back both claim and send, leaving the sweep
+            // eligible to retry without poisoning the publication transaction.
+            LOGGER.warn("Announcement {} committed but inbox fan-out failed; scheduled retry remains eligible", id);
         }
     }
 

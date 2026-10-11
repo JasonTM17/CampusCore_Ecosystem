@@ -385,11 +385,9 @@ public class AcademicMutationService {
                     : "All students require process and final exam scores before publishing";
             throw problem(HttpStatus.CONFLICT, "GRADE_COMPONENTS_INCOMPLETE", detail);
         }
-        // The audience is captured before the UPDATE: the notifier runs in a
-        // separate transaction (REQUIRES_NEW) that cannot see the pending
-        // write, and re-deriving the set by gradeStatus afterwards would
-        // over-notify on any publish that races a second publish of the same
-        // section.
+        // Capture only the rows this publication transitions, while the section
+        // lock serializes competing saves/publications. Send after commit so a
+        // rolled-back publication cannot leave a false official-grade message.
         List<String> audience = publishAudience(sectionId);
         String sectionLabel = sectionLabel(sectionId);
         int updated = jdbc.update(
@@ -415,11 +413,27 @@ public class AcademicMutationService {
                             + " (" + updated + " enrollment(s))");
         }
         if (gradeNotifier != null && !audience.isEmpty()) {
-            try {
-                gradeNotifier.fanOutToSection(sectionLabel, audience);
-            } catch (RuntimeException exception) {
-                log.warn("Grade publish notification fan-out failed for section {}", sectionId, exception);
+            if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+                org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                        new org.springframework.transaction.support.TransactionSynchronization() {
+                            @Override
+                            public void afterCommit() {
+                                sendPublishedGradeNotification(sectionId, sectionLabel, audience);
+                            }
+                        });
+            } else {
+                sendPublishedGradeNotification(sectionId, sectionLabel, audience);
             }
+        }
+    }
+
+    private void sendPublishedGradeNotification(String sectionId, String sectionLabel, List<String> audience) {
+        try {
+            gradeNotifier.fanOutToSection(sectionLabel, audience);
+        } catch (RuntimeException exception) {
+            // Publishing already committed; keep inbox delivery best-effort and
+            // avoid exposing raw database/recipient details in application logs.
+            log.warn("Grade publication committed but notification fan-out failed for section {}", sectionId);
         }
     }
 

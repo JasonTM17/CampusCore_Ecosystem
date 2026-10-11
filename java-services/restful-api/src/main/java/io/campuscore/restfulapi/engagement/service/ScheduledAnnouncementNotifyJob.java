@@ -67,28 +67,20 @@ public class ScheduledAnnouncementNotifyJob {
                 // inter-worker gate, so it must run before the fan-out, not
                 // after. A competing worker (or a late reschedule/archive)
                 // flips the claim to 0 rows and this send never happens.
-                Instant claimedAt = Instant.now(clock);
-                if (announcements.markNotified(announcement.id(), claimedAt) == 0) {
-                    continue;
-                }
                 try {
-                    int sent = notifier.fanOutToActiveStudents(announcement);
+                    // Re-read after the atomic claim, inside the same new transaction
+                    // as inbox creation. A changed audience cannot leak the stale scan.
+                    int sent = notifier.notifyAfterPublication(announcement.id());
                     log.info("Scheduled announcement {} fanned out to {} students",
                             announcement.id(), sent);
                 } catch (RuntimeException exception) {
-                    // Re-arm so a transient outage retries next tick instead
-                    // of consuming the marker. The re-arm is claim-scoped: a
-                    // competitor that stamped a later marker keeps it.
-                    // Residual risk: a JVM crash between claim and send
-                    // leaves the row stamped — the operator can clear
-                    // "notifiedAt" to force a refire.
-                    announcements.clearNotifiedAt(announcement.id(), claimedAt);
-                    log.warn("Scheduled announcement {} fan-out failed; will retry next tick: {}",
-                            announcement.id(), exception.getMessage());
+                    // The notifier transaction rolled back claim and inbox together.
+                    log.warn("Scheduled announcement {} fan-out failed; will retry next tick",
+                            announcement.id());
                 }
             }
         } catch (RuntimeException exception) {
-            log.warn("Scheduled announcement notify sweep failed: {}", exception.getMessage());
+            log.warn("Scheduled announcement notify sweep failed; next tick will retry");
         }
     }
 }

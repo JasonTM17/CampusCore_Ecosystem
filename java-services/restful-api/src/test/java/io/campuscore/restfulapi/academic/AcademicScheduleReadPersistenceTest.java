@@ -1,6 +1,5 @@
 package io.campuscore.restfulapi.academic;
 
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -14,6 +13,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import io.campuscore.restfulapi.testsupport.AccountAuthorityFixture;
+import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -34,8 +35,10 @@ class AcademicScheduleReadPersistenceTest {
     void prepareFixture() {
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS \"academic\"");
         createTables();
+        AccountAuthorityFixture.ensureSchema(jdbc);
         clearTables();
         insertFixture();
+        AccountAuthorityFixture.ensureUser(jdbc, "schedule-reader");
     }
 
     @Test
@@ -43,7 +46,7 @@ class AcademicScheduleReadPersistenceTest {
         mvc.perform(get("/api/v1/schedules")
                         .queryParam("page", "1")
                         .queryParam("limit", "1")
-                        .with(jwt()))
+                        .with(CurrentAccountJwt.currentJwt(jdbc, "schedule-reader")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))
                 .andExpect(jsonPath("$.data[0].id").value("schedule-early"))
@@ -59,7 +62,7 @@ class AcademicScheduleReadPersistenceTest {
 
     @Test
     void scheduleDetailReturnsHydratedSectionAndClassroomOrNotFound() throws Exception {
-        mvc.perform(get("/api/v1/schedules/schedule-late").with(jwt()))
+        mvc.perform(get("/api/v1/schedules/schedule-late").with(CurrentAccountJwt.currentJwt(jdbc, "schedule-reader")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("schedule-late"))
                 .andExpect(jsonPath("$.dayOfWeek").value(5))
@@ -68,7 +71,7 @@ class AcademicScheduleReadPersistenceTest {
                 .andExpect(jsonPath("$.section.status").value("OPEN"))
                 .andExpect(jsonPath("$.classroom.building").value("A"));
 
-        mvc.perform(get("/api/v1/schedules/missing").with(jwt()))
+        mvc.perform(get("/api/v1/schedules/missing").with(CurrentAccountJwt.currentJwt(jdbc, "schedule-reader")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
@@ -81,13 +84,13 @@ class AcademicScheduleReadPersistenceTest {
 
         mvc.perform(get("/api/v1/schedules")
                         .queryParam("limit", "101")
-                        .with(jwt()))
+                        .with(CurrentAccountJwt.currentJwt(jdbc, "schedule-reader")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
         mvc.perform(get("/api/v1/schedules")
                         .queryParam("courseId", "course-1")
-                        .with(jwt()))
+                        .with(CurrentAccountJwt.currentJwt(jdbc, "schedule-reader")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }

@@ -97,8 +97,8 @@ public class AcademicAttendanceReadRepository {
             where.append(" AND a.\"sectionId\" = :sectionId");
         }
         if (date != null) {
-            parameters.addValue("date", utcTimestamp(date));
-            where.append(" AND a.\"date\" = :date");
+            bindDay(parameters, date);
+            where.append(" AND a.\"date\" >= :dayStart AND a.\"date\" < :dayEnd");
         }
         return jdbc.query(attendanceSelect() + where
                         + " ORDER BY a.\"date\" DESC, student_user.\"firstName\" ASC, a.\"id\" ASC",
@@ -110,8 +110,8 @@ public class AcademicAttendanceReadRepository {
         MapSqlParameterSource parameters = new MapSqlParameterSource("sectionId", sectionId);
         String dateFilter = "";
         if (date != null) {
-            parameters.addValue("date", utcTimestamp(date));
-            dateFilter = " AND a.\"date\" = :date";
+            bindDay(parameters, date);
+            dateFilter = " AND a.\"date\" >= :dayStart AND a.\"date\" < :dayEnd";
         }
         return jdbc.query(attendanceSelect()
                         + " WHERE a.\"sectionId\" = :sectionId" + dateFilter
@@ -122,7 +122,7 @@ public class AcademicAttendanceReadRepository {
 
     public SectionSummaryRow sectionSummary(String sectionId) {
         return jdbc.queryForObject(
-                "SELECT COUNT(DISTINCT a.\"date\") AS total_sessions,"
+                "SELECT COUNT(DISTINCT TO_CHAR(a.\"date\" AT TIME ZONE 'UTC', 'YYYY-MM-DD')) AS total_sessions,"
                         + " COUNT(*) AS total_records,"
                         + " SUM(CASE WHEN a.\"status\" = 'PRESENT' THEN 1 ELSE 0 END) AS present,"
                         + " SUM(CASE WHEN a.\"status\" = 'ABSENT' THEN 1 ELSE 0 END) AS absent,"
@@ -161,7 +161,9 @@ public class AcademicAttendanceReadRepository {
         appendFilter(where, "a.\"sectionId\" = :sectionId", "sectionId", sectionId, parameters);
         appendFilter(where, "a.\"studentId\" = :studentId", "studentId", studentId, parameters);
         if (date != null) {
-            appendFilter(where, "a.\"date\" = :date", "date", utcTimestamp(date), parameters);
+            where.append(where.length() == 0 ? " WHERE " : " AND ");
+            where.append("a.\"date\" >= :dayStart AND a.\"date\" < :dayEnd");
+            bindDay(parameters, date);
         }
         return where.toString();
     }
@@ -199,7 +201,7 @@ public class AcademicAttendanceReadRepository {
                 rs.getString("id"),
                 rs.getString("studentId"),
                 rs.getString("sectionId"),
-                instant(rs.getTimestamp("date")),
+                rs.getObject("date", java.time.OffsetDateTime.class).toInstant(),
                 rs.getString("status"),
                 rs.getString("notes"),
                 instant(rs.getTimestamp("createdAt")),
@@ -245,11 +247,16 @@ public class AcademicAttendanceReadRepository {
         if (timestamp == null) {
             return null;
         }
-        return timestamp.toLocalDateTime().toInstant(ZoneOffset.UTC);
+        return timestamp.toInstant();
     }
 
-    private static Timestamp utcTimestamp(Instant instant) {
-        return Timestamp.valueOf(instant.atOffset(ZoneOffset.UTC).toLocalDateTime());
+    private static java.time.OffsetDateTime utcTimestamp(Instant instant) {
+        return instant.atOffset(ZoneOffset.UTC);
+    }
+
+    private static void bindDay(MapSqlParameterSource parameters, Instant date) {
+        Instant start = date.truncatedTo(java.time.temporal.ChronoUnit.DAYS);
+        parameters.addValue("dayStart", utcTimestamp(start)).addValue("dayEnd", utcTimestamp(start.plusSeconds(86400)));
     }
 
     public record AttendanceRow(

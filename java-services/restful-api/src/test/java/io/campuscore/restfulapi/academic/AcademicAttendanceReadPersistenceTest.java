@@ -45,6 +45,15 @@ class AcademicAttendanceReadPersistenceTest {
         createTables();
         clearTables();
         insertFixture();
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.prepare(jdbc);
+        insertUser("admin-user", "admin@example.test", "Admin", "Fixture");
+        insertUser("lecturer-user-1", "lecturer1@example.test", "Lecturer", "One");
+        insertUser("lecturer-user-2", "lecturer2@example.test", "Lecturer", "Two");
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.role(jdbc, "admin-user", "ADMIN");
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.role(jdbc, "student-user-1", "STUDENT");
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.role(jdbc, "student-user-2", "STUDENT");
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.lecturer(jdbc, "lecturer-user-1", "lecturer-1");
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.lecturer(jdbc, "lecturer-user-2", "lecturer-2");
     }
 
     @Test
@@ -100,8 +109,9 @@ class AcademicAttendanceReadPersistenceTest {
                         .queryParam("date", "2026-08-21")
                         .with(adminJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(4))
-                .andExpect(jsonPath("$.data[0].date").value("2026-08-21T00:00:00.000Z"));
+                .andExpect(jsonPath("$.data.length()").value(6))
+                .andExpect(jsonPath("$.data[0].date").value("2026-08-21T02:00:00.000Z"))
+                .andExpect(jsonPath("$.meta.total").value(6));
     }
 
     @Test
@@ -168,8 +178,8 @@ class AcademicAttendanceReadPersistenceTest {
                                 .subject("student-user-1")
                                 .claim("roles", List.of("STUDENT")))
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("HTTP_403"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("SESSION_INVALID"));
 
         mvc.perform(get("/api/v1/attendance")
                         .queryParam("limit", "101")
@@ -188,6 +198,7 @@ class AcademicAttendanceReadPersistenceTest {
         return jwt().jwt(token -> token
                         .subject(subject)
                         .claim("roles", List.of("STUDENT"))
+                        .claim("student", java.util.Map.of("year", 3))
                         .claim("studentId", studentId))
                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
     }
@@ -201,7 +212,7 @@ class AcademicAttendanceReadPersistenceTest {
 
     private static RequestPostProcessor lecturerJwt(String lecturerId) {
         return jwt().jwt(token -> token
-                        .subject("lecturer-user-1")
+                        .subject("lecturer-2".equals(lecturerId) ? "lecturer-user-2" : "lecturer-user-1")
                         .claim("roles", List.of("LECTURER"))
                         .claim("lecturerId", lecturerId))
                 .authorities(new SimpleGrantedAuthority("ROLE_LECTURER"));
@@ -267,7 +278,7 @@ class AcademicAttendanceReadPersistenceTest {
                     "id" VARCHAR(120) PRIMARY KEY,
                     "studentId" VARCHAR(120) NOT NULL,
                     "sectionId" VARCHAR(120) NOT NULL,
-                    "date" TIMESTAMP NOT NULL,
+                    "date" TIMESTAMP WITH TIME ZONE NOT NULL,
                     "status" VARCHAR(40) NOT NULL,
                     "notes" VARCHAR(1000),
                     "createdAt" TIMESTAMP NOT NULL
@@ -353,7 +364,7 @@ class AcademicAttendanceReadPersistenceTest {
                 id, studentId, sectionId, utcTimestamp(date), status, notes, utcTimestamp(BASE_TIME));
     }
 
-    private static Timestamp utcTimestamp(Instant instant) {
-        return Timestamp.valueOf(instant.atOffset(ZoneOffset.UTC).toLocalDateTime());
+    private static java.time.OffsetDateTime utcTimestamp(Instant instant) {
+        return instant.atOffset(ZoneOffset.UTC);
     }
 }

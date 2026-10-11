@@ -36,12 +36,13 @@ class ScheduledAnnouncementNotifyTest {
     @Test
     void createStampsNotifiedOnlyWhenVisibleNow() throws Exception {
         AnnouncementWriteRepository announcements = mock(AnnouncementWriteRepository.class);
-        AnnouncementWriteService service = service(announcements, mock(AnnouncementStudentNotifier.class));
+        AnnouncementStudentNotifier notifier = mock(AnnouncementStudentNotifier.class);
+        AnnouncementWriteService service = service(announcements, notifier);
         when(announcements.create(any())).thenReturn(announcement(null));
 
         service.create("admin-1", "Admin", List.of("ADMIN"), null, createRequest(null));
 
-        verify(announcements).markNotified(eq("notice-1"), any());
+        verify(notifier).notifyAfterPublication("notice-1");
     }
 
     @Test
@@ -63,16 +64,14 @@ class ScheduledAnnouncementNotifyTest {
         AnnouncementStudentNotifier notifier = mock(AnnouncementStudentNotifier.class);
         AnnouncementWriteService service = service(announcements, notifier);
         when(announcements.create(any())).thenReturn(announcement(null));
-        when(notifier.fanOutToActiveStudents(any())).thenThrow(new RuntimeException("inbox down"));
+        when(notifier.notifyAfterPublication(any())).thenThrow(new RuntimeException("inbox down"));
 
         service.create("admin-1", "Admin", List.of("ADMIN"), null, createRequest(null));
 
-        // Claim-before-send: the create path stamps first so a concurrent tick
-        // skips the row, then re-arms on failure so the job retries the send.
-        InOrder order = inOrder(notifier, announcements);
-        order.verify(announcements).markNotified(eq("notice-1"), any());
-        order.verify(notifier).fanOutToActiveStudents(any());
-        order.verify(announcements).clearNotifiedAt(eq("notice-1"), any(Instant.class));
+        // Claim and inbox write are owned by the notifier's one new transaction.
+        // Its rollback/retry eligibility is checked by the persistence test.
+        verify(notifier).notifyAfterPublication("notice-1");
+        verify(announcements, never()).markNotified(any(), any());
     }
 
     @Test
@@ -100,13 +99,11 @@ class ScheduledAnnouncementNotifyTest {
         ScheduledAnnouncementNotifyJob job = new ScheduledAnnouncementNotifyJob(announcements, notifier);
         when(announcements.findDueForNotification(any(), anyInt()))
                 .thenReturn(List.of(announcement(NOW.minusSeconds(60))));
-        when(announcements.markNotified(eq("notice-1"), any())).thenReturn(1);
+        when(notifier.notifyAfterPublication("notice-1")).thenReturn(3);
 
         job.refireDueAnnouncements();
 
-        InOrder order = inOrder(notifier, announcements);
-        order.verify(announcements).markNotified(eq("notice-1"), any());
-        order.verify(notifier).fanOutToActiveStudents(any());
+        verify(notifier).notifyAfterPublication("notice-1");
     }
 
     @Test
@@ -116,11 +113,12 @@ class ScheduledAnnouncementNotifyTest {
         ScheduledAnnouncementNotifyJob job = new ScheduledAnnouncementNotifyJob(announcements, notifier);
         when(announcements.findDueForNotification(any(), anyInt()))
                 .thenReturn(List.of(announcement(NOW.minusSeconds(60))));
-        when(announcements.markNotified(eq("notice-1"), any())).thenReturn(0);
+        when(notifier.notifyAfterPublication("notice-1")).thenReturn(0);
 
         job.refireDueAnnouncements();
 
         verify(notifier, never()).fanOutToActiveStudents(any());
+        verify(notifier).notifyAfterPublication("notice-1");
         verify(announcements, never()).clearNotifiedAt(any());
         verify(announcements, never()).clearNotifiedAt(any(), any());
     }
@@ -132,15 +130,29 @@ class ScheduledAnnouncementNotifyTest {
         ScheduledAnnouncementNotifyJob job = new ScheduledAnnouncementNotifyJob(announcements, notifier);
         when(announcements.findDueForNotification(any(), anyInt()))
                 .thenReturn(List.of(announcement(NOW.minusSeconds(60))));
-        when(announcements.markNotified(eq("notice-1"), any())).thenReturn(1);
-        when(notifier.fanOutToActiveStudents(any())).thenThrow(new RuntimeException("inbox down"));
+        when(notifier.notifyAfterPublication("notice-1")).thenThrow(new RuntimeException("inbox down"));
 
         job.refireDueAnnouncements();
 
-        InOrder order = inOrder(notifier, announcements);
-        order.verify(announcements).markNotified(eq("notice-1"), any());
-        order.verify(notifier).fanOutToActiveStudents(any());
-        order.verify(announcements).clearNotifiedAt(eq("notice-1"), any(Instant.class));
+        verify(notifier).notifyAfterPublication("notice-1");
+        verify(announcements, never()).clearNotifiedAt(any(), any());
+    }
+
+    @Test
+    void notifierClaimsBeforeReadingFreshAudienceAndSkipsLostClaim() {
+        AnnouncementWriteRepository announcements = mock(AnnouncementWriteRepository.class);
+        var people = mock(io.campuscore.restfulapi.people.service.PeopleReadService.class);
+        var notifications = mock(io.campuscore.restfulapi.notification.repository.NotificationWriteRepository.class);
+        var notifier = new AnnouncementStudentNotifier(people, notifications, announcements);
+        when(announcements.markNotified(eq("notice-1"), any())).thenReturn(0);
+        org.junit.jupiter.api.Assertions.assertEquals(0, notifier.notifyAfterPublication("notice-1"));
+        verify(announcements, never()).findById(any());
+        when(announcements.markNotified(eq("notice-1"), any())).thenReturn(1);
+        when(announcements.findById("notice-1")).thenReturn(Optional.of(announcement(null)));
+        when(people.findAnnouncementStudentUserIds(List.of(1), null, List.of("STUDENT"), null)).thenReturn(List.of("current-student"));
+        notifier.notifyAfterPublication("notice-1");
+        verify(people).findAnnouncementStudentUserIds(List.of(1), null, List.of("STUDENT"), null);
+        verify(notifications).createBatch(any());
     }
 
     private static AnnouncementWriteService service(

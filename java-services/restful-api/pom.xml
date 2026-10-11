@@ -24,7 +24,10 @@
         <springdoc.version>2.8.17</springdoc.version>
         <tomcat.version>10.1.59</tomcat.version>
         <!-- RT-P2-5: vetted HTML sanitizer for announcement bodies at the write boundary. -->
-        <jsoup.version>1.17.2</jsoup.version>
+        <jsoup.version>1.23.2</jsoup.version>
+        <jackson-bom.version>2.21.7</jackson-bom.version>
+        <log4j2.version>2.25.5</log4j2.version>
+        <commons-lang3.version>3.18.0</commons-lang3.version>
     </properties>
 
     <dependencies>

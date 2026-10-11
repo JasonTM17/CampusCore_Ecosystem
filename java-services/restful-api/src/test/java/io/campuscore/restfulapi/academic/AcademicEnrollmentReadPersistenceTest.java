@@ -9,6 +9,8 @@ import java.sql.PreparedStatement;
 import java.sql.Types;
 import java.time.Instant;
 import java.util.List;
+import io.campuscore.restfulapi.testsupport.AccountAuthorityFixture;
+import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +45,7 @@ class AcademicEnrollmentReadPersistenceTest {
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS \"campuscore_auth\"");
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS \"academic\"");
         createTables();
+        AccountAuthorityFixture.ensureSchema(jdbc);
         clearTables();
         insertFixture();
     }
@@ -270,8 +273,8 @@ class AcademicEnrollmentReadPersistenceTest {
                                 .subject("lecturer-user-1")
                                 .claim("roles", List.of("LECTURER")))
                                 .authorities(new SimpleGrantedAuthority("ROLE_LECTURER"))))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("HTTP_403"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("SESSION_INVALID"));
     }
 
     @Test
@@ -294,8 +297,8 @@ class AcademicEnrollmentReadPersistenceTest {
                                 .subject("student-user-1")
                                 .claim("roles", List.of("STUDENT")))
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("HTTP_403"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("SESSION_INVALID"));
 
         mvc.perform(get("/api/v1/enrollments")
                         .queryParam("limit", "101")
@@ -317,27 +320,22 @@ class AcademicEnrollmentReadPersistenceTest {
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
 
-    private static RequestPostProcessor studentJwt(String subject, String studentId) {
-        return jwt().jwt(token -> token
-                        .subject(subject)
-                        .claim("roles", List.of("STUDENT"))
-                        .claim("studentId", studentId))
-                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+    private RequestPostProcessor studentJwt(String subject, String studentId) {
+        return CurrentAccountJwt.currentJwt(jdbc, subject);
     }
 
-    private static RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token
-                        .subject("admin-user")
-                        .claim("roles", List.of("ADMIN")))
-                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+    private RequestPostProcessor adminJwt() {
+        return CurrentAccountJwt.currentJwt(jdbc, "admin-user");
     }
 
-    private static RequestPostProcessor lecturerJwt(String lecturerId) {
-        return jwt().jwt(token -> token
-                        .subject("lecturer-user-1")
-                        .claim("roles", List.of("LECTURER"))
-                        .claim("lecturerId", lecturerId))
-                .authorities(new SimpleGrantedAuthority("ROLE_LECTURER"));
+    private RequestPostProcessor lecturerJwt(String lecturerId) {
+        String subject = switch (lecturerId) {
+            case "lecturer-1" -> "lecturer-user-1";
+            default -> "fixture-lecturer-" + lecturerId;
+        };
+        AccountAuthorityFixture.ensureUser(jdbc, subject);
+        AccountAuthorityFixture.lecturer(jdbc, subject, lecturerId);
+        return CurrentAccountJwt.currentJwt(jdbc, subject);
     }
 
     private void createTables() {
@@ -591,6 +589,11 @@ class AcademicEnrollmentReadPersistenceTest {
                 "grade-item-1",
                 "enrollment-2",
                 new java.math.BigDecimal("99.00"));
+        AccountAuthorityFixture.student(jdbc, "student-user-1", "student-1", 2);
+        AccountAuthorityFixture.student(jdbc, "student-user-2", "student-2", 2);
+        AccountAuthorityFixture.lecturer(jdbc, "lecturer-user-1", "lecturer-1");
+        AccountAuthorityFixture.ensureUser(jdbc, "admin-user");
+        AccountAuthorityFixture.replaceRoles(jdbc, "admin-user", "ADMIN");
     }
 
     private void insertUser(String id, String email, String firstName, String lastName) {

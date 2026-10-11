@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi.engagement;
 
+import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
+
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -41,7 +43,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @ActiveProfiles({"test", "persistence"})
 @TestPropertySource(properties = {
-        "spring.flyway.enabled=false"
+        "spring.flyway.enabled=false",
+        "spring.datasource.url=jdbc:h2:mem:repair_AnnouncementWritePersistenceTest;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"
 })
 class AnnouncementWritePersistenceTest {
 
@@ -147,6 +150,8 @@ class AnnouncementWritePersistenceTest {
                     "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL
                 )
                 """);
+        fixtureJwt(jdbc, "student-1", "STUDENT");
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.student(jdbc, "student-1", "student-profile", 1);
     }
 
     @Test
@@ -230,10 +235,9 @@ class AnnouncementWritePersistenceTest {
     @Test
     void createBoundaryFailsClosedForStudentMissingBodyAndInvalidValues() throws Exception {
         mvc.perform(post("/api/v1/announcements")
-                        .with(jwt()
-                                .jwt(token -> token
+                        .with(fixtureJwt(jdbc, "student-1", token -> token
                                         .subject("student-1")
-                                        .claim("roles", List.of("STUDENT")))
+                                        .claim("roles", List.of("STUDENT")), "STUDENT")
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
                         .contentType("application/json")
                         .content("{\"title\":\"Nope\",\"content\":\"Nope\"}"))
@@ -459,13 +463,12 @@ class AnnouncementWritePersistenceTest {
                 + " SET \"targetRoles\" = ARRAY['STUDENT'], \"targetYears\" = ARRAY[]"
                 + " WHERE \"id\" = 'existing-announcement'");
         mvc.perform(get("/api/v1/announcements/my")
-                        .with(jwt()
-                                .jwt(token -> token
+                        .with(fixtureJwt(jdbc, "student-1", token -> token
                                         .subject("student-1")
                                         .claim("email", "student-1@campuscore.edu")
                                         .claim("roles", List.of("STUDENT"))
                                         .claim("studentId", "student-profile")
-                                        .claim("student", Map.of("year", 1)))
+                                        .claim("student", Map.of("year", 1)), "STUDENT")
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(0));
@@ -484,8 +487,7 @@ class AnnouncementWritePersistenceTest {
                 .andExpect(jsonPath("$.data[0].version").value(1));
 
         mvc.perform(get("/api/v1/announcements/existing-announcement/history")
-                        .with(jwt()
-                                .jwt(token -> token.subject("student-1").claim("roles", List.of("STUDENT")))
+                        .with(fixtureJwt(jdbc, "student-1", token -> token.subject("student-1").claim("roles", List.of("STUDENT")), "STUDENT")
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
@@ -510,13 +512,12 @@ class AnnouncementWritePersistenceTest {
                 .andExpect(jsonPath("$.archivedAt").doesNotExist());
 
         mvc.perform(get("/api/v1/announcements/my")
-                        .with(jwt()
-                                .jwt(token -> token
+                        .with(fixtureJwt(jdbc, "student-1", token -> token
                                         .subject("student-1")
                                         .claim("email", "student-1@campuscore.edu")
                                         .claim("roles", List.of("STUDENT"))
                                         .claim("studentId", "student-profile")
-                                        .claim("student", Map.of("year", 1)))
+                                        .claim("student", Map.of("year", 1)), "STUDENT")
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))
@@ -576,10 +577,9 @@ class AnnouncementWritePersistenceTest {
         seedAnnouncement();
 
         mvc.perform(put("/api/v1/announcements/existing-announcement")
-                        .with(jwt()
-                                .jwt(token -> token
+                        .with(fixtureJwt(jdbc, "student-1", token -> token
                                         .subject("student-1")
-                                        .claim("roles", List.of("STUDENT")))
+                                        .claim("roles", List.of("STUDENT")), "STUDENT")
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
                         .contentType("application/json")
                         .content("{\"title\":\"Nope\"}"))
@@ -703,10 +703,9 @@ class AnnouncementWritePersistenceTest {
         seedAnnouncement();
 
         mvc.perform(delete("/api/v1/announcements/existing-announcement")
-                        .with(jwt()
-                                .jwt(token -> token
+                        .with(fixtureJwt(jdbc, "student-1", token -> token
                                         .subject("student-1")
-                                        .claim("roles", List.of("STUDENT")))
+                                        .claim("roles", List.of("STUDENT")), "STUDENT")
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
@@ -723,35 +722,32 @@ class AnnouncementWritePersistenceTest {
         org.junit.jupiter.api.Assertions.assertEquals(1, remaining);
     }
 
-    private static org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt(String subject) {
-        return jwt()
-                .jwt(token -> token
+    private org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt(String subject) {
+        return fixtureJwt(jdbc, subject, token -> token
                         .subject(subject)
                         .claim("email", subject + "@campuscore.edu")
-                        .claim("roles", List.of("ADMIN")))
+                        .claim("roles", List.of("ADMIN")), "ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
 
-    private static org.springframework.test.web.servlet.request.RequestPostProcessor superAdminJwt(String subject) {
-        return jwt()
-                .jwt(token -> token
+    private org.springframework.test.web.servlet.request.RequestPostProcessor superAdminJwt(String subject) {
+        return fixtureJwt(jdbc, subject, token -> token
                         .subject(subject)
                         .claim("email", subject + "@campuscore.edu")
-                        .claim("roles", List.of("SUPER_ADMIN")))
+                        .claim("roles", List.of("SUPER_ADMIN")), "SUPER_ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"));
     }
 
-    private static org.springframework.test.web.servlet.request.RequestPostProcessor namedAdminJwt(
+    private org.springframework.test.web.servlet.request.RequestPostProcessor namedAdminJwt(
             String subject,
             String firstName,
             String lastName) {
-        return jwt()
-                .jwt(token -> token
+        return fixtureJwt(jdbc, subject, token -> token
                         .subject(subject)
                         .claim("email", subject + "@campuscore.edu")
                         .claim("firstName", firstName)
                         .claim("lastName", lastName)
-                        .claim("roles", List.of("ADMIN")))
+                        .claim("roles", List.of("ADMIN")), "ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
 
