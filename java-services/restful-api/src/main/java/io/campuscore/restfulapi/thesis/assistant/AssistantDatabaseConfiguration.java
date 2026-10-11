@@ -90,7 +90,21 @@ public class AssistantDatabaseConfiguration {
         config.setConnectionTimeout(connectionTimeoutMs);
         config.setValidationTimeout(Math.min(3000, connectionTimeoutMs));
         config.setInitializationFailTimeout(5000);
-        return new HikariDataSource(config);
+        try {
+            return new HikariDataSource(config);
+        } catch (RuntimeException poolFailure) {
+            // Wave 1.2: the config parses but the runtime login cannot open a
+            // connection (unprovisioned tenant, wrong password, dead host).
+            // Degrade only the assistant; never the boot. The log keeps the
+            // exception class only — its message can carry tenant ids or
+            // credentials.
+            String reason = "Assistant runtime login could not open a connection";
+            ASSISTANT_PROVISIONING_LOG.error(
+                    "{} ({}); assistant chat endpoints will answer 503 {} until provisioning is repaired",
+                    reason, poolFailure.getClass().getSimpleName(),
+                    UnavailableAssistantDataSource.UNAVAILABLE_REASON);
+            return new UnavailableAssistantDataSource(reason);
+        }
     }
 
     /**
