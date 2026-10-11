@@ -583,8 +583,8 @@ test('demo polish: thesis member details render and add-member form stays concis
   await page.goto('/en/dashboard/thesis');
   const main = page.locator('#dashboard-main-content');
 
-  // Standardized 1-3 group policy (V100/V101): the card renders '{count}/3 members'.
-  await expect(main.getByText('2/3 members')).toBeVisible();
+  // Standardized 3-5 group policy (V113): the card renders '{count}/5 members'.
+  await expect(main.getByText('2/5 members')).toBeVisible();
   await expect(main.getByText('Demo Student', { exact: true })).toBeVisible();
   await expect(main.getByText('S20240001', { exact: true })).toBeVisible();
   await expect(main.getByText('demo@example.test', { exact: true })).toBeVisible();
