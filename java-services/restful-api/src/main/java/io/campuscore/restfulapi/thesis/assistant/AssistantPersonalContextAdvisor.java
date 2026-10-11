@@ -726,7 +726,25 @@ public class AssistantPersonalContextAdvisor {
                     + "(?:class|course|schedule|timetable|grade|score|thesis|credit|attendance|exam)"
                     + "|\\b(?:he|she|they)\\s+(?:(?:is|are|has|have)\\s+)?"
                     + "(?:study|studies|studying|take|takes|taking|teach|teaches|teaching"
-                    + "|enrolled|attend|attends|attending)\\b",
+                    + "|enrolled|attend|attends|attending)\\b"
+                    // H) subject-position relation + capitalized name —
+                    // "Sinh viên A", "Bạn Nam", "Sinh viên Nguyễn Văn B".
+                    // Arm A needs a demonstrative and arm E an adjacent
+                    // verb, so a bare name token between the relation and
+                    // the predicate sailed through and served the ASKER's
+                    // own rows for a third-person question (production
+                    // privacy gap — same "sinh viên A" shape the F-arm
+                    // already vets under "của"). 1–4 uppercase-led tokens;
+                    // the (?-i:…) scope is load-bearing exactly like arm
+                    // F's name arm — lowercase followers ("sinh viên năm
+                    // ba", "em đã", "thầy ơi") can never form a name, and a
+                    // trailing vocative particle ("Bạn Lan ơi") stays out.
+                    + "|\\b(?:sinh\\s+viên|sinh\\s+vien|học\\s+sinh|hoc\\s+sinh"
+                    + "|giảng\\s+viên|giang\\s+vien|giáo\\s+viên|giao\\s+vien"
+                    + "|lớp\\s+trưởng|lop\\s+truong|bạn\\s+học|ban\\s+hoc"
+                    + "|bạn|ban|anh|chị|chi|em|thầy|thay|cô|co)"
+                    + "\\s+(?-i:\\p{Lu}\\p{L}*(?:\\s+\\p{Lu}\\p{L}*){0,3})\\b"
+                    + "(?!\\s*(?:ơi|oi|ạ|a|nhé|nhe|nha|thưa|thua|à)\\b)",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.UNICODE_CHARACTER_CLASS);
 
     /**
