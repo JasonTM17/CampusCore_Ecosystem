@@ -95,6 +95,69 @@ public final class AssistantInputGuard {
                     + "|vô\\s*hiệu\\s+(?:hóa\\s+)?(?:lệnh|hướng\\s+dẫn|chỉ\\s+dẫn)"
                     + "|(?:in|đọc|xem|hiển\\s*thị|lấy|cho\\s+(?:tôi|ta)\\s+xem)\\s+(?:ra\\s+|cho\\s+(?:tôi|ta)\\s+)?(?:toàn\\s*bộ\\s+)?(?:system\\s+prompt|prompt\\s+hệ\\s+thống|câu\\s+lệnh\\s+hệ\\s+thống|lệnh\\s+hệ\\s+thống|api[\\s_-]?key|jwt[\\s_-]?secret|mật\\s*khẩu|password)"
                     + "|giả\\s*mạo\\s+(?:quản\\s*trị\\s*viên|admin|hệ\\s*thống))");
+    /**
+     * Production latency audit: "Mật khẩu của admin là gì?" is a credential
+     * ask aimed at another party — it passed the guard, paid the full
+     * retrieval + LLM round-trip (~10 s) and only then met a model refusal.
+     * Asking for someone else's password/OTP/token/key/cookie/session is
+     * refused deterministically here, while self-service phrasing ("quên mật
+     * khẩu của tôi", "reset my password", minimum-length policy questions)
+     * keeps flowing to the knowledge path. The discriminator is the OWNER:
+     * a credential word is only refused when bound to a non-self party
+     * ("của admin/hệ thống/giảng viên", "the admin password", "her token"),
+     * never when it names the asker ("của tôi/em/mình", "my/our/your own").
+     */
+    private static final Pattern CREDENTIAL_REQUEST = Pattern.compile(
+            "(?i)(?:"
+                    // VI: credential word (allowing a short qualifier gap such
+                    // as "đăng nhập") owned by a non-self party.
+                    + "(?:mật\\s*khẩu|mat\\s*khau|password|pass\\s*code|otp|mã\\s*xác\\s*(?:thực|nhận)|ma\\s*xac\\s*(?:thuc|nhan)"
+                    + "|token|api[\\s_-]?key|apikey|secret|cookie|cookies|session|mã\\s*đăng\\s*nhập|ma\\s*dang\\s*nhap)"
+                    + "(?:\\s+\\w+){0,3}?\\s+của\\s+"
+                    + "(?!(?:tôi|toi|mình|minh|em|tui|bản\\s*thân|ban\\s*than|chính\\s*mình|chinh\\s*minh|chính\\s*tôi|chinh\\s*toi)\\b)"
+                    + "(?:admin|administrator|quản\\s*trị|quan\\s*tri|giảng\\s*viên|giang\\s*vien|giáo\\s*viên|giao\\s*vien"
+                    + "|thầy|thay|cô|co|hệ\\s*thống|he\\s*thong|bạn|ban|sinh\\s*viên|sinh\\s*vien|học\\s*sinh|hoc\\s*sinh"
+                    + "|người\\s*khác|nguoi\\s*khac|họ|ho|nó|no|ấy|ay|trường|truong|server|máy\\s*chủ|may\\s*chu"
+                    + "|database|cơ\\s*sở\\s*dữ\\s*liệu|co\\s*so\\s*du\\s*lieu|csdl|phòng\\s*đào\\s*tạo|phong\\s*dao\\s*tao"
+                    + "|ai\\s*đó|ai\\s*do|giáo\\s*vụ|giao\\s*vu|bot|trợ\\s*lý|tro\\s*ly|portal|cổng|website|web|tài\\s*khoản\\s*khác|tai\\s*khoan\\s*khac|người\\s*dùng\\s*khác|nguoi\\s*dung\\s*khac)\\b"
+                    // VI: credential handed to a non-self recipient —
+                    // "đổi mật khẩu cho bạn Nam". "cho tôi/em/mình" stays the
+                    // asker's own self-service request.
+                    + "|(?:mật\\s*khẩu|mat\\s*khau|password|otp|token|mã\\s*xác\\s*thực|ma\\s*xac\\s*thuc)"
+                    + "\\s+cho\\s+"
+                    + "(?!(?:tôi|toi|mình|minh|em|tui|bản\\s*thân|ban\\s*than|chính\\s*mình|chinh\\s*minh)\\b)\\w"
+                    // EN: a non-self owner compounded on the credential —
+                    // "the admin password", "system token", "her session".
+                    + "|\\b(?:admin|administrator|root|system|server|database|db|lecturer|teacher|staff|bot|assistant"
+                    + "|someone\\s+else|another\\s+(?:user|student|person)|other\\s+(?:user|student|person)"
+                    + "|the\\s+(?:school|university)|their|his|her|its)(?:'s|'|s)?\\s+"
+                    + "(?:password|passphrase|passcode|otp|token|api[\\s_-]?key|apikey|secret|credentials?|session\\s*(?:id|token)?|cookies?)"
+                    // EN: reveal verbs may name the bot too ("tell me your
+                    // password") — "your" only counts as non-self here.
+                    + "|\\b(?:tell|show|give|reveal|share|print|leak|expose|what\\s+is|what'?s|whats)\\s+"
+                    + "(?:me\\s+|us\\s+)?(?:the\\s+|a\\s+|an\\s+)?"
+                    + "(?:admin|administrator|root|system|server|database|db|your|their|his|her|its"
+                    + "|someone\\s+else'?s?|another\\s+(?:user|person)'?s?|other\\s+(?:user|student|person)'?s?"
+                    + "|the\\s+(?:lecturer|teacher|bot|assistant)'?s?)(?:'s)?\\s+"
+                    + "(?:password|passphrase|passcode|otp|token|api[\\s_-]?key|apikey|secret|credentials?)"
+                    // EN: reset/change verbs keep "your" out — "reset your
+                    // password" is self-service phrasing, not an exfil ask.
+                    + "|\\b(?:reset|change|recover|retrieve|steal|crack|hack|bypass|brute\\s*force)\\s+"
+                    + "(?:the\\s+|a\\s+|an\\s+)?"
+                    + "(?:admin|administrator|root|system|server|database|db|their|his|her|its"
+                    + "|someone\\s+else'?s?|another\\s+(?:user|person)'?s?|other\\s+(?:user|student|person)'?s?"
+                    + "|the\\s+(?:lecturer|teacher|bot|assistant)'?s?)(?:'s)?\\s+"
+                    + "(?:password|passphrase|passcode|otp|token|api[\\s_-]?key|apikey|secret|credentials?)"
+                    // EN: credential "of/for" a non-self party — "password of
+                    // the admin"; "of/for my/your own account" stays free.
+                    + "|\\b(?:password|passphrase|passcode|otp|token|api[\\s_-]?key|apikey|secret|credentials?)\\s+"
+                    + "(?:of|for|belonging\\s+to)\\s+"
+                    + "(?!(?:my|mine|me|myself|your|yours|yourself|our|ours)\\b)"
+                    + "(?:the\\s+|a\\s+|an\\s+)?[a-z]"
+                    + ")",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.UNICODE_CHARACTER_CLASS);
+    private static final Pattern CREDENTIAL_REQUEST_FOLDED = Pattern.compile(
+            foldForMatching(CREDENTIAL_REQUEST.pattern()));
     private static final String NEW_CONVERSATION = "new-conversation";
 
     /**
@@ -156,6 +219,7 @@ public final class AssistantInputGuard {
         String normalized = normalizeMessage(message);
         String sensitiveReason = sensitiveReason(normalized, false);
         if (sensitiveReason != null) return new GuardResult(false, sensitiveReason, normalized);
+        if (credentialRequestDetected(normalized)) return new GuardResult(false, "CREDENTIAL_REQUEST", normalized);
         if (injectionDetected(normalized)) return new GuardResult(false, "PROMPT_INJECTION", normalized);
         return new GuardResult(true, null, normalized);
     }
@@ -223,6 +287,13 @@ public final class AssistantInputGuard {
     private static boolean injectionDetected(String normalized) {
         if (PROMPT_INJECTION.matcher(normalized).find()) return true;
         return PROMPT_INJECTION_FOLDED.matcher(foldForMatching(normalized)).find();
+    }
+
+    /** Same dual-view rule as injection: unaccented Vietnamese credential
+     *  asks ("mat khau cua admin") must meet the identical refusal. */
+    private static boolean credentialRequestDetected(String normalized) {
+        if (CREDENTIAL_REQUEST.matcher(normalized).find()) return true;
+        return CREDENTIAL_REQUEST_FOLDED.matcher(foldForMatching(normalized)).find();
     }
 
     /** Defensive read-time gate for legacy rows that predate the publish check. */
