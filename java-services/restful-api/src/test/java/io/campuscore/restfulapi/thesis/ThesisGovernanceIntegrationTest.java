@@ -142,7 +142,7 @@ class ThesisGovernanceIntegrationTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("LECTURER_WINDOW_CLOSED"));
 
-        // A live lecturer window accepts submission and publishing.
+        // A live lecturer window accepts proposals; approval is a governance action.
         UUID openRound = insertRound("Gov Round Open Window", "PROPOSAL_OPEN",
                 Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
         mvc.perform(post("/api/v1/thesis/topics")
@@ -153,6 +153,8 @@ class ThesisGovernanceIntegrationTest {
         UUID topicId = jdbc.queryForObject(
                 "SELECT id FROM thesis.thesis_topic WHERE title = 'Open Window Topic'", UUID.class);
         mvc.perform(post("/api/v1/thesis/topics/{id}/publish", topicId).with(lecturerJwt("gov-lecturer-1")))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/thesis/topics/{id}/publish", topicId).with(truongKhoaJwt()))
                 .andExpect(status().isOk());
 
         // After the catalog is published no further topic submission happens.
@@ -233,23 +235,24 @@ class ThesisGovernanceIntegrationTest {
         ensureStudent("gov-member-1", "gov-user-1", "gov-member-1@campuscore.edu");
         ensureStudent("gov-member-2", "gov-user-2", "gov-member-2@campuscore.edu");
         ensureStudent("gov-member-3", "gov-user-3", "gov-member-3@campuscore.edu");
+        ensureStudent("gov-member-4", "gov-user-4", "gov-member-4@campuscore.edu");
         UUID topicId = insertPublishedTopic(roundId);
         UUID groupId = insertGroup(roundId, "gov-member-1", topicId, "APPROVED");
         insertMember(groupId, roundId, "gov-member-1", 1);
         insertMember(groupId, roundId, "gov-member-2", 2);
+        insertMember(groupId, roundId, "gov-member-3", 3);
         jdbc.update(
                 "INSERT INTO thesis.thesis_topic_supervisor (id, topic_id, lecturer_id, supervisor_order) "
                         + "VALUES (?, ?, 'gov-supervisor-1', 1)",
                 UUID.randomUUID(), topicId);
 
-        // The supervisor may complete a valid 2-member approved roster to the
-        // three-member cap.
+        // The supervisor may grow an approved three-member roster to four.
         mvc.perform(post("/api/v1/thesis/groups/{id}/members", groupId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"studentId\":\"gov-member-3\"}")
+                        .content("{\"studentId\":\"gov-member-4\"}")
                         .with(lecturerJwt("gov-supervisor-1")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.members.length()").value(3));
+                .andExpect(jsonPath("$.members.length()").value(4));
 
         // A lecturer who does not supervise this topic is still locked out.
         mvc.perform(post("/api/v1/thesis/groups/{id}/members", groupId)
@@ -258,13 +261,13 @@ class ThesisGovernanceIntegrationTest {
                         .with(lecturerJwt("gov-outsider-1")))
                 .andExpect(status().isForbidden());
 
-        mvc.perform(delete("/api/v1/thesis/groups/{id}/members/{studentId}", groupId, "gov-member-3")
+        mvc.perform(delete("/api/v1/thesis/groups/{id}/members/{studentId}", groupId, "gov-member-4")
                         .with(lecturerJwt("gov-supervisor-1")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.members.length()").value(2));
+                .andExpect(jsonPath("$.members.length()").value(3));
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM thesis.thesis_group_member WHERE group_id = ?", Integer.class, groupId))
-                .isEqualTo(2);
+                .isEqualTo(3);
 
         // The leader's own path still works through the same endpoint.
         mvc.perform(post("/api/v1/thesis/groups/{id}/members", groupId)
@@ -276,18 +279,18 @@ class ThesisGovernanceIntegrationTest {
     }
 
     @Test
-    void approvedGroupRosterFloorIsTheLeaderAlone() throws Exception {
-        // Spec floor is one member; an approved 2-member roster may shrink to
-        // the leader, and the leader row itself stays protected.
+    void approvedGroupRosterCannotFallBelowThreeOrLoseItsLeader() throws Exception {
         UUID roundId = insertRound("Gov Approved Roster Shrink", "REGISTRATION_OPEN",
                 Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
         ensureLecturer("gov-shrink-supervisor");
         ensureStudent("gov-shrink-leader", "gov-shrink-leader-user", "gov-shrink-leader@campuscore.edu");
         ensureStudent("gov-shrink-member-2", "gov-shrink-member-2-user", "gov-shrink-member-2@campuscore.edu");
+        ensureStudent("gov-shrink-member-3", "gov-shrink-member-3-user", "gov-shrink-member-3@campuscore.edu");
         UUID topicId = insertPublishedTopic(roundId);
         UUID groupId = insertGroup(roundId, "gov-shrink-leader", topicId, "APPROVED");
         insertMember(groupId, roundId, "gov-shrink-leader", 1);
         insertMember(groupId, roundId, "gov-shrink-member-2", 2);
+        insertMember(groupId, roundId, "gov-shrink-member-3", 3);
         jdbc.update(
                 "INSERT INTO thesis.thesis_topic_supervisor (id, topic_id, lecturer_id, supervisor_order) "
                         + "VALUES (?, ?, 'gov-shrink-supervisor', 1)",
@@ -295,10 +298,11 @@ class ThesisGovernanceIntegrationTest {
 
         mvc.perform(delete("/api/v1/thesis/groups/{id}/members/{studentId}", groupId, "gov-shrink-member-2")
                         .with(lecturerJwt("gov-shrink-supervisor")))
-                .andExpect(status().isOk());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("GROUP_TOO_SMALL"));
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM thesis.thesis_group_member WHERE group_id = ?", Integer.class, groupId))
-                .isEqualTo(1);
+                .isEqualTo(3);
         mvc.perform(delete("/api/v1/thesis/groups/{id}/members/{studentId}", groupId, "gov-shrink-leader")
                         .with(lecturerJwt("gov-shrink-supervisor")))
                 .andExpect(status().isConflict())
@@ -365,9 +369,7 @@ class ThesisGovernanceIntegrationTest {
     }
 
     @Test
-    void aLeaderOnlyGroupCanBeApproved() throws Exception {
-        // Spec cap is "at most three"; a solo leader group is a valid minimum
-        // roster and must be approvable.
+    void aLeaderOnlyGroupMustCompleteItsRosterBeforeApproval() throws Exception {
         UUID roundId = insertRound("Gov Tiny Group Round", "REGISTRATION_OPEN",
                 Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
         UUID topicId = insertPublishedTopic(roundId);
@@ -387,8 +389,10 @@ class ThesisGovernanceIntegrationTest {
                 .andExpect(status().isOk());
 
         mvc.perform(post("/api/v1/thesis/groups/{id}/approve", groupId).with(adminJwt()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.approvalStatus").value("APPROVED"));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("GROUP_TOO_SMALL"));
+        assertThat(jdbc.queryForObject("SELECT approval_status FROM thesis.thesis_group WHERE id = ?",
+                String.class, groupId)).isEqualTo("PENDING");
     }
 
     // ---------- R5: leader-only report submission ----------
@@ -751,7 +755,7 @@ class ThesisGovernanceIntegrationTest {
                         .with(lecturerJwt("gov-audit-chair")))
                 .andExpect(status().isOk());
         Map<String, Object> first = auditRow(topicId, "COUNCIL_SCORE_SUBMITTED", "score=7");
-        assertThat(first.get("actorId")).isEqualTo("gov-audit-chair");
+        assertThat(first.get("actorId")).isEqualTo("gov-lecturer-user-gov-audit-chair");
         assertThat(first.get("entityType")).isEqualTo("THESIS_TOPIC");
         assertThat(String.valueOf(first.get("beforeState"))).contains("score=null");
         assertThat(String.valueOf(first.get("afterState"))).contains("score=7");
@@ -790,7 +794,7 @@ class ThesisGovernanceIntegrationTest {
                 .andExpect(jsonPath("$.finalScore").value(8.5));
 
         Map<String, Object> finalized = auditRow(topicId, "COUNCIL_SCORE_FINALIZED", "final_score=8.5");
-        assertThat(finalized.get("actorId")).isEqualTo("gov-audit-chair");
+        assertThat(finalized.get("actorId")).isEqualTo("gov-lecturer-user-gov-audit-chair");
         assertThat(String.valueOf(finalized.get("beforeState"))).contains("final_score=null");
         assertThat(String.valueOf(finalized.get("afterState"))).contains("result_status=GRADED");
     }
@@ -968,9 +972,9 @@ class ThesisGovernanceIntegrationTest {
     }
 
     @Test
-    void personalProgressAcceptsALeaderOnlyRosterUnderTheNewFloor() throws Exception {
-        // Spec cap is 1-3 members: a lone-leader group is valid and must not
-        // be flagged as an incomplete roster anymore.
+    void personalProgressKeepsAnUnfinishedLeaderOnlyRosterUsable() throws Exception {
+        // A pending roster may be incomplete without being invalid; only
+        // approved new groups must meet the three-member floor.
         ensureStudent("gov-progress-incomplete-leader", "gov-progress-incomplete-leader-user",
                 "gov-progress-incomplete-leader@campuscore.edu");
         UUID roundId = insertRound("Gov Progress Incomplete Roster", "REGISTRATION_OPEN",
@@ -1135,40 +1139,23 @@ class ThesisGovernanceIntegrationTest {
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor studentJwt(String studentId) {
-        return jwt().jwt(token -> token
-                        .subject("gov-user-" + studentId)
-                        .claim("roles", List.of("STUDENT"))
-                        .claim("studentId", studentId))
-                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+        return ThesisAuthorityFixture.student(jdbc, studentId);
     }
 
-    private org.springframework.test.web.servlet.request.RequestPostProcessor lecturerJwt(String userId) {
-        return jwt().jwt(token -> token
-                        .subject(userId)
-                        .claim("roles", List.of("LECTURER"))
-                        .claim("lecturerId", userId))
-                .authorities(new SimpleGrantedAuthority("ROLE_LECTURER"));
+    private org.springframework.test.web.servlet.request.RequestPostProcessor lecturerJwt(String lecturerId) {
+        return ThesisAuthorityFixture.lecturer(jdbc, lecturerId);
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor truongKhoaJwt() {
-        return jwt().jwt(token -> token
-                        .subject("truongkhoa-user")
-                        .claim("roles", List.of("TRUONG_KHOA")))
-                .authorities(new SimpleGrantedAuthority("ROLE_TRUONG_KHOA"));
+        return ThesisAuthorityFixture.role(jdbc, "truongkhoa-user", "TRUONG_KHOA");
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token
-                        .subject("admin-user")
-                        .claim("roles", List.of("ADMIN")))
-                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        return ThesisAuthorityFixture.role(jdbc, "admin-user", "ADMIN");
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor superAdminJwt() {
-        return jwt().jwt(token -> token
-                        .subject("super-admin-user")
-                        .claim("roles", List.of("SUPER_ADMIN")))
-                .authorities(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"));
+        return ThesisAuthorityFixture.role(jdbc, "super-admin-user", "SUPER_ADMIN");
     }
 
     /** Audit rows of one action for one topic, newest or oldest order irrelevant. */

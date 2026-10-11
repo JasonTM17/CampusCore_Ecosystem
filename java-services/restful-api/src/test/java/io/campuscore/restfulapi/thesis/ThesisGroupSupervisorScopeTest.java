@@ -133,11 +133,12 @@ class ThesisGroupSupervisorScopeTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(topicBody(roundId, "Claim-less Topic"))
                         .with(lecturerJwtWithoutLecturerClaim("scope-lecturer-noclaim")))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("SESSION_INVALID"))
                 .andReturn();
 
         assertThat(result.getResponse().getContentAsString())
-                .contains("lecturerId");
+                .contains("Sign in again");
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM thesis.thesis_topic WHERE title = 'Claim-less Topic'",
                 Long.class))
@@ -218,6 +219,11 @@ class ThesisGroupSupervisorScopeTest {
                         + " display_name, contact, is_external) "
                         + "VALUES (?, ?, ?, ?, 2, FALSE, 'External Member', ?, TRUE)",
                 UUID.randomUUID(), groupId, roundId, "external-" + UUID.randomUUID(), contact);
+        String peer = leaderStudentId + "-peer";
+        ThesisAuthorityFixture.student(jdbc, peer);
+        jdbc.update("INSERT INTO thesis.thesis_group_member "
+                        + "(id, group_id, round_id, student_id, member_order, is_leader) VALUES (?, ?, ?, ?, 3, FALSE)",
+                UUID.randomUUID(), groupId, roundId, peer);
         return groupId;
     }
 
@@ -234,11 +240,7 @@ class ThesisGroupSupervisorScopeTest {
     }
 
     private RequestPostProcessor lecturerJwt(String lecturerId) {
-        return jwt().jwt(token -> token
-                        .subject(lecturerId)
-                        .claim("roles", List.of("LECTURER"))
-                        .claim("lecturerId", lecturerId))
-                .authorities(new SimpleGrantedAuthority("ROLE_LECTURER"));
+        return ThesisAuthorityFixture.lecturer(jdbc, lecturerId);
     }
 
     private RequestPostProcessor lecturerJwtWithoutLecturerClaim(String subject) {
@@ -249,16 +251,10 @@ class ThesisGroupSupervisorScopeTest {
     }
 
     private RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token
-                        .subject("scope-admin")
-                        .claim("roles", List.of("ADMIN")))
-                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        return ThesisAuthorityFixture.role(jdbc, "scope-admin", "ADMIN");
     }
 
     private RequestPostProcessor superAdminJwt() {
-        return jwt().jwt(token -> token
-                        .subject("scope-super-admin")
-                        .claim("roles", List.of("SUPER_ADMIN")))
-                .authorities(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"));
+        return ThesisAuthorityFixture.role(jdbc, "scope-super-admin", "SUPER_ADMIN");
     }
 }

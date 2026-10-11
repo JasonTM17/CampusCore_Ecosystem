@@ -59,7 +59,9 @@ class ThesisTopicPersistenceTest {
         topics.deleteAll();
         jdbc.update("DELETE FROM thesis.thesis_registration_round");
         jdbc.update("DELETE FROM campuscore_auth.\"Student\" WHERE \"id\" LIKE 'test-member-%'");
+        jdbc.update("DELETE FROM campuscore_auth.\"Student\" WHERE \"id\" = 'topic-group-leader'");
         jdbc.update("DELETE FROM campuscore_auth.\"User\" WHERE \"id\" LIKE 'test-user-%'");
+        jdbc.update("DELETE FROM campuscore_auth.\"User\" WHERE \"id\" = 'topic-group-user'");
     }
 
     @Test
@@ -105,7 +107,7 @@ class ThesisTopicPersistenceTest {
 
         mvc.perform(get("/api/v1/thesis/topics")
                         .queryParam("roundId", roundId.toString())
-                        .with(jwt()))
+                        .with(ThesisAuthorityFixture.role(jdbc, "topic-read-admin", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].title").value("A published topic"))
                 .andExpect(jsonPath("$[0].status").value("PUBLISHED"));
@@ -118,7 +120,7 @@ class ThesisTopicPersistenceTest {
         insertRound(earlier, "Earlier round", Instant.parse("2026-01-01T00:00:00Z"), "DRAFT");
         insertRound(later, "Open round", Instant.parse("2026-03-01T00:00:00Z"), "REGISTRATION_OPEN");
 
-        mvc.perform(get("/api/v1/thesis/rounds").with(jwt()))
+        mvc.perform(get("/api/v1/thesis/rounds").with(ThesisAuthorityFixture.role(jdbc, "topic-round-admin", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(later.toString()))
                 .andExpect(jsonPath("$[0].status").value("REGISTRATION_OPEN"))
@@ -127,7 +129,7 @@ class ThesisTopicPersistenceTest {
 
         mvc.perform(get("/api/v1/thesis/rounds")
                         .queryParam("status", "DRAFT")
-                        .with(jwt()))
+                        .with(ThesisAuthorityFixture.role(jdbc, "topic-round-admin", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(earlier.toString()))
                 .andExpect(jsonPath("$[0].name").value("Earlier round"));
@@ -235,7 +237,7 @@ class ThesisTopicPersistenceTest {
     void thesisReadPathRejectsUnknownRoundsInsteadOfReturningAnEmptyList() throws Exception {
         mvc.perform(get("/api/v1/thesis/topics")
                         .queryParam("roundId", UUID.randomUUID().toString())
-                        .with(jwt()))
+                        .with(ThesisAuthorityFixture.role(jdbc, "topic-read-admin", "ADMIN")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.message").value("Thesis registration round not found"));
@@ -248,7 +250,7 @@ class ThesisTopicPersistenceTest {
 
         mvc.perform(get("/api/v1/thesis/topics")
                         .queryParam("roundId", roundId.toString())
-                        .with(jwt().jwt(token -> token.claim("roles", List.of(role)))))
+                        .with(ThesisAuthorityFixture.role(jdbc, "topic-read-" + role.toLowerCase(), role)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray());
     }
@@ -261,14 +263,16 @@ class ThesisTopicPersistenceTest {
         ensureStudent("test-member-3", "test-user-3", "member3@campuscore.edu");
         ensureStudent("test-member-4", "test-user-4", "member4@campuscore.edu");
         ensureStudent("test-member-5", "test-user-5", "member5@campuscore.edu");
+        ensureStudent("test-member-6", "test-user-6", "member6@campuscore.edu");
+        ensureStudent("topic-group-leader", "topic-group-user", "leader@campuscore.edu");
 
         mvc.perform(post("/api/v1/thesis/groups")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"roundId\":\"" + roundId + "\"}")
-                        .with(studentJwt("student-profile")))
+                        .with(studentJwt("topic-group-leader")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.leaderStudentId").value("student-profile"))
-                .andExpect(jsonPath("$.memberStudentIds[0]").value("student-profile"));
+                .andExpect(jsonPath("$.leaderStudentId").value("topic-group-leader"))
+                .andExpect(jsonPath("$.memberStudentIds[0]").value("topic-group-leader"));
 
         UUID groupId = jdbc.queryForObject(
                 "SELECT id FROM thesis.thesis_group WHERE round_id = ?",
@@ -283,20 +287,22 @@ class ThesisTopicPersistenceTest {
                 .andExpect(jsonPath("$.members[1].contact").value("member2@campuscore.edu"))
                 .andExpect(jsonPath("$.members[1].isExternal").value(false));
         addMember(groupId, "test-member-3").andExpect(status().isOk());
-        addMember(groupId, "test-member-4")
+        addMember(groupId, "test-member-4").andExpect(status().isOk());
+        addMember(groupId, "test-member-5").andExpect(status().isOk());
+        addMember(groupId, "test-member-6")
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("GROUP_FULL"));
 
         mvc.perform(post("/api/v1/thesis/groups")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"roundId\":\"" + roundId + "\"}")
-                        .with(studentJwt("student-profile")))
+                        .with(studentJwt("topic-group-leader")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("STUDENT_ALREADY_IN_GROUP"));
 
         mvc.perform(post("/api/v1/thesis/groups/{id}/members", groupId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"studentId\":\"test-member-4\"}")
+                        .content("{\"studentId\":\"test-member-6\"}")
                         .with(studentJwt("test-member-2")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("GROUP_OWNER_REQUIRED"));
@@ -407,7 +413,7 @@ class ThesisTopicPersistenceTest {
                         .with(lecturerJwt("lecturer-user")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("DRAFT"))
-                .andExpect(jsonPath("$.createdBy").value("lecturer-user"));
+                .andExpect(jsonPath("$.createdBy").value("test-lecturer-user-lecturer-user"));
 
         UUID topicId = jdbc.queryForObject(
                 "SELECT id FROM thesis.thesis_topic WHERE title = 'Deterministic RAG'",
@@ -423,6 +429,9 @@ class ThesisTopicPersistenceTest {
 
         mvc.perform(post("/api/v1/thesis/topics/{id}/publish", topicId)
                         .with(lecturerJwt("lecturer-user")))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/thesis/topics/{id}/publish", topicId)
+                        .with(adminJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PUBLISHED"));
         mvc.perform(put("/api/v1/thesis/topics/{id}", topicId)
@@ -460,9 +469,9 @@ class ThesisTopicPersistenceTest {
                 "lecturer-supervisor-1");
         assertEquals(1, supervisorCount);
 
-        // Publish topic
+        // Governance approves the lecturer's proposal before student registration.
         mvc.perform(post("/api/v1/thesis/topics/{id}/publish", topicId)
-                        .with(lecturerJwt("lecturer-supervisor-1")))
+                        .with(adminJwt()))
                 .andExpect(status().isOk());
 
         // Open the student phase before groups may register (brief phase two).
@@ -536,7 +545,7 @@ class ThesisTopicPersistenceTest {
                 UUID.class);
 
         mvc.perform(post("/api/v1/thesis/topics/{id}/publish", topicId)
-                        .with(lecturerJwt("lecturer-reviewer-2")))
+                        .with(adminJwt()))
                 .andExpect(status().isOk());
 
         driveRoundFromProposalToRegistration(roundId);
@@ -616,7 +625,7 @@ class ThesisTopicPersistenceTest {
                 "SELECT id FROM thesis.thesis_topic WHERE title = 'Topic Max 1 Slot'",
                 UUID.class);
         mvc.perform(post("/api/v1/thesis/topics/{id}/publish", topicId)
-                        .with(lecturerJwt("lecturer-reviewer-3")))
+                        .with(adminJwt()))
                 .andExpect(status().isOk());
 
         driveRoundFromProposalToRegistration(roundId);
@@ -707,7 +716,7 @@ class ThesisTopicPersistenceTest {
                 "SELECT id FROM thesis.thesis_topic WHERE title = 'Topic Co-Supervised'",
                 UUID.class);
         mvc.perform(post("/api/v1/thesis/topics/{id}/publish", topicId)
-                        .with(lecturerJwt("lecturer-lead")))
+                        .with(adminJwt()))
                 .andExpect(status().isOk());
 
         driveRoundFromProposalToRegistration(roundId);
@@ -1011,16 +1020,11 @@ class ThesisTopicPersistenceTest {
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor studentJwt(String studentId) {
-        return jwt().jwt(token -> token
-                .subject("user-" + studentId)
-                .claim("roles", List.of("STUDENT"))
-                .claim("studentId", studentId))
-                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+        return ThesisAuthorityFixture.student(jdbc, studentId);
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token.subject("admin-user").claim("roles", List.of("ADMIN")))
-                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        return ThesisAuthorityFixture.role(jdbc, "admin-user", "ADMIN");
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor lecturerJwt(String userId) {
@@ -1028,10 +1032,7 @@ class ThesisTopicPersistenceTest {
         // Production lecturer tokens carry the lecturerId claim (AuthTokenService),
         // and createTopic rejects a LECTURER creator without it (LEC-P2-2) instead
         // of silently mis-keying the supervisor row with the User id.
-        return jwt().jwt(token -> token.subject(userId)
-                        .claim("roles", List.of("LECTURER"))
-                        .claim("lecturerId", userId))
-                .authorities(new SimpleGrantedAuthority("ROLE_LECTURER"));
+        return ThesisAuthorityFixture.lecturer(jdbc, userId);
     }
 
     private void ensureLecturer(String lecturerId) {

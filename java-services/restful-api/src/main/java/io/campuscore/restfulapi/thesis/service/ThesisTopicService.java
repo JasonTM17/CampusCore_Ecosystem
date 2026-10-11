@@ -49,6 +49,8 @@ public class ThesisTopicService {
             } else {
                 result = topics.findAllByRoundIdAndStatusOrderByTitle(roundId, requestedStatus);
             }
+        } else if (ThesisDepartmentScope.isDepartmentHead(actor)) {
+            result = topics.findAllByRoundIdAndStatusOrderByTitle(roundId, requestedStatus);
         } else if (!isLecturer(actor)) {
             result = List.of();
         } else {
@@ -57,6 +59,11 @@ public class ThesisTopicService {
                     .stream()
                     .filter(topic -> topic.getCreatedBy().equals(actorId))
                     .toList();
+        }
+        // Department governance queues follow the caller's live active profile.
+        if (!isAdmin(actor) && ThesisDepartmentScope.isDepartmentHead(actor)) {
+            String departmentId = ThesisDepartmentScope.departmentId(jdbc, actor);
+            result = result.stream().filter(topic -> topic.getDepartmentId().equals(departmentId)).toList();
         }
         boolean published = isRoundResultsPublished(roundId);
         // One query for every topic the caller grades as a council member, so
@@ -92,7 +99,9 @@ public class ThesisTopicService {
         ThesisTopic topic = topics.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Thesis topic not found"));
-        if (topic.getStatus() != TopicStatus.PUBLISHED && topic.getStatus() != TopicStatus.APPROVED && !isAdmin(actor) && !isOwner(topic, actor)) {
+        if (topic.getStatus() != TopicStatus.PUBLISHED && topic.getStatus() != TopicStatus.APPROVED
+                && !isAdmin(actor) && !isOwner(topic, actor)
+                && !ThesisDepartmentScope.owns(jdbc, actor, topic.getDepartmentId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Thesis topic not found");
         }
         return maskScoreIfNeeded(TopicResponse.from(topic), isRoundResultsPublished(topic.getRoundId()),

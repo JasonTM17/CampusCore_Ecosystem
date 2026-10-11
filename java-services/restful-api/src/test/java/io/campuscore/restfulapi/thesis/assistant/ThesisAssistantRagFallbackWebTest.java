@@ -9,10 +9,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.campuscore.restfulapi.web.DomainException;
+import io.campuscore.restfulapi.thesis.ThesisAuthorityFixture;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -33,6 +35,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 class ThesisAssistantRagFallbackWebTest {
 
     @Autowired private MockMvc mvc;
+    @Autowired private JdbcTemplate jdbc;
 
     @MockitoBean private RagAssistantGateway ragGateway;
 
@@ -76,8 +79,7 @@ class ThesisAssistantRagFallbackWebTest {
                 .andExpect(jsonPath("$.citations").isNotEmpty());
     }
 
-    private static RequestPostProcessor student(String subject) {
-        return jwt().jwt(token -> token.subject(subject))
-                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+    private RequestPostProcessor student(String subject) {
+        return ThesisAuthorityFixture.student(jdbc, subject);
     }
 }

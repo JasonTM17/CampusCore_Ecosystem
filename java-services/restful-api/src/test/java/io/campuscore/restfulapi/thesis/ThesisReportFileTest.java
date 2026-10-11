@@ -66,7 +66,8 @@ class ThesisReportFileTest {
         jdbc.update("DELETE FROM thesis.thesis_registration_round");
         jdbc.update("DELETE FROM campuscore_auth.\"Lecturer\" WHERE \"id\" LIKE 'rf-lecturer-%'");
         jdbc.update("DELETE FROM campuscore_auth.\"Student\" WHERE \"id\" LIKE 'rf-member-%'");
-        jdbc.update("DELETE FROM campuscore_auth.\"User\" WHERE \"id\" LIKE 'rf-user-%' OR \"id\" LIKE 'rf-lecturer-user-%'");
+        jdbc.update("DELETE FROM campuscore_auth.\"Student\" WHERE \"id\" LIKE 'rf-%'");
+        jdbc.update("DELETE FROM campuscore_auth.\"User\" WHERE \"id\" LIKE 'rf-user-%' OR \"id\" LIKE 'rf-lecturer-user-%' OR \"id\" LIKE 'thesis-fixture-student-rf-%'");
     }
 
     @Test
@@ -302,8 +303,8 @@ class ThesisReportFileTest {
         // still a student token and must not read another group's report.
         mvc.perform(get("/api/v1/thesis/groups/{id}/report", groupId)
                         .with(studentJwtWithLecturerClaim("rf-outsider", "rf-lecturer-same")))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("GROUP_MEMBER_REQUIRED"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("SESSION_INVALID"));
     }
 
     private UUID seedApprovedGroup() {
@@ -369,34 +370,18 @@ class ThesisReportFileTest {
     }
 
     private RequestPostProcessor studentJwt(String studentId) {
-        return jwt().jwt(token -> token
-                        .subject("rf-user-" + studentId.replace("rf-", ""))
-                        .claim("roles", List.of("STUDENT"))
-                        .claim("studentId", studentId))
-                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+        return ThesisAuthorityFixture.student(jdbc, studentId);
     }
 
     private RequestPostProcessor lecturerJwt(String lecturerId) {
-        return jwt().jwt(token -> token
-                        .subject("rf-user-lecturer-" + lecturerId)
-                        .claim("roles", List.of("LECTURER"))
-                        .claim("lecturerId", lecturerId))
-                .authorities(new SimpleGrantedAuthority("ROLE_LECTURER"));
+        return ThesisAuthorityFixture.lecturer(jdbc, lecturerId);
     }
 
     private RequestPostProcessor studentJwtWithLecturerClaim(String studentId, String lecturerId) {
-        return jwt().jwt(token -> token
-                        .subject("rf-user-spoof-" + studentId)
-                        .claim("roles", List.of("STUDENT"))
-                        .claim("studentId", studentId)
-                        .claim("lecturerId", lecturerId))
-                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+        return ThesisAuthorityFixture.studentWithUnexpectedLecturerClaim(jdbc, studentId, lecturerId);
     }
 
     private RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token
-                        .subject("rf-user-admin")
-                        .claim("roles", List.of("ADMIN")))
-                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        return ThesisAuthorityFixture.role(jdbc, "rf-user-admin", "ADMIN");
     }
 }

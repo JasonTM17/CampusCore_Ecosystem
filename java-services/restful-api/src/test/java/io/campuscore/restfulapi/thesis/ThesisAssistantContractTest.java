@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -21,6 +22,9 @@ class ThesisAssistantContractTest {
     @Autowired
     private MockMvc mvc;
 
+    @Autowired
+    private JdbcTemplate jdbc;
+
     @Test
     void chatRequiresAuthentication() throws Exception {
         mvc.perform(post("/api/v1/thesis/assistant/chat")
@@ -33,7 +37,7 @@ class ThesisAssistantContractTest {
     @Test
     void chatReturnsCuratedAnswerWithCitation() throws Exception {
         mvc.perform(post("/api/v1/thesis/assistant/chat")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
+                        .with(student("assistant-contract-en"))
                         .contentType("application/json")
                .content("{\"message\":\"How do I choose a thesis topic?\",\"locale\":\"en\",\"clientRequestId\":\"00000000-0000-4000-8000-000000000002\"}"))
                 .andExpect(status().isOk())
@@ -49,7 +53,7 @@ class ThesisAssistantContractTest {
     @Test
     void chatSupportsVietnameseLocaleAndValidatesRequestShape() throws Exception {
         mvc.perform(post("/api/v1/thesis/assistant/chat")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
+                        .with(student("assistant-contract-vi"))
                         .contentType("application/json")
                .content("{\"message\":\"Em nên chọn đề tài thế nào?\",\"locale\":\"vi\",\"clientRequestId\":\"00000000-0000-4000-8000-000000000003\"}"))
                 .andExpect(status().isOk())
@@ -59,7 +63,7 @@ class ThesisAssistantContractTest {
                 .andExpect(jsonPath("$.citations[0].source").value("academic-office"));
 
         mvc.perform(post("/api/v1/thesis/assistant/chat")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
+                        .with(student("assistant-contract-invalid"))
                         .contentType("application/json")
                .content("{\"message\":\"\",\"locale\":\"fr\",\"clientRequestId\":\"00000000-0000-4000-8000-000000000004\"}"))
                 .andExpect(status().isBadRequest())
@@ -71,12 +75,16 @@ class ThesisAssistantContractTest {
     @Test
     void noMatchDoesNotInventCitation() throws Exception {
         mvc.perform(post("/api/v1/thesis/assistant/chat")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
+                        .with(student("assistant-contract-nomatch"))
                         .contentType("application/json")
                .content("{\"message\":\"What is the weather tomorrow?\",\"locale\":\"en\",\"clientRequestId\":\"00000000-0000-4000-8000-000000000005\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reasonCode").value("NO_MATCH"))
                 .andExpect(jsonPath("$.citations").isEmpty())
                 .andExpect(jsonPath("$.degraded").value(false));
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor student(String studentId) {
+        return ThesisAuthorityFixture.student(jdbc, studentId);
     }
 }

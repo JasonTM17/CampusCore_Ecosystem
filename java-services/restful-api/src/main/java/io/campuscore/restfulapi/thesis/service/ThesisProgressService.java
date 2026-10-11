@@ -59,6 +59,7 @@ public class ThesisProgressService {
                            g.id AS group_id,
                            g.status AS group_status,
                            g.approval_status,
+                           g.legacy_group_size_exception,
                            t.id AS topic_id,
                            t.title AS topic_title,
                            rep.id AS report_id,
@@ -105,8 +106,14 @@ public class ThesisProgressService {
          * the published projection monotonic and separately flag the broken
          * chain for operators.
          */
-        boolean approvedGroup = "APPROVED".equals(approvalStatus)
-                && memberCount >= 1 && memberCount <= 3;
+        // V113 preserves only migration-marked historical small groups.
+        // New/pending rosters may be incomplete; approval requires 3–5.
+        boolean historicalSize = Boolean.TRUE.equals(row.get("legacy_group_size_exception"))
+                && ("CANCELLED".equals(groupStatus)
+                    || List.of("RESULTS_PUBLISHED", "CLOSED", "CANCELLED").contains(roundStatus))
+                && memberCount >= 1 && memberCount <= 2;
+        boolean validApprovedSize = (memberCount >= 3 && memberCount <= 5) || historicalSize;
+        boolean approvedGroup = "APPROVED".equals(approvalStatus) && validApprovedSize;
         boolean scoreFinalized = finalScore != null
                 && "GRADED".equals(string(row.get("result_status")));
         boolean publishedResult = "RESULTS_PUBLISHED".equals(roundStatus)
@@ -154,7 +161,8 @@ public class ThesisProgressService {
             attention = "GROUP_REJECTED";
         } else if ("CANCELLED".equals(groupStatus)) {
             attention = "GROUP_CANCELLED";
-        } else if (memberCount < 1 || memberCount > 3) {
+        } else if (memberCount < 1 || memberCount > 5
+                || ("APPROVED".equals(approvalStatus) && !validApprovedSize)) {
             attention = "GROUP_INVALID_MEMBER_COUNT";
         } else if (inconsistentLaterEvidence) {
             attention = "PROGRESS_INCONSISTENT";
