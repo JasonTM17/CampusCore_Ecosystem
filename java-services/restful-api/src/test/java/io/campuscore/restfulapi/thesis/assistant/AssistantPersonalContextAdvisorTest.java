@@ -10,6 +10,8 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.campuscore.restfulapi.academic.registration.RegistrationService;
@@ -1237,6 +1239,71 @@ class AssistantPersonalContextAdvisorTest {
     @Test
     void creditsRemainingWithoutTheSummaryPathFallsBackToKnowledge() {
         assertNull(advisor.answer(chatRequest("vi", "Tôi còn bao nhiêu tín chỉ được đăng ký nữa?"), jwtStudent()));
+    }
+
+    @Test
+    void detectsRegisteredCreditsUsedIntents() {
+        // Production audit: the used-credits phrasing ("đã đăng ký được bao
+        // nhiêu tín chỉ") fell to the KB path and answered the generic
+        // credit-limit policy while /me/registration/summary holds the number.
+        assertTrue(advisor.handles("Tôi đã đăng ký được bao nhiêu tín chỉ kỳ này?"));
+        assertTrue(advisor.handles("Toi da dang ky duoc bao nhieu tin chi ky nay?"));
+        assertTrue(advisor.handles("Tôi đã đăng ký tổng cộng bao nhiêu tín chỉ?"));
+        assertTrue(advisor.handles("Tổng số tín chỉ đã đăng ký của tôi?"));
+        assertTrue(advisor.handles("How many credits have I registered this semester?"));
+        assertTrue(advisor.handles("How many credits am I registered for?"));
+
+        // Policy wording, third-person subjects, and generic questions keep
+        // their existing paths (the accumulated-credits twin is a personal
+        // intent too — the answer-path guard below proves it is not hijacked).
+        assertTrue(advisor.handles("Tôi đã tích lũy được bao nhiêu tín chỉ?"));
+        assertFalse(advisor.handles("Quy trình xin nâng hạn mức tín chỉ?"));
+        // Third-person subjects stay vetoed by the existing gate: the
+        // demonstrative arm ("sinh viên ấy") and the possessive arm
+        // ("bạn tôi") both refuse before this intent door opens.
+        assertFalse(advisor.handles("Sinh viên ấy đã đăng ký bao nhiêu tín chỉ?"));
+        assertFalse(advisor.handles("Bạn tôi đã đăng ký bao nhiêu tín chỉ?"));
+        assertFalse(advisor.handles("Đăng ký học phần là gì?"));
+    }
+
+    @Test
+    void answersRegisteredCreditsUsedFromTheRegistrationSummaryPath() {
+        RegistrationService registrationService = mock(RegistrationService.class);
+        AssistantPersonalContextAdvisor summaryAdvisor = new AssistantPersonalContextAdvisor(
+                enrollmentService, sectionService, null, null, null, registrationService);
+        when(registrationService.summary("student-profile", null)).thenReturn(
+                new io.campuscore.restfulapi.academic.registration.RegistrationDtos.SummaryResponse(
+                        "round-1", 28, 25, 3, List.of("e1")));
+
+        ChatResponse response = summaryAdvisor.answer(
+                chatRequest("vi", "Tôi đã đăng ký được bao nhiêu tín chỉ kỳ này?"), jwtStudent());
+
+        assertNotNull(response);
+        assertEquals("PERSONAL_CONTEXT", response.reasonCode());
+        assertTrue(response.answer().contains("Đã đăng ký: 25 tín chỉ"), response.answer());
+        assertTrue(response.answer().contains("Hạn mức: 28 tín chỉ"), response.answer());
+        assertTrue(response.answer().contains("Còn lại có thể đăng ký: 3 tín chỉ"), response.answer());
+    }
+
+    @Test
+    void accumulatedCreditsQuestionIsNotHijackedByTheRegisteredBranch() {
+        // The "đã tích lũy" phrasing keeps the transcript path even though the
+        // new "đã đăng ký" branch also opens with "đã ... bao nhiêu tín chỉ".
+        RegistrationService registrationService = mock(RegistrationService.class);
+        AssistantPersonalContextAdvisor summaryAdvisor = new AssistantPersonalContextAdvisor(
+                enrollmentService, sectionService, null, null, null, registrationService);
+        when(enrollmentService.findStudentTranscript("student-profile")).thenReturn(
+                new AcademicEnrollmentReadDtos.TranscriptResponse(
+                        new AcademicEnrollmentReadDtos.TranscriptSummary(
+                                new java.math.BigDecimal("3.11"), 38, 40, null),
+                        List.of()));
+
+        ChatResponse response = summaryAdvisor.answer(
+                chatRequest("vi", "Tôi đã tích lũy được bao nhiêu tín chỉ?"), jwtStudent());
+
+        assertNotNull(response);
+        assertTrue(response.answer().contains("tích lũy được 38 tín chỉ"), response.answer());
+        verify(registrationService, never()).summary(anyString(), any());
     }
 
     @Test
