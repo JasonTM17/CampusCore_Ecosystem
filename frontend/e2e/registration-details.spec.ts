@@ -183,6 +183,9 @@ test('UX repair: U02 same-term refresh updates catalog metadata and registration
 test('UX repair: U03 first-course mobile preview and U04 distinct today label', async ({ page }, testInfo) => {
   await mockRegistration(page);
   await page.clock.setFixedTime(new Date('2026-10-07T10:00:00Z'));
+  // The page evaluates the round window against the fixed clock, so the window
+  // must bracket it with constants — Date.now() bounds drift out of range.
+  await page.route('**/api/v1/registration/rounds*', (route) => route.fulfill({ json: [{ id: 'round-fixture', semesterId: 'term-3', name: 'Fixture registration', kind: 'REGISTRATION', status: 'OPEN', windowStart: '2026-10-01T00:00:00Z', windowEnd: '2026-10-31T23:59:59Z', creditLimit: 18 }] }));
   await page.route('**/api/v1/enrollments/my*', (route) => route.fulfill({ json: [] }));
   await page.goto('/en/dashboard/register');
   const group = page.getByRole('region', { name: /NEW105/ });
