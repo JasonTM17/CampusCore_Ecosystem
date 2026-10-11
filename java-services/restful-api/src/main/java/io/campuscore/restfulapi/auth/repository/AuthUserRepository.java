@@ -135,6 +135,43 @@ public class AuthUserRepository {
                 .findFirst();
     }
 
+    /** One statement snapshot of the current authority; excludes credentials and personal data. */
+    public Optional<AccountAuthorization> findAccountAuthorization(String userId) {
+        return jdbc.query("SELECT u.\"status\", u.\"mustChangePassword\","
+                        + " s.\"id\" AS student_id, s.\"year\" AS student_year, l.\"id\" AS lecturer_id,"
+                        + " r.\"name\" AS role_name, p.\"module\" AS permission_module, p.\"action\" AS permission_action"
+                        + " FROM " + USER_TABLE + " u"
+                        + " LEFT JOIN " + STUDENT_TABLE + " s ON s.\"userId\"=u.\"id\""
+                        + " LEFT JOIN " + LECTURER_TABLE + " l ON l.\"userId\"=u.\"id\""
+                        + " LEFT JOIN " + USER_ROLE_TABLE + " ur ON ur.\"userId\"=u.\"id\""
+                        + " LEFT JOIN " + ROLE_TABLE + " r ON r.\"id\"=ur.\"roleId\""
+                        + " LEFT JOIN " + ROLE_PERMISSION_TABLE + " rp ON rp.\"roleId\"=ur.\"roleId\""
+                        + " LEFT JOIN " + PERMISSION_TABLE + " p ON p.\"id\"=rp.\"permissionId\""
+                        + " WHERE u.\"id\"=:id", new MapSqlParameterSource("id", userId), resultSet -> {
+                    if (!resultSet.next()) return Optional.empty();
+                    String status = resultSet.getString("status");
+                    boolean mustChangePassword = resultSet.getBoolean("mustChangePassword");
+                    String studentId = resultSet.getString("student_id");
+                    Integer studentYear = nullableInteger(resultSet, "student_year");
+                    String lecturerId = resultSet.getString("lecturer_id");
+                    java.util.Set<String> roles = new java.util.HashSet<>();
+                    java.util.Set<String> permissions = new java.util.HashSet<>();
+                    do {
+                        String role = resultSet.getString("role_name");
+                        if (role != null) roles.add(role);
+                        String module = resultSet.getString("permission_module");
+                        String action = resultSet.getString("permission_action");
+                        if (module != null && action != null) permissions.add(module + ":" + action);
+                    } while (resultSet.next());
+                    return Optional.of(new AccountAuthorization(status, mustChangePassword, studentId, studentYear,
+                            lecturerId, java.util.Set.copyOf(roles), java.util.Set.copyOf(permissions)));
+                });
+    }
+
+    public record AccountAuthorization(String status, boolean mustChangePassword, String studentId,
+            Integer studentYear, String lecturerId, java.util.Set<String> roles, java.util.Set<String> permissions) {
+    }
+
     /** Opt-in email OTP switch added by V85; read per login, never cached. */
     public boolean isTwoFactorEnabled(String userId) {
         Boolean enabled = jdbc.queryForObject(

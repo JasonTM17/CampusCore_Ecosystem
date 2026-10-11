@@ -38,37 +38,29 @@ public class AccountStateFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain chain) throws ServletException, IOException {
         String uri = request.getRequestURI();
-        if (uri.startsWith("/api/v1/") && !isRotationAllowlist(uri)) {
+        if (uri.startsWith("/api/v1/") && !isSessionCleanupEndpoint(uri)) {
             AuthUserRepository repository = users.getIfAvailable();
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            if (repository != null && authentication instanceof JwtAuthenticationToken jwtToken) {
-                if (DatabaseAvailabilityTracker.isRecentlyUnavailable()) {
-                    if (isDegradableEndpoint(uri)) {
-                        chain.doFilter(request, response);
-                        return;
-                    }
+            if (authentication instanceof JwtAuthenticationToken jwtToken) {
+                if (repository == null || DatabaseAvailabilityTracker.isRecentlyUnavailable()) {
                     errorWriter.write(request, response, org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
                             "DATABASE_UNAVAILABLE", "Database service is temporarily unavailable");
                     return;
                 }
 
-                Optional<AuthUserRepository.AccountState> state;
+                Optional<AuthUserRepository.AccountAuthorization> state;
                 try {
-                    state = repository.findAccountState(jwtToken.getToken().getSubject());
+                    state = repository.findAccountAuthorization(jwtToken.getToken().getSubject());
                     DatabaseAvailabilityTracker.recordSuccess();
                 } catch (org.springframework.dao.DataAccessException exception) {
                     DatabaseAvailabilityTracker.recordFailure();
-                    if (isDegradableEndpoint(uri)) {
-                        // Mark THIS request so its controller can honour the
-                        // outage contract even after its layered timeouts (15s
-                        // gateway > 5s fallback budget > Hikari 15s) outlive
-                        // the tracker's cooldown.
-                        request.setAttribute(DatabaseAvailabilityTracker.REQUEST_ATTRIBUTE, Boolean.TRUE);
-                        chain.doFilter(request, response);
-                        return;
-                    }
                     errorWriter.write(request, response, org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
                             "DATABASE_UNAVAILABLE", "Database service is temporarily unavailable");
+                    return;
+                }
+                if (state.isEmpty()) {
+                    errorWriter.write(request, response, org.springframework.http.HttpStatus.UNAUTHORIZED,
+                            "SESSION_INVALID", "Sign in again to continue");
                     return;
                 }
                 if (state.isPresent()) {
@@ -80,32 +72,53 @@ public class AccountStateFilter extends OncePerRequestFilter {
                                 "ACCOUNT_INACTIVE", "This account is not active");
                         return;
                     }
-                    if (state.get().mustChangePassword()) {
+                    if (!matchesCurrentAuthorization(jwtToken.getToken(), state.get())) {
+                        errorWriter.write(request, response, org.springframework.http.HttpStatus.UNAUTHORIZED,
+                                "SESSION_INVALID", "Sign in again to continue");
+                        return;
+                    }
+                    if (state.get().mustChangePassword() && !isRotationAllowlist(uri)) {
                         errorWriter.write(request, response, org.springframework.http.HttpStatus.FORBIDDEN,
                                 "PASSWORD_CHANGE_REQUIRED",
                                 "Rotate the issued temporary password before using the portal");
                         return;
                     }
                 }
-                // No row means the account was hard-deleted after the token was
-                // minted. The token stays valid for at most the access-token TTL
-                // (15 minutes); revocation on deactivation is still enforced
-                // above because the row survives with a non-ACTIVE status.
             }
         }
         chain.doFilter(request, response);
     }
 
-    private static boolean isDegradableEndpoint(String uri) {
-        return uri.startsWith("/api/v1/assistant/")
-                || uri.startsWith("/api/v1/thesis/assistant/");
+    private static boolean matchesCurrentAuthorization(org.springframework.security.oauth2.jwt.Jwt token,
+            AuthUserRepository.AccountAuthorization state) {
+        if (!matchesSet(token.getClaims().get("roles"), state.roles())
+                || !matchesSet(token.getClaims().get("permissions"), state.permissions())
+                || !java.util.Objects.equals(token.getClaims().get("studentId"), state.studentId())
+                || !java.util.Objects.equals(token.getClaims().get("lecturerId"), state.lecturerId())) {
+            return false;
+        }
+        Object student = token.getClaims().get("student");
+        if (student != null && !(student instanceof java.util.Map<?, ?>)) return false;
+        Object year = student instanceof java.util.Map<?, ?> profile ? profile.get("year") : null;
+        return year == null ? state.studentYear() == null
+                : year instanceof Number number && state.studentYear() != null
+                        && number.doubleValue() == state.studentYear().doubleValue();
+    }
+
+    private static boolean matchesSet(Object claim, java.util.Set<String> current) {
+        if (claim == null) return current.isEmpty();
+        if (!(claim instanceof java.util.Collection<?> values)
+                || values.stream().anyMatch(value -> !(value instanceof String))) return false;
+        return new java.util.HashSet<>(values).equals(current);
+    }
+
+    private static boolean isSessionCleanupEndpoint(String uri) {
+        return "/api/v1/auth/logout".equals(uri) || "/api/v1/auth/refresh".equals(uri);
     }
 
     /** The minimal endpoints an issued account needs to rotate its password. */
     private static boolean isRotationAllowlist(String uri) {
         return "/api/v1/auth/me".equals(uri)
-                || "/api/v1/auth/change-password".equals(uri)
-                || "/api/v1/auth/logout".equals(uri)
-                || "/api/v1/auth/refresh".equals(uri);
+                || "/api/v1/auth/change-password".equals(uri);
     }
 }

@@ -226,13 +226,13 @@ class TwoFactorLoginPersistenceTest {
 
     @Test
     void statusEndpointReportsTheOptInSwitch() throws Exception {
-        mvc.perform(get("/api/v1/me/two-factor").with(jwt().jwt(token -> token.subject("student-user"))))
+        mvc.perform(get("/api/v1/me/two-factor").with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enabled").value(false));
 
         jdbc.update("UPDATE \"campuscore_auth\".\"User\" SET \"twoFactorEnabled\" = TRUE WHERE \"id\" = 'student-user'");
 
-        mvc.perform(get("/api/v1/me/two-factor").with(jwt().jwt(token -> token.subject("student-user"))))
+        mvc.perform(get("/api/v1/me/two-factor").with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enabled").value(true));
     }
@@ -241,7 +241,7 @@ class TwoFactorLoginPersistenceTest {
     void enableConfirmThenLoginRequiresSecondFactorAndVerifyIssuesTheSession() throws Exception {
         // 1. Enable: email the ENABLE code, confirm it, switch flips on.
         MvcResult enable = mvc.perform(post("/api/v1/me/two-factor/enable")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"password\":\"" + STUDENT_PASSWORD + "\"}"))
                 .andExpect(status().isOk())
@@ -253,7 +253,7 @@ class TwoFactorLoginPersistenceTest {
 
         String enableCode = latestCode();
         mvc.perform(post("/api/v1/me/two-factor/confirm")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"challengeId\":\"" + enableChallengeId + "\",\"code\":\"" + enableCode + "\"}"))
                 .andExpect(status().isOk())
@@ -328,7 +328,7 @@ class TwoFactorLoginPersistenceTest {
     @Test
     void enableChallengeLocksAfterFiveWrongAttemptsEvenWhenTheRightCodeArrivesLater() throws Exception {
         MvcResult enable = mvc.perform(post("/api/v1/me/two-factor/enable")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"password\":\"" + STUDENT_PASSWORD + "\"}"))
                 .andExpect(status().isOk())
@@ -343,7 +343,7 @@ class TwoFactorLoginPersistenceTest {
         // ENABLE branch).
         for (int attempt = 1; attempt <= 4; attempt++) {
             mvc.perform(post("/api/v1/me/two-factor/confirm")
-                            .with(jwt().jwt(token -> token.subject("student-user")))
+                            .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"challengeId\":\"" + enableChallengeId + "\",\"code\":\"000000\"}"))
                     .andExpect(status().isBadRequest())
@@ -352,7 +352,7 @@ class TwoFactorLoginPersistenceTest {
 
         // Attempt 5: the challenge locks.
         mvc.perform(post("/api/v1/me/two-factor/confirm")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"challengeId\":\"" + enableChallengeId + "\",\"code\":\"000000\"}"))
                 .andExpect(status().isBadRequest())
@@ -360,7 +360,7 @@ class TwoFactorLoginPersistenceTest {
 
         // Even the correct code is refused afterwards, and the flag stays off.
         mvc.perform(post("/api/v1/me/two-factor/confirm")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"challengeId\":\"" + enableChallengeId + "\",\"code\":\"" + latestCode() + "\"}"))
                 .andExpect(status().isBadRequest())
@@ -474,7 +474,7 @@ class TwoFactorLoginPersistenceTest {
         // Round-4 verified fix: the password alone must NOT remove the second
         // factor — it starts an emailed DISABLE challenge like the enable flow.
         MvcResult disableChallenge = mvc.perform(post("/api/v1/me/two-factor/disable/challenge")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"password\":\"" + STUDENT_PASSWORD + "\"}"))
                 .andExpect(status().isOk())
@@ -485,7 +485,7 @@ class TwoFactorLoginPersistenceTest {
         String disableCode = latestCode();
 
         mvc.perform(post("/api/v1/me/two-factor/disable")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"challengeId\":\"" + disableChallengeId
                                 + "\",\"code\":\"" + disableCode + "\"}"))
@@ -515,7 +515,7 @@ class TwoFactorLoginPersistenceTest {
         String challengeId = startEnableChallenge();
         String code = latestCode();
         mvc.perform(post("/api/v1/me/two-factor/confirm")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .with(csrfPair(currentDevice))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"challengeId\":\"" + challengeId + "\",\"code\":\"" + code + "\"}"))
@@ -538,7 +538,7 @@ class TwoFactorLoginPersistenceTest {
         assertEquals(2, sessionCount());
 
         MvcResult challenge = mvc.perform(post("/api/v1/me/two-factor/disable/challenge")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"password\":\"" + STUDENT_PASSWORD + "\"}"))
                 .andExpect(status().isOk())
@@ -549,7 +549,7 @@ class TwoFactorLoginPersistenceTest {
         String code = latestCode();
 
         mvc.perform(post("/api/v1/me/two-factor/disable")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .with(csrfPair(currentDevice))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"challengeId\":\"" + challengeId + "\",\"code\":\"" + code + "\"}"))
@@ -571,7 +571,7 @@ class TwoFactorLoginPersistenceTest {
         String challengeId = startEnableChallenge();
         String code = latestCode();
         mvc.perform(post("/api/v1/me/two-factor/confirm")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"challengeId\":\"" + challengeId + "\",\"code\":\"" + code + "\"}"))
                 .andExpect(status().isOk())
@@ -586,7 +586,7 @@ class TwoFactorLoginPersistenceTest {
     @Test
     void enableWithWrongPasswordIsRejectedAndStoresNoChallenge() throws Exception {
         mvc.perform(post("/api/v1/me/two-factor/enable")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"password\":\"wrong-" + java.util.UUID.randomUUID() + "\"}"))
                 .andExpect(status().isBadRequest())
@@ -610,7 +610,7 @@ class TwoFactorLoginPersistenceTest {
 
         // An ENABLE challenge must not unlock a login.
         MvcResult enable = mvc.perform(post("/api/v1/me/two-factor/enable")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"password\":\"" + STUDENT_PASSWORD + "\"}"))
                 .andExpect(status().isOk())
@@ -629,7 +629,7 @@ class TwoFactorLoginPersistenceTest {
         // Another account's ENABLE challenge is invisible to confirm.
         insertStudentUser("second-user", "second@campuscore.edu");
         MvcResult secondEnable = mvc.perform(post("/api/v1/me/two-factor/enable")
-                        .with(jwt().jwt(token -> token.subject("second-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "second-user"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"password\":\"password123\"}"))
                 .andExpect(status().isOk())
@@ -640,7 +640,7 @@ class TwoFactorLoginPersistenceTest {
         String secondCode = latestCode();
 
         mvc.perform(post("/api/v1/me/two-factor/confirm")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"challengeId\":\"" + secondChallengeId + "\",\"code\":\"" + secondCode + "\"}"))
                 .andExpect(status().isBadRequest())
@@ -650,7 +650,7 @@ class TwoFactorLoginPersistenceTest {
     @Test
     void confirmingEnableTwiceStillYieldsEnabledAndChallengeCannotBeReused() throws Exception {
         MvcResult enable = mvc.perform(post("/api/v1/me/two-factor/enable")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"password\":\"" + STUDENT_PASSWORD + "\"}"))
                 .andExpect(status().isOk())
@@ -661,14 +661,14 @@ class TwoFactorLoginPersistenceTest {
         String code = latestCode();
 
         mvc.perform(post("/api/v1/me/two-factor/confirm")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"challengeId\":\"" + challengeId + "\",\"code\":\"" + code + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enabled").value(true));
 
         mvc.perform(post("/api/v1/me/two-factor/confirm")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"challengeId\":\"" + challengeId + "\",\"code\":\"" + code + "\"}"))
                 .andExpect(status().isBadRequest())
@@ -728,7 +728,7 @@ class TwoFactorLoginPersistenceTest {
 
     private String startEnableChallenge() throws Exception {
         MvcResult enable = mvc.perform(post("/api/v1/me/two-factor/enable")
-                        .with(jwt().jwt(token -> token.subject("student-user")))
+                        .with(io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "student-user"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"password\":\"" + STUDENT_PASSWORD + "\"}"))
                 .andExpect(status().isOk())

@@ -48,6 +48,14 @@ class AcademicAttendanceMutationPersistenceTest {
         createTables();
         clearTables();
         insertFixture();
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.prepare(jdbc);
+        insertUser("admin-user-1", "admin@example.test", "Admin", "Fixture");
+        insertUser("lecturer-user-1", "lecturer1@example.test", "Lecturer", "One");
+        insertUser("lecturer-user-2", "lecturer2@example.test", "Lecturer", "Two");
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.role(jdbc, "admin-user-1", "ADMIN");
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.role(jdbc, "student-user-1", "STUDENT");
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.lecturer(jdbc, "lecturer-user-1", "lecturer-1");
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.lecturer(jdbc, "lecturer-user-2", "lecturer-2");
     }
 
     @Test
@@ -74,6 +82,39 @@ class AcademicAttendanceMutationPersistenceTest {
                 "SELECT COUNT(*) FROM \"academic\".\"Attendance\" WHERE \"sectionId\" = 'section-1' AND \"status\" = 'PRESENT'",
                 Integer.class);
         assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    void isoInstantAndDateOnlyReferToOneUtcAttendanceDayIncludingLegacyRows() throws Exception {
+        mvc.perform(put("/api/v1/attendance/sections/section-1").with(lecturerJwt("lecturer-1"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"date\":\"2026-08-25T07:00:00Z\",\"records\":[{\"studentId\":\"student-1\",\"status\":\"PRESENT\"}]}"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/attendance/section/section-1").param("date", "2026-08-25")
+                .with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1));
+        // Simulate a pre-fix non-midnight persisted timestamp without a data migration.
+        jdbc.update("UPDATE \"academic\".\"Attendance\" SET \"date\"=? WHERE \"sectionId\"='section-1'",
+                java.time.OffsetDateTime.parse("2026-08-25T18:30:00Z"));
+        mvc.perform(get("/api/v1/attendance/section/section-1").param("date", "2026-08-25T23:00:00Z")
+                .with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1));
+        mvc.perform(put("/api/v1/attendance/sections/section-1").with(lecturerJwt("lecturer-1"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"date\":\"2026-08-25\",\"records\":[{\"studentId\":\"student-1\",\"status\":\"ABSENT\"}]}"))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM \"academic\".\"Attendance\" WHERE \"sectionId\"='section-1'", Integer.class))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT \"date\" FROM \"academic\".\"Attendance\" WHERE \"sectionId\"='section-1'", java.time.OffsetDateTime.class).toInstant())
+                .isEqualTo(Instant.parse("2026-08-25T00:00:00Z"));
+        jdbc.update("UPDATE \"academic\".\"Attendance\" SET \"date\"=? WHERE \"sectionId\"='section-1'",
+                java.time.OffsetDateTime.parse("2026-08-25T18:30:00Z"));
+        mvc.perform(put("/api/v1/attendance/sections/section-1").with(lecturerJwt("lecturer-1"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"date\":\"2026-08-25\",\"records\":[{\"studentId\":\"student-1\",\"status\":\"RESET\"}]}"))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM \"academic\".\"Attendance\" WHERE \"sectionId\"='section-1'", Integer.class))
+                .isZero();
     }
 
     @Test
@@ -290,7 +331,7 @@ class AcademicAttendanceMutationPersistenceTest {
 
     private static RequestPostProcessor lecturerJwt(String lecturerId) {
         return jwt().jwt(token -> token
-                        .subject("lecturer-user-1")
+                        .subject("lecturer-2".equals(lecturerId) ? "lecturer-user-2" : "lecturer-user-1")
                         .claim("roles", List.of("LECTURER"))
                         .claim("lecturerId", lecturerId))
                 .authorities(new SimpleGrantedAuthority("ROLE_LECTURER"));
@@ -300,6 +341,7 @@ class AcademicAttendanceMutationPersistenceTest {
         return jwt().jwt(token -> token
                         .subject(userId)
                         .claim("roles", List.of("STUDENT"))
+                        .claim("student", java.util.Map.of("year", 2026))
                         .claim("studentId", studentId))
                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
     }
@@ -333,6 +375,8 @@ class AcademicAttendanceMutationPersistenceTest {
                     "id" VARCHAR(120) PRIMARY KEY,
                     "code" VARCHAR(40) NOT NULL,
                     "name" VARCHAR(200) NOT NULL,
+                    "nameEn" VARCHAR(200),
+                    "nameVi" VARCHAR(200),
                     "credits" INTEGER NOT NULL,
                     "departmentId" VARCHAR(120) NOT NULL,
                     "isActive" BOOLEAN NOT NULL,
@@ -368,7 +412,7 @@ class AcademicAttendanceMutationPersistenceTest {
                     "id" VARCHAR(120) PRIMARY KEY,
                     "studentId" VARCHAR(120) NOT NULL,
                     "sectionId" VARCHAR(120) NOT NULL,
-                    "date" TIMESTAMP NOT NULL,
+                    "date" TIMESTAMP WITH TIME ZONE NOT NULL,
                     "status" VARCHAR(40) NOT NULL,
                     "notes" VARCHAR(1000),
                     "createdAt" TIMESTAMP NOT NULL,

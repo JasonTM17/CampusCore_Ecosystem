@@ -97,6 +97,46 @@ public class PeopleReadRepository {
                 String.class);
     }
 
+    /** Eligible inbox recipients: the same year/active-enrollment scope as the notice reader. */
+    public List<String> findAnnouncementStudentUserIds(List<Integer> years, String sectionId,
+            List<String> targetRoles, String lecturerId) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource("status", ACTIVE_STUDENT_STATUS);
+        String filter = "";
+        if (targetRoles != null && !targetRoles.isEmpty()) {
+            // Academic profiles survive role revocation. An inbox must not
+            // disclose a role-scoped notice that the current feed would hide.
+            filter += " AND EXISTS (SELECT 1 FROM campuscore_auth.\"UserRole\" ur"
+                    + " JOIN campuscore_auth.\"Role\" role ON role.\"id\" = ur.\"roleId\""
+                    + " WHERE ur.\"userId\" = student.\"userId\" AND role.\"name\" IN (:targetRoles))";
+            parameters.addValue("targetRoles", targetRoles);
+        }
+        if (lecturerId != null) {
+            // The feed also restricts dual-role lecturers to notices assigned
+            // to their lecturer identity; student-only recipients are unaffected.
+            filter += " AND (NOT EXISTS (SELECT 1 FROM campuscore_auth.\"UserRole\" ur"
+                    + " JOIN campuscore_auth.\"Role\" role ON role.\"id\" = ur.\"roleId\""
+                    + " WHERE ur.\"userId\" = student.\"userId\" AND role.\"name\" = 'LECTURER')"
+                    + " OR EXISTS (SELECT 1 FROM campuscore_auth.\"Lecturer\" lecturer"
+                    + " WHERE lecturer.\"userId\" = student.\"userId\" AND lecturer.\"id\" = :noticeLecturerId))";
+            parameters.addValue("noticeLecturerId", lecturerId);
+        }
+        if (years != null && !years.isEmpty()) {
+            filter += " AND student.\"year\" IN (:years)";
+            parameters.addValue("years", years);
+        }
+        if (sectionId != null) {
+            filter += " AND EXISTS (SELECT 1 FROM academic.\"Enrollment\" enrollment"
+                    + " WHERE enrollment.\"studentId\" = student.\"id\""
+                    + " AND enrollment.\"sectionId\" = :sectionId"
+                    + " AND enrollment.\"status\" NOT IN ('DROPPED', 'CANCELLED'))";
+            parameters.addValue("sectionId", sectionId);
+        }
+        return jdbc.queryForList("SELECT DISTINCT student.\"userId\" FROM " + STUDENT_TABLE + " student"
+                        + " JOIN " + USER_TABLE + " user_account ON user_account.\"id\" = student.\"userId\""
+                        + " WHERE student.\"status\" = :status AND user_account.\"status\" = :status"
+                        + filter + " ORDER BY 1", parameters, String.class);
+    }
+
     public Optional<StudentResponse> findStudentById(String id) {
         List<StudentResponse> matches = jdbc.query(
                 studentSelect() + " WHERE student.\"id\" = :id",

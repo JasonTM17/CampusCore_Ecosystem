@@ -150,10 +150,10 @@ class AdminUserMutationPersistenceTest {
                         .with(adminJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(2))
-                .andExpect(jsonPath("$.meta.total").value(3))
+                .andExpect(jsonPath("$.meta.total").value(5))
                 .andExpect(jsonPath("$.meta.page").value(1))
                 .andExpect(jsonPath("$.meta.limit").value(2))
-                .andExpect(jsonPath("$.meta.totalPages").value(2));
+                .andExpect(jsonPath("$.meta.totalPages").value(3));
     }
 
     @Test
@@ -177,15 +177,16 @@ class AdminUserMutationPersistenceTest {
                 .andExpect(jsonPath("$.data.length()").value(1))
                 .andExpect(jsonPath("$.data[0].roles", org.hamcrest.Matchers.hasItem("STUDENT")));
 
-        // The ADMIN tab sees the account holding ADMIN, and only that one;
+        // The ADMIN tab sees the target and the real administrator actor;
         // the second user's STUDENT assignment must not leak through.
         mvc.perform(get("/api/v1/users")
                         .queryParam("role", "ADMIN")
                         .with(adminJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.meta.total").value(1))
-                .andExpect(jsonPath("$.data.length()").value(1))
-                .andExpect(jsonPath("$.data[0].email").value("target@campuscore.edu"));
+                .andExpect(jsonPath("$.meta.total").value(2))
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[*].email", org.hamcrest.Matchers.containsInAnyOrder(
+                        "target@campuscore.edu", "actor.admin@fixture.invalid")));
 
         // A name that is not a system role is refused with the same code the
         // mutation guards use; an empty page for a typo would masquerade as a
@@ -199,8 +200,8 @@ class AdminUserMutationPersistenceTest {
         // Omitting the filter leaves the pre-existing contract untouched.
         mvc.perform(get("/api/v1/users").with(adminJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.meta.total").value(3))
-                .andExpect(jsonPath("$.data.length()").value(3));
+                .andExpect(jsonPath("$.meta.total").value(5))
+                .andExpect(jsonPath("$.data.length()").value(5));
 
         // The route now carries the catalog query allow-list, so a parameter
         // that looks like a filter but is silently ignored fails loudly.
@@ -508,6 +509,10 @@ class AdminUserMutationPersistenceTest {
         insertRolePermission("role-permission-admin", "role-admin", "permission-admin");
         insertRolePermission("role-permission-student", "role-student", "permission-academic");
         insertRolePermission("role-permission-audit", "role-auditor", "permission-audit");
+        insertUser("admin-user", "actor.admin@fixture.invalid", "Actor", "Administrator");
+        insertUser("super-user", "actor.super@fixture.invalid", "Actor", "Superuser");
+        insertUserRole("actor-admin-role", "admin-user", "role-admin");
+        insertUserRole("actor-super-role", "super-user", "role-super-admin");
         insertUser("target-user", "target@campuscore.edu", "Target", "User");
         insertUser("second-user", "second@campuscore.edu", "Second", "User");
         insertUser("third-user", "third@campuscore.edu", "Third", "User");
@@ -576,12 +581,10 @@ class AdminUserMutationPersistenceTest {
     }
 
     private RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token.subject("admin-user").claim("roles", List.of("ADMIN")))
-                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        return io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "admin-user");
     }
 
     private RequestPostProcessor superJwt() {
-        return jwt().jwt(token -> token.subject("super-user").claim("roles", List.of("SUPER_ADMIN")))
-                .authorities(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"));
+        return io.campuscore.restfulapi.testsupport.CurrentAccountJwt.currentJwt(jdbc, "super-user");
     }
 }

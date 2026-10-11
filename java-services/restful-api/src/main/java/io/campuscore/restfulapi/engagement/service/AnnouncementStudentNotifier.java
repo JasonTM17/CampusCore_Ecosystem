@@ -4,6 +4,7 @@ import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.Announcement
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository.CreateNotificationCommand;
 import io.campuscore.restfulapi.people.service.PeopleReadService;
+import io.campuscore.restfulapi.engagement.repository.AnnouncementWriteRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -41,13 +42,25 @@ public class AnnouncementStudentNotifier {
 
     private final PeopleReadService people;
     private final NotificationWriteRepository notifications;
+    private final AnnouncementWriteRepository announcements;
     private final Clock clock = Clock.systemUTC();
 
     public AnnouncementStudentNotifier(
             PeopleReadService people,
-            NotificationWriteRepository notifications) {
+            NotificationWriteRepository notifications,
+            AnnouncementWriteRepository announcements) {
         this.people = people;
         this.notifications = notifications;
+        this.announcements = announcements;
+    }
+
+    /** Called after publication commits; claim and inbox writes roll back together on failure. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public int notifyAfterPublication(String announcementId) {
+        if (announcements.markNotified(announcementId, Instant.now(clock)) == 0) {
+            return 0;
+        }
+        return announcements.findById(announcementId).map(this::fanOutToActiveStudents).orElse(0);
     }
 
     /**
@@ -61,23 +74,23 @@ public class AnnouncementStudentNotifier {
         // see. Scheduled announcements (publishAt in the future) and
         // role-scoped ones that exclude STUDENT are not visible to the inbox
         // population, so they get no fan-out.
+        Instant now = Instant.now(clock);
         Instant publishAt = announcement.publishAt();
-        if (publishAt != null && publishAt.isAfter(Instant.now(clock))) {
+        if ((publishAt != null && publishAt.isAfter(now))
+                || (announcement.expiresAt() != null && !announcement.expiresAt().isAfter(now))
+                || announcement.archivedAt() != null) {
             return 0;
         }
         List<String> targetRoles = announcement.targetRoles();
-        if (targetRoles != null && !targetRoles.isEmpty()
-                && !targetRoles.stream().anyMatch(role -> role.equalsIgnoreCase("STUDENT"))) {
+        if (!announcement.isGlobal() && (targetRoles == null || !targetRoles.contains("STUDENT"))) {
             return 0;
         }
         List<Integer> targetYears = announcement.targetYears();
-        List<String> userIds = targetYears != null && !targetYears.isEmpty()
-                ? people.findActiveStudentUserIdsInYears(targetYears)
-                : people.findActiveStudentUserIds();
+        List<String> userIds = people.findAnnouncementStudentUserIds(targetYears, announcement.sectionId(),
+                announcement.isGlobal() ? List.of() : announcement.targetRoles(), announcement.lecturerId());
         if (userIds.isEmpty()) {
             return 0;
         }
-        Instant now = Instant.now(clock);
         String title = capCodePoints(TITLE_PREFIX + nullToEmpty(announcement.title()), TITLE_CODE_POINTS);
         // The body is sanitized HTML; capping it raw could end mid-tag
         // (an announcement opening with an inline image previewed as a literal

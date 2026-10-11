@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi.notification;
 
+import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -36,7 +38,8 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @AutoConfigureMockMvc
 @ActiveProfiles({"test", "persistence"})
 @TestPropertySource(properties = {
-        "spring.flyway.enabled=false"
+        "spring.flyway.enabled=false",
+        "spring.datasource.url=jdbc:h2:mem:repair_NotificationWriteAuditPersistenceTest;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"
 })
 class NotificationWriteAuditPersistenceTest {
 
@@ -241,9 +244,9 @@ class NotificationWriteAuditPersistenceTest {
     }
 
     private RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token
+        return fixtureJwt(jdbc, ADMIN, token -> token
                         .subject(ADMIN)
-                        .claim("roles", List.of("ADMIN")))
+                        .claim("roles", List.of("ADMIN")), "ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
 }

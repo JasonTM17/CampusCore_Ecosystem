@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi.people;
 
+import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -94,8 +96,7 @@ class PeopleReadPersistenceTest {
                 .andExpect(jsonPath("$.admissionDate").value("2025-08-20T00:00:00.000Z"));
 
         mvc.perform(get("/api/v1/students/student-old")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))
-                                .jwt(token -> token.subject("student-user"))))
+                        .with(fixtureJwt(jdbc, "student-user", "STUDENT")))
                 .andExpect(status().isNotFound());
     }
 
@@ -164,14 +165,12 @@ class PeopleReadPersistenceTest {
         insertLecturer("lecturer-old", "E001", BASE_TIME.minusSeconds(60));
 
         mvc.perform(get("/api/v1/students")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))
-                                .jwt(token -> token.subject("student-user").claim("roles", java.util.List.of("STUDENT")))))
+                        .with(fixtureJwt(jdbc, "student-user", "STUDENT")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
 
         mvc.perform(get("/api/v1/lecturers")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))
-                                .jwt(token -> token.subject("student-user").claim("roles", java.util.List.of("STUDENT")))))
+                        .with(fixtureJwt(jdbc, "student-user", "STUDENT")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
 
@@ -406,24 +405,24 @@ class PeopleReadPersistenceTest {
                 id, email, firstName, lastName);
     }
 
-    private static RequestPostProcessor lecturerJwt() {
-        return jwt().jwt(token -> token
+    private RequestPostProcessor lecturerJwt() {
+        return fixtureJwt(jdbc, "lecturer-user", token -> token
                         .subject("lecturer-user")
-                        .claim("roles", java.util.List.of("LECTURER")))
+                        .claim("roles", java.util.List.of("LECTURER")), "LECTURER")
                 .authorities(new SimpleGrantedAuthority("ROLE_LECTURER"));
     }
 
-    private static RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token
+    private RequestPostProcessor adminJwt() {
+        return fixtureJwt(jdbc, "admin-user", token -> token
                         .subject("admin-user")
-                        .claim("roles", java.util.List.of("ADMIN")))
+                        .claim("roles", java.util.List.of("ADMIN")), "ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
 
-    private static RequestPostProcessor studentJwt(String subject) {
-        return jwt().jwt(token -> token
+    private RequestPostProcessor studentJwt(String subject) {
+        return fixtureJwt(jdbc, subject, token -> token
                         .subject(subject)
-                        .claim("roles", java.util.List.of("STUDENT")))
+                        .claim("roles", java.util.List.of("STUDENT")), "STUDENT")
                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
     }
 

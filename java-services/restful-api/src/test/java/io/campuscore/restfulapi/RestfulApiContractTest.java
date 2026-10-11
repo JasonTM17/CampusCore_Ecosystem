@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi;
 
+import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -16,6 +18,9 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @ActiveProfiles({"test", "persistence"})
 class RestfulApiContractTest {
+
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     @Autowired
     private MockMvc mvc;
@@ -56,7 +61,7 @@ class RestfulApiContractTest {
 
     @Test
     void unknownRoutesReturnTheStableNotFoundEnvelope() throws Exception {
-        mvc.perform(get("/api/v1/does-not-exist").with(jwt()))
+        mvc.perform(get("/api/v1/does-not-exist").with(fixtureJwt(jdbc, "user")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }

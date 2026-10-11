@@ -24,6 +24,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import io.campuscore.restfulapi.academic.registration.RegistrationPdfRenderer;
+import io.campuscore.restfulapi.testsupport.AccountAuthorityFixture;
+import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -87,6 +89,7 @@ class AcademicEnrollmentMutationPersistenceTest {
                 )
                 """);
         createTables();
+        AccountAuthorityFixture.ensureSchema(jdbc);
         clearTables();
         insertFixture();
     }
@@ -1003,32 +1006,23 @@ class AcademicEnrollmentMutationPersistenceTest {
                     now,
                     now,
                     now);
+            AccountAuthorityFixture.student(jdbc, "student-user-" + index, "student-" + index, 2);
         }
     }
 
     private record ConcurrentEnrollmentOutcome(int studentIndex, int status, String diagnostic, Throwable failure) {
     }
 
-    private static RequestPostProcessor studentJwt(String subject, String studentId) {
-        return jwt().jwt(token -> token
-                        .subject(subject)
-                        .claim("roles", List.of("STUDENT"))
-                        .claim("studentId", studentId))
-                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+    private RequestPostProcessor studentJwt(String subject, String studentId) {
+        return CurrentAccountJwt.currentJwt(jdbc, subject);
     }
 
-    private static RequestPostProcessor studentJwtWithoutProfile() {
-        return jwt().jwt(token -> token
-                        .subject("student-user-without-profile")
-                        .claim("roles", List.of("STUDENT")))
-                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+    private RequestPostProcessor studentJwtWithoutProfile() {
+        return CurrentAccountJwt.currentJwt(jdbc, "student-user-without-profile");
     }
 
-    private static RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token
-                        .subject("admin-user")
-                        .claim("roles", List.of("ADMIN")))
-                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+    private RequestPostProcessor adminJwt() {
+        return CurrentAccountJwt.currentJwt(jdbc, "admin-user");
     }
 
     private void createTables() {
@@ -1497,6 +1491,11 @@ class AcademicEnrollmentMutationPersistenceTest {
                 "room-1",
                 "A",
                 "101");
+        AccountAuthorityFixture.student(jdbc, "student-user-1", "student-1", 2);
+        AccountAuthorityFixture.ensureUser(jdbc, "student-user-without-profile");
+        AccountAuthorityFixture.replaceRoles(jdbc, "student-user-without-profile", "STUDENT");
+        AccountAuthorityFixture.ensureUser(jdbc, "admin-user");
+        AccountAuthorityFixture.replaceRoles(jdbc, "admin-user", "ADMIN");
     }
 
     private static LocalDateTime localDateTime(Instant instant) {
