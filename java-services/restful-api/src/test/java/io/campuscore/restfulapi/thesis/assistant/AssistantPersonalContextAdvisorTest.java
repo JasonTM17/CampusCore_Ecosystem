@@ -2577,6 +2577,30 @@ class AssistantPersonalContextAdvisorTest {
     }
 
     @Test
+    void subjectPositionRelationPlusNameAsksAreVetoedLikeOtherThirdPersons() {
+        // Production privacy gap: a relation + capitalized name in subject
+        // position ("Sinh viên A", "Bạn Nam", "Sinh viên Nguyễn Văn B") slips
+        // past the demonstrative and verb-adjacent arms — the asker's own
+        // rows would be served for a question about someone else. It must
+        // veto like "sinh viên ấy" / "bạn tôi" and take the same explicit
+        // refusal route.
+        assertFalse(advisor.handles("Sinh viên A đã đăng ký bao nhiêu tín chỉ?"));
+        assertFalse(advisor.handles("Sinh viên A còn bao nhiêu tín chỉ?"));
+        assertFalse(advisor.handles("Bạn Nam điểm bao nhiêu?"));
+        assertFalse(advisor.handles("Sinh viên Nguyễn Văn B có lịch học thế nào?"));
+        assertTrue(advisor.requiresPrivacyRefusal("Sinh viên A đã đăng ký bao nhiêu tín chỉ?"));
+        assertTrue(advisor.requiresPrivacyRefusal("Bạn Nam điểm bao nhiêu?"));
+        assertTrue(advisor.requiresPrivacyRefusal("Sinh viên Nguyễn Văn B có lịch học thế nào?"));
+        // Lowercase followers are generic or first-person phrasing — a name
+        // must start uppercase, so these keep their existing routes.
+        assertFalse(advisor.requiresPrivacyRefusal("Sinh viên được đăng ký tối đa bao nhiêu tín chỉ?"));
+        assertFalse(advisor.requiresPrivacyRefusal("Sinh viên cần bao nhiêu tín chỉ để tốt nghiệp?"));
+        assertTrue(advisor.handles("Tôi là sinh viên năm 3, tôi đã đăng ký bao nhiêu tín chỉ?"));
+        assertTrue(advisor.handles("Em đã đăng ký bao nhiêu tín chỉ?"));
+        assertTrue(advisor.handles("Thầy ơi, lịch dạy của em thế nào?"));
+    }
+
+    @Test
     void institutionalAndNonPersonalSubjectsNeverRequireRefusal() {
         // Institutional owners name an ORGANIZATION — they keep the public
         // KB path exactly as before (over-refusal is the load-bearing risk).
