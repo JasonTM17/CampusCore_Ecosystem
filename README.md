@@ -129,7 +129,7 @@ Tài khoản demo: `lecturer@campuscore.edu` | Mật khẩu: `password123`
 > ngay trong bảng xem trước, sau đó bấm *Điền vào bảng điểm* → *Lưu nháp* → *Xuất bản* như nhập tay.
 >
 > **Quản lý nhóm khóa luận:** giảng viên hướng dẫn thêm/xoá thành viên trong nhóm đang đăng ký
-> (3–4 thành viên, giữ nguyên đúng một nhóm trưởng) ngay trong khu vực *Hướng dẫn* của cổng khóa luận.
+> (3–5 thành viên để được duyệt, đúng một nhóm trưởng; nhóm nháp được bổ sung dần thành viên) ngay trong khu vực *Hướng dẫn* của cổng khóa luận. Migration V113 giữ nguyên nhóm nhỏ đã hoàn thành/hủy bằng dấu lịch sử chỉ đọc.
 > Nhóm đã hủy giữ nguyên lịch sử và không thể mở lại; sinh viên được tham gia nhóm mới khi đợt còn cho phép.
 > Chi tiết nâng cấp DB: [Lịch sử nhóm đã hủy](docs/integrations/thesis-cancellation-history.md).
 
@@ -215,7 +215,7 @@ Hiện tượng "overselling" (ghi nhận số lượng sinh viên đăng ký v�
 - **Bộ lọc Prompt-Injection song ngữ (`AssistantInputGuard`)**: Tự động rà quét và chặn đứng các mẫu câu tấn công bẻ khóa (jailbreak), ghi đè hướng dẫn hệ thống bằng cả tiếng Anh và tiếng Việt (ví dụ: *"ignore previous instructions"*, *"bỏ qua hướng dẫn trước đó"*).
 - **Hạn ngạch Atomic Quota (20 yêu cầu/người/ngày)**: Sử dụng kỹ thuật Compare-And-Swap (CAS) nguyên tử trên cơ sở dữ liệu, ngăn việc mở nhiều tab gửi request đồng thời để vượt hạn ngạch.
 - **Truy hồi Lexical Kết hợp LLM Fallback**:
-  - Mặc định: Tra cứu từ vựng xếp hạng BM25 / Full-text search trên bảng snapshot của PostgreSQL. Trả lời nhanh kèm số hiệu trích dẫn văn bản quy chế chính xác `[1]`, `[2]`.
+  - Mặc định: Tra cứu từ vựng bằng điểm trọng số cho cụm/từ xuất hiện trong tiêu đề và nội dung (3+1+4+2), trên dữ liệu SQL hoặc snapshot đã công bố. Trả lời nhanh kèm trích dẫn tài liệu nguồn `[1]`, `[2]`.
   - Nâng cao (Tùy chọn): Nếu câu hỏi mang tính suy luận phức tạp và cờ `DEEPSEEK_ENABLED=true`, sidecar sẽ gửi ngữ cảnh đã trích xuất đến model `deepseek-v4-flash` để tổng hợp câu trả lời tự nhiên. Nếu thiếu key hoặc nhà cung cấp timeout, hệ thống tự động fallback an toàn về Lexical mà không gây gián đoạn cho người dùng.
 
 ---
@@ -255,7 +255,7 @@ flowchart TD
 
     subgraph BACKEND["TẦNG DỊCH VỤ JAVA (APPLICATION SERVICES)"]
         REST["Spring Boot 3.5 REST API\n(:4010 | /api/v1/)\n• Auth & RBAC Security Filter\n• Registration Engine chống race 4 lớp\n• Gradebook & Transcript Service\n• Thesis Lifecycle Manager\n• Assistant Gateway & Quota Guard"]
-        RAG["Private rag-service Sidecar\n(:4011 | chỉ expose nội bộ)\n• Prompt-Injection Guard song ngữ\n• Lexical ranking BM25\n• Snapshot runtime reader\n• Thực thi Flyway migration trong cụm compose"]
+        RAG["Private rag-service Sidecar\n(:4011 | chỉ expose nội bộ)\n• Prompt-Injection Guard song ngữ\n• Lexical ranking có trọng số\n• Snapshot runtime reader\n• Thực thi Flyway migration trong cụm compose"]
     end
 
     subgraph DATA["TẦNG CƠ SỞ DỮ LIỆU"]
@@ -394,7 +394,7 @@ sequenceDiagram
         else Còn hạn ngạch
             REST->>Sidecar: POST /internal/rag/assistant (Question, Service Token)
             activate Sidecar
-            Sidecar->>PG: Tìm kiếm Lexical BM25 trên active_snapshot
+            Sidecar->>PG: Tìm kiếm lexical có trọng số trên snapshot đã công bố
             PG-->>Sidecar: Trả về đoạn trích quy chế có độ tương quan cao
 
             alt Trích xuất đạt độ tin cậy cao
@@ -479,7 +479,7 @@ flowchart LR
 | **Frontend Web** | Next.js (App Router) | 15.5 | Cổng thông tin tương tác, Server Components, proxy cùng nguồn `/api/v1` |
 | **Thư viện UI** | Tailwind CSS, Radix UI, TinyMCE | 3.4 / Radix / 8 | Hệ thống thiết kế nhận diện HCMUTE, bảng biểu dữ liệu, soạn thảo rich-text |
 | **Biên dịch & Gói** | Maven / Node.js | 3.9.12 / 20 | Build tool cho Java backend và Node runtime cho frontend |
-| **Cơ sở dữ liệu** | PostgreSQL | 15 (postgres:15-alpine) | Giao dịch ACID, Partial Index, Full-text Search tsvector |
+| **Cơ sở dữ liệu** | PostgreSQL | 15 (postgres:15-alpine) | Giao dịch ACID, khóa ngoại, Partial Index, RLS; lưu tri thức cho truy xuất lexical có trọng số |
 | **Quản lý Schema** | Flyway | kèm Spring Boot | Versioned migration trong `java-services/restful-api/src/main/resources/db/migration/` |
 | **RAG Sidecar** | Spring Boot (chế độ sidecar) | 3.5.16 | Dịch vụ AI nội bộ cổng 4011, xếp hạng Lexical, Prompt-injection guard |
 | **Mô hình AI** | DeepSeek | deepseek-v4-flash | LLM tùy chọn cho câu hỏi suy luận, tắt được hoàn toàn qua `DEEPSEEK_ENABLED` |
@@ -573,10 +573,9 @@ hãy đặt công tắc thay vì sửa trực tiếp cơ sở dữ liệu:
 # .env (đã bị gitignore) — bật cho cụm demo cục bộ
 DEMO_ACCOUNTS_ENABLED=true
 NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS=true
-# Rồi điền mật khẩu demo đã seed vào ba biến sau (không commit giá trị thật):
+# Rồi điền mật khẩu demo đã seed vào hai biến sau (không commit giá trị thật):
 NEXT_PUBLIC_DEMO_STUDENT_PASSWORD=...
 NEXT_PUBLIC_DEMO_LECTURER_PASSWORD=...
-NEXT_PUBLIC_DEMO_ADMIN_PASSWORD=...
 ```
 
 Sau đó chạy `docker compose up -d --build` để áp dụng. Đặt `DEMO_ACCOUNTS_ENABLED=false` (hoặc để

@@ -30,11 +30,17 @@ export default function LecturerGradesPage() {
   const [selectedSemester, setSelectedSemester] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [semesterError, setSemesterError] = useState('');
 
   const fetchSemesters = useCallback(async () => {
-    const response = await semestersApi.getAll();
-    setSemesters(response.data ?? []);
-  }, []);
+    setSemesterError('');
+    try {
+      const response = await semestersApi.getAll();
+      setSemesters(response.data ?? []);
+    } catch {
+      setSemesterError(messages.lecturerGrades.errors.semestersFailed);
+    }
+  }, [messages.lecturerGrades.errors.semestersFailed]);
 
   const fetchSections = useCallback(async () => {
     setIsLoading(true);
@@ -115,6 +121,14 @@ export default function LecturerGradesPage() {
           </div>
         }
       />
+
+      {semesterError ? (
+        <ErrorState
+          title={messages.lecturerGrades.errors.semestersUnavailableTitle}
+          description={semesterError}
+          onRetry={() => void fetchSemesters()}
+        />
+      ) : null}
 
       {error ? (
         <ErrorState
