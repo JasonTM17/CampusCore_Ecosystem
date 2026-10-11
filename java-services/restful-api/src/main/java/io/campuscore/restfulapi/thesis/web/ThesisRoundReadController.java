@@ -33,7 +33,7 @@ public class ThesisRoundReadController {
         @ApiResponse(responseCode = "200", description = "Truy xuất danh sách đợt thành công")
     })
     @GetMapping
-    @PreAuthorize("hasAnyRole('STUDENT','LECTURER','ADMIN','SUPER_ADMIN','TRUONG_KHOA')")
+    @PreAuthorize("hasAnyRole('STUDENT','LECTURER','ADMIN','SUPER_ADMIN','TRUONG_KHOA','TRUONG_BO_MON')")
     public List<RoundResponse> list(
             @Parameter(description = "Lọc theo trạng thái đợt (PROPOSAL_OPEN, REGISTRATION_OPEN, RESULTS_PUBLISHED, v.v.)")
             @RequestParam(required = false) RoundStatus status) {

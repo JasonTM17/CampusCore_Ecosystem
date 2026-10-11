@@ -38,6 +38,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.ArrayList;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -1839,7 +1841,7 @@ class AssistantPersonalContextAdvisorTest {
     // ------------------------------------------------------------------
     // xrole-4 (production audit): "Nhóm luận văn của tôi là nhóm nào, có
     // những ai?" only returned the topic + PENDING — the composer must also
-    // name the group: leader role, member roster, headcount vs the 3–4
+    // name the group: leader role, member roster, headcount vs the 3–5
     // requirement, and the approval status WITH its stored reason. Every
     // value is echoed from the group read path rows only.
     // ------------------------------------------------------------------
@@ -1874,8 +1876,8 @@ class AssistantPersonalContextAdvisorTest {
         String answer = response.answer();
         assertTrue(answer.contains("Đợt 1 KLTN 2026-2027"), answer);
         assertTrue(answer.contains("Hệ thống gợi ý học tập"), answer);
-        // Headcount vs the 1–3 requirement, computed from the real member rows.
-        assertTrue(answer.contains("Nhóm: 3 thành viên (yêu cầu 1-3)"), answer);
+        // Headcount vs the current requirement, computed from the member rows.
+        assertTrue(answer.contains("Nhóm: 3 thành viên (yêu cầu 3-5)"), answer);
         assertTrue(answer.contains("đủ số lượng theo yêu cầu"), answer);
         // The asker is the group leader per leader_student_id / is_leader.
         assertTrue(answer.contains("Vai trò của bạn: Nhóm trưởng"), answer);
@@ -1889,7 +1891,7 @@ class AssistantPersonalContextAdvisorTest {
     }
 
     @Test
-    void thesisGroupOfTwoMeetsTheOneToThreeRequirementAndStatesPlainMembership() {
+    void thesisGroupOfTwoStatesItsApprovalShortfallAndPlainMembership() {
         NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
         AssistantPersonalContextAdvisor thesisAdvisor = new AssistantPersonalContextAdvisor(
                 enrollmentService, sectionService, null, jdbc, null, null);
@@ -1901,7 +1903,8 @@ class AssistantPersonalContextAdvisorTest {
         groupRow.put("rejection_reason", null);
         groupRow.put("topic_title", "Nền tảng quản lý thư viện");
         groupRow.put("round_name", "Đợt 1 KLTN 2026-2027");
-        // The asker is a plain member; two members satisfy the 1–3 rule.
+        // The asker is a plain member; a pending two-member draft needs one
+        // additional member before approval under the current 3-5 rule.
         Map<String, Object> leader = thesisMemberRow("g2", "student-leader", true, 1, "Phạm", "Dũng");
         Map<String, Object> asker = thesisMemberRow("g2", "student-profile", false, 2, "Hoàng", "Mai");
         when(jdbc.queryForList(anyString(), any(MapSqlParameterSource.class)))
@@ -1913,13 +1916,90 @@ class AssistantPersonalContextAdvisorTest {
                 chatRequest("vi", "Nhóm luận văn của tôi là nhóm nào, có những ai?"), jwtStudent());
 
         String answer = response.answer();
-        assertTrue(answer.contains("Nhóm: 2 thành viên (yêu cầu 1-3)"), answer);
-        assertTrue(answer.contains("đủ số lượng theo yêu cầu"), answer);
+        assertTrue(answer.contains("Nhóm: 2 thành viên (yêu cầu 3-5)"), answer);
+        assertTrue(answer.contains("còn thiếu 1 so với tối thiểu 3"), answer);
+        assertFalse(answer.contains("đủ số lượng theo yêu cầu"), answer);
         assertTrue(answer.contains("Vai trò của bạn: Thành viên"), answer);
         assertFalse(answer.contains("Vai trò của bạn: Nhóm trưởng"), answer);
         assertTrue(answer.contains("Phạm Dũng (nhóm trưởng)"), answer);
         // No reason line is invented when rejection_reason is null.
         assertFalse(answer.contains("lý do:"), answer);
+    }
+
+    @ParameterizedTest(name = "{0}-member roster explains the current bounds in both locales")
+    @ValueSource(ints = {1, 2, 3, 4, 5, 6})
+    void thesisGroupHeadcountExplainsCurrentBoundsInBothLocales(int memberCount) {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        AssistantPersonalContextAdvisor thesisAdvisor = new AssistantPersonalContextAdvisor(
+                enrollmentService, sectionService, null, jdbc, null, null);
+        Map<String, Object> group = new HashMap<>();
+        group.put("group_id", "rubric-group");
+        group.put("group_status", "DRAFT");
+        group.put("approval_status", "PENDING");
+        group.put("leader_student_id", "student-profile");
+        group.put("round_status", "REGISTRATION_OPEN");
+        List<Map<String, Object>> members = new ArrayList<>();
+        for (int order = 1; order <= memberCount; order++) {
+            members.add(thesisMemberRow("rubric-group", order == 1 ? "student-profile" : "rubric-student-" + order,
+                    order == 1, order, "Member", "" + order));
+        }
+        when(jdbc.queryForList(anyString(), any(MapSqlParameterSource.class)))
+                .thenAnswer(invocation -> ((String) invocation.getArgument(0)).contains("campuscore_auth")
+                        ? members : List.of(group));
+
+        for (String locale : List.of("vi", "en")) {
+            ChatResponse response = thesisAdvisor.answer(
+                    chatRequest(locale, "Nhóm luận văn của tôi là nhóm nào, có những ai?"), jwtStudent());
+            assertNotNull(response);
+            String answer = response.answer();
+            assertTrue(answer.contains("3-5"), answer);
+            assertTrue(answer.contains(memberCount + ("vi".equals(locale) ? " thành viên" : " members")), answer);
+            if (memberCount < 3) {
+                assertTrue(answer.contains("vi".equals(locale)
+                        ? "còn thiếu " + (3 - memberCount) + " so với tối thiểu 3"
+                        : (3 - memberCount) + " short of the minimum of 3"), answer);
+            } else if (memberCount <= 5) {
+                assertTrue(answer.contains("vi".equals(locale)
+                        ? "đủ số lượng theo yêu cầu" : "size requirement met"), answer);
+            } else {
+                assertTrue(answer.contains("vi".equals(locale)
+                        ? "vượt quá tối đa 5" : "above the maximum of 5"), answer);
+            }
+        }
+    }
+
+    @ParameterizedTest(name = "historical {0}-member roster remains explained as preserved history")
+    @ValueSource(ints = {1, 2})
+    void preservedHistoricalGroupDoesNotClaimItNeedsNewMembers(int memberCount) {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        AssistantPersonalContextAdvisor thesisAdvisor = new AssistantPersonalContextAdvisor(
+                enrollmentService, sectionService, null, jdbc, null, null);
+        Map<String, Object> group = new HashMap<>();
+        group.put("group_id", "history-group");
+        group.put("group_status", "COMPLETED");
+        group.put("approval_status", "APPROVED");
+        group.put("leader_student_id", "student-profile");
+        group.put("legacy_group_size_exception", true);
+        group.put("round_status", "RESULTS_PUBLISHED");
+        List<Map<String, Object>> members = new ArrayList<>();
+        for (int order = 1; order <= memberCount; order++) {
+            members.add(thesisMemberRow("history-group", order == 1 ? "student-profile" : "history-peer",
+                    order == 1, order, "History", "Member " + order));
+        }
+        when(jdbc.queryForList(anyString(), any(MapSqlParameterSource.class)))
+                .thenAnswer(invocation -> ((String) invocation.getArgument(0)).contains("campuscore_auth")
+                        ? members : List.of(group));
+
+        for (String locale : List.of("vi", "en")) {
+            ChatResponse response = thesisAdvisor.answer(
+                    chatRequest(locale, "Nhóm luận văn của tôi là nhóm nào, có những ai?"), jwtStudent());
+            assertNotNull(response);
+            String answer = response.answer();
+            assertTrue(answer.contains("vi".equals(locale) ? "nhóm lịch sử" : "historical group"), answer);
+            assertTrue(answer.contains("vi".equals(locale) ? "chỉ tra cứu" : "read-only"), answer);
+            assertFalse(answer.contains("vi".equals(locale) ? "còn thiếu" : "short of the minimum"), answer);
+            assertTrue(answer.contains("3-5"), answer);
+        }
     }
 
     // ------------------------------------------------------------------

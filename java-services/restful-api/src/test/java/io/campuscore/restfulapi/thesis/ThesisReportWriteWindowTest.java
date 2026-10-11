@@ -74,6 +74,8 @@ class ThesisReportWriteWindowTest {
         jdbc.update("DELETE FROM thesis.thesis_group");
         jdbc.update("DELETE FROM thesis.thesis_topic");
         jdbc.update("DELETE FROM thesis.thesis_registration_round");
+        jdbc.update("DELETE FROM campuscore_auth.\"Student\" WHERE \"id\" LIKE 'rw-%'");
+        jdbc.update("DELETE FROM campuscore_auth.\"User\" WHERE \"id\" LIKE 'thesis-fixture-student-rw-%'");
     }
 
     // ---------- defect 1: the round status never gated the report ----------
@@ -265,6 +267,13 @@ class ThesisReportWriteWindowTest {
                 "INSERT INTO thesis.thesis_group_member (id, group_id, round_id, student_id, member_order, is_leader) "
                         + "VALUES (?, ?, ?, ?, 1, TRUE)",
                 UUID.randomUUID(), groupId, roundId, leaderStudentId);
+        for (int order = 2; order <= 3; order++) {
+            String peer = leaderStudentId + "-peer-" + order;
+            ThesisAuthorityFixture.student(jdbc, peer);
+            jdbc.update("INSERT INTO thesis.thesis_group_member "
+                            + "(id, group_id, round_id, student_id, member_order, is_leader) VALUES (?, ?, ?, ?, ?, FALSE)",
+                    UUID.randomUUID(), groupId, roundId, peer, order);
+        }
         return groupId;
     }
 
@@ -282,10 +291,6 @@ class ThesisReportWriteWindowTest {
     }
 
     private RequestPostProcessor studentJwt(String studentId) {
-        return jwt().jwt(token -> token
-                        .subject("rw-user-" + studentId)
-                        .claim("roles", List.of("STUDENT"))
-                        .claim("studentId", studentId))
-                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+        return ThesisAuthorityFixture.student(jdbc, studentId);
     }
 }

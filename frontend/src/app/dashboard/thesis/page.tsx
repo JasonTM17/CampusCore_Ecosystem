@@ -66,6 +66,7 @@ import { departmentsApi, lecturersApi } from '@/lib/api';
 import { getLocalizedName } from '@/lib/academic-content';
 import type { Department, Lecturer } from '@/types/api';
 import {
+  getThesisTopicCapabilities,
   thesisApi,
   type ThesisLecturerWorkload,
   type ThesisCouncil,
@@ -126,9 +127,13 @@ function getGradeClassification(score: number): {
 }
 
 export default function ThesisPage() {
-  const { user, isStudent, isLecturer, isAdmin: isAdminRole, isFacultyHead } = useAuth();
-  const isAdmin = Boolean(isAdminRole || isFacultyHead);
-  const isSupervisorOrAdmin = Boolean(isLecturer || isAdmin);
+  const { user, isStudent, isLecturer, isAdmin: isAdminRole, isSuperAdmin, isFacultyHead } = useAuth();
+  const isAdmin = Boolean(isAdminRole || isSuperAdmin || isFacultyHead);
+  const isDepartmentHead = Boolean(user?.roles?.includes('TRUONG_BO_MON'));
+  const canLoadStaffRelations = Boolean(isLecturer || isAdmin);
+  const canProposeTopics = canLoadStaffRelations;
+  const isTopicApprover = Boolean(isAdmin || isDepartmentHead);
+  const isSupervisorOrAdmin = Boolean(canLoadStaffRelations || isDepartmentHead);
   const { locale, formatDateTime, messages } = useI18n();
   const pageCopy = messages.thesisWorkflow.page;
   const searchParams = useSearchParams();
@@ -139,6 +144,8 @@ export default function ThesisPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedRoundId, setSelectedRoundId] = useState('');
   const [viewingTopic, setViewingTopic] = useState<ThesisTopic | null>(null);
+  const [topicActionError, setTopicActionError] = useState('');
+  const [isArchiveConfirmationOpen, setIsArchiveConfirmationOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isActionPending, setIsActionPending] = useState(false);
   const [error, setError] = useState('');
@@ -157,7 +164,7 @@ export default function ThesisPage() {
   const [proposeDescription, setProposeDescription] = useState('');
   const [proposeDepartmentId, setProposeDepartmentId] = useState('');
   const [proposeMaxGroups, setProposeMaxGroups] = useState(2);
-  const [proposePublishImmediately, setProposePublishImmediately] = useState(true);
+  const [proposePublishImmediately, setProposePublishImmediately] = useState(false);
   const [proposeRoundId, setProposeRoundId] = useState('');
   const [proposeError, setProposeError] = useState('');
 
@@ -234,6 +241,7 @@ export default function ThesisPage() {
   const [gvpbDraftComments, setGvpbDraftComments] = useState<Record<string, string>>({});
   const [supervisedReports, setSupervisedReports] = useState<Record<string, ThesisGroupReport | null>>({});
   const [topicReports, setTopicReports] = useState<Record<string, ThesisGroupReport | null>>({});
+  const [topicReportErrors, setTopicReportErrors] = useState<Record<string, boolean>>({});
 
   // Lecturer navigation tab (supervision vs council defense vs repository)
   const [lecturerTab, setLecturerTab] = useState<'supervision' | 'defense' | 'repository'>('supervision');
@@ -269,7 +277,7 @@ export default function ThesisPage() {
       for (const tid of tids) {
         const key = `${c.id}:${tid}`;
         try {
-          const [scoresResult, sups, report] = await Promise.all([
+          const [scoresResult, sups, reportResult] = await Promise.all([
             isMemberOrAdmin
               ? thesisApi.listScores(c.id, tid).then(
                   (scores) => ({ scores, failed: false }),
@@ -277,14 +285,16 @@ export default function ThesisPage() {
                 )
               : Promise.resolve({ scores: [] as ThesisCouncilScore[], failed: false }),
             thesisApi.listSupervisors(tid).catch(() => []),
-            thesisApi.getTopicReport(tid).catch(() => null),
+            thesisApi.getTopicReport(tid).then(
+              (report) => ({ report, failed: false }),
+              () => ({ report: null, failed: true }),
+            ),
           ]);
           setCouncilScores((prev) => ({ ...prev, [key]: scoresResult.scores }));
           setCouncilScoreErrors((prev) => ({ ...prev, [key]: scoresResult.failed }));
           setTopicSupervisors((prev) => ({ ...prev, [tid]: sups.map((s) => s.lecturerId) }));
-          if (report) {
-            setTopicReports((prev) => ({ ...prev, [tid]: report }));
-          }
+          setTopicReports((prev) => ({ ...prev, [tid]: reportResult.report }));
+          setTopicReportErrors((prev) => ({ ...prev, [tid]: reportResult.failed }));
           const myScore = scoresResult.scores.find((s) => s.lecturerId === myLecturerId);
           if (myScore != null) {
             setDraftScores((prev) => ({ ...prev, [key]: String(myScore.score) }));
@@ -383,10 +393,10 @@ export default function ThesisPage() {
 
   const myReviewTopics = useMemo(
     () =>
-      isSupervisorOrAdmin && myLecturerId
+      canLoadStaffRelations && myLecturerId
         ? topics.filter((t) => t.gvpbLecturerId === myLecturerId)
         : [],
-    [isSupervisorOrAdmin, myLecturerId, topics],
+    [canLoadStaffRelations, myLecturerId, topics],
   );
 
   // Load the reviewer's own stored score for each assigned topic.
@@ -583,10 +593,10 @@ export default function ThesisPage() {
   }, [messages.thesis.loadFailed]);
 
   useEffect(() => {
-    if (isSupervisorOrAdmin || isProposeModalOpen) {
+    if (canLoadStaffRelations || (canProposeTopics && isProposeModalOpen)) {
       void loadLecturers();
     }
-  }, [isSupervisorOrAdmin, isProposeModalOpen, loadLecturers]);
+  }, [canLoadStaffRelations, canProposeTopics, isProposeModalOpen, loadLecturers]);
 
   const refreshTopics = useCallback(
     async (roundId: string) => {
@@ -619,13 +629,15 @@ export default function ThesisPage() {
     const loadWorkspace = async () => {
       setError('');
       try {
-        const promises: Promise<unknown>[] = [
-          refreshTopics(selectedRoundId),
-          thesisApi.listGroups(selectedRoundId).then((next) => {
+        const promises: Promise<unknown>[] = [refreshTopics(selectedRoundId)];
+        if (isStudent || canLoadStaffRelations) {
+          promises.push(thesisApi.listGroups(selectedRoundId).then((next) => {
             if (!cancelled) setGroups(next);
-          }),
-        ];
-        if (isSupervisorOrAdmin) {
+          }));
+        } else {
+          setGroups([]);
+        }
+        if (canLoadStaffRelations) {
           setIsRepositoryLoading(true);
           promises.push(
             thesisApi.listCouncils(selectedRoundId).then((cList) => {
@@ -662,12 +674,12 @@ export default function ThesisPage() {
     return () => {
       cancelled = true;
     };
-  }, [isSupervisorOrAdmin, loadCouncilDetails, messages.thesis.loadFailed, refreshTopics, selectedRoundId]);
+  }, [canLoadStaffRelations, isStudent, loadCouncilDetails, messages.thesis.loadFailed, refreshTopics, selectedRoundId]);
 
   // Retry path for a failed repository load: the reader gets the real failure
   // with a way back, instead of an archive that silently reads as empty.
   const reloadRepository = useCallback(async () => {
-    if (!selectedRoundId || !isSupervisorOrAdmin) return;
+    if (!selectedRoundId || !canLoadStaffRelations) return;
     setIsRepositoryLoading(true);
     setRepositoryError('');
     try {
@@ -678,7 +690,7 @@ export default function ThesisPage() {
     } finally {
       setIsRepositoryLoading(false);
     }
-  }, [isSupervisorOrAdmin, messages.thesis.loadFailed, selectedRoundId]);
+  }, [canLoadStaffRelations, messages.thesis.loadFailed, selectedRoundId]);
 
   const selectedRound = rounds.find((round) => round.id === selectedRoundId);
   const roundGroups = useMemo(() => {
@@ -805,6 +817,20 @@ export default function ThesisPage() {
     [isAdmin, isSupervisorOrAdmin, topics, user?.id, user?.lecturerId],
   );
   const myTopicIds = useMemo(() => new Set(myTopics.map((topic) => topic.id)), [myTopics]);
+  const managedTopics = isTopicApprover ? topics : myTopics;
+  const topicCapabilities = (topic: ThesisTopic) => getThesisTopicCapabilities(topic, {
+    roles: user?.roles ?? [],
+    userId: user?.id,
+    lecturerId: user?.lecturerId,
+    roundStatus: rounds.find((round) => round.id === topic.roundId)?.status,
+    // Every status in this authenticated list is scoped by the server for a
+    // department head without global governance, including composite roles.
+    inDepartmentCatalog: topics.some((listed) =>
+      listed.id === topic.id && listed.departmentId === topic.departmentId,
+    ),
+    hasHistory: topic.finalScore != null || groups.some((group) => group.topicId === topic.id) ||
+      councils.some((council) => council.topicIds?.includes(topic.id)),
+  });
 
   // "Supervised" is the R3 supervisor relationship (thesis_topic_supervisor),
   // served by /thesis/me/workload. Groups on topics the lecturer merely
@@ -932,6 +958,10 @@ export default function ThesisPage() {
   const userChoseTabRef = useRef(false);
 
   useEffect(() => {
+    if (!canLoadStaffRelations) {
+      setLecturerTab('supervision');
+      return;
+    }
     if (userChoseTabRef.current) {
       return;
     }
@@ -953,7 +983,7 @@ export default function ThesisPage() {
     } else if (supervisedGroups.length > 0) {
       setLecturerTab('supervision');
     }
-  }, [searchParams, supervisedGroups.length, visibleCouncils.length]);
+  }, [canLoadStaffRelations, searchParams, supervisedGroups.length, visibleCouncils.length]);
 
   useEffect(() => {
     const topicId = searchParams.get('topicId');
@@ -968,13 +998,13 @@ export default function ThesisPage() {
   useEffect(() => {
     const actionParam = searchParams.get('action');
     const advisorIdParam = searchParams.get('advisorId');
-    if (actionParam === 'propose') {
+    if (actionParam === 'propose' && canProposeTopics) {
       if (advisorIdParam) {
         setProposeSupervisorId(advisorIdParam);
       }
       setIsProposeModalOpen(true);
     }
-  }, [searchParams]);
+  }, [canProposeTopics, searchParams]);
 
   const studentTopicSupervisors = useMemo(() => {
     return currentTopicSupervisors.map((supervisor) => {
@@ -1014,7 +1044,7 @@ export default function ThesisPage() {
           addShort: 'Thêm',
           addedShort: 'Đã trong nhóm',
           curriculumLabel: 'CTĐT',
-          groupFull: 'Nhóm đã đủ 3 thành viên, không thể thêm mới.',
+          groupFull: messages.thesis.maxMembersReached,
           studentAlreadyInGroup: 'Sinh viên này đã thuộc một nhóm trong đợt này.',
         } as const)
       : ({
@@ -1027,7 +1057,7 @@ export default function ThesisPage() {
           addShort: 'Add',
           addedShort: 'Already in group',
           curriculumLabel: 'Curriculum',
-          groupFull: 'The group already has the maximum of 3 members.',
+          groupFull: messages.thesis.maxMembersReached,
           studentAlreadyInGroup: 'This student already belongs to a group in this round.',
         } as const);
 
@@ -1361,6 +1391,7 @@ export default function ThesisPage() {
 
   const handleProposeTopic = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (isActionPending || !canProposeTopics) return;
     const targetRoundId = proposeRoundId || selectedRoundId;
     if (!targetRoundId) return;
     const title = proposeTitle.trim();
@@ -1372,6 +1403,7 @@ export default function ThesisPage() {
     }
     setIsActionPending(true);
     setProposeError('');
+    setActionError('');
     setActionSuccess('');
     try {
       const created = await thesisApi.createTopic({
@@ -1381,15 +1413,14 @@ export default function ThesisPage() {
         description,
         maxGroups: Math.min(20, Math.max(1, Number(proposeMaxGroups) || 1)),
       });
-      if (proposePublishImmediately) {
-        await thesisApi.publishTopic(created.id);
-      }
       const supervisorIds = [proposeSupervisorId, proposeSecondSupervisorId]
         .map((id) => id.trim())
         .filter(Boolean);
+      let supervisorsAssigned = false;
       if (supervisorIds.length > 0) {
         try {
           await thesisApi.setSupervisors(created.id, supervisorIds);
+          supervisorsAssigned = true;
         } catch (caught) {
           // The topic exists, but a silently dropped supervisor assignment
           // leaves the topic ungradeable — surface the failure with the
@@ -1402,21 +1433,38 @@ export default function ThesisPage() {
           );
         }
       }
+      let publishCreated = false;
+      if (isTopicApprover && proposePublishImmediately && supervisorsAssigned) {
+        try {
+          await thesisApi.publishTopic(created.id);
+          publishCreated = true;
+        } catch (caught) {
+          // A rejected approval leaves the saved draft available for review;
+          // retrying the create form would otherwise create a second proposal.
+          const message = topicActionErrorMessage(caught);
+          setActionError(message);
+          toast.error(message);
+        }
+      }
       if (selectedRoundId !== targetRoundId) {
         setSelectedRoundId(targetRoundId);
       } else {
-        await refreshTopics(targetRoundId);
+        try {
+          await refreshTopics(targetRoundId);
+        } catch {
+          setError(messages.thesis.loadFailed);
+        }
       }
       setIsProposeModalOpen(false);
       setProposeTitle('');
       setProposeDescription('');
       setProposeDepartmentId(departments[0]?.id || '');
       setProposeMaxGroups(2);
-      setProposePublishImmediately(true);
+      setProposePublishImmediately(false);
       setProposeSupervisorId('');
       setProposeSecondSupervisorId('');
       setActionSuccess(
-        proposePublishImmediately
+        publishCreated
           ? messages.thesis.publishedSuccess
           : messages.thesis.proposeSuccess,
       );
@@ -1437,6 +1485,7 @@ export default function ThesisPage() {
   };
 
   const openEditModal = (topic: ThesisTopic) => {
+    if (isActionPending || !topicCapabilities(topic).canEdit) return;
     setEditingTopicId(topic.id);
     setEditTitle(topic.title);
     setEditDescription(topic.description);
@@ -1448,7 +1497,8 @@ export default function ThesisPage() {
 
   const handleEditTopic = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!editingTopicId) return;
+    const topic = topics.find((item) => item.id === editingTopicId);
+    if (isActionPending || !topic || !topicCapabilities(topic).canEdit) return;
     const title = editTitle.trim();
     const description = editDescription.trim();
     const departmentId = editDepartmentId.trim();
@@ -1486,28 +1536,78 @@ export default function ThesisPage() {
     }
   };
 
+  const topicActionErrorMessage = (caught: unknown) => {
+    const code = getThesisErrorCode(caught);
+    const status = (caught as { response?: { status?: number } })?.response?.status;
+    if (code === 'TOPIC_IN_USE') return messages.thesis.topicInUse;
+    if (code === 'TOPIC_STATE_CONFLICT') return messages.thesis.topicStateConflict;
+    if (code === 'ROUND_NOT_ACCEPTING_PROPOSALS') return messages.thesis.roundNotAcceptingProposals;
+    if (code === 'LECTURER_WINDOW_NOT_OPEN') return messages.thesis.lecturerWindowNotOpen;
+    if (code === 'LECTURER_WINDOW_CLOSED') return messages.thesis.lecturerWindowClosed;
+    if (code === 'FORBIDDEN' || status === 403) return messages.thesis.topicActionForbidden;
+    return messages.thesis.actionFailed;
+  };
+
   const handlePublishTopic = async (topicId: string) => {
+    const topic = topics.find((item) => item.id === topicId);
+    if (isActionPending || !topic || !topicCapabilities(topic).canPublish) return;
     setIsActionPending(true);
+    setTopicActionError('');
     setActionError('');
     setActionSuccess('');
     try {
-      await thesisApi.publishTopic(topicId);
-      await refreshTopics(selectedRoundId);
+      const published = await thesisApi.publishTopic(topicId);
+      setTopics((current) => current.map((item) => item.id === published.id ? published : item));
+      setViewingTopic((current) => current?.id === published.id ? published : current);
       setActionSuccess(messages.thesis.publishedSuccess);
-    } catch (caught) {
-      const code = getThesisErrorCode(caught);
-      if (code === 'TOPIC_STATE_CONFLICT') {
-        setActionError(messages.thesis.topicStateConflict);
-      } else if (code === 'ROUND_NOT_ACCEPTING_PROPOSALS') {
-        setActionError(messages.thesis.roundNotAcceptingProposals);
-      } else if (code === 'LECTURER_WINDOW_NOT_OPEN') {
-        setActionError(messages.thesis.lecturerWindowNotOpen);
-      } else if (code === 'LECTURER_WINDOW_CLOSED') {
-        setActionError(messages.thesis.lecturerWindowClosed);
-      } else {
-        setActionError(messages.thesis.actionFailed);
+      toast.success(messages.thesis.publishedSuccess);
+      try {
+        await refreshTopics(topic.roundId);
+      } catch {
+        setError(messages.thesis.loadFailed);
       }
+    } catch (caught) {
+      const message = topicActionErrorMessage(caught);
+      setTopicActionError(message);
+      toast.error(message);
     } finally {
+      setIsActionPending(false);
+    }
+  };
+
+  const handleArchiveTopic = async (topic: ThesisTopic) => {
+    if (isActionPending || !topicCapabilities(topic).canArchive) return;
+    setIsActionPending(true);
+    setTopicActionError('');
+    setActionError('');
+    setActionSuccess('');
+    try {
+      setIsArchiveConfirmationOpen(true);
+      const approved = await confirm({
+        title: messages.thesis.archiveTopicTitle,
+        message: fillCopy(messages.thesis.archiveTopicConfirm, { title: topic.title }),
+        confirmText: messages.thesis.archiveTopic,
+        cancelText: messages.common.actions.cancel,
+        variant: 'destructive',
+      });
+      setIsArchiveConfirmationOpen(false);
+      if (!approved) return;
+      await thesisApi.archiveTopic(topic.id);
+      setTopics((current) => current.filter((item) => item.id !== topic.id));
+      setViewingTopic((current) => current?.id === topic.id ? null : current);
+      setActionSuccess(messages.thesis.archiveTopicSuccess);
+      toast.success(messages.thesis.archiveTopicSuccess);
+      try {
+        await refreshTopics(topic.roundId);
+      } catch {
+        setError(messages.thesis.loadFailed);
+      }
+    } catch (caught) {
+      const message = topicActionErrorMessage(caught);
+      setTopicActionError(message);
+      toast.error(message);
+    } finally {
+      setIsArchiveConfirmationOpen(false);
       setIsActionPending(false);
     }
   };
@@ -1993,7 +2093,7 @@ export default function ThesisPage() {
         description={messages.thesis.description}
         actions={
           <div className="flex flex-wrap items-end gap-3">
-            {isSupervisorOrAdmin && selectedRound ? (
+            {canProposeTopics && selectedRound ? (
               <Button
                 type="button"
                 onClick={() => {
@@ -2084,10 +2184,15 @@ export default function ThesisPage() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <WorkspaceMetricCard label={messages.thesis.roundStatus} value={statusLabel(selectedRound.status)} icon={<CalendarDays className="h-5 w-5" />} toneClassName={metricToneClass('warning')} />
             <WorkspaceMetricCard label={messages.thesis.topics} value={topics.length} icon={<FileStack className="h-5 w-5" />} toneClassName={metricToneClass('info')} />
-            <WorkspaceMetricCard label={messages.thesis.groups} value={groups.length} icon={<UsersRound className="h-5 w-5" />} toneClassName={metricToneClass('success')} />
-            <WorkspaceMetricCard label={messages.thesis.groupsTitle} value={currentGroup ? currentGroup.memberStudentIds.length : 0} icon={<Check className="h-5 w-5" />} toneClassName={metricToneClass('neutral')} />
+            {canLoadStaffRelations || isStudent ? (
+              <>
+                <WorkspaceMetricCard label={messages.thesis.groups} value={groups.length} icon={<UsersRound className="h-5 w-5" />} toneClassName={metricToneClass('success')} />
+                <WorkspaceMetricCard label={messages.thesis.groupsTitle} value={currentGroup ? currentGroup.memberStudentIds.length : 0} icon={<Check className="h-5 w-5" />} toneClassName={metricToneClass('neutral')} />
+              </>
+            ) : null}
           </div>
 
+          {canLoadStaffRelations || isStudent ? (
           <Card variant="muted">
             <CardHeader>
               <CardTitle>{messages.thesis.lifecycleViewsTitle}</CardTitle>
@@ -2099,7 +2204,7 @@ export default function ThesisPage() {
                 // The advisor directory reads the staff-only faculty directory
                 // (STUDENT is pinned to 403 by PeopleRead boundary tests), so
                 // students see the catalog and progress cards only.
-                ...(isSupervisorOrAdmin ? ([['advisors', '/dashboard/thesis/advisors']] as const) : []),
+                ...(canLoadStaffRelations ? ([['advisors', '/dashboard/thesis/advisors']] as const) : []),
                 ['progress', '/dashboard/thesis/progress'],
               ] as const).map(([key, href]) => (
                 <LocalizedLink
@@ -2115,6 +2220,7 @@ export default function ThesisPage() {
               ))}
             </CardContent>
           </Card>
+          ) : null}
 
           {/* Lecturer & Supervisor Review Section */}
           {isSupervisorOrAdmin ? (
@@ -2138,7 +2244,7 @@ export default function ThesisPage() {
                     )}
                   >
                     <BookOpen className="h-4 w-4" />
-                    <span>{pageCopy.tabTopicsAndSupervisors}</span>
+                    <span>{canLoadStaffRelations ? pageCopy.tabTopicsAndSupervisors : messages.thesis.topicApprovalTitle}</span>
                     <span
                       className={cn(
                         'rounded-md px-2 py-0.5 text-[11px] font-mono font-bold',
@@ -2147,9 +2253,13 @@ export default function ThesisPage() {
                           : 'bg-muted text-foreground',
                       )}
                     >
-                      {fillCopy(pageCopy.groupsCount, { count: supervisedGroups.length })}
+                      {canLoadStaffRelations
+                        ? fillCopy(pageCopy.groupsCount, { count: supervisedGroups.length })
+                        : managedTopics.length}
                     </span>
                   </button>
+                  {canLoadStaffRelations ? (
+                  <>
                   <button
                     type="button"
                     role="tab"
@@ -2206,14 +2316,64 @@ export default function ThesisPage() {
                       {fillCopy(pageCopy.reportsCount, { count: repositoryReports.length })}
                     </span>
                   </button>
+                  </>
+                  ) : null}
                 </div>
                 <span className="text-xs text-muted-foreground font-medium">
-                    {pageCopy.workspaceAreaLabel} <strong className="text-primary">{isAdmin ? pageCopy.roleAdmin : pageCopy.roleLecturer}</strong> {pageCopy.facultySuffix}
+                    {pageCopy.workspaceAreaLabel} <strong className="text-primary">{isAdmin ? pageCopy.roleAdmin : isDepartmentHead ? messages.thesis.departmentHeadRole : pageCopy.roleLecturer}</strong> {pageCopy.facultySuffix}
                 </span>
               </div>
 
-              {lecturerTab === 'supervision' ? (
+              {lecturerTab === 'supervision' || !canLoadStaffRelations ? (
                 <div className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>{isTopicApprover ? messages.thesis.topicApprovalTitle : messages.thesis.myProposedTopics}</CardTitle>
+                      <CardDescription>{isTopicApprover ? messages.thesis.topicApprovalDescription : messages.thesis.myProposedTopicsDescription}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {managedTopics.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          {isTopicApprover ? messages.thesis.noTopicsForApproval : messages.thesis.noProposedTopics}
+                        </p>
+                      ) : (
+                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                          {managedTopics.map((topic) => (
+                            <div key={topic.id} className="flex flex-col gap-3 rounded-lg border border-border/70 bg-card p-4">
+                              <h3 className="line-clamp-2 text-sm font-semibold text-foreground" title={topic.title}>{topic.title}</h3>
+                              <span className={cn(
+                                'w-fit rounded-md border px-2 py-1 text-xs font-medium',
+                                topic.status === 'DRAFT'
+                                  ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                                  : 'border-status-success/30 bg-status-success/10 text-status-success-foreground',
+                              )}>
+                                {topic.status === 'DRAFT' ? messages.thesis.pendingTopicApproval : statusLabel(topic.status)}
+                              </span>
+                              <p className="text-xs text-muted-foreground">
+                                {getLocalizedName(locale, departments.find((department) => department.id === topic.departmentId), topic.departmentId)}
+                                {' · '}{topic.maxGroups} {messages.thesis.groups.toLowerCase()}
+                              </p>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="mt-auto w-fit"
+                                disabled={isActionPending}
+                                onClick={() => {
+                                  setTopicActionError('');
+                                  setViewingTopic(topic);
+                                }}
+                                aria-label={`${messages.thesis.viewTopic}: ${topic.title}`}
+                              >
+                                {messages.thesis.viewTopic}
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                  {canLoadStaffRelations ? (
                   <SupervisedGroupList
                     messages={messages}
                     title={messages.thesis.supervisedGroupsTitle}
@@ -2232,6 +2392,7 @@ export default function ThesisPage() {
                     onReject={openRejectModal}
                     onDownloadReport={downloadReportArtifact}
                   />
+                  ) : null}
                 </div>
               ) : lecturerTab === 'defense' ? (
                 <div className="space-y-6">
@@ -2264,6 +2425,17 @@ export default function ThesisPage() {
                     councilScoreErrors={councilScoreErrors}
                     topicSupervisors={topicSupervisors}
                     topicReports={topicReports}
+                    topicReportErrors={topicReportErrors}
+                    onRetryTopicReport={async (topicId) => {
+                      try {
+                        const report = await thesisApi.getTopicReport(topicId);
+                        setTopicReports((prev) => ({ ...prev, [topicId]: report }));
+                        setTopicReportErrors((prev) => ({ ...prev, [topicId]: false }));
+                      } catch {
+                        setTopicReports((prev) => ({ ...prev, [topicId]: null }));
+                        setTopicReportErrors((prev) => ({ ...prev, [topicId]: true }));
+                      }
+                    }}
                     draftScores={draftScores}
                     draftComments={draftComments}
                     isActionPending={isActionPending}
@@ -2481,7 +2653,7 @@ export default function ThesisPage() {
 
       {/* Propose Topic Modal */}
       <Modal
-        isOpen={isProposeModalOpen}
+        isOpen={isProposeModalOpen && canProposeTopics}
         onClose={() => {
           if (!isActionPending) setIsProposeModalOpen(false);
         }}
@@ -2653,16 +2825,28 @@ export default function ThesisPage() {
               showTemplates={true}
             />
           </div>
+          {isTopicApprover ? (
+          <div className="space-y-2">
           <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
             <input
               type="checkbox"
               checked={proposePublishImmediately}
               onChange={(e) => setProposePublishImmediately(e.target.checked)}
-              disabled={isActionPending}
+              disabled={isActionPending || !proposeSupervisorId ||
+                rounds.find((round) => round.id === (proposeRoundId || selectedRoundId))?.status !== 'PROPOSAL_OPEN'}
               className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
             />
             <span>{messages.thesis.publishImmediately}</span>
           </label>
+          {!proposeSupervisorId ? (
+            <p className="text-xs text-muted-foreground">{messages.thesis.publishAfterSupervisors}</p>
+          ) : null}
+          </div>
+          ) : (
+            <p className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+              {messages.thesis.pendingTopicApprovalNotice}
+            </p>
+          )}
           <div className="flex justify-end gap-2 pt-2">
             <Button
               type="button"
@@ -2948,12 +3132,22 @@ export default function ThesisPage() {
       {/* Topic Detail & Selection Modal */}
       {viewingTopic ? (
         <Modal
-          isOpen={Boolean(viewingTopic)}
-          onClose={() => setViewingTopic(null)}
+          isOpen={Boolean(viewingTopic) && !isArchiveConfirmationOpen}
+          onClose={() => { if (!isActionPending) setViewingTopic(null); }}
           title={viewingTopic.title}
-          description={`${viewingTopic.maxGroups} ${messages.thesis.groups.toLowerCase()} • ${statusLabel(viewingTopic.status)}`}
+          description={`${viewingTopic.maxGroups} ${messages.thesis.groups.toLowerCase()} • ${viewingTopic.status === 'DRAFT' ? messages.thesis.pendingTopicApproval : statusLabel(viewingTopic.status)}`}
         >
           <div className="space-y-4">
+            {topicActionError ? (
+              <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                {topicActionError}
+              </p>
+            ) : null}
+            {viewingTopic.status === 'DRAFT' ? (
+              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+                {messages.thesis.pendingTopicApprovalNotice}
+              </p>
+            ) : null}
             {viewingTopic.departmentId ? (
               <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 p-2.5 text-xs text-muted-foreground">
                 <Building2 className="h-4 w-4 shrink-0 text-primary" />
@@ -2972,6 +3166,7 @@ export default function ThesisPage() {
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
+              {canLoadStaffRelations || isStudent ? (
               <LocalizedLink
                 href={`/dashboard/thesis/topics/${viewingTopic.id}`}
                 className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
@@ -2979,6 +3174,7 @@ export default function ThesisPage() {
                 <ExternalLink className="h-3.5 w-3.5" />
                 {locale === 'vi' ? 'Mở trang chuyên sâu' : 'Open dedicated topic page'}
               </LocalizedLink>
+              ) : null}
 
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -2986,19 +3182,14 @@ export default function ThesisPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setViewingTopic(null)}
+                  disabled={isActionPending}
                 >
                   {locale === 'vi' ? 'Đóng' : 'Close'}
                 </Button>
 
-                {/* Feedback item 6: the topic catalog is the only place a topic
-                    is chosen, so the modal offers no student chooser. The
-                    lecturer branch below stays because publishing a draft is
-                    not a topic selection (item 12 keeps lecturers off the
-                    chooser). */}
-                {isSupervisorOrAdmin &&
-                  (isAdmin || viewingTopic.createdBy === user?.id || (user?.lecturerId && viewingTopic.createdBy === user.lecturerId)) &&
-                  viewingTopic.status === 'DRAFT' ? (
-                  <>
+                {/* Governance approves a draft; ownership alone permits editing.
+                    Student topic selection remains in the published catalog. */}
+                {topicCapabilities(viewingTopic).canEdit ? (
                     <Button
                       type="button"
                       variant="outline"
@@ -3008,21 +3199,35 @@ export default function ThesisPage() {
                     >
                       {messages.thesis.editTopic}
                     </Button>
+                ) : null}
+                {topicCapabilities(viewingTopic).canPublish ? (
                     <Button
                       type="button"
                       size="sm"
-                      onClick={() => {
-                        void handlePublishTopic(viewingTopic.id);
-                        setViewingTopic(null);
-                      }}
+                      onClick={() => void handlePublishTopic(viewingTopic.id)}
                       disabled={isActionPending}
                     >
-                      {messages.thesis.publish}
+                      {isActionPending ? messages.common.states.loading : messages.thesis.approveTopic}
                     </Button>
-                  </>
+                ) : null}
+                {topicCapabilities(viewingTopic).canRequestArchive ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleArchiveTopic(viewingTopic)}
+                    disabled={isActionPending || !topicCapabilities(viewingTopic).canArchive}
+                    title={!topicCapabilities(viewingTopic).canArchive ? messages.thesis.topicInUse : undefined}
+                  >
+                    <Archive className="mr-1.5 h-4 w-4" />
+                    {isActionPending ? messages.common.states.loading : messages.thesis.archiveTopic}
+                  </Button>
                 ) : null}
               </div>
             </div>
+            {topicCapabilities(viewingTopic).canRequestArchive && !topicCapabilities(viewingTopic).canArchive ? (
+              <p className="text-xs text-muted-foreground">{messages.thesis.topicInUse}</p>
+            ) : null}
           </div>
         </Modal>
       ) : null}

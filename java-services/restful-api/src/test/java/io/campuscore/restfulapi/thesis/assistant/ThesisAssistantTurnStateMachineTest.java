@@ -17,12 +17,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
+import io.campuscore.restfulapi.thesis.ThesisAuthorityFixture;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -37,6 +39,7 @@ class ThesisAssistantTurnStateMachineTest {
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper mapper;
     @Autowired private NamedParameterJdbcTemplate jdbc;
+    @Autowired private JdbcTemplate plainJdbc;
 
     @Test
     void sameKeyReplaysExactlyOneCommittedExchange() throws Exception {
@@ -233,8 +236,7 @@ class ThesisAssistantTurnStateMachineTest {
         return new MapSqlParameterSource().addValue("owner", owner).addValue("key", key);
     }
 
-    private static RequestPostProcessor student(String subject) {
-        return jwt().jwt(token -> token.subject(subject))
-                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+    private RequestPostProcessor student(String subject) {
+        return ThesisAuthorityFixture.student(plainJdbc, subject);
     }
 }

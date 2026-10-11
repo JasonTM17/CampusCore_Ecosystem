@@ -99,14 +99,14 @@ class ThesisGroupMembershipIntegrityTest {
     }
 
     @Test
-    void supervisorCanReplaceAThirdApprovedMemberWithoutReopeningApproval() throws Exception {
-        UUID groupId = threeMemberGroup();
+    void supervisorCanReplaceAnApprovedMemberWithoutFallingBelowThree() throws Exception {
+        UUID groupId = groupOfSize(4);
         approveWithSupervisor(groupId);
         List<MemberRow> before = members(groupId);
         ensureActiveStudent("tmi-replacement");
 
         removeMember(groupId, "tmi-member-2", lecturerJwt(SUPERVISOR)).andExpect(status().isOk());
-        assertThat(members(groupId)).hasSize(2);
+        assertThat(members(groupId)).hasSize(3);
         addMember(groupId, "tmi-replacement", lecturerJwt(SUPERVISOR)).andExpect(status().isOk());
 
         assertReplacement(groupId, before, "tmi-member-2", "tmi-replacement");
@@ -114,8 +114,8 @@ class ThesisGroupMembershipIntegrityTest {
     }
 
     @Test
-    void repeatedReplacementDoesNotExhaustTheThreeOrderSlots() throws Exception {
-        UUID groupId = threeMemberGroup();
+    void repeatedReplacementDoesNotExhaustTheFiveOrderSlots() throws Exception {
+        UUID groupId = groupOfSize(5);
         List<MemberRow> before = members(groupId);
         String replaced = "tmi-member-2";
 
@@ -131,7 +131,7 @@ class ThesisGroupMembershipIntegrityTest {
 
     @Test
     void approvedLeaderStillCannotChangeTheRoster() throws Exception {
-        UUID groupId = threeMemberGroup();
+        UUID groupId = groupOfSize(4);
         approveWithSupervisor(groupId);
         removeMember(groupId, "tmi-member-2", lecturerJwt(SUPERVISOR)).andExpect(status().isOk());
         ensureActiveStudent("tmi-replacement");
@@ -149,26 +149,27 @@ class ThesisGroupMembershipIntegrityTest {
     }
 
     @Test
-    void supervisorCanReduceAnApprovedRosterToTheLeaderAlone() throws Exception {
-        // The spec floor is one member (the leader), so removing down to a
-        // single-member roster no longer trips GROUP_TOO_SMALL; the leader row
-        // itself is still protected by LEADER_CANNOT_BE_REMOVED.
-        UUID groupId = threeMemberGroup();
+    void supervisorCanReduceAnApprovedRosterToThreeAndCannotGoLower() throws Exception {
+        UUID groupId = groupOfSize(4);
         approveWithSupervisor(groupId);
-        removeMember(groupId, "tmi-member-2", lecturerJwt(SUPERVISOR)).andExpect(status().isOk());
-        removeMember(groupId, "tmi-member-3", lecturerJwt(SUPERVISOR)).andExpect(status().isOk());
-        assertThat(members(groupId)).hasSize(1);
+        removeMember(groupId, "tmi-member-4", lecturerJwt(SUPERVISOR)).andExpect(status().isOk());
+        List<MemberRow> before = members(groupId);
+        removeMember(groupId, "tmi-member-2", lecturerJwt(SUPERVISOR)).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("GROUP_TOO_SMALL"));
+        removeMember(groupId, "tmi-member-3", lecturerJwt(SUPERVISOR)).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("GROUP_TOO_SMALL"));
+        assertThat(members(groupId)).containsExactlyElementsOf(before).hasSize(3);
         assertThat(approvalStatus(groupId)).isEqualTo("APPROVED");
 
         removeMember(groupId, LEADER, lecturerJwt(SUPERVISOR))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("LEADER_CANNOT_BE_REMOVED"));
-        assertThat(members(groupId)).hasSize(1);
+        assertThat(members(groupId)).containsExactlyElementsOf(before);
     }
 
     @Test
     void fullRosterAndLeaderRemovalAreStillRejectedWithoutWrites() throws Exception {
-        UUID groupId = threeMemberGroup();
+        UUID groupId = groupOfSize(5);
         ensureActiveStudent("tmi-extra");
         List<MemberRow> before = members(groupId);
 
@@ -184,7 +185,7 @@ class ThesisGroupMembershipIntegrityTest {
 
     @Test
     void aClosedRoundStillRejectsSupervisorMembershipChanges() throws Exception {
-        UUID groupId = threeMemberGroup();
+        UUID groupId = groupOfSize(4);
         approveWithSupervisor(groupId);
         removeMember(groupId, "tmi-member-2", lecturerJwt(SUPERVISOR)).andExpect(status().isOk());
         ensureActiveStudent("tmi-replacement");
@@ -284,9 +285,10 @@ class ThesisGroupMembershipIntegrityTest {
 
     private void assertReplacement(UUID groupId, List<MemberRow> before, String removed, String replacement) {
         List<MemberRow> after = members(groupId);
-        assertThat(after).hasSize(3)
+        assertThat(after).hasSize(before.size())
                 .containsAll(before.stream().filter(member -> !member.studentId().equals(removed)).toList());
-        assertThat(after.stream().map(MemberRow::order).toList()).containsExactly(1, 2, 3);
+        assertThat(after.stream().map(MemberRow::order).toList())
+                .containsExactlyElementsOf(java.util.stream.IntStream.rangeClosed(1, before.size()).boxed().toList());
         assertThat(after.stream().filter(MemberRow::leader).toList()).hasSize(1);
         assertThat(after.stream().filter(member -> member.studentId().equals(replacement)).toList())
                 .singleElement().satisfies(member -> {
@@ -296,6 +298,10 @@ class ThesisGroupMembershipIntegrityTest {
     }
 
     private UUID threeMemberGroup() throws Exception {
+        return groupOfSize(3);
+    }
+
+    private UUID groupOfSize(int memberCount) throws Exception {
         UUID roundId = insertLiveRound();
         ensureActiveStudent(LEADER);
         mvc.perform(post("/api/v1/thesis/groups")
@@ -305,7 +311,7 @@ class ThesisGroupMembershipIntegrityTest {
                 .andExpect(status().isOk());
         UUID groupId = jdbc.queryForObject(
                 "SELECT id FROM thesis.thesis_group WHERE round_id = ?", UUID.class, roundId);
-        for (int order = 2; order <= 3; order++) {
+        for (int order = 2; order <= memberCount; order++) {
             String studentId = "tmi-member-" + order;
             ensureActiveStudent(studentId);
             addMember(groupId, studentId, studentJwt(LEADER)).andExpect(status().isOk());
@@ -397,20 +403,15 @@ class ThesisGroupMembershipIntegrityTest {
     }
 
     private RequestPostProcessor studentJwt(String studentId) {
-        return jwt().jwt(token -> token.subject("tmi-user-" + studentId)
-                        .claim("roles", List.of("STUDENT")).claim("studentId", studentId))
-                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+        return ThesisAuthorityFixture.student(jdbc, studentId);
     }
 
     private RequestPostProcessor lecturerJwt(String lecturerId) {
-        return jwt().jwt(token -> token.subject("tmi-user-" + lecturerId)
-                        .claim("roles", List.of("LECTURER")).claim("lecturerId", lecturerId))
-                .authorities(new SimpleGrantedAuthority("ROLE_LECTURER"));
+        return ThesisAuthorityFixture.lecturer(jdbc, lecturerId);
     }
 
     private RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token.subject("tmi-admin").claim("roles", List.of("ADMIN")))
-                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        return ThesisAuthorityFixture.role(jdbc, "tmi-admin", "ADMIN");
     }
 
     private record MemberRow(UUID id, String studentId, int order, boolean leader) {

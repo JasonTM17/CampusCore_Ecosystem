@@ -161,9 +161,15 @@ public class ThesisMutationController {
     }
 
     @PostMapping("/topics/{id}/publish")
-    @PreAuthorize("hasAnyRole('ADMIN','TRUONG_KHOA','LECTURER','SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','TRUONG_KHOA','TRUONG_BO_MON','SUPER_ADMIN')")
     public TopicResponse publishTopic(@PathVariable UUID id, @AuthenticationPrincipal Jwt actor) {
         return mutations.publishTopic(id, actor);
+    }
+
+    @PostMapping("/topics/{id}/archive")
+    @PreAuthorize("hasAnyRole('ADMIN','TRUONG_KHOA','TRUONG_BO_MON','LECTURER','SUPER_ADMIN')")
+    public TopicResponse archiveTopic(@PathVariable UUID id, @AuthenticationPrincipal Jwt actor) {
+        return mutations.archiveTopic(id, actor);
     }
 
     /** Brief R3: replace the topic's supervisor list (one or two lecturers). */
@@ -183,7 +189,7 @@ public class ThesisMutationController {
      * withholds contact details from anyone who is not staff or the owner.
      */
     @GetMapping("/topics/{id}/supervisors")
-    @PreAuthorize("hasAnyRole('ADMIN','TRUONG_KHOA','LECTURER','STUDENT','SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','TRUONG_KHOA','TRUONG_BO_MON','LECTURER','STUDENT','SUPER_ADMIN')")
     public List<ThesisSupervisorService.SupervisorRow> listSupervisors(
             @PathVariable UUID id,
             @AuthenticationPrincipal Jwt actor) {

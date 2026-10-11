@@ -26,7 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 /**
- * Faculty-spec alignment regressions: the 1-3 member cap, the GVPB
+ * Faculty-spec alignment regressions: the 3-5 member policy, the GVPB
  * counter-reviewer flow (assignment, deadline, supervisor exclusion, comment,
  * frozen reassignment), round update/cancel lifecycle, and approval audit.
  */
@@ -220,10 +220,10 @@ class ThesisSpecAlignmentTest {
     // ---------- R4/R7: group cap + approval audit ----------
 
     @Test
-    void aFourthMemberIsRejectedAndApprovalWritesAnAuditRow() throws Exception {
+    void aSixthMemberIsRejectedAndApprovalWritesAnAuditRow() throws Exception {
         UUID roundId = insertRound("sa-cap-round", "REGISTRATION_OPEN");
         ensureStudent("sa-leader-1");
-        for (int i = 2; i <= 4; i++) {
+        for (int i = 2; i <= 6; i++) {
             ensureStudent("sa-member-" + i);
         }
         mvc.perform(post("/api/v1/thesis/groups")
@@ -233,10 +233,10 @@ class ThesisSpecAlignmentTest {
                 .andExpect(status().isOk());
         UUID groupId = jdbc.queryForObject(
                 "SELECT id FROM thesis.thesis_group WHERE round_id = ?", UUID.class, roundId);
-        for (int i = 2; i <= 3; i++) {
+        for (int i = 2; i <= 5; i++) {
             addMember(groupId, "sa-member-" + i).andExpect(status().isOk());
         }
-        addMember(groupId, "sa-member-4")
+        addMember(groupId, "sa-member-6")
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("GROUP_FULL"));
 
@@ -323,25 +323,14 @@ class ThesisSpecAlignmentTest {
     }
 
     private RequestPostProcessor studentJwt(String studentId) {
-        return jwt().jwt(token -> token
-                        .subject("sa-user-" + studentId)
-                        .claim("roles", List.of("STUDENT"))
-                        .claim("studentId", studentId))
-                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+        return ThesisAuthorityFixture.student(jdbc, studentId);
     }
 
     private RequestPostProcessor lecturerJwt(String lecturerId) {
-        return jwt().jwt(token -> token
-                        .subject("sa-user-" + lecturerId)
-                        .claim("roles", List.of("LECTURER"))
-                        .claim("lecturerId", lecturerId))
-                .authorities(new SimpleGrantedAuthority("ROLE_LECTURER"));
+        return ThesisAuthorityFixture.lecturer(jdbc, lecturerId);
     }
 
     private RequestPostProcessor truongKhoaJwt() {
-        return jwt().jwt(token -> token
-                        .subject("sa-tk-user")
-                        .claim("roles", List.of("TRUONG_KHOA")))
-                .authorities(new SimpleGrantedAuthority("ROLE_TRUONG_KHOA"));
+        return ThesisAuthorityFixture.role(jdbc, "sa-tk-user", "TRUONG_KHOA");
     }
 }

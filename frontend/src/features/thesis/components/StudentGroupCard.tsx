@@ -117,7 +117,7 @@ export default function StudentGroupCard({
                 </h4>
               </div>
 
-              {canManageMembers && members.length < 3 ? (
+              {canManageMembers && members.length < 5 ? (
                 <Button
                   type="button"
                   size="sm"
@@ -152,6 +152,11 @@ export default function StudentGroupCard({
                 <CircleDot className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
                 <div>
                   {renderInlineBold(pageCopy.topicPendingNotice)}
+                  {members.length < 3 ? (
+                    <p className="mt-1">
+                      {messages.thesis.membersNeededForApproval.replace('{count}', String(3 - members.length))}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             ) : (
@@ -170,7 +175,7 @@ export default function StudentGroupCard({
                   {messages.thesis.memberCount.replace('{count}', String(members.length))}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {members.length >= 3 ? messages.thesis.maxMembersReached : ''}
+                  {members.length >= 5 ? messages.thesis.maxMembersReached : ''}
                 </span>
               </div>
 

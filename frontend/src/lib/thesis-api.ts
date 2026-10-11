@@ -240,6 +240,43 @@ export interface ThesisTopic {
   gvpbLecturerId?: string | null;
 }
 
+/** UI capabilities for a topic returned by the authenticated staff catalog.
+ * The server scopes department-head catalog responses to their active department;
+ * membership in that catalog is required before showing departmental actions.
+ * Mutation endpoints remain the authority for live roles, timing and history.
+ */
+export function getThesisTopicCapabilities(
+  topic: ThesisTopic,
+  context: {
+    roles: readonly string[];
+    userId?: string;
+    lecturerId?: string | null;
+    roundStatus?: ThesisRoundStatus;
+    inDepartmentCatalog: boolean;
+    hasHistory: boolean;
+  },
+): { canEdit: boolean; canPublish: boolean; canRequestArchive: boolean; canArchive: boolean } {
+  const isGlobalGovernor = context.roles.some((role) =>
+    ['ADMIN', 'SUPER_ADMIN', 'TRUONG_KHOA'].includes(role),
+  );
+  const isDepartmentGovernor =
+    context.roles.includes('TRUONG_BO_MON') && context.inDepartmentCatalog;
+  const isLecturerOwner = context.roles.includes('LECTURER') && Boolean(
+    (context.userId && topic.createdBy === context.userId) ||
+    (context.lecturerId && topic.createdBy === context.lecturerId),
+  );
+  const canRequestArchive =
+    (topic.status === 'DRAFT' || topic.status === 'PUBLISHED' || topic.status === 'APPROVED') &&
+    (isGlobalGovernor || isDepartmentGovernor || isLecturerOwner);
+  return {
+    canEdit: topic.status === 'DRAFT' && (isGlobalGovernor || isLecturerOwner),
+    canPublish: topic.status === 'DRAFT' && context.roundStatus === 'PROPOSAL_OPEN' &&
+      (isGlobalGovernor || isDepartmentGovernor),
+    canRequestArchive,
+    canArchive: canRequestArchive && !context.hasHistory,
+  };
+}
+
 export interface ThesisGroupMember {
   studentId: string;
   studentNumber?: string | null;
@@ -924,6 +961,13 @@ export const thesisApi = {
   publishTopic: async (topicId: string): Promise<ThesisTopic> => {
     const response = await api.post<ThesisTopic>(
       '/thesis/topics/' + topicId + '/publish',
+    );
+    return response.data;
+  },
+
+  archiveTopic: async (topicId: string): Promise<ThesisTopic> => {
+    const response = await api.post<ThesisTopic>(
+      '/thesis/topics/' + topicId + '/archive',
     );
     return response.data;
   },

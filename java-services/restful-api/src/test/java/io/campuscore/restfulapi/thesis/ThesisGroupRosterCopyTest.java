@@ -28,8 +28,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 /**
- * The faculty spec caps a group at three members ({@code MIN_GROUP_MEMBERS = 1},
- * {@code MAX_GROUP_MEMBERS = 3}) with exactly one leader. The error copy must
+ * The current rubric requires three to five members ({@code MIN_GROUP_MEMBERS = 3},
+ * {@code MAX_GROUP_MEMBERS = 5}) with exactly one leader. The error copy must
  * state that range — the catalogue entry, the capacity refusal and the removal
  * refusal all name it instead of a bare "too small" or "full".
  */
@@ -62,9 +62,9 @@ class ThesisGroupRosterCopyTest {
     }
 
     @Test
-    void catalogueCopyStatesTheOneToThreeRange() {
-        assertThatMessage(ErrorCode.GROUP_TOO_SMALL, HttpStatus.CONFLICT, "1 to 3");
-        assertThatMessage(ErrorCode.GROUP_FULL, HttpStatus.CONFLICT, "1 to 3");
+    void catalogueCopyStatesTheThreeToFiveRange() {
+        assertThatMessage(ErrorCode.GROUP_TOO_SMALL, HttpStatus.CONFLICT, "3 to 5");
+        assertThatMessage(ErrorCode.GROUP_FULL, HttpStatus.CONFLICT, "3 to 5");
     }
 
     @Test
@@ -72,7 +72,7 @@ class ThesisGroupRosterCopyTest {
         UUID roundId = insertLiveRound("gc-capacity-round");
         UUID topicId = insertPublishedTopic(roundId);
         ensureActiveStudent("gc-leader", "gc-user-leader");
-        for (int index = 2; index <= 4; index++) {
+        for (int index = 2; index <= 6; index++) {
             ensureActiveStudent("gc-member-" + index, "gc-user-member-" + index);
         }
         mvc.perform(post("/api/v1/thesis/groups")
@@ -88,8 +88,8 @@ class ThesisGroupRosterCopyTest {
                         .with(studentJwt("gc-leader")))
                 .andExpect(status().isOk());
 
-        // Two members join the leader to reach the three-member cap.
-        for (int index = 2; index <= 3; index++) {
+        // Four members join the leader to reach the five-member cap.
+        for (int index = 2; index <= 5; index++) {
             mvc.perform(post("/api/v1/thesis/groups/{id}/members", groupId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"studentId\":\"gc-member-" + index + "\"}")
@@ -98,16 +98,15 @@ class ThesisGroupRosterCopyTest {
         }
         mvc.perform(post("/api/v1/thesis/groups/{id}/members", groupId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"studentId\":\"gc-member-4\"}")
+                        .content("{\"studentId\":\"gc-member-6\"}")
                         .with(studentJwt("gc-leader")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("GROUP_FULL"))
-                .andExpect(jsonPath("$.message", containsString("1 to 3")));
+                .andExpect(jsonPath("$.message", containsString("3 to 5")));
     }
 
     @Test
-    void removalToTheLeaderAloneIsAllowed() throws Exception {
-        // The floor is one member (the leader): removing the last peer is fine.
+    void removalBelowThreeStatesTheRequiredRangeAndKeepsTheRoster() throws Exception {
         UUID roundId = insertLiveRound("gc-removal-round");
         UUID groupId = UUID.randomUUID();
         jdbc.update(
@@ -117,17 +116,25 @@ class ThesisGroupRosterCopyTest {
         insertMember(groupId, roundId, "gc-removal-leader", 1);
         insertMember(groupId, roundId, "gc-removal-member-2", 2);
         insertMember(groupId, roundId, "gc-removal-member-3", 3);
+        List<String> before = jdbc.queryForList("SELECT student_id FROM thesis.thesis_group_member "
+                + "WHERE group_id = ? ORDER BY member_order", String.class, groupId);
 
         mvc.perform(delete("/api/v1/thesis/groups/{id}/members/{studentId}", groupId, "gc-removal-member-3")
                         .with(adminJwt()))
-                .andExpect(status().isOk());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("GROUP_TOO_SMALL"))
+                .andExpect(jsonPath("$.message", containsString("3 to 5")))
+                .andExpect(jsonPath("$.message", containsString("add a replacement member first")));
         mvc.perform(delete("/api/v1/thesis/groups/{id}/members/{studentId}", groupId, "gc-removal-member-2")
                         .with(adminJwt()))
-                .andExpect(status().isOk());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("GROUP_TOO_SMALL"));
         mvc.perform(delete("/api/v1/thesis/groups/{id}/members/{studentId}", groupId, "gc-removal-leader")
                         .with(adminJwt()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("LEADER_CANNOT_BE_REMOVED"));
+        assertThat(jdbc.queryForList("SELECT student_id FROM thesis.thesis_group_member "
+                + "WHERE group_id = ? ORDER BY member_order", String.class, groupId)).containsExactlyElementsOf(before);
     }
 
     // ---------- fixtures ----------
@@ -180,17 +187,10 @@ class ThesisGroupRosterCopyTest {
     }
 
     private RequestPostProcessor studentJwt(String studentId) {
-        return jwt().jwt(token -> token
-                        .subject("gc-user-" + studentId)
-                        .claim("roles", List.of("STUDENT"))
-                        .claim("studentId", studentId))
-                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+        return ThesisAuthorityFixture.student(jdbc, studentId);
     }
 
     private RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token
-                        .subject("gc-admin-user")
-                        .claim("roles", List.of("ADMIN")))
-                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        return ThesisAuthorityFixture.role(jdbc, "gc-admin-user", "ADMIN");
     }
 }

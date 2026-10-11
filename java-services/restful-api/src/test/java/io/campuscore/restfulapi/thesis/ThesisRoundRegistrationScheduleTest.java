@@ -204,17 +204,10 @@ class ThesisRoundRegistrationScheduleTest {
     }
 
     private RequestPostProcessor studentJwt(String studentId) {
-        return jwt().jwt(token -> token
-                        .subject("rs-user-" + studentId)
-                        .claim("roles", List.of("STUDENT"))
-                        .claim("studentId", studentId))
-                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+        return ThesisAuthorityFixture.student(jdbc, studentId);
     }
 
     private RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token
-                        .subject("rs-admin-user")
-                        .claim("roles", List.of("ADMIN")))
-                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        return ThesisAuthorityFixture.role(jdbc, "rs-admin-user", "ADMIN");
     }
 }

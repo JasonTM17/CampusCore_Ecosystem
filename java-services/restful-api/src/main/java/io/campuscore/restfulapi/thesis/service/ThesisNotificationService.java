@@ -1,11 +1,14 @@
 package io.campuscore.restfulapi.thesis.service;
 
+import io.campuscore.restfulapi.mail.config.MailConfig;
+import io.campuscore.restfulapi.mail.service.EmailService;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository.CreateNotificationCommand;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,9 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
  * lecturers hear about supervisor assignment. Mirrors
  * {@code GradePublishNotifier}: every fan-out runs {@code REQUIRES_NEW} so a
  * notification failure cannot roll back the workflow mutation, and callers
- * swallow the failure after logging. All resolution queries read committed
- * data only — group rosters, topics, rounds, and lecturer profiles are never
- * written by the calling transaction.
+ * swallow the failure after logging. Results inbox/email dispatch is deferred
+ * until the publishing transaction commits and requires published round state.
  */
 @Service
 @Profile("persistence")
@@ -40,13 +42,19 @@ public class ThesisNotificationService {
 
     private final NotificationWriteRepository notifications;
     private final NamedParameterJdbcTemplate jdbc;
+    private final EmailService email;
+    private final MailConfig mailConfig;
     private final Clock clock = Clock.systemUTC();
 
     public ThesisNotificationService(
             NotificationWriteRepository notifications,
-            NamedParameterJdbcTemplate jdbc) {
+            NamedParameterJdbcTemplate jdbc,
+            EmailService email,
+            MailConfig mailConfig) {
         this.notifications = notifications;
         this.jdbc = jdbc;
+        this.email = email;
+        this.mailConfig = mailConfig;
     }
 
     /** Notifies every group member after approve/reject. */
@@ -100,6 +108,10 @@ public class ThesisNotificationService {
     /** Notifies every student in an approved group when the round publishes results. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int notifyResultsPublished(UUID roundId) {
+        String roundName = publishedRoundName(roundId);
+        if (roundName == null) {
+            return 0;
+        }
         List<String> userIds = jdbc.queryForList(
                 "SELECT DISTINCT s.\"userId\" FROM thesis.thesis_group_member m"
                         + " JOIN thesis.thesis_group g ON g.id = m.group_id"
@@ -110,18 +122,77 @@ public class ThesisNotificationService {
         if (userIds == null || userIds.isEmpty()) {
             return 0;
         }
-        String roundName = "";
-        try {
-            roundName = jdbc.queryForObject(
-                    "SELECT name FROM thesis.thesis_registration_round WHERE id = :id",
-                    new MapSqlParameterSource("id", roundId), String.class);
-        } catch (RuntimeException ignored) {
-            // The round id was just validated by the caller; a missing name is cosmetic.
-        }
         return fanOut(userIds, "Kết quả khóa luận đã công bố",
-                "Kết quả đợt " + (roundName == null ? "" : roundName.trim())
+                "Kết quả đợt " + roundName.trim()
                         + " đã công bố. Mở trang khóa luận để xem điểm của bạn.",
                 "SUCCESS", STUDENT_LINK);
+    }
+
+    /**
+     * Sends a separate notice to each member after publication commits. This
+     * is best-effort SMTP submission, without durable retry or a delivery claim
+     * when mail is disabled. Numerical grades stay behind authenticated lookup.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public int emailResultsPublished(UUID roundId) {
+        String roundName = publishedRoundName(roundId);
+        if (roundName == null) {
+            return 0;
+        }
+        if (!mailConfig.isEnabled()) {
+            log.warn("Thesis results published for round {} but SMTP is disabled; no email submitted", roundId);
+            return 0;
+        }
+        List<Map<String, Object>> recipients = jdbc.queryForList(
+                "SELECT DISTINCT u.\"id\", u.\"email\", u.\"firstName\", u.\"lastName\""
+                        + " FROM thesis.thesis_group_member m"
+                        + " JOIN thesis.thesis_group g ON g.id = m.group_id"
+                        + " JOIN campuscore_auth.\"Student\" s ON s.\"id\" = m.student_id"
+                        + " JOIN campuscore_auth.\"User\" u ON u.\"id\" = s.\"userId\""
+                        + " WHERE g.round_id = :roundId AND g.approval_status = 'APPROVED'"
+                        + " AND g.status <> 'CANCELLED' AND u.\"status\" = 'ACTIVE'",
+                new MapSqlParameterSource("roundId", roundId));
+        int submitted = 0;
+        for (Map<String, Object> recipient : recipients) {
+            String address = valueOrEmpty(recipient.get("email")).trim();
+            if (address.isBlank()) {
+                continue;
+            }
+            String recipientName = (valueOrEmpty(recipient.get("lastName")) + " "
+                    + valueOrEmpty(recipient.get("firstName"))).trim();
+            Map<String, Object> variables = Map.of(
+                    "category", "KẾT QUẢ KHÓA LUẬN",
+                    "title", "Kết quả khóa luận đã công bố",
+                    "author", "Bộ môn phụ trách khóa luận",
+                    "recipientName", recipientName.isBlank() ? "Sinh viên" : recipientName,
+                    "content", "Kết quả đợt " + roundName.trim()
+                            + " đã được công bố. Đăng nhập cổng CampusUTE để tra cứu kết quả của bạn.",
+                    "actionUrl", "https://www.campusute.io.vn/dashboard/thesis?roundId=" + roundId,
+                    "actionText", "Tra cứu kết quả của tôi");
+            try {
+                email.sendHtmlEmail(address, "[CampusUTE] Kết quả khóa luận đã công bố",
+                        "academic-announcement", variables);
+                submitted++;
+            } catch (RuntimeException exception) {
+                // No recipient, provider error or secret is added to this log.
+                log.warn("Thesis results email submission failed for a member of round {}", roundId);
+            }
+        }
+        log.info("Thesis results email round {}: {} submitted of {} eligible accounts",
+                roundId, submitted, recipients.size());
+        return submitted;
+    }
+
+    private String publishedRoundName(UUID roundId) {
+        List<String> names = jdbc.queryForList(
+                "SELECT name FROM thesis.thesis_registration_round"
+                        + " WHERE id = :id AND status = 'RESULTS_PUBLISHED'",
+                new MapSqlParameterSource("id", roundId), String.class);
+        return names.isEmpty() ? null : names.getFirst();
+    }
+
+    private static String valueOrEmpty(Object value) {
+        return value == null ? "" : value.toString();
     }
 
     /** Notifies lecturers newly assigned as supervisors of a topic. */

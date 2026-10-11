@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.campuscore.restfulapi.thesis.ThesisAuthorityFixture;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -31,6 +33,7 @@ class ThesisAssistantGovernanceWebTest {
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper mapper;
     @Autowired private NamedParameterJdbcTemplate jdbc;
+    @Autowired private JdbcTemplate plainJdbc;
     private UUID createdDocument;
 
     @AfterEach
@@ -122,8 +125,7 @@ class ThesisAssistantGovernanceWebTest {
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
         mvc.perform(get("/api/v1/admin/thesis/assistant/knowledge")
-                        .with(jwt().jwt(token -> token.subject("student-a"))
-                                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
+                        .with(student("governance-student-a")))
                 .andExpect(status().isForbidden());
     }
 
@@ -142,8 +144,7 @@ class ThesisAssistantGovernanceWebTest {
         // SSE completes on the stream executor, so the assertions must run on
         // the async-dispatched response, not on the initial empty one.
         var result = mvc.perform(post("/api/v1/thesis/assistant/chat/stream")
-                        .with(jwt().jwt(token -> token.subject("student-stream"))
-                                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
+                        .with(student("governance-student-stream"))
                         .contentType("application/json")
                         .accept("text/event-stream")
                         .content("{\"message\":\"How do I choose a thesis topic?\",\"locale\":\"en\",\"clientRequestId\":\"00000000-0000-4000-8000-000000000010\"}"))
@@ -161,8 +162,7 @@ class ThesisAssistantGovernanceWebTest {
     @Test
     void feedbackAdminSummaryAggregatesAcrossOwnersButStudentsAreForbidden() throws Exception {
         mvc.perform(get("/api/v1/admin/assistant/feedback")
-                        .with(jwt().jwt(token -> token.subject("student-a"))
-                                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
+                        .with(student("governance-student-feedback")))
                 .andExpect(status().isForbidden());
 
         UUID conversation = UUID.randomUUID();
@@ -204,8 +204,11 @@ class ThesisAssistantGovernanceWebTest {
         }
     }
 
-    private static RequestPostProcessor admin(String subject) {
-        return jwt().jwt(token -> token.subject(subject))
-                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+    private RequestPostProcessor admin(String subject) {
+        return ThesisAuthorityFixture.role(plainJdbc, subject, "ADMIN");
+    }
+
+    private RequestPostProcessor student(String studentId) {
+        return ThesisAuthorityFixture.student(plainJdbc, studentId);
     }
 }

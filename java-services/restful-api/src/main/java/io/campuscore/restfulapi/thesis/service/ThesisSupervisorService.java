@@ -207,10 +207,11 @@ public class ThesisSupervisorService {
         throw notFound("TOPIC_NOT_FOUND", "Thesis topic not found");
     }
 
-    private static boolean isVisible(ThesisTopic topic, Jwt actor) {
+    private boolean isVisible(ThesisTopic topic, Jwt actor) {
         return topic.getStatus() == TopicStatus.PUBLISHED
                 || topic.getStatus() == TopicStatus.APPROVED
                 || isStaff(actor)
+                || ThesisDepartmentScope.owns(jdbc, actor, topic.getDepartmentId())
                 || isOwner(topic, actor);
     }
 
@@ -230,8 +231,9 @@ public class ThesisSupervisorService {
         return StringUtils.hasText(lecturerId) && topic.getCreatedBy().equals(lecturerId);
     }
 
-    private static boolean maySeeContactDetails(ThesisTopic topic, Jwt actor) {
-        return isStaff(actor) || isOwner(topic, actor);
+    private boolean maySeeContactDetails(ThesisTopic topic, Jwt actor) {
+        return isStaff(actor) || isOwner(topic, actor)
+                || ThesisDepartmentScope.owns(jdbc, actor, topic.getDepartmentId());
     }
 
     private void authorize(ThesisTopic topic, Jwt actor) {

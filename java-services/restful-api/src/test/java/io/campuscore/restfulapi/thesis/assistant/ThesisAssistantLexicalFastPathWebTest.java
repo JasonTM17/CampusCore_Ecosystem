@@ -10,9 +10,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.UUID;
+import io.campuscore.restfulapi.thesis.ThesisAuthorityFixture;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
@@ -33,6 +35,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 class ThesisAssistantLexicalFastPathWebTest {
 
     @Autowired private MockMvc mvc;
+    @Autowired private JdbcTemplate jdbc;
 
     @MockitoBean private RagAssistantGateway ragGateway;
 
@@ -55,8 +58,7 @@ class ThesisAssistantLexicalFastPathWebTest {
         verify(ragGateway, org.mockito.Mockito.never()).chat(any(), anyString());
     }
 
-    private static RequestPostProcessor student(String subject) {
-        return jwt().jwt(token -> token.subject(subject))
-                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
+    private RequestPostProcessor student(String subject) {
+        return ThesisAuthorityFixture.student(jdbc, subject);
     }
 }

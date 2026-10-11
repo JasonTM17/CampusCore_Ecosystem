@@ -138,6 +138,13 @@ public class ThesisTopic {
         status = TopicStatus.PUBLISHED;
     }
 
+    public void archive() {
+        if (status == TopicStatus.ARCHIVED) {
+            throw new IllegalStateException("The topic is already archived");
+        }
+        status = TopicStatus.ARCHIVED;
+    }
+
     public void update(String departmentId, String title, String description, int maxGroups) {
         this.departmentId = departmentId;
         this.title = title;

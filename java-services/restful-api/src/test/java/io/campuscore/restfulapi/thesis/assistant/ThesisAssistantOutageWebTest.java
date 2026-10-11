@@ -9,11 +9,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.campuscore.restfulapi.thesis.ThesisAuthorityFixture;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -26,9 +28,14 @@ class ThesisAssistantOutageWebTest {
 
     @Autowired
     private MockMvc mvc;
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @MockitoBean
     private ThesisAssistantKnowledgeRepository knowledge;
+
+    @MockitoBean
+    private io.campuscore.restfulapi.academic.service.AcademicConductService conduct;
 
     @Test
     void databaseOutageKeepsThePublicDegradedContractThroughTheWebLayer() throws Exception {
@@ -36,7 +43,7 @@ class ThesisAssistantOutageWebTest {
                 .thenThrow(new DataAccessResourceFailureException("database unavailable"));
 
         mvc.perform(post("/api/v1/thesis/assistant/chat")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
+                        .with(student("assistant-outage-knowledge"))
                         .contentType("application/json")
                         .content("{\"message\":\"Điều kiện đăng ký đề tài là gì?\",\"locale\":\"vi\",\"clientRequestId\":\"00000000-0000-4000-8000-000000000011\"}"))
                 .andExpect(status().isOk())
@@ -57,6 +64,11 @@ class ThesisAssistantOutageWebTest {
     void personalDataHandoverQuestionsKeepTheDegradedChatContract() throws Exception {
         when(knowledge.search(anyString(), anyList(), anyInt()))
                 .thenThrow(new DataAccessResourceFailureException("database unavailable"));
+        // Knowledge failure does not fail the independent conduct database.
+        // Inject the personal-data fault explicitly instead of relying on a
+        // missing schema left over from another test class.
+        when(conduct.studentSummary(anyString()))
+                .thenThrow(new DataAccessResourceFailureException("conduct database unavailable"));
 
         String[][] handedOverQuestions = {
                 {"00000000-0000-4000-8000-000000000021", "điểm của tôi hiện tại thế nào?"},
@@ -67,28 +79,30 @@ class ThesisAssistantOutageWebTest {
         };
 
         for (String[] question : handedOverQuestions) {
-            // This test JWT carries no studentId claim. Depending on intent
-            // routing, each question either (a) reaches the personal advisor,
-            // which answers honestly that the account has no student profile
-            // (PERSONAL_CONTEXT, campuscore-personal-context), or (b) stays on
-            // the knowledge path, which during this outage must keep the
-            // degraded KNOWLEDGE_UNAVAILABLE contract — never a 5xx, never an
-            // invented answer.
+            // A current student token reaches the personal advisor.  It must
+            // return the degraded personal-data contract when its backing data
+            // is unavailable; knowledge questions retain their own degraded
+            // contract. Neither path may surface a 5xx or invent an answer.
             String body = mvc.perform(post("/api/v1/thesis/assistant/chat")
-                            .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_STUDENT")))
+                            .with(student("assistant-outage-personal-" + question[0]))
                             .contentType("application/json")
                             .content("{\"message\":\"" + question[1]
                                     + "\",\"locale\":\"vi\",\"clientRequestId\":\"" + question[0] + "\"}"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.locale").value("vi"))
                     .andReturn().getResponse().getContentAsString();
-            boolean personal = body.contains("\"reasonCode\":\"PERSONAL_CONTEXT\"")
-                    && body.contains("\"model\":\"campuscore-personal-context\"");
+            boolean personal = body.contains("\"reasonCode\":\"PERSONAL_CONTEXT_UNAVAILABLE\"")
+                    && body.contains("\"model\":\"campuscore-personal-context\"")
+                    && body.contains("\"degraded\":true");
             boolean outage = body.contains("\"reasonCode\":\"KNOWLEDGE_UNAVAILABLE\"")
                     && body.contains("\"model\":\"curated-lexical-rag\"")
                     && body.contains("\"degraded\":true");
             org.junit.jupiter.api.Assertions.assertTrue(personal || outage,
                     "question '" + question[1] + "' must keep the honest personal or degraded-outage contract: " + body);
         }
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor student(String studentId) {
+        return ThesisAuthorityFixture.student(jdbc, studentId);
     }
 }

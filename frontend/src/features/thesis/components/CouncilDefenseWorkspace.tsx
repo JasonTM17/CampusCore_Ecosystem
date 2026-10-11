@@ -25,6 +25,8 @@ interface CouncilDefenseWorkspaceProps {
   councilScoreErrors: Record<string, boolean>;
   topicSupervisors: Record<string, string[]>;
   topicReports: Record<string, ThesisGroupReport | null>;
+  topicReportErrors: Record<string, boolean>;
+  onRetryTopicReport: (topicId: string) => void | Promise<void>;
   draftScores: Record<string, string>;
   draftComments: Record<string, string>;
   isActionPending: boolean;
@@ -51,6 +53,8 @@ export default function CouncilDefenseWorkspace({
   councilScoreErrors,
   topicSupervisors,
   topicReports,
+  topicReportErrors,
+  onRetryTopicReport,
   draftScores,
   draftComments,
   isActionPending,
@@ -166,7 +170,14 @@ export default function CouncilDefenseWorkspace({
                                 {topic.description}
                               </p>
                             )}
-                            {topicReports[tid] ? (
+                            {topicReportErrors[tid] ? (
+                              <div role="alert" className="flex flex-wrap items-center gap-2 pt-1.5 text-sm text-destructive">
+                                <span>{messages.thesis.report.loadFailed}</span>
+                                <Button type="button" variant="outline" size="sm" onClick={() => void onRetryTopicReport(tid)}>
+                                  {messages.common.actions.retry}
+                                </Button>
+                              </div>
+                            ) : topicReports[tid] ? (
                               <div className="pt-1.5 flex flex-wrap items-center gap-2">
                                 {/* A report is a link, an attached document,
                                     or both (feedback item 7). */}
