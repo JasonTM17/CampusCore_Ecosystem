@@ -1021,7 +1021,16 @@ public class AssistantPersonalContextAdvisor {
                     // twin both matched; the EN question got an LLM denial
                     // contradicting /me/registration/summary (creditsRemaining).
                     + "|credits?\\s+(?:do\\s+i\\s+have\\s+)?(?:left|remaining|remains?|to\\s+register)|remaining\\s+credits?"
-                    + "|how\\s+many\\s+credits\\s+(?:can|do)\\s+i\\s+(?:still\\s+)?(?:register|take)",
+                    + "|how\\s+many\\s+credits\\s+(?:can|do)\\s+i\\s+(?:still\\s+)?(?:register|take)"
+                    // Used-credits phrasing ("Tôi đã đăng ký được bao nhiêu
+                    // tín chỉ kỳ này?") asks the same summary — the summary
+                    // answer prints used/limit/remaining, so it lands here
+                    // instead of the credit-limit policy KB (production audit).
+                    + "|(?:đã\\s*(?:được\\s*)?)?đăng\\s*ký\\s*(?:được\\s*)?(?:tổng\\s*cộng\\s*)?bao\\s*nhiêu\\s*tín\\s*chỉ"
+                    + "|(?:da\\s*(?:duoc\\s*)?)?dang\\s*ky\\s*(?:duoc\\s*)?(?:tong\\s*cong\\s*)?bao\\s*nhieu\\s*tin\\s*chi"
+                    + "|tổng\\s*số\\s*tín\\s*chỉ\\s*(?:đã\\s*)?(?:được\\s*)?đăng\\s*ký|tong\\s*so\\s*tin\\s*chi\\s*(?:da\\s*)?(?:duoc\\s*)?dang\\s*ky"
+                    + "|how\\s+many\\s+credits[^?!.]{0,25}?(?:have\\s+i|i\\s+have|i'?ve|did\\s+i|am\\s+i)\\s*(?:already\\s+)?(?:registered|enrolled)"
+                    + "|registered\\s+credits?",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE | Pattern.UNICODE_CHARACTER_CLASS);
 
     /** Credit-limit policy wording ("xin nâng hạn mức") stays on the knowledge path. */
