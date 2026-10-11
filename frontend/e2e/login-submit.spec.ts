@@ -18,7 +18,7 @@ const PROBE_EMAIL = 'a11y-probe@campuscore.edu';
 const PROBE_PASSWORD = 'probe-password-does-not-matter';
 
 async function expectSubmitReaction(page: import('@playwright/test').Page) {
-  const alert = page.getByRole('alert');
+  const alert = page.locator('#login-error');
   await expect(alert).toBeVisible({ timeout: 15_000 });
 }
 

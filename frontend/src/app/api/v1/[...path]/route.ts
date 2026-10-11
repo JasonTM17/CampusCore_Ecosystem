@@ -20,14 +20,12 @@ async function handle(request: NextRequest, context: RouteContext) {
   headers.set('accept-encoding', 'identity');
 
   // Forwarded headers are client-controlled until we overwrite them: an
-  // attacker must not be able to rotate the rate-limit key (the Java filter
-  // prefers X-Real-IP and the leftmost XFF entry when proxy trust is on).
-  // Next.js exposes the peer IP only on platforms that set `request.ip`
-  // (Vercel, Render, ...); everywhere else the hop is marked as our own proxy,
-  // which keys every browser on one bucket exactly like the container IP did.
+  // forwarded identity must come from runtime metadata, never a caller's XFF.
+  // Vercel overwrites its platform header; trust it only on that platform.
+  // Self-hosted runtimes without peer metadata use the shared proxy bucket.
   const clientIp =
     (request as any).ip ||
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    (process.env.VERCEL === '1' ? request.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim() : undefined) ||
     'web-proxy';
   headers.delete('x-real-ip');
   headers.delete('x-forwarded-for');
@@ -57,6 +55,16 @@ async function handle(request: NextRequest, context: RouteContext) {
         responseHeaders.append('set-cookie', cookie);
       }
     }
+  }
+
+  // Fetch forbids even an empty ArrayBuffer for these statuses. In particular,
+  // a missing thesis report is a legitimate 204, not a proxy server error.
+  if (request.method === 'HEAD' || [204, 205, 304].includes(response.status)) {
+    return new Response(null, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: responseHeaders,
+    });
   }
 
   // SSE must reach the caller before upstream EOF: buffering hides every
