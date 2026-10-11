@@ -51,11 +51,15 @@ const STUDENT_DEMO_ACCOUNTS: ReadonlyArray<{ email: string; name: string; leader
  * The references are static member accesses on purpose: Next.js inlines
  * `process.env.NEXT_PUBLIC_*` only when it can see the literal key, so a computed
  * lookup would silently read `undefined` in the browser.
+ *
+ * The admin (Academic Office) portal deliberately has no entry: its account
+ * governs users and academic records, so it is never published in the client
+ * bundle or pre-filled. Admins still sign in normally through the portal tab.
  */
 const DEMO_PASSWORDS: Record<LoginPortal, string | undefined> = {
   student: process.env.NEXT_PUBLIC_DEMO_STUDENT_PASSWORD,
   lecturer: process.env.NEXT_PUBLIC_DEMO_LECTURER_PASSWORD,
-  admin: process.env.NEXT_PUBLIC_DEMO_ADMIN_PASSWORD,
+  admin: undefined,
 };
 
 /**
@@ -185,6 +189,8 @@ export default function LoginPage() {
 
     if (portal === 'admin' && user.roles?.includes('TRUONG_KHOA') && !user.roles?.includes('ADMIN')) {
       router.push(href('/admin/thesis'));
+    } else if (portal === 'lecturer' && user.roles?.includes('TRUONG_BO_MON')) {
+      router.push(href('/dashboard/thesis'));
     } else {
       router.push(href(postLoginRoute(portal)));
     }

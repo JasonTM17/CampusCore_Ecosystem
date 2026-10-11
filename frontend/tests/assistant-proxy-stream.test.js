@@ -5,13 +5,13 @@ const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('typescript');
 
-function loadProxy(upstream, onFetch = () => {}) {
+function loadProxy(upstream, onFetch = () => {}, environment = {}) {
   const source = fs.readFileSync(path.join(__dirname, '../src/app/api/v1/[...path]/route.ts'), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const record = { exports: {} };
   const context = vm.createContext({
     Headers, Response,
-    process: { env: { JAVA_API_ORIGIN: 'http://test-api' } },
+    process: { env: { JAVA_API_ORIGIN: 'http://test-api', ...environment } },
     fetch: async (url, options) => { onFetch(url, options); return upstream; },
   });
   vm.runInContext(`(function(require,module,exports){${output}\n})`, context)(
@@ -73,4 +73,41 @@ test('proxy forwards caller cancellation to the upstream fetch', async () => {
   const handle = loadProxy(new Response('ok', { headers: { 'content-type': 'text/event-stream' } }), (_url, options) => { outgoingSignal = options.signal; });
   await handle(incoming, context);
   assert.equal(outgoingSignal, incoming.signal);
+});
+
+for (const status of [204, 205, 304]) {
+  test(`proxy preserves bodyless ${status} instead of throwing a 500`, async () => {
+    const handle = loadProxy(new Response(null, { status, headers: { etag: 'report-v1' } }));
+    const forwarded = await handle({ ...request(), method: 'GET' }, context);
+    assert.equal(forwarded.status, status);
+    assert.equal(forwarded.body, null);
+    assert.equal(forwarded.headers.get('etag'), 'report-v1');
+  });
+}
+
+test('HEAD does not emit an upstream body', async () => {
+  const handle = loadProxy(new Response('ignored', { headers: { 'content-type': 'application/json' } }));
+  const forwarded = await handle({ ...request(), method: 'HEAD' }, context);
+  assert.equal(forwarded.status, 200);
+  assert.equal(forwarded.body, null);
+});
+
+test('self-hosted proxy does not trust spoofed forwarding headers as a rate-limit identity', async () => {
+  let forwarded;
+  const handle = loadProxy(new Response('ok'), (_url, options) => { forwarded = options.headers; });
+  const incoming = { ...request(), headers: new Headers({
+    'x-forwarded-for': 'attacker-key', 'x-real-ip': 'other-key', 'x-vercel-forwarded-for': 'forged-platform-key',
+  }) };
+  await handle(incoming, context);
+  assert.equal(forwarded.get('x-forwarded-for'), 'web-proxy');
+  assert.equal(forwarded.get('x-real-ip'), null);
+});
+
+test('Vercel proxy uses its platform forwarding header and preserves distinct real clients', async () => {
+  for (const ip of ['192.0.2.1', '192.0.2.2']) {
+    let forwarded;
+    const handle = loadProxy(new Response('ok'), (_url, options) => { forwarded = options.headers; }, { VERCEL: '1' });
+    await handle({ ...request(), headers: new Headers({ 'x-forwarded-for': 'untrusted-proxy', 'x-vercel-forwarded-for': ip }) }, context);
+    assert.equal(forwarded.get('x-forwarded-for'), ip);
+  }
 });

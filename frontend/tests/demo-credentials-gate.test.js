@@ -33,7 +33,10 @@ test('demo passwords come from the environment and have no in-source fallback', 
   assert.ok(passwords, 'the demo password map must be declared');
   assert.match(passwords[0], /process\.env\.NEXT_PUBLIC_DEMO_STUDENT_PASSWORD/);
   assert.match(passwords[0], /process\.env\.NEXT_PUBLIC_DEMO_LECTURER_PASSWORD/);
-  assert.match(passwords[0], /process\.env\.NEXT_PUBLIC_DEMO_ADMIN_PASSWORD/);
+  // The admin portal is never quick-filled: referencing its env key would
+  // inline the privileged password into the public client bundle.
+  assert.doesNotMatch(loginPage, /NEXT_PUBLIC_DEMO_ADMIN_PASSWORD/);
+  assert.match(passwords[0], /admin:\s*undefined/);
   // Static member access only: Next.js inlines process.env.NEXT_PUBLIC_* when it
   // can see the literal key, so a computed lookup would read undefined at runtime.
   assert.doesNotMatch(passwords[0], /process\.env\[/, 'computed env lookup is not inlined by Next.js');

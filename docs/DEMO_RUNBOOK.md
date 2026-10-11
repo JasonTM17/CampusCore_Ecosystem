@@ -167,7 +167,7 @@ npm run lint --prefix frontend
 
 Module `thesis` đáp ứng trọn vẹn yêu cầu "Quản lý đề tài" (plans/20260909-pdf-requirements-audit):
 đợt 2 giai đoạn, nhóm ≤3 SV, đề tài 1–2 GVHD, báo cáo do nhóm trưởng nộp, hội đồng
-3–5 GV (chủ tịch + thư ký), điểm cuối = trung bình thành phần, cấm GVHD chấm đề tài
+3–5 GV (chủ tịch + thư ký), điểm cuối = trung bình điểm DEFENSE của các thành viên hội đồng hợp lệ, cấm GVHD chấm đề tài
 mình hướng dẫn, công bố kết quả cho sinh viên.
 
 **Tài khoản**: Admin (`admin@campuscore.edu`) thao tác quản trị luận văn bằng vai trò
@@ -188,10 +188,14 @@ gắn cho tài khoản Admin. Giảng viên/Sinh viên dùng tài khoản demo m
    nhập 2 cửa sổ theo công thức thời gian ở trên + hạn GVPB (TLCN/KLTN) + ngày báo cáo
    hội đồng (KLTN). Sau tạo: bấm "Mở đăng ký đề tài (GV)" (DRAFT → PROPOSAL_OPEN).
 2. **Giảng viên → Khu luận văn**: đề xuất đề tài (chọn GVHD chính/thứ hai),
-   publish. Admin publish-proposals → open-registration.
+   lưu bản nháp chờ duyệt. Trưởng bộ môn có hồ sơ đang hoạt động duyệt đề tài trong bộ môn hiện tại;
+   Trưởng khoa/Admin duyệt theo quyền quản lý. Sau đó Admin publish-proposals → open-registration.
 3. **Sinh viên → Khu luận văn**: lập nhóm (≤3, có nhóm trưởng), chọn 1 đề tài đã
    công bố. GVHD duyệt nhóm.
-4. **Nhóm trưởng nộp báo cáo** (thẻ "Báo cáo" trên nhóm đã duyệt; freeze sau hạn GVPB).
+4. **Admin đóng đăng ký, nhóm trưởng nộp báo cáo**: chuyển đợt sang
+   `REGISTRATION_CLOSED` bằng `close-registration` sau khi nhóm đã được GVHD duyệt.
+   Trưởng nhóm nộp tại thẻ "Báo cáo"; chỉ ghi/thay báo cáo trước công bố kết quả
+   và trước hạn GVPB nếu đợt có hạn này.
 5. **Hội đồng + chấm điểm (Web UI đầy đủ & hỗ trợ API/Swagger)**:
    - **Giao diện Quản trị Hội đồng (`/admin/thesis`)**:
      - Admin/Trưởng khoa mở rộng đợt luận văn, bấm **"Tạo Hội đồng"** (nhập tên hội đồng).
@@ -202,7 +206,7 @@ gắn cho tài khoản Admin. Giảng viên/Sinh viên dùng tài khoản demo m
      - Giảng viên nhập điểm thành phần (thang điểm 0 – 10). *Lưu ý*: Giảng viên hướng dẫn của đề tài sẽ bị hệ thống tự động khóa/báo lỗi theo quy tắc R8 (`SUPERVISOR_CANNOT_GRADE`).
      - Khi các chấm viên đã cho điểm, Chủ tịch hội đồng (CHAIR) bấm nút **"Tổng hợp & Chốt điểm"** để tự động tính điểm trung bình cộng làm tròn 2 chữ số thập phân (CAS lock bảo vệ chốt 1 lần duy nhất).
    - **Công bố kết quả**:
-     - Admin đóng đăng ký (`close-registration`) và bấm **"Công bố kết quả"** (`publish-results`).
+     - Admin bấm **"Công bố kết quả"** (`publish-results`) trên đợt đã đóng đăng ký ở bước 4.
      - Sinh viên xem điểm và kết quả xếp loại (Đạt / Không đạt) ngay tại thẻ **"Kết quả"** trong Khu luận văn (`/dashboard/thesis`).
 
    *(Tùy chọn API/Swagger `http://127.0.0.1:4010/swagger-ui.html` hoặc curl để kiểm thử backend trực tiếp)*:
@@ -225,7 +229,6 @@ gắn cho tài khoản Admin. Giảng viên/Sinh viên dùng tài khoản demo m
    POST /api/v1/thesis/councils/{CID}/topics/{TID}/finalize
 
    # 4) Admin công bố kết quả (trong UI: nút "Công bố kết quả" khi REGISTRATION_CLOSED):
-   POST /api/v1/thesis/rounds/{RID}/close-registration
    POST /api/v1/thesis/rounds/{RID}/publish-results
    ```
 

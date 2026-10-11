@@ -571,10 +571,9 @@ hãy đặt công tắc thay vì sửa trực tiếp cơ sở dữ liệu:
 # .env (đã bị gitignore) — bật cho cụm demo cục bộ
 DEMO_ACCOUNTS_ENABLED=true
 NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS=true
-# Rồi điền mật khẩu demo đã seed vào ba biến sau (không commit giá trị thật):
+# Rồi điền mật khẩu demo đã seed vào hai biến sau (không commit giá trị thật):
 NEXT_PUBLIC_DEMO_STUDENT_PASSWORD=...
 NEXT_PUBLIC_DEMO_LECTURER_PASSWORD=...
-NEXT_PUBLIC_DEMO_ADMIN_PASSWORD=...
 ```
 
 Sau đó chạy `docker compose up -d --build` để áp dụng. Đặt `DEMO_ACCOUNTS_ENABLED=false` (hoặc để

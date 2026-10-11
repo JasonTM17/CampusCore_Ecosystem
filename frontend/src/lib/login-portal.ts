@@ -30,7 +30,7 @@ export function portalMatchesUser(
   }
 
   if (portal === 'lecturer') {
-    return roles.includes('LECTURER');
+    return roles.includes('LECTURER') || roles.includes('TRUONG_BO_MON');
   }
 
   return roles.includes('STUDENT');
@@ -58,7 +58,7 @@ export function portalFromUser(user: Pick<User, 'role' | 'roles'> | null | undef
     return 'admin';
   }
 
-  if (roles.includes('LECTURER')) {
+  if (roles.includes('LECTURER') || roles.includes('TRUONG_BO_MON')) {
     return 'lecturer';
   }
 
