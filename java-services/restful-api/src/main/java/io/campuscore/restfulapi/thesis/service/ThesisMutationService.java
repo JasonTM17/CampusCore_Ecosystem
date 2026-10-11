@@ -38,14 +38,16 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /** Transaction boundary for the thesis core: rounds, topics and student groups. */
 @Service
 @Profile("persistence")
 public class ThesisMutationService {
 
-    private static final int MIN_GROUP_MEMBERS = 1;
-    private static final int MAX_GROUP_MEMBERS = 3;
+    private static final int MIN_GROUP_MEMBERS = 3;
+    private static final int MAX_GROUP_MEMBERS = 5;
 
     private static final org.slf4j.Logger log =
             org.slf4j.LoggerFactory.getLogger(ThesisMutationService.class);
@@ -463,13 +465,33 @@ public class ThesisMutationService {
         }
         RoundResponse response = transitionRound(id, RoundStatus.REGISTRATION_CLOSED, RoundStatus.RESULTS_PUBLISHED, actor);
         if (notifier != null) {
-            try {
-                notifier.notifyResultsPublished(id);
-            } catch (RuntimeException exception) {
-                log.warn("Thesis results-published notification fan-out failed for round {}", id, exception);
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        sendPublishedResults(id);
+                    }
+                });
+            } else {
+                sendPublishedResults(id);
             }
         }
         return response;
+    }
+
+    private void sendPublishedResults(UUID roundId) {
+        // Both channels read the committed result state. A failed inbox write
+        // must not suppress email, and neither failure can undo publication.
+        try {
+            notifier.notifyResultsPublished(roundId);
+        } catch (RuntimeException exception) {
+            log.warn("Thesis results committed but inbox fan-out failed for round {}", roundId);
+        }
+        try {
+            notifier.emailResultsPublished(roundId);
+        } catch (RuntimeException exception) {
+            log.warn("Thesis results committed but email fan-out failed for round {}", roundId);
+        }
     }
 
     /**
@@ -542,7 +564,7 @@ public class ThesisMutationService {
      *
      * @param id topic to edit
      * @param request replacement title, description, department, and group limit
-     * @param actor caller JWT; must be the owning lecturer or an admin
+     * @param actor caller JWT; must govern topics in this department
      * @return the updated topic
      * @throws DomainException with code TOPIC_STATE_CONFLICT once the topic has been published, or
      *         VALIDATION_ERROR for a group limit outside 1-20
@@ -582,9 +604,18 @@ public class ThesisMutationService {
      */
     @Transactional
     public TopicResponse publishTopic(UUID id, Jwt actor) {
+        lockTopicForGovernance(id);
         ThesisTopic topic = topics.findById(id).orElseThrow(() -> notFound("TOPIC_NOT_FOUND", "Thesis topic not found"));
-        authorizeTopicOwner(topic, actor);
-        requireProposalPhase(topic.getRoundId(), actor);
+        if (!isAdmin(actor) && !ThesisDepartmentScope.owns(jdbc, actor, topic.getDepartmentId())) {
+            throw new DomainException(HttpStatus.FORBIDDEN, "TOPIC_APPROVER_REQUIRED",
+                    "Only department governance can approve a topic");
+        }
+        Map<String, Object> round = one(
+                "SELECT status FROM thesis.thesis_registration_round WHERE id = :id",
+                params().addValue("id", topic.getRoundId()), "ROUND_NOT_FOUND", "Thesis registration round not found");
+        if (!RoundStatus.PROPOSAL_OPEN.name().equals(round.get("status"))) {
+            throw conflict("ROUND_NOT_ACCEPTING_PROPOSALS", "Topic approval requires the proposal phase");
+        }
         Integer supervisorCount = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM thesis.thesis_topic_supervisor WHERE topic_id = :topicId",
                 params().addValue("topicId", id), Integer.class);
@@ -597,7 +628,44 @@ public class ThesisMutationService {
         } catch (IllegalStateException exception) {
             throw conflict("TOPIC_STATE_CONFLICT", exception.getMessage());
         }
-        return TopicResponse.from(topics.save(topic));
+        TopicResponse response = TopicResponse.from(topics.saveAndFlush(topic));
+        audit.record(subject(actor), null, "THESIS_TOPIC_APPROVED", "THESIS_TOPIC", id.toString(),
+                "Department governance approved the topic for student registration");
+        return response;
+    }
+
+    /** Archives only unused topics; group, council and grading history is never deleted. */
+    @Transactional
+    public TopicResponse archiveTopic(UUID id, Jwt actor) {
+        lockTopicForGovernance(id);
+        ThesisTopic topic = topics.findById(id).orElseThrow(() -> notFound("TOPIC_NOT_FOUND", "Thesis topic not found"));
+        if (!isAdmin(actor) && !ThesisDepartmentScope.owns(jdbc, actor, topic.getDepartmentId())) {
+            if (!isLecturer(actor)) {
+                throw new DomainException(HttpStatus.FORBIDDEN, "TOPIC_OWNER_REQUIRED",
+                        "Only the topic owner or department governance can archive this topic");
+            }
+            authorizeTopicOwner(topic, actor);
+        }
+        if (topic.getFinalScore() != null || topic.getResultStatus() != null || topic.getGvpbLecturerId() != null
+                || count("SELECT COUNT(*) FROM thesis.thesis_group WHERE topic_id = :topicId", "topicId", id) > 0
+                || count("SELECT COUNT(*) FROM thesis.thesis_council_topic WHERE topic_id = :topicId", "topicId", id) > 0
+                || count("SELECT COUNT(*) FROM thesis.thesis_topic_score WHERE topic_id = :topicId", "topicId", id) > 0) {
+            throw conflict("TOPIC_IN_USE", "A topic with registration or grading history cannot be archived");
+        }
+        try {
+            topic.archive();
+        } catch (IllegalStateException exception) {
+            throw conflict("TOPIC_STATE_CONFLICT", exception.getMessage());
+        }
+        TopicResponse response = TopicResponse.from(topics.saveAndFlush(topic));
+        audit.record(subject(actor), null, "THESIS_TOPIC_ARCHIVED", "THESIS_TOPIC", id.toString(),
+                "Unused topic archived without removing its history");
+        return response;
+    }
+
+    private void lockTopicForGovernance(UUID id) {
+        one("SELECT id FROM thesis.thesis_topic WHERE id = :id FOR UPDATE",
+                params().addValue("id", id), "TOPIC_NOT_FOUND", "Thesis topic not found");
     }
 
     /**
@@ -634,7 +702,7 @@ public class ThesisMutationService {
      * @param request student id to invite; a blank id takes the external-member path instead
      * @param actor caller JWT; the group leader, a supervisor, or an admin may manage the roster
      * @return the group with the new member listed
-     * @throws DomainException with code GROUP_FULL past three members, GROUP_STATE_CONFLICT once the
+     * @throws DomainException with code GROUP_FULL past five members, GROUP_STATE_CONFLICT once the
      *         supervisor approved the roster, ROUND_CLOSED / REGISTRATION_WINDOW_CLOSED outside the
      *         registration window, and STUDENT_PROFILE_REQUIRED, STUDENT_ALREADY_IN_GROUP, or
      *         STUDENT_ACTIVE_IN_OTHER_GROUP for an unsuitable invitee
@@ -844,7 +912,7 @@ public class ThesisMutationService {
      * @return the approved group
      * @throws DomainException with code GROUP_APPROVAL_STATE_CONFLICT unless the group is
      *         submitted with a topic and still pending, GROUP_TOO_SMALL / GROUP_TOO_LARGE for a
-     *         roster outside one to three members, or GROUP_LEADER_INVALID without exactly one
+     *         roster outside three to five members, or GROUP_LEADER_INVALID without exactly one
      *         matching leader
      */
     @Transactional

@@ -36,7 +36,10 @@ export function SupervisedGroupMembers({ group, roundOpen = true, onChanged }: S
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState('');
 
-  const isFull = group.memberStudentIds.length >= 3;
+  const isFull = group.memberStudentIds.length >= 5;
+  const canRemoveMember = roundOpen && (
+    group.approvalStatus !== 'APPROVED' || group.memberStudentIds.length > 3
+  );
   const members: ThesisGroupMember[] = group.members ?? [];
 
   const run = async (action: () => Promise<ThesisGroup>) => {
@@ -98,6 +101,7 @@ export function SupervisedGroupMembers({ group, roundOpen = true, onChanged }: S
   };
 
   const remove = async (studentId: string) => {
+    if (isPending || !canRemoveMember) return;
     // Same destructive-action gate as the sibling screen (dashboard/thesis/page.tsx),
     // via the app-standard dialog: a DELETE that removes a member must never fire
     // on a single click.
@@ -123,7 +127,7 @@ export function SupervisedGroupMembers({ group, roundOpen = true, onChanged }: S
         <UserPlus className="h-3.5 w-3.5" />
         {messages.thesis.manageMembers}
         <span className="font-normal text-muted-foreground">
-          ({formatNumber(group.memberStudentIds.length)}/3)
+          ({formatNumber(group.memberStudentIds.length)}/5)
         </span>
       </button>
 
@@ -160,7 +164,7 @@ export function SupervisedGroupMembers({ group, roundOpen = true, onChanged }: S
                     variant="ghost"
                     className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
                     onClick={() => void remove(member.studentId)}
-                    disabled={isPending}
+                    disabled={isPending || !canRemoveMember}
                     aria-label={`${messages.thesis.removeMember}: ${member.displayName || member.studentId}`}
                   >
                     {isPending ? (

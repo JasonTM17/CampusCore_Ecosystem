@@ -88,11 +88,11 @@ public class AssistantPersonalContextAdvisor {
     /**
      * Thesis group size requirement. Mirrors the private
      * {@code ThesisMutationService.MIN_GROUP_MEMBERS}/{@code MAX_GROUP_MEMBERS}
-     * (thesis/service/ThesisMutationService.java:44-45) and the same 1–3 band
+     * (thesis/service/ThesisMutationService.java) and the same 3–5 band
      * the progress read path flags as {@code GROUP_INVALID_MEMBER_COUNT}.
      */
-    private static final int GROUP_MIN_MEMBERS = 1;
-    private static final int GROUP_MAX_MEMBERS = 3;
+    private static final int GROUP_MIN_MEMBERS = 3;
+    private static final int GROUP_MAX_MEMBERS = 5;
 
     private static final Pattern SCHEDULE_INTENT = Pattern.compile(
             "lịch\\s*(?:học|dạy|giảng\\s*dạy|tuần|hôm\\s*nay|ngày\\s*mai|của\\s*tôi|thứ\\s*[2-7]|thứ\\s*(?:hai|ba|tư|bốn|năm|sáu|bảy)|chủ\\s*nhật|t[2-7]|cn)"
@@ -3015,7 +3015,7 @@ public class AssistantPersonalContextAdvisor {
         boolean vi = "vi".equals(locale);
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT g.id AS group_id, g.status AS group_status, g.approval_status, "
-                        + "g.leader_student_id, g.rejection_reason, "
+                        + "g.leader_student_id, g.rejection_reason, g.legacy_group_size_exception, "
                         + "t.id AS topic_id, t.title AS topic_title, t.status AS topic_status, "
                         + "t.final_score, r.name AS round_name, r.status AS round_status "
                         + "FROM thesis.thesis_group_member m "
@@ -3098,7 +3098,11 @@ public class AssistantPersonalContextAdvisor {
                         .append(vi ? " thành viên (yêu cầu " : " members (requirement ")
                         .append(GROUP_MIN_MEMBERS).append("-").append(GROUP_MAX_MEMBERS)
                         .append(vi ? ")" : ")");
-                if (count < GROUP_MIN_MEMBERS) {
+                if (truthy(row.get("legacy_group_size_exception"))) {
+                    answer.append(vi
+                            ? " — nhóm lịch sử được giữ nguyên, chỉ tra cứu; quy định hiện tại áp dụng cho nhóm mới"
+                            : " — preserved read-only historical group; the current rule applies to new approvals");
+                } else if (count < GROUP_MIN_MEMBERS) {
                     answer.append(vi
                             ? " — còn thiếu " + (GROUP_MIN_MEMBERS - count) + " so với tối thiểu " + GROUP_MIN_MEMBERS
                             : " — " + (GROUP_MIN_MEMBERS - count) + " short of the minimum of " + GROUP_MIN_MEMBERS);

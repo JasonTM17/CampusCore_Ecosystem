@@ -488,6 +488,13 @@ public class ThesisAssistantService {
             "(?m)\\s+(?=\\d{1,2}\\.\\s+)");
     private static final java.util.regex.Pattern THESIS_SIGNAL = java.util.regex.Pattern.compile(
             "(?i)(?:\\b(?:thesis|capstone|report|defen[cs]e|council|reviewer)\\b|\\b(?:do\\s+an|khoa\\s+luan|bao\\s+cao|bao\\s+ve|hoi\\s+dong|phan\\s+bien)\\b)");
+    private static final java.util.regex.Pattern THESIS_GROUP_CONTEXT = java.util.regex.Pattern.compile(
+            "\\b(?:thesis|capstone|do\\s+an|khoa\\s+luan|de\\s+tai)\\b");
+    private static final java.util.regex.Pattern THESIS_GROUP_SIGNAL = java.util.regex.Pattern.compile(
+            "\\b(?:nhom|groups?|teams?)\\b");
+    private static final java.util.regex.Pattern THESIS_GROUP_HEADCOUNT = java.util.regex.Pattern.compile(
+            "\\b(?:bao\\s+nhieu|may\\s+(?:thanh\\s+vien|sinh\\s+vien|nguoi)|so\\s+(?:luong|nguoi|thanh\\s+vien)|toi\\s+(?:thieu|da)"
+                    + "|it\\s+nhat|nhieu\\s+nhat|headcount|size|how\\s+many|number\\s+of|minimum|maximum|limit)\\b");
 
     static String normalizeNumberSpacing(String text) {
         if (text == null || text.isBlank()) return text;
@@ -1914,6 +1921,7 @@ public class ThesisAssistantService {
 
     private LexicalResult retrieve(String message, String locale, String scope) {
         boolean specializedScope = "specialized".equalsIgnoreCase(scope);
+        boolean thesisGroupQuery = !specializedScope && isThesisGroupHeadcountQuery(message);
         // The academic signal gate keeps off-topic questions out of the broad
         // campus corpus. The specialized corpus is a narrow, curated
         // professional set, so there the retrieval result itself is the filter:
@@ -1929,7 +1937,7 @@ public class ThesisAssistantService {
         // authoritative credit-limit document behind broad "học kỳ" matches.
         int topK = topK();
         int retrievalLimit = isCreditLimitQuery(message) || isPrerequisiteQuery(message)
-                || isCertificateQuery(message) ? topK * 2 : topK;
+                || isCertificateQuery(message) || thesisGroupQuery ? topK * 2 : topK;
         try {
             // Unscoped retrieval keeps the historical three-argument call so the
             // published contract (and its tests) stays byte-identical; only the
@@ -1972,7 +1980,7 @@ public class ThesisAssistantService {
         // documents into this list downstream, and Stream.toList() yields an
         // immutable one (UnsupportedOperationException at addDocuments).
         documents = new ArrayList<>(documents.stream().filter(document -> containsAnyTerm(document, terms))
-                .limit(isPrerequisiteQuery(message) || isCertificateQuery(message) ? topK * 2 : topK).toList());
+                .limit(isPrerequisiteQuery(message) || isCertificateQuery(message) || thesisGroupQuery ? topK * 2 : topK).toList());
         // A joined two-family question ("đăng ký học phần, và xin giấy xác
         // nhận") needs grounding from BOTH sides; scoping to one family strips
         // the other half's citations, while skipping scoping entirely lets an
@@ -1993,6 +2001,7 @@ public class ThesisAssistantService {
             List<java.util.function.Predicate<ThesisAssistantKnowledgeRepository.KnowledgeDocument>> familyPredicates =
                     new ArrayList<>();
             if (isCertificateQuery(message)) familyPredicates.add(ThesisAssistantService::isCertificateDocument);
+            if (thesisGroupQuery) familyPredicates.add(ThesisAssistantService::isThesisGroupPolicyDocument);
             if (isCourseRegistrationQuery(message)) familyPredicates.add(
                     document -> "REGISTRATION".equalsIgnoreCase(safe(document.domain())));
             if (isCreditLimitQuery(message)) familyPredicates.add(ThesisAssistantService::isCreditLimitDocument);
@@ -2013,6 +2022,13 @@ public class ThesisAssistantService {
                 }
                 documents = ordered;
             }
+        } else if (thesisGroupQuery) {
+            // Broad topic-gallery documents can win on generic Vietnamese
+            // syllables. Headcount answers must use the published group rule;
+            // a missing rule remains a knowledge miss, with no substitute.
+            documents = documents.stream()
+                    .filter(ThesisAssistantService::isThesisGroupPolicyDocument)
+                    .toList();
         } else if (isCreditLimitQuery(message)) {
             documents = documents.stream()
                     .filter(ThesisAssistantService::isCreditLimitDocument)
@@ -2206,6 +2222,21 @@ public class ThesisAssistantService {
         return CREDIT_SIGNAL.matcher(folded).find() && CREDIT_LIMIT_SIGNAL.matcher(folded).find();
     }
 
+    /** Explicit thesis-group membership/count questions, excluding a generic topic-gallery request. */
+    static boolean isThesisGroupHeadcountQuery(String message) {
+        if (message == null || message.isBlank()) return false;
+        String folded = foldForMatching(message);
+        return THESIS_GROUP_CONTEXT.matcher(folded).find()
+                && THESIS_GROUP_SIGNAL.matcher(folded).find()
+                && THESIS_GROUP_HEADCOUNT.matcher(folded).find();
+    }
+
+    static boolean isThesisGroupPolicyDocument(ThesisAssistantKnowledgeRepository.KnowledgeDocument document) {
+        if (document == null || !"THESIS".equalsIgnoreCase(safe(document.domain()))) return false;
+        return safe(document.slug()).equals("thesis-group-members-rules-vi")
+                || safe(document.slug()).equals("thesis-group-members-rules-en");
+    }
+
     /**
      * A request for a student certificate/verification document. Card-loss
      * phrasing is excluded — "mất thẻ sinh viên thì xin giấy xác nhận ở đâu"
@@ -2276,6 +2307,7 @@ public class ThesisAssistantService {
         // nhiêu?" previously counted one family and dropped the fees half.
         if (isCreditLimitQuery(message)) families++;
         if (isPrerequisiteQuery(message)) families++;
+        if (isThesisGroupHeadcountQuery(message)) families++;
         if (families < 2) return false;
         return MULTI_INTENT_JOINER.matcher(folded).find();
     }
@@ -2632,6 +2664,11 @@ public class ThesisAssistantService {
                 .replaceAll("[^\\p{L}\\p{N}]+", " ")
                 .trim() + " ";
         List<String> expanded = new ArrayList<>();
+        // Scoped canonical phrases recover the actual accented policy for
+        // unaccented headcount questions without broadening unrelated queries.
+        if (isThesisGroupHeadcountQuery(source)) {
+            expanded.addAll(List.of("nhóm", "thành viên", "group", "members"));
+        }
         // Accented phrase aliases come FIRST: the repository keeps the first
         // 16 terms, so base tokens must never crowd the aliases that an
         // unaccented query depends on.
