@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi.security;
 
+import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
+
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -37,6 +39,9 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
         "spring.flyway.locations=classpath:db/migration-h2"
 })
 class AdminMutationDenyOrderingTest {
+
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     private static final String INVALID_USER_BODY = "{\"email\":\"not-an-email\"}";
 
@@ -76,16 +81,16 @@ class AdminMutationDenyOrderingTest {
     }
 
     private RequestPostProcessor studentJwt() {
-        return jwt().jwt(token -> token
+        return fixtureJwt(jdbc, "deny-order-student", token -> token
                         .subject("deny-order-student")
-                        .claim("roles", List.of("STUDENT")))
+                        .claim("roles", List.of("STUDENT")), "STUDENT")
                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
     }
 
     private RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token
+        return fixtureJwt(jdbc, "deny-order-admin", token -> token
                         .subject("deny-order-admin")
-                        .claim("roles", List.of("ADMIN")))
+                        .claim("roles", List.of("ADMIN")), "ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
 }

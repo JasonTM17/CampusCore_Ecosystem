@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi.site;
 
+import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
+
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -69,7 +71,7 @@ class SiteAppearancePersistenceTest {
         jdbc.execute("DROP TABLE IF EXISTS \"campuscore_auth\".\"User\"");
         jdbc.execute("""
                 CREATE TABLE "campuscore_auth"."User" (
-                    "id" VARCHAR(120) PRIMARY KEY,
+                    "id" VARCHAR(512) PRIMARY KEY,
                     "email" VARCHAR(320) NOT NULL,
                     "status" VARCHAR(40) NOT NULL DEFAULT 'ACTIVE',
                     "mustChangePassword" BOOLEAN NOT NULL DEFAULT FALSE,
@@ -82,11 +84,11 @@ class SiteAppearancePersistenceTest {
                 """, "admin-1", "admin-1@campuscore.edu");
     }
 
-    private static JwtRequestPostProcessor admin() {
-        return jwt().jwt(token -> token
+    private JwtRequestPostProcessor admin() {
+        return fixtureJwt(jdbc, "admin-1", token -> token
                         .subject("admin-1")
                         .claim("email", "admin-1@campuscore.edu")
-                        .claim("roles", List.of("ADMIN")))
+                        .claim("roles", List.of("ADMIN")), "ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
 
@@ -197,10 +199,10 @@ class SiteAppearancePersistenceTest {
         mvc.perform(put("/api/v1/site-appearance")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"version\":9}")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "student-1", token -> token
                                 .subject("student-1")
                                 .claim("email", "student-1@campuscore.edu")
-                                .claim("roles", List.of("STUDENT")))
+                                .claim("roles", List.of("STUDENT")), "STUDENT")
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
                 .andExpect(status().isForbidden());
     }
@@ -209,13 +211,15 @@ class SiteAppearancePersistenceTest {
     @DisplayName("a JWT subject longer than the actor column clips instead of failing")
     void longActorSubjectIsClipped() throws Exception {
         String subject = "s".repeat(300);
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.ensureSchema(jdbc);
+        jdbc.execute("ALTER TABLE campuscore_auth.\"UserRole\" ALTER COLUMN \"userId\" VARCHAR(512)");
         mvc.perform(put("/api/v1/site-appearance")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"version\":1,\"accent\":\"campus-gold\"}")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, subject, token -> token
                                 .subject(subject)
                                 .claim("email", "long-subject@campuscore.edu")
-                                .claim("roles", List.of("ADMIN")))
+                                .claim("roles", List.of("ADMIN")), "ADMIN")
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk());
 

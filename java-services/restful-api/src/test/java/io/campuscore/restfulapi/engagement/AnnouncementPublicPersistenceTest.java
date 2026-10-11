@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi.engagement;
 
+import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -217,10 +219,10 @@ class AnnouncementPublicPersistenceTest {
         mvc.perform(patch("/api/v1/announcements/reorder-me/order")
                         .contentType("application/json")
                         .content("{\"displayOrder\": 3}")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "admin-1", token -> token
                                 .subject("admin-1")
                                 .claim("email", "admin-1@campuscore.edu")
-                                .claim("roles", java.util.List.of("ADMIN")))
+                                .claim("roles", java.util.List.of("ADMIN")), "ADMIN")
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("reorder-me"));
@@ -234,10 +236,10 @@ class AnnouncementPublicPersistenceTest {
         mvc.perform(patch("/api/v1/announcements/reorder-me/order")
                         .contentType("application/json")
                         .content("{\"displayOrder\": 1}")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "student-1", token -> token
                                 .subject("student-1")
                                 .claim("email", "student-1@campuscore.edu")
-                                .claim("roles", java.util.List.of("STUDENT")))
+                                .claim("roles", java.util.List.of("STUDENT")), "STUDENT")
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
                 .andExpect(status().isForbidden());
 
@@ -245,10 +247,10 @@ class AnnouncementPublicPersistenceTest {
         mvc.perform(patch("/api/v1/announcements/reorder-me/order")
                         .contentType("application/json")
                         .content("{\"displayOrder\": -2}")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "admin-1", token -> token
                                 .subject("admin-1")
                                 .claim("email", "admin-1@campuscore.edu")
-                                .claim("roles", java.util.List.of("ADMIN")))
+                                .claim("roles", java.util.List.of("ADMIN")), "ADMIN")
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
@@ -256,10 +258,10 @@ class AnnouncementPublicPersistenceTest {
         mvc.perform(patch("/api/v1/announcements/reorder-me/order")
                         .contentType("application/json")
                         .content("{}")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "admin-1", token -> token
                                 .subject("admin-1")
                                 .claim("email", "admin-1@campuscore.edu")
-                                .claim("roles", java.util.List.of("ADMIN")))
+                                .claim("roles", java.util.List.of("ADMIN")), "ADMIN")
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
@@ -267,10 +269,10 @@ class AnnouncementPublicPersistenceTest {
         mvc.perform(patch("/api/v1/announcements/unknown/order")
                         .contentType("application/json")
                         .content("{\"displayOrder\": 1}")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "admin-1", token -> token
                                 .subject("admin-1")
                                 .claim("email", "admin-1@campuscore.edu")
-                                .claim("roles", java.util.List.of("ADMIN")))
+                                .claim("roles", java.util.List.of("ADMIN")), "ADMIN")
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isNotFound());
     }
@@ -287,10 +289,10 @@ class AnnouncementPublicPersistenceTest {
         // Page order must be displayOrder 0, 1, 2, then the unordered newest row.
         mvc.perform(get("/api/v1/announcements")
                         .queryParam("status", "ACTIVE")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "admin-1", token -> token
                                 .subject("admin-1")
                                 .claim("email", "admin-1@campuscore.edu")
-                                .claim("roles", java.util.List.of("ADMIN")))
+                                .claim("roles", java.util.List.of("ADMIN")), "ADMIN")
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(4))

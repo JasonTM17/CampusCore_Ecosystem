@@ -14,6 +14,8 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import io.campuscore.restfulapi.testsupport.AccountAuthorityFixture;
+import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,8 +69,11 @@ class AdminCatalogMutationPersistenceTest {
                 )
                 """);
         createTables();
+        AccountAuthorityFixture.ensureSchema(jdbc);
         clearTables();
         insertFixture();
+        AccountAuthorityFixture.ensureUser(jdbc, "admin-user");
+        AccountAuthorityFixture.replaceRoles(jdbc, "admin-user", "ADMIN");
     }
 
     @Test
@@ -994,7 +999,6 @@ class AdminCatalogMutationPersistenceTest {
     }
 
     private RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token.subject("admin-user").claim("roles", List.of("ADMIN")))
-                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        return CurrentAccountJwt.currentJwt(jdbc, "admin-user");
     }
 }

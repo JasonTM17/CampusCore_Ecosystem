@@ -60,11 +60,16 @@ class AccountStateFilterTest {
                 new JwtAuthenticationToken(jwt, Collections.emptyList()));
     }
 
+    private static AuthUserRepository.AccountAuthorization state(String status, boolean mustChangePassword) {
+        return new AuthUserRepository.AccountAuthorization(status, mustChangePassword, null, null, null,
+                java.util.Set.of(), java.util.Set.of());
+    }
+
     @Test
     void activeUserPassesThrough() throws Exception {
         authenticate("user-1");
-        when(repository.findAccountState("user-1"))
-                .thenReturn(Optional.of(new AuthUserRepository.AccountState("ACTIVE", false)));
+        when(repository.findAccountAuthorization("user-1"))
+                .thenReturn(Optional.of(state("ACTIVE", false)));
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/student/profile");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -79,8 +84,8 @@ class AccountStateFilterTest {
     @Test
     void inactiveUserGetsForbidden() throws Exception {
         authenticate("user-2");
-        when(repository.findAccountState("user-2"))
-                .thenReturn(Optional.of(new AuthUserRepository.AccountState("INACTIVE", false)));
+        when(repository.findAccountAuthorization("user-2"))
+                .thenReturn(Optional.of(state("INACTIVE", false)));
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/student/profile");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -96,8 +101,8 @@ class AccountStateFilterTest {
     @Test
     void mustChangePasswordBlocksNormalEndpoint() throws Exception {
         authenticate("user-3");
-        when(repository.findAccountState("user-3"))
-                .thenReturn(Optional.of(new AuthUserRepository.AccountState("ACTIVE", true)));
+        when(repository.findAccountAuthorization("user-3"))
+                .thenReturn(Optional.of(state("ACTIVE", true)));
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/student/grades");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -113,7 +118,8 @@ class AccountStateFilterTest {
     @Test
     void mustChangePasswordAllowsRotationEndpoints() throws Exception {
         authenticate("user-3");
-        // /api/v1/auth/me is on the rotation allowlist so filter skips the check entirely
+        when(repository.findAccountAuthorization("user-3"))
+                .thenReturn(Optional.of(state("ACTIVE", true)));
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/auth/me");
         MockHttpServletResponse response = new MockHttpServletResponse();
         FilterChain chain = mock(FilterChain.class);
@@ -125,9 +131,9 @@ class AccountStateFilterTest {
     }
 
     @Test
-    void databaseOutageOnDegradableEndpointPassesThrough() throws Exception {
+    void databaseOutageOnProtectedAssistantReturns503() throws Exception {
         authenticate("user-4");
-        when(repository.findAccountState("user-4"))
+        when(repository.findAccountAuthorization("user-4"))
                 .thenThrow(new DataAccessResourceFailureException("Connection refused"));
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/assistant/chat");
@@ -136,15 +142,14 @@ class AccountStateFilterTest {
 
         filter.doFilter(request, response, chain);
 
-        // Chain should be called so the downstream service can degrade gracefully
-        assertEquals(200, response.getStatus());
-        verify(chain).doFilter(request, response);
+        assertEquals(503, response.getStatus());
+        verify(chain, never()).doFilter(request, response);
     }
 
     @Test
     void databaseOutageOnNonDegradableEndpointReturns503() throws Exception {
         authenticate("user-5");
-        when(repository.findAccountState("user-5"))
+        when(repository.findAccountAuthorization("user-5"))
                 .thenThrow(new DataAccessResourceFailureException("Connection refused"));
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/student/enrollments");
@@ -169,10 +174,10 @@ class AccountStateFilterTest {
 
         filter.doFilter(request, response, chain);
 
-        assertEquals(200, response.getStatus());
-        verify(chain).doFilter(request, response);
+        assertEquals(503, response.getStatus());
+        verify(chain, never()).doFilter(request, response);
         // Repository should not even be called when breaker is open
-        verify(repository, never()).findAccountState("user-6");
+        verify(repository, never()).findAccountAuthorization("user-6");
     }
 
     @Test
@@ -189,6 +194,6 @@ class AccountStateFilterTest {
         assertEquals(503, response.getStatus());
         assertTrue(response.getContentAsString().contains("DATABASE_UNAVAILABLE"));
         verify(chain, never()).doFilter(request, response);
-        verify(repository, never()).findAccountState("user-7");
+        verify(repository, never()).findAccountAuthorization("user-7");
     }
 }

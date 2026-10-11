@@ -120,6 +120,14 @@ public class AnnouncementReadRepository {
                 .findFirst();
     }
 
+    public java.util.Optional<AnnouncementResponse> findByIdForUser(String id, UserVisibility visibility) {
+        SqlWhere where = userWhere(visibility);
+        where.parameters().addValue("id", id);
+        return jdbc.query("SELECT " + SELECT_COLUMNS + " FROM " + TABLE + where.sql()
+                        + " AND \"id\" = :id", where.parameters(), ROW_MAPPER)
+                .stream().findFirst();
+    }
+
     /**
      * Anonymous public feed: only announcements that are editorially PUBLISHED,
      * globally visible (isGlobal — no role/year/section scoping), inside their

@@ -57,10 +57,12 @@ public class AcademicAttendanceWriteRepository {
         }
         jdbc.update(
                 "DELETE FROM " + ATTENDANCE
-                        + " WHERE \"sectionId\" = :sectionId AND \"date\" = :date AND \"studentId\" IN (:studentIds)",
+                        + " WHERE \"sectionId\" = :sectionId AND \"date\" >= :dayStart AND \"date\" < :dayEnd"
+                        + " AND \"studentId\" IN (:studentIds)",
                 new MapSqlParameterSource()
                         .addValue("sectionId", sectionId)
-                        .addValue("date", Timestamp.from(date))
+                        .addValue("dayStart", utcTimestamp(date.truncatedTo(java.time.temporal.ChronoUnit.DAYS)))
+                        .addValue("dayEnd", utcTimestamp(date.truncatedTo(java.time.temporal.ChronoUnit.DAYS).plusSeconds(86400)))
                         .addValue("studentIds", studentIds));
     }
 
@@ -72,7 +74,7 @@ public class AcademicAttendanceWriteRepository {
                 .addValue("id", row.id())
                 .addValue("studentId", row.studentId())
                 .addValue("sectionId", row.sectionId())
-                .addValue("date", Timestamp.from(row.date()))
+                .addValue("date", utcTimestamp(row.date()))
                 .addValue("status", row.status())
                 .addValue("notes", row.notes())
                 .addValue("createdAt", Timestamp.from(row.createdAt()))
@@ -94,5 +96,10 @@ public class AcademicAttendanceWriteRepository {
             String notes,
             Instant createdAt,
             Instant updatedAt) {
+    }
+
+    private static java.time.OffsetDateTime utcTimestamp(Instant date) {
+        // V8 uses TIMESTAMPTZ: retain the instant independently of JVM/DB zone.
+        return date.atOffset(java.time.ZoneOffset.UTC);
     }
 }

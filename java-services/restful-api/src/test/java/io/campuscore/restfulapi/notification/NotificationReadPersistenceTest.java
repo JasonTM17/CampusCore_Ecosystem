@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi.notification;
 
+import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
+
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -24,7 +26,8 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @AutoConfigureMockMvc
 @ActiveProfiles({"test", "persistence"})
 @TestPropertySource(properties = {
-        "spring.flyway.enabled=false"
+        "spring.flyway.enabled=false",
+        "spring.datasource.url=jdbc:h2:mem:repair_NotificationReadPersistenceTest;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"
 })
 class NotificationReadPersistenceTest {
 
@@ -68,7 +71,7 @@ class NotificationReadPersistenceTest {
         mvc.perform(get("/api/v1/notifications/my")
                         .queryParam("page", "1")
                         .queryParam("limit", "2")
-                        .with(jwt().jwt(token -> token.subject(STUDENT))))
+                        .with(fixtureJwt(jdbc, STUDENT, token -> token.subject(STUDENT))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.data[0].id").value("n-1"))
@@ -82,7 +85,7 @@ class NotificationReadPersistenceTest {
         mvc.perform(get("/api/v1/notifications/my")
                         .queryParam("page", "2")
                         .queryParam("limit", "2")
-                        .with(jwt().jwt(token -> token.subject(STUDENT))))
+                        .with(fixtureJwt(jdbc, STUDENT, token -> token.subject(STUDENT))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))
                 .andExpect(jsonPath("$.data[0].id").value("n-3"));
@@ -96,14 +99,14 @@ class NotificationReadPersistenceTest {
 
         mvc.perform(get("/api/v1/notifications/my")
                         .queryParam("isRead", "true")
-                        .with(jwt().jwt(token -> token.subject(STUDENT))))
+                        .with(fixtureJwt(jdbc, STUDENT, token -> token.subject(STUDENT))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))
                 .andExpect(jsonPath("$.data[0].id").value("read"));
 
         mvc.perform(get("/api/v1/notifications/my")
                         .queryParam("isRead", "TRUE")
-                        .with(jwt().jwt(token -> token.subject(STUDENT))))
+                        .with(fixtureJwt(jdbc, STUDENT, token -> token.subject(STUDENT))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))
                 .andExpect(jsonPath("$.data[0].id").value("unread"));
@@ -117,7 +120,7 @@ class NotificationReadPersistenceTest {
 
         mvc.perform(get("/api/v1/notifications/my/unread-count")
                         .queryParam("userId", OTHER_USER)
-                        .with(jwt().jwt(token -> token.subject(STUDENT))))
+                        .with(fixtureJwt(jdbc, STUDENT, token -> token.subject(STUDENT))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.unreadCount").value(1));
     }
@@ -181,7 +184,7 @@ class NotificationReadPersistenceTest {
 
         mvc.perform(get("/api/v1/notifications/my")
                         .queryParam("limit", "101")
-                        .with(jwt().jwt(token -> token.subject(STUDENT))))
+                        .with(fixtureJwt(jdbc, STUDENT, token -> token.subject(STUDENT))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
@@ -204,16 +207,16 @@ class NotificationReadPersistenceTest {
     }
 
     private RequestPostProcessor adminJwt() {
-        return jwt().jwt(token -> token
+        return fixtureJwt(jdbc, "admin-user", token -> token
                         .subject("admin-user")
-                        .claim("roles", List.of("ADMIN")))
+                        .claim("roles", List.of("ADMIN")), "ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
 
     private RequestPostProcessor studentJwt() {
-        return jwt().jwt(token -> token
+        return fixtureJwt(jdbc, STUDENT, token -> token
                         .subject(STUDENT)
-                        .claim("roles", List.of("STUDENT")))
+                        .claim("roles", List.of("STUDENT")), "STUDENT")
                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
     }
 }

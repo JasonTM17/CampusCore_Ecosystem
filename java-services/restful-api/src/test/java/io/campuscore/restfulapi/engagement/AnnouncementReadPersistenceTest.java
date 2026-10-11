@@ -1,5 +1,7 @@
 package io.campuscore.restfulapi.engagement;
 
+import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
+
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -26,7 +28,8 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @ActiveProfiles({"test", "persistence"})
 @TestPropertySource(properties = {
-        "spring.flyway.enabled=false"
+        "spring.flyway.enabled=false",
+        "spring.datasource.url=jdbc:h2:mem:repair_AnnouncementReadPersistenceTest;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1"
 })
 class AnnouncementReadPersistenceTest {
 
@@ -41,6 +44,7 @@ class AnnouncementReadPersistenceTest {
 
     @BeforeEach
     void prepareReadOnlyFixture() {
+        io.campuscore.restfulapi.security.DatabaseAvailabilityTracker.recordSuccess();
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS \"engagement\"");
         // The account-state gate consults the issuing table on every business
         // request and fails closed when the store is unreadable, so this
@@ -106,6 +110,10 @@ class AnnouncementReadPersistenceTest {
                     "displayOrder" INTEGER
                 )
                 """);
+        fixtureJwt(jdbc, "student-user", "STUDENT");
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.student(jdbc, "student-user", "student-profile", 2);
+        fixtureJwt(jdbc, "lecturer-user", "LECTURER");
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.lecturer(jdbc, "lecturer-user", "lecturer-1");
     }
 
     @Test
@@ -120,12 +128,12 @@ class AnnouncementReadPersistenceTest {
                 .withWindow(PAST, PAST.plusSeconds(60)));
 
         mvc.perform(get("/api/v1/announcements/my")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "student-user", token -> token
                                 .subject("student-user")
                                 .claim("email", "student@campuscore.edu")
                                 .claim("roles", List.of("STUDENT"))
                                 .claim("studentId", "student-profile")
-                                .claim("student", Map.of("year", 2)))))
+                                .claim("student", Map.of("year", 2)), "STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.data[0].id").value("role-year"))
@@ -139,44 +147,44 @@ class AnnouncementReadPersistenceTest {
                 .andExpect(jsonPath("$.meta.total").value(2));
 
         mvc.perform(get("/api/v1/announcements/my")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "student-without-profile", token -> token
                                 .subject("student-without-profile")
                                 .claim("email", "student2@campuscore.edu")
                                 .claim("roles", List.of("STUDENT"))
                                 .claim("studentId", "")
-                                .claim("student", Map.of("year", 2)))))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+                                .claim("student", Map.of("year", 2)), "STUDENT")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("SESSION_INVALID"));
 
         mvc.perform(get("/api/v1/announcements/my")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "student-with-numeric-id", token -> token
                                 .subject("student-with-numeric-id")
                                 .claim("email", "student3@campuscore.edu")
                                 .claim("roles", List.of("STUDENT"))
                                 .claim("studentId", 42)
-                                .claim("student", Map.of("year", 2)))))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+                                .claim("student", Map.of("year", 2)), "STUDENT")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("SESSION_INVALID"));
 
         mvc.perform(get("/api/v1/announcements/my")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "student-with-fractional-year", token -> token
                                 .subject("student-with-fractional-year")
                                 .claim("email", "student4@campuscore.edu")
                                 .claim("roles", List.of("STUDENT"))
                                 .claim("studentId", "student-profile")
-                                .claim("student", Map.of("year", 2.5)))))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+                                .claim("student", Map.of("year", 2.5)), "STUDENT")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("SESSION_INVALID"));
 
         mvc.perform(get("/api/v1/announcements/my")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "student-with-overflow-year", token -> token
                                 .subject("student-with-overflow-year")
                                 .claim("email", "student5@campuscore.edu")
                                 .claim("roles", List.of("STUDENT"))
                                 .claim("studentId", "student-profile")
-                                .claim("student", Map.of("year", Long.MAX_VALUE)))))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+                                .claim("student", Map.of("year", Long.MAX_VALUE)), "STUDENT")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("SESSION_INVALID"));
     }
 
     @Test
@@ -197,12 +205,12 @@ class AnnouncementReadPersistenceTest {
         // A withdrawn student is not enrolled: only the active section's notice
         // is visible, which matches how credit load is computed elsewhere.
         mvc.perform(get("/api/v1/announcements/my")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "student-user", token -> token
                                 .subject("student-user")
                                 .claim("email", "student@campuscore.edu")
                                 .claim("roles", List.of("STUDENT"))
                                 .claim("studentId", "student-profile")
-                                .claim("student", Map.of("year", 2)))))
+                                .claim("student", Map.of("year", 2)), "STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))
                 .andExpect(jsonPath("$.data[0].id").value("still-enrolled"))
@@ -225,12 +233,12 @@ class AnnouncementReadPersistenceTest {
         // section the student is actually enrolled in. The notice scoped to
         // another section must not appear at all.
         mvc.perform(get("/api/v1/announcements/my")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "student-user", token -> token
                                 .subject("student-user")
                                 .claim("email", "student@campuscore.edu")
                                 .claim("roles", List.of("STUDENT"))
                                 .claim("studentId", "student-profile")
-                                .claim("student", Map.of("year", 2)))))
+                                .claim("student", Map.of("year", 2)), "STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.data[0].id").value("whole-cohort"))
@@ -247,11 +255,11 @@ class AnnouncementReadPersistenceTest {
                 .withLecturer("lecturer-2", "Lecturer Two"));
 
         mvc.perform(get("/api/v1/announcements/my")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "lecturer-user", token -> token
                                 .subject("lecturer-user")
                                 .claim("email", "lecturer@campuscore.edu")
                                 .claim("roles", List.of("LECTURER"))
-                                .claim("lecturerId", "lecturer-1"))))
+                                .claim("lecturerId", "lecturer-1"), "LECTURER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.data[0].id").value("mine"))
@@ -259,21 +267,21 @@ class AnnouncementReadPersistenceTest {
                 .andExpect(jsonPath("$.data[1].id").value("general"));
 
         mvc.perform(get("/api/v1/announcements/my")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "lecturer-without-profile", token -> token
                                 .subject("lecturer-without-profile")
                                 .claim("email", "lecturer2@campuscore.edu")
-                                .claim("roles", List.of("LECTURER")))))
+                                .claim("roles", List.of("LECTURER")), "LECTURER")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
 
         mvc.perform(get("/api/v1/announcements/my")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "lecturer-with-numeric-profile", token -> token
                                 .subject("lecturer-with-numeric-profile")
                                 .claim("email", "lecturer3@campuscore.edu")
                                 .claim("roles", List.of("LECTURER"))
-                                .claim("lecturerId", 42))))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+                                .claim("lecturerId", 42), "LECTURER")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("SESSION_INVALID"));
     }
 
     @Test
@@ -289,11 +297,10 @@ class AnnouncementReadPersistenceTest {
                         .queryParam("semesterId", "semester-1")
                         .queryParam("sectionId", "section-1")
                         .queryParam("priority", "HIGH")
-                        .with(jwt()
-                                .jwt(token -> token
+                        .with(fixtureJwt(jdbc, "admin-user", token -> token
                                         .subject("admin-user")
                                         .claim("email", "admin@campuscore.edu")
-                                        .claim("roles", List.of("ADMIN")))
+                                        .claim("roles", List.of("ADMIN")), "ADMIN")
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))
@@ -309,11 +316,10 @@ class AnnouncementReadPersistenceTest {
                 .andExpect(jsonPath("$.meta.totalPages").value(1));
 
         mvc.perform(get("/api/v1/announcements")
-                        .with(jwt()
-                                .jwt(token -> token
+                        .with(fixtureJwt(jdbc, "student-user", token -> token
                                         .subject("student-user")
                                         .claim("email", "student@campuscore.edu")
-                                        .claim("roles", List.of("STUDENT")))
+                                        .claim("roles", List.of("STUDENT")), "STUDENT")
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
@@ -328,7 +334,7 @@ class AnnouncementReadPersistenceTest {
         mvc.perform(get("/api/v1/announcements/my")
                         .queryParam("page", "2")
                         .queryParam("limit", "2")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "user", token -> token
                                 .subject("user")
                                 .claim("email", "user@campuscore.edu"))))
                 .andExpect(status().isOk())
@@ -339,37 +345,35 @@ class AnnouncementReadPersistenceTest {
 
         mvc.perform(get("/api/v1/announcements/my")
                         .queryParam("limit", "201")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "user", token -> token
                                 .subject("user")
-                                .claim("email", "user@campuscore.edu"))))
+                                .claim("email", "user@campuscore.edu"), "ADMIN")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
         mvc.perform(get("/api/v1/announcements")
                         .queryParam("priority", "CRITICAL")
-                        .with(jwt()
-                                .jwt(token -> token
+                        .with(fixtureJwt(jdbc, "admin-user", token -> token
                                         .subject("admin-user")
                                         .claim("email", "admin@campuscore.edu")
-                                        .claim("roles", List.of("ADMIN")))
+                                        .claim("roles", List.of("ADMIN")), "ADMIN")
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
         mvc.perform(get("/api/v1/announcements")
                         .queryParam("priority", "")
-                        .with(jwt()
-                                .jwt(token -> token
+                        .with(fixtureJwt(jdbc, "admin-user", token -> token
                                         .subject("admin-user")
                                         .claim("email", "admin@campuscore.edu")
-                                        .claim("roles", List.of("ADMIN")))
+                                        .claim("roles", List.of("ADMIN")), "ADMIN")
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
         mvc.perform(get("/api/v1/announcements/my")
                         .queryParam("unknown", "value")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "user", token -> token
                                 .subject("user")
                                 .claim("email", "user@campuscore.edu"))))
                 .andExpect(status().isBadRequest())
@@ -377,7 +381,7 @@ class AnnouncementReadPersistenceTest {
 
         mvc.perform(get("/api/v1/announcements/my")
                         .queryParam("page", "1", "2")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "user", token -> token
                                 .subject("user")
                                 .claim("email", "user@campuscore.edu"))))
                 .andExpect(status().isBadRequest())
@@ -392,49 +396,48 @@ class AnnouncementReadPersistenceTest {
         mvc.perform(get("/api/v1/announcements")
                         .queryParam("semesterId", "")
                         .queryParam("sectionId", "")
-                        .with(jwt()
-                                .jwt(token -> token
+                        .with(fixtureJwt(jdbc, "admin-user", token -> token
                                         .subject("admin-user")
                                         .claim("email", "admin@campuscore.edu")
-                                        .claim("roles", List.of("ADMIN")))
+                                        .claim("roles", List.of("ADMIN")), "ADMIN")
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.meta.total").value(2));
 
         mvc.perform(get("/api/v1/announcements/my")
-                        .with(jwt().jwt(token -> token.subject("missing-email"))))
+                        .with(fixtureJwt(jdbc, "missing-email", token -> token.subject("missing-email").claims(claims -> claims.remove("email")))))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
 
         mvc.perform(get("/api/v1/announcements/my")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "numeric-email", token -> token
                                 .subject("numeric-email")
                                 .claim("email", 42))))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
 
         mvc.perform(get("/api/v1/announcements/my")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "user", token -> token
                                 .claim("sub", 42)
                                 .claim("email", "numeric-sub@campuscore.edu"))))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+                .andExpect(jsonPath("$.code").value("SESSION_INVALID"));
 
         mvc.perform(get("/api/v1/announcements/my")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "mixed-roles", token -> token
                                 .claim("sub", false)
                                 .claim("email", "boolean-sub@campuscore.edu"))))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+                .andExpect(jsonPath("$.code").value("SESSION_INVALID"));
 
         mvc.perform(get("/api/v1/announcements/my")
-                        .with(jwt().jwt(token -> token
+                        .with(fixtureJwt(jdbc, "mixed-roles", token -> token
                                 .subject("mixed-roles")
                                 .claim("email", "mixed-roles@campuscore.edu")
-                                .claim("roles", List.of("STUDENT", 42)))))
+                                .claim("roles", List.of("STUDENT", 42)), "STUDENT")))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+                .andExpect(jsonPath("$.code").value("SESSION_INVALID"));
     }
 
     @Test
@@ -442,6 +445,52 @@ class AnnouncementReadPersistenceTest {
         mvc.perform(get("/api/v1/announcements/my"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+    }
+
+    @Test
+    void lecturerDetailUsesTheSameAudienceAsFeedAndPreservesOwnerManagement() throws Exception {
+        insert(fixture("private-students", false, new String[]{"STUDENT"}, new Integer[0], "2026-08-20T09:00:00Z"));
+        insert(fixture("staff-visible", false, new String[]{"LECTURER"}, new Integer[0], "2026-08-20T09:00:00Z"));
+        insert(fixture("staff-expired", false, new String[]{"LECTURER"}, new Integer[0], "2026-08-20T09:00:00Z")
+                .withWindow(PAST, PAST));
+        insert(fixture("staff-own", false, new String[]{"STUDENT"}, new Integer[0], "2026-08-20T09:00:00Z")
+                .withLecturer("lecturer-1", "Lecturer One").withWindow(FUTURE, null));
+        var lecturer = fixtureJwt(jdbc, "lecturer-user", token -> token.subject("lecturer-user")
+                .claim("email", "lecturer@campuscore.edu").claim("roles", List.of("LECTURER"))
+                .claim("lecturerId", "lecturer-1"), "LECTURER")
+                .authorities(new SimpleGrantedAuthority("ROLE_LECTURER"));
+        mvc.perform(get("/api/v1/announcements/private-students").with(lecturer))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/announcements/staff-expired").with(lecturer))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/announcements/staff-visible").with(lecturer))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value("staff-visible"));
+        mvc.perform(get("/api/v1/announcements/staff-own").with(lecturer))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/announcements/private-students").with(fixtureJwt(jdbc, "admin-user", token -> token
+                .subject("admin-user").claim("email", "admin@campuscore.edu").claim("roles", List.of("ADMIN")), "ADMIN")
+                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void currentMultiRoleStaffCanReadVisibleDetailsWithoutLosingStudentAudienceScope() throws Exception {
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.student(jdbc, "multi-role-user", "multi-student", 2);
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.lecturer(jdbc, "multi-role-user", "multi-lecturer");
+        insert(fixture("multi-global", true, new String[0], new Integer[0], "2026-08-20T09:00:00Z"));
+        insert(fixture("multi-own-section", false, new String[]{"STUDENT"}, new Integer[]{2}, "2026-08-20T09:00:00Z")
+                .withAcademicContext("semester", "Semester", "multi-section", "01", "CS101", "Web"));
+        insert(fixture("multi-other-section", false, new String[]{"STUDENT"}, new Integer[]{2}, "2026-08-20T09:00:00Z")
+                .withAcademicContext("semester", "Semester", "other-section", "02", "CS102", "Networks"));
+        insert(fixture("multi-other-year", false, new String[]{"STUDENT"}, new Integer[]{3}, "2026-08-20T09:00:00Z"));
+        jdbc.update("INSERT INTO academic.\"Enrollment\" (\"id\", \"studentId\", \"sectionId\", \"semesterId\", \"status\") VALUES ('multi-enrollment', 'multi-student', 'multi-section', 'semester', 'ENROLLED')");
+        var lecturerStudent = fixtureJwt(jdbc, "multi-role-user", "STUDENT", "LECTURER");
+        mvc.perform(get("/api/v1/announcements/multi-global").with(lecturerStudent)).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/announcements/multi-own-section").with(lecturerStudent)).andExpect(status().isOk());
+        mvc.perform(get("/api/v1/announcements/multi-other-section").with(lecturerStudent)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/announcements/multi-other-year").with(lecturerStudent)).andExpect(status().isNotFound());
+        var adminStudent = fixtureJwt(jdbc, "multi-role-user", "STUDENT", "ADMIN");
+        mvc.perform(get("/api/v1/announcements/multi-global").with(adminStudent)).andExpect(status().isOk());
     }
 
     private AnnouncementFixture fixture(
