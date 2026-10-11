@@ -140,3 +140,23 @@ cover the gap:
 
 A paid Render instance removes the cold start entirely; that is a cost decision
 tracked outside this runbook.
+
+## Restoring or moving the production database
+
+Roles, grants and RLS policies are not carried by a data-only restore, and
+`flyway_schema_history` will still say every migration is applied. After any
+restore into a new Supabase project:
+
+1. Point `SPRING_DATASOURCE_*` **and** `ASSISTANT_DB_USERNAME`
+   (`campuscore_assistant_runtime.<project-ref>`) at the new project ref. A stale
+   ref on either makes the pooler answer `tenant/user ... not found`.
+2. Check `SELECT rolname FROM pg_roles WHERE rolname = 'campuscore_assistant_runtime'`
+   and `SELECT count(*) FROM pg_policies WHERE schemaname = 'assistant'` (expect
+   59). If the role is missing or there are no policies, re-run the DDL of
+   `V84`, `V106` and `V110` in that order (idempotent, no data changes), then
+   `ALTER ROLE campuscore_assistant_runtime LOGIN PASSWORD '<new secret>'` and set
+   `ASSISTANT_DB_PASSWORD` on Render. The pooler may take several seconds to
+   accept a rotated password.
+3. Deploy, then run `node scripts/prod-smoke.mjs`. A broken assistant login now
+   degrades chat to 503 instead of stopping the backend, but that is still an
+   outage for the assistant: the smoke script reports it.

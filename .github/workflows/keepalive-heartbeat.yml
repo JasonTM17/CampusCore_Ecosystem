@@ -26,15 +26,15 @@ jobs:
         env:
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          echo "Pinging Supabase REST Gateway (kbptwmwitojjjwvwckom)..."
+          echo "Pinging Supabase REST Gateway (mjodncaunvjekwlgyclg)..."
           # The gateway answers 401 when reachable without credentials, which is a
           # healthy probe result; only connection failure/5xx should fail the job.
           export OK_CODES="200 204 401"
           if [ -n "$SUPABASE_KEY" ]; then
-            bash scripts/keepalive-ping.sh "Supabase REST" https://kbptwmwitojjjwvwckom.supabase.co/rest/v1/ \
+            bash scripts/keepalive-ping.sh "Supabase REST" https://mjodncaunvjekwlgyclg.supabase.co/rest/v1/ \
               -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY"
           else
-            bash scripts/keepalive-ping.sh "Supabase REST" https://kbptwmwitojjjwvwckom.supabase.co/rest/v1/
+            bash scripts/keepalive-ping.sh "Supabase REST" https://mjodncaunvjekwlgyclg.supabase.co/rest/v1/
           fi
       - name: Ping Frontend Production (Vercel)
         run: |

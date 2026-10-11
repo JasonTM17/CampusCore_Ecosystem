@@ -6,7 +6,7 @@
 |---|---|---|---|
 | **Frontend Web** | Vercel | `https://campusute.io.vn` / `https://www.campusute.io.vn` | **LIVE (Ready)** |
 | **Backend REST API** | Render | `https://campuscore-backend-p4em.onrender.com` | **LIVE (Ready)** |
-| **Database** | Supabase PostgreSQL | `https://kbptwmwitojjjwvwckom.supabase.co` | **HEALTHY** |
+| **Database** | Supabase PostgreSQL | `https://mjodncaunvjekwlgyclg.supabase.co` | **HEALTHY** |
 | **Mã nguồn Git** | GitHub | `https://github.com/JasonTM17/Student_Management_UTE` | **UP-TO-DATE** |
 
 ---
