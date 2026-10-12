@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
+import { readLocaleCookie, resolveClientLocale } from '@/i18n/resolve-locale';
+import { stripLocaleFromPathname } from '@/i18n/paths';
 
 // app/error.tsx cannot catch a crash in the root layout or its providers
 // (I18nProvider/AuthProvider live there) — only global-error can, and it
@@ -25,7 +27,11 @@ const COPY = {
 
 function readLocale(): 'vi' | 'en' {
   if (typeof document === 'undefined') return 'vi';
-  return /(?:^|;\s*)cc_locale=en(?:;|$)/i.test(document.cookie) ? 'en' : 'vi';
+  // Same precedence as the provider: a /en or /vi URL prefix beats the cookie.
+  return resolveClientLocale({
+    routeLocale: stripLocaleFromPathname(window.location.pathname).locale,
+    cookieLocale: readLocaleCookie(),
+  });
 }
 
 export default function GlobalError({

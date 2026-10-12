@@ -21,6 +21,7 @@ import {
   localizePathname,
   stripLocaleFromPathname,
 } from '@/i18n/paths';
+import { readLocaleCookie, resolveClientLocale } from '@/i18n/resolve-locale';
 
 interface I18nContextValue {
   locale: Locale;
@@ -68,12 +69,27 @@ export function I18nProvider({
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  const [resolvedLocale, setResolvedLocale] = useState<Locale>(locale);
+  // The initial state already runs the same resolution the middleware used:
+  // URL prefix wins, then the cc_locale cookie, then the locale the server
+  // rendered with. For an unprefixed URL with cc_locale=en the server and the
+  // client therefore both pick 'en' — previously the client forced the
+  // defaultLocale here and the page flipped to Vietnamese after hydration.
+  const [resolvedLocale, setResolvedLocale] = useState<Locale>(() =>
+    resolveClientLocale({
+      routeLocale: stripLocaleFromPathname(pathname).locale,
+      cookieLocale: readLocaleCookie(),
+      serverLocale: locale,
+    }),
+  );
   const [resolvedIsPrefixed, setResolvedIsPrefixed] = useState(isPrefixed);
 
   useEffect(() => {
     const routeLocale = stripLocaleFromPathname(pathname).locale;
-    const nextLocale = routeLocale ?? defaultLocale;
+    const nextLocale = resolveClientLocale({
+      routeLocale,
+      cookieLocale: readLocaleCookie(),
+      serverLocale: locale,
+    });
     const nextIsPrefixed = Boolean(routeLocale);
 
     setResolvedLocale(nextLocale);
@@ -83,7 +99,7 @@ export function I18nProvider({
     if (routeLocale) {
       document.cookie = `cc_locale=${nextLocale}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
     }
-  }, [pathname]);
+  }, [pathname, locale]);
 
   const messages = useMemo(
     () => getMessages(resolvedLocale),

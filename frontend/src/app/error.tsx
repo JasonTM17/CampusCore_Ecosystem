@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 // The i18n provider itself may have crashed, so the brand still reads from the
 // dictionary module directly — one brand string wins.
 import { en } from '@/i18n/messages';
+import { readLocaleCookie, resolveClientLocale } from '@/i18n/resolve-locale';
+import { stripLocaleFromPathname } from '@/i18n/paths';
 
 const SITE_NAME = en.meta.defaults.siteName;
 
@@ -29,7 +31,11 @@ const COPY = {
 
 function readLocale(): 'vi' | 'en' {
   if (typeof document === 'undefined') return 'vi';
-  return /(?:^|;\s*)cc_locale=en(?:;|$)/i.test(document.cookie) ? 'en' : 'vi';
+  // Same precedence as the provider: a /en or /vi URL prefix beats the cookie.
+  return resolveClientLocale({
+    routeLocale: stripLocaleFromPathname(window.location.pathname).locale,
+    cookieLocale: readLocaleCookie(),
+  });
 }
 
 export default function ErrorBoundary({
