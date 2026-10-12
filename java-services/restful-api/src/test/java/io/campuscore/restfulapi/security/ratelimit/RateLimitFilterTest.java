@@ -267,6 +267,45 @@ class RateLimitFilterTest {
         assertEquals("2", res.getHeader("X-RateLimit-Remaining"));
     }
 
+    /** Self-service reset requests: anonymous, 5 emails per hour per IP. */
+    @Test
+    void forgotPasswordIsCappedAtFivePerHourPerIp() throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/v1/auth/forgot-password");
+        req.setRemoteAddr("10.0.0.21");
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        filter.doFilter(req, res, mock(FilterChain.class));
+        assertEquals("5", res.getHeader("X-RateLimit-Limit"));
+        assertEquals("4", res.getHeader("X-RateLimit-Remaining"));
+
+        // A distinct IP gets its own bucket, and an authenticated caller does
+        // not share the anonymous IP bucket of this endpoint's abuse surface.
+        MockHttpServletRequest other = new MockHttpServletRequest("POST", "/api/v1/auth/forgot-password");
+        other.setRemoteAddr("10.0.0.22");
+        MockHttpServletResponse otherRes = new MockHttpServletResponse();
+        filter.doFilter(other, otherRes, mock(FilterChain.class));
+        assertEquals("4", otherRes.getHeader("X-RateLimit-Remaining"));
+        assertEquals(2, limiterService.getActiveKeyCount());
+    }
+
+    /** Self-service reset consume: anonymous, 10 per 15 minutes per IP. */
+    @Test
+    void selfServiceResetIsCappedAtTenPerFifteenMinutesPerIp() throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/v1/auth/reset-password");
+        req.setRemoteAddr("10.0.0.23");
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        filter.doFilter(req, res, mock(FilterChain.class));
+        assertEquals("10", res.getHeader("X-RateLimit-Limit"));
+
+        // The 11th try from the same IP is refused with 429.
+        MockHttpServletResponse last = new MockHttpServletResponse();
+        for (int i = 0; i < 10; i++) {
+            last = new MockHttpServletResponse();
+            filter.doFilter(req, last, mock(FilterChain.class));
+        }
+        assertEquals(429, last.getStatus());
+        assertNotNull(last.getHeader("Retry-After"));
+    }
+
     /** Two-factor OTP verification: own tight 10-per-15-minutes IP bucket. */
     @Test
     void twoFactorVerifyIsCappedAtTenPerFifteenMinutesPerIp() throws Exception {

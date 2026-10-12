@@ -158,6 +158,12 @@ public class SecurityConfig {
                                 // no token yet, so it must stay anonymous.
                                 // IP rate limiting lives in RateLimitFilter.
                                 "/api/v1/auth/two-factor/verify",
+                                // Self-service password reset: anonymous by
+                                // design (the caller has no token yet), bound
+                                // to the client IP by RateLimitFilter, and the
+                                // generic reply never reveals account state.
+                                "/api/v1/auth/forgot-password",
+                                "/api/v1/auth/reset-password",
                                 "/api/v1/contract",
                                 "/api/v1/health/**",
                                 // Anonymous public campus news feed for the

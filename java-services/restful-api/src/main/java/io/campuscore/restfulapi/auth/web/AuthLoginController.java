@@ -2,13 +2,17 @@ package io.campuscore.restfulapi.auth.web;
 
 import io.campuscore.restfulapi.auth.service.AuthLoginService;
 import io.campuscore.restfulapi.auth.service.AuthLoginService.LoginResult;
+import io.campuscore.restfulapi.auth.service.PasswordResetRequestDispatcher;
+import io.campuscore.restfulapi.auth.service.PasswordResetService;
 import io.campuscore.restfulapi.auth.web.AuthDtos.AuthUserResponse;
 import io.campuscore.restfulapi.auth.web.AuthDtos.ChangePasswordRequest;
+import io.campuscore.restfulapi.auth.web.AuthDtos.ForgotPasswordRequest;
 import io.campuscore.restfulapi.auth.web.AuthDtos.LoginRequest;
 import io.campuscore.restfulapi.auth.web.AuthDtos.LoginResponse;
 import io.campuscore.restfulapi.auth.web.AuthDtos.LogoutRequest;
 import io.campuscore.restfulapi.auth.web.AuthDtos.MessageResponse;
 import io.campuscore.restfulapi.auth.web.AuthDtos.RefreshRequest;
+import io.campuscore.restfulapi.auth.web.AuthDtos.ResetPasswordRequest;
 import io.campuscore.restfulapi.auth.web.AuthDtos.UpdateProfileRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -37,10 +41,18 @@ public class AuthLoginController {
 
     private final AuthLoginService auth;
     private final SessionCookieService cookies;
+    private final PasswordResetService passwordResets;
+    private final PasswordResetRequestDispatcher passwordResetRequests;
 
-    public AuthLoginController(AuthLoginService auth, SessionCookieService cookies) {
+    public AuthLoginController(
+            AuthLoginService auth,
+            SessionCookieService cookies,
+            PasswordResetService passwordResets,
+            PasswordResetRequestDispatcher passwordResetRequests) {
         this.auth = auth;
         this.cookies = cookies;
+        this.passwordResets = passwordResets;
+        this.passwordResetRequests = passwordResetRequests;
     }
 
     @PostMapping("login")
@@ -132,6 +144,32 @@ public class AuthLoginController {
             @Valid @RequestBody ChangePasswordRequest request) {
         auth.changePassword(jwt.getSubject(), request.oldPassword(), request.newPassword());
         return new MessageResponse("Password changed successfully");
+    }
+
+    @PostMapping("forgot-password")
+    @Operation(summary = "Yêu cầu đặt lại mật khẩu", description = "Gửi liên kết đặt lại mật khẩu tới email của tài khoản. Phản hồi luôn giống nhau dù email có tồn tại hay không, để tránh lộ thông tin tài khoản.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Đã tiếp nhận yêu cầu; nếu tài khoản khớp, liên kết đặt lại sẽ được gửi"),
+            @ApiResponse(responseCode = "429", description = "Vượt quá số lần yêu cầu cho phép")
+    })
+    public MessageResponse forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request,
+            HttpServletRequest servletRequest) {
+        // Enqueued, not awaited: the reply must cost the same whether the
+        // mailbox exists or not — the work runs on the shared async executor.
+        passwordResetRequests.requestResetAsync(request.email(), servletRequest.getRemoteAddr());
+        return new MessageResponse(PasswordResetService.GENERIC_RESPONSE_MESSAGE);
+    }
+
+    @PostMapping("reset-password")
+    @Operation(summary = "Đặt lại mật khẩu bằng liên kết", description = "Đặt mật khẩu mới từ liên kết một lần được gửi qua email; liên kết chỉ dùng được một lần trong 30 phút.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Đặt lại mật khẩu thành công"),
+            @ApiResponse(responseCode = "400", description = "Liên kết không hợp lệ, đã hết hạn hoặc mật khẩu mới không đạt chính sách")
+    })
+    public MessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        passwordResets.resetPassword(request.token(), request.newPassword());
+        return new MessageResponse(PasswordResetService.SUCCESS_RESPONSE_MESSAGE);
     }
 
     @PostMapping("logout")

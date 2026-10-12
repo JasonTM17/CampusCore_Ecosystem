@@ -231,14 +231,16 @@ public class AuthLoginService {
         if (oldPassword == null || oldPassword.isBlank() || newPassword == null || newPassword.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password fields are required");
         }
-        if (newPassword.length() < 8) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must contain at least 8 characters");
-        }
+        PasswordPolicy.validate(newPassword, user.email());
         if (!passwordEncoder.matches(oldPassword, user.passwordHash())) {
             // A stable code lets the profile form say "current password is
             // wrong" instead of the generic HTTP_400 validation copy.
             throw new DomainException(HttpStatus.BAD_REQUEST, "INVALID_OLD_PASSWORD",
                     "Current password is incorrect");
+        }
+        if (passwordEncoder.matches(newPassword, user.passwordHash())) {
+            throw new DomainException(HttpStatus.BAD_REQUEST, "PASSWORD_REUSED",
+                    "New password must differ from the current password.");
         }
 
         // Read before rotation: the flag says whether the credential being

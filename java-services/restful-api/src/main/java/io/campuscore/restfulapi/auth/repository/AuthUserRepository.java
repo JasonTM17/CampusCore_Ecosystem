@@ -343,6 +343,28 @@ public class AuthUserRepository {
                         .addValue("passwordChangedAt", localDateTime(passwordChangedAt)));
     }
 
+    /**
+     * Completes a self-service password reset in one statement: new hash,
+     * clears the must-change flag and any lockout state, and drops the cached
+     * refresh token (refresh sessions are deleted separately by the service).
+     */
+    public void resetPassword(String userId, String passwordHash, Instant passwordChangedAt) {
+        jdbc.update(
+                "UPDATE " + USER_TABLE
+                        + " SET \"password\" = :password,"
+                        + " \"passwordChangedAt\" = :passwordChangedAt,"
+                        + " \"mustChangePassword\" = FALSE,"
+                        + " \"failedLoginAttempts\" = 0,"
+                        + " \"lockedUntil\" = NULL,"
+                        + " \"refreshToken\" = NULL,"
+                        + " \"updatedAt\" = CURRENT_TIMESTAMP"
+                        + " WHERE \"id\" = :userId",
+                new MapSqlParameterSource()
+                        .addValue("userId", userId)
+                        .addValue("password", passwordHash)
+                        .addValue("passwordChangedAt", localDateTime(passwordChangedAt)));
+    }
+
     private List<String> findRoles(String userId) {
         return jdbc.queryForList(
                 "SELECT r.\"name\""

@@ -721,6 +721,63 @@ class AuthLoginPersistenceTest {
                 "User rotated their own password; all sessions were revoked");
     }
 
+    @Test
+    void changePasswordAppliesThePasswordPolicyBeforeRotating() throws Exception {
+        // The stored credential ("password123") is not policy-checked — only
+        // new candidates are. Each rejection is a stable 400 code the form
+        // can render against.
+        String oldSecret = "password123";
+        String newSecret = "new-" + UUID.randomUUID();
+        MvcResult login = mvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"student@campuscore.edu\",\"password\":\"" + oldSecret + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String accessToken = objectMapper.readTree(login.getResponse().getContentAsString())
+                .get("accessToken").asText();
+
+        // Sub-8 candidates never reach the policy: bean validation refuses
+        // them at the DTO boundary with the shared validation code.
+        assertPolicyRejection(accessToken, oldSecret, "s1", "VALIDATION_ERROR");
+        assertPolicyRejection(accessToken, oldSecret, "1234567890", "PASSWORD_TOO_WEAK");
+        // Local-part of the account email (>= 4 chars) inside the candidate.
+        assertPolicyRejection(accessToken, oldSecret, "xStudent9", "PASSWORD_CONTAINS_IDENTITY");
+        // 70 ASCII chars + 'đ' (2 UTF-8 bytes) + '1' = 73 bytes > the
+        // 72-byte BCrypt ceiling — rejected, never silently truncated.
+        assertPolicyRejection(accessToken, oldSecret, "a".repeat(70) + "đ1", "PASSWORD_TOO_LONG");
+        // A denylisted candidate loses to its own code even when it also
+        // happens to equal the current password.
+        assertPolicyRejection(accessToken, oldSecret, "password123", "PASSWORD_TOO_COMMON");
+
+        // A compliant candidate rotates normally …
+        mvc.perform(post("/api/v1/auth/change-password")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"oldPassword\":\"" + oldSecret
+                                + "\",\"newPassword\":\"" + newSecret + "\"}"))
+                .andExpect(status().isOk());
+
+        // … and re-submitting the now-current password is its own 400.
+        mvc.perform(post("/api/v1/auth/change-password")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"oldPassword\":\"" + newSecret
+                                + "\",\"newPassword\":\"" + newSecret + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("PASSWORD_REUSED"));
+    }
+
+    private void assertPolicyRejection(String accessToken, String oldSecret, String candidate, String code)
+            throws Exception {
+        mvc.perform(post("/api/v1/auth/change-password")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"oldPassword\":\"" + oldSecret
+                                + "\",\"newPassword\":\"" + candidate + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(code));
+    }
+
     private void assertAuditAction(String action, String summary) {
         org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM campuscore_audit.\"AdminAudit\""
