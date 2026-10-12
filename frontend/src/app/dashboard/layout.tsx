@@ -677,18 +677,22 @@ export default function DashboardLayout({
 
   // Fire once when the first gate opens (session hint or resolved user); the
   // ref keeps the user-arrives-later callback recreation from fetching twice.
-  // A different signed-in identity in the same mounted layout earns a fresh
-  // first fetch — and must not keep reading the previous user's rows.
+  // Only a REAL identity change (user A -> user B, or a sign-out) re-arms the
+  // ref and drops the previous user's preview state: the normal null ->
+  // first-id resolution must not re-fire a fetch already started on the hint.
   const notificationsRequested = useRef(false);
   const notificationsUserIdRef = useRef(user?.id ?? null);
   useEffect(() => {
     const nextUserId = user?.id ?? null;
     if (notificationsUserIdRef.current !== nextUserId) {
+      const previousUserId = notificationsUserIdRef.current;
       notificationsUserIdRef.current = nextUserId;
-      notificationsRequested.current = false;
-      setNotifications([]);
-      setUnreadCount(0);
-      setNotificationsError(false);
+      if (previousUserId !== null) {
+        notificationsRequested.current = false;
+        setNotifications([]);
+        setUnreadCount(0);
+        setNotificationsError(false);
+      }
     }
     if (notificationsRequested.current || isLoggingOut || (!user && !hasCsrfSessionHint())) {
       return;
