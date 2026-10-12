@@ -82,6 +82,10 @@ function getRouteMetadata(pathname: string, locale: Locale) {
       title: messages.meta.resetPassword.title,
       description: messages.meta.resetPassword.description,
       robots: { index: false, follow: false },
+      // The one-time token lives in the query string on arrival; even though
+      // the page strips it immediately, an eager preload or third-party fetch
+      // must never carry it out via Referer.
+      referrer: 'no-referrer' as const,
     };
   }
 
@@ -180,6 +184,9 @@ export async function getLocalizedMetadata(): Promise<Metadata> {
       description: routeMetadata.description,
       images: [buildSiteUrl(socialImagePath)],
     },
+    // Only routes that opt in (the one-time-token reset page) carry a
+    // referrer policy; everywhere else stays the browser default.
+    referrer: 'referrer' in routeMetadata ? routeMetadata.referrer : undefined,
     robots: {
       index: isIndexable,
       follow: routeMetadata.robots.follow !== false,

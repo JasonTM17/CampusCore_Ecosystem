@@ -11,7 +11,8 @@ import { LoadingState } from '@/components/ui/state-block';
 import { WorkspacePanel } from '@/components/dashboard/WorkspaceSurface';
 import { useI18n } from '@/i18n';
 import { isDemoUser } from '@/lib/login-portal';
-import { campusCodeMessage, campusErrorMessage, type CampusErrorCopy } from '@/lib/campus-error';
+import { campusCodeMessage, type CampusErrorCopy } from '@/lib/campus-error';
+import { checkPasswordPolicy } from '@/lib/password-policy';
 import { maskEmail, normalizeOtpCode } from '@/lib/two-factor';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -442,14 +443,15 @@ export default function ProfilePage() {
     const newPassword = (form.elements.namedItem('newPassword') as HTMLInputElement).value;
     const confirmPassword = (form.elements.namedItem('confirmPassword') as HTMLInputElement).value;
 
-    if (newPassword !== confirmPassword) {
-      setPasswordError(messages.profile.errors.mismatch);
-      setIsUpdatingPassword(false);
-      return;
-    }
-
-    if (newPassword.length < 8) {
-      setPasswordError(messages.profile.errors.tooShort);
+    const issue = checkPasswordPolicy(newPassword, {
+      email: user?.email,
+      currentPassword: oldPassword,
+      confirmPassword,
+    });
+    if (issue) {
+      setPasswordError(
+        messages.common.campusErrors.codes[issue] ?? messages.profile.passwordUpdateFailed,
+      );
       setIsUpdatingPassword(false);
       return;
     }
@@ -468,7 +470,7 @@ export default function ProfilePage() {
       // The inline error sits directly under the form, so a toast with the
       // same copy read as a duplicated message.
       setPasswordError(
-        campusErrorMessage(
+        campusCodeMessage(
           error,
           messages.common.campusErrors,
           messages.profile.passwordUpdateFailed,

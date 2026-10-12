@@ -45,7 +45,10 @@ test('public signup explains that student accounts are issued by the Academic Of
   // Self-registration is removed as a contract: no client may call it.
   assert.doesNotMatch(api, /auth\/register/);
   assert.doesNotMatch(context, /register/);
-  assert.doesNotMatch(login, /forgot-password|forgotPassword/);
+  // Self-service recovery exists (V114 reset tokens): the student and
+  // lecturer portals link to it, the administrator portal never does.
+  assert.match(login, /forgot-password/);
+  assert.match(login, /portal === 'admin' \? null/);
 });
 
 test('leftover sources do not add new locale === vi UI dictionaries', () => {

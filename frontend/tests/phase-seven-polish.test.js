@@ -147,7 +147,6 @@ test('dead dictionary keys stay deleted while dynamically indexed statuses remai
     'continueToWorkspace',
     'signInToWorkspace',
     'reviewAdmin',
-    'backToSignIn',
     'switchToEnglish',
     'switchToVietnamese',
     'snapshotTitle',
