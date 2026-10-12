@@ -32,7 +32,7 @@ export function HomeIdentityBoard() {
       label: locale === 'vi' ? 'Vào Cổng Giảng viên' : 'Enter Lecturer Portal',
     },
     {
-      href: '/login?portal=admin',
+      href: '/login',
       label: locale === 'vi' ? 'Vào Cổng Quản trị' : 'Enter Admin Portal',
     },
   ];

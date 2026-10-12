@@ -362,7 +362,7 @@ export const en = {
       workspace: [
         { href: '/login?portal=student', label: 'Student access' },
         { href: '/login?portal=lecturer', label: 'Lecturer workflows' },
-        { href: '/login?portal=admin', label: 'Admin tools' },
+        { href: '/login', label: 'Admin tools' },
       ],
       delivery: [
         { href: '/login', label: 'Sign in' },
@@ -397,7 +397,7 @@ export const en = {
         description: 'Academic departments, curriculum management, and campus notices.',
         rows: ['People', 'Course catalog'],
         action: 'Enter Admin Portal',
-        href: '/login?portal=admin',
+        href: '/login',
       },
     },
     publicProof: [
@@ -3135,7 +3135,7 @@ export const vi: I18nMessages = {
       workspace: [
         { href: '/login?portal=student', label: 'Cổng Sinh viên' },
         { href: '/login?portal=lecturer', label: 'Cổng Giảng viên' },
-        { href: '/login?portal=admin', label: 'Cổng Quản trị' },
+        { href: '/login', label: 'Cổng Quản trị' },
       ],
       delivery: [
         { href: '/login', label: 'Đăng nhập' },
@@ -3170,7 +3170,7 @@ export const vi: I18nMessages = {
         description: 'Quản trị hồ sơ người dùng, phân công giảng dạy, đợt đăng ký môn và thông báo toàn trường.',
         rows: ['Hồ sơ đào tạo', 'Danh mục môn học'],
         action: 'Truy cập Cổng Quản trị',
-        href: '/login?portal=admin',
+        href: '/login',
       },
     },
     publicProof: [
