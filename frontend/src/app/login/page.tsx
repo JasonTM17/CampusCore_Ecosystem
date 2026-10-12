@@ -16,6 +16,7 @@ import { isStaleDemoPassword } from '@/lib/demo-credentials';
 import {
   LOGIN_PORTALS,
   parseLoginPortal,
+  portalFromUser,
   portalMatchesUser,
   postLoginRoute,
   type LoginPortal,
@@ -87,6 +88,9 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [noticeDismissed, setNoticeDismissed] = useState(false);
   const [formError, setFormError] = useState('');
+  // Set only by a portal mismatch: remembers which tab the authenticated
+  // account actually belongs to so the alert can offer a direct route there.
+  const [mismatchPortal, setMismatchPortal] = useState<LoginPortal | null>(null);
   // Two-factor step 2: set after the password answered with a challenge.
   const [challenge, setChallenge] = useState<{ challengeId: string; email: string } | null>(null);
   const [code, setCode] = useState('');
@@ -103,6 +107,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     setFormError('');
+    setMismatchPortal(null);
     // Prefill only what the deployment actually configured; a missing password
     // leaves the fields empty rather than the panel showing a broken account.
     if (!demoCredentials) return;
@@ -183,6 +188,7 @@ export default function LoginPage() {
   const finishLogin = async (user: User) => {
     if (!portalMatchesUser(portal, user)) {
       await logout({ redirect: false });
+      setMismatchPortal(portalFromUser(user));
       setFormError(portalCopy.mismatch);
       return;
     }
@@ -199,6 +205,7 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
+    setMismatchPortal(null);
     setIsLoading(true);
 
     try {
@@ -253,6 +260,7 @@ export default function LoginPage() {
     setChallenge(null);
     setCode('');
     setFormError('');
+    setMismatchPortal(null);
     setPassword('');
   };
 
@@ -505,7 +513,18 @@ export default function LoginPage() {
             tabIndex={-1}
             className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive shadow-xs"
           >
-            {formError}
+            <p>{formError}</p>
+            {mismatchPortal ? (
+              <LocalizedLink
+                href={portalHref(mismatchPortal)}
+                className="mt-2.5 inline-flex min-h-9 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {messages.login.portals.mismatchAction.replace(
+                  '{portal}',
+                  messages.login.portals[mismatchPortal].tab,
+                )}
+              </LocalizedLink>
+            ) : null}
           </div>
         ) : null}
 
