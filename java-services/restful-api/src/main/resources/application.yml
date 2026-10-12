@@ -234,6 +234,11 @@ spring:
     locations: classpath:db/migration
 
 app:
+  # Public base URL of the web frontend, used to build absolute links in
+  # outbound mail (password reset). Never derived from request headers —
+  # Host/X-Forwarded-Host are client-controlled and would let an attacker
+  # point reset links at their own domain.
+  public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:3100}
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
     # Enable only when behind a trusted reverse proxy that sets X-Real-IP /

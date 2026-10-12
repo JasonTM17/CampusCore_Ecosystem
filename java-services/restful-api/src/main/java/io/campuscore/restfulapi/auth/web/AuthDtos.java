@@ -44,8 +44,21 @@ public final class AuthDtos {
     }
 
     public record ChangePasswordRequest(
-            @NotBlank String oldPassword,
-            @NotBlank @Size(min = 8) String newPassword) {
+            @NotBlank @Size(max = 128) String oldPassword,
+            @NotBlank @Size(min = 8, max = 128) String newPassword) {
+    }
+
+    public record ForgotPasswordRequest(
+            @NotBlank @jakarta.validation.constraints.Email @Size(max = 320) String email) {
+    }
+
+    /**
+     * The token is a 43-char base64url secret; the bounds below only reject
+     * payloads that can never match a stored hash anyway.
+     */
+    public record ResetPasswordRequest(
+            @NotBlank @Size(min = 20, max = 200) String token,
+            @NotBlank @Size(min = 8, max = 128) String newPassword) {
     }
 
     public record MessageResponse(String message) {
