@@ -28,6 +28,11 @@ export default function robots(): MetadataRoute.Robots {
           '/register',
           '/en/register',
           '/vi/register',
+          // Reset links carry single-use credentials in the query string;
+          // keep them out of indexes entirely.
+          '/reset-password',
+          '/en/reset-password',
+          '/vi/reset-password',
           '/api/',
           '/_next/',
         ],
