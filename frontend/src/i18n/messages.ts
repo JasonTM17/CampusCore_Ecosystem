@@ -550,6 +550,7 @@ export const en = {
     returnHomeLead: 'Need a different starting point?',
     portals: {
       groupLabel: 'Choose your campus portal',
+      mismatchAction: 'Open {portal} sign-in',
       student: {
         tab: 'Student',
         eyebrow: 'Student portal',
@@ -3322,6 +3323,7 @@ export const vi: I18nMessages = {
     returnHomeLead: 'Cần một điểm vào khác?',
     portals: {
       groupLabel: 'Chọn khu vực học vụ của bạn',
+      mismatchAction: 'Mở đăng nhập {portal}',
       student: {
         tab: 'Sinh viên',
         eyebrow: 'Cổng Sinh viên',
