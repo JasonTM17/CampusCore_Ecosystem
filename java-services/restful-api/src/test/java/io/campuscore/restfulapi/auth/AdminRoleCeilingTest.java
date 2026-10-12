@@ -53,16 +53,28 @@ class AdminRoleCeilingTest {
 
     private NamedParameterJdbcTemplate jdbc;
     private Map<String, Boolean> rolesTheTargetHolds;
+    private boolean targetHoldsCustomRole;
 
     @BeforeEach
     void setUp() {
         jdbc = mock(NamedParameterJdbcTemplate.class);
         rolesTheTargetHolds = new HashMap<>();
+        targetHoldsCustomRole = false;
         when(jdbc.queryForList(anyString(), any(MapSqlParameterSource.class), eq(Integer.class)))
                 .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0);
                     MapSqlParameterSource parameters = invocation.getArgument(1);
-                    String roleName = (String) parameters.getValue("roleName");
-                    return Boolean.TRUE.equals(rolesTheTargetHolds.get(roleName)) ? List.of(1) : List.of();
+                    // The custom-role probe binds only :userId and filters on
+                    // r."isSystem" = FALSE — asking for :roleName there would
+                    // throw, so branch on hasValue first.
+                    if (parameters.hasValue("roleName")) {
+                        String roleName = (String) parameters.getValue("roleName");
+                        return Boolean.TRUE.equals(rolesTheTargetHolds.get(roleName)) ? List.of(1) : List.of();
+                    }
+                    if (sql.contains("isSystem")) {
+                        return targetHoldsCustomRole ? List.of(1) : List.of();
+                    }
+                    return List.of();
                 });
         when(jdbc.update(anyString(), any(SqlParameterSource.class))).thenReturn(1);
         when(jdbc.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(String.class)))
@@ -196,6 +208,72 @@ class AdminRoleCeilingTest {
             service.resetPassword(TARGET, true, ACTOR);
         } catch (DomainException unexpected) {
             assertNotEquals("ROLE_ESCALATION", unexpected.getCode());
+        }
+    }
+
+    @Test
+    void plainAdminCannotTouchAnAccountHoldingACustomRole() {
+        // A custom (non-system) role can only be granted by a super
+        // administrator, so an account already holding one is protected by
+        // the same ceiling as a dean's — otherwise resetting its password
+        // hands a plain administrator a working credential for powers they
+        // were never allowed to grant.
+        targetHoldsCustomRole = true;
+        AdminUserMutationService service = service();
+
+        DomainException reset = assertThrows(DomainException.class,
+                () -> service.resetPassword(TARGET, false, ACTOR));
+        assertThat(reset.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(reset.getCode()).isEqualTo("ROLE_ESCALATION");
+        // Same state-change assertion as the reserved-role guard: no
+        // credential may have been minted before the refusal.
+        verify(jdbc, never()).update(contains("SET \"password\""), any(SqlParameterSource.class));
+
+        assertThat(assertThrows(DomainException.class,
+                () -> service.delete(TARGET, false, ACTOR)).getCode())
+                .isEqualTo("ROLE_ESCALATION");
+        verify(jdbc, never()).update(contains("DELETE FROM"), any(SqlParameterSource.class));
+
+        assertThat(assertThrows(DomainException.class,
+                () -> service.update(TARGET, Map.of("firstName", "Renamed"), false, ACTOR)).getCode())
+                .isEqualTo("ROLE_ESCALATION");
+        assertThat(assertThrows(DomainException.class,
+                () -> service.unlock(TARGET, false, ACTOR)).getCode())
+                .isEqualTo("ROLE_ESCALATION");
+        assertThat(assertThrows(DomainException.class,
+                () -> service.get(TARGET, false)).getCode())
+                .isEqualTo("ROLE_ESCALATION");
+    }
+
+    @Test
+    void plainAdminCannotReassignASystemRoleOnACustomRoleHolder() {
+        targetHoldsCustomRole = true;
+        AdminUserMutationService service = service();
+
+        DomainException denied = assertThrows(DomainException.class,
+                () -> service.update(TARGET, Map.of("role", "LECTURER"), false, ACTOR));
+
+        assertThat(denied.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(denied.getCode()).isEqualTo("ROLE_ESCALATION");
+        verify(jdbc, never()).update(contains("DELETE FROM"), any(SqlParameterSource.class));
+    }
+
+    @Test
+    void superAdminCanStillManageAnAccountHoldingACustomRole() {
+        targetHoldsCustomRole = true;
+        AdminUserMutationService service = service();
+
+        for (Runnable action : List.<Runnable>of(
+                () -> service.resetPassword(TARGET, true, ACTOR),
+                () -> service.delete(TARGET, true, ACTOR),
+                () -> service.update(TARGET, Map.of("firstName", "Renamed"), true, ACTOR),
+                () -> service.unlock(TARGET, true, ACTOR),
+                () -> service.get(TARGET, true))) {
+            try {
+                action.run();
+            } catch (DomainException unexpected) {
+                assertNotEquals("ROLE_ESCALATION", unexpected.getCode());
+            }
         }
     }
 

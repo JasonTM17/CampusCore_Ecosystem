@@ -192,8 +192,12 @@ public class AdminUserMutationService {
         // for the role it holds, so this is the same ceiling as granting the role.
         requireSuperAdminForProtectedAccount(id, canManageSuperAdmin, "reset the password of");
         String temporaryPassword = generateTemporaryPassword();
+        // An office-issued credential must work immediately: a lockout left
+        // behind by failed logins would make the just-issued password still
+        // answer "Invalid credentials" until it aged out.
         int updated = jdbc.update(
                 "UPDATE " + USER + " SET \"password\" = :password, \"mustChangePassword\" = TRUE,"
+                        + " \"lockedUntil\" = NULL, \"failedLoginAttempts\" = 0,"
                         + " \"updatedAt\" = CURRENT_TIMESTAMP WHERE \"id\" = :id",
                 new MapSqlParameterSource().addValue("id", id)
                         .addValue("password", passwordEncoder.encode(temporaryPassword)));
@@ -469,6 +473,17 @@ public class AdminUserMutationService {
                                 + " an account holding the " + role + " role");
             }
         }
+        // A custom role can only be granted by a super administrator, so an
+        // account already holding one is protected by the same ceiling:
+        // resetting its password would hand out a credential for powers the
+        // caller was never allowed to grant.
+        if (hasCustomRole(userId)) {
+            throw problem(
+                    HttpStatus.FORBIDDEN,
+                    "ROLE_ESCALATION",
+                    "Only a super administrator can " + action
+                            + " an account holding a custom role");
+        }
     }
 
     private void guardRoleMutation(String userId, String roleName, boolean canManageSuperAdmin) {
@@ -510,6 +525,14 @@ public class AdminUserMutationService {
                     "ROLE_ESCALATION",
                     "Only a super administrator can assign the faculty head role");
         }
+        // Re-assigning a system role to a custom-role holder is still a take-over
+        // of an account whose powers the caller may not grant.
+        if (!canManageSuperAdmin && userId != null && hasCustomRole(userId)) {
+            throw problem(
+                    HttpStatus.FORBIDDEN,
+                    "ROLE_ESCALATION",
+                    "Only a super administrator can change the role of an account holding a custom role");
+        }
         // Removing a reserved role is the mirror of granting one, and it is worse
         // than it looks: no migration seeds a SUPER_ADMIN, so on a clean deployment
         // nobody can put the role back. A plain administrator sending the held role
@@ -540,6 +563,14 @@ public class AdminUserMutationService {
                 "SELECT 1 FROM " + USER_ROLE + " ur JOIN " + ROLE + " r ON r.\"id\" = ur.\"roleId\""
                         + " WHERE ur.\"userId\" = :userId AND r.\"name\" = :roleName",
                 new MapSqlParameterSource().addValue("userId", userId).addValue("roleName", roleName),
+                Integer.class).isEmpty();
+    }
+
+    private boolean hasCustomRole(String userId) {
+        return !jdbc.queryForList(
+                "SELECT 1 FROM " + USER_ROLE + " ur JOIN " + ROLE + " r ON r.\"id\" = ur.\"roleId\""
+                        + " WHERE ur.\"userId\" = :userId AND r.\"isSystem\" = FALSE",
+                new MapSqlParameterSource("userId", userId),
                 Integer.class).isEmpty();
     }
 

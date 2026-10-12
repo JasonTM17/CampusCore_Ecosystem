@@ -671,6 +671,65 @@ class AuthLoginPersistenceTest {
     }
 
     @Test
+    void tempCredentialRotationAuditsSeparatelyFromOrdinaryPasswordChange() throws Exception {
+        // An office-issued credential that gets rotated is the audit trail's
+        // only signal that an admin-issued temporary password reached its
+        // owner (or a hijacker) — it must not read as an ordinary change.
+        String issuedSecret = "issued-" + UUID.randomUUID();
+        String rotatedSecret = "rotated-" + UUID.randomUUID();
+        jdbc.update(
+                "UPDATE \"campuscore_auth\".\"User\" SET \"password\" = ?, \"mustChangePassword\" = TRUE"
+                        + " WHERE \"id\" = 'student-user'",
+                passwordEncoder.encode(issuedSecret));
+
+        MvcResult login = mvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"student@campuscore.edu\",\"password\":\"" + issuedSecret + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String accessToken = objectMapper.readTree(login.getResponse().getContentAsString())
+                .get("accessToken").asText();
+
+        mvc.perform(post("/api/v1/auth/change-password")
+                        .header("Authorization", "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"oldPassword\":\"" + issuedSecret
+                                + "\",\"newPassword\":\"" + rotatedSecret + "\"}"))
+                .andExpect(status().isOk());
+
+        assertAuditAction("TEMP_CREDENTIAL_ROTATED",
+                "User rotated an office-issued temporary password; all sessions were revoked");
+
+        // The ordinary self-rotation path keeps its original marker.
+        String secondSecret = "second-" + UUID.randomUUID();
+        MvcResult relogin = mvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"student@campuscore.edu\",\"password\":\"" + rotatedSecret + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String secondToken = objectMapper.readTree(relogin.getResponse().getContentAsString())
+                .get("accessToken").asText();
+
+        mvc.perform(post("/api/v1/auth/change-password")
+                        .header("Authorization", "Bearer " + secondToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"oldPassword\":\"" + rotatedSecret
+                                + "\",\"newPassword\":\"" + secondSecret + "\"}"))
+                .andExpect(status().isOk());
+
+        assertAuditAction("PASSWORD_CHANGED",
+                "User rotated their own password; all sessions were revoked");
+    }
+
+    private void assertAuditAction(String action, String summary) {
+        org.junit.jupiter.api.Assertions.assertEquals(1, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM campuscore_audit.\"AdminAudit\""
+                        + " WHERE \"entityId\" = 'student-user' AND \"action\" = ? AND \"summary\" = ?",
+                Integer.class,
+                action, summary));
+    }
+
+    @Test
     void logoutRequiresCookieCsrfAndClearsTheRefreshSession() throws Exception {
         MvcResult login = loginStudent().andReturn();
         Cookie accessCookie = login.getResponse().getCookie("cc_access_token");
