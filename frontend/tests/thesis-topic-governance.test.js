@@ -360,6 +360,7 @@ test('department-head sign-in routes to thesis and preserves lecturer/student ro
   for (const [portal, roles, expected] of [
     ['lecturer', ['TRUONG_BO_MON'], '/dashboard/thesis'],
     ['lecturer', ['LECTURER'], '/dashboard/lecturer'],
+    ['lecturer', ['LECTURER', 'TRUONG_KHOA'], '/dashboard/lecturer'],
     ['student', ['STUDENT'], '/dashboard'],
     ['admin', ['TRUONG_KHOA'], '/admin/thesis'],
     ['admin', ['ADMIN'], '/admin'],
@@ -373,6 +374,57 @@ test('department-head sign-in routes to thesis and preserves lecturer/student ro
     await route({ roles });
     assert.equal(destination, expected);
   }
+});
+
+test('a privileged account signed in from a visible tab routes to the admin portal', async () => {
+  // With no admin tab rendered, an ADMIN/SUPER_ADMIN/TRUONG_KHOA account
+  // submitting the student or lecturer form must not be refused.
+  for (const [portal, roles, expected] of [
+    ['student', ['ADMIN'], '/admin'],
+    ['lecturer', ['SUPER_ADMIN'], '/admin'],
+    ['student', ['TRUONG_KHOA'], '/admin/thesis'],
+    ['lecturer', ['TRUONG_KHOA'], '/admin/thesis'],
+  ]) {
+    let destination;
+    let loggedOut = false;
+    const route = executeDeclaration('app/login/page.tsx', 'finishLogin', {
+      portal,
+      portalMatchesUser: () => false,
+      portalFromUser: () => 'admin',
+      logout: async () => { loggedOut = true; },
+      setFormError: () => {},
+      setMismatchPortal: () => {},
+      portalCopy: {},
+      router: { push: value => { destination = value; } },
+      href: value => value,
+      postLoginRoute: value => ({ lecturer: '/dashboard/lecturer', student: '/dashboard', admin: '/admin' })[value],
+    });
+    await route({ roles });
+    assert.equal(destination, expected);
+    assert.equal(loggedOut, false, 'the privileged session must be kept');
+  }
+});
+
+test('a non-privileged account on the wrong tab is still refused', async () => {
+  let destination;
+  let loggedOut = false;
+  let mismatchPortal;
+  const route = executeDeclaration('app/login/page.tsx', 'finishLogin', {
+    portal: 'lecturer',
+    portalMatchesUser: () => false,
+    portalFromUser: () => 'student',
+    logout: async () => { loggedOut = true; },
+    setFormError: () => {},
+    setMismatchPortal: value => { mismatchPortal = value; },
+    portalCopy: {},
+    router: { push: value => { destination = value; } },
+    href: value => value,
+    postLoginRoute: value => ({ lecturer: '/dashboard/lecturer', student: '/dashboard', admin: '/admin' })[value],
+  });
+  await route({ roles: ['STUDENT'] });
+  assert.equal(loggedOut, true, 'the mismatched session must be dropped');
+  assert.equal(destination, undefined, 'no navigation may happen on refusal');
+  assert.equal(mismatchPortal, 'student');
 });
 
 test('department heads retain the lecturer portal for session redirects', () => {

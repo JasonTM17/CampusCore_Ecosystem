@@ -17,6 +17,11 @@ import { expect, test } from '@playwright/test';
 const PROBE_EMAIL = 'a11y-probe@campuscore.edu';
 const PROBE_PASSWORD = 'probe-password-does-not-matter';
 
+// Post-navigation waits only assert WHERE the router sent us; on a cold dev
+// server the first compile of the destination route can outlast Playwright's
+// 5s expect default, so these polls get a wider window.
+const NAV_TIMEOUT = { timeout: 30_000 };
+
 async function expectSubmitReaction(page: import('@playwright/test').Page) {
   const alert = page.locator('#login-error');
   await expect(alert).toBeVisible({ timeout: 15_000 });
@@ -41,13 +46,53 @@ test('Enter in the password field submits the form', async ({ page }) => {
 });
 
 /**
+ * The admin tab is not rendered: the tab strip offers only the student and
+ * lecturer portals. A direct ?portal=admin deep link still shows the admin
+ * chrome (heading, no forgot-password link) with neither tab selected.
+ */
+
+test('the login tab strip renders only the student and lecturer tabs', async ({ page }) => {
+  await page.goto('/login');
+  const tabs = page.getByRole('tab');
+  await expect(tabs).toHaveCount(2);
+  await expect(page.getByRole('tab', { name: /quản trị|admin/i })).toHaveCount(0);
+
+  await page.goto('/en/login');
+  await expect(page.getByRole('tab')).toHaveCount(2);
+  await expect(page.getByRole('tab', { name: /quản trị|admin/i })).toHaveCount(0);
+});
+
+test('a portal=admin deep link keeps the admin chrome with no tab selected', async ({ page }) => {
+  await page.goto('/en/login?portal=admin');
+  await expect(page.locator('[data-login-portal="admin"]')).toBeVisible();
+  await expect(page.getByRole('heading', { name: /operations sign-in/i })).toBeVisible();
+  await expect(page.getByRole('tab')).toHaveCount(2);
+  await expect(page.locator('[role="tab"][aria-selected="true"]')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /forgot password|quên mật khẩu/i })).toHaveCount(0);
+});
+
+/**
  * Portal-mismatch recovery: a valid account submitted on the wrong tab is
  * still refused (the session is dropped), but the alert now carries an
  * action link to the portal the account actually belongs to — and the
  * typed credentials must survive the portal switch.
+ *
+ * Privileged accounts are the exception: with no admin tab to pick, an
+ * ADMIN/SUPER_ADMIN/TRUONG_KHOA sign-in from a visible tab is accepted and
+ * routed straight into the admin portal instead of being refused.
  */
 
 async function mockLoginAs(page: import('@playwright/test').Page, roles: string[]) {
+  // Catch-all first (last-registered route wins): a routed privileged account
+  // lands on the real destination page, whose data calls would otherwise 401
+  // and bounce through the session-expired interceptor before the assertion.
+  await page.route('**/api/v1/**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '{}',
+    }),
+  );
   await page.route('**/api/v1/auth/login', (route) =>
     route.fulfill({
       status: 200,
@@ -91,7 +136,7 @@ test('a student account on the admin tab links to the student portal', async ({ 
   await expect(action).toHaveAttribute('href', /portal=student/);
 
   await action.click();
-  await expect(page).toHaveURL(/portal=student/);
+  await expect(page).toHaveURL(/portal=student/, NAV_TIMEOUT);
   await expect(page.locator('#email')).toHaveValue(PROBE_EMAIL);
 });
 
@@ -107,22 +152,47 @@ test('a lecturer account on the student tab links to the lecturer portal', async
   await expect(action).toHaveAttribute('href', /portal=lecturer/);
 
   await action.click();
-  await expect(page).toHaveURL(/portal=lecturer/);
+  await expect(page).toHaveURL(/portal=lecturer/, NAV_TIMEOUT);
   await expect(page.locator('#email')).toHaveValue(PROBE_EMAIL);
 });
 
-test('an admin account on the student tab links to the admin portal', async ({ page }) => {
+test('an admin account on the student tab is routed into the admin portal', async ({ page }) => {
   await mockLoginAs(page, ['ADMIN']);
   await page.goto('/login?portal=student');
+  await fillAndSubmit(page);
+
+  // No refusal: the privileged mismatch is accepted and routes like a
+  // normal admin sign-in.
+  await expect(page.locator('#login-error')).toHaveCount(0);
+  await expect(page).toHaveURL(/\/admin(\?|$)/, NAV_TIMEOUT);
+});
+
+test('a TRUONG_KHOA-only account on the student tab is routed to admin thesis', async ({ page }) => {
+  await mockLoginAs(page, ['TRUONG_KHOA']);
+  await page.goto('/login?portal=student');
+  await fillAndSubmit(page);
+
+  await expect(page.locator('#login-error')).toHaveCount(0);
+  await expect(page).toHaveURL(/\/admin\/thesis(\?|$)/, NAV_TIMEOUT);
+});
+
+test('a LECTURER+TRUONG_KHOA account on the lecturer tab stays on the lecturer portal', async ({ page }) => {
+  await mockLoginAs(page, ['LECTURER', 'TRUONG_KHOA']);
+  await page.goto('/login?portal=lecturer');
+  await fillAndSubmit(page);
+
+  await expect(page.locator('#login-error')).toHaveCount(0);
+  await expect(page).toHaveURL(/\/dashboard\/lecturer(\?|$)/, NAV_TIMEOUT);
+});
+
+test('a student account on the lecturer tab is refused with the recovery link', async ({ page }) => {
+  await mockLoginAs(page, ['STUDENT']);
+  await page.goto('/login?portal=lecturer');
   await fillAndSubmit(page);
 
   const alert = page.locator('#login-error');
   await expect(alert).toBeVisible({ timeout: 15_000 });
   const action = alert.getByRole('link');
   await expect(action).toBeVisible();
-  await expect(action).toHaveAttribute('href', /portal=admin/);
-
-  await action.click();
-  await expect(page).toHaveURL(/portal=admin/);
-  await expect(page.locator('#email')).toHaveValue(PROBE_EMAIL);
+  await expect(action).toHaveAttribute('href', /portal=student/);
 });
