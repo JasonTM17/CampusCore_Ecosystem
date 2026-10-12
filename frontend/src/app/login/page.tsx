@@ -479,6 +479,23 @@ export default function LoginPage() {
           </div>
         ) : null}
 
+        {searchParams.get('reset') === '1' ? (
+          <div
+            role="status"
+            className="flex items-start gap-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.08] px-4 py-3 text-sm shadow-xs dark:border-emerald-500/30 dark:bg-emerald-950/30"
+          >
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+            <span className="min-w-0">
+              <span className="font-medium text-emerald-950 dark:text-emerald-200">
+                {messages.login.reasonMessages.passwordReset.title}
+              </span>{' '}
+              <span className="text-emerald-900/90 dark:text-emerald-300/90">
+                {messages.login.reasonMessages.passwordReset.body}
+              </span>
+            </span>
+          </div>
+        ) : null}
+
         {formError ? (
           <div
             id="login-error"
@@ -628,9 +645,13 @@ export default function LoginPage() {
             />
             {portal === 'admin' ? null : (
               <p className="text-xs leading-5 text-muted-foreground">
-                {locale === 'vi'
-                  ? 'Quên mật khẩu? Liên hệ '
-                  : 'Forgot your password? Contact '}
+                <LocalizedLink
+                  href="/forgot-password"
+                  className="font-medium text-primary hover:underline"
+                >
+                  {locale === 'vi' ? 'Quên mật khẩu?' : 'Forgot your password?'}
+                </LocalizedLink>{' '}
+                {locale === 'vi' ? 'Liên hệ ' : 'Contact '}
                 {portalCopy.officeSupport}.
               </p>
             )}

@@ -524,6 +524,36 @@ export const authApi = {
     return response.data;
   },
 
+  // Anonymous self-service recovery: the answer is intentionally identical
+  // whether the mailbox matches an account or not, and the request must never
+  // trigger the authenticated-session refresh/redirect interceptors.
+  forgotPassword: async (email: string): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>(
+      '/auth/forgot-password',
+      { email },
+      {
+        skipAuthRefresh: true,
+        skipAuthRedirect: true,
+      } as AuthRequestConfig,
+    );
+    return response.data;
+  },
+
+  resetPassword: async (
+    token: string,
+    newPassword: string,
+  ): Promise<{ message: string }> => {
+    const response = await api.post<{ message: string }>(
+      '/auth/reset-password',
+      { token, newPassword },
+      {
+        skipAuthRefresh: true,
+        skipAuthRedirect: true,
+      } as AuthRequestConfig,
+    );
+    return response.data;
+  },
+
 };
 
 // Sections API

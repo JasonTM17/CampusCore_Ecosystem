@@ -56,7 +56,7 @@ test('the web client has one Java API boundary and no removed domain client', ()
   const apiProxy = read('src/app/api/v1/[...path]/route.ts');
   const docsProxy = read('src/app/api/docs/[[...path]]/route.ts');
   assert.doesNotMatch(apiSource, /analyticsApi|financeApi|waitlistApi|socket\.io/);
-  assert.doesNotMatch(apiSource, /forgot-password|reset-password|verify-email|resend-verification/);
+  assert.doesNotMatch(apiSource, /verify-email|resend-verification/);
   assert.doesNotMatch(nextConfig, /LOCAL_EDGE_ORIGIN|socket\.io|redis|rabbitmq/i);
   assert.doesNotMatch(nextConfig, /rewrites|JAVA_API_ORIGIN/);
   assert.match(apiProxy, /process\.env\.JAVA_API_ORIGIN/);
@@ -102,5 +102,5 @@ test('frontend source contains no removed route or runtime reference', () => {
     .map((relativePath) => read(relativePath))
     .join('\n');
   assert.doesNotMatch(source, /\/admin\/analytics|\/dashboard\/invoices|financeApi|analyticsApi|waitlistApi|socket\.io/);
-  assert.doesNotMatch(source, /href=["']\/forgot-password|authApi\.(forgotPassword|resetPassword|verifyEmail|resendVerification)/);
+  assert.doesNotMatch(source, /authApi\.(verifyEmail|resendVerification)/);
 });

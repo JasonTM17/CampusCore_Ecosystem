@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { authApi } from '@/lib/api';
+import { campusCodeMessage } from '@/lib/campus-error';
+import { checkPasswordPolicy } from '@/lib/password-policy';
 import { useI18n } from '@/i18n';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
@@ -18,7 +20,7 @@ import { Input } from '@/components/ui/input';
  */
 export function ForcedPasswordRotationGate() {
   const { user, logout } = useAuth();
-  const { href, locale } = useI18n();
+  const { href, locale, messages } = useI18n();
   const router = useRouter();
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -38,8 +40,7 @@ export function ForcedPasswordRotationGate() {
         currentLabel: 'Mật khẩu tạm thời',
         newLabel: 'Mật khẩu mới',
         confirmLabel: 'Nhập lại mật khẩu mới',
-        mismatch: 'Mật khẩu nhập lại chưa khớp.',
-        short: 'Mật khẩu mới phải có ít nhất 8 ký tự.',
+        hint: 'Từ 8 đến 128 ký tự, có ít nhất một chữ cái và một chữ số; không được chứa địa chỉ email của bạn.',
         submit: 'Đổi mật khẩu và đăng nhập lại',
         saving: 'Đang cập nhật...',
         success: 'Đã đổi mật khẩu. Vui lòng đăng nhập lại bằng mật khẩu mới.',
@@ -52,8 +53,7 @@ export function ForcedPasswordRotationGate() {
         currentLabel: 'Temporary password',
         newLabel: 'New password',
         confirmLabel: 'Confirm new password',
-        mismatch: 'The confirmation does not match.',
-        short: 'The new password must contain at least 8 characters.',
+        hint: 'Between 8 and 128 characters with at least one letter and one digit; it must not contain your email address.',
         submit: 'Rotate and sign in again',
         saving: 'Updating...',
         success: 'Password rotated. Please sign in again with the new one.',
@@ -63,12 +63,13 @@ export function ForcedPasswordRotationGate() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
-    if (newPassword.length < 8) {
-      setError(copy.short);
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError(copy.mismatch);
+    const issue = checkPasswordPolicy(newPassword, {
+      email: user.email,
+      currentPassword: oldPassword,
+      confirmPassword,
+    });
+    if (issue) {
+      setError(messages.common.campusErrors.codes[issue] ?? copy.failed);
       return;
     }
     setIsSaving(true);
@@ -76,8 +77,8 @@ export function ForcedPasswordRotationGate() {
       await authApi.changePassword(oldPassword, newPassword);
       await logout({ redirect: false });
       router.replace(href('/login?reason=password-rotated'));
-    } catch {
-      setError(copy.failed);
+    } catch (error: unknown) {
+      setError(campusCodeMessage(error, messages.common.campusErrors, copy.failed));
     } finally {
       setIsSaving(false);
     }
@@ -133,6 +134,7 @@ export function ForcedPasswordRotationGate() {
               minLength={8}
               required
             />
+            <p className="text-xs leading-5 text-muted-foreground">{copy.hint}</p>
           </div>
           <div className="space-y-2">
             <label htmlFor="rotation-confirm" className="text-sm font-medium text-foreground">

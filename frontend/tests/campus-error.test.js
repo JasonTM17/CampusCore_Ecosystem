@@ -68,7 +68,9 @@ test('student and lecturer pages map failures instead of backend envelope fields
   // conflict toast; the other pages keep the kind-level mapper.
   assert.match(register, /campusCodeMessage\(cause, messages\.common\.campusErrors\)/);
   assert.match(enrollments, /campusErrorMessage\(/);
-  assert.match(profile, /campusErrorMessage\(/);
+  // Password changes report backend PASSWORD_* / INVALID_OLD_PASSWORD codes,
+  // so the profile form uses the code-aware mapper like register does.
+  assert.match(profile, /campusCodeMessage\(/);
   assert.match(lecturerGrades, /campusErrorMessage\(/);
   assert.doesNotMatch(register, /Java API/);
   assert.match(register, /ACTIVE_ENROLLMENT_STATUSES\.has\(enrollment\.status\)\) continue/);
