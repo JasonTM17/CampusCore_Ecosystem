@@ -171,6 +171,15 @@ export const en = {
         STUDENT_ID_EXISTS: 'This student ID already exists.',
         EMPLOYEE_ID_EXISTS: 'This employee ID already exists.',
         ROLE_ESCALATION: 'Only a super administrator can manage administrator accounts.',
+        // Password policy & recovery
+        PASSWORD_TOO_SHORT: 'Choose a password with at least 8 characters.',
+        PASSWORD_TOO_LONG: 'Choose a password no longer than 128 characters.',
+        PASSWORD_CONTAINS_IDENTITY: 'The password must not contain your email address.',
+        PASSWORD_TOO_WEAK: 'Add at least one letter and one digit.',
+        PASSWORD_TOO_COMMON: 'This password is too common; choose a less predictable one.',
+        PASSWORD_REUSED: 'The new password must differ from the current one.',
+        PASSWORD_MISMATCH: 'The new password and confirmation must match.',
+        RESET_TOKEN_INVALID: 'This reset link is invalid or has expired.',
         // Generic
         RATE_LIMIT_EXCEEDED: 'Too many requests. Please wait a moment and try again.',
         RESOURCE_NOT_FOUND: 'That record is no longer available.',
@@ -498,6 +507,10 @@ export const en = {
       signedOut: {
         title: 'Signed out',
         body: 'You have been signed out of the campus portal.',
+      },
+      passwordReset: {
+        title: 'Password updated',
+        body: 'Your password has been reset. Sign in with your new password.',
       },
     },
     runtimeNotice: {
@@ -870,6 +883,8 @@ export const en = {
       'If an account matches {email}, a reset link is on the way.',
     sentDescription:
       'Check spam or promotions if you do not see the message right away. You can also start over with another address.',
+    rateLimited: 'You requested reset links too often. Please wait a while and try again.',
+    backToSignIn: 'Back to sign in',
   },
   resetPassword: {
     eyebrow: 'Reset password',
@@ -897,9 +912,20 @@ export const en = {
     savePassword: 'Saving new password',
     resetPassword: 'Reset password',
     successToast: 'Password reset complete',
+    successDescription: 'You can now sign in with your new password.',
+    policyHint:
+      'Between 8 and 128 characters with at least one letter and one digit. It must not contain your email address.',
+    checklist: {
+      length: 'Between 8 and 128 characters',
+      letterDigit: 'At least one letter and one digit',
+      match: 'Confirmation matches',
+    },
+    requestNewLink: 'Request a new link',
+    backToSignIn: 'Back to sign in',
     errors: {
       mismatch: 'The new password and confirmation must match.',
       tooShort: 'Choose a password with at least 8 characters.',
+      rateLimited: 'Too many attempts. Please wait a moment and try again.',
       fallback: 'We could not reset your password.',
     },
   },
@@ -1915,7 +1941,8 @@ export const en = {
       currentPasswordPlaceholder: 'Enter your current password',
       newPasswordPlaceholder: 'Choose a new password',
       confirmNewPasswordPlaceholder: 'Confirm the new password',
-      passwordHint: 'Minimum 8 characters. Use something unique to this account.',
+      passwordHint:
+        'Between 8 and 128 characters with at least one letter and one digit; it must not contain your email address.',
     },
     errors: {
       mismatch: 'The new password and confirmation must match.',
@@ -2917,6 +2944,15 @@ export const vi: I18nMessages = {
         STUDENT_ID_EXISTS: 'Mã số sinh viên đã tồn tại.',
         EMPLOYEE_ID_EXISTS: 'Mã số giảng viên đã tồn tại.',
         ROLE_ESCALATION: 'Chỉ siêu quản trị viên mới được quản lý tài khoản quản trị viên.',
+        // Chính sách mật khẩu & khôi phục
+        PASSWORD_TOO_SHORT: 'Hãy chọn mật khẩu có ít nhất 8 ký tự.',
+        PASSWORD_TOO_LONG: 'Hãy chọn mật khẩu không quá 128 ký tự.',
+        PASSWORD_CONTAINS_IDENTITY: 'Mật khẩu không được chứa địa chỉ email của bạn.',
+        PASSWORD_TOO_WEAK: 'Hãy thêm ít nhất một chữ cái và một chữ số.',
+        PASSWORD_TOO_COMMON: 'Mật khẩu này quá phổ biến; hãy chọn mật khẩu ít dễ đoán hơn.',
+        PASSWORD_REUSED: 'Mật khẩu mới phải khác mật khẩu hiện tại.',
+        PASSWORD_MISMATCH: 'Mật khẩu mới và phần xác nhận phải trùng nhau.',
+        RESET_TOKEN_INVALID: 'Liên kết đặt lại này không hợp lệ hoặc đã hết hạn.',
         // Chung
         RATE_LIMIT_EXCEEDED: 'Bạn thao tác quá nhanh. Hãy chờ một lát rồi thử lại.',
         RESOURCE_NOT_FOUND: 'Hồ sơ này không còn khả dụng.',
@@ -3243,6 +3279,10 @@ export const vi: I18nMessages = {
       signedOut: {
         title: 'Đã đăng xuất',
         body: 'Bạn đã đăng xuất khỏi cổng học vụ.',
+      },
+      passwordReset: {
+        title: 'Đã cập nhật mật khẩu',
+        body: 'Mật khẩu của bạn đã được đặt lại. Hãy đăng nhập bằng mật khẩu mới.',
       },
     },
     runtimeNotice: {
@@ -3615,6 +3655,8 @@ export const vi: I18nMessages = {
       'Nếu có tài khoản khớp với {email}, một liên kết đặt lại đang được gửi đi.',
     sentDescription:
       'Hãy kiểm tra cả thư rác hoặc quảng cáo nếu chưa thấy thư ngay. Bạn cũng có thể bắt đầu lại với email khác.',
+    rateLimited: 'Bạn đã yêu cầu liên kết đặt lại quá nhiều lần. Vui lòng chờ một lát rồi thử lại.',
+    backToSignIn: 'Quay lại đăng nhập',
   },
   resetPassword: {
     eyebrow: 'Đặt lại mật khẩu',
@@ -3642,9 +3684,20 @@ export const vi: I18nMessages = {
     savePassword: 'Đang lưu mật khẩu mới',
     resetPassword: 'Đặt lại mật khẩu',
     successToast: 'Đặt lại mật khẩu thành công',
+    successDescription: 'Bạn có thể đăng nhập bằng mật khẩu mới ngay bây giờ.',
+    policyHint:
+      'Từ 8 đến 128 ký tự, có ít nhất một chữ cái và một chữ số. Mật khẩu không được chứa địa chỉ email của bạn.',
+    checklist: {
+      length: 'Từ 8 đến 128 ký tự',
+      letterDigit: 'Có ít nhất một chữ cái và một chữ số',
+      match: 'Phần xác nhận trùng khớp',
+    },
+    requestNewLink: 'Yêu cầu liên kết mới',
+    backToSignIn: 'Quay lại đăng nhập',
     errors: {
       mismatch: 'Mật khẩu mới và phần xác nhận phải trùng nhau.',
       tooShort: 'Hãy chọn mật khẩu có ít nhất 8 ký tự.',
+      rateLimited: 'Bạn đã thử quá nhiều lần. Vui lòng chờ một lát rồi thử lại.',
       fallback: 'Hiện chưa thể đặt lại mật khẩu.',
     },
   },
@@ -4656,7 +4709,8 @@ export const vi: I18nMessages = {
       currentPasswordPlaceholder: 'Nhập mật khẩu hiện tại',
       newPasswordPlaceholder: 'Chọn mật khẩu mới',
       confirmNewPasswordPlaceholder: 'Xác nhận mật khẩu mới',
-      passwordHint: 'Tối thiểu 8 ký tự. Hãy dùng mật khẩu riêng cho tài khoản này.',
+      passwordHint:
+        'Từ 8 đến 128 ký tự, có ít nhất một chữ cái và một chữ số; không được chứa địa chỉ email của bạn.',
     },
     errors: {
       mismatch: 'Mật khẩu mới và phần xác nhận phải trùng nhau.',

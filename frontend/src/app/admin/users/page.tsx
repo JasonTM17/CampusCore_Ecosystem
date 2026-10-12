@@ -43,6 +43,7 @@ import { useI18n } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { campusErrorMessage } from '@/lib/campus-error';
+import { isPrivilegedAccountTarget } from '@/lib/admin-user-guards';
 
 interface UserRecord {
   id: string;
@@ -79,9 +80,8 @@ function recordRoles(record: UserRecord): string[] {
   return record.roles ?? [];
 }
 
-function isRecordAdministrator(u: UserRecord): boolean {
-  const values = recordRoles(u).map((role) => role.trim().toUpperCase());
-  return values.includes('ADMIN') || values.includes('SUPER_ADMIN');
+function isRecordPrivileged(record: UserRecord): boolean {
+  return isPrivilegedAccountTarget(recordRoles(record));
 }
 
 function userStatusTone(status: string): StatusTone {
@@ -351,6 +351,8 @@ export default function AdminUsersPage() {
           resetConfirm: 'Cấp lại mật khẩu',
           resetSuccess: 'Đã cấp lại mật khẩu tạm thời và đăng xuất mọi phiên của người dùng.',
           resetFailed: 'Hiện chưa thể cấp lại mật khẩu cho người dùng này.',
+          resetInactiveWarning: (status: string) =>
+            `Tài khoản đang ở trạng thái ${status} — phải kích hoạt lại tài khoản thì mật khẩu tạm thời mới đăng nhập được.`,
           credentialTitle: 'Mật khẩu tạm thời dùng một lần',
           credentialDescription:
             'Hãy chuyển mật khẩu tạm thời dưới đây cho người dùng qua kênh bảo mật. Hệ thống sẽ không hiển thị lại.',
@@ -500,6 +502,8 @@ export default function AdminUsersPage() {
           resetConfirm: 'Re-issue credential',
           resetSuccess: 'Issued a new temporary credential and signed the user out everywhere.',
           resetFailed: 'Could not re-issue a credential for this user.',
+          resetInactiveWarning: (status: string) =>
+            `This account is currently ${status} — re-activate it before the temporary credential can sign in.`,
           credentialTitle: 'One-time temporary credential',
           credentialDescription:
             'Hand the temporary credential below to the user over a secure channel. The system will not show it again.',
@@ -698,6 +702,12 @@ export default function AdminUsersPage() {
         setIssuedCredential({ email: result.email, secret: result.temporaryPassword });
       }
       toast.success(copy.resetSuccess);
+      // A non-ACTIVE account cannot sign in until re-activated: surface that
+      // while the one-time credential is on screen so the office does not
+      // hand out a password that fails at first use.
+      if ((userRecord.status ?? '').toUpperCase() !== 'ACTIVE') {
+        toast.warning(copy.resetInactiveWarning(statusLabel(userRecord.status)));
+      }
       await fetchUsers();
     } catch {
       toast.error(copy.resetFailed);
@@ -1061,7 +1071,7 @@ export default function AdminUsersPage() {
                   <AdminRowActions>
                     {(() => {
                       const isSelf = Boolean(user && (user.id === record.id || user.email === record.email));
-                      const isPrivilegedTarget = isRecordAdministrator(record);
+                      const isPrivilegedTarget = isRecordPrivileged(record);
                       const canManageTarget = isSuperAdmin || !isPrivilegedTarget;
                       return (
                         <>
@@ -1147,9 +1157,9 @@ export default function AdminUsersPage() {
                             {(() => {
                               const isSelf = Boolean(user && (user.id === record.id || user.email === record.email));
                               // Mirror the server ceiling: a plain administrator
-                              // can neither edit, reset, nor delete another
-                              // administrator or super administrator.
-                              const isPrivilegedTarget = isRecordAdministrator(record);
+                              // can neither edit, reset, nor delete an account
+                              // holding an ADMIN, SUPER_ADMIN, or TRUONG_KHOA role.
+                              const isPrivilegedTarget = isRecordPrivileged(record);
                               const canManageTarget = isSuperAdmin || !isPrivilegedTarget;
                               return (
                                 <>
