@@ -49,6 +49,18 @@ public class RateLimitFilter extends OncePerRequestFilter {
     /** Window (seconds) for the two-factor OTP verification bucket. */
     static final int TWO_FACTOR_VERIFY_WINDOW_SECONDS = 900;
 
+    /** Self-service reset requests: 5 emails per hour per IP (anonymous). */
+    static final int FORGOT_PASSWORD_LIMIT_PER_WINDOW = 5;
+
+    /** Window (seconds) for the forgot-password bucket. */
+    static final int FORGOT_PASSWORD_WINDOW_SECONDS = 3600;
+
+    /** Self-service resets: 10 consumes per 15 minutes per IP (anonymous). */
+    static final int RESET_PASSWORD_LIMIT_PER_WINDOW = 10;
+
+    /** Window (seconds) for the self-service reset bucket. */
+    static final int RESET_PASSWORD_WINDOW_SECONDS = 900;
+
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
@@ -180,6 +192,21 @@ public class RateLimitFilter extends OncePerRequestFilter {
                     RateLimitCategory.TWO_FACTOR_VERIFY,
                     TWO_FACTOR_VERIFY_LIMIT_PER_WINDOW,
                     TWO_FACTOR_VERIFY_WINDOW_SECONDS);
+        }
+        // Self-service password reset is anonymous and mails a credential, so —
+        // like login — each side gets its own IP-keyed bucket, before the
+        // generic auth rules and far below the default POST limit.
+        if (uri.startsWith("/api/v1/auth/forgot-password")) {
+            return new RateLimitPolicy(
+                    RateLimitCategory.FORGOT_PASSWORD,
+                    FORGOT_PASSWORD_LIMIT_PER_WINDOW,
+                    FORGOT_PASSWORD_WINDOW_SECONDS);
+        }
+        if (uri.startsWith("/api/v1/auth/reset-password")) {
+            return new RateLimitPolicy(
+                    RateLimitCategory.RESET_PASSWORD_SELF,
+                    RESET_PASSWORD_LIMIT_PER_WINDOW,
+                    RESET_PASSWORD_WINDOW_SECONDS);
         }
         if (uri.startsWith("/api/v1/auth/change-password")) {
             return new RateLimitPolicy(RateLimitCategory.AUTH_CHANGE_PASSWORD, 5, 60);
