@@ -160,3 +160,26 @@ restore into a new Supabase project:
 3. Deploy, then run `node scripts/prod-smoke.mjs`. A broken assistant login now
    degrades chat to 503 instead of stopping the backend, but that is still an
    outage for the assistant: the smoke script reports it.
+
+## Break-glass super administrator
+
+No migration seeds a `SUPER_ADMIN`, and only a super administrator may reset the
+password of, disable or delete an `ADMIN`, `TRUONG_KHOA` or custom-role account
+(plain administrators are refused with `ROLE_ESCALATION`). Without one, a
+forgotten administrator or dean password can only be recovered with direct
+database access.
+
+- Account: `superadmin@campuscore.edu`, role `SUPER_ADMIN`, created with a random
+  24-character initial password and `mustChangePassword = TRUE`. The initial
+  credential is kept outside the repository, never in source or CI.
+- First login: the owner signs in through the "Quản trị" portal, rotates the
+  password at once, then deletes the initial credential file. Enable two-factor
+  sign-in for this account.
+- Use it only for recovery (reset an administrator or dean password, unlock or
+  re-enable such an account). Day-to-day work stays on the plain administrator.
+- Re-creating it (idempotent insert, run with the owner's authorisation): insert
+  one `campuscore_auth."User"` row and one `"UserRole"` row for the `SUPER_ADMIN`
+  role, hashing the password with `extensions.crypt(<pw>, extensions.gen_salt('bf', 10))`
+  on Supabase (Spring's `BCryptPasswordEncoder` accepts the `$2a$10$` result).
+- Every administrator action it performs is written to
+  `campuscore_audit."AdminAudit"` like any other administrator.
