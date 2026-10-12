@@ -7,6 +7,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useRouter } from 'next/navigation';
@@ -16,6 +17,7 @@ import { authApi, refreshSessionSingleFlight } from '@/lib/api';
 import { isTwoFactorChallenge } from '@/lib/two-factor';
 import { hasCsrfSessionHint } from '@/lib/session-hint';
 import { loginHref, portalFromPathname, portalFromUser } from '@/lib/login-portal';
+import { getBrowserQueryClient } from '@/lib/query';
 
 interface AuthContextType {
   user: User | null;
@@ -43,24 +45,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  // The shared browser QueryClient outlives a sign-in because the provider
+  // tree keeps it mounted; several query keys carry no user id, so the cache
+  // is dropped whenever the authenticated identity changes or a session dies
+  // — otherwise the next user could read the previous user's cached data.
+  const lastKnownUserIdRef = useRef<string | null>(null);
+
+  const setUserIdentity = useCallback((nextUser: User | null) => {
+    const nextId = nextUser?.id ?? null;
+    if (nextId && lastKnownUserIdRef.current && lastKnownUserIdRef.current !== nextId) {
+      getBrowserQueryClient().clear();
+    }
+    lastKnownUserIdRef.current = nextId;
+    setUser(nextUser);
+  }, []);
+
+  const clearSessionState = useCallback(() => {
+    getBrowserQueryClient().clear();
+    setUserIdentity(null);
+  }, [setUserIdentity]);
 
   const refreshUser = useCallback(async () => {
     if (!hasCsrfSessionHint()) {
-      setUser(null);
+      clearSessionState();
       return;
     }
 
     try {
-      setUser(await authApi.me());
+      setUserIdentity(await authApi.me());
     } catch {
       try {
         await refreshSessionSingleFlight();
-        setUser(await authApi.me());
+        setUserIdentity(await authApi.me());
       } catch {
-        setUser(null);
+        // The refresh rejected: the session is gone, so the cached
+        // per-user query data must go with it.
+        clearSessionState();
       }
     }
-  }, []);
+  }, [clearSessionState, setUserIdentity]);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -107,16 +130,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.warn('auth: session cookie missing after sign-in; the portal may ask you to sign in again');
     }
     setIsLoggingOut(false);
-    setUser(response.user);
+    getBrowserQueryClient().clear();
+    setUserIdentity(response.user);
     return response.user;
-  }, []);
+  }, [setUserIdentity]);
 
   const verifyTwoFactor = useCallback(async (challengeId: string, code: string) => {
     const response = await authApi.verifyTwoFactor(challengeId, code);
     setIsLoggingOut(false);
-    setUser(response.user);
+    getBrowserQueryClient().clear();
+    setUserIdentity(response.user);
     return response.user;
-  }, []);
+  }, [setUserIdentity]);
 
   const logout = useCallback(async (options?: { redirect?: boolean }) => {
     setIsLoggingOut(true);
@@ -125,7 +150,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // Ignore logout API failures and still clear the client session.
     } finally {
-      setUser(null);
+      getBrowserQueryClient().clear();
+      setUserIdentity(null);
       if (options?.redirect === false) {
         setIsLoggingOut(false);
         return;
@@ -133,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       router.replace(loginHref(href, portalFromUser(user), 'signed-out'));
     }
-  }, [href, router, user]);
+  }, [href, router, setUserIdentity, user]);
 
   const isStudent = user?.roles?.includes('STUDENT') ?? false;
   const isLecturer = user?.roles?.includes('LECTURER') ?? false;

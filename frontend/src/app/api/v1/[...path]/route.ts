@@ -10,6 +10,11 @@ type RouteContext = {
   params: Promise<{ path: string[] }>;
 };
 
+// Truly public GET endpoints whose payload is identical for every caller may
+// carry a short shared cache window; authenticated/private responses must
+// never gain a cache directive here.
+const PUBLIC_GET_PATHS = new Set(['site-appearance']);
+
 async function handle(request: NextRequest, context: RouteContext) {
   const { path } = await context.params;
   const origin = (process.env.JAVA_API_ORIGIN ||
@@ -46,6 +51,13 @@ async function handle(request: NextRequest, context: RouteContext) {
   responseHeaders.delete('content-encoding');
   responseHeaders.delete('content-length');
   responseHeaders.delete('connection');
+
+  if (request.method === 'GET' && PUBLIC_GET_PATHS.has(path.join('/'))) {
+    responseHeaders.set(
+      'Cache-Control',
+      'public, max-age=30, stale-while-revalidate=120',
+    );
+  }
 
   if (typeof response.headers.getSetCookie === 'function') {
     const cookies = response.headers.getSetCookie();

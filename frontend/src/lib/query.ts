@@ -22,6 +22,23 @@ export function createQueryClient(): QueryClient {
   });
 }
 
+// One QueryClient per browser tab: several query keys carry no user id, so
+// AuthContext drops this singleton on every identity change to keep the next
+// signed-in user from reading the previous user's cached data. Server renders
+// still get a fresh client per call — SSR must never share cache state
+// between requests.
+let browserQueryClient: QueryClient | undefined;
+
+export function getBrowserQueryClient(): QueryClient {
+  if (typeof window === 'undefined') {
+    return createQueryClient();
+  }
+  if (!browserQueryClient) {
+    browserQueryClient = createQueryClient();
+  }
+  return browserQueryClient;
+}
+
 export function useApiQuery<TData>(
   queryKey: QueryKey,
   queryFn: () => Promise<TData>,
