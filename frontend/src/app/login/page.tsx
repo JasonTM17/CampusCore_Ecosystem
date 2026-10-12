@@ -14,11 +14,11 @@ import type { User } from '@/types/api';
 import { campusCodeMessage, type CampusErrorCopy } from '@/lib/campus-error';
 import { isStaleDemoPassword } from '@/lib/demo-credentials';
 import {
-  LOGIN_PORTALS,
   parseLoginPortal,
   portalFromUser,
   portalMatchesUser,
   postLoginRoute,
+  VISIBLE_LOGIN_PORTALS,
   type LoginPortal,
 } from '@/lib/login-portal';
 import { isTwoFactorChallenge, maskEmail, normalizeOtpCode } from '@/lib/two-factor';
@@ -187,8 +187,20 @@ export default function LoginPage() {
   /** Shared tail of both sign-in steps: portal check, then role routing. */
   const finishLogin = async (user: User) => {
     if (!portalMatchesUser(portal, user)) {
+      const belongsTo = portalFromUser(user);
+      // There is no admin tab to pick, so a privileged account that signs in
+      // from the student or lecturer form is not a real mismatch: keep the
+      // session and route it like a normal admin sign-in.
+      if (belongsTo === 'admin') {
+        if (user.roles?.includes('TRUONG_KHOA') && !user.roles?.includes('ADMIN')) {
+          router.push(href('/admin/thesis'));
+        } else {
+          router.push(href(postLoginRoute('admin')));
+        }
+        return;
+      }
       await logout({ redirect: false });
-      setMismatchPortal(portalFromUser(user));
+      setMismatchPortal(belongsTo);
       setFormError(portalCopy.mismatch);
       return;
     }
@@ -295,11 +307,11 @@ export default function LoginPage() {
         </div>
 
         <div
-          className="grid grid-cols-3 gap-1.5 rounded-xl border border-slate-300/80 dark:border-border/80 bg-slate-200/90 dark:bg-muted/90 p-1.5 shadow-inner"
+          className="grid grid-cols-2 gap-1.5 rounded-xl border border-slate-300/80 dark:border-border/80 bg-slate-200/90 dark:bg-muted/90 p-1.5 shadow-inner"
           role="tablist"
           aria-label={messages.login.portals.groupLabel}
         >
-          {LOGIN_PORTALS.map((item) => {
+          {VISIBLE_LOGIN_PORTALS.map((item) => {
             const selected = item === portal;
             return (
               <LocalizedLink

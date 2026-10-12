@@ -3,6 +3,11 @@ import type { User } from '@/types/api';
 export const LOGIN_PORTALS = ['student', 'lecturer', 'admin'] as const;
 export type LoginPortal = (typeof LOGIN_PORTALS)[number];
 
+// The admin tab is intentionally not offered on the login form: privileged
+// accounts sign in from the same visible tabs and are routed by role. 'admin'
+// remains a valid LoginPortal for deep links and guard redirects.
+export const VISIBLE_LOGIN_PORTALS = ['student', 'lecturer'] as const;
+
 export function parseLoginPortal(value: string | null | undefined): LoginPortal {
   if (value === 'lecturer' || value === 'admin' || value === 'student') {
     return value;

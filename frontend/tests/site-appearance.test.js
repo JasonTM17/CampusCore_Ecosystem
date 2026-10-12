@@ -372,7 +372,10 @@ test('portal login and appearance studio files are wired', () => {
   assert.match(home, /key: 'lecturer'/);
   assert.match(home, /key: 'admin'/);
   assert.match(messages, /\/login\?portal=lecturer/);
-  assert.match(messages, /\/login\?portal=admin/);
+  // The admin lane still exists but its CTA leads to the shared sign-in
+  // form: no visible copy may deep-link straight into an admin login tab.
+  assert.match(messages, /href: '\/login',[\s\S]{0,200}Cổng Quản trị|Cổng Quản trị[\s\S]{0,200}href: '\/login',/);
+  assert.doesNotMatch(messages, /\/login\?portal=admin/);
   assert.match(appearance, /broadcastSiteAppearance/);
   assert.match(lib, /function orderByIds/);
   assert.match(lib, /function movePostOrder/);
