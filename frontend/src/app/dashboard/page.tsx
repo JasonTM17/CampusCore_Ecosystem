@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   ArrowRight,
   Bell,
@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { useRequireAuth } from '@/context/AuthContext';
 import { enrollmentsApi, registrationApi, semestersApi } from '@/lib/api';
+import { useApiQuery } from '@/lib/query';
+import { hasCsrfSessionHint } from '@/lib/session-hint';
 import { isActiveEnrollment } from '@/lib/enrollment-status';
 import { getLocalizedName } from '@/lib/academic-content';
 import { pickPreferredSemesterId } from '@/lib/semesters';
@@ -135,12 +137,52 @@ const quickAccess = [
 export default function DashboardPage() {
   const { user, hasAccess, isLoading: authLoading } = useRequireAuth(['STUDENT']);
   const { locale, formatDate, formatNumber, messages } = useI18n();
-  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
-  const [semesters, setSemesters] = useState<Semester[]>([]);
-  const [currentSemester, setCurrentSemester] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [termCreditCap, setTermCreditCap] = useState<number | null>(null);
+  // The csrf cookie is written by the login response before this page mounts,
+  // so its presence means a session most likely exists: the data waterfall may
+  // start while /auth/me is still resolving instead of queueing behind it. If
+  // the session turns out dead, the API 401 walks the same refresh/redirect
+  // path a failed /auth/me would.
+  const canLoad = hasAccess || hasCsrfSessionHint();
+
+  const semestersQuery = useApiQuery(
+    ['dashboard', 'semesters'],
+    async () => (await semestersApi.getAll()).data,
+    // Semester reference data changes rarely; caching it across navigations
+    // removes a full waterfall level on repeat visits.
+    { enabled: canLoad, staleTime: 5 * 60_000 },
+  );
+  const semesters = useMemo(() => semestersQuery.data ?? [], [semestersQuery.data]);
+  const currentSemester = useMemo(() => pickPreferredSemesterId(semesters), [semesters]);
+
+  // Same ['registration','enrollments'|'summary'] keys the register page uses,
+  // so its mutations invalidate this data too. Enrollments stay gated on the
+  // resolved user: the key carries user.id, and firing before /auth/me would
+  // only refetch the same rows under a second key.
+  const enrollmentsQuery = useApiQuery(
+    ['registration', 'enrollments', currentSemester, user?.id ?? ''],
+    () => enrollmentsApi.getMyEnrollments(currentSemester || undefined),
+    { enabled: hasAccess && Boolean(currentSemester), staleTime: 30_000 },
+  );
+  const summaryQuery = useApiQuery(
+    ['registration', 'summary', currentSemester],
+    () => registrationApi.summary(currentSemester).catch(() => null),
+    { enabled: canLoad && Boolean(currentSemester), staleTime: 30_000 },
+  );
+
+  const enrollments = (enrollmentsQuery.data ?? []) as Enrollment[];
+  const termCreditCap = summaryQuery.data?.creditLimit ?? null;
+  const isLoading =
+    semestersQuery.isPending ||
+    (Boolean(currentSemester) && (enrollmentsQuery.isPending || summaryQuery.isPending));
+  const error =
+    semestersQuery.isError || enrollmentsQuery.isError
+      ? messages.studentDashboard.errors.loadFailed
+      : '';
+  const refetchData = () => {
+    void semestersQuery.refetch();
+    void enrollmentsQuery.refetch();
+    void summaryQuery.refetch();
+  };
 
   const copy =
     locale === 'vi'
@@ -188,39 +230,6 @@ export default function DashboardPage() {
           quickAccessTitle: 'Quick access',
           coursesUnit: 'courses',
         } as const;
-
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
-    setError('');
-
-    try {
-      const semestersRes = await semestersApi.getAll();
-      setSemesters(semestersRes.data);
-
-      const preferredSemesterId = pickPreferredSemesterId(semestersRes.data);
-      if (preferredSemesterId) {
-        setCurrentSemester(preferredSemesterId);
-        const [enrollmentData, summary] = await Promise.all([
-          enrollmentsApi.getMyEnrollments(preferredSemesterId),
-          registrationApi.summary(preferredSemesterId).catch(() => null),
-        ]);
-        setEnrollments(enrollmentData);
-        setTermCreditCap(summary?.creditLimit ?? null);
-      } else {
-        setEnrollments([]);
-      }
-    } catch {
-      setError(messages.studentDashboard.errors.loadFailed);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [messages.studentDashboard.errors.loadFailed]);
-
-  useEffect(() => {
-    if (hasAccess) {
-      void fetchData();
-    }
-  }, [fetchData, hasAccess]);
 
   const currentSemesterName = useMemo(() => {
     return (
@@ -386,7 +395,7 @@ export default function DashboardPage() {
         <ErrorState
           title={messages.studentDashboard.errors.unavailableTitle}
           description={error}
-          onRetry={() => void fetchData()}
+          onRetry={refetchData}
         />
       ) : isLoading ? (
         <LoadingState label={messages.studentDashboard.errors.loading} />

@@ -56,6 +56,7 @@ import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n';
 import { Skeleton } from '@/components/ui/skeleton';
 import { notificationsApi } from '@/lib/api';
+import { hasCsrfSessionHint } from '@/lib/session-hint';
 import { cn, htmlToPlainText, stripNotificationTagPrefix } from '@/lib/utils';
 import { stripLocaleFromPathname } from '@/i18n/paths';
 import { isDemoUser, loginHref, portalFromPathname } from '@/lib/login-portal';
@@ -641,7 +642,12 @@ export default function DashboardLayout({
   }, []);
 
   const reloadNotifications = useCallback(async () => {
-    if (!user) {
+    // The csrf cookie is written by the login response before this layout
+    // mounts, so its presence means a session most likely exists: the bell
+    // may load while /auth/me is still resolving instead of queueing behind
+    // it. A dead session takes the same 401 refresh/redirect path a failed
+    // /auth/me would.
+    if (!user && !hasCsrfSessionHint()) {
       return;
     }
 
@@ -669,9 +675,27 @@ export default function DashboardLayout({
     }
   }, [user]);
 
+  // Fire once when the first gate opens (session hint or resolved user); the
+  // ref keeps the user-arrives-later callback recreation from fetching twice.
+  // A different signed-in identity in the same mounted layout earns a fresh
+  // first fetch — and must not keep reading the previous user's rows.
+  const notificationsRequested = useRef(false);
+  const notificationsUserIdRef = useRef(user?.id ?? null);
   useEffect(() => {
+    const nextUserId = user?.id ?? null;
+    if (notificationsUserIdRef.current !== nextUserId) {
+      notificationsUserIdRef.current = nextUserId;
+      notificationsRequested.current = false;
+      setNotifications([]);
+      setUnreadCount(0);
+      setNotificationsError(false);
+    }
+    if (notificationsRequested.current || isLoggingOut || (!user && !hasCsrfSessionHint())) {
+      return;
+    }
+    notificationsRequested.current = true;
     void reloadNotifications();
-  }, [reloadNotifications]);
+  }, [isLoggingOut, reloadNotifications, user]);
 
   const currentPage = useMemo(() => {
     if (pageMetadata[pathname]) {

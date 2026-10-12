@@ -31,6 +31,7 @@ import {
 } from '@/lib/api';
 import type { Enrollment } from '@/types/api';
 import { useApiQuery } from '@/lib/query';
+import { hasCsrfSessionHint } from '@/lib/session-hint';
 import {
   countdownParts,
   formatCountdownClock,
@@ -120,6 +121,12 @@ const SEAT_TONE: Record<string, string> = {
 
 export default function RegisterPage() {
   const { user, isLoading: authLoading, hasAccess, isForbidden } = useRequireAuth(['STUDENT']);
+  // The csrf cookie is written by the login response before this page mounts,
+  // so its presence means a session most likely exists: the read-only catalog
+  // queries may start while /auth/me is still resolving instead of queueing
+  // behind it. If the session turns out dead, the API 401 walks the same
+  // refresh/redirect path a failed /auth/me would.
+  const canLoad = hasAccess || hasCsrfSessionHint();
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const { locale, messages, formatNumber, formatDate } = useI18n();
   const copy = messages.courseRegistration;
@@ -243,7 +250,7 @@ export default function RegisterPage() {
 
   // ---- server state (react-query; per-mutation invalidation) ----
   const roundsQuery = useApiQuery(['registration', 'rounds'], () => registrationApi.rounds(), {
-    enabled: hasAccess,
+    enabled: canLoad,
     staleTime: 30_000,
   });
 
@@ -270,27 +277,29 @@ export default function RegisterPage() {
   const eligibilityQuery = useApiQuery(
     ['registration', 'eligibility', roundId ?? ''],
     () => registrationApi.eligibility({ semesterId, roundId }),
-    { enabled: hasAccess && Boolean(roundId), staleTime: 30_000 },
+    { enabled: canLoad && Boolean(roundId), staleTime: 30_000 },
   );
   const sectionsQuery = useApiQuery(
     ['registration', 'sections', roundId ?? ''],
     () => registrationApi.sections({ semesterId, roundId }),
-    { enabled: hasAccess && Boolean(roundId), staleTime: 30_000 },
+    { enabled: canLoad && Boolean(roundId), staleTime: 30_000 },
   );
   const enrollmentsQuery = useApiQuery(
     ['registration', 'enrollments', semesterId ?? '', user?.id ?? ''],
     () => enrollmentsApi.getMyEnrollments(semesterId),
+    // Stays gated on the resolved user: the key carries user.id, so firing on
+    // the session hint would only refetch the same rows under a second key.
     { enabled: hasAccess && Boolean(semesterId), staleTime: 30_000 },
   );
   const summaryQuery = useApiQuery(
     ['registration', 'summary', semesterId ?? ''],
     () => registrationApi.summary(semesterId),
-    { enabled: hasAccess && Boolean(semesterId), staleTime: 30_000 },
+    { enabled: canLoad && Boolean(semesterId), staleTime: 30_000 },
   );
   const applicationQuery = useApiQuery(
     ['registration', 'credit-limit-application', roundId ?? ''],
     () => registrationApi.creditLimitApplication(roundId ?? ''),
-    { enabled: hasAccess && Boolean(roundId), staleTime: 60_000 },
+    { enabled: canLoad && Boolean(roundId), staleTime: 60_000 },
   );
 
   const eligibilityErrorCode = eligibilityQuery.error ? campusErrorCode(eligibilityQuery.error) : undefined;
