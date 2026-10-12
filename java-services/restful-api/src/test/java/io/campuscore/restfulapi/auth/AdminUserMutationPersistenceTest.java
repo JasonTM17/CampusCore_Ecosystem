@@ -384,6 +384,34 @@ class AdminUserMutationPersistenceTest {
                 .isZero();
     }
 
+    @Test
+    void passwordResetClearsTheLoginLockoutSoTheIssuedCredentialWorks() throws Exception {
+        // An admin-issued credential must be usable even while the account is
+        // locked out from failed logins — otherwise the reset hands back a
+        // password that still says "Invalid credentials" until the lock ages.
+        jdbc.update("UPDATE \"campuscore_auth\".\"User\""
+                + " SET \"lockedUntil\" = CURRENT_TIMESTAMP + INTERVAL '1' HOUR,"
+                + " \"failedLoginAttempts\" = 5 WHERE \"id\" = 'second-user'");
+
+        mvc.perform(post("/api/v1/users/second-user/password-reset")
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.temporaryPassword").isNotEmpty());
+
+        assertThat(jdbc.queryForObject(
+                "SELECT \"lockedUntil\" FROM \"campuscore_auth\".\"User\" WHERE \"id\" = 'second-user'",
+                Object.class))
+                .isNull();
+        assertThat(jdbc.queryForObject(
+                "SELECT \"failedLoginAttempts\" FROM \"campuscore_auth\".\"User\" WHERE \"id\" = 'second-user'",
+                Integer.class))
+                .isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT \"mustChangePassword\" FROM \"campuscore_auth\".\"User\" WHERE \"id\" = 'second-user'",
+                Boolean.class))
+                .isTrue();
+    }
+
     private void createTables() {
         jdbc.execute("""
                 CREATE TABLE IF NOT EXISTS "campuscore_auth"."User" (
@@ -399,6 +427,7 @@ class AdminUserMutationPersistenceTest {
                     "emailVerified" BOOLEAN NOT NULL,
                     "isSuperAdmin" BOOLEAN NOT NULL,
                     "failedLoginAttempts" INTEGER NOT NULL,
+                    "lockedUntil" TIMESTAMP,
                     "createdAt" TIMESTAMP NOT NULL,
                     "updatedAt" TIMESTAMP NOT NULL
                 )

@@ -241,6 +241,9 @@ public class AuthLoginService {
                     "Current password is incorrect");
         }
 
+        // Read before rotation: the flag says whether the credential being
+        // replaced was office-issued, which decides the audit action below.
+        boolean rotatingOfficeIssuedCredential = user.mustChangePassword();
         users.changePassword(user.id(), passwordEncoder.encode(newPassword), clock.instant());
         // Rotation clears the office-issued flag; sessions are revoked so the
         // user signs back in with the new credential.
@@ -250,8 +253,15 @@ public class AuthLoginService {
         // Round-3 ct-4: a self-service credential rotation is exactly the
         // operation whose author an investigation needs to know — the trail
         // previously covered only admin-initiated resets (PASSWORD_RESET).
-        audit.record(userId, null, "PASSWORD_CHANGED", "USER", userId,
-                "User rotated their own password; all sessions were revoked");
+        // An office-issued temporary credential reaching its rotation is
+        // marked separately so a takeover of an admin-issued password is
+        // distinguishable from an ordinary change.
+        audit.record(userId, null,
+                rotatingOfficeIssuedCredential ? "TEMP_CREDENTIAL_ROTATED" : "PASSWORD_CHANGED",
+                "USER", userId,
+                rotatingOfficeIssuedCredential
+                        ? "User rotated an office-issued temporary password; all sessions were revoked"
+                        : "User rotated their own password; all sessions were revoked");
     }
 
     @Transactional
