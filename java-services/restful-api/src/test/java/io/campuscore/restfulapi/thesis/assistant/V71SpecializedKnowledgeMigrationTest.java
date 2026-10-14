@@ -137,7 +137,8 @@ class V71SpecializedKnowledgeMigrationTest {
     void specializedSupabaseSeedPassesThePublicKnowledgeGuard() throws Exception {
         Path corpus = Path.of("../../supabase/seed/assistant-specialized-knowledge.json");
         var documents = new ObjectMapper().readTree(Files.readString(corpus));
-        assertThat(documents.size()).isEqualTo(24);
+        // V71's 24 original topics remain; forward-only V115 adds two DI articles.
+        assertThat(documents.size()).isEqualTo(26);
         var rejected = new java.util.ArrayList<String>();
         for (var document : documents) {
             for (String field : new String[] {"slug", "title", "content", "source"}) {

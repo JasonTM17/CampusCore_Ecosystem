@@ -22,13 +22,17 @@ The `assistant` schema must be exposed to the Supabase Data API for the authorit
 
 ## Specialized corpus
 
-`supabase/seed/assistant-specialized-knowledge.json` contains 24 Vietnamese and English software engineering documents. They use `domain = 'SPECIALIZED'` in the Java runtime and the remote release projection. The local initial seed is `V71__specialized_domain_knowledge.sql`. An applied Flyway migration is immutable; the generator refuses to overwrite V71. The wording correction for one public safety lesson is in additive `V78__repair_specialized_public_knowledge_guard.sql`, which also promotes a matching local release when the local SQL authority owns the pointer.
+[`assistant-specialized-knowledge.json`](../../supabase/seed/assistant-specialized-knowledge.json) owns the Vietnamese and English software engineering corpus. The Java runtime and remote release projection use `domain = 'SPECIALIZED'`. Applied Flyway history is immutable; the initial generator refuses to overwrite V71. [The focus-correction generator](../../scripts/generate-specialized-focus-migration.mjs) checks the additive V115 migration against the canonical architecture and constructor-injection articles. Existing migration files are checked rather than rewritten.
+
+V115 preserves human edits and foreign runtime authority. If its exact local base is unavailable, its audit records `AUTHORITY_REVIEW_REQUIRED`; local authoring changes do not imply that the chatbot serves them. Remote publication still uses the existing two-admin workflow and Java synchronization.
 
 Validate the source offline:
 
 ```powershell
+$specializedSeedCount = (Get-Content .\supabase\seed\assistant-specialized-knowledge.json -Raw | ConvertFrom-Json).Count
 node scripts/supabase/assistant-knowledge.mjs validate `
-  --file .\supabase\seed\assistant-specialized-knowledge.json --expected-count 24
+  --file .\supabase\seed\assistant-specialized-knowledge.json --expected-count $specializedSeedCount
+node scripts/generate-specialized-focus-migration.mjs
 node --test scripts/supabase/assistant-knowledge.test.mjs
 ```
 
