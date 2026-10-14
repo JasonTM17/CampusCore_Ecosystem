@@ -1418,7 +1418,13 @@ public class ThesisAssistantService {
      */
     public ChatResponse answer(String message, String locale, String conversationId, String ownerId,
             UUID clientRequestId, Consumer<StreamEvent> streamSink, String scope) {
-        if (turns == null || properties == null) return legacyAnswer(message, locale, conversationId, ownerId);
+        if (turns == null || properties == null) {
+            ChatResponse legacy = legacyAnswer(message, locale, conversationId, ownerId);
+            return new ChatResponse(legacy.answer(), legacy.model(), legacy.degraded(),
+                    legacy.reasonCode(), legacy.locale(), legacy.citations(), legacy.requestId(),
+                    clientRequestId, legacy.turnId(), legacy.replayed(), legacy.terminalStatus(),
+                    legacy.conversationId(), legacy.messageId(), legacy.resetAt());
+        }
         return execute(message, locale, conversationId, ownerId, clientRequestId,
                 streamSink == null ? ignored -> { } : streamSink, scope);
     }
@@ -2400,17 +2406,98 @@ public class ThesisAssistantService {
      * chưa công bố …" / "the portal has not published …" when the retrieved
      * context does not cover the topic. That honest denial must not carry the
      * retrieval citations — they would present documents the answer disclaims
-     * as its sources. Folding first so the marker is recognized with or
-     * without diacritics.
+     * as its sources. A multi-part answer may instead ground several sections
+     * and disclaim only one; stripping every citation there erases provenance
+     * the grounded sections legitimately earned (live provider proof: a
+     * three-section answer lost all citations over one trailing "chưa công
+     * bố" section). The check is therefore segment-scoped — the answer is a
+     * true denial only when every content segment is either a marker clause
+     * or a formulaic wrapper (apology, check-back pointer, update promise).
+     * A segment carrying grounded content — digits (credits, dates) or prose
+     * beyond wrapper length — keeps the citations. Folding first so the
+     * marker is recognized with or without diacritics.
      */
     static boolean isPortalDenialAnswer(String answer) {
         if (answer == null || answer.isBlank()) return false;
-        String folded = foldForMatching(answer);
-        return folded.contains("chua cong bo")
-                || folded.contains("chua duoc cong bo")
-                || folded.contains("has not published")
-                || folded.contains("not published by the portal");
+        boolean marked = false;
+        // Split on the FOLDED text so contrast conjunctions ("còn", "nhưng",
+        // "however"…) also bound segments — a grounded clause sharing one
+        // sentence with the denial is still credited ("điểm đã có 8.5 còn
+        // lịch thi chưa công bố"). "còn lại" (remaining) is excluded: it is
+        // part of the denied topic, not a contrast. English "yet" is likewise
+        // excluded: folded Vietnamese "niêm yết" (published) contains it and
+        // would chop a grounded clause in two.
+        for (String segment : foldForMatching(answer).split(
+                "\\R+|(?<=[.!?…])\\s+|;\\s*|:\\s+|,\\s+"
+                        // Adverbial "còn" (still: "còn phải/cần/được…") and the
+                        // domain compounds "song hành"/"song song" are excluded
+                        // so the split only fires on a genuine contrast.
+                        + "|\\s+(?:con(?!\\s+(?:lai|phai|can|duoc|se|dang|van|muon|khong|da|bi|co|nhieu|chi|them|gi|it)\\b)"
+                        + "|nhung|tuy nhien|mac du|trong khi|song(?!\\s+(?:hanh|song)\\b)"
+                        + "|but|however|although|while|whereas|meanwhile)\\s+"
+                        // "và/and" only bounds a new assertion when a verb
+                        // follows — enumerations of denied topics ("lịch thi
+                        // và học phí") must stay inside the marked segment.
+                        + "|\\s+va\\s+(?=da\\b|dang\\b|se\\b|duoc\\b|van\\b|khong\\b|co\\b)"
+                        + "|\\s+and\\s+(?=has\\b|have\\b|was\\b|were\\b|is\\b|are\\b|did\\b|does\\b|will\\b|can\\b|not\\b)")) {
+            String folded = segment.trim();
+            if (folded.replaceAll("[^\\p{L}\\p{N}]+", "").isEmpty()) continue;
+            if (PORTAL_DENIAL_MARKER.matcher(folded).find()) {
+                marked = true;
+                continue;
+            }
+            String words = folded.replaceAll("[^\\p{L}\\p{N}]+", " ")
+                    .replaceAll("\\s+", " ").trim();
+            if (words.isEmpty() || DENIAL_POINTER.matcher(words).find()) continue;
+            if (words.matches(".*\\d.*")) return false;
+            if (DENIAL_UPDATE_PROMISE.matcher(words).find()) continue;
+            if (words.split(" ").length >= DENIAL_CONTENT_WORDS) return false;
+        }
+        return marked;
     }
+
+    private static final java.util.regex.Pattern PORTAL_DENIAL_MARKER = java.util.regex.Pattern.compile(
+            "chua (?:duoc )?cong (?:bo|khai)|khong (?:duoc )?cong (?:bo|khai)|khong co thong tin"
+                    + "|has not (?:yet )?(?:been )?(?:published|released)"
+                    + "|hasn'?t (?:been )?(?:published|released)"
+                    + "|not (?:yet )?(?:published|released) by the portal|not (?:published|released) yet");
+
+    /**
+     * Formulaic wrappers a denial answer may carry without gaining grounded
+     * content: apologies and pointers telling the user to look elsewhere or
+     * check back later. Anchored to the segment start so a grounded fact
+     * phrased as a possibility ("bạn có thể đăng ký tối đa 24 tín chỉ") is
+     * not mistaken for a pointer — those carry digits or length anyway. The
+     * bare-verb branch covers a pointer that opens the segment directly
+     * ("Liên hệ phòng 402") — it is matched BEFORE the digit check so a
+     * room number in a pointer cannot fake grounded content.
+     */
+    private static final java.util.regex.Pattern DENIAL_POINTER = java.util.regex.Pattern.compile(
+            // Apologies tolerate a short subject prefix ("Chúng tôi rất xin lỗi").
+            "^(?:\\S+\\s+){0,4}(?:xin loi|rat tiec|sorry|unfortunately|apologies)\\b"
+                    + "|^(?:ban co the|you (?:can|may|could)|vui long|please|hay|xin hay|nen|should)\\s+"
+                    + "(?:xem|kiem tra|tham khao|lien he|thu lai|cho|doi|theo doi|check|see|refer|"
+                    + "contact|consult|look|review|follow|read|visit|truy cap|goi|call|email|gui)\\b"
+                    + "|^(?:lien he|xem|kiem tra|tham khao|truy cap|theo doi|contact|check|see|refer|"
+                    + "visit|consult|goi|call|email)\\b");
+
+    /**
+     * "thông tin sẽ được cập nhật/công bố …" — an update promise is not
+     * grounded content. The second branch covers noun-less promises
+     * ("…và sẽ phản hồi sớm nhất"). Favoring the wrapper classification
+     * here is safe: a single misclassified segment only matters when it is
+     * the ONLY non-marker segment — grounded answers always carry another
+     * substantive segment.
+     */
+    private static final java.util.regex.Pattern DENIAL_UPDATE_PROMISE = java.util.regex.Pattern.compile(
+            "\\b(?:thong tin|noi dung|lich|du lieu|chi tiet|ket qua|details?|information|content|schedule|data|results?)\\b"
+                    + "[^\\d]{0,80}\\b(?:se|sap|will)\\s+(?:duoc\\s+|be\\s+)?"
+                    + "(?:cap nhat|updated|cong bo|published|announced|thong bao|phan hoi|hoan thien|reply|respond)\\b"
+                    + "|\\b(?:se|sap|will)\\s+(?:duoc\\s+|be\\s+)?"
+                    + "(?:phan hoi|thong bao|hoan thien|nhan duoc|reply|respond|receive)\\b");
+
+    /** A non-marker segment at or beyond this word count carries grounded prose, not wrapper padding. */
+    private static final int DENIAL_CONTENT_WORDS = 8;
 
     /**
      * Keep a credit-limit answer grounded in a document that actually defines
@@ -2474,6 +2561,7 @@ public class ThesisAssistantService {
         if (content == null || content.isBlank()) return content == null ? "" : content;
         if (content.contains("\n#") || content.startsWith("# ")) return content;
         java.util.List<Integer> marks = new java.util.ArrayList<>();
+        java.util.List<Integer> markerStarts = new java.util.ArrayList<>();
         int cursor = 0;
         int expected = 1;
         while (expected <= 9) {
@@ -2483,8 +2571,10 @@ public class ThesisAssistantService {
                     ? 0
                     : content.indexOf(" " + expected + ". ", cursor);
             if (at < 0) break;
-            int textStart = at + Integer.toString(expected).length() + 2;
+            int textStart = at + Integer.toString(expected).length()
+                    + (at == 0 && content.startsWith("1. ") ? 2 : 3);
             marks.add(textStart);
+            markerStarts.add(at);
             cursor = textStart;
             expected += 1;
         }
@@ -2496,7 +2586,7 @@ public class ThesisAssistantService {
         }
         for (int index = 0; index < marks.size(); index++) {
             int start = marks.get(index);
-            int end = index + 1 < marks.size() ? marks.get(index + 1) - 1 : content.length();
+            int end = index + 1 < marks.size() ? markerStarts.get(index + 1) : content.length();
             String segment = content.substring(start, end).trim();
             if (segment.isEmpty()) continue;
             shaped.append("- ").append(formatSegmentLabel(segment)).append('\n');

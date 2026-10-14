@@ -2,6 +2,7 @@ package io.campuscore.restfulapi.thesis.assistant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -352,6 +353,116 @@ class ThesisAssistantServiceTest {
         assertTrue(!scopedCreditLimitResponse.answer().contains("Rút học phần"));
         assertTrue(ThesisAssistantService.isCreditLimitDocument(creditLimitVietnamese));
         assertTrue(!ThesisAssistantService.isCreditLimitDocument(incidentalCreditPolicy));
+    }
+
+    /**
+     * Live provider proof (session-race audit): a 1585-char answer grounded
+     * three sections on the retrieved corpus and disclaimed only the fourth —
+     * "Cổng học vụ chưa công bố …" — yet lost ALL citations because the
+     * marker check ran over the whole answer. A true denial is one where the
+     * denial marker dominates: every segment is either a marker clause or a
+     * formulaic wrapper (apology, check-back, contact pointer). Any segment
+     * carrying grounded content keeps the citations.
+     */
+    @Test
+    void portalDenialScopedToAnswersDominatedByTheDenial() {
+        // True denials — no grounded segment anywhere.
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố nội dung về chủ đề này."));
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi. Bạn có thể kiểm tra lại sau."));
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi. Thông tin sẽ được cập nhật khi có thông báo chính thức."));
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "The portal has not published the exam schedule."));
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "## Lịch thi\n\nCổng học vụ chưa công bố lịch thi cuối kỳ."));
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi. Vui lòng liên hệ Phòng Đào tạo để biết thêm chi tiết."));
+
+        // Multi-part answers — a grounded segment keeps the citations.
+        assertFalse(ThesisAssistantService.isPortalDenialAnswer(
+                "Mình trả lời từng phần theo quy chế hiện hành của cổng học vụ.\n\n"
+                        + "## Xử lý khi nhận điểm F (học lại)\n\n"
+                        + "- Học phần bị coi là không đạt khi điểm tổng kết dưới 4.0 (thang 10) hoặc điểm chữ F.\n"
+                        + "- Với học phần bắt buộc, bạn bắt buộc phải đăng ký học lại chính môn đó.\n\n"
+                        + "## Phân biệt học phần tiên quyết và học phần song hành\n\n"
+                        + "Cổng học vụ chưa công bố nội dung cho chủ đề này."));
+        // Per-row "not published" inside a grounded grade list.
+        assertFalse(ThesisAssistantService.isPortalDenialAnswer(
+                "- IS401: điểm 8.5 (B+)\n- IS402: chưa công bố\n- IS403: điểm 7.0 (B)"));
+        // Denial clause inside a longer grounded sentence (comma boundary).
+        assertFalse(ThesisAssistantService.isPortalDenialAnswer(
+                "Sinh viên được đăng ký tối đa 24 tín chỉ mỗi học kỳ, "
+                        + "còn lịch thi cuối kỳ thì cổng học vụ chưa công bố."));
+        // Denial first, grounded content after — order must not matter.
+        assertFalse(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi.\n\n"
+                        + "Về hạn mức: sinh viên được đăng ký tối đa 24 tín chỉ mỗi học kỳ chính."));
+        // English mixed answer.
+        assertFalse(ThesisAssistantService.isPortalDenialAnswer(
+                "You may register up to 24 credits per semester. "
+                        + "The exam schedule has not been published by the portal."));
+
+        // Independent-review counterexamples (F1): a grounded clause sharing
+        // one sentence with the denial via a contrast conjunction keeps
+        // citations — the marker must not swallow it.
+        assertFalse(ThesisAssistantService.isPortalDenialAnswer(
+                "Điểm IS401 đã có 8.5 còn lịch thi thì cổng học vụ chưa công bố."));
+        assertFalse(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi nhưng học phí kỳ này đã niêm yết "
+                        + "theo thông báo của phòng tài chính."));
+
+        // Independent-review counterexamples (F2): pure denials whose
+        // boilerplate carries a digit or runs long still strip citations.
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi. Liên hệ phòng 402."));
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi. "
+                        + "Nhà trường đang hoàn thiện hệ thống và sẽ phản hồi sớm nhất có thể."));
+        // Denial variants in the same semantic family.
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công khai lịch thi cuối kỳ."));
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "The portal hasn't published the exam schedule."));
+        // "còn lại" is part of the denied topic, not a contrast boundary.
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố các môn còn lại của chương trình."));
+
+        // Round-2 review regressions: domain compounds and adverbial "còn"
+        // must not be chopped into <8-word fragments that fake boilerplate.
+        assertFalse(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi. "
+                        + "Học phần song hành bắt buộc đăng ký cùng kỳ."));
+        assertFalse(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi. "
+                        + "Sinh viên còn phải nộp đơn xét tốt nghiệp."));
+        // A "và"-joined grounded assertion survives the marked segment.
+        assertFalse(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi "
+                        + "và đã công bố học phí là 10.500.000 đồng."));
+        // Marker variants: yet-placement, contractions, released, không công bố.
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "The portal has not yet published the exam schedule."));
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "The portal hasn't been released the results."));
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ không công bố lịch thi kỳ này."));
+        // Promise/pointer variants stay boilerplate.
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi. "
+                        + "Bạn sẽ nhận được email khi lịch thi được công bố."));
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi. "
+                        + "Vui lòng theo dõi thông báo trên cổng học vụ."));
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi. "
+                        + "Chúng tôi rất xin lỗi vì sự bất tiện này và cảm ơn bạn đã kiên nhẫn."));
+
+        // Non-denial answers are never classified as denials.
+        assertFalse(ThesisAssistantService.isPortalDenialAnswer("Sinh viên được đăng ký 24 tín chỉ."));
+        assertFalse(ThesisAssistantService.isPortalDenialAnswer(null));
+        assertFalse(ThesisAssistantService.isPortalDenialAnswer("   "));
     }
 
     @Test
@@ -1274,5 +1385,57 @@ class ThesisAssistantServiceTest {
         service.answer("deploy", "en", null, "owner-scope", request, ignored -> { }, "specialized");
 
         verify(turns).stampConversationScope(eq(conversation), eq("specialized"));
+    }
+
+    @Test
+    void documentNumberedSegmentsDoNotKeepTheNextMarkerDigit() {
+        String content = "1. Tiên quyết: Đạt từ 4.0/10. 2. Học trước: Có điểm thành phần. "
+                + "3. Song hành: Học cùng học kỳ.";
+        var document = new ThesisAssistantKnowledgeRepository.KnowledgeDocument(
+                "dddddddd-dddd-dddd-dddd-dddddddddddd", "dieu-kien", "vi", "Học phần điều kiện", content, "office");
+        String expected = "# Học phần điều kiện\n\n- **Tiên quyết**: Đạt từ 4.0/10.\n"
+                + "- **Học trước**: Có điểm thành phần.\n- **Song hành**: Học cùng học kỳ.";
+        assertEquals(expected, ThesisAssistantService.formatDocumentAnswer(document, content));
+
+        String intro = "Quy chế học vụ: " + content;
+        assertEquals(expected, ThesisAssistantService.formatDocumentAnswer(document, intro));
+    }
+
+    @Test
+    void legacyAnswerPathEchoesTheCallerClientRequestId() {
+        ThesisAssistantKnowledgeRepository knowledge = mock(ThesisAssistantKnowledgeRepository.class);
+        var document = new ThesisAssistantKnowledgeRepository.KnowledgeDocument(
+                "fixture-id", "fixture-slug", "vi", "Tiên quyết", "Tiên quyết phải đạt trước.", "office");
+        when(knowledge.search(anyString(), anyList(), anyInt())).thenReturn(List.of(document));
+
+        ThesisAssistantService service = new ThesisAssistantService(knowledge);
+        UUID firstKey = UUID.randomUUID();
+        UUID secondKey = UUID.randomUUID();
+
+        ChatResponse first = service.answer("Học phần tiên quyết là gì?", "vi", null,
+                "owner-legacy", firstKey, ignored -> { }, "academic");
+        ChatResponse second = service.answer("Học phần tiên quyết là gì?", "vi", null,
+                "owner-legacy", secondKey, ignored -> { }, "academic");
+
+        assertEquals(firstKey, first.clientRequestId());
+        assertEquals(secondKey, second.clientRequestId());
+        assertNotEquals(firstKey, secondKey);
+        assertNotNull(first.answer());
+        assertEquals(first.answer(), second.answer());
+        assertEquals(first.model(), second.model());
+    }
+
+    @Test
+    void documentNumberedSegmentsPreserveLiteralNumbers() {
+        String content = "1. GPA: 2.00/4.0. 2. Điểm đạt: 4.0/10 và 3 đến 5 tín chỉ.";
+        var document = new ThesisAssistantKnowledgeRepository.KnowledgeDocument(
+                "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee", "diem", "vi", "Điểm", content, "office");
+        assertEquals("# Điểm\n\n- **GPA**: 2.00/4.0.\n- **Điểm đạt**: 4.0/10 và 3 đến 5 tín chỉ.",
+                ThesisAssistantService.formatDocumentAnswer(document, content));
+
+        String markdown = "# Heading\n\n1. Keep 2.00 unchanged.";
+        var shaped = new ThesisAssistantKnowledgeRepository.KnowledgeDocument(
+                "ffffffff-ffff-ffff-ffff-ffffffffffff", "heading", "vi", "Heading", markdown, "office");
+        assertEquals(markdown, ThesisAssistantService.formatDocumentAnswer(shaped, markdown));
     }
 }
