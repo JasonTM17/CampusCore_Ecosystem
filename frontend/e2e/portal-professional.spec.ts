@@ -1,10 +1,13 @@
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { test, expect, type Page } from '@playwright/test';
+import { submitLiveLogin } from './fixtures/live-login';
 
 const student = { email: 'student@campuscore.edu', password: 'password123' };
 const lecturer = { email: 'lecturer@campuscore.edu', password: 'password123' };
 const admin = { email: 'admin@campuscore.edu', password: 'password123' };
 const TECHNICAL_COPY = /openapi|flyway|postgresql|\/api\/v1|java api|restful/i;
+const INTERNAL_DIAGNOSTICS = /\/api\/v1(?:\/|\b)|\b(?:SQLException|Flyway|org_hibernate_exception|stack trace)\b/i;
 
 async function signIn(
   page: Page,
@@ -16,7 +19,7 @@ async function signIn(
   await expect(submit).toBeEnabled({ timeout: 20_000 });
   await page.locator('#email').fill(account.email);
   await page.locator('#password').fill(account.password);
-  await submit.click();
+  await submitLiveLogin(page, submit);
   await expect(page).not.toHaveURL(/\/login(?:$|[/?#])/, { timeout: 20_000 });
 }
 
@@ -122,7 +125,7 @@ test.describe('public and auth', () => {
   test('public signup explains that student accounts are issued by the Academic Office', async ({ page }) => {
     await page.goto('/en/register');
     await expect(page.getByRole('heading', { name: /request an issued account|yêu cầu cấp tài khoản/i })).toBeVisible();
-    await expect(page.getByText(/academic office|phòng đào tạo/i).first()).toBeVisible();
+    await expect(page.getByRole('main').getByText(/academic office|phòng đào tạo/i).first()).toBeVisible();
     await expect(page.getByRole('link', { name: /sign in|đăng nhập/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /forgot password/i })).toHaveCount(0);
   });
@@ -192,7 +195,11 @@ test.describe('student workspace', () => {
     await expect(page.getByRole('heading', { name: /course registration|đăng ký học phần/i })).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByText(TECHNICAL_COPY)).toHaveCount(0);
+    const chromeText = (await page
+      .locator('header, nav, [role="alert"], [role="status"], [data-sonner-toast]')
+      .allTextContents()).join(' ');
+    expect(chromeText).not.toMatch(TECHNICAL_COPY);
+    await expect(page.getByText(INTERNAL_DIAGNOSTICS)).toHaveCount(0);
 
     await dismissMobileSidebar(page);
     await searchCourse(page, 'SE402');
@@ -223,41 +230,119 @@ test.describe('student workspace', () => {
     });
   });
 
-  test('student can upload and save an avatar image', async ({ page }) => {
+  test('student can upload and save an avatar image', async ({ page }, testInfo) => {
     test.setTimeout(90_000);
     await signIn(page, student);
     await page.goto('/dashboard/profile');
     const photo = page.locator('#profile-photo');
     await expect(photo).toBeAttached();
-    await photo.setInputFiles(path.join(process.cwd(), 'public', 'hcmute-logo.webp'));
+
+    const meBeforeResponse = await page.request.get('/api/v1/auth/me');
+    expect(meBeforeResponse.status()).toBe(200);
+    const meBefore = await meBeforeResponse.json();
+    const candidates = await page.evaluate(() => {
+      const make = (rgb: string) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 16;
+        canvas.height = 16;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('canvas-unavailable');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 16, 16);
+        ctx.fillStyle = rgb;
+        ctx.fillRect(0, 0, 16, 16);
+        return {
+          png: canvas.toDataURL('image/png'),
+          jpeg: canvas.toDataURL('image/jpeg', 0.82),
+        };
+      };
+      return [make('#c1121f'), make('#0b5ed7')];
+    });
+    const chosen = candidates.find((entry) => entry.jpeg !== meBefore.avatar);
+    expect(chosen, 'a deterministic avatar candidate must differ from the persisted avatar').toBeTruthy();
+    if (!chosen) throw new Error('avatar-candidate-missing');
+    const pngBuffer = Buffer.from(chosen.png.split(',')[1], 'base64');
+    const pngName = `avatar-${testInfo.project.name}.png`;
+
+    await photo.setInputFiles({ name: pngName, mimeType: 'image/png', buffer: pngBuffer });
     await expect(page.getByText(/photo not saved yet|ảnh chưa được lưu/i)).toBeVisible();
+
+    const profilePut = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PUT' &&
+        /\/api\/v1\/auth\/profile/.test(response.url()),
+      { timeout: 30_000 },
+    );
     await page.getByRole('button', { name: /save changes|lưu thay đổi/i }).click();
+    const savedProfile = await profilePut;
+    expect(savedProfile.status()).toBe(200);
+    expect(savedProfile.request().postDataJSON()?.avatar).toBe(chosen.jpeg);
     await expect(page.getByText(/profile updated|đã cập nhật hồ sơ/i)).toBeVisible();
     await page.reload();
+    const meAfterResponse = await page.request.get('/api/v1/auth/me');
+    expect(meAfterResponse.status()).toBe(200);
+    const meAfter = await meAfterResponse.json();
+    expect(meAfter.avatar).toBe(chosen.jpeg);
     await expect(page.locator('#dashboard-main-content img[src^="data:image/jpeg"]')).toBeVisible();
+
+    await photo.setInputFiles({ name: pngName, mimeType: 'image/png', buffer: pngBuffer });
+    await expect(
+      page.locator('#dashboard-main-content img[src^="data:image/jpeg"]'),
+    ).toHaveAttribute('src', chosen.jpeg);
+    await expect(page.getByText(/photo not saved yet|ảnh chưa được lưu/i)).toHaveCount(0);
   });
 
-  test('approved group leader can upload a report PDF', async ({ page }) => {
+  test('approved group leader can upload a report PDF', async ({ page }, testInfo) => {
     test.setTimeout(90_000);
     await signIn(page, student);
     await page.goto('/dashboard/thesis?roundId=22d65ee6-f485-40ae-a66b-528d35007745');
     await dismissMobileSidebar(page);
-    await expect(page.getByRole('button', { name: /^submit report$|^nộp báo cáo$/i }).first())
-      .toBeEnabled({ timeout: 20_000 });
-    await page.getByRole('button', { name: /^submit report$|^nộp báo cáo$/i }).first().click();
-    await page.locator('#thesis-report-title').fill('E2E report upload');
+    const reportCta = /^(submit report|nộp báo cáo|update report|cập nhật báo cáo)$/i;
+    const uniqueSuffix = `${testInfo.project.name}-${randomUUID().slice(0, 8)}`;
+    const reportTitle = `E2E report upload ${uniqueSuffix}`;
+    const fileName = `e2e-report-${uniqueSuffix}.pdf`;
+    const pdfBuffer = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF\n');
+
+    const reportButton = page.getByRole('button', { name: reportCta }).first();
+    await expect(reportButton).toBeEnabled({ timeout: 20_000 });
+    await reportButton.click();
+    await page.locator('#thesis-report-title').fill(reportTitle);
     await page.locator('#thesis-report-file').setInputFiles({
-      name: 'e2e-report.pdf',
+      name: fileName,
       mimeType: 'application/pdf',
-      buffer: Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF\n'),
+      buffer: pdfBuffer,
     });
-    await expect(page.getByText('e2e-report.pdf').first()).toBeVisible();
+    await expect(page.getByText(fileName).first()).toBeVisible();
+    const uploadResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/thesis\/groups\/[^/]+\/report\/file/.test(response.url()),
+      { timeout: 30_000 },
+    );
     await page.locator('form').filter({ has: page.locator('#thesis-report-file') })
-      .getByRole('button', { name: /^submit report$|^nộp báo cáo$/i }).click();
+      .getByRole('button', { name: reportCta }).click();
+    const replaceDialog = page.getByRole('dialog').filter({
+      hasText: /replace the submitted report|thay thế báo cáo đã nộp/i,
+    });
+    if (await replaceDialog.isVisible().catch(() => false)) {
+      await replaceDialog
+        .getByRole('button', { name: /^replace report$|^thay thế báo cáo$/i })
+        .click();
+    }
+    const uploadResponse = await uploadResponsePromise;
+    expect(uploadResponse.status()).toBe(200);
+    const groupId = /thesis\/groups\/([^/]+)\/report\/file/
+      .exec(new URL(uploadResponse.url()).pathname)?.[1];
+    expect(groupId).toBeTruthy();
     await expect(page.getByText(/report submitted successfully|đã nộp báo cáo thành công/i))
       .toBeVisible({ timeout: 20_000 });
     await page.reload();
-    await expect(page.locator('p[title="e2e-report.pdf"]')).toBeVisible();
+    await expect(page.locator(`p[title="${fileName}"]`)).toBeVisible();
+
+    const download = await page.request.get(`/api/v1/thesis/groups/${groupId}/report/file`);
+    expect(download.status()).toBe(200);
+    expect(download.headers()['content-type']).toMatch(/application\/pdf/i);
+    expect(await download.body()).toEqual(pdfBuffer);
   });
 
   test('register API failure stays campus-language', async ({ page }) => {

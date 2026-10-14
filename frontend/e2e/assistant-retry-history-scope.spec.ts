@@ -1,4 +1,5 @@
 import { test as base, expect, type BrowserContext, type Page, type Route } from '@playwright/test';
+import { submitLiveLogin } from './fixtures/live-login';
 
 // Real local demo authentication; assistant-only fixtures qualify UI recovery
 // and request identity, not provider behavior or server-side deduplication.
@@ -36,12 +37,7 @@ async function login(page: Page, role: 'student' | 'admin') {
   await expect(submit).toBeEnabled({ timeout: 20_000 });
   await page.locator('#email').fill(`${role}@campuscore.edu`);
   await page.locator('#password').fill('password123');
-  const responsePromise = page.waitForResponse(response => (
-    new URL(response.url()).pathname === '/api/v1/auth/login'
-    && response.request().method() === 'POST'
-  ));
-  await submit.click();
-  const response = await responsePromise;
+  const response = await submitLiveLogin(page, submit);
   expect(response.status(), 'Local demo login status; response payload is not logged').toBe(200);
   await expect(page).not.toHaveURL(/\/login(?:$|[/?#])/, { timeout: 20_000 });
 }

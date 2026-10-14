@@ -112,6 +112,24 @@ test('a successful reset shows the toast then lands on /login?reset=1 with the b
   await expect(page.locator('text=Đã cập nhật mật khẩu')).toBeVisible();
 });
 
+for (const variant of [
+  { prefix: '/vi', submitName: 'Đặt lại mật khẩu', bannerText: 'Đã cập nhật mật khẩu' },
+  { prefix: '/en', submitName: 'Reset password', bannerText: 'Password updated' },
+] as const) {
+  test(`a successful reset on ${variant.prefix} lands on the localized login banner`, async ({ page }) => {
+    await mockReset(page);
+    await page.goto(`${variant.prefix}/reset-password?token=${VALID_TOKEN}`);
+
+    await page.locator('#new-password').fill('MatKhauMoi9');
+    await page.locator('#confirm-password').fill('MatKhauMoi9');
+    await page.getByRole('button', { name: variant.submitName }).click();
+
+    await expect(page.locator('#reset-success-banner')).toBeVisible();
+    await page.waitForURL(`**${variant.prefix}/login?reset=1`, { timeout: 10_000 });
+    await expect(page.locator(`text=${variant.bannerText}`)).toBeVisible();
+  });
+}
+
 test('forgot and reset pages do not overflow horizontally at 390px and 1366px', async ({ page }) => {
   const noOverflow = async () =>
     page.evaluate(

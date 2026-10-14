@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { submitLiveLogin } from './fixtures/live-login';
 
 // Controlled read-only responses on the owned local stack; no academic writes.
 test.skip(process.env.E2E_BASE_URL !== 'http://127.0.0.1:3110', 'Requires the owned local production stack.');
@@ -10,7 +11,8 @@ for (const locale of ['en', 'vi'] as const) {
     await page.goto('/vi/login?portal=lecturer');
     await page.locator('#email').fill('lecturer@campuscore.edu');
     await page.locator('#password').fill('password123');
-    await page.locator('form').getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+    const lecturerSubmit = page.locator('form').getByRole('button', { name: 'Đăng nhập', exact: true });
+    await submitLiveLogin(page, lecturerSubmit, '3110');
     await expect(page).not.toHaveURL(/\/login(?:$|[/?#])/, { timeout: 30_000 });
     await page.goto(`/${locale}/dashboard/lecturer/attendance`);
     await expect(page.getByLabel(locale === 'vi' ? 'Chọn học kỳ' : 'Select semester', { exact: true })).toBeVisible();
@@ -42,7 +44,8 @@ for (const locale of ['en', 'vi'] as const) {
     await page.goto(`/vi/login?portal=student`);
     await page.locator('#email').fill('student@campuscore.edu');
     await page.locator('#password').fill('password123');
-    await page.locator('form').getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+    const studentSubmit = page.locator('form').getByRole('button', { name: 'Đăng nhập', exact: true });
+    await submitLiveLogin(page, studentSubmit, '3110');
     await expect(page).not.toHaveURL(/\/login(?:$|[/?#])/, { timeout: 30_000 });
     let memberCount = 1;
     await page.route('**/api/v1/thesis/groups?**', async route => {
@@ -57,16 +60,17 @@ for (const locale of ['en', 'vi'] as const) {
         approvalStatus: 'PENDING', members, memberStudentIds: members.map(m => m.studentId),
       }] });
     });
-    for (memberCount = 1; memberCount <= 4; memberCount++) {
+    for (memberCount = 1; memberCount <= 5; memberCount++) {
       await page.goto(`/${locale}/dashboard/thesis`);
-      await expect(page.getByText(`${memberCount}/4 ${locale === 'vi' ? 'thành viên' : 'members'}`, { exact: true })).toBeVisible();
+      await expect(page.getByText(`${memberCount}/5 ${locale === 'vi' ? 'thành viên' : 'members'}`, { exact: true })).toBeVisible();
       const helper = page.getByText(locale === 'vi'
-        ? `Còn thiếu ${3 - memberCount} thành viên để được xét duyệt (tối thiểu 3).`
-        : `${3 - memberCount} more needed for approval (minimum 3).`, { exact: true });
+        ? `Nhóm nháp có 1 hoặc 2 thành viên có thể tiếp tục bổ sung trước khi duyệt. Cần thêm ${3 - memberCount} thành viên để đủ mức tối thiểu 3; nhóm được duyệt phải có từ 3 đến 5 thành viên.`
+        : `A draft with 1 or 2 members can be completed before approval. Add ${3 - memberCount} more member(s) to reach the minimum of 3; approval requires 3 to 5 members.`, { exact: true });
       if (memberCount < 3) await expect(helper).toBeVisible();
-      else await expect(page.getByText(/more needed for approval|Còn thiếu \d+ thành viên/)).toHaveCount(0);
-      if (memberCount === 4) await expect(page.getByText(locale === 'vi'
-        ? 'Nhóm đã đạt số lượng tối đa 4 thành viên.' : 'The maximum group size is 4 members.', { exact: true })).toBeVisible();
+      else await expect(page.getByText(locale === 'vi'
+        ? /Nhóm nháp có 1 hoặc 2 thành viên/ : /A draft with 1 or 2 members/)).toHaveCount(0);
+      if (memberCount === 5) await expect(page.getByText(locale === 'vi'
+        ? 'Nhóm đã đạt số lượng tối đa 5 thành viên.' : 'The maximum group size is 5 members.', { exact: true })).toBeVisible();
       const dimensions = await page.evaluate(() => ({ w: window.innerWidth, doc: document.documentElement.scrollWidth }));
       expect(dimensions.doc).toBeLessThanOrEqual(dimensions.w + 1);
       if (memberCount === 1) await page.screenshot({ path: test.info().outputPath('pending-minimum.png'), fullPage: true });

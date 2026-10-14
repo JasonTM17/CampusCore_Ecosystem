@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { submitLiveLogin } from './fixtures/live-login';
 
 // Opt-in, real API tests on the disposable audit stack. No seeded records are
 // edited: fixtures have their own IDs and are reset before every journey.
@@ -27,7 +28,8 @@ async function signIn(page: Page, persona: 'student' | 'lecturer' | 'admin') {
   await page.goto(`/vi/login?portal=${persona}`);
   await page.locator('#email').fill(`${persona}@campuscore.edu`);
   await page.locator('#password').fill('password123');
-  await page.locator('form').getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+  const submit = page.locator('form').getByRole('button', { name: 'Đăng nhập', exact: true });
+  await submitLiveLogin(page, submit, '3110');
   await expect(page).not.toHaveURL(/\/login(?:$|[/?#])/, { timeout: 60_000 });
 }
 
@@ -66,14 +68,34 @@ test('academic audit: saved scores publish and appear in the student account', a
   await page.getByRole('dialog').getByRole('button', { name: 'Công bố điểm', exact: true }).click();
   expect((await publishResponse).status()).toBe(200);
   const studentContext = await browser.newContext();
+  const studentAuthResponses: { path: string; status: number; retryAfter: string | null }[] = [];
   try {
     const student = await studentContext.newPage();
+    student.on('response', (response) => {
+      const path = new URL(response.url()).pathname;
+      if (path.startsWith('/api/v1/auth/')) {
+        studentAuthResponses.push({
+          path,
+          status: response.status(),
+          retryAfter: response.headers()['retry-after'] ?? null,
+        });
+      }
+    });
     await signIn(student, 'student');
     await student.goto('/vi/dashboard/grades');
     const grades = await student.request.get('/api/v1/enrollments/my/grades');
     expect(grades.status()).toBe(200);
     expect((await grades.json()).find((row: { id: string }) => row.id === 'enrollment-ux-audit').finalGrade).toBe(9);
-  } finally { await studentContext.close(); }
+  } finally {
+    try {
+      await test.info().attach('student-auth-responses', {
+        body: JSON.stringify(studentAuthResponses),
+        contentType: 'application/json',
+      });
+    } finally {
+      await studentContext.close();
+    }
+  }
 });
 
 test('academic audit: a ten-student roster identifies only edited rows as unsaved', async ({ page }) => {
@@ -109,6 +131,9 @@ test('academic audit: deleting the final meeting persists after reopening', asyn
 test('academic audit: meeting controls keep keyboard focus during editing', async ({ page }) => {
   const dialog = await openSectionEditor(page);
   const start = dialog.locator('input[type="time"]').first();
+  await start.scrollIntoViewIfNeeded();
+  await start.focus();
+  await expect(start).toBeFocused();
   await start.fill('22:15');
   await expect(start).toBeFocused();
   await expect(start).toHaveValue('22:15');
@@ -116,7 +141,15 @@ test('academic audit: meeting controls keep keyboard focus during editing', asyn
   await expect(dialog.getByLabel('Giờ bắt đầu', { exact: true })).toBeVisible();
   await expect(dialog.getByLabel('Giờ kết thúc', { exact: true })).toBeVisible();
   await expect(dialog.getByLabel('Phòng học', { exact: true })).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Xóa lịch 1', exact: true })).toBeInViewport({ ratio: 1 });
+  const firstDelete = dialog.getByRole('button', { name: 'Xóa lịch 1', exact: true });
+  for (let i = 0; i < 12; i++) {
+    if (await firstDelete.evaluate(node => node === document.activeElement)) break;
+    await page.keyboard.press('Tab');
+  }
+  await expect(firstDelete).toBeFocused();
+  await expect(firstDelete).toBeInViewport({ ratio: 1 });
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog.getByLabel('Phòng học', { exact: true })).toBeFocused();
   expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
   await dialog.getByRole('button', { name: 'Thêm lịch', exact: true }).click();
   const secondDelete = dialog.getByRole('button', { name: 'Xóa lịch 2', exact: true });

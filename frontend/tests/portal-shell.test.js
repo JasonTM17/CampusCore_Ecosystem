@@ -300,3 +300,25 @@ test('shared states and notification tabs preserve keyboard and feedback semanti
   assert.match(button, /icon: 'h-11 w-11'/);
   assert.match(input, /text-base[\s\S]*sm:text-sm/);
 });
+
+test('registration page diagnostics oracle permits academic course names but blocks internals', () => {
+  const spec = read('e2e/portal-professional.spec.ts');
+  const match = /const INTERNAL_DIAGNOSTICS = (\/.+\/[a-z]*);/.exec(spec);
+  assert.ok(match, 'spec must export the INTERNAL_DIAGNOSTICS regex constant');
+  const literal = match[1];
+  const INTERNAL_DIAGNOSTICS = new RegExp(
+    literal.slice(1, literal.lastIndexOf('/')),
+    literal.slice(literal.lastIndexOf('/') + 1),
+  );
+  const allowed = 'IS043 — Quản trị cơ sở dữ liệu lớn Oracle & PostgreSQL';
+  assert.doesNotMatch(allowed, INTERNAL_DIAGNOSTICS, 'academic course names may mention PostgreSQL');
+  for (const denied of [
+    '/api/v1/enrollments',
+    'SQLException',
+    'org_hibernate_exception',
+    'Flyway migration failed',
+    'stack trace',
+  ]) {
+    assert.match(denied, INTERNAL_DIAGNOSTICS, `internal diagnostic text must be flagged: ${denied}`);
+  }
+});

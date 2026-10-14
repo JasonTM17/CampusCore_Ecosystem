@@ -1,4 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
+import { submitLiveLogin } from './fixtures/live-login';
+
+test.describe.configure({ timeout: 120_000 });
 
 const student = { email: 'student@campuscore.edu', password: 'password123' };
 const admin = { email: 'admin@campuscore.edu', password: 'password123' };
@@ -20,7 +23,7 @@ async function login(
   await expect(submit).toBeEnabled({ timeout: 20_000 });
   await page.locator('#email').fill(account.email);
   await page.locator('#password').fill(account.password);
-  await submit.click();
+  await submitLiveLogin(page, submit);
   await expect(page).not.toHaveURL(/\/login(?:$|[/?#])/, { timeout: 20_000 });
 }
 

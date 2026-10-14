@@ -1,4 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
+import { submitLiveLogin } from './fixtures/live-login';
 
 const admin = {
   email: process.env.E2E_ADMIN_EMAIL ?? 'admin@campuscore.edu',
@@ -14,14 +16,16 @@ async function login(page: Page) {
   await expect(submit).toBeEnabled({ timeout: 20_000 });
   await page.locator('#email').fill(admin.email);
   await page.locator('#password').fill(admin.passcode);
-  await submit.click();
+  await submitLiveLogin(page, submit);
   await expect(page).toHaveURL(/\/admin(?:$|[/?#])/, { timeout: 20_000 });
 }
 
 test('admin manages a student and lecturer announcement without exposing service jargon', async ({ page }, testInfo) => {
   test.setTimeout(120_000);
-  const title = `Campus notice ${testInfo.project.name}`;
+  const title = `Campus notice ${testInfo.project.name} ${randomUUID().slice(0, 12)}`;
   const updatedTitle = `${title} updated`;
+  const cardFor = (name: string) =>
+    page.locator('article').filter({ has: page.getByRole('heading', { name, exact: true }) });
   const editReason = 'Clarified the message for students and lecturers.';
   const archiveReason = 'Temporarily hidden while the schedule is reviewed.';
   const restoreReason = 'Schedule review completed.';
@@ -57,19 +61,19 @@ test('admin manages a student and lecturer announcement without exposing service
   await expect(dialog.getByText('Will be visible for this role')).toBeVisible();
   await dialog.getByRole('button', { name: 'Publish announcement' }).click();
 
-  let card = page.locator('article').filter({ hasText: title });
+  let card = cardFor(title);
   await expect(card).toBeVisible();
-  await card.getByRole('button', { name: `Edit: ${title}` }).click();
+  await card.getByRole('button', { name: `Edit: ${title}`, exact: true }).click();
 
   dialog = page.getByRole('dialog');
   await dialog.getByLabel(/^Title/).fill(updatedTitle);
   await dialog.getByLabel(/^Reason for change/).fill(editReason);
   await dialog.getByRole('button', { name: 'Save changes' }).click();
 
-  card = page.locator('article').filter({ hasText: updatedTitle });
+  card = cardFor(updatedTitle);
   await expect(card).toBeVisible();
   await expect(card).toContainText('Update 1');
-  await card.getByRole('button', { name: `Change history: ${updatedTitle}` }).click();
+  await card.getByRole('button', { name: `Change history: ${updatedTitle}`, exact: true }).click();
   dialog = page.getByRole('dialog');
   await expect(dialog).toContainText(editReason);
   // AnnouncementWriteController.actorLabel renders '<lastName firstName> ·
@@ -78,26 +82,26 @@ test('admin manages a student and lecturer announcement without exposing service
   await expect(dialog).toContainText('Changed by: ThS. Hoàng Tiến Dũng · admin@campuscore.edu');
   await dialog.getByRole('button', { name: 'Close' }).click();
 
-  await card.getByRole('button', { name: `Archive: ${updatedTitle}` }).click();
+  await card.getByRole('button', { name: `Archive: ${updatedTitle}`, exact: true }).click();
   dialog = page.getByRole('dialog');
   await dialog.getByLabel(/^Reason for change/).fill(archiveReason);
   await dialog.getByRole('button', { name: 'Archive', exact: true }).click();
-  await expect(page.locator('article').filter({ hasText: updatedTitle })).toHaveCount(0);
+  await expect(cardFor(updatedTitle)).toHaveCount(0);
 
   await page.getByRole('tab', { name: 'Archived' }).click();
-  card = page.locator('article').filter({ hasText: updatedTitle });
+  card = cardFor(updatedTitle);
   await expect(card).toBeVisible();
   await expect(card).toContainText('Archived');
-  await card.getByRole('button', { name: `Restore: ${updatedTitle}` }).click();
+  await card.getByRole('button', { name: `Restore: ${updatedTitle}`, exact: true }).click();
   dialog = page.getByRole('dialog');
   await dialog.getByLabel(/^Reason for change/).fill(restoreReason);
   await dialog.getByRole('button', { name: 'Restore', exact: true }).click();
-  await expect(page.locator('article').filter({ hasText: updatedTitle })).toHaveCount(0);
+  await expect(cardFor(updatedTitle)).toHaveCount(0);
 
   await page.getByRole('tab', { name: 'Visible' }).click();
-  card = page.locator('article').filter({ hasText: updatedTitle });
+  card = cardFor(updatedTitle);
   await expect(card).toBeVisible();
-  await card.getByRole('button', { name: `Change history: ${updatedTitle}` }).click();
+  await card.getByRole('button', { name: `Change history: ${updatedTitle}`, exact: true }).click();
   dialog = page.getByRole('dialog');
   await expect(dialog).toContainText(editReason);
   await expect(dialog).toContainText(archiveReason);

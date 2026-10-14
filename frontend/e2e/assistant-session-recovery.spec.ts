@@ -1,4 +1,5 @@
 import { test as base, expect, type BrowserContext, type Locator, type Page, type Route } from '@playwright/test';
+import { submitLiveLogin } from './fixtures/live-login';
 
 // Assistant refusal fixtures exercise the visible recovery gate. Local demo
 // authentication/refresh remain real; no auth state is persisted to disk.
@@ -32,12 +33,8 @@ async function login(page: Page) {
   await expect(submit).toBeEnabled({ timeout: 20_000 });
   await page.locator('#email').fill('student@campuscore.edu');
   await page.locator('#password').fill('password123');
-  const responsePromise = page.waitForResponse(response => (
-    new URL(response.url()).pathname === '/api/v1/auth/login'
-    && response.request().method() === 'POST'
-  ));
-  await submit.click();
-  expect((await responsePromise).status(), 'Local demo login HTTP status; no payload logged').toBe(200);
+  const response = await submitLiveLogin(page, submit);
+  expect(response.status(), 'Local demo login HTTP status; no payload logged').toBe(200);
   await expect(page).not.toHaveURL(/\/login(?:$|[/?#])/, { timeout: 20_000 });
 }
 
