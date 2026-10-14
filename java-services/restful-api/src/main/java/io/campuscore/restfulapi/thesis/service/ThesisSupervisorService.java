@@ -1,6 +1,7 @@
 package io.campuscore.restfulapi.thesis.service;
 
 import io.campuscore.restfulapi.audit.AdminAuditRecorder;
+import io.campuscore.restfulapi.thesis.domain.RoundStatus;
 import io.campuscore.restfulapi.thesis.domain.ThesisTopic;
 import io.campuscore.restfulapi.thesis.domain.TopicStatus;
 import io.campuscore.restfulapi.thesis.repository.ThesisTopicRepository;
@@ -86,6 +87,12 @@ public class ThesisSupervisorService {
     public List<SupervisorRow> setSupervisors(UUID topicId, List<String> lecturerIds, Jwt actor) {
         ThesisTopic topic = requireTopic(topicId);
         authorize(topic, actor);
+
+        // Round is locked before the topic so the order stays round -> topic,
+        // the same direction the council mutations take. A cancelled, closed
+        // or published round freezes the supervisor roster the same way a
+        // council assignment does.
+        lockMutableRound(topic.getRoundId());
 
         // Council assignment and supervisor replacement share this topic row
         // as their serialization point.  Without the lock, each transaction
@@ -254,6 +261,23 @@ public class ThesisSupervisorService {
                 "SELECT COUNT(*) FROM campuscore_auth.\"Lecturer\" WHERE \"id\" = :lecturerId AND \"isActive\" = TRUE",
                 new MapSqlParameterSource().addValue("lecturerId", lecturerId), Integer.class);
         return count != null && count > 0;
+    }
+
+    private void lockMutableRound(UUID roundId) {
+        String status;
+        try {
+            status = jdbc.queryForObject(
+                    "SELECT status FROM thesis.thesis_registration_round WHERE id = :roundId FOR UPDATE",
+                    new MapSqlParameterSource().addValue("roundId", roundId), String.class);
+        } catch (org.springframework.dao.EmptyResultDataAccessException exception) {
+            throw notFound("ROUND_NOT_FOUND", "Thesis registration round not found");
+        }
+        if (RoundStatus.CANCELLED.name().equals(status)
+                || RoundStatus.RESULTS_PUBLISHED.name().equals(status)
+                || RoundStatus.CLOSED.name().equals(status)) {
+            throw conflict("ROUND_STATE_CONFLICT",
+                    "The round is already closed; topic supervisors can no longer change");
+        }
     }
 
     private void lockTopic(UUID topicId) {
