@@ -636,10 +636,10 @@ export default function LecturerAttendancePage() {
                             type="button"
                             onClick={() => handleStatusChange(row.studentId, 'PRESENT')}
                             aria-pressed={row.status === 'PRESENT'}
-                            className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                            className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium ${
                               row.status === 'PRESENT'
                                 ? 'bg-emerald-700 text-white shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
+                                : 'text-foreground hover:bg-accent'
                             }`}
                           >
                             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -649,10 +649,10 @@ export default function LecturerAttendancePage() {
                             type="button"
                             onClick={() => handleStatusChange(row.studentId, 'ABSENT')}
                             aria-pressed={row.status === 'ABSENT'}
-                            className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                            className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium ${
                               row.status === 'ABSENT'
-                                ? 'bg-rose-600 text-white shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
+                                ? 'bg-rose-700 text-white shadow-sm'
+                                : 'text-foreground hover:bg-accent'
                             }`}
                           >
                             <XCircle className="h-3.5 w-3.5" />
@@ -662,10 +662,10 @@ export default function LecturerAttendancePage() {
                             type="button"
                             onClick={() => handleStatusChange(row.studentId, 'LATE')}
                             aria-pressed={row.status === 'LATE'}
-                            className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                            className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium ${
                               row.status === 'LATE'
                                 ? 'bg-amber-700 text-white shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
+                                : 'text-foreground hover:bg-accent'
                             }`}
                           >
                             <Clock className="h-3.5 w-3.5" />
@@ -675,10 +675,10 @@ export default function LecturerAttendancePage() {
                             type="button"
                             onClick={() => handleStatusChange(row.studentId, 'EXCUSED')}
                             aria-pressed={row.status === 'EXCUSED'}
-                            className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                            className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium ${
                               row.status === 'EXCUSED'
                                 ? 'bg-sky-700 text-white shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
+                                : 'text-foreground hover:bg-accent'
                             }`}
                           >
                             <AlertCircle className="h-3.5 w-3.5" />
