@@ -767,6 +767,7 @@ function loadApiModule() {
   const getCalls = [];
   const apiCalls = [];
   const timers = [];
+  const sessionSyncPublished = [];
   const interceptors = { responseError: null };
   const fakeSetTimeout = (fn, ms) => {
     const entry = { fn, ms, fired: false, cleared: false };
@@ -822,10 +823,13 @@ function loadApiModule() {
     },
     '@/i18n/paths': {
       addLocalePrefix: (value) => value,
-      stripLocaleFromPathname: (value) => value,
+      stripLocaleFromPathname: (value) => ({ locale: '', pathname: value }),
     },
     '@/lib/public-api-url': { resolvePublicApiBaseUrl: () => '/api/v1' },
     '@/lib/session-hint': { CSRF_COOKIE_NAME: 'cc_csrf' },
+    '@/lib/session-sync': {
+      publishSessionChange: (kind) => sessionSyncPublished.push(kind),
+    },
   };
   const source = readSource('src/lib/api.ts');
   const { outputText } = ts.transpileModule(source, {
@@ -850,7 +854,7 @@ function loadApiModule() {
     fakeSetTimeout,
     fakeClearTimeout,
   );
-  return { exports: moduleRecord.exports, postCalls, getCalls, apiCalls, interceptors, fireTimers };
+  return { exports: moduleRecord.exports, postCalls, getCalls, apiCalls, interceptors, fireTimers, sessionSyncPublished };
 }
 
 test('waitForPendingSessionRefresh waits on an existing refresh only and never starts one', async () => {
@@ -1428,6 +1432,44 @@ test('session transport: the cold-start retry honors the opt-out flag only', asy
   assert.equal(apiCalls.length, 1, 'ordinary reads keep the single warming retry');
   apiCalls[0].resolve({ data: [] });
   await warmed;
+});
+
+test('session transport: a discovered 401 publishes signed-out to sibling tabs before redirecting', async () => {
+  const { interceptors, sessionSyncPublished } = loadApiModule();
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  const location = { pathname: '/dashboard', origin: 'http://localhost', href: '' };
+  globalThis.window = { location };
+  globalThis.document = {};
+  try {
+    const config = { method: 'get', url: '/sections', skipAuthRefresh: true };
+    await assert.rejects(interceptors.responseError({ config, response: { status: 401 } }));
+    assert.deepEqual(
+      sessionSyncPublished,
+      ['signed-out'],
+      'siblings must hear about the dead shared session, not discover it one-by-one',
+    );
+    assert.ok(location.href.includes('/login'), 'the failing tab still navigates to login');
+  } finally {
+    globalThis.window = previousWindow;
+    globalThis.document = previousDocument;
+  }
+});
+
+test('session transport: an opted-out 401 probe publishes nothing', async () => {
+  const { interceptors, sessionSyncPublished } = loadApiModule();
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  globalThis.window = { location: { pathname: '/dashboard', origin: 'http://localhost', href: '' } };
+  globalThis.document = {};
+  try {
+    const config = { method: 'get', url: '/auth/me', skipAuthRedirect: true, skipAuthRefresh: true };
+    await assert.rejects(interceptors.responseError({ config, response: { status: 401 } }));
+    assert.deepEqual(sessionSyncPublished, [], 'auth probes must never broadcast');
+  } finally {
+    globalThis.window = previousWindow;
+    globalThis.document = previousDocument;
+  }
 });
 
 function createLockManager() {
