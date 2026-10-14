@@ -2420,44 +2420,86 @@ public class ThesisAssistantService {
     static boolean isPortalDenialAnswer(String answer) {
         if (answer == null || answer.isBlank()) return false;
         boolean marked = false;
-        // Split on the FOLDED text so contrast conjunctions ("còn", "nhưng",
-        // "however"…) also bound segments — a grounded clause sharing one
-        // sentence with the denial is still credited ("điểm đã có 8.5 còn
-        // lịch thi chưa công bố"). "còn lại" (remaining) is excluded: it is
-        // part of the denied topic, not a contrast. English "yet" is likewise
-        // excluded: folded Vietnamese "niêm yết" (published) contains it and
-        // would chop a grounded clause in two.
-        for (String segment : foldForMatching(answer).split(
-                "\\R+|(?<=[.!?…])\\s+|;\\s*|:\\s+|,\\s+"
-                        // Adverbial "còn" (still: "còn phải/cần/được…") and the
-                        // domain compounds "song hành"/"song song" are excluded
-                        // so the split only fires on a genuine contrast.
-                        + "|\\s+(?:con(?!\\s+(?:lai|phai|can|duoc|se|dang|van|muon|khong|da|bi|co|nhieu|chi|them|gi|it)\\b)"
-                        + "|nhung|tuy nhien|mac du|trong khi|song(?!\\s+(?:hanh|song)\\b)"
-                        + "|but|however|although|while|whereas|meanwhile)\\s+"
-                        // "và/and" only bounds a new assertion when a verb
-                        // follows — enumerations of denied topics ("lịch thi
-                        // và học phí") must stay inside the marked segment.
-                        + "|\\s+va\\s+(?=da\\b|dang\\b|se\\b|duoc\\b|van\\b|khong\\b|co\\b)"
-                        + "|\\s+and\\s+(?=has\\b|have\\b|was\\b|were\\b|is\\b|are\\b|did\\b|does\\b|will\\b|can\\b|not\\b)")) {
-            String folded = segment.trim();
-            if (folded.replaceAll("[^\\p{L}\\p{N}]+", "").isEmpty()) continue;
-            if (PORTAL_DENIAL_MARKER.matcher(folded).find()) {
-                marked = true;
+        for (String sentence : foldForMatching(answer).split(
+                "\\R+|(?<=[.!?…])\\s+|\\s*;\\s*|\\s*:\\s*")) {
+            if (!PORTAL_DENIAL_MARKER.matcher(sentence).find()) {
+                // Marker-free sentences are evaluated as ONE unit so boilerplate
+                // scoring can never chop a clause away from its context. An
+                // anchored wrapper ("xin lỗi…", "liên hệ…") may still hide a
+                // grounded trailing clause, which is re-checked per clause.
+                if (!isDenialWrapper(sentence)) {
+                    if (isGroundedSegment(sentence)) return false;
+                    continue;
+                }
+                // A comma-joined clause is a separate utterance — re-check it
+                // so "xin lỗi vì bất tiện, điểm đã có 8.5" keeps its grounded
+                // part. Conjunctions are NOT split here: mid-sentence clauses
+                // share context ("nhà trường đang hoàn thiện hệ thống và sẽ
+                // phản hồi") and chopping them loses the promise/wrapper tail.
+                for (String clause : sentence.split(",\\s+")) {
+                    if (!isDenialWrapper(clause) && isGroundedSegment(clause)) return false;
+                }
                 continue;
             }
-            String words = folded.replaceAll("[^\\p{L}\\p{N}]+", " ")
-                    .replaceAll("\\s+", " ").trim();
-            if (words.isEmpty() || DENIAL_POINTER.matcher(words).find()) continue;
-            if (words.matches(".*\\d.*")) return false;
-            if (DENIAL_UPDATE_PROMISE.matcher(words).find()) continue;
-            if (words.split(" ").length >= DENIAL_CONTENT_WORDS) return false;
+            marked = true;
+            // A sentence carrying a denial marker sets the flag, but clauses
+            // split off by commas or contrast conjunctions are evaluated on
+            // their own so grounded content sharing the sentence survives.
+            for (String clause : DENIAL_CLAUSE_BOUNDARY.split(sentence)) {
+                if (PORTAL_DENIAL_MARKER.matcher(clause).find()) continue;
+                if (isDenialWrapper(clause)) continue;
+                if (isGroundedSegment(clause)) return false;
+            }
         }
         return marked;
     }
 
+    private static String denialWords(String segment) {
+        return segment.trim().replaceAll("[^\\p{L}\\p{N}]+", " ")
+                .replaceAll("\\s+", " ").trim();
+    }
+
+    /** Formulaic wrappers — apologies, pointers, update promises — that carry
+     *  no grounded content on their own. */
+    private static boolean isDenialWrapper(String clause) {
+        String words = denialWords(clause);
+        return words.isEmpty()
+                || DENIAL_POINTER.matcher(words).find()
+                || DENIAL_UPDATE_PROMISE.matcher(words).find();
+    }
+
+    /** A clause is grounded when it carries a digit, an asserted
+     *  completed/ongoing fact, or enough prose to be real content. Runs only
+     *  after the wrapper check so "Liên hệ phòng 402" never reaches the digit
+     *  test. */
+    private static boolean isGroundedSegment(String clause) {
+        String words = denialWords(clause);
+        return !words.isEmpty()
+                && (words.matches(".*\\d.*")
+                        || DENIAL_GROUNDED_CLAIM.matcher(words).find()
+                        || words.split(" ").length >= DENIAL_CONTENT_WORDS);
+    }
+
+    /**
+     * Clause boundaries inside a marker-bearing sentence: commas, contrast
+     * conjunctions, and "và/and" followed by a verb (a new assertion).
+     * Adverbial "còn" (still: "còn phải/cần/được…"), "còn lại" (remaining)
+     * and the domain compounds "song hành"/"song song" are excluded so the
+     * split only fires on a genuine contrast. English "yet" is excluded too:
+     * folded Vietnamese "niêm yết" (published) contains it and would chop a
+     * grounded clause in two. Enumerations of denied topics ("lịch thi và
+     * học phí") stay inside the marked clause because "và" only bounds when
+     * a verb follows.
+     */
+    private static final java.util.regex.Pattern DENIAL_CLAUSE_BOUNDARY = java.util.regex.Pattern.compile(
+            ",\\s+|\\s+(?:con(?!\\s+(?:lai|phai|can|duoc|se|dang|van|muon|khong|da|bi|co|nhieu|chi|them|gi|it)\\b)"
+                    + "|nhung|tuy nhien|mac du|trong khi|song(?!\\s+(?:hanh|song)\\b)"
+                    + "|but|however|although|while|whereas|meanwhile)\\s+"
+                    + "|\\s+va\\s+(?=da\\b|dang\\b|se\\b|duoc\\b|van\\b|khong\\b|co\\b)"
+                    + "|\\s+and\\s+(?=has\\b|have\\b|was\\b|were\\b|is\\b|are\\b|did\\b|does\\b|will\\b|can\\b|not\\b)");
+
     private static final java.util.regex.Pattern PORTAL_DENIAL_MARKER = java.util.regex.Pattern.compile(
-            "chua (?:duoc )?cong (?:bo|khai)|khong (?:duoc )?cong (?:bo|khai)|khong co thong tin"
+            "chua (?:duoc )?cong (?:bo|khai)|khong (?:duoc )?cong (?:bo|khai)|khong co thong tin|chua co thong tin"
                     + "|has not (?:yet )?(?:been )?(?:published|released)"
                     + "|hasn'?t (?:been )?(?:published|released)"
                     + "|not (?:yet )?(?:published|released) by the portal|not (?:published|released) yet");
@@ -2475,6 +2517,7 @@ public class ThesisAssistantService {
     private static final java.util.regex.Pattern DENIAL_POINTER = java.util.regex.Pattern.compile(
             // Apologies tolerate a short subject prefix ("Chúng tôi rất xin lỗi").
             "^(?:\\S+\\s+){0,4}(?:xin loi|rat tiec|sorry|unfortunately|apologies)\\b"
+                    + "|^(?:cam on|thank you|thanks|tran trong|best regards?|chuc)\\b"
                     + "|^(?:ban co the|you (?:can|may|could)|vui long|please|hay|xin hay|nen|should)\\s+"
                     + "(?:xem|kiem tra|tham khao|lien he|thu lai|cho|doi|theo doi|check|see|refer|"
                     + "contact|consult|look|review|follow|read|visit|truy cap|goi|call|email|gui)\\b"
@@ -2495,6 +2538,17 @@ public class ThesisAssistantService {
                     + "(?:cap nhat|updated|cong bo|published|announced|thong bao|phan hoi|hoan thien|reply|respond)\\b"
                     + "|\\b(?:se|sap|will)\\s+(?:duoc\\s+|be\\s+)?"
                     + "(?:phan hoi|thong bao|hoan thien|nhan duoc|reply|respond|receive)\\b");
+
+    /**
+     * A short grounded claim survives without digits when it asserts a
+     * completed or ongoing fact ("học phí đã niêm yết"). Runs AFTER the
+     * promise check so "sẽ được cập nhật" stays boilerplate; closings
+     * ("cảm ơn bạn đã quan tâm") are eaten by the pointer branch first.
+     */
+    private static final java.util.regex.Pattern DENIAL_GROUNDED_CLAIM = java.util.regex.Pattern.compile(
+            "\\b(?:da|dang|van|duoc|bi)\\s+\\S"
+                    + "|\\b(?:tuition|fee|schedule|result|grade|exam|deadline)s?\\s+"
+                    + "(?:is|are|was|were|has been|have been|includes?|consists? of|requires?)\\b");
 
     /** A non-marker segment at or beyond this word count carries grounded prose, not wrapper padding. */
     private static final int DENIAL_CONTENT_WORDS = 8;

@@ -458,6 +458,16 @@ class ThesisAssistantServiceTest {
         assertTrue(ThesisAssistantService.isPortalDenialAnswer(
                 "Cổng học vụ chưa công bố lịch thi. "
                         + "Chúng tôi rất xin lỗi vì sự bất tiện này và cảm ơn bạn đã kiên nhẫn."));
+        // A short grounded claim with a completed-action verb keeps citations
+        // even without a digit; thanks/closing boilerplate still strips.
+        assertFalse(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi. Học phí đã niêm yết."));
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi. Cảm ơn bạn đã quan tâm."));
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi. Chúc bạn học tốt."));
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa có thông tin về lịch thi cuối kỳ."));
 
         // Non-denial answers are never classified as denials.
         assertFalse(ThesisAssistantService.isPortalDenialAnswer("Sinh viên được đăng ký 24 tín chỉ."));
