@@ -1291,8 +1291,7 @@ public class ThesisAssistantService {
         // thức"). A confident match therefore needs term corroboration —
         // see hasTermCorroboration for the exact rule.
         if (top.lexicalScore() < properties.lexicalConfidentScore()
-                || ("specialized".equalsIgnoreCase(scope)
-                    && !SpringInjectionQuestionFocus.coveredBy(normalized, top.content()))
+                || !hasSpecializedQuestionFit(normalized, scope, top)
                 || !hasTermCorroboration(top, retrievalTerms(normalized))) return null;
         return new ChatResponse(result.answer(), FAST_PATH_MODEL, false, "ANSWERED",
                 normalizedLocale, primaryCitations(result.citations()));
@@ -1334,6 +1333,12 @@ public class ThesisAssistantService {
             }
         }
         return strong >= 2;
+    }
+
+    private static boolean hasSpecializedQuestionFit(String message, String scope,
+            ThesisAssistantKnowledgeRepository.KnowledgeDocument document) {
+        return !"specialized".equalsIgnoreCase(scope)
+                || SpringInjectionQuestionFocus.coveredBy(message, document.content());
     }
 
     private static ChatResponse withDegraded(ChatResponse response) {
@@ -1659,7 +1664,14 @@ public class ThesisAssistantService {
         // The lexical answer is taken from the top-ranked document. Keep the
         // fallback provenance equally precise instead of displaying every
         // retrieved candidate as if it contributed to the visible answer.
-        List<Citation> fallbackCitations = lexical.citations().stream().limit(1).toList();
+        boolean fallbackFits = lexical.documents().isEmpty()
+                || hasSpecializedQuestionFit(normalized, effectiveScope, lexical.documents().getFirst());
+        // Preserve the full provider context and snapshot, but never serve an
+        // unsupported top article when synthesis is disabled/fails/truncates
+        // or quota is exhausted. Those paths share one answer/provenance pair.
+        String deterministicAnswer = fallbackFits ? lexical.answer() : noMatchMessage(normalizedLocale);
+        List<Citation> fallbackCitations = fallbackFits
+                ? lexical.citations().stream().limit(1).toList() : List.of();
         List<String> fallbackSourceIds = fallbackCitations.stream()
                 .map(Citation::sourceId)
                 .filter(value -> value != null && !value.isBlank())
@@ -1700,7 +1712,7 @@ public class ThesisAssistantService {
                 : synthesisRequired ? "PROVIDER_DISABLED" : "RAG_GROUNDED";
         boolean degraded = synthesisRequired && !lexical.documents().isEmpty();
         java.time.Instant quotaResetAt = null;
-        String answer = lexical.answer();
+        String answer = deterministicAnswer;
         List<ProviderSegment> emittedSegments = new ArrayList<>();
         StringBuilder providerAnswer = new StringBuilder();
         int[] expectedSequence = { 0 };
@@ -1774,7 +1786,7 @@ public class ThesisAssistantService {
                             // the UI never presents truncated prose as final.
                             reason = "PROVIDER_TRUNCATED";
                             degraded = true;
-                            answer = lexical.answer();
+                            answer = deterministicAnswer;
                             emit(sink, new StreamReplace(answer, fallbackSourceIds, reason));
                         } else {
                             answer = providerText;
@@ -1797,7 +1809,7 @@ public class ThesisAssistantService {
                         reason = providerFailure instanceof ProviderOutputRejectedException
                                 ? "PROVIDER_UNSAFE_OUTPUT" : "PROVIDER_UNAVAILABLE";
                         degraded = true;
-                        answer = lexical.answer();
+                        answer = deterministicAnswer;
                         emit(sink, new StreamReplace(answer, fallbackSourceIds, reason));
                     }
                 } else if ("QUOTA_EXCEEDED".equals(dispatch.reasonCode())) {
@@ -1810,7 +1822,7 @@ public class ThesisAssistantService {
                     // and the degraded flag is the honest signal.
                     reason = "QUOTA_EXCEEDED";
                     degraded = true;
-                    answer = lexical.answer();
+                    answer = deterministicAnswer;
                     quotaResetAt = nextQuotaResetAt();
                 } else if (!"DISPATCHED".equals(dispatch.reasonCode())) {
                     throw problem(409, dispatch.reasonCode(), "The assistant turn lease is no longer current");
@@ -2706,8 +2718,7 @@ public class ThesisAssistantService {
             int confident = properties != null ? properties.lexicalConfidentScore()
                     : AssistantProperties.DEFAULT_LEXICAL_CONFIDENT_SCORE;
             if (curated && (top.lexicalScore() < confident
-                    || ("specialized".equalsIgnoreCase(scope)
-                        && !SpringInjectionQuestionFocus.coveredBy(normalized, top.content()))
+                    || !hasSpecializedQuestionFit(normalized, scope, top)
                     || !hasTermCorroboration(top, retrievalTerms(normalized)))) {
                 return new ChatResponse(noMatchMessage(normalizedLocale), MODEL, false,
                         "NO_MATCH", normalizedLocale, List.of());
