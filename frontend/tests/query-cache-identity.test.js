@@ -2482,8 +2482,14 @@ test('api 401: a network-failed refresh never confirms the session dead', async 
         config: { url: '/sections', method: 'get' },
       })
       .catch((error) => error);
-    await settle();
-    const refreshCalls = postCalls.filter((call) => call.args[0] === '/auth/refresh');
+    // The real navigator.locks grant resolves on its own schedule — wait
+    // until the refresh attempt is actually dispatched instead of assuming a
+    // single microtask tick is enough (CI runners are slower than laptops).
+    let refreshCalls = [];
+    for (let attempt = 0; attempt < 50 && refreshCalls.length === 0; attempt += 1) {
+      await settle();
+      refreshCalls = postCalls.filter((call) => call.args[0] === '/auth/refresh');
+    }
     assert.equal(refreshCalls.length, 1, 'a plain 401 attempts the refresh first');
     refreshCalls[0].reject(new Error('socket hangup'));
     const settled = await rejection;
