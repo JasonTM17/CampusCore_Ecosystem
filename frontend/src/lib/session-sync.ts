@@ -173,9 +173,13 @@ export function subscribeSessionChanges(
     }
   }
 
+  const isPrerendering = () =>
+    (document as { prerendering?: boolean }).prerendering === true ||
+    (document.visibilityState as string) === 'prerender';
+  let prerendered = isPrerendering();
   let windowBlurred =
     typeof document.hasFocus === 'function' ? !document.hasFocus() : false;
-  let documentHidden = document.visibilityState === 'hidden';
+  let documentHidden = document.visibilityState !== 'visible';
 
   const onStorage = (event: StorageEvent) => {
     if (event.key !== STORAGE_KEY || event.newValue === null) {
@@ -194,8 +198,14 @@ export function subscribeSessionChanges(
     resyncFromStorage();
   };
   const onVisibility = () => {
-    if (document.visibilityState === 'hidden') {
+    if (document.visibilityState === 'hidden' || isPrerendering()) {
       documentHidden = true;
+      return;
+    }
+    if (prerendered) {
+      prerendered = false;
+      documentHidden = false;
+      listener('changed');
       return;
     }
     if (!documentHidden) {
@@ -203,6 +213,14 @@ export function subscribeSessionChanges(
     }
     documentHidden = false;
     resyncFromStorage();
+  };
+  const onPrerenderingChange = () => {
+    if (!prerendered) {
+      return;
+    }
+    prerendered = false;
+    documentHidden = false;
+    listener('changed');
   };
   const onPageShow = (event: PageTransitionEvent) => {
     if (!event.persisted) {
@@ -226,6 +244,7 @@ export function subscribeSessionChanges(
   window.addEventListener('focus', onFocus);
   window.addEventListener('pageshow', onPageShow);
   document.addEventListener('visibilitychange', onVisibility);
+  document.addEventListener('prerenderingchange', onPrerenderingChange);
 
   return () => {
     window.removeEventListener('storage', onStorage);
@@ -233,6 +252,7 @@ export function subscribeSessionChanges(
     window.removeEventListener('focus', onFocus);
     window.removeEventListener('pageshow', onPageShow);
     document.removeEventListener('visibilitychange', onVisibility);
+    document.removeEventListener('prerenderingchange', onPrerenderingChange);
     if (channel) {
       try {
         channel.close();
