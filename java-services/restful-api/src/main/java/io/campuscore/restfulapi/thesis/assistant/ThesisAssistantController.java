@@ -377,7 +377,15 @@ public class ThesisAssistantController {
      */
     private ChatResponse lexicalFastPathOrNull(ChatRequest request) {
         try {
-            return assistant.lexicalFastPath(request.message(), request.locale(), request.scope());
+            ChatResponse fastPath = assistant.lexicalFastPath(request.message(), request.locale(), request.scope());
+            if (fastPath == null) {
+                return null;
+            }
+            return new ChatResponse(fastPath.answer(), fastPath.model(), fastPath.degraded(),
+                    fastPath.reasonCode(), fastPath.locale(), fastPath.citations(), fastPath.requestId(),
+                    request.clientRequestId(), fastPath.turnId(), fastPath.replayed(),
+                    fastPath.terminalStatus(), fastPath.conversationId(), fastPath.messageId(),
+                    fastPath.resetAt());
         } catch (Exception exception) {
             LOG.warn("lexical fast path skipped with {}", exception.getClass().getSimpleName());
             return null;
@@ -403,7 +411,7 @@ public class ThesisAssistantController {
             ChatResponse fallback = assistant.groundedFallback(request.message(), request.locale(),
                     dbDownAtRequestStart, request.scope(), !remoteFailed);
             if (fallback != null) {
-                return fallback;
+                return echoClientRequestId(fallback, request.clientRequestId());
             }
         } catch (Exception exception) {
             LOG.warn("local knowledge fallback failed with {}", exception.getClass().getSimpleName());
@@ -416,9 +424,20 @@ public class ThesisAssistantController {
             return ThesisAssistantService.knowledgeUnavailableResponse(
                     AssistantInputGuard.normalizeLocale(request.locale()), request.clientRequestId());
         }
-        return remoteFailed
+        return echoClientRequestId(remoteFailed
                 ? ThesisAssistantService.curatedFallback(AssistantInputGuard.normalizeLocale(request.locale()))
-                : ThesisAssistantService.noMatchFallback(AssistantInputGuard.normalizeLocale(request.locale()));
+                : ThesisAssistantService.noMatchFallback(AssistantInputGuard.normalizeLocale(request.locale())),
+                request.clientRequestId());
+    }
+
+    private static ChatResponse echoClientRequestId(ChatResponse response, UUID clientRequestId) {
+        if (clientRequestId == null || response.clientRequestId() != null) {
+            return response;
+        }
+        return new ChatResponse(response.answer(), response.model(), response.degraded(),
+                response.reasonCode(), response.locale(), response.citations(), response.requestId(),
+                clientRequestId, response.turnId(), response.replayed(), response.terminalStatus(),
+                response.conversationId(), response.messageId(), response.resetAt());
     }
 
     /** Deprecated compatibility alias; clients should use /chat. */
