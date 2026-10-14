@@ -32,6 +32,7 @@ import {
 import { addLocalePrefix, stripLocaleFromPathname } from '@/i18n/paths';
 import { resolvePublicApiBaseUrl } from '@/lib/public-api-url';
 import { CSRF_COOKIE_NAME } from '@/lib/session-hint';
+import { publishSessionChange } from '@/lib/session-sync';
 
 export const API_BASE_URL = resolvePublicApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
@@ -212,6 +213,11 @@ function redirectToLogin(reason: 'session-expired' | 'unauthorized') {
   if (!isBrowser()) {
     return;
   }
+
+  // A 401 means the shared session cookie is dead for every tab — tell
+  // siblings so they converge to login instead of idling on a revoked
+  // session until their own next request discovers it.
+  publishSessionChange('signed-out');
 
   const { locale, pathname } = stripLocaleFromPathname(window.location.pathname);
   const loginPath = locale ? addLocalePrefix('/login', locale) : '/login';
