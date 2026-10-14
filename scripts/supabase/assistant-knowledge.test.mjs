@@ -26,8 +26,8 @@ test('direct import cannot bypass governed assistant review', () => {
 
 test('offline validation of the specialized seed stays available', () => {
   const result = spawnSync(process.execPath,
-    [script, 'validate', '--file', seed, '--expected-count', '24'],
+    [script, 'validate', '--file', seed, '--expected-count', '26'],
     { cwd: root, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /VALID: 24 document/);
+  assert.match(result.stdout, /VALID: 26 document/);
 });

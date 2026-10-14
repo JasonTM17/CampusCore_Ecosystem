@@ -1291,6 +1291,8 @@ public class ThesisAssistantService {
         // thức"). A confident match therefore needs term corroboration —
         // see hasTermCorroboration for the exact rule.
         if (top.lexicalScore() < properties.lexicalConfidentScore()
+                || ("specialized".equalsIgnoreCase(scope)
+                    && !SpringInjectionQuestionFocus.coveredBy(normalized, top.content()))
                 || !hasTermCorroboration(top, retrievalTerms(normalized))) return null;
         return new ChatResponse(result.answer(), FAST_PATH_MODEL, false, "ANSWERED",
                 normalizedLocale, primaryCitations(result.citations()));
@@ -2704,6 +2706,8 @@ public class ThesisAssistantService {
             int confident = properties != null ? properties.lexicalConfidentScore()
                     : AssistantProperties.DEFAULT_LEXICAL_CONFIDENT_SCORE;
             if (curated && (top.lexicalScore() < confident
+                    || ("specialized".equalsIgnoreCase(scope)
+                        && !SpringInjectionQuestionFocus.coveredBy(normalized, top.content()))
                     || !hasTermCorroboration(top, retrievalTerms(normalized)))) {
                 return new ChatResponse(noMatchMessage(normalizedLocale), MODEL, false,
                         "NO_MATCH", normalizedLocale, List.of());
@@ -2813,6 +2817,9 @@ public class ThesisAssistantService {
                 .replaceAll("[^\\p{L}\\p{N}]+", " ")
                 .trim() + " ";
         List<String> expanded = new ArrayList<>();
+        // Keep named technical concepts inside the repository's 16-term
+        // window even when a question starts with a long explanatory preamble.
+        expanded.addAll(SpringInjectionQuestionFocus.retrievalPhrases(source));
         // Scoped canonical phrases recover the actual accented policy for
         // unaccented headcount questions without broadening unrelated queries.
         if (isThesisGroupHeadcountQuery(source)) {

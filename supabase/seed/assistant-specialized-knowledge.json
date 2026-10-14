@@ -123,25 +123,25 @@
     "id": "22d073e6-483d-560e-8e92-09af8b814ed4",
     "slug": "specialized-microservices-monolith-spring-architecture-vi",
     "title": "Kiến trúc monolith vs microservices và stack Spring Boot thực dụng cho đồ án",
-    "content": "## Kiến trúc ứng dụng\n\n- **Bắt đầu modular monolith**: một deployment, phân ranh giới module rõ (auth, academic, engagement, thesis) qua package + interface; tách microservice chỉ khi cần scale độc lập, đội ngũ riêng, hoặc chu kỳ triển khai riêng — chi phí thật của microservices là mạng, phân tán dữ liệu, tracing, triển khai.\n- **Phân tầng within module**: Controller (HTTP, validation, ánh xạ DTO) → Service (nghiệp vụ, transaction) → Repository (truy cập dữ liệu); nghiệp vụ không nằm ở controller; DTO không lộ entity.\n- **Spring Boot thực dụng**: spring-boot-starter-validation (@Valid + record DTO), NamedParameterJdbcTemplate/JPA tùy độ phức tạp truy vấn, Flyway cho migration (mọi thay đổi schema có migration, không sửa tay DB), @Profile để tách cấu hình môi trường, GlobalExceptionHandler để envelope lỗi nhất quán.\n- **Cấu hình 12-factor**: mọi bí mật/endpoint qua biến môi trường (PORT, DB URL, API key); không hard-code; file .env chỉ cục bộ, .env.example committing các tên biến không giá trị.\n- **Quan sát được**: log có cấu trúc kèm requestId; health endpoint readiness/liveness; đo thời gian truy vấn chậm.\n- **Ví dụ tham chiếu**: CampusCore là modular monolith Spring Boot 3.5/Java 21 (35 controller, Flyway V1–V71, profile persistence), tách sidecar rag-service chỉ cho nhiệm vụ RAG — ranh giới service theo năng lực, không theo cảm tính.",
+    "content": "## Kiến trúc ứng dụng\n\n- **Bắt đầu modular monolith**: một deployment, phân ranh giới module rõ (auth, academic, engagement, thesis) qua package + interface; tách microservice chỉ khi cần scale độc lập, đội ngũ riêng, hoặc chu kỳ triển khai riêng — chi phí thật của microservices là mạng, phân tán dữ liệu, tracing, triển khai.\n- **Phân tầng within module**: Controller (HTTP, validation, ánh xạ DTO) → Service (nghiệp vụ, transaction) → Repository (truy cập dữ liệu); nghiệp vụ không nằm ở controller; DTO không lộ entity.\n- **Spring Boot thực dụng**: spring-boot-starter-validation (@Valid + record DTO), NamedParameterJdbcTemplate/JPA tùy độ phức tạp truy vấn, Flyway cho migration (mọi thay đổi schema có migration, không sửa tay DB), @Profile để tách cấu hình môi trường, GlobalExceptionHandler để envelope lỗi nhất quán.\n- **Cấu hình 12-factor**: mọi bí mật/endpoint qua biến môi trường (PORT, DB URL, API key); không hard-code; file .env chỉ cục bộ, .env.example committing các tên biến không giá trị.\n- **Quan sát được**: log có cấu trúc kèm requestId; health endpoint readiness/liveness; đo thời gian truy vấn chậm.\n- **Ví dụ tham chiếu**: CampusUTE là modular monolith Spring Boot 3.5/Java 21 (profile persistence; số controller và phiên bản migration phụ thuộc bản mã nguồn đang kiểm tra), tách sidecar rag-service chỉ cho nhiệm vụ RAG — ranh giới service theo năng lực, không theo cảm tính.",
     "locale": "vi",
-    "source": "campuscore-specialized-corpus",
+    "source": "campuscore-specialized-focus-v115",
     "active": true,
     "visibility": "PUBLIC",
     "priority": 12,
-    "updated_at": "2026-09-20 00:00:00+00"
+    "updated_at": "2026-10-14 00:00:00+00"
   },
   {
     "id": "fc1dbd90-b8ac-500d-bfd7-ad8aca7ebd73",
     "slug": "specialized-microservices-monolith-spring-architecture-en",
     "title": "Monolith vs microservices architecture and a pragmatic Spring Boot stack for capstones",
-    "content": "## Application architecture\n\n- **Start with a modular monolith**: one deployment, clear module boundaries (auth, academic, engagement, thesis) via packages and interfaces; extract microservices only for independent scaling, teams, or release cadence — the real costs are networking, data distribution, tracing and deployment.\n- **Layering inside a module**: Controller (HTTP, validation, DTO mapping) → Service (business logic, transactions) → Repository (data access); no business logic in controllers; never expose entities as API payloads.\n- **Pragmatic Spring Boot**: spring-boot-starter-validation (@Valid + record DTOs), NamedParameterJdbcTemplate/JPA by query complexity, Flyway migrations for every schema change (never hand-edit the DB), @Profile per environment, a GlobalExceptionHandler for a consistent error envelope.\n- **Twelve-factor configuration**: every secret/endpoint via environment variables (PORT, DB URL, API keys); no hard-coding; local .env is git-ignored while .env.example commits variable names without values.\n- **Observability**: structured logs with a requestId; readiness/liveness health endpoints; slow-query instrumentation.\n- **Reference example**: CampusCore is a Spring Boot 3.5 / Java 21 modular monolith (35 controllers, Flyway V1–V71, persistence profile) with a rag-service sidecar extracted only for the RAG capability — service boundaries follow capability, not fashion.",
+    "content": "## Application architecture\n\n- **Start with a modular monolith**: one deployment, clear module boundaries (auth, academic, engagement, thesis) via packages and interfaces; extract microservices only for independent scaling, teams, or release cadence — the real costs are networking, data distribution, tracing and deployment.\n- **Layering inside a module**: Controller (HTTP, validation, DTO mapping) → Service (business logic, transactions) → Repository (data access); no business logic in controllers; never expose entities as API payloads.\n- **Pragmatic Spring Boot**: spring-boot-starter-validation (@Valid + record DTOs), NamedParameterJdbcTemplate/JPA by query complexity, Flyway migrations for every schema change (never hand-edit the DB), @Profile per environment, a GlobalExceptionHandler for a consistent error envelope.\n- **Twelve-factor configuration**: every secret/endpoint via environment variables (PORT, DB URL, API keys); no hard-coding; local .env is git-ignored while .env.example commits variable names without values.\n- **Observability**: structured logs with a requestId; readiness/liveness health endpoints; slow-query instrumentation.\n- **Reference example**: CampusUTE is a Spring Boot 3.5 / Java 21 modular monolith (persistence profile; controller counts and migration versions depend on the source revision being inspected) with a rag-service sidecar extracted only for the RAG capability — service boundaries follow capability, not fashion.",
     "locale": "en",
-    "source": "campuscore-specialized-corpus",
+    "source": "campuscore-specialized-focus-v115",
     "active": true,
     "visibility": "PUBLIC",
     "priority": 12,
-    "updated_at": "2026-09-20 00:00:00+00"
+    "updated_at": "2026-10-14 00:00:00+00"
   },
   {
     "id": "fc6f34cf-9617-5681-b5c2-232fe621a3ff",
@@ -286,5 +286,29 @@
     "visibility": "PUBLIC",
     "priority": 15,
     "updated_at": "2026-09-20 00:00:00+00"
+  },
+  {
+    "id": "96b9a85f-7880-51b0-a470-c02f8ccc41ae",
+    "slug": "specialized-spring-dependency-constructor-injection-vi",
+    "title": "Dependency Injection và constructor injection trong Spring Boot",
+    "content": "## Dependency Injection / constructor injection\n\nDependency Injection (DI, tiêm phụ thuộc) là việc đối tượng nhận phụ thuộc từ bên ngoài thay vì tự tạo bằng new. Spring IoC container tạo và quản lý bean rồi truyền bean phù hợp vào constructor. Constructor injection (tiêm qua hàm khởi tạo) khai báo phụ thuộc bắt buộc qua tham số constructor.\n\n```java\nimport org.springframework.stereotype.Component;\nimport org.springframework.stereotype.Service;\n\ninterface PaymentGateway { void pay(); }\n@Component\nclass DemoPaymentGateway implements PaymentGateway {\n    public void pay() { /* demo payment implementation */ }\n}\n@Service\nclass OrderService {\n    private final PaymentGateway gateway;\n    public OrderService(PaymentGateway gateway) {\n        this.gateway = gateway;\n    }\n    public void checkout() { gateway.pay(); }\n}\n```\n\nOrderService nhận PaymentGateway qua constructor; Spring tìm bean DemoPaymentGateway và truyền vào. Với một constructor duy nhất, không cần @Autowired. Trường final giữ tham chiếu phụ thuộc; kiểm thử có thể truyền mock trực tiếp vào new OrderService(mockGateway). Mã minh họa phải nằm trong package được component scan; nếu có nhiều bean PaymentGateway cần @Qualifier hoặc @Primary.",
+    "locale": "vi",
+    "source": "campuscore-specialized-focus-v115",
+    "active": true,
+    "visibility": "PUBLIC",
+    "priority": 10,
+    "updated_at": "2026-10-14 00:00:00+00"
+  },
+  {
+    "id": "76408ba9-7897-508e-8b88-b05fafd14f9a",
+    "slug": "specialized-spring-dependency-constructor-injection-en",
+    "title": "Dependency Injection and constructor injection in Spring Boot",
+    "content": "## Dependency Injection / constructor injection\n\nDependency Injection (DI) means receiving dependencies from outside instead of constructing them with new. The Spring IoC container creates and manages beans and passes the matching bean into the constructor. Constructor injection declares required dependencies as constructor parameters.\n\n```java\nimport org.springframework.stereotype.Component;\nimport org.springframework.stereotype.Service;\n\ninterface PaymentGateway { void pay(); }\n@Component\nclass DemoPaymentGateway implements PaymentGateway {\n    public void pay() { /* demo payment implementation */ }\n}\n@Service\nclass OrderService {\n    private final PaymentGateway gateway;\n    public OrderService(PaymentGateway gateway) {\n        this.gateway = gateway;\n    }\n    public void checkout() { gateway.pay(); }\n}\n```\n\nOrderService receives PaymentGateway through its constructor; Spring supplies the DemoPaymentGateway bean. A single constructor does not require @Autowired. The final field retains the dependency reference; a test can pass a mock directly to new OrderService(mockGateway). Put the example in a component-scanned package; multiple PaymentGateway beans need @Qualifier or @Primary.",
+    "locale": "en",
+    "source": "campuscore-specialized-focus-v115",
+    "active": true,
+    "visibility": "PUBLIC",
+    "priority": 10,
+    "updated_at": "2026-10-14 00:00:00+00"
   }
 ]
