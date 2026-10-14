@@ -209,16 +209,7 @@ function isBrowser() {
   return typeof window !== 'undefined' && typeof document !== 'undefined';
 }
 
-function redirectToLogin(reason: 'session-expired' | 'unauthorized') {
-  if (!isBrowser()) {
-    return;
-  }
-
-  // A 401 means the shared session cookie is dead for every tab — tell
-  // siblings so they converge to login instead of idling on a revoked
-  // session until their own next request discovers it.
-  publishSessionChange('signed-out');
-
+function navigateToLogin(reason: 'session-expired' | 'unauthorized') {
   const { locale, pathname } = stripLocaleFromPathname(window.location.pathname);
   const loginPath = locale ? addLocalePrefix('/login', locale) : '/login';
   const loginUrl = new URL(loginPath, window.location.origin);
@@ -233,13 +224,54 @@ function redirectToLogin(reason: 'session-expired' | 'unauthorized') {
   window.location.href = loginUrl.toString();
 }
 
+let sessionDeathConfirmationPromise: Promise<void> | null = null;
+
+function redirectToLogin(reason: 'session-expired' | 'unauthorized') {
+  if (!isBrowser()) {
+    return;
+  }
+  if (sessionDeathConfirmationPromise) {
+    return;
+  }
+
+  const csrfHintBefore = getCookie(CSRF_COOKIE_NAME);
+  sessionDeathConfirmationPromise = authApi
+    .me()
+    .then(() => undefined)
+    .catch((confirmationError: unknown) => {
+      const status = (
+        confirmationError as { response?: { status?: number } } | undefined
+      )?.response?.status;
+      const csrfHintAfter = getCookie(CSRF_COOKIE_NAME);
+      if (status === 401 && csrfHintAfter === csrfHintBefore) {
+        // A 401 means the shared session cookie is dead for every tab — tell
+        // siblings so they converge to login instead of idling on a revoked
+        // session until their own next request discovers it.
+        publishSessionChange('signed-out');
+        navigateToLogin(reason);
+      }
+    })
+    .finally(() => {
+      sessionDeathConfirmationPromise = null;
+    });
+}
+
 function getCookie(name: string): string | undefined {
   if (!isBrowser()) {
     return undefined;
   }
 
+  // Sandboxed or storage-denied contexts can expose a missing/throwing
+  // document.cookie — treat that as "no cookie" instead of breaking the
+  // session-death confirmation path.
+  let jar: string;
+  try {
+    jar = document.cookie ?? '';
+  } catch {
+    return undefined;
+  }
   const escapedName = name.replace(/([.*+?^${}()|[\]\\])/g, '\\$1');
-  const match = document.cookie.match(
+  const match = jar.match(
     new RegExp(`(?:^|; )${escapedName}=([^;]*)`),
   );
 
@@ -451,7 +483,10 @@ api.interceptors.response.use(
 
         return api(originalConfig);
       } catch (refreshError) {
-        if (isBrowser() && !originalConfig.skipAuthRedirect) {
+        const refreshRejected401 =
+          (refreshError as { response?: { status?: number } } | undefined)
+            ?.response?.status === 401;
+        if (refreshRejected401 && isBrowser() && !originalConfig.skipAuthRedirect) {
           redirectToLogin('session-expired');
         }
 

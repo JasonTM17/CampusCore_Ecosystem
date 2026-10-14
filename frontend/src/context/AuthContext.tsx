@@ -15,10 +15,10 @@ import { useI18n } from '@/i18n';
 import { User, TwoFactorChallengeResponse } from '@/types/api';
 import { authApi, refreshSessionSingleFlight, waitForPendingSessionRefresh, SessionVerificationError } from '@/lib/api';
 import { isTwoFactorChallenge } from '@/lib/two-factor';
-import { hasCsrfSessionHint } from '@/lib/session-hint';
+import { hasCsrfSessionHint, readCsrfSessionHint } from '@/lib/session-hint';
 import { loginHref, portalFromPathname, portalFromUser } from '@/lib/login-portal';
 import { getBrowserQueryClient } from '@/lib/query';
-import { publishSessionChange, subscribeSessionChanges } from '@/lib/session-sync';
+import { publishSessionChange, subscribeSessionChanges, type SessionChangeKind } from '@/lib/session-sync';
 
 interface AuthContextType {
   user: User | null;
@@ -58,6 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logoutPendingRef = useRef(false);
   const logoutPathnameRef = useRef<string | null>(null);
   const sessionReloadPendingRef = useRef(false);
+  const bootstrapPendingRef = useRef(true);
+  const latestIdentityRef = useRef<User | null>(null);
 
   const setUserIdentity = useCallback((nextUser: User | null) => {
     const nextId = nextUser?.id ?? null;
@@ -65,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       getBrowserQueryClient().clear();
     }
     lastKnownUserIdRef.current = nextId;
+    latestIdentityRef.current = nextUser;
     setUser(nextUser);
   }, []);
 
@@ -132,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await refreshUser();
       } finally {
         if (active && !sessionReloadPendingRef.current) {
+          bootstrapPendingRef.current = false;
           setIsLoading(false);
         }
       }
@@ -187,7 +191,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         if (attempt > 0) {
           try {
-            await authApi.login(email, password);
+            const retryResponse = await authApi.login(email, password);
+            if (!isTwoFactorChallenge(retryResponse)) {
+              publishSessionChange('changed');
+            }
           } catch {
             break;
           }
@@ -333,8 +340,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [href, pathname, router, setUserIdentity, user]);
 
-  useEffect(() => {
-    const unsubscribe = subscribeSessionChanges((kind) => {
+  const handleExternalSessionChange = useCallback(
+    (kind: SessionChangeKind) => {
       if (sessionReloadPendingRef.current) {
         return;
       }
@@ -353,9 +360,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         window.location.reload();
       }
-    });
+    },
+    [clearSessionState, href],
+  );
+
+  useEffect(() => {
+    const unsubscribe = subscribeSessionChanges(handleExternalSessionChange);
     return unsubscribe;
-  }, [clearSessionState, href]);
+  }, [handleExternalSessionChange]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return;
+    }
+    let active = true;
+    let pollInFlight = false;
+    const pollSessionIdentity = async () => {
+      if (pollInFlight) {
+        return;
+      }
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+      if (!latestIdentityRef.current) {
+        return;
+      }
+      if (
+        bootstrapPendingRef.current ||
+        sessionMutationPendingRef.current ||
+        logoutPendingRef.current ||
+        sessionReloadPendingRef.current
+      ) {
+        return;
+      }
+      pollInFlight = true;
+      const generation = sessionGenerationRef.current;
+      const request = ++latestRefreshRequestRef.current;
+      const isCurrent = () =>
+        active &&
+        generation === sessionGenerationRef.current &&
+        request === latestRefreshRequestRef.current &&
+        !sessionReloadPendingRef.current;
+      const csrfHintBefore = readCsrfSessionHint();
+      try {
+        const probed = await authApi.me();
+        if (!isCurrent()) {
+          return;
+        }
+        const previous = latestIdentityRef.current;
+        if (!previous) {
+          return;
+        }
+        if (identitySignature(probed) !== identitySignature(previous)) {
+          handleExternalSessionChange('changed');
+        }
+      } catch (error) {
+        if (!isCurrent()) {
+          return;
+        }
+        const status = (error as { response?: { status?: number } } | undefined)
+          ?.response?.status;
+        if (status === 401 && readCsrfSessionHint() === csrfHintBefore) {
+          publishSessionChange('signed-out');
+          handleExternalSessionChange('signed-out');
+        }
+      } finally {
+        pollInFlight = false;
+      }
+    };
+    const timer = window.setInterval(() => {
+      void pollSessionIdentity();
+    }, 30000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [handleExternalSessionChange]);
 
   useEffect(() => {
     if (
@@ -402,6 +482,17 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
+}
+
+function identitySignature(user: User): string {
+  return JSON.stringify([
+    user.id,
+    [...(user.roles ?? [])].sort(),
+    user.status ?? '',
+    user.mustChangePassword ?? false,
+    user.studentId ?? null,
+    user.lecturerId ?? null,
+  ]);
 }
 
 function userHasRequiredRole(

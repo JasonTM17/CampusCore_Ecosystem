@@ -11,3 +11,12 @@ export function hasCsrfSessionHint(cookieSource?: string): boolean {
     (typeof document !== 'undefined' ? document.cookie : '');
   return cookieHasName(source, CSRF_COOKIE_NAME);
 }
+
+export function readCsrfSessionHint(cookieSource?: string): string | null {
+  const source =
+    cookieSource ??
+    (typeof document !== 'undefined' ? document.cookie : '');
+  const escapedName = CSRF_COOKIE_NAME.replace(/([.*+?^${}()|[\]\\])/g, '\\$1');
+  const match = new RegExp(`(?:^|; )${escapedName}=([^;]*)`).exec(source);
+  return match ? match[1] : null;
+}
