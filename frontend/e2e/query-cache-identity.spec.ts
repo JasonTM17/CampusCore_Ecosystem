@@ -1319,7 +1319,12 @@ test('a delayed 401 during a newer session never signs the tab out', async ({ pa
   await signIn(page, USER_A.email);
   await expect(page).toHaveURL(/\/en\/dashboard(\?|$)/, NAV_TIMEOUT);
   await expect(page.getByText(/up to 111 more credits/i)).toBeVisible(NAV_TIMEOUT);
-  await expect.poll(() => heldNotifications.length, NAV_TIMEOUT).toBe(2);
+  // Dev-server StrictMode mounts the notifications effect twice, so CI can
+  // hold four requests where a production build holds two — the delayed-401
+  // pair only needs the first two.
+  await expect
+    .poll(() => heldNotifications.length, NAV_TIMEOUT)
+    .toBeGreaterThanOrEqual(2);
 
   const tabB = await context.newPage();
   await tabB.addInitScript(blockLocalStorage);
