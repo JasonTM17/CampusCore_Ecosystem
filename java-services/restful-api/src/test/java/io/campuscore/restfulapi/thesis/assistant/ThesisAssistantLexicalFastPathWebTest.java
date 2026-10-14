@@ -58,6 +58,31 @@ class ThesisAssistantLexicalFastPathWebTest {
         verify(ragGateway, org.mockito.Mockito.never()).chat(any(), anyString());
     }
 
+    @Test
+    void jsonFastPathEchoesTheCallerClientRequestId() throws Exception {
+        when(ragGateway.enabled()).thenReturn(true);
+        UUID firstKey = UUID.randomUUID();
+        UUID secondKey = UUID.randomUUID();
+
+        mvc.perform(post("/api/v1/thesis/assistant/chat").with(student("fastpath-key-a-" + UUID.randomUUID()))
+                        .contentType("application/json")
+                        .content("{\"message\":\"How do I choose a thesis topic?\",\"locale\":\"en\",\"clientRequestId\":\""
+                                + firstKey + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.model").value("curated-lexical-fast"))
+                .andExpect(jsonPath("$.clientRequestId").value(firstKey.toString()));
+
+        mvc.perform(post("/api/v1/thesis/assistant/chat").with(student("fastpath-key-b-" + UUID.randomUUID()))
+                        .contentType("application/json")
+                        .content("{\"message\":\"How do I choose a thesis topic?\",\"locale\":\"en\",\"clientRequestId\":\""
+                                + secondKey + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.model").value("curated-lexical-fast"))
+                .andExpect(jsonPath("$.clientRequestId").value(secondKey.toString()));
+
+        verify(ragGateway, org.mockito.Mockito.never()).chat(any(), anyString());
+    }
+
     private RequestPostProcessor student(String subject) {
         return ThesisAuthorityFixture.student(jdbc, subject);
     }
