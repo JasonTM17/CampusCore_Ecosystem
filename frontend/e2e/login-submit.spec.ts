@@ -112,9 +112,24 @@ async function mockLoginAs(page: import('@playwright/test').Page, roles: string[
       }),
     }),
   );
-  // Session probes and the mismatch logout are allowed to fail/no-op; only
-  // the login payload shapes the branch under test.
-  await page.route('**/api/v1/auth/me', (route) => route.fulfill({ status: 401 }));
+  // The verified-session gate probes /auth/me before committing the login —
+  // it must answer the same identity so the portal-mismatch branch is reached.
+  // The mismatch logout itself is allowed to no-op.
+  await page.route('**/api/v1/auth/me', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 'probe-user',
+        email: PROBE_EMAIL,
+        firstName: 'Probe',
+        lastName: 'User',
+        status: 'ACTIVE',
+        mustChangePassword: false,
+        roles,
+      }),
+    }),
+  );
   await page.route('**/api/v1/auth/logout', (route) => route.fulfill({ status: 200 }));
 }
 

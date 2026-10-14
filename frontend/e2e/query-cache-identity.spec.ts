@@ -1283,9 +1283,37 @@ test('a revoked session drives an already-open tab to login on the next poll', a
 test('a delayed 401 during a newer session never signs the tab out', async ({ page, context }) => {
   await context.addInitScript(blockBroadcastChannel);
   const heldNotifications: import('@playwright/test').Route[] = [];
-  const lateMe = { armed: false, routes: [] as import('@playwright/test').Route[] };
-  await mockCrossTabAccounts(context, { heldNotifications, lateMeRoutes: lateMe });
+  const lateMe = {
+    armed: false,
+    autoActor: false,
+    routes: [] as import('@playwright/test').Route[],
+  };
+  await mockCrossTabAccounts(context, { heldNotifications });
   await page.clock.install();
+  await page.route('**/api/v1/auth/me', async (route, request) => {
+    const actor =
+      /cc_access_token=([^;]+)/.exec(request.headers()['cookie'] ?? '')?.[1] ?? 'none';
+    const user = actor === CROSS_B_COOKIE ? USER_B : actor === CROSS_A_COOKIE ? USER_A : null;
+    const respond = () =>
+      user
+        ? route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(user),
+          })
+        : route.fulfill({
+            status: 401,
+            contentType: 'application/json',
+            body: '{"code":"UNAUTHORIZED"}',
+          });
+    if (!lateMe.armed) {
+      return respond();
+    }
+    lateMe.routes.push(route);
+    if (lateMe.autoActor) {
+      return respond();
+    }
+  });
 
   await page.goto('/en/login?portal=student');
   await signIn(page, USER_A.email);
@@ -1333,17 +1361,13 @@ test('a delayed 401 during a newer session never signs the tab out', async ({ pa
     await page.bringToFront();
     await page.clock.runFor(30_000);
     await expect.poll(() => lateMe.routes.length, NAV_TIMEOUT).toBe(2);
+    lateMe.autoActor = true;
     await lateMe.routes[1].fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(USER_B),
     });
     await expect.poll(() => lateMe.routes.length, NAV_TIMEOUT).toBe(3);
-    await lateMe.routes[2].fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(USER_B),
-    });
     await expect(page.getByText(/up to 222 more credits/i)).toBeVisible(NAV_TIMEOUT);
     await expect(page.getByText(/up to 111 more credits/i)).toHaveCount(0);
   } finally {
@@ -1352,7 +1376,7 @@ test('a delayed 401 during a newer session never signs the tab out', async ({ pa
         .fulfill({ status: 200, contentType: 'application/json', body: '{"data":[]}' })
         .catch(() => {});
     }
-    for (const held of lateMe.routes.slice(3)) {
+    for (const held of lateMe.routes.slice(2)) {
       await held
         .fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(USER_B) })
         .catch(() => {});
