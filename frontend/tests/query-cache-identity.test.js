@@ -264,6 +264,13 @@ function mountAuthProvider(options = {}) {
     },
     '@/lib/session-hint': {
       hasCsrfSessionHint: () => sessionHint.value,
+      readCsrfSessionHint: (source) => {
+        const raw =
+          source ??
+          (typeof document !== 'undefined' ? document.cookie : '');
+        const match = /(?:^|; )cc_csrf=([^;]*)/.exec(raw);
+        return match ? match[1] : null;
+      },
     },
     '@/lib/login-portal': {
       loginHref: () => '/en/login',
@@ -1435,15 +1442,19 @@ test('session transport: the cold-start retry honors the opt-out flag only', asy
 });
 
 test('session transport: a discovered 401 publishes signed-out to sibling tabs before redirecting', async () => {
-  const { interceptors, sessionSyncPublished } = loadApiModule();
+  const { interceptors, getCalls, sessionSyncPublished } = loadApiModule();
   const previousWindow = globalThis.window;
   const previousDocument = globalThis.document;
   const location = { pathname: '/dashboard', origin: 'http://localhost', href: '' };
   globalThis.window = { location };
-  globalThis.document = {};
+  globalThis.document = { cookie: '' };
   try {
     const config = { method: 'get', url: '/sections', skipAuthRefresh: true };
     await assert.rejects(interceptors.responseError({ config, response: { status: 401 } }));
+    const meCalls = getCalls.filter((call) => call.args[0] === '/auth/me');
+    assert.equal(meCalls.length, 1, 'the redirect boundary confirms the cookie once');
+    meCalls[0].reject({ response: { status: 401 } });
+    await settle();
     assert.deepEqual(
       sessionSyncPublished,
       ['signed-out'],
@@ -2324,4 +2335,569 @@ test('session sync: strict-mode remount re-subscribes and cleans up each subscri
   assert.equal(mounted.sessionSync.listeners.length, 2, 'a second mount owns a fresh subscription');
   mounted.unmount();
   assert.equal(mounted.sessionSync.unsubscribed, 2);
+});
+
+test('session sync: a prerendered document forces one resync on activation even with a seen marker', () => {
+  const env = createSyncEnvironment({ visibility: 'prerender' });
+  env.window.localStorage.setItem(
+    'campuscore-session-revision',
+    JSON.stringify(externalPayload({ kind: 'changed' })),
+  );
+  const sync = loadSessionSyncModule(env);
+  const received = [];
+  sync.subscribeSessionChanges((kind) => received.push(kind));
+  assert.equal(received.length, 0, 'subscribing while prerendering must not fire');
+
+  env.document.prerendering = false;
+  env.document.visibilityState = 'visible';
+  env.document.fire('prerenderingchange');
+  assert.deepEqual(
+    received,
+    ['changed'],
+    'activation forces a resync that the seeded marker dedupe would have suppressed',
+  );
+
+  env.document.fire('visibilitychange');
+  assert.deepEqual(
+    received,
+    ['changed'],
+    'the trailing visibilitychange must not double-deliver',
+  );
+});
+
+test('session sync: a prerendered document resyncs once when only visibilitychange fires', () => {
+  const env = createSyncEnvironment({ broadcast: false, visibility: 'prerender' });
+  const sync = loadSessionSyncModule(env);
+  const received = [];
+  sync.subscribeSessionChanges((kind) => received.push(kind));
+  assert.equal(received.length, 0);
+
+  env.document.visibilityState = 'visible';
+  env.document.fire('visibilitychange');
+  assert.deepEqual(received, ['changed']);
+
+  env.document.fire('prerenderingchange');
+  assert.deepEqual(received, ['changed'], 'a late prerenderingchange must not redeliver');
+});
+
+test('session sync: prerenderingchange on a never-prerendered document does nothing', () => {
+  const env = createSyncEnvironment();
+  const sync = loadSessionSyncModule(env);
+  const received = [];
+  sync.subscribeSessionChanges((kind) => received.push(kind));
+  env.document.fire('prerenderingchange');
+  assert.equal(received.length, 0);
+});
+
+function mountApiBrowserGlobals() {
+  const navigations = [];
+  const hadWindow = 'window' in globalThis;
+  const hadDocument = 'document' in globalThis;
+  const documentObj = { cookie: 'cc_csrf=hint-a', visibilityState: 'visible' };
+  globalThis.document = documentObj;
+  globalThis.window = {
+    location: {
+      pathname: '/en/dashboard',
+      origin: 'http://localhost',
+      set href(value) {
+        navigations.push(value);
+      },
+      get href() {
+        return navigations[navigations.length - 1] ?? '';
+      },
+    },
+  };
+  return {
+    navigations,
+    documentObj,
+    restore() {
+      if (!hadWindow) delete globalThis.window;
+      if (!hadDocument) delete globalThis.document;
+    },
+  };
+}
+
+test('api 401: a protected 401 confirms me() first and stays put while the cookie still works', async () => {
+  const env = mountApiBrowserGlobals();
+  try {
+    const { interceptors, getCalls, sessionSyncPublished } = loadApiModule();
+    const rejection = interceptors
+      .responseError({
+        response: { status: 401 },
+        config: { url: '/sections', method: 'get', skipAuthRefresh: true },
+      })
+      .catch((error) => error);
+    await settle();
+    const meCalls = getCalls.filter((call) => call.args[0] === '/auth/me');
+    assert.equal(meCalls.length, 1, 'the redirect boundary must re-probe the cookie once');
+    meCalls[0].resolve({ data: USER_A });
+    await rejection;
+    await settle();
+    assert.deepEqual(sessionSyncPublished, [], 'a live cookie means no signed-out broadcast');
+    assert.equal(env.navigations.length, 0, 'a live cookie means no navigation');
+  } finally {
+    env.restore();
+  }
+});
+
+test('api 401: a dead shared cookie publishes signed-out and navigates once under concurrent 401s', async () => {
+  const env = mountApiBrowserGlobals();
+  try {
+    const { interceptors, getCalls, sessionSyncPublished } = loadApiModule();
+    const first = interceptors
+      .responseError({
+        response: { status: 401 },
+        config: { url: '/sections', method: 'get', skipAuthRefresh: true },
+      })
+      .catch((error) => error);
+    const second = interceptors
+      .responseError({
+        response: { status: 401 },
+        config: { url: '/grades', method: 'get', skipAuthRefresh: true },
+      })
+      .catch((error) => error);
+    await settle();
+    const meCalls = getCalls.filter((call) => call.args[0] === '/auth/me');
+    assert.equal(meCalls.length, 1, 'concurrent 401s share a single confirmation probe');
+    meCalls[0].reject({ response: { status: 401 } });
+    await first;
+    await second;
+    await settle();
+    assert.deepEqual(sessionSyncPublished, ['signed-out']);
+    assert.equal(env.navigations.length, 1, 'concurrent 401s share one redirect');
+    assert.match(env.navigations[0], /\/login/);
+    assert.match(env.navigations[0], /reason=unauthorized/);
+  } finally {
+    env.restore();
+  }
+});
+
+test('api 401: a network-failed refresh never confirms the session dead', async () => {
+  const env = mountApiBrowserGlobals();
+  try {
+    const { interceptors, getCalls, postCalls, sessionSyncPublished } = loadApiModule();
+    const rejection = interceptors
+      .responseError({
+        response: { status: 401 },
+        config: { url: '/sections', method: 'get' },
+      })
+      .catch((error) => error);
+    await settle();
+    const refreshCalls = postCalls.filter((call) => call.args[0] === '/auth/refresh');
+    assert.equal(refreshCalls.length, 1, 'a plain 401 attempts the refresh first');
+    refreshCalls[0].reject(new Error('socket hangup'));
+    const settled = await rejection;
+    assert.equal(settled.message, 'socket hangup', 'the producer sees the refresh failure');
+    await settle();
+    assert.equal(
+      getCalls.filter((call) => call.args[0] === '/auth/me').length,
+      0,
+      'a non-401 refresh failure must not confirm the session dead',
+    );
+    assert.deepEqual(sessionSyncPublished, []);
+    assert.equal(env.navigations.length, 0);
+  } finally {
+    env.restore();
+  }
+});
+
+test('api 401: an opted-out probe failure never recurses into confirmation', async () => {
+  const env = mountApiBrowserGlobals();
+  try {
+    const { interceptors, getCalls, sessionSyncPublished } = loadApiModule();
+    const settled = await interceptors
+      .responseError({
+        response: { status: 401 },
+        config: {
+          url: '/auth/me',
+          method: 'get',
+          skipAuthRefresh: true,
+          skipAuthRedirect: true,
+        },
+      })
+      .catch((error) => error);
+    assert.equal(settled.response.status, 401);
+    await settle();
+    assert.equal(
+      getCalls.filter((call) => call.args[0] === '/auth/me').length,
+      0,
+      'the confirmation probe itself is opted out and must not self-confirm',
+    );
+    assert.deepEqual(sessionSyncPublished, []);
+    assert.equal(env.navigations.length, 0);
+  } finally {
+    env.restore();
+  }
+});
+
+test('api 401: a late 401 from a superseded session stays silent when me() answers the new cookie', async () => {
+  const env = mountApiBrowserGlobals();
+  try {
+    const { interceptors, getCalls, sessionSyncPublished } = loadApiModule();
+    const rejection = interceptors
+      .responseError({
+        response: { status: 401 },
+        config: { url: '/notifications', method: 'get', skipAuthRefresh: true },
+      })
+      .catch((error) => error);
+    await settle();
+    const meCalls = getCalls.filter((call) => call.args[0] === '/auth/me');
+    assert.equal(meCalls.length, 1);
+    meCalls[0].resolve({ data: USER_B });
+    await rejection;
+    await settle();
+    assert.deepEqual(sessionSyncPublished, [], 'a live newer cookie must not sign out');
+    assert.equal(env.navigations.length, 0);
+  } finally {
+    env.restore();
+  }
+});
+
+function mountPollGlobals() {
+  const ticks = [];
+  const cleared = [];
+  const reloads = [];
+  const replaces = [];
+  const hadWindow = 'window' in globalThis;
+  const hadDocument = 'document' in globalThis;
+  const documentObj = { visibilityState: 'visible', cookie: 'cc_csrf=hint-a' };
+  globalThis.document = documentObj;
+  globalThis.window = {
+    location: {
+      pathname: '/en/dashboard',
+      reload: () => reloads.push('reload'),
+      replace: (url) => replaces.push(url),
+    },
+    setInterval: (fn, ms) => {
+      ticks.push({ fn, ms });
+      return ticks.length;
+    },
+    clearInterval: (id) => cleared.push(id),
+  };
+  return {
+    ticks,
+    cleared,
+    reloads,
+    replaces,
+    documentObj,
+    restore() {
+      if (!hadWindow) delete globalThis.window;
+      if (!hadDocument) delete globalThis.document;
+    },
+  };
+}
+
+test('session poll: a changed identity signature reloads once on the next tick without republishing', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider();
+    assert.equal(env.ticks.length, 1);
+    assert.equal(env.ticks[0].ms, 30000);
+    mounted.meCalls[0].resolve(USER_A);
+    await settle();
+    assert.equal(mounted.render().user?.id, USER_A.id);
+
+    env.ticks[0].fn();
+    await settle();
+    assert.equal(mounted.meCalls.length, 2, 'the tick probes me() exactly once');
+    mounted.meCalls[1].resolve(USER_B);
+    await settle();
+    assert.equal(env.reloads.length, 1, 'a different cookie identity converges to a reload');
+    assert.equal(mounted.render().user, null);
+    assert.deepEqual(mounted.sessionSync.published, [], 'a polling receiver must not republish');
+  } finally {
+    env.restore();
+  }
+});
+
+test('session poll: a stable signature survives consecutive ticks with no reload', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider();
+    mounted.meCalls[0].resolve(USER_A);
+    await settle();
+
+    env.ticks[0].fn();
+    await settle();
+    assert.equal(mounted.meCalls.length, 2);
+    mounted.meCalls[1].resolve(USER_A);
+    await settle();
+
+    env.ticks[0].fn();
+    await settle();
+    assert.equal(mounted.meCalls.length, 3, 'each tick is bounded to one probe');
+    mounted.meCalls[2].resolve(USER_A);
+    await settle();
+
+    assert.equal(env.reloads.length, 0);
+    assert.equal(env.replaces.length, 0);
+    assert.deepEqual(mounted.sessionSync.published, []);
+    assert.equal(mounted.render().user?.id, USER_A.id);
+    assert.equal(mounted.render().isLoading, false, 'an unchanged poll must not raise loading');
+  } finally {
+    env.restore();
+  }
+});
+
+test('session poll: hidden, mutation, and in-flight states never probe', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider();
+    mounted.meCalls[0].resolve(USER_A);
+    await settle();
+    assert.equal(mounted.render().user?.id, USER_A.id);
+    const baseline = mounted.meCalls.length;
+
+    env.documentObj.visibilityState = 'hidden';
+    env.ticks[0].fn();
+    await settle();
+    assert.equal(mounted.meCalls.length, baseline, 'a hidden tab never polls');
+
+    env.documentObj.visibilityState = 'visible';
+    const loginPromise = mounted.context.login(USER_B.email, 'pw-irrelevant');
+    await settle();
+    env.ticks[0].fn();
+    await settle();
+    assert.equal(mounted.meCalls.length, baseline, 'a pending mutation blocks the poll');
+    mounted.refreshWaiterCalls[0].resolve();
+    await settle();
+    mounted.loginCalls[0].resolve(loginResponse(USER_B));
+    await settle();
+    mounted.meCalls[baseline].resolve(USER_B);
+    await loginPromise;
+    await settle();
+    assert.equal(mounted.render().user?.id, USER_B.id);
+
+    env.ticks[0].fn();
+    await settle();
+    assert.equal(mounted.meCalls.length, baseline + 2, 'a visible idle tab polls once after the sign-in probe');
+    env.ticks[0].fn();
+    await settle();
+    assert.equal(mounted.meCalls.length, baseline + 2, 'an in-flight poll blocks the next tick');
+    mounted.meCalls[baseline + 1].resolve(USER_B);
+    await settle();
+
+    env.documentObj.visibilityState = 'hidden';
+    env.ticks[0].fn();
+    await settle();
+    assert.equal(mounted.meCalls.length, baseline + 2, 'hidden blocks again after a settled poll');
+  } finally {
+    env.restore();
+  }
+});
+
+test('session poll: a logged-out document never probes', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider({ sessionHint: false });
+    await settle();
+    assert.equal(mounted.render().user, null);
+    assert.equal(mounted.meCalls.length, 0, 'no hint means bootstrap never probed');
+    env.ticks[0].fn();
+    await settle();
+    assert.equal(mounted.meCalls.length, 0, 'a logged-out document never polls');
+  } finally {
+    env.restore();
+  }
+});
+
+test('session poll: a confirmed 401 publishes signed-out once and navigates to localized login', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider();
+    mounted.meCalls[0].resolve(USER_A);
+    await settle();
+
+    env.ticks[0].fn();
+    await settle();
+    assert.equal(mounted.meCalls.length, 2);
+    mounted.meCalls[1].reject({ response: { status: 401 } });
+    await settle();
+    assert.deepEqual(mounted.sessionSync.published, ['signed-out']);
+    assert.equal(env.replaces.length, 1);
+    assert.match(env.replaces[0], /\/en\/login/);
+    assert.equal(env.reloads.length, 0);
+    assert.equal(mounted.render().isLoading, true, 'the fence stays raised behind the redirect');
+  } finally {
+    env.restore();
+  }
+});
+
+test('session poll: a 5xx keeps state and the next tick probes again', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider();
+    mounted.meCalls[0].resolve(USER_A);
+    await settle();
+
+    env.ticks[0].fn();
+    await settle();
+    assert.equal(mounted.meCalls.length, 2);
+    mounted.meCalls[1].reject({ response: { status: 503 } });
+    await settle();
+    assert.equal(env.reloads.length, 0);
+    assert.equal(env.replaces.length, 0);
+    assert.deepEqual(mounted.sessionSync.published, []);
+    assert.equal(mounted.render().user?.id, USER_A.id, 'transient failures preserve the session');
+
+    env.ticks[0].fn();
+    await settle();
+    assert.equal(mounted.meCalls.length, 3, 'the next interval retries after a transient failure');
+    mounted.meCalls[2].resolve(USER_A);
+    await settle();
+  } finally {
+    env.restore();
+  }
+});
+
+test('session poll: a stale tick response after a new sign-in never resets the identity', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider();
+    mounted.meCalls[0].resolve(USER_A);
+    await settle();
+    assert.equal(mounted.render().user?.id, USER_A.id);
+
+    env.ticks[0].fn();
+    await settle();
+    assert.equal(mounted.meCalls.length, 2, 'the tick probe is in flight');
+
+    const loginPromise = mounted.context.login(USER_B.email, 'pw-irrelevant');
+    await settle();
+    mounted.refreshWaiterCalls[0].resolve();
+    await settle();
+    mounted.loginCalls[0].resolve(loginResponse(USER_B));
+    await settle();
+    mounted.meCalls[2].resolve(USER_B);
+    await loginPromise;
+    await settle();
+    assert.equal(mounted.render().user?.id, USER_B.id);
+
+    mounted.meCalls[1].resolve(USER_A);
+    await settle();
+    assert.equal(env.reloads.length, 0, 'a stale poll response must not reload');
+    assert.equal(env.replaces.length, 0);
+    assert.equal(mounted.render().user?.id, USER_B.id, 'the newer sign-in survives');
+  } finally {
+    env.restore();
+  }
+});
+
+test('session poll: unmount clears the interval and strict remount owns one timer per mount', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider();
+    assert.equal(env.ticks.length, 1);
+    mounted.remount();
+    assert.equal(env.ticks.length, 2, 'a strict remount owns a fresh timer');
+    mounted.unmount();
+    assert.equal(env.cleared.length, 2, 'every mounted timer is cleared once');
+    assert.deepEqual(new Set(env.cleared).size, 2);
+  } finally {
+    env.restore();
+  }
+});
+
+test('api 401: a rotated CSRF hint during the held confirmation suppresses the sign-out', async () => {
+  const env = mountApiBrowserGlobals();
+  try {
+    const { interceptors, getCalls, sessionSyncPublished } = loadApiModule();
+    const rejection = interceptors
+      .responseError({
+        response: { status: 401 },
+        config: { url: '/sections', method: 'get', skipAuthRefresh: true },
+      })
+      .catch((error) => error);
+    await settle();
+    const meCalls = getCalls.filter((call) => call.args[0] === '/auth/me');
+    assert.equal(meCalls.length, 1, 'the redirect boundary still probes first');
+    env.documentObj.cookie = 'cc_csrf=hint-b';
+    meCalls[0].reject({ response: { status: 401 } });
+    await rejection;
+    await settle();
+    assert.deepEqual(
+      sessionSyncPublished,
+      [],
+      'a session write during the probe means the 401 belongs to a superseded cookie',
+    );
+    assert.equal(env.navigations.length, 0);
+  } finally {
+    env.restore();
+  }
+});
+
+test('session poll: a 401 arriving after the CSRF hint rotated never signs the tab out', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider();
+    mounted.meCalls[0].resolve(USER_A);
+    await settle();
+    assert.equal(mounted.render().user?.id, USER_A.id);
+
+    env.ticks[0].fn();
+    await settle();
+    assert.equal(mounted.meCalls.length, 2, 'the tick probe is in flight');
+
+    env.documentObj.cookie = 'cc_csrf=hint-b';
+    mounted.meCalls[1].reject({ response: { status: 401 } });
+    await settle();
+    assert.deepEqual(
+      mounted.sessionSync.published,
+      [],
+      'a session write during the poll means the 401 is stale, not a revocation',
+    );
+    assert.equal(env.replaces.length, 0);
+    assert.equal(env.reloads.length, 0);
+    assert.equal(mounted.render().user?.id, USER_A.id, 'the newer session identity survives');
+  } finally {
+    env.restore();
+  }
+});
+
+test('session poll: unmount during a pending tick cannot navigate or publish', async () => {
+  const env = mountPollGlobals();
+  try {
+    const mounted = mountAuthProvider();
+    mounted.meCalls[0].resolve(USER_A);
+    await settle();
+
+    env.ticks[0].fn();
+    await settle();
+    assert.equal(mounted.meCalls.length, 2, 'the tick probe is in flight');
+
+    mounted.unmount();
+    assert.ok(env.cleared.length >= 1, 'unmount clears the interval');
+    mounted.meCalls[1].resolve(USER_B);
+    await settle();
+    assert.equal(env.reloads.length, 0, 'a detached poll result must not navigate');
+    assert.equal(env.replaces.length, 0);
+    assert.deepEqual(mounted.sessionSync.published, []);
+  } finally {
+    env.restore();
+  }
+});
+
+test('session sync: a retried sign-in response publishes its cookie arrival even when the retry probe fails', async () => {
+  const mounted = mountAuthProvider({ sessionHint: false });
+  const loginPromise = mounted.context.login(USER_B.email, 'pw-irrelevant');
+  await settle();
+  mounted.refreshWaiterCalls[0].resolve();
+  await settle();
+  mounted.loginCalls[0].resolve(loginResponse(USER_B));
+  await settle();
+  assert.equal(mounted.meCalls.length, 1, 'the first response is followed by a verification probe');
+  mounted.meCalls[0].reject(new Error('probe dropped'));
+  await settle();
+  assert.equal(mounted.loginCalls.length, 2, 'a failed probe retries the sign-in once');
+  mounted.loginCalls[1].resolve(loginResponse(USER_B));
+  await settle();
+  assert.equal(mounted.meCalls.length, 2, 'the retry probes the session again');
+  mounted.meCalls[1].reject(new Error('second probe dropped'));
+  await assert.rejects(loginPromise);
+  await settle();
+  assert.deepEqual(
+    mounted.sessionSync.published,
+    ['changed', 'changed'],
+    'every cookie-bearing login response publishes, including the retry',
+  );
 });
