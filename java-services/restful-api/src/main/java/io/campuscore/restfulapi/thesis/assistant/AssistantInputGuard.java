@@ -107,14 +107,37 @@ public final class AssistantInputGuard {
      * ("của admin/hệ thống/giảng viên", "the admin password", "her token"),
      * never when it names the asker ("của tôi/em/mình", "my/our/your own").
      */
+    /**
+     * Bare {@code pass} is campus slang for passing a course ("pass môn",
+     * "pass học phần", "pass for the final exam"), not only a credential word.
+     * It stays a credential ask only when the next few words do not resolve
+     * to an academic noun — reached only through closed-class connectors
+     * ("cho", "được", "for", "the", ...) so an owner word in between ("pass
+     * của admin kỳ này") cannot launder a credential ask into slang.
+     */
+    private static final String PASS_CREDENTIAL = "pass(?!\\s+"
+            + "(?:(?:cho|được|duoc|for|the|a|an|in|on|my|this|that|each|every)\\s+){0,2}"
+            + "(?:môn|mon|học\\s*phần|hoc\\s*phan|phần\\s*học|phan\\s*hoc|kỳ\\s*thi|ky\\s*thi"
+            + "|kiểm\\s*tra|kiem\\s*tra|kỳ|ki|course|subject|exam|exams|test|tests|class|quiz|module|curriculum"
+            + "|final|finals|midterm|bài|bai|assignment|homework"
+            + "|credit|tín\\s*chỉ|tin\\s*chi|đại\\s*cương|dai\\s*cuong|mark|điểm|diem)\\b"
+            // ...unless an owner word trails the noun: "pass for the course
+            // admin" is a credential ask wearing academic word order.
+            + "(?!'?s?\\s+(?:admin|administrator|administration|root|system|server|database|db"
+            + "|lecturer|teacher|staff|bot|assistant|account|accounts|user|users|portal"
+            + "|website|web|mod|moderator|owner|operator)\\b))";
     private static final Pattern CREDENTIAL_REQUEST = Pattern.compile(
             "(?i)(?:"
                     // VI: credential word (allowing a short qualifier gap such
-                    // as "đăng nhập") owned by a non-self party.
-                    + "(?:mật\\s*khẩu|mat\\s*khau|password|pass\\s*code|otp|mã\\s*xác\\s*(?:thực|nhận)|ma\\s*xac\\s*(?:thuc|nhan)"
-                    + "|token|api[\\s_-]?key|apikey|secret|cookie|cookies|session|mã\\s*đăng\\s*nhập|ma\\s*dang\\s*nhap)"
-                    + "(?:\\s+\\w+){0,3}?\\s+của\\s+"
+                    // as "đăng nhập") owned by a non-self party. "của" is
+                    // optional so direct phrasing like "mật khẩu admin" or
+                    // "mật khẩu tài khoản admin" is refused the same way.
+                    + "\\b(?:mật\\s*khẩu|mat\\s*khau|password|passkey|pass\\s*code|" + PASS_CREDENTIAL + "|pin\\s*code|pin|mã\\s*pin|ma\\s*pin|otp|mã\\s*xác\\s*(?:thực|nhận)|ma\\s*xac\\s*(?:thuc|nhan)"
+                    + "|token|api[\\s_-]?key|apikey|secret|cookie|cookies|session|mã\\s*đăng\\s*nhập|ma\\s*dang\\s*nhap"
+                    + "|phiên\\s*đăng\\s*nhập|phien\\s*dang\\s*nhap)"
+                    + "(?:\\s+\\w+){0,3}?(?:\\s+của)?\\s+"
                     + "(?!(?:tôi|toi|mình|minh|em|tui|bản\\s*thân|ban\\s*than|chính\\s*mình|chinh\\s*minh|chính\\s*tôi|chinh\\s*toi)\\b)"
+                    + "(?:(?:tài\\s*khoản|tai\\s*khoan)\\s+)?"
                     + "(?:admin|administrator|quản\\s*trị|quan\\s*tri|giảng\\s*viên|giang\\s*vien|giáo\\s*viên|giao\\s*vien"
                     + "|thầy|thay|cô|co|hệ\\s*thống|he\\s*thong|bạn|ban|sinh\\s*viên|sinh\\s*vien|học\\s*sinh|hoc\\s*sinh"
                     + "|người\\s*khác|nguoi\\s*khac|họ|ho|nó|no|ấy|ay|trường|truong|server|máy\\s*chủ|may\\s*chu"
@@ -123,15 +146,18 @@ public final class AssistantInputGuard {
                     // VI: credential handed to a non-self recipient —
                     // "đổi mật khẩu cho bạn Nam". "cho tôi/em/mình" stays the
                     // asker's own self-service request.
-                    + "|(?:mật\\s*khẩu|mat\\s*khau|password|otp|token|mã\\s*xác\\s*thực|ma\\s*xac\\s*thuc)"
+                    + "|\\b(?:mật\\s*khẩu|mat\\s*khau|password|passkey|" + PASS_CREDENTIAL + "|pin|mã\\s*pin|ma\\s*pin|otp|token|mã\\s*xác\\s*thực|ma\\s*xac\\s*thuc"
+                    + "|phiên\\s*đăng\\s*nhập|phien\\s*dang\\s*nhap)"
                     + "\\s+cho\\s+"
-                    + "(?!(?:tôi|toi|mình|minh|em|tui|bản\\s*thân|ban\\s*than|chính\\s*mình|chinh\\s*minh)\\b)\\w"
+                    + "(?!(?:tôi|toi|mình|minh|em|tui|bản\\s*thân|ban\\s*than|chính\\s*mình|chinh\\s*minh)\\b"
+                    + "|(?:tài\\s*khoản|tai\\s*khoan|email|account)\\s+(?:của\\s+|cua\\s+)?"
+                    + "(?:tôi|toi|mình|minh|em|tui|bản\\s*thân|ban\\s*than|chính\\s*mình|chinh\\s*minh)\\b)\\w"
                     // EN: a non-self owner compounded on the credential —
                     // "the admin password", "system token", "her session".
                     + "|\\b(?:admin|administrator|root|system|server|database|db|lecturer|teacher|staff|bot|assistant"
                     + "|someone\\s+else|another\\s+(?:user|student|person)|other\\s+(?:user|student|person)"
                     + "|the\\s+(?:school|university)|their|his|her|its)(?:'s|'|s)?\\s+"
-                    + "(?:password|passphrase|passcode|otp|token|api[\\s_-]?key|apikey|secret|credentials?|session\\s*(?:id|token)?|cookies?)"
+                    + "(?:password|passphrase|passcode|passkey|" + PASS_CREDENTIAL + "|pin|otp|token|api[\\s_-]?key|apikey|secret|credentials?|session\\s*(?:id|token)?|cookies?)"
                     // EN: reveal verbs may name the bot too ("tell me your
                     // password") — "your" only counts as non-self here.
                     + "|\\b(?:tell|show|give|reveal|share|print|leak|expose|what\\s+is|what'?s|whats)\\s+"
@@ -139,7 +165,7 @@ public final class AssistantInputGuard {
                     + "(?:admin|administrator|root|system|server|database|db|your|their|his|her|its"
                     + "|someone\\s+else'?s?|another\\s+(?:user|person)'?s?|other\\s+(?:user|student|person)'?s?"
                     + "|the\\s+(?:lecturer|teacher|bot|assistant)'?s?)(?:'s)?\\s+"
-                    + "(?:password|passphrase|passcode|otp|token|api[\\s_-]?key|apikey|secret|credentials?)"
+                    + "(?:password|passphrase|passcode|passkey|" + PASS_CREDENTIAL + "|pin|otp|token|api[\\s_-]?key|apikey|secret|credentials?)"
                     // EN: reset/change verbs keep "your" out — "reset your
                     // password" is self-service phrasing, not an exfil ask.
                     + "|\\b(?:reset|change|recover|retrieve|steal|crack|hack|bypass|brute\\s*force)\\s+"
@@ -147,10 +173,10 @@ public final class AssistantInputGuard {
                     + "(?:admin|administrator|root|system|server|database|db|their|his|her|its"
                     + "|someone\\s+else'?s?|another\\s+(?:user|person)'?s?|other\\s+(?:user|student|person)'?s?"
                     + "|the\\s+(?:lecturer|teacher|bot|assistant)'?s?)(?:'s)?\\s+"
-                    + "(?:password|passphrase|passcode|otp|token|api[\\s_-]?key|apikey|secret|credentials?)"
+                    + "(?:password|passphrase|passcode|passkey|" + PASS_CREDENTIAL + "|pin|otp|token|api[\\s_-]?key|apikey|secret|credentials?)"
                     // EN: credential "of/for" a non-self party — "password of
                     // the admin"; "of/for my/your own account" stays free.
-                    + "|\\b(?:password|passphrase|passcode|otp|token|api[\\s_-]?key|apikey|secret|credentials?)\\s+"
+                    + "|\\b(?:password|passphrase|passcode|passkey|" + PASS_CREDENTIAL + "|pin|otp|token|api[\\s_-]?key|apikey|secret|credentials?)\\s+"
                     + "(?:of|for|belonging\\s+to)\\s+"
                     + "(?!(?:my|mine|me|myself|your|yours|yourself|our|ours)\\b)"
                     + "(?:the\\s+|a\\s+|an\\s+)?[a-z]"
