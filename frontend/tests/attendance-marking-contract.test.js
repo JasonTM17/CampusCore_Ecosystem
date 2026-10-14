@@ -81,6 +81,44 @@ test('attendance marking API contracts and wiring integrity', async (t) => {
     }
   });
 
+  await t.test('selected absent state uses the darker contrast-safe class', () => {
+    const pageSource = read('src/app/dashboard/lecturer/attendance/page.tsx');
+    const absentBlock = /row\.status === 'ABSENT'\s*\?\s*'([^']+)'/.exec(pageSource);
+    assert.ok(absentBlock, 'the ABSENT status button selected-state class must exist');
+    assert.match(
+      absentBlock[1],
+      /\bbg-rose-700\b/,
+      'selected ABSENT must use bg-rose-700 (white on rose-600 is 4.39:1, below the 4.5:1 AA floor)',
+    );
+    assert.doesNotMatch(
+      absentBlock[1],
+      /\bbg-rose-600\b/,
+      'selected ABSENT must not use bg-rose-600',
+    );
+  });
+
+  await t.test('all four unselected status buttons use readable foreground without transitions', () => {
+    const pageSource = read('src/app/dashboard/lecturer/attendance/page.tsx');
+    const branches = pageSource.match(
+      /row\.status === '(?:PRESENT|ABSENT|LATE|EXCUSED)'\s*\?\s*'[^']+'\s*:\s*'[^']+'/g,
+    ) ?? [];
+    assert.equal(branches.length, 4, 'expected exactly four status-button ternary branches');
+    for (const branch of branches) {
+      const unselected = /:\s*'([^']+)'/.exec(branch)[1];
+      assert.match(
+        unselected,
+        /^text-foreground hover:bg-accent$/,
+        `unselected branch must use readable foreground: ${unselected}`,
+      );
+      assert.doesNotMatch(unselected, /muted-foreground/, 'unselected branch must not use muted foreground');
+    }
+    const buttonClass = pageSource.match(/className=\{`flex items-center gap-1 rounded[^`]*`\}/g) ?? [];
+    assert.equal(buttonClass.length, 4, 'expected four status-button className expressions');
+    for (const cls of buttonClass) {
+      assert.doesNotMatch(cls, /transition-colors/, 'status buttons must not animate color transitions');
+    }
+  });
+
   await t.test('lecturer attendance page file and locale proxy exist', () => {
     assert.ok(
       fs.existsSync(path.join(root, 'src/app/dashboard/lecturer/attendance/page.tsx')),

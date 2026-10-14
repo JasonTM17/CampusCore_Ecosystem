@@ -98,3 +98,19 @@ test('the primitive layer stays on the token system for its primary surfaces', (
     assert.ok(sources.includes(token), `expected the primitive layer to use ${token}`);
   }
 });
+
+test('portal table headers use the semantic foreground, not a sidebar-tinted mix', () => {
+  const css = fs.readFileSync(path.join(root, 'src', 'app', 'globals.css'), 'utf8');
+  const headerRule = css.match(/\.portal-shell\s+th\s*\{([^}]*)\}/);
+  assert.ok(headerRule, 'expected a .portal-shell th rule in globals.css');
+  assert.match(
+    headerRule[1],
+    /color:\s*hsl\(var\(--foreground\)\)/,
+    'portal table headers must paint with the semantic foreground token',
+  );
+  assert.doesNotMatch(
+    headerRule[1].match(/color:[^;]+/)?.[0] ?? '',
+    /--portal-sidebar/,
+    'the header text colour must not mix in the dark sidebar surface token',
+  );
+});
