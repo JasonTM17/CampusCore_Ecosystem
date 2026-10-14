@@ -99,6 +99,7 @@ export function LanguageToggle({
           <Link
             key={item}
             href={targetPath(item)}
+            prefetch={false}
             onClick={(event) => preserveHashOnClick(event, item)}
             className={chipClass}
             aria-label={label}
