@@ -10,17 +10,29 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.campuscore.restfulapi.academic.service.LecturerMutationService;
+import io.campuscore.restfulapi.auth.service.AdminUserMutationService;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -42,6 +54,15 @@ class AdminUserMutationPersistenceTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private LecturerMutationService lecturerMutations;
+
+    @Autowired
+    private AdminUserMutationService userMutations;
+
+    @MockitoSpyBean
+    private NamedParameterJdbcTemplate namedJdbc;
 
     @BeforeEach
     void prepareFixture() {
@@ -500,6 +521,22 @@ class AdminUserMutationPersistenceTest {
                     "isActive" BOOLEAN NOT NULL
                 )
                 """);
+        jdbc.execute("CREATE SCHEMA IF NOT EXISTS academic");
+        jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS academic."Lecturer" (
+                    "id" VARCHAR(120) PRIMARY KEY,
+                    "userId" VARCHAR(120) NOT NULL,
+                    "departmentId" VARCHAR(120),
+                    "employeeId" VARCHAR(120),
+                    "title" VARCHAR(120),
+                    "specialization" VARCHAR(240),
+                    "office" VARCHAR(240),
+                    "phone" VARCHAR(60),
+                    "isActive" BOOLEAN NOT NULL,
+                    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """);
         jdbc.execute("""
                 CREATE TABLE IF NOT EXISTS campuscore_audit."AdminAudit" (
                     "id" VARCHAR(120) PRIMARY KEY,
@@ -525,6 +562,7 @@ class AdminUserMutationPersistenceTest {
         jdbc.update("DELETE FROM \"campuscore_auth\".\"Permission\"");
         jdbc.update("DELETE FROM \"campuscore_auth\".\"Role\"");
         jdbc.update("DELETE FROM \"campuscore_auth\".\"User\"");
+        jdbc.update("DELETE FROM academic.\"Lecturer\"");
     }
 
     private void insertFixture() {
@@ -587,6 +625,76 @@ class AdminUserMutationPersistenceTest {
     private void insertUserRole(String id, String userId, String roleId) {
         jdbc.update("INSERT INTO \"campuscore_auth\".\"UserRole\" (\"id\", \"userId\", \"roleId\") VALUES (?, ?, ?)",
                 id, userId, roleId);
+    }
+
+    @Test
+    void protectedAccountCheckSerializesWithConcurrentRolePromotion() throws Exception {
+        insertUser("race-target", "race@campuscore.edu", "Race", "Target");
+        insertUserRole("race-target-role", "race-target", "role-student");
+
+        CountDownLatch gatePassed = new CountDownLatch(1);
+        CountDownLatch releaseInsert = new CountDownLatch(1);
+        String workerName = "race-lecturer-create";
+        Mockito.doAnswer(invocation -> {
+            String sql = invocation.getArgument(0, String.class);
+            if (Thread.currentThread().getName().equals(workerName)
+                    && sql.startsWith("INSERT INTO \"academic\".\"Lecturer\"")) {
+                gatePassed.countDown();
+                if (!releaseInsert.await(15, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("release barrier timeout");
+                }
+            }
+            return invocation.callRealMethod();
+        }).when(namedJdbc).update(Mockito.anyString(), Mockito.any(SqlParameterSource.class));
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<Throwable> creator = pool.submit(() -> {
+                Thread.currentThread().setName(workerName);
+                try {
+                    lecturerMutations.create(Map.of(
+                            "userId", "race-target",
+                            "departmentId", "department-demo",
+                            "employeeId", "GV-RACE",
+                            "title", "ThS."), false);
+                    return null;
+                } catch (Throwable error) {
+                    return error;
+                }
+            });
+            assertThat(gatePassed.await(15, TimeUnit.SECONDS))
+                    .as("the lecturer create must reach the insert barrier").isTrue();
+
+            Future<Throwable> promoter = pool.submit(() -> {
+                try {
+                    userMutations.update("race-target", Map.of("role", "ADMIN"), true, null);
+                    return null;
+                } catch (Throwable error) {
+                    return error;
+                }
+            });
+            // The promotion must wait on the same user row lock the protected
+            // check holds: if it can finish while the creator is paused between
+            // its role check and its lecturer write, the check ran against
+            // roles the promotion was already replacing. Give it a generous
+            // window — an unlocked implementation finishes well under this.
+            Thread.sleep(1_000);
+            assertThat(promoter.isDone())
+                    .as("the role promotion must block until the protected check commits")
+                    .isFalse();
+
+            releaseInsert.countDown();
+            assertThat(creator.get(15, TimeUnit.SECONDS)).isNull();
+            assertThat(promoter.get(15, TimeUnit.SECONDS)).isNull();
+            assertThat(roleNames("race-target")).contains("ADMIN");
+            assertThat(jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM academic.\"Lecturer\" WHERE \"userId\" = 'race-target'",
+                    Integer.class)).isEqualTo(1);
+        } finally {
+            releaseInsert.countDown();
+            pool.shutdownNow();
+            assertThat(pool.awaitTermination(15, TimeUnit.SECONDS)).isTrue();
+        }
     }
 
     private List<String> roleNames(String userId) {

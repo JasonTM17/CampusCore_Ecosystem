@@ -135,6 +135,10 @@ public class AuthLoginService {
         }
 
         Jwt decoded = decodeRefresh(refreshTokenValue);
+        // Lock the User row before the Session row (User -> Session is the
+        // global order): taking the session FOR UPDATE first deadlocks against
+        // admin mutations that lock the user and then delete sessions.
+        users.lockUserRow(decoded.getSubject());
         String refreshTokenHash = hash(refreshTokenValue);
         AuthUserRecord user = users.findByActiveRefreshSession(refreshTokenHash, clock.instant())
                 .orElseGet(() -> {
@@ -268,6 +272,7 @@ public class AuthLoginService {
 
     @Transactional
     public void logout(String userId, String refreshTokenValue) {
+        users.lockUserRow(userId);
         if (refreshTokenValue != null && !refreshTokenValue.isBlank()) {
             users.deleteRefreshSession(userId, hash(refreshTokenValue));
         } else {
