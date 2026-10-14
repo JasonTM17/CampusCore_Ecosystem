@@ -476,6 +476,30 @@ class ThesisAssistantServiceTest {
     }
 
     @Test
+    void markerFreeWrapperContrastTailKeepsCitations() {
+        // A marker-free sentence classified as a wrapper can still smuggle a
+        // grounded tail behind a contrast/coordination boundary — the tail is
+        // an independent claim and must keep the citations.
+        assertFalse(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi. "
+                        + "Xin lỗi vì bất tiện nhưng học phí đã niêm yết."));
+        assertFalse(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi. "
+                        + "Liên hệ phòng 402 nhưng điểm IS401 đã có 8.5."));
+        assertFalse(ThesisAssistantService.isPortalDenialAnswer(
+                "The exam schedule has not been published by the portal. "
+                        + "Sorry for the delay but tuition is published."));
+        // Pure wrapper tails — update promises — still strip citations; the
+        // first fragment keeps the whole-sentence promise context.
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi. "
+                        + "Nhà trường đang hoàn thiện hệ thống và sẽ phản hồi sớm nhất có thể."));
+        assertTrue(ThesisAssistantService.isPortalDenialAnswer(
+                "Cổng học vụ chưa công bố lịch thi. "
+                        + "Xin lỗi và sẽ thông báo khi có lịch."));
+    }
+
+    @Test
     void certificateQueriesScopeRetrievalToCertificateDocuments() {
         // F01 regression: "xin giấy xác nhận sinh viên" cited the card-reissue
         // document whose title packs xác nhận/thủ tục/sinh viên.
@@ -757,6 +781,79 @@ class ThesisAssistantServiceTest {
         assertTrue(events.stream().anyMatch(event -> event instanceof StreamDelta));
         assertTrue(events.stream().anyMatch(event -> event instanceof StreamReplace replace
                 && replace.text().isEmpty() && "TURN_TERMINAL_RACE".equals(replace.reasonCode())));
+    }
+
+    @Test
+    void streamedDenialDropsCitationsWhileContrastTailKeepsFixtureSource() {
+        ThesisAssistantKnowledgeRepository knowledge = mock(ThesisAssistantKnowledgeRepository.class);
+        DeepSeekClient provider = mock(DeepSeekClient.class);
+        ThesisAssistantRepository history = mock(ThesisAssistantRepository.class);
+        ThesisAssistantTurnRepository turns = mock(ThesisAssistantTurnRepository.class);
+        ThesisAssistantCatalogRepository catalog = mock(ThesisAssistantCatalogRepository.class);
+        String sourceId = "66666666-6666-6666-6666-666666666666";
+        var document = new ThesisAssistantKnowledgeRepository.KnowledgeDocument(
+                sourceId, "topic", "en", "Topic", "Grounded context", "office");
+        when(knowledge.search(anyString(), anyList(), anyInt())).thenReturn(List.of(document));
+        when(catalog.search(anyString(), anyList(), anyInt())).thenReturn(List.of());
+        when(provider.model()).thenReturn("deepseek-v4-flash");
+
+        UUID request = UUID.randomUUID();
+        UUID turn = UUID.randomUUID();
+        UUID conversation = UUID.randomUUID();
+        UUID message = UUID.randomUUID();
+        when(turns.reserve(anyString(), eq(request), anyString(), isNull(), eq("en"), anyString(), anyInt(),
+                any(java.util.function.Consumer.class)))
+                .thenReturn(new ThesisAssistantTurnRepository.Reservation(
+                        ThesisAssistantTurnRepository.ReservationStatus.NEW, turn, conversation, 1L, true, null, null, false));
+        when(turns.markSnapshotReady(eq(turn), anyString(), eq(1L), anyString(),
+                any(java.util.function.Consumer.class))).thenReturn(true);
+        when(turns.dispatch(eq(turn), anyString(), eq(1L), anyInt(), anyInt(),
+                any(java.util.function.Consumer.class)))
+                .thenReturn(new ThesisAssistantTurnRepository.DispatchDecision(true, true, "DISPATCHED"));
+        when(turns.complete(eq(turn), anyString(), eq(1L), anyString(), anyString(), anyString(), eq(false),
+                eq("ANSWERED"), anyList(), any(java.util.function.Consumer.class)))
+                .thenAnswer(invocation -> new ThesisAssistantTurnRepository.TerminalResult(
+                        conversation, message, invocation.getArgument(5), invocation.getArgument(4), false,
+                        "ANSWERED", invocation.getArgument(8), false, "COMPLETED"));
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            java.util.function.Consumer<ProviderSegment> sink = invocation.getArgument(1);
+            sink.accept(new ProviderSegment(0,
+                    "Cổng học vụ chưa công bố lịch thi. Xin lỗi và sẽ thông báo khi có lịch.",
+                    List.of(sourceId)));
+            return new CompletionResult(
+                    "Cổng học vụ chưa công bố lịch thi. Xin lỗi và sẽ thông báo khi có lịch.",
+                    List.of(), "stop");
+        }).doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            java.util.function.Consumer<ProviderSegment> sink = invocation.getArgument(1);
+            sink.accept(new ProviderSegment(0,
+                    "Cổng học vụ chưa công bố lịch thi. Xin lỗi vì bất tiện nhưng học phí đã niêm yết.",
+                    List.of(sourceId)));
+            return new CompletionResult(
+                    "Cổng học vụ chưa công bố lịch thi. Xin lỗi vì bất tiện nhưng học phí đã niêm yết.",
+                    List.of(), "stop");
+        }).when(provider).complete(any(AssistantCompletionProvider.CompletionRequest.class),
+                any(java.util.function.Consumer.class), any(java.util.function.BooleanSupplier.class));
+
+        ThesisAssistantService service = new ThesisAssistantService(knowledge, provider, history, turns, catalog,
+                new AssistantCancellationRegistry(),
+                new DeepSeekProperties(true, "fixture", "https://api.deepseek.com", "deepseek-v4-flash", 8000, 800),
+                new AssistantProperties(6000, 2000, 20, 200, 90, true));
+
+        List<StreamEvent> denialEvents = new ArrayList<>();
+        ChatResponse denial = service.answer("topic compare multiple conditions", "en", null, "owner-denial", request, denialEvents::add);
+        assertEquals("ANSWERED", denial.reasonCode());
+        assertTrue(denial.citations().isEmpty(),
+                "a pure denial streams no citations: " + denial.citations());
+        assertTrue(denialEvents.stream().noneMatch(ThesisAssistantService.StreamCitation.class::isInstance));
+
+        List<StreamEvent> mixedEvents = new ArrayList<>();
+        ChatResponse mixed = service.answer("topic compare multiple conditions", "en", null, "owner-mixed", request, mixedEvents::add);
+        assertEquals("ANSWERED", mixed.reasonCode());
+        assertTrue(mixed.citations().stream().anyMatch(citation -> sourceId.equals(citation.sourceId())),
+                "a grounded contrast tail keeps the retrieved source: " + mixed.citations());
+        assertTrue(mixedEvents.stream().anyMatch(ThesisAssistantService.StreamCitation.class::isInstance));
     }
 
     @Test
