@@ -48,7 +48,16 @@ public class AssistantRlsRuntimeVerifier implements SmartInitializingSingleton {
                       FROM pg_auth_members m
                       LEFT JOIN pg_roles member_role ON member_role.oid = m.member
                      WHERE (m.member=r.oid OR m.roleid=r.oid)
-                       AND NOT (m.roleid=r.oid AND member_role.rolname='postgres')) AS role_memberships,
+                       AND NOT (m.roleid=r.oid AND (
+                           member_role.rolname='postgres'
+                           OR (member_role.rolname='neondb_owner'
+                               AND member_role.rolbypassrls
+                               AND m.admin_option
+                               AND COALESCE(to_jsonb(m)->>'inherit_option', '')='false'
+                               AND COALESCE(to_jsonb(m)->>'set_option', '')='false'
+                               AND EXISTS (SELECT 1 FROM pg_roles grantor
+                                            WHERE grantor.oid=m.grantor AND grantor.rolname='cloud_admin'))
+                       ))) AS role_memberships,
                    (SELECT count(*)
                       FROM unnest(COALESCE(r.rolconfig, ARRAY[]::text[])) cfg(value)
                      WHERE split_part(cfg.value, '=', 1) LIKE 'app.assistant.%') AS role_context_defaults,
