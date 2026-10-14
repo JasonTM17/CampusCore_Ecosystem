@@ -134,3 +134,26 @@ test('docker web bake cannot interpolate host NEXT_PUBLIC_API_URL=http://127.0.0
     }
   }
 });
+
+test('theme provider survives a denied localStorage getter', () => {
+  const provider = fs.readFileSync(path.join(root, 'src/components/ThemeProvider.tsx'), 'utf8');
+  assert.match(
+    provider,
+    /try\s*{\s*storedTheme\s*=\s*localStorage\.getItem\('theme'\);\s*}\s*catch/,
+  );
+  const { resolveStoredTheme } = loadTypeScriptModule('src/lib/apply-theme.ts');
+  assert.equal(resolveStoredTheme(null, 'dark'), 'dark');
+  assert.equal(resolveStoredTheme(null), 'light');
+});
+
+test('dashboard sidebar stays usable when storage read and write are denied', () => {
+  const layout = fs.readFileSync(path.join(root, 'src/app/dashboard/layout.tsx'), 'utf8');
+  assert.match(
+    layout,
+    /try\s*{\s*const persisted\s*=\s*window\.localStorage\.getItem\('campuscore\.dashboard-sidebar'\)/,
+  );
+  assert.match(
+    layout,
+    /try\s*{\s*window\.localStorage\.setItem\(\s*'campuscore\.dashboard-sidebar'/,
+  );
+});
