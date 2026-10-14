@@ -2,33 +2,52 @@ package io.campuscore.restfulapi.thesis;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.campuscore.restfulapi.thesis.service.ThesisCouncilService;
+import io.campuscore.restfulapi.web.DomainException;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Course-brief governance arc (plans/20260909-pdf-requirements-audit):
@@ -55,6 +74,15 @@ class ThesisGovernanceIntegrationTest {
 
     @Autowired
     private MockMvc mvc;
+
+    @Autowired
+    private ThesisCouncilService councils;
+
+    @Autowired
+    private PlatformTransactionManager txManager;
+
+    @MockitoSpyBean
+    private NamedParameterJdbcTemplate namedJdbc;
 
     @BeforeEach
     void cleanDatabase() {
@@ -222,6 +250,32 @@ class ThesisGovernanceIntegrationTest {
                         .with(lecturerJwt("gov-lecturer-1")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("SUPERVISOR_STATE_CONFLICT"));
+    }
+
+    @Test
+    void cancelledRoundRejectsSupervisorRosterAndTopicPublishing() throws Exception {
+        ensureLecturer("gov-lecturer-1");
+        ensureLecturer("gov-lecturer-2");
+        UUID roundId = insertRound("Gov Terminal Roster Round", "PROPOSAL_OPEN",
+                Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
+        mvc.perform(post("/api/v1/thesis/topics")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(topicBody(roundId, "Terminal Roster Topic"))
+                        .with(lecturerJwt("gov-lecturer-1")))
+                .andExpect(status().isOk());
+        UUID topicId = jdbc.queryForObject(
+                "SELECT id FROM thesis.thesis_topic WHERE title = 'Terminal Roster Topic'", UUID.class);
+        jdbc.update("UPDATE thesis.thesis_registration_round SET status = 'CANCELLED' WHERE id = ?", roundId);
+
+        mvc.perform(put("/api/v1/thesis/topics/{id}/supervisors", topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"supervisorIds\":[\"gov-lecturer-1\",\"gov-lecturer-2\"]}")
+                        .with(lecturerJwt("gov-lecturer-1")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+        mvc.perform(post("/api/v1/thesis/topics/{id}/publish", topicId).with(truongKhoaJwt()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ROUND_NOT_ACCEPTING_PROPOSALS"));
     }
 
     // ---------- Feedback items 5 and 11: the topic supervisor manages membership ----------
@@ -1023,6 +1077,595 @@ class ThesisGovernanceIntegrationTest {
                 .andExpect(jsonPath("$.attentionState").value("PROGRESS_INCONSISTENT"));
     }
 
+    @Test
+    void cancelledRoundsRefuseCouncilMutationsAndLeaveHistoryUntouched() throws Exception {
+        UUID roundId = insertRound("Gov Terminal Council Round", "REGISTRATION_CLOSED",
+                Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
+        for (String lecturer : new String[] {"gov-term-chair", "gov-term-secretary", "gov-term-member", "gov-term-candidate", "gov-term-outsider"}) {
+            ensureLecturer(lecturer);
+        }
+        mvc.perform(post("/api/v1/thesis/councils")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roundId\":\"" + roundId + "\",\"name\":\"Hội đồng terminal\"}")
+                        .with(truongKhoaJwt()))
+                .andExpect(status().isOk());
+        UUID councilId = jdbc.queryForObject(
+                "SELECT id FROM thesis.thesis_council WHERE name = 'Hội đồng terminal'", UUID.class);
+        councilSeat(councilId, "gov-term-chair", "CHAIR");
+        councilSeat(councilId, "gov-term-secretary", "SECRETARY");
+        councilSeat(councilId, "gov-term-member", "MEMBER");
+        UUID assignedTopic = insertPublishedTopic(roundId);
+        mvc.perform(post("/api/v1/thesis/councils/{id}/topics", councilId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"topicId\":\"" + assignedTopic + "\"}")
+                        .with(truongKhoaJwt()))
+                .andExpect(status().isOk());
+        UUID spareTopic = insertPublishedTopic(roundId);
+
+        mvc.perform(post("/api/v1/thesis/rounds/{id}/cancel", roundId).with(truongKhoaJwt()))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM thesis.thesis_registration_round WHERE id = ?",
+                String.class, roundId)).isEqualTo("CANCELLED");
+
+        int councilAudits = auditCount(councilId.toString());
+        int topicAudits = auditCount(assignedTopic.toString());
+        long assignedVersion = jdbc.queryForObject(
+                "SELECT version FROM thesis.thesis_topic WHERE id = ?", Long.class, assignedTopic);
+
+        for (var staff : new org.springframework.test.web.servlet.request.RequestPostProcessor[] {
+                truongKhoaJwt(), adminJwt(), superAdminJwt()}) {
+            mvc.perform(post("/api/v1/thesis/councils")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"roundId\":\"" + roundId + "\",\"name\":\"Hội đồng terminal extra\"}")
+                            .with(staff))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+        }
+
+        mvc.perform(post("/api/v1/thesis/councils/{id}/members", councilId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lecturerId\":\"gov-term-candidate\",\"memberRole\":\"MEMBER\"}")
+                        .with(truongKhoaJwt()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+        mvc.perform(delete("/api/v1/thesis/councils/{id}/members/{lecturerId}", councilId, "gov-term-member")
+                        .with(adminJwt()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+
+        mvc.perform(post("/api/v1/thesis/councils/{id}/topics", councilId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"topicId\":\"" + spareTopic + "\"}")
+                        .with(superAdminJwt()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+
+        mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores", councilId, assignedTopic)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":7}")
+                        .with(lecturerJwt("gov-term-member")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+
+        mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores", councilId, assignedTopic)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":6}")
+                        .with(lecturerJwt("gov-term-outsider")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("COUNCIL_MEMBER_REQUIRED"));
+        mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/finalize", councilId, assignedTopic)
+                        .with(lecturerJwt("gov-term-member")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("COUNCIL_ROLE_REQUIRED"));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM thesis.thesis_council_member WHERE council_id = ?",
+                Integer.class, councilId)).isEqualTo(3);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM thesis.thesis_council_topic WHERE council_id = ?",
+                Integer.class, councilId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM thesis.thesis_topic_score WHERE topic_id = ?",
+                Integer.class, assignedTopic)).isEqualTo(0);
+        assertThat(jdbc.queryForObject(
+                "SELECT final_score FROM thesis.thesis_topic WHERE id = ?",
+                Object.class, assignedTopic)).isNull();
+        assertThat(jdbc.queryForObject(
+                "SELECT version FROM thesis.thesis_topic WHERE id = ?",
+                Long.class, assignedTopic)).isEqualTo(assignedVersion);
+        assertThat(auditCount(councilId.toString())).isEqualTo(councilAudits);
+        assertThat(auditCount(assignedTopic.toString())).isEqualTo(topicAudits);
+
+        mvc.perform(get("/api/v1/thesis/councils/{id}", councilId)
+                        .with(lecturerJwt("gov-term-chair")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("gov-term-chair")));
+        mvc.perform(get("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores", councilId, assignedTopic)
+                        .with(lecturerJwt("gov-term-chair")))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/thesis/councils").param("roundId", roundId.toString())
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(councilId.toString())));
+
+        mvc.perform(post("/api/v1/thesis/topics/{id}/reviewer", assignedTopic)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lecturerId\":\"gov-term-candidate\"}")
+                        .with(truongKhoaJwt()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+    }
+
+    @Test
+    void cancelledRoundsRefuseFinalizationEvenWithCompleteScores() throws Exception {
+        UUID roundId = insertRound("Gov Terminal Finalize Round", "REGISTRATION_CLOSED",
+                Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
+        for (String lecturer : new String[] {"gov-fin-chair", "gov-fin-secretary", "gov-fin-member"}) {
+            ensureLecturer(lecturer);
+        }
+        mvc.perform(post("/api/v1/thesis/councils")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roundId\":\"" + roundId + "\",\"name\":\"Hội đồng finalize\"}")
+                        .with(truongKhoaJwt()))
+                .andExpect(status().isOk());
+        UUID councilId = jdbc.queryForObject(
+                "SELECT id FROM thesis.thesis_council WHERE name = 'Hội đồng finalize'", UUID.class);
+        councilSeat(councilId, "gov-fin-chair", "CHAIR");
+        councilSeat(councilId, "gov-fin-secretary", "SECRETARY");
+        councilSeat(councilId, "gov-fin-member", "MEMBER");
+        UUID topicId = insertPublishedTopic(roundId);
+        mvc.perform(post("/api/v1/thesis/councils/{id}/topics", councilId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"topicId\":\"" + topicId + "\"}")
+                        .with(truongKhoaJwt()))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores", councilId, topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":7}")
+                        .with(lecturerJwt("gov-fin-chair")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores", councilId, topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":8}")
+                        .with(lecturerJwt("gov-fin-secretary")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores", councilId, topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":9}")
+                        .with(lecturerJwt("gov-fin-member")))
+                .andExpect(status().isOk());
+        int submittedAudits = auditRows(topicId, "COUNCIL_SCORE_SUBMITTED").size();
+
+        mvc.perform(post("/api/v1/thesis/rounds/{id}/cancel", roundId).with(truongKhoaJwt()))
+                .andExpect(status().isOk());
+        long versionBeforeFinalize = jdbc.queryForObject(
+                "SELECT version FROM thesis.thesis_topic WHERE id = ?", Long.class, topicId);
+
+        mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/finalize", councilId, topicId)
+                        .with(lecturerJwt("gov-fin-chair")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT final_score FROM thesis.thesis_topic WHERE id = ?",
+                Object.class, topicId)).isNull();
+        assertThat(jdbc.queryForObject(
+                "SELECT version FROM thesis.thesis_topic WHERE id = ?",
+                Long.class, topicId)).isEqualTo(versionBeforeFinalize);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM thesis.thesis_topic_score WHERE topic_id = ?",
+                Integer.class, topicId)).isEqualTo(3);
+        assertThat(auditRows(topicId, "COUNCIL_SCORE_FINALIZED")).isEmpty();
+        assertThat(auditRows(topicId, "COUNCIL_SCORE_SUBMITTED")).hasSize(submittedAudits);
+    }
+
+    @Test
+    void closedRoundsRefuseCounterReviewAssignmentAndScoring() throws Exception {
+        UUID roundId = insertRound("Gov Closed GVPB Round", "CLOSED",
+                Instant.now().minusSeconds(7_200), Instant.now().minusSeconds(3_600));
+        jdbc.update("UPDATE thesis.thesis_registration_round SET gvpb_deadline = ? WHERE id = ?",
+                Timestamp.from(Instant.now().plusSeconds(86_400)), roundId);
+        UUID topicId = insertPublishedTopic(roundId);
+        ensureLecturer("gov-closed-reviewer");
+        int topicAudits = auditCount(topicId.toString());
+
+        mvc.perform(post("/api/v1/thesis/topics/{id}/reviewer", topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lecturerId\":\"gov-closed-reviewer\"}")
+                        .with(truongKhoaJwt()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+
+        jdbc.update("UPDATE thesis.thesis_topic SET gvpb_lecturer_id = 'gov-closed-reviewer' WHERE id = ?", topicId);
+        mvc.perform(post("/api/v1/thesis/topics/{id}/reviewer-score", topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":7}")
+                        .with(lecturerJwt("gov-closed-reviewer")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM thesis.thesis_topic_score WHERE topic_id = ? AND component = 'GVPB'",
+                Integer.class, topicId)).isEqualTo(0);
+        assertThat(auditRows(topicId, "GVPB_ASSIGNED")).isEmpty();
+        assertThat(auditRows(topicId, "GVPB_SCORE_SUBMITTED")).isEmpty();
+        assertThat(auditCount(topicId.toString())).isEqualTo(topicAudits);
+    }
+
+    @Test
+    void defenseScoreBoundsRejectUnderflowAndPrecisionLossExactly() throws Exception {
+        UUID roundId = insertRound("Gov Bounds Defense Round", "REGISTRATION_CLOSED",
+                Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
+        for (String lecturer : new String[] {"gov-bd-chair", "gov-bd-secretary", "gov-bd-member"}) {
+            ensureLecturer(lecturer);
+        }
+        mvc.perform(post("/api/v1/thesis/councils")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roundId\":\"" + roundId + "\",\"name\":\"Hội đồng bounds\"}")
+                        .with(truongKhoaJwt()))
+                .andExpect(status().isOk());
+        UUID councilId = jdbc.queryForObject(
+                "SELECT id FROM thesis.thesis_council WHERE name = 'Hội đồng bounds'", UUID.class);
+        councilSeat(councilId, "gov-bd-chair", "CHAIR");
+        councilSeat(councilId, "gov-bd-secretary", "SECRETARY");
+        councilSeat(councilId, "gov-bd-member", "MEMBER");
+        UUID topicId = insertPublishedTopic(roundId);
+        mvc.perform(post("/api/v1/thesis/councils/{id}/topics", councilId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"topicId\":\"" + topicId + "\"}")
+                        .with(truongKhoaJwt()))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores", councilId, topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":\"-1e-1000\"}")
+                        .with(lecturerJwt("gov-bd-chair")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores", councilId, topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":\"10.0000000000000000001\"}")
+                        .with(lecturerJwt("gov-bd-chair")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM thesis.thesis_topic_score WHERE topic_id = ?",
+                Integer.class, topicId)).isEqualTo(0);
+        assertThat(auditRows(topicId, "COUNCIL_SCORE_SUBMITTED")).isEmpty();
+
+        mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores", councilId, topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":0}")
+                        .with(lecturerJwt("gov-bd-chair")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores", councilId, topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":\"8.5\"}")
+                        .with(lecturerJwt("gov-bd-secretary")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores", councilId, topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":10}")
+                        .with(lecturerJwt("gov-bd-member")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores", councilId, topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":\"0\"}")
+                        .with(lecturerJwt("gov-bd-chair")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores", councilId, topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":8.5}")
+                        .with(lecturerJwt("gov-bd-secretary")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores", councilId, topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":\"10\"}")
+                        .with(lecturerJwt("gov-bd-member")))
+                .andExpect(status().isOk());
+
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM thesis.thesis_topic_score WHERE topic_id = ?",
+                Integer.class, topicId)).isEqualTo(3);
+        assertThat(jdbc.queryForObject(
+                "SELECT score FROM thesis.thesis_topic_score WHERE topic_id = ? AND lecturer_id = 'gov-bd-chair'",
+                BigDecimal.class, topicId)).isEqualByComparingTo("0");
+        assertThat(jdbc.queryForObject(
+                "SELECT score FROM thesis.thesis_topic_score WHERE topic_id = ? AND lecturer_id = 'gov-bd-secretary'",
+                BigDecimal.class, topicId)).isEqualByComparingTo("8.5");
+        assertThat(jdbc.queryForObject(
+                "SELECT score FROM thesis.thesis_topic_score WHERE topic_id = ? AND lecturer_id = 'gov-bd-member'",
+                BigDecimal.class, topicId)).isEqualByComparingTo("10");
+    }
+
+    @Test
+    void reviewerScoreBoundsRejectUnderflowAndPrecisionLossExactly() throws Exception {
+        UUID roundId = insertRound("Gov Bounds GVPB Round", "REGISTRATION_CLOSED",
+                Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
+        jdbc.update("UPDATE thesis.thesis_registration_round SET gvpb_deadline = ? WHERE id = ?",
+                Timestamp.from(Instant.now().plusSeconds(86_400)), roundId);
+        UUID topicId = insertPublishedTopic(roundId);
+        ensureLecturer("gov-bound-reviewer");
+        mvc.perform(post("/api/v1/thesis/topics/{id}/reviewer", topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lecturerId\":\"gov-bound-reviewer\"}")
+                        .with(truongKhoaJwt()))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/thesis/topics/{id}/reviewer-score", topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":\"-1e-1000\"}")
+                        .with(lecturerJwt("gov-bound-reviewer")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        mvc.perform(post("/api/v1/thesis/topics/{id}/reviewer-score", topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":\"10.0000000000000000001\"}")
+                        .with(lecturerJwt("gov-bound-reviewer")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM thesis.thesis_topic_score WHERE topic_id = ? AND component = 'GVPB'",
+                Integer.class, topicId)).isEqualTo(0);
+        assertThat(auditRows(topicId, "GVPB_SCORE_SUBMITTED")).isEmpty();
+
+        mvc.perform(post("/api/v1/thesis/topics/{id}/reviewer-score", topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":0}")
+                        .with(lecturerJwt("gov-bound-reviewer")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/thesis/topics/{id}/reviewer-score", topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":\"8.5\"}")
+                        .with(lecturerJwt("gov-bound-reviewer")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/thesis/topics/{id}/reviewer-score", topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":10}")
+                        .with(lecturerJwt("gov-bound-reviewer")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/thesis/topics/{id}/reviewer-score", topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":\"0\"}")
+                        .with(lecturerJwt("gov-bound-reviewer")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/thesis/topics/{id}/reviewer-score", topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":8.5}")
+                        .with(lecturerJwt("gov-bound-reviewer")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/thesis/topics/{id}/reviewer-score", topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":\"10\"}")
+                        .with(lecturerJwt("gov-bound-reviewer")))
+                .andExpect(status().isOk());
+
+        assertThat(jdbc.queryForObject(
+                "SELECT score FROM thesis.thesis_topic_score WHERE topic_id = ? AND component = 'GVPB'",
+                BigDecimal.class, topicId)).isEqualByComparingTo("10");
+    }
+
+    @Test
+    void closedAndPublishedRoundsRefuseCouncilWrites() throws Exception {
+        for (String terminalStatus : new String[] {"CLOSED", "RESULTS_PUBLISHED"}) {
+            String tag = "gov-ts-" + terminalStatus.toLowerCase().replace('_', '-');
+            UUID roundId = insertRound("Gov Terminal " + terminalStatus, "REGISTRATION_CLOSED",
+                    Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
+            ensureLecturer(tag + "-candidate");
+            CouncilFixture fixture = councilFixture(roundId, tag);
+            UUID spareTopic = insertPublishedTopic(roundId);
+            jdbc.update("UPDATE thesis.thesis_registration_round SET status = ? WHERE id = ?",
+                    terminalStatus, roundId);
+
+            mvc.perform(post("/api/v1/thesis/councils")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"roundId\":\"" + roundId + "\",\"name\":\"Hội đồng " + tag + "-extra\"}")
+                            .with(truongKhoaJwt()))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+            mvc.perform(post("/api/v1/thesis/councils/{id}/members", fixture.councilId())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"lecturerId\":\"" + tag + "-candidate\",\"memberRole\":\"MEMBER\"}")
+                            .with(adminJwt()))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+            mvc.perform(post("/api/v1/thesis/councils/{id}/topics", fixture.councilId())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"topicId\":\"" + spareTopic + "\"}")
+                            .with(truongKhoaJwt()))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+            mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores",
+                            fixture.councilId(), fixture.topicId())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"score\":7}")
+                            .with(lecturerJwt(tag + "-member")))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+            mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/finalize",
+                            fixture.councilId(), fixture.topicId())
+                            .with(lecturerJwt(tag + "-chair")))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+
+            assertThat(jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM thesis.thesis_council_member WHERE council_id = ?",
+                    Integer.class, fixture.councilId())).isEqualTo(3);
+            assertThat(jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM thesis.thesis_council_topic WHERE council_id = ?",
+                    Integer.class, fixture.councilId())).isEqualTo(1);
+            assertThat(jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM thesis.thesis_topic_score WHERE topic_id = ?",
+                    Integer.class, fixture.topicId())).isEqualTo(0);
+            assertThat(jdbc.queryForObject(
+                    "SELECT final_score FROM thesis.thesis_topic WHERE id = ?",
+                    Object.class, fixture.topicId())).isNull();
+        }
+    }
+
+    @Test
+    void councilCreationOnAnUnknownRoundIsNotFound() throws Exception {
+        mvc.perform(post("/api/v1/thesis/councils")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roundId\":\"" + UUID.randomUUID() + "\",\"name\":\"Hội đồng mồ côi\"}")
+                        .with(truongKhoaJwt()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ROUND_NOT_FOUND"));
+    }
+
+    @Test
+    void aPendingScoreBlocksBehindTheRoundLockUntilCancellationCommits() throws Exception {
+        UUID roundId = insertRound("Gov Blocking Round", "REGISTRATION_CLOSED",
+                Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
+        CouncilFixture fixture = councilFixture(roundId, "gov-blk");
+        Jwt memberActor = Jwt.withTokenValue("test")
+                .header("alg", "none")
+                .subject("gov-lecturer-user-gov-blk-member")
+                .claim("lecturerId", "gov-blk-member")
+                .claim("roles", List.of("LECTURER"))
+                .build();
+
+        assertRoundLockBlocksCancelWriter(roundId, fixture.topicId(), () -> {
+            councils.submitScore(fixture.councilId(), fixture.topicId(), "DEFENSE",
+                    BigDecimal.valueOf(7), memberActor);
+            return null;
+        });
+    }
+
+    @Test
+    void aPendingReviewerScoreBlocksBehindTheRoundLockUntilCancellationCommits() throws Exception {
+        UUID roundId = insertRound("Gov Blocking GVPB Round", "REGISTRATION_CLOSED",
+                Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
+        jdbc.update("UPDATE thesis.thesis_registration_round SET gvpb_deadline = ? WHERE id = ?",
+                Timestamp.from(Instant.now().plusSeconds(86_400)), roundId);
+        UUID topicId = insertPublishedTopic(roundId);
+        ensureLecturer("gov-blk-reviewer");
+        mvc.perform(post("/api/v1/thesis/topics/{id}/reviewer", topicId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lecturerId\":\"gov-blk-reviewer\"}")
+                        .with(truongKhoaJwt()))
+                .andExpect(status().isOk());
+        Jwt reviewerActor = Jwt.withTokenValue("test")
+                .header("alg", "none")
+                .subject("gov-lecturer-user-gov-blk-reviewer")
+                .claim("lecturerId", "gov-blk-reviewer")
+                .claim("roles", List.of("LECTURER"))
+                .build();
+
+        assertRoundLockBlocksCancelWriter(roundId, topicId, () -> {
+            councils.submitReviewerScore(topicId, BigDecimal.valueOf(7), null, reviewerActor);
+            return null;
+        });
+    }
+
+    private void assertRoundLockBlocksCancelWriter(UUID roundId, UUID topicId,
+            Callable<Void> writerCall) throws Exception {
+        CountDownLatch roundLocked = new CountDownLatch(1);
+        CountDownLatch roundQueryEntered = new CountDownLatch(1);
+        CountDownLatch writerStarted = new CountDownLatch(1);
+        CountDownLatch writerDone = new CountDownLatch(1);
+        CountDownLatch commitCancel = new CountDownLatch(1);
+        int topicAudits = auditCount(topicId.toString());
+
+        doAnswer(invocation -> {
+            String sql = invocation.getArgument(0, String.class);
+            if (sql.contains("thesis_registration_round") && sql.contains("FOR UPDATE")) {
+                roundQueryEntered.countDown();
+            }
+            return invocation.callRealMethod();
+        }).when(namedJdbc).queryForMap(anyString(), any(SqlParameterSource.class));
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> canceller = executor.submit(() -> {
+                new TransactionTemplate(txManager).execute(status -> {
+                    jdbc.update(
+                            "UPDATE thesis.thesis_registration_round SET status = 'CANCELLED', version = version + 1 WHERE id = ?",
+                            roundId);
+                    roundLocked.countDown();
+                    try {
+                        commitCancel.await(15, TimeUnit.SECONDS);
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return null;
+                });
+            });
+            assertThat(roundLocked.await(15, TimeUnit.SECONDS)).isTrue();
+
+            Future<Throwable> writer = executor.submit(() -> {
+                writerStarted.countDown();
+                try {
+                    writerCall.call();
+                    return null;
+                } catch (Throwable error) {
+                    return error;
+                } finally {
+                    writerDone.countDown();
+                }
+            });
+
+            assertThat(writerStarted.await(15, TimeUnit.SECONDS)).isTrue();
+            assertThat(roundQueryEntered.await(15, TimeUnit.SECONDS))
+                    .as("the writer must reach the round row-lock query")
+                    .isTrue();
+            assertThat(writerDone.await(500, TimeUnit.MILLISECONDS))
+                    .as("the writer must still be waiting on the uncommitted round lock")
+                    .isFalse();
+            assertThat(jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM thesis.thesis_topic_score WHERE topic_id = ?",
+                    Integer.class, topicId)).isEqualTo(0);
+
+            commitCancel.countDown();
+            canceller.get(15, TimeUnit.SECONDS);
+            Throwable error = writer.get(15, TimeUnit.SECONDS);
+            assertThat(error).isInstanceOf(DomainException.class);
+            assertThat(((DomainException) error).getStatus()).isEqualTo(HttpStatus.CONFLICT);
+            assertThat(((DomainException) error).getCode()).isEqualTo("ROUND_STATE_CONFLICT");
+            assertThat(jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM thesis.thesis_topic_score WHERE topic_id = ?",
+                    Integer.class, topicId)).isEqualTo(0);
+            assertThat(auditCount(topicId.toString())).isEqualTo(topicAudits);
+        } finally {
+            commitCancel.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(15, TimeUnit.SECONDS))
+                    .as("the cancellation and writer transactions must not be left dangling")
+                    .isTrue();
+        }
+    }
+
+    @Test
+    void aScoreCommittedBeforeCancellationRemainsHistorical() throws Exception {
+        UUID roundId = insertRound("Gov Blocking Control Round", "REGISTRATION_CLOSED",
+                Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
+        CouncilFixture fixture = councilFixture(roundId, "gov-ctl");
+
+        mvc.perform(post("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores",
+                        fixture.councilId(), fixture.topicId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"score\":7}")
+                        .with(lecturerJwt("gov-ctl-member")))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/thesis/rounds/{id}/cancel", roundId).with(truongKhoaJwt()))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/v1/thesis/councils/{councilId}/topics/{topicId}/scores",
+                        fixture.councilId(), fixture.topicId())
+                        .with(lecturerJwt("gov-ctl-chair")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].lecturerId").value("gov-ctl-member"))
+                .andExpect(jsonPath("$[0].score").value(7));
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM thesis.thesis_topic_score WHERE topic_id = ?",
+                Integer.class, fixture.topicId())).isEqualTo(1);
+    }
+
     // ---------- fixtures ----------
 
     private String validRoundBody(String type, String name) {
@@ -1103,6 +1746,31 @@ class ThesisGovernanceIntegrationTest {
                 .andExpect(status().isOk());
     }
 
+    private record CouncilFixture(UUID councilId, UUID topicId) { }
+
+    private CouncilFixture councilFixture(UUID roundId, String tag) throws Exception {
+        ensureLecturer(tag + "-chair");
+        ensureLecturer(tag + "-secretary");
+        ensureLecturer(tag + "-member");
+        mvc.perform(post("/api/v1/thesis/councils")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roundId\":\"" + roundId + "\",\"name\":\"Hội đồng " + tag + "\"}")
+                        .with(truongKhoaJwt()))
+                .andExpect(status().isOk());
+        UUID councilId = jdbc.queryForObject(
+                "SELECT id FROM thesis.thesis_council WHERE name = ?", UUID.class, "Hội đồng " + tag);
+        councilSeat(councilId, tag + "-chair", "CHAIR");
+        councilSeat(councilId, tag + "-secretary", "SECRETARY");
+        councilSeat(councilId, tag + "-member", "MEMBER");
+        UUID topicId = insertPublishedTopic(roundId);
+        mvc.perform(post("/api/v1/thesis/councils/{id}/topics", councilId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"topicId\":\"" + topicId + "\"}")
+                        .with(truongKhoaJwt()))
+                .andExpect(status().isOk());
+        return new CouncilFixture(councilId, topicId);
+    }
+
     private org.springframework.test.web.servlet.ResultActions addMember(UUID groupId, String studentId) throws Exception {
         return mvc.perform(post("/api/v1/thesis/groups/{id}/members", groupId)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -1158,6 +1826,13 @@ class ThesisGovernanceIntegrationTest {
         return ThesisAuthorityFixture.role(jdbc, "super-admin-user", "SUPER_ADMIN");
     }
 
+    private int auditCount(String entityId) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM campuscore_audit.\"AdminAudit\" WHERE \"entityId\" = ?",
+                Integer.class, entityId);
+        return count == null ? 0 : count;
+    }
+
     /** Audit rows of one action for one topic, newest or oldest order irrelevant. */
     private List<Map<String, Object>> auditRows(UUID topicId, String action) {
         return jdbc.queryForList(
@@ -1173,5 +1848,178 @@ class ThesisGovernanceIntegrationTest {
                 .findFirst()
                 .orElseThrow(() -> new AssertionError(
                         "No " + action + " audit row with afterState containing " + afterStateFragment));
+    }
+
+    @Test
+    void terminalRoundsFreezeTopicUpdates() throws Exception {
+        for (String terminal : new String[] {"CANCELLED", "RESULTS_PUBLISHED", "CLOSED"}) {
+            String tag = "gov-tput-" + terminal.toLowerCase();
+            ensureLecturer(tag);
+            UUID roundId = insertRound("Gov Terminal PUT " + terminal, "PROPOSAL_OPEN",
+                    Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
+            String title = "Terminal PUT Topic " + terminal;
+            mvc.perform(post("/api/v1/thesis/topics")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(topicBody(roundId, title))
+                            .with(lecturerJwt(tag)))
+                    .andExpect(status().isOk());
+            UUID topicId = jdbc.queryForObject(
+                    "SELECT id FROM thesis.thesis_topic WHERE title = ?", UUID.class, title);
+            long version = jdbc.queryForObject(
+                    "SELECT version FROM thesis.thesis_topic WHERE id = ?", Long.class, topicId);
+            int audits = auditCount(topicId.toString());
+            jdbc.update(
+                    "UPDATE thesis.thesis_registration_round SET status = ? WHERE id = ?",
+                    terminal, roundId);
+
+            mvc.perform(put("/api/v1/thesis/topics/{id}", topicId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"departmentId\":\"department-demo\",\"title\":\"Terminal changed\","
+                                    + "\"description\":\"Synthetic\",\"maxGroups\":2}")
+                            .with(lecturerJwt(tag)))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+
+            assertThat(jdbc.queryForObject(
+                    "SELECT title FROM thesis.thesis_topic WHERE id = ?",
+                    String.class, topicId)).isEqualTo(title);
+            assertThat(jdbc.queryForObject(
+                    "SELECT version FROM thesis.thesis_topic WHERE id = ?",
+                    Long.class, topicId)).isEqualTo(version);
+            assertThat(auditCount(topicId.toString())).isEqualTo(audits);
+        }
+    }
+
+    @Test
+    void terminalRoundsFreezeTopicArchive() throws Exception {
+        for (String terminal : new String[] {"CANCELLED", "RESULTS_PUBLISHED", "CLOSED"}) {
+            String tag = "gov-tarc-" + terminal.toLowerCase();
+            ensureLecturer(tag);
+            UUID roundId = insertRound("Gov Terminal Archive " + terminal, "PROPOSAL_OPEN",
+                    Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
+            String title = "Terminal Archive Topic " + terminal;
+            mvc.perform(post("/api/v1/thesis/topics")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(topicBody(roundId, title))
+                            .with(lecturerJwt(tag)))
+                    .andExpect(status().isOk());
+            UUID topicId = jdbc.queryForObject(
+                    "SELECT id FROM thesis.thesis_topic WHERE title = ?", UUID.class, title);
+            long version = jdbc.queryForObject(
+                    "SELECT version FROM thesis.thesis_topic WHERE id = ?", Long.class, topicId);
+            int audits = auditCount(topicId.toString());
+            jdbc.update(
+                    "UPDATE thesis.thesis_registration_round SET status = ? WHERE id = ?",
+                    terminal, roundId);
+
+            mvc.perform(post("/api/v1/thesis/topics/{id}/archive", topicId)
+                            .with(lecturerJwt(tag)))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+
+            assertThat(jdbc.queryForObject(
+                    "SELECT status FROM thesis.thesis_topic WHERE id = ?",
+                    String.class, topicId)).isEqualTo("DRAFT");
+            assertThat(jdbc.queryForObject(
+                    "SELECT version FROM thesis.thesis_topic WHERE id = ?",
+                    Long.class, topicId)).isEqualTo(version);
+            assertThat(auditCount(topicId.toString())).isEqualTo(audits);
+        }
+    }
+
+    @Test
+    void terminalRoundsFreezeGroupProgress() throws Exception {
+        for (String terminal : new String[] {"CANCELLED", "RESULTS_PUBLISHED", "CLOSED"}) {
+            String tag = "gov-tprog-" + terminal.toLowerCase();
+            ensureLecturer(tag + "-lecturer");
+            ensureStudent(tag + "-1", tag + "-user-1", tag + "-1@campuscore.edu");
+            ensureStudent(tag + "-2", tag + "-user-2", tag + "-2@campuscore.edu");
+            ensureStudent(tag + "-3", tag + "-user-3", tag + "-3@campuscore.edu");
+            UUID roundId = insertRound("Gov Terminal Progress " + terminal, "PROPOSAL_OPEN",
+                    Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
+            String title = "Terminal Progress Topic " + terminal;
+            mvc.perform(post("/api/v1/thesis/topics")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(topicBody(roundId, title))
+                            .with(lecturerJwt(tag + "-lecturer")))
+                    .andExpect(status().isOk());
+            UUID topicId = jdbc.queryForObject(
+                    "SELECT id FROM thesis.thesis_topic WHERE title = ?", UUID.class, title);
+            mvc.perform(post("/api/v1/thesis/topics/{id}/publish", topicId).with(truongKhoaJwt()))
+                    .andExpect(status().isOk());
+            UUID groupId = insertGroup(roundId, tag + "-1", topicId, "PENDING");
+            insertMember(groupId, roundId, tag + "-1", 1);
+            insertMember(groupId, roundId, tag + "-2", 2);
+            insertMember(groupId, roundId, tag + "-3", 3);
+            long version = jdbc.queryForObject(
+                    "SELECT version FROM thesis.thesis_group WHERE id = ?", Long.class, groupId);
+            int audits = auditCount(groupId.toString());
+            jdbc.update(
+                    "UPDATE thesis.thesis_registration_round SET status = ? WHERE id = ?",
+                    terminal, roundId);
+
+            mvc.perform(patch("/api/v1/thesis/groups/{id}/progress", groupId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"status\":\"DRAFT\"}")
+                            .with(truongKhoaJwt()))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+
+            assertThat(jdbc.queryForObject(
+                    "SELECT status FROM thesis.thesis_group WHERE id = ?",
+                    String.class, groupId)).isEqualTo("SUBMITTED");
+            assertThat(jdbc.queryForObject(
+                    "SELECT version FROM thesis.thesis_group WHERE id = ?",
+                    Long.class, groupId)).isEqualTo(version);
+            assertThat(auditCount(groupId.toString())).isEqualTo(audits);
+        }
+    }
+
+    @Test
+    void terminalRoundsFreezeGroupRejection() throws Exception {
+        for (String terminal : new String[] {"CANCELLED", "RESULTS_PUBLISHED", "CLOSED"}) {
+            String tag = "gov-trej-" + terminal.toLowerCase();
+            ensureLecturer(tag + "-lecturer");
+            ensureStudent(tag + "-1", tag + "-user-1", tag + "-1@campuscore.edu");
+            ensureStudent(tag + "-2", tag + "-user-2", tag + "-2@campuscore.edu");
+            ensureStudent(tag + "-3", tag + "-user-3", tag + "-3@campuscore.edu");
+            UUID roundId = insertRound("Gov Terminal Reject " + terminal, "PROPOSAL_OPEN",
+                    Instant.now().minusSeconds(3_600), Instant.now().plusSeconds(3_600));
+            String title = "Terminal Reject Topic " + terminal;
+            mvc.perform(post("/api/v1/thesis/topics")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(topicBody(roundId, title))
+                            .with(lecturerJwt(tag + "-lecturer")))
+                    .andExpect(status().isOk());
+            UUID topicId = jdbc.queryForObject(
+                    "SELECT id FROM thesis.thesis_topic WHERE title = ?", UUID.class, title);
+            mvc.perform(post("/api/v1/thesis/topics/{id}/publish", topicId).with(truongKhoaJwt()))
+                    .andExpect(status().isOk());
+            UUID groupId = insertGroup(roundId, tag + "-1", topicId, "PENDING");
+            insertMember(groupId, roundId, tag + "-1", 1);
+            insertMember(groupId, roundId, tag + "-2", 2);
+            insertMember(groupId, roundId, tag + "-3", 3);
+            long version = jdbc.queryForObject(
+                    "SELECT version FROM thesis.thesis_group WHERE id = ?", Long.class, groupId);
+            int audits = auditCount(groupId.toString());
+            jdbc.update(
+                    "UPDATE thesis.thesis_registration_round SET status = ? WHERE id = ?",
+                    terminal, roundId);
+
+            mvc.perform(post("/api/v1/thesis/groups/{id}/reject", groupId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"reason\":\"Synthetic rejection\"}")
+                            .with(truongKhoaJwt()))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("ROUND_STATE_CONFLICT"));
+
+            assertThat(jdbc.queryForObject(
+                    "SELECT approval_status FROM thesis.thesis_group WHERE id = ?",
+                    String.class, groupId)).isEqualTo("PENDING");
+            assertThat(jdbc.queryForObject(
+                    "SELECT version FROM thesis.thesis_group WHERE id = ?",
+                    Long.class, groupId)).isEqualTo(version);
+            assertThat(auditCount(groupId.toString())).isEqualTo(audits);
+        }
     }
 }
