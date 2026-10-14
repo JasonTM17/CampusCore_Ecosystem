@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { submitLiveLogin } from './fixtures/live-login';
 
 // Cold Next.js development compilation plus the 56-route admin sweep can take
 // several minutes on Windows. Keep assertions strict while giving the deep
@@ -73,7 +74,7 @@ async function signIn(page: Page, persona: Persona) {
   await expect(submit).toBeEnabled({ timeout: 20_000 });
   await page.locator('#email').fill(accounts[persona].email);
   await page.locator('#password').fill(accounts[persona].password);
-  await submit.click();
+  await submitLiveLogin(page, submit);
   await expect(page).not.toHaveURL(/\/login(?:$|[/?#])/, { timeout: 20_000 });
 }
 

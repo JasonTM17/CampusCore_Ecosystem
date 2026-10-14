@@ -1,4 +1,7 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { submitLiveLogin } from './fixtures/live-login';
+
+test.describe.configure({ timeout: 120_000 });
 
 // These fixtures qualify browser lifecycle and presentation only. Provider
 // latency and answer grounding need the separate real-service Browser audit.
@@ -41,7 +44,7 @@ async function login(page: Page, locale: 'vi' | 'en' = 'vi') {
   await expect(submit).toBeEnabled({ timeout: 20_000 });
   await page.locator('#email').fill('student@campuscore.edu');
   await page.locator('#password').fill('password123');
-  await submit.click();
+  await submitLiveLogin(page, submit);
   await expect(page).not.toHaveURL(/\/login(?:$|[/?#])/, { timeout: 20_000 });
 }
 
