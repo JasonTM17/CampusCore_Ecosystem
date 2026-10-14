@@ -20,6 +20,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @Profile("persistence")
@@ -258,6 +259,7 @@ public class AdminUserMutationService {
 
     @Transactional
     public Map<String, Object> update(String id, Map<String, Object> input, boolean canManageSuperAdmin, String currentUserId) {
+        lockUserRow(id);
         // A blank role means "the caller did not send one", not "make this account a
         // student". `text()` would substitute its fallback for the blank, so a client
         // that echoes an empty role back would silently strip a dean's role.
@@ -308,10 +310,12 @@ public class AdminUserMutationService {
                     "INVALID_ACCOUNT_STATUS",
                     "Unknown account status");
         }
-        String previousStatus = jdbc.queryForObject(
-                "SELECT \"status\" FROM " + USER + " WHERE \"id\" = :id",
-                new MapSqlParameterSource("id", id),
-                String.class);
+        String previousStatus = jdbc.query(
+                        "SELECT \"status\" FROM " + USER + " WHERE \"id\" = :id",
+                        new MapSqlParameterSource("id", id),
+                        (resultSet, ignored) -> resultSet.getString("status"))
+                .stream().findFirst()
+                .orElseThrow(() -> problem(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "User not found"));
         int updated = jdbc.update(
                 "UPDATE " + USER + " SET \"firstName\" = COALESCE(:firstName, \"firstName\"),"
                         + " \"lastName\" = COALESCE(:lastName, \"lastName\"), \"phone\" = COALESCE(:phone, \"phone\"),"
@@ -459,9 +463,19 @@ public class AdminUserMutationService {
      * disabling it removes the role from service — none of which requires ever
      * assigning a role, so the grant-side guard alone does not cover them.
      */
-    private void requireSuperAdminForProtectedAccount(
+    public void requireSuperAdminForProtectedAccount(
             String userId, boolean canManageSuperAdmin, String action) {
-        if (canManageSuperAdmin || userId == null) {
+        if (userId == null) {
+            return;
+        }
+        // Serialize with role changes on the same account: without the shared
+        // row lock a plain administrator's protected-target check can pass
+        // against roles a concurrent update() is already replacing, and the
+        // mutation then commits onto a freshly protected account.
+        if (!TransactionSynchronizationManager.isCurrentTransactionReadOnly()) {
+            lockUserRow(userId);
+        }
+        if (canManageSuperAdmin) {
             return;
         }
         for (String role : SUPER_ADMIN_ONLY_ROLES) {
@@ -484,6 +498,18 @@ public class AdminUserMutationService {
                     "Only a super administrator can " + action
                             + " an account holding a custom role");
         }
+    }
+
+    /**
+     * Every mutation path that reads or writes an account's roles takes the
+     * same user row lock first, so {@code update()} and the protected-target
+     * checks in {@link #requireSuperAdminForProtectedAccount} serialize
+     * instead of interleaving a grant between a check and its write.
+     */
+    private void lockUserRow(String userId) {
+        jdbc.queryForList(
+                "SELECT \"id\" FROM " + USER + " WHERE \"id\" = :userId FOR UPDATE",
+                new MapSqlParameterSource("userId", userId), String.class);
     }
 
     private void guardRoleMutation(String userId, String roleName, boolean canManageSuperAdmin) {

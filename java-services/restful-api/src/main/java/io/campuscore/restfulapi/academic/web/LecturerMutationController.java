@@ -4,6 +4,7 @@ import io.campuscore.restfulapi.academic.service.LecturerMutationService;
 import java.util.Map;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,8 +37,8 @@ public class LecturerMutationController {
         @ApiResponse(responseCode = "200", description = "Tạo hồ sơ thành công")
     })
     @PostMapping
-    public Map<String, Object> create(@RequestBody Map<String, Object> input) {
-        return lecturers.create(input);
+    public Map<String, Object> create(@RequestBody Map<String, Object> input, Authentication authentication) {
+        return lecturers.create(input, isSuperAdmin(authentication));
     }
 
     @Operation(summary = "Cập nhật hồ sơ giảng viên", description = "Chỉnh sửa thông tin học hàm, học vị, bộ môn của giảng viên")
@@ -47,8 +48,9 @@ public class LecturerMutationController {
     @PutMapping("/{id}")
     public Map<String, Object> update(
             @Parameter(description = "Mã định danh giảng viên (UUID)", required = true) @PathVariable String id,
-            @RequestBody Map<String, Object> input) {
-        return lecturers.update(id, input);
+            @RequestBody Map<String, Object> input,
+            Authentication authentication) {
+        return lecturers.update(id, input, isSuperAdmin(authentication));
     }
 
     @Operation(summary = "Xóa hồ sơ giảng viên", description = "Xóa hồ sơ giảng viên khỏi hệ thống học vụ")
@@ -57,8 +59,14 @@ public class LecturerMutationController {
     })
     @DeleteMapping("/{id}")
     public Map<String, String> delete(
-            @Parameter(description = "Mã định danh giảng viên (UUID)", required = true) @PathVariable String id) {
-        lecturers.delete(id);
+            @Parameter(description = "Mã định danh giảng viên (UUID)", required = true) @PathVariable String id,
+            Authentication authentication) {
+        lecturers.delete(id, isSuperAdmin(authentication));
         return Map.of("message", "Lecturer deleted successfully");
+    }
+
+    private static boolean isSuperAdmin(Authentication authentication) {
+        return authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_SUPER_ADMIN".equals(authority.getAuthority()));
     }
 }

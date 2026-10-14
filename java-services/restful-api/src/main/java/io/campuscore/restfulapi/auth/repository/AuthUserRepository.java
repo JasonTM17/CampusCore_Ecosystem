@@ -76,6 +76,18 @@ public class AuthUserRepository {
                 findPermissions(user.id())));
     }
 
+    /**
+     * Serializes this account's session mutations on its User row. Every path
+     * that touches both tables must lock the User first — refresh/logout used
+     * to lock Session then write User, which deadlocked against admin
+     * mutations that lock User then delete Session rows.
+     */
+    public void lockUserRow(String userId) {
+        jdbc.queryForList(
+                "SELECT \"id\" FROM " + USER_TABLE + " WHERE \"id\" = :id FOR UPDATE",
+                new MapSqlParameterSource("id", userId), String.class);
+    }
+
     public Optional<AuthUserRecord> findByActiveRefreshSession(String refreshTokenHash, Instant now) {
         List<AuthUserRecord> matches = jdbc.query(
                 "SELECT u.\"id\", u.\"email\", u.\"password\", u.\"firstName\", u.\"lastName\","

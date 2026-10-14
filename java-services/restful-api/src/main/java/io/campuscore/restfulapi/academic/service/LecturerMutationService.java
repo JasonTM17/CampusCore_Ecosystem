@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.academic.service;
 
+import io.campuscore.restfulapi.auth.service.AdminUserMutationService;
 import io.campuscore.restfulapi.web.DomainException;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -19,13 +20,17 @@ public class LecturerMutationService {
     private static final String LECTURER = "\"academic\".\"Lecturer\"";
 
     private final NamedParameterJdbcTemplate jdbc;
+    private final AdminUserMutationService protectedAccounts;
 
-    public LecturerMutationService(NamedParameterJdbcTemplate jdbc) {
+    public LecturerMutationService(NamedParameterJdbcTemplate jdbc, AdminUserMutationService protectedAccounts) {
         this.jdbc = jdbc;
+        this.protectedAccounts = protectedAccounts;
     }
 
     @Transactional
-    public Map<String, Object> create(Map<String, Object> input) {
+    public Map<String, Object> create(Map<String, Object> input, boolean canManageSuperAdmin) {
+        protectedAccounts.requireSuperAdminForProtectedAccount(
+                required(input, "userId"), canManageSuperAdmin, "manage lecturer profiles for");
         MapSqlParameterSource parameters = parameters(input);
         java.util.List<String> existing = jdbc.query(
                 "SELECT \"id\" FROM " + LECTURER + " WHERE \"userId\" = :userId",
@@ -58,7 +63,9 @@ public class LecturerMutationService {
     }
 
     @Transactional
-    public Map<String, Object> update(String id, Map<String, Object> input) {
+    public Map<String, Object> update(String id, Map<String, Object> input, boolean canManageSuperAdmin) {
+        protectedAccounts.requireSuperAdminForProtectedAccount(
+                ownerId(id), canManageSuperAdmin, "manage lecturer profiles for");
         Map<String, String> columns = new LinkedHashMap<>();
         columns.put("departmentId", "\"departmentId\"");
         columns.put("title", "\"title\"");
@@ -85,7 +92,9 @@ public class LecturerMutationService {
     }
 
     @Transactional
-    public void delete(String id) {
+    public void delete(String id, boolean canManageSuperAdmin) {
+        protectedAccounts.requireSuperAdminForProtectedAccount(
+                ownerId(id), canManageSuperAdmin, "manage lecturer profiles for");
         try {
             if (jdbc.update("DELETE FROM " + LECTURER + " WHERE \"id\" = :id", new MapSqlParameterSource("id", id)) != 1) {
                 throw problem(HttpStatus.NOT_FOUND, "LECTURER_NOT_FOUND", "Lecturer not found");
@@ -93,6 +102,17 @@ public class LecturerMutationService {
         } catch (DataIntegrityViolationException exception) {
             throw problem(HttpStatus.CONFLICT, "LECTURER_IN_USE", "Lecturer is assigned to a section");
         }
+    }
+
+    private String ownerId(String id) {
+        java.util.List<String> owners = jdbc.query(
+                "SELECT \"userId\" FROM " + LECTURER + " WHERE \"id\" = :id",
+                new MapSqlParameterSource("id", id),
+                (resultSet, ignored) -> resultSet.getString("userId"));
+        if (owners.isEmpty()) {
+            throw problem(HttpStatus.NOT_FOUND, "LECTURER_NOT_FOUND", "Lecturer not found");
+        }
+        return owners.get(0);
     }
 
     private Map<String, Object> find(String id) {
