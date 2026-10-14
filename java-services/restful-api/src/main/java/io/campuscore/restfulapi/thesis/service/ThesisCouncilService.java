@@ -83,6 +83,7 @@ public class ThesisCouncilService {
         }
         requireText(name, "name");
         requireGovernanceRole(actor, "Only a faculty head or admin can create a council");
+        lockMutableRound(roundId);
         UUID id = UUID.randomUUID();
         jdbc.update(
                 "INSERT INTO thesis.thesis_council (id, round_id, name, status, created_by) "
@@ -109,6 +110,7 @@ public class ThesisCouncilService {
     @Transactional
     public CouncilResponse addMember(UUID councilId, String lecturerId, String memberRole, Jwt actor) {
         requireGovernanceRole(actor, "Only a faculty head or admin can manage council members");
+        lockMutableCouncilRound(councilId);
         lockCouncil(councilId);
         requireRosterMutable(councilId);
         requireText(lecturerId, "lecturerId");
@@ -166,6 +168,7 @@ public class ThesisCouncilService {
     @Transactional
     public CouncilResponse removeMember(UUID councilId, String lecturerId, Jwt actor) {
         requireGovernanceRole(actor, "Only a faculty head or admin can manage council members");
+        lockMutableCouncilRound(councilId);
         lockCouncil(councilId);
         requireText(lecturerId, "lecturerId");
         Integer assignedTopics = count(
@@ -211,6 +214,7 @@ public class ThesisCouncilService {
     @Transactional
     public CouncilResponse assignTopic(UUID councilId, UUID topicId, Jwt actor) {
         requireGovernanceRole(actor, "Only a faculty head or admin can assign topics to a council");
+        lockMutableCouncilRound(councilId);
         lockCouncil(councilId);
         if (topicId == null) {
             throw invalid("topicId is required");
@@ -397,13 +401,14 @@ public class ThesisCouncilService {
         // Membership edits lock Council. Share that lock before the final
         // permission check and first score, so a removal cannot pass its
         // "no scores yet" check while this transaction is about to grade.
+        lockMutableCouncilRound(councilId);
         lockCouncil(councilId);
         requireCouncilLecturer(councilId, actor);
         if (!councilHasTopic(councilId, topicId)) {
             throw conflict("TOPIC_NOT_ASSIGNED", "This council has not been assigned the topic");
         }
         requireNotSupervisor(topicId, lecturerId);
-        if (score == null || score.doubleValue() < 0 || score.doubleValue() > 10) {
+        if (score == null || score.compareTo(BigDecimal.ZERO) < 0 || score.compareTo(BigDecimal.TEN) > 0) {
             throw invalid("score must be between 0 and 10");
         }
         // The frozen scoring model is one row per grader: every council member
@@ -488,6 +493,7 @@ public class ThesisCouncilService {
     public Map<String, Object> assignReviewer(UUID topicId, String lecturerId, Jwt actor) {
         requireGovernanceRole(actor, "Only a faculty head or admin can assign the counter-reviewer");
         requireText(lecturerId, "lecturerId");
+        lockMutableTopicRound(topicId);
         Map<String, Object> topic = one(
                 "SELECT t.id, t.status, t.final_score, t.gvpb_lecturer_id, r.gvpb_deadline, r.status AS round_status "
                         + "FROM thesis.thesis_topic t "
@@ -562,6 +568,7 @@ public class ThesisCouncilService {
             throw new DomainException(HttpStatus.FORBIDDEN, "LECTURER_PROFILE_REQUIRED",
                     "An active lecturer profile is required to submit a counter-review score");
         }
+        lockMutableTopicRound(topicId);
         Map<String, Object> topic = one(
                 "SELECT t.id, t.round_id, t.status, t.final_score, t.gvpb_lecturer_id, r.gvpb_deadline, r.status AS round_status "
                         + "FROM thesis.thesis_topic t "
@@ -589,7 +596,7 @@ public class ThesisCouncilService {
             throw conflict("GVPB_DEADLINE_PASSED",
                     "The counter-review deadline for this round has passed");
         }
-        if (score == null || score.doubleValue() < 0 || score.doubleValue() > 10) {
+        if (score == null || score.compareTo(BigDecimal.ZERO) < 0 || score.compareTo(BigDecimal.TEN) > 0) {
             throw invalid("score must be between 0 and 10");
         }
         String trimmedComment = comment == null ? null : comment.trim();
@@ -698,6 +705,9 @@ public class ThesisCouncilService {
      */
     @Transactional
     public TopicResult finalizeScores(UUID councilId, UUID topicId, Jwt actor) {
+        requireCouncilRole(councilId, actor, "CHAIR", "Only the council chair can finalize the topic score");
+        lockMutableCouncilRound(councilId);
+        lockCouncil(councilId);
         requireCouncilRole(councilId, actor, "CHAIR", "Only the council chair can finalize the topic score");
         if (!councilHasTopic(councilId, topicId)) {
             throw conflict("TOPIC_NOT_ASSIGNED", "This council has not been assigned the topic");
@@ -944,6 +954,28 @@ public class ThesisCouncilService {
     private UUID councilRound(UUID councilId) {
         return (UUID) one("SELECT round_id FROM thesis.thesis_council WHERE id = :id",
                 params().addValue("id", councilId), "COUNCIL_NOT_FOUND", "Defense council not found").get("round_id");
+    }
+
+    private void lockMutableRound(UUID roundId) {
+        Map<String, Object> round = one(
+                "SELECT status FROM thesis.thesis_registration_round WHERE id = :id FOR UPDATE",
+                params().addValue("id", roundId), "ROUND_NOT_FOUND", "Thesis registration round not found");
+        String status = (String) round.get("status");
+        if (RoundStatus.CANCELLED.name().equals(status)
+                || RoundStatus.RESULTS_PUBLISHED.name().equals(status)
+                || RoundStatus.CLOSED.name().equals(status)) {
+            throw conflict("ROUND_STATE_CONFLICT", "The round no longer accepts changes");
+        }
+    }
+
+    private void lockMutableCouncilRound(UUID councilId) {
+        lockMutableRound(councilRound(councilId));
+    }
+
+    private void lockMutableTopicRound(UUID topicId) {
+        UUID roundId = (UUID) one("SELECT round_id FROM thesis.thesis_topic WHERE id = :id",
+                params().addValue("id", topicId), "TOPIC_NOT_FOUND", "Thesis topic not found").get("round_id");
+        lockMutableRound(roundId);
     }
 
     private String roundStatus(UUID roundId) {

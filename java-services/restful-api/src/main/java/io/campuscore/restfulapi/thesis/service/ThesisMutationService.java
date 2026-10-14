@@ -571,8 +571,16 @@ public class ThesisMutationService {
      */
     @Transactional
     public TopicResponse updateTopic(UUID id, TopicUpdateRequest request, Jwt actor) {
+        // created_by and round_id never change, so the gate read can authorize
+        // and locate the round before any lock; the DRAFT check must wait for
+        // the locked entity load or a concurrent publish slips past it.
+        Map<String, Object> gate = one(
+                "SELECT round_id, created_by FROM thesis.thesis_topic WHERE id = :id",
+                params().addValue("id", id), "TOPIC_NOT_FOUND", "Thesis topic not found");
+        authorizeTopicOwner(String.valueOf(gate.get("created_by")), actor);
+        requireMutableRound(UUID.fromString(String.valueOf(gate.get("round_id"))));
+        lockTopicForGovernance(id);
         ThesisTopic topic = topics.findById(id).orElseThrow(() -> notFound("TOPIC_NOT_FOUND", "Thesis topic not found"));
-        authorizeTopicOwner(topic, actor);
         if (topic.getStatus() != TopicStatus.DRAFT) {
             throw conflict("TOPIC_STATE_CONFLICT", "Only draft topics can be edited");
         }
@@ -604,17 +612,27 @@ public class ThesisMutationService {
      */
     @Transactional
     public TopicResponse publishTopic(UUID id, Jwt actor) {
-        lockTopicForGovernance(id);
-        ThesisTopic topic = topics.findById(id).orElseThrow(() -> notFound("TOPIC_NOT_FOUND", "Thesis topic not found"));
-        if (!isAdmin(actor) && !ThesisDepartmentScope.owns(jdbc, actor, topic.getDepartmentId())) {
+        Map<String, Object> gate = one(
+                "SELECT round_id, department_id FROM thesis.thesis_topic WHERE id = :id",
+                params().addValue("id", id), "TOPIC_NOT_FOUND", "Thesis topic not found");
+        if (!isAdmin(actor) && !ThesisDepartmentScope.owns(jdbc, actor, String.valueOf(gate.get("department_id")))) {
             throw new DomainException(HttpStatus.FORBIDDEN, "TOPIC_APPROVER_REQUIRED",
                     "Only department governance can approve a topic");
         }
         Map<String, Object> round = one(
-                "SELECT status FROM thesis.thesis_registration_round WHERE id = :id",
-                params().addValue("id", topic.getRoundId()), "ROUND_NOT_FOUND", "Thesis registration round not found");
+                "SELECT status FROM thesis.thesis_registration_round WHERE id = :id FOR UPDATE",
+                params().addValue("id", gate.get("round_id")), "ROUND_NOT_FOUND", "Thesis registration round not found");
         if (!RoundStatus.PROPOSAL_OPEN.name().equals(round.get("status"))) {
             throw conflict("ROUND_NOT_ACCEPTING_PROPOSALS", "Topic approval requires the proposal phase");
+        }
+        lockTopicForGovernance(id);
+        ThesisTopic topic = topics.findById(id).orElseThrow(() -> notFound("TOPIC_NOT_FOUND", "Thesis topic not found"));
+        // The scope decision must use the department read under the topic
+        // lock: the earlier gate read can go stale if a concurrent update
+        // moves the topic to another department between the check and here.
+        if (!isAdmin(actor) && !ThesisDepartmentScope.owns(jdbc, actor, topic.getDepartmentId())) {
+            throw new DomainException(HttpStatus.FORBIDDEN, "TOPIC_APPROVER_REQUIRED",
+                    "Only department governance can approve a topic");
         }
         Integer supervisorCount = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM thesis.thesis_topic_supervisor WHERE topic_id = :topicId",
@@ -637,8 +655,25 @@ public class ThesisMutationService {
     /** Archives only unused topics; group, council and grading history is never deleted. */
     @Transactional
     public TopicResponse archiveTopic(UUID id, Jwt actor) {
+        // Gate read for the early authz pass; the authoritative checks run on
+        // the entity loaded under the topic lock below.
+        Map<String, Object> gate = one(
+                "SELECT round_id, department_id, created_by FROM thesis.thesis_topic WHERE id = :id",
+                params().addValue("id", id), "TOPIC_NOT_FOUND", "Thesis topic not found");
+        if (!isAdmin(actor) && !ThesisDepartmentScope.owns(jdbc, actor, String.valueOf(gate.get("department_id")))) {
+            if (!isLecturer(actor)) {
+                throw new DomainException(HttpStatus.FORBIDDEN, "TOPIC_OWNER_REQUIRED",
+                        "Only the topic owner or department governance can archive this topic");
+            }
+            authorizeTopicOwner(String.valueOf(gate.get("created_by")), actor);
+        }
+        // Lock round before topic (same order as publishTopic) so an archive
+        // cannot slip past a concurrent round termination.
+        requireMutableRound(UUID.fromString(String.valueOf(gate.get("round_id"))));
         lockTopicForGovernance(id);
         ThesisTopic topic = topics.findById(id).orElseThrow(() -> notFound("TOPIC_NOT_FOUND", "Thesis topic not found"));
+        // Re-verify scope on the locked read: a concurrent update may have
+        // moved the topic between departments since the gate read.
         if (!isAdmin(actor) && !ThesisDepartmentScope.owns(jdbc, actor, topic.getDepartmentId())) {
             if (!isLecturer(actor)) {
                 throw new DomainException(HttpStatus.FORBIDDEN, "TOPIC_OWNER_REQUIRED",
@@ -872,6 +907,7 @@ public class ThesisMutationService {
     public GroupResponse updateProgress(UUID groupId, ProgressRequest request, Jwt actor) {
         GroupRow group = lockGroup(groupId);
         authorizeLeaderOrAdmin(group, actor);
+        requireMutableRound(group.roundId());
         GroupStatus status = request == null ? null : request.status();
         if (status == null) {
             throw invalid("status is required");
@@ -990,6 +1026,7 @@ public class ThesisMutationService {
     public GroupResponse rejectGroup(UUID groupId, GroupRejectionRequest request, Jwt actor) {
         GroupRow group = lockGroup(groupId);
         authorizeReviewer(group, actor);
+        requireMutableRound(group.roundId());
         if (group.status() != GroupStatus.SUBMITTED || group.topicId() == null) {
             throw conflict("GROUP_APPROVAL_STATE_CONFLICT", "Only a submitted group with a topic can be rejected");
         }
@@ -1138,17 +1175,37 @@ public class ThesisMutationService {
     }
 
     private void authorizeTopicOwner(ThesisTopic topic, Jwt actor) {
+        authorizeTopicOwner(topic.getCreatedBy(), actor);
+    }
+
+    private void authorizeTopicOwner(String createdBy, Jwt actor) {
         if (isAdmin(actor)) return;
         String actorId = subject(actor);
         String lecturerId = normalize(actor == null ? null : actor.getClaimAsString("lecturerId"));
-        if (!topic.getCreatedBy().equals(actorId) && (lecturerId.isBlank() || !topic.getCreatedBy().equals(lecturerId))) {
+        if (!createdBy.equals(actorId) && (lecturerId.isBlank() || !createdBy.equals(lecturerId))) {
             throw new DomainException(HttpStatus.FORBIDDEN, "TOPIC_OWNER_REQUIRED", "Only the topic owner can change this topic");
+        }
+    }
+
+    /**
+     * Locks the round row and rejects any write once the round is historical.
+     * A round can never leave CANCELLED, RESULTS_PUBLISHED or CLOSED, so the
+     * FOR UPDATE read both fences a concurrent cancel/publish transition and
+     * freezes every topic/group mutation behind it.
+     */
+    private void requireMutableRound(UUID roundId) {
+        Map<String, Object> round = one(
+                "SELECT status FROM thesis.thesis_registration_round WHERE id = :id FOR UPDATE",
+                params().addValue("id", roundId), "ROUND_NOT_FOUND", "Thesis registration round not found");
+        if (Set.of(RoundStatus.CANCELLED.name(), RoundStatus.RESULTS_PUBLISHED.name(), RoundStatus.CLOSED.name())
+                .contains(round.get("status"))) {
+            throw conflict("ROUND_STATE_CONFLICT", "The round has finished; its topics and groups are historical");
         }
     }
 
     private void requireRoundStatus(UUID id, RoundStatus required) {
         Map<String, Object> round = one(
-                "SELECT status, registration_start, registration_end FROM thesis.thesis_registration_round WHERE id = :id",
+                "SELECT status, registration_start, registration_end FROM thesis.thesis_registration_round WHERE id = :id FOR UPDATE",
                 params().addValue("id", id), "ROUND_NOT_FOUND", "Thesis registration round not found");
         if (!required.name().equals(round.get("status"))) {
             throw conflict("ROUND_CLOSED", "Registration is not open for this round");
@@ -1180,7 +1237,7 @@ public class ThesisMutationService {
      */
     private void requireProposalPhase(UUID id, Jwt actor) {
         Map<String, Object> round = one(
-                "SELECT status, lecturer_submit_start, lecturer_submit_end FROM thesis.thesis_registration_round WHERE id = :id",
+                "SELECT status, lecturer_submit_start, lecturer_submit_end FROM thesis.thesis_registration_round WHERE id = :id FOR UPDATE",
                 params().addValue("id", id), "ROUND_NOT_FOUND", "Thesis registration round not found");
         if (!RoundStatus.PROPOSAL_OPEN.name().equals(round.get("status"))) {
             throw conflict("ROUND_NOT_ACCEPTING_PROPOSALS",
