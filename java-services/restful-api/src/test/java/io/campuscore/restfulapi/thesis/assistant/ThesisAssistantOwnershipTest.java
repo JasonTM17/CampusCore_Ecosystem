@@ -121,4 +121,41 @@ class ThesisAssistantOwnershipTest {
                 "a multi-part answer keeps the citations its grounded sections earned");
         assertEquals(1, response.citations().size());
     }
+
+    @Test
+    void wrapperSentenceWithGroundedContrastTailKeepsFixtureCitations() {
+        // A marker-free wrapper sentence can hide a grounded independent claim
+        // behind a contrast boundary: "Xin lỗi … nhưng học phí đã niêm yết"
+        // must keep the citations the grounded tail earned, while a pure
+        // wrapper tail ("và sẽ thông báo…") still strips them.
+        ThesisAssistantKnowledgeRepository knowledge = mock(ThesisAssistantKnowledgeRepository.class);
+        DeepSeekClient provider = mock(DeepSeekClient.class);
+        ThesisAssistantRepository history = mock(ThesisAssistantRepository.class);
+        String sourceId = "11111111-1111-1111-1111-111111111111";
+        var document = new ThesisAssistantKnowledgeRepository.KnowledgeDocument(
+                sourceId, "hoc-phi", "vi", "Học phí học kỳ",
+                "Grounded context", "office", "THESIS", null, null, null, null, null, null, null, null, 30);
+        when(knowledge.search(anyString(), any(), anyInt())).thenReturn(List.of(document));
+        when(history.ensureConversation(anyString(), any(), anyString(), anyInt())).thenReturn(UUID.randomUUID());
+        when(history.appendMessage(any(), anyString(), anyString(), anyString(), anyBoolean(), anyString()))
+                .thenReturn(UUID.randomUUID());
+        when(history.consumeQuota(anyString(), anyInt(), anyInt())).thenReturn(true);
+        when(provider.complete(anyString(), anyString(), anyString()))
+                .thenReturn("Cổng học vụ chưa công bố lịch thi. Xin lỗi và sẽ thông báo khi có lịch.",
+                        "Cổng học vụ chưa công bố lịch thi. Xin lỗi vì bất tiện nhưng học phí đã niêm yết.");
+        ThesisAssistantService service = new ThesisAssistantService(knowledge, provider, history,
+                new DeepSeekProperties(true, "fixture", "https://api.deepseek.com", "deepseek-v4-flash", 8000, 800),
+                new AssistantProperties(6000, 2000, 20, 200, 90, true));
+
+        var pureDenial = service.answer("học phí?", "vi", null, "owner-a");
+        assertEquals("ANSWERED", pureDenial.reasonCode());
+        org.junit.jupiter.api.Assertions.assertTrue(pureDenial.citations().isEmpty(),
+                "a pure denial keeps no citations: " + pureDenial.citations());
+
+        var mixed = service.answer("học phí?", "vi", null, "owner-a");
+        assertEquals("ANSWERED", mixed.reasonCode());
+        org.junit.jupiter.api.Assertions.assertTrue(mixed.citations().stream()
+                        .anyMatch(citation -> sourceId.equals(citation.sourceId())),
+                "a grounded contrast tail keeps the retrieved source: " + mixed.citations());
+    }
 }

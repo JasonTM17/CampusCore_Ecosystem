@@ -2439,6 +2439,11 @@ public class ThesisAssistantService {
                 for (String clause : sentence.split(",\\s+")) {
                     if (!isDenialWrapper(clause) && isGroundedSegment(clause)) return false;
                 }
+                String[] boundaryClauses = DENIAL_CLAUSE_BOUNDARY.split(sentence);
+                for (int index = 1; index < boundaryClauses.length; index++) {
+                    String clause = boundaryClauses[index];
+                    if (!isDenialWrapper(clause) && isGroundedSegment(clause)) return false;
+                }
                 continue;
             }
             marked = true;
