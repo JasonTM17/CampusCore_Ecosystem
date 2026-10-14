@@ -246,7 +246,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, isLoading, isLoggingOut, isLecturer, isAdmin } = useAuth();
+  const { user, isLoading, isLoggingOut, isLecturer, isAdmin, isSuperAdmin, isFacultyHead } = useAuth();
   const { href, messages, locale } = useI18n();
   const router = useRouter();
   const visiblePathname = usePathname();
@@ -339,7 +339,8 @@ export default function DashboardLayout({
       messages.adminShell.menuSections.people,
     ],
   );
-  const menuSections = isAdmin
+  const fullAdminAccess = isAdmin || isSuperAdmin;
+  const menuSections = fullAdminAccess
     ? adminMenuSections
     : (isLecturer ? lecturerMenuSections : studentMenuSections).map((section) => ({
         ...section,
@@ -349,7 +350,7 @@ export default function DashboardLayout({
           label: menuLabels[item.labelKey],
         })),
       }));
-  const mobileNavItems = isAdmin
+  const mobileNavItems = fullAdminAccess
     ? []
     : isLecturer
       ? lecturerMobileNavItems
@@ -469,13 +470,13 @@ export default function DashboardLayout({
       return;
     }
     if (
-      isAdmin &&
+      fullAdminAccess &&
       pathname !== '/dashboard/editor' &&
       !pathname.startsWith('/dashboard/thesis')
     ) {
       router.replace(href('/admin'));
     }
-  }, [href, user, isLoading, isLoggingOut, isAdmin, isLecturer, router, pathname]);
+  }, [href, user, isLoading, isLoggingOut, fullAdminAccess, isLecturer, router, pathname]);
 
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1024px)');
@@ -607,10 +608,12 @@ export default function DashboardLayout({
       return;
     }
 
-    const persisted = window.localStorage.getItem('campuscore.dashboard-sidebar');
-    if (persisted === 'collapsed') {
-      setSidebarCollapsed(true);
-    }
+    try {
+      const persisted = window.localStorage.getItem('campuscore.dashboard-sidebar');
+      if (persisted === 'collapsed') {
+        setSidebarCollapsed(true);
+      }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -618,10 +621,12 @@ export default function DashboardLayout({
       return;
     }
 
-    window.localStorage.setItem(
-      'campuscore.dashboard-sidebar',
-      sidebarCollapsed ? 'collapsed' : 'expanded',
-    );
+    try {
+      window.localStorage.setItem(
+        'campuscore.dashboard-sidebar',
+        sidebarCollapsed ? 'collapsed' : 'expanded',
+      );
+    } catch {}
   }, [sidebarCollapsed]);
 
   useEffect(() => {
@@ -641,6 +646,11 @@ export default function DashboardLayout({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const notificationEpochRef = useRef(0);
+  const notificationRequestRef = useRef(0);
+  const notificationSessionRef = useRef({ userId: user?.id ?? null, isLoggingOut });
+  notificationSessionRef.current = { userId: user?.id ?? null, isLoggingOut };
+
   const reloadNotifications = useCallback(async () => {
     // The csrf cookie is written by the login response before this layout
     // mounts, so its presence means a session most likely exists: the bell
@@ -650,6 +660,13 @@ export default function DashboardLayout({
     if (!user && !hasCsrfSessionHint()) {
       return;
     }
+
+    const epoch = notificationEpochRef.current;
+    const sequence = ++notificationRequestRef.current;
+    const isCurrent = () =>
+      notificationEpochRef.current === epoch &&
+      notificationRequestRef.current === sequence &&
+      !notificationSessionRef.current.isLoggingOut;
 
     setNotificationsLoading(true);
     setNotificationsError(false);
@@ -663,15 +680,21 @@ export default function DashboardLayout({
         }),
         notificationsApi.unreadCount(),
       ]);
-      setNotifications(response.data);
-      setUnreadCount(count);
+      if (isCurrent()) {
+        setNotifications(response.data);
+        setUnreadCount(count);
+      }
     } catch {
-      // Surface the failure instead of rendering the bell as "no unread".
-      setNotifications([]);
-      setUnreadCount(0);
-      setNotificationsError(true);
+      if (isCurrent()) {
+        // Surface the failure instead of rendering the bell as "no unread".
+        setNotifications([]);
+        setUnreadCount(0);
+        setNotificationsError(true);
+      }
     } finally {
-      setNotificationsLoading(false);
+      if (isCurrent()) {
+        setNotificationsLoading(false);
+      }
     }
   }, [user]);
 
@@ -683,15 +706,23 @@ export default function DashboardLayout({
   const notificationsRequested = useRef(false);
   const notificationsUserIdRef = useRef(user?.id ?? null);
   useEffect(() => {
+    return () => {
+      notificationEpochRef.current += 1;
+      notificationsRequested.current = false;
+    };
+  }, []);
+  useEffect(() => {
     const nextUserId = user?.id ?? null;
     if (notificationsUserIdRef.current !== nextUserId) {
       const previousUserId = notificationsUserIdRef.current;
       notificationsUserIdRef.current = nextUserId;
       if (previousUserId !== null) {
+        notificationEpochRef.current += 1;
         notificationsRequested.current = false;
         setNotifications([]);
         setUnreadCount(0);
         setNotificationsError(false);
+        setNotificationsLoading(false);
       }
     }
     if (notificationsRequested.current || isLoggingOut || (!user && !hasCsrfSessionHint())) {
@@ -751,11 +782,15 @@ export default function DashboardLayout({
     );
   }
 
-  const roleLabel = isAdmin
-    ? (user?.roles?.includes('SUPER_ADMIN') ? messages.adminShell.superAdminRole : messages.adminShell.adminRole)
-    : isLecturer
-      ? messages.dashboardShell.roles.lecturer
-      : messages.dashboardShell.roles.student;
+  const roleLabel = isSuperAdmin
+    ? messages.adminShell.superAdminRole
+    : isAdmin
+      ? messages.adminShell.adminRole
+      : isFacultyHead
+        ? messages.common.roles.TRUONG_KHOA
+        : isLecturer
+          ? messages.dashboardShell.roles.lecturer
+          : messages.dashboardShell.roles.student;
 
   const fullName = user
     ? (`${user.lastName ?? ''} ${user.firstName ?? ''}`.trim() || `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email)
@@ -808,7 +843,7 @@ export default function DashboardLayout({
           )}
         >
           <BrandMark
-            href={isAdmin ? '/admin' : isLecturer ? '/dashboard/lecturer' : '/dashboard'}
+            href={fullAdminAccess ? '/admin' : isLecturer ? '/dashboard/lecturer' : '/dashboard'}
             compact
             className={cn(sidebarCollapsed && 'justify-center gap-0')}
             markClassName="border-0 bg-white p-1 shadow-none"
@@ -816,7 +851,7 @@ export default function DashboardLayout({
               'text-portal-sidebar-text',
               sidebarCollapsed && 'hidden',
             )}
-            subtitle={isAdmin ? messages.adminShell.portalTitle : messages.dashboardShell.portalTitle}
+            subtitle={fullAdminAccess ? messages.adminShell.portalTitle : messages.dashboardShell.portalTitle}
             subtitleClassName={cn(
               'text-portal-sidebar-muted',
               sidebarCollapsed && 'hidden',
@@ -874,9 +909,9 @@ export default function DashboardLayout({
             )}
           >
             <LocalizedLink
-              href={isAdmin ? '/admin' : '/dashboard/profile'}
-              aria-label={isAdmin ? messages.admin.title : messages.dashboardShell.menu.profile}
-              title={isAdmin ? messages.admin.title : messages.dashboardShell.menu.profile}
+              href={fullAdminAccess ? '/admin' : '/dashboard/profile'}
+              aria-label={fullAdminAccess ? messages.admin.title : messages.dashboardShell.menu.profile}
+              title={fullAdminAccess ? messages.admin.title : messages.dashboardShell.menu.profile}
               className={cn(
                 'flex min-w-0 items-center gap-3 rounded-md p-1.5 text-left transition-[background-color,color] duration-150 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-portal-chrome-accent focus-visible:ring-offset-2 focus-visible:ring-offset-portal-sidebar',
                 sidebarCollapsed && 'justify-center',
@@ -1164,6 +1199,8 @@ export default function DashboardLayout({
                                   // in the background. A failed write restores
                                   // the badge and tells the reader instead of
                                   // failing silently.
+                                  const markReadEpoch = notificationEpochRef.current;
+                                  const markReadOwnerId = user?.id ?? null;
                                   setNotificationsOpen(false);
                                   setNotifications((prev) =>
                                     prev.filter((n) => n.id !== notification.id)
@@ -1172,6 +1209,13 @@ export default function DashboardLayout({
                                   void notificationsApi
                                     .markRead(notification.id)
                                     .catch((error) => {
+                                      if (
+                                        notificationEpochRef.current !== markReadEpoch ||
+                                        notificationSessionRef.current.userId !== markReadOwnerId ||
+                                        notificationSessionRef.current.isLoggingOut
+                                      ) {
+                                        return;
+                                      }
                                       setUnreadCount((count) => count + 1);
                                       // The optimistic filter already removed
                                       // the row from the preview; without
