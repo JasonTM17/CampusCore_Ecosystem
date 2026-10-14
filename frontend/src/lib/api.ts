@@ -371,7 +371,8 @@ const SESSION_TRANSPORT_TIMEOUT_MS = 15000;
 const SESSION_TRANSPORT_WAIT_MS = 30000;
 
 function withSessionTransport<T>(task: () => Promise<T>): Promise<T> {
-  const lockManager = isBrowser() ? navigator.locks : undefined;
+  const lockManager =
+    isBrowser() && typeof navigator !== 'undefined' ? navigator.locks : undefined;
   if (
     lockManager &&
     typeof lockManager.request === 'function' &&
