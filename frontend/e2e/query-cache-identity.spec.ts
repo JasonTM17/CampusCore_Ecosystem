@@ -797,6 +797,8 @@ const CROSS_B_COOKIE = 'cross-b';
 interface CrossTabMockOptions {
   logoutStatus?: number;
   heldMeRoutes?: import('@playwright/test').Route[];
+  lateMeRoutes?: { armed: boolean; routes: import('@playwright/test').Route[] };
+  heldNotifications?: import('@playwright/test').Route[];
   heldLogins?: { route: import('@playwright/test').Route; isB: boolean }[];
   meCounter?: { count: number };
 }
@@ -838,6 +840,10 @@ async function mockCrossTabAccounts(
         options.heldMeRoutes.push(route);
         return;
       }
+      if (options.lateMeRoutes?.armed) {
+        options.lateMeRoutes.routes.push(route);
+        return;
+      }
       const user = userFor(actor);
       return user ? json(user) : json({ code: 'UNAUTHORIZED' }, 401);
     }
@@ -855,6 +861,13 @@ async function mockCrossTabAccounts(
     if (path === '/api/v1/me/registration/summary') {
       const creditLimit = actor === CROSS_B_COOKIE ? 222 : 111;
       return json({ creditLimit, creditsUsed: 0, creditsRemaining: creditLimit });
+    }
+    if (
+      options.heldNotifications &&
+      (path === '/api/v1/notifications/my' || path === '/api/v1/notifications/my/unread-count')
+    ) {
+      options.heldNotifications.push(route);
+      return;
     }
     return mockDashboardData(route, path);
   });
@@ -1170,6 +1183,180 @@ test('an already-open tab reaches the login form when a second tab logout fails 
     await expect(page.getByText(/up to 111 more credits/i)).toHaveCount(0);
     await expect(page.getByText(USER_A.firstName)).toHaveCount(0);
   } finally {
+    await tabB.close().catch(() => {});
+  }
+});
+
+test('an already-open tab converges on the next poll tick when no transport delivers', async ({ page, context }) => {
+  await context.addInitScript(blockBroadcastChannel);
+  await mockCrossTabAccounts(context);
+  await page.clock.install();
+
+  await page.goto('/en/login?portal=student');
+  await signIn(page, USER_A.email);
+  await expect(page).toHaveURL(/\/en\/dashboard(\?|$)/, NAV_TIMEOUT);
+  await expect(page.getByText(/up to 111 more credits/i)).toBeVisible(NAV_TIMEOUT);
+
+  const tabB = await context.newPage();
+  await tabB.addInitScript(blockLocalStorage);
+  try {
+    await tabB.goto('/en/login?portal=student');
+    await signIn(tabB, USER_B.email);
+    await expect(tabB).toHaveURL(/\/en\/dashboard(\?|$)/, NAV_TIMEOUT);
+    await expect(tabB.getByText(/up to 222 more credits/i)).toBeVisible(NAV_TIMEOUT);
+
+    await page.bringToFront();
+    await expect(
+      page.getByText(/up to 111 more credits/i),
+      'no transport delivered the change, so the tab still shows the old identity before the tick',
+    ).toBeVisible(NAV_TIMEOUT);
+
+    await page.clock.runFor(30_000);
+    await expect(page.getByText(/up to 222 more credits/i)).toBeVisible(NAV_TIMEOUT);
+    await expect(page.getByText(/up to 111 more credits/i)).toHaveCount(0);
+    await expect(page.getByText(USER_A.firstName)).toHaveCount(0);
+  } finally {
+    await tabB.close().catch(() => {});
+  }
+});
+
+test('a stable shared cookie survives poll ticks without reloading the document', async ({ page, context }) => {
+  const meCounter = { count: 0 };
+  await mockCrossTabAccounts(context, { meCounter });
+  await page.clock.install();
+
+  await page.goto('/en/login?portal=student');
+  await signIn(page, USER_A.email);
+  await expect(page).toHaveURL(/\/en\/dashboard(\?|$)/, NAV_TIMEOUT);
+  await expect(page.getByText(/up to 111 more credits/i)).toBeVisible(NAV_TIMEOUT);
+  await page.evaluate(() => {
+    (window as { __pollDocAlive?: boolean }).__pollDocAlive = true;
+  });
+  const probesBefore = meCounter.count;
+
+  await page.clock.runFor(30_000);
+  await expect.poll(() => meCounter.count, NAV_TIMEOUT).toBe(probesBefore + 1);
+  await page.clock.runFor(30_000);
+  await expect.poll(() => meCounter.count, NAV_TIMEOUT).toBe(probesBefore + 2);
+
+  const alive = await page.evaluate(
+    () => (window as { __pollDocAlive?: boolean }).__pollDocAlive === true,
+  );
+  expect(alive, 'two stable poll ticks must not reload the document').toBe(true);
+  await expect(page).toHaveURL(/\/en\/dashboard(\?|$)/);
+  await expect(page.getByText(/up to 111 more credits/i)).toBeVisible(NAV_TIMEOUT);
+});
+
+test('a revoked session drives an already-open tab to login on the next poll', async ({ page, context }) => {
+  await context.addInitScript(blockBroadcastChannel);
+  await mockCrossTabAccounts(context);
+  await page.clock.install();
+
+  await page.goto('/en/login?portal=student');
+  await signIn(page, USER_A.email);
+  await expect(page).toHaveURL(/\/en\/dashboard(\?|$)/, NAV_TIMEOUT);
+  await expect(page.getByText(/up to 111 more credits/i)).toBeVisible(NAV_TIMEOUT);
+
+  const tabB = await context.newPage();
+  await tabB.addInitScript(blockLocalStorage);
+  try {
+    await tabB.goto('/en/dashboard');
+    await expect(tabB.getByText(/up to 111 more credits/i)).toBeVisible(NAV_TIMEOUT);
+    await tabB.locator('a[href="/en/dashboard/sign-out"]').dispatchEvent('click');
+    await expect(tabB).toHaveURL(/\/login/, NAV_TIMEOUT);
+
+    await page.bringToFront();
+    await expect(
+      page.getByText(/up to 111 more credits/i),
+      'no transport delivered the sign-out, so the tab still shows the old identity before the tick',
+    ).toBeVisible(NAV_TIMEOUT);
+
+    await page.clock.runFor(30_000);
+    await expect(page).toHaveURL(/\/login/, NAV_TIMEOUT);
+    await expect(page.locator('#email')).toBeVisible(NAV_TIMEOUT);
+    await expect(page.getByText(/up to 111 more credits/i)).toHaveCount(0);
+  } finally {
+    await tabB.close().catch(() => {});
+  }
+});
+
+test('a delayed 401 during a newer session never signs the tab out', async ({ page, context }) => {
+  await context.addInitScript(blockBroadcastChannel);
+  const heldNotifications: import('@playwright/test').Route[] = [];
+  const lateMe = { armed: false, routes: [] as import('@playwright/test').Route[] };
+  await mockCrossTabAccounts(context, { heldNotifications, lateMeRoutes: lateMe });
+  await page.clock.install();
+
+  await page.goto('/en/login?portal=student');
+  await signIn(page, USER_A.email);
+  await expect(page).toHaveURL(/\/en\/dashboard(\?|$)/, NAV_TIMEOUT);
+  await expect(page.getByText(/up to 111 more credits/i)).toBeVisible(NAV_TIMEOUT);
+  await expect.poll(() => heldNotifications.length, NAV_TIMEOUT).toBe(2);
+
+  const tabB = await context.newPage();
+  await tabB.addInitScript(blockLocalStorage);
+  try {
+    await tabB.goto('/en/login?portal=student');
+    await signIn(tabB, USER_B.email);
+    await expect(tabB).toHaveURL(/\/en\/dashboard(\?|$)/, NAV_TIMEOUT);
+    await expect(tabB.getByText(/up to 222 more credits/i)).toBeVisible(NAV_TIMEOUT);
+
+    lateMe.armed = true;
+    const unauthorized = {
+      status: 401,
+      contentType: 'application/json',
+      body: '{"code":"UNAUTHORIZED"}',
+    };
+    await Promise.all(
+      heldNotifications
+        .slice(0, 2)
+        .map((held) => held.fulfill(unauthorized).catch(() => {})),
+    );
+
+    await expect.poll(() => lateMe.routes.length, NAV_TIMEOUT).toBe(1);
+    await context.addCookies([
+      {
+        name: 'cc_csrf',
+        value: 'cross-hint-b',
+        url: test.info().project.use.baseURL as string,
+      },
+    ]);
+    await lateMe.routes[0].fulfill(unauthorized).catch(() => {});
+
+    await page.waitForTimeout(400);
+    await expect(
+      page,
+      'a session write mid-confirmation marks the 401 stale, not revoked',
+    ).toHaveURL(/\/en\/dashboard(\?|$)/);
+    await expect(page.getByText(/up to 111 more credits/i)).toBeVisible(NAV_TIMEOUT);
+
+    await page.bringToFront();
+    await page.clock.runFor(30_000);
+    await expect.poll(() => lateMe.routes.length, NAV_TIMEOUT).toBe(2);
+    await lateMe.routes[1].fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(USER_B),
+    });
+    await expect.poll(() => lateMe.routes.length, NAV_TIMEOUT).toBe(3);
+    await lateMe.routes[2].fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(USER_B),
+    });
+    await expect(page.getByText(/up to 222 more credits/i)).toBeVisible(NAV_TIMEOUT);
+    await expect(page.getByText(/up to 111 more credits/i)).toHaveCount(0);
+  } finally {
+    for (const held of heldNotifications.slice(2)) {
+      await held
+        .fulfill({ status: 200, contentType: 'application/json', body: '{"data":[]}' })
+        .catch(() => {});
+    }
+    for (const held of lateMe.routes.slice(3)) {
+      await held
+        .fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(USER_B) })
+        .catch(() => {});
+    }
     await tabB.close().catch(() => {});
   }
 });
