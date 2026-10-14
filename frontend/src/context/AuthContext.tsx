@@ -10,14 +10,15 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useI18n } from '@/i18n';
 import { User, TwoFactorChallengeResponse } from '@/types/api';
-import { authApi, refreshSessionSingleFlight } from '@/lib/api';
+import { authApi, refreshSessionSingleFlight, waitForPendingSessionRefresh, SessionVerificationError } from '@/lib/api';
 import { isTwoFactorChallenge } from '@/lib/two-factor';
 import { hasCsrfSessionHint } from '@/lib/session-hint';
 import { loginHref, portalFromPathname, portalFromUser } from '@/lib/login-portal';
 import { getBrowserQueryClient } from '@/lib/query';
+import { publishSessionChange, subscribeSessionChanges } from '@/lib/session-sync';
 
 interface AuthContextType {
   user: User | null;
@@ -41,6 +42,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { href } = useI18n();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,6 +52,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // is dropped whenever the authenticated identity changes or a session dies
   // — otherwise the next user could read the previous user's cached data.
   const lastKnownUserIdRef = useRef<string | null>(null);
+  const sessionGenerationRef = useRef(0);
+  const latestRefreshRequestRef = useRef(0);
+  const sessionMutationPendingRef = useRef(false);
+  const logoutPendingRef = useRef(false);
+  const logoutPathnameRef = useRef<string | null>(null);
+  const sessionReloadPendingRef = useRef(false);
 
   const setUserIdentity = useCallback((nextUser: User | null) => {
     const nextId = nextUser?.id ?? null;
@@ -66,100 +74,299 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [setUserIdentity]);
 
   const refreshUser = useCallback(async () => {
+    if (
+      sessionMutationPendingRef.current ||
+      logoutPendingRef.current ||
+      sessionReloadPendingRef.current
+    ) {
+      return;
+    }
+    const generation = sessionGenerationRef.current;
+    const request = ++latestRefreshRequestRef.current;
+    const isCurrent = () =>
+      generation === sessionGenerationRef.current &&
+      request === latestRefreshRequestRef.current &&
+      !sessionReloadPendingRef.current;
+
     if (!hasCsrfSessionHint()) {
-      clearSessionState();
+      if (isCurrent()) {
+        clearSessionState();
+      }
       return;
     }
 
     try {
-      setUserIdentity(await authApi.me());
+      const nextUser = await authApi.me();
+      if (!isCurrent()) {
+        return;
+      }
+      setUserIdentity(nextUser);
     } catch {
+      if (!isCurrent()) {
+        return;
+      }
       try {
         await refreshSessionSingleFlight();
-        setUserIdentity(await authApi.me());
+        if (!isCurrent()) {
+          return;
+        }
+        const nextUser = await authApi.me();
+        if (!isCurrent()) {
+          return;
+        }
+        setUserIdentity(nextUser);
       } catch {
-        // The refresh rejected: the session is gone, so the cached
-        // per-user query data must go with it.
-        clearSessionState();
+        if (isCurrent()) {
+          // The refresh rejected: the session is gone, so the cached
+          // per-user query data must go with it.
+          clearSessionState();
+        }
       }
     }
   }, [clearSessionState, setUserIdentity]);
 
   useEffect(() => {
+    let active = true;
     const initAuth = async () => {
       try {
         await refreshUser();
       } finally {
-        setIsLoading(false);
+        if (active && !sessionReloadPendingRef.current) {
+          setIsLoading(false);
+        }
       }
     };
 
     void initAuth();
+    return () => {
+      active = false;
+      sessionGenerationRef.current += 1;
+    };
   }, [refreshUser]);
 
   const login = useCallback(async (email: string, password: string) => {
-    const response = await authApi.login(email, password);
-    // Two-factor accounts stop after the password step: no session is opened
-    // here, the caller must collect a one-time code and call verifyTwoFactor.
-    if (isTwoFactorChallenge(response)) {
-      return response;
-    }
-    // Session-cookie verification with one silent retry: the same-origin
-    // proxy intermittently drops the login response's Set-Cookie, which
-    // surfaced as an instant "Lần đăng nhập của bạn đã kết thúc" banner right
-    // after a successful sign-in (production repro, PR #26 thread). me() runs
-    // with skipAuthRedirect, so a failed probe can never bounce the user
-    // through redirectToLogin mid-login.
-    let sessionVerified = false;
-    for (let attempt = 0; attempt < 2 && !sessionVerified; attempt += 1) {
-      if (attempt > 0) {
+    const generation = ++sessionGenerationRef.current;
+    sessionMutationPendingRef.current = true;
+    logoutPendingRef.current = false;
+    const isCurrent = () =>
+      generation === sessionGenerationRef.current &&
+      !sessionReloadPendingRef.current;
+    try {
+      await waitForPendingSessionRefresh();
+      if (!isCurrent()) {
+        throw new Error('sign-in superseded');
+      }
+      const response = await authApi.login(email, password);
+      // Publish as soon as a session-cookie-bearing response arrives, BEFORE
+      // the probe commits. The Set-Cookie already landed in the shared jar,
+      // so siblings must resync even when this tab later fails verification
+      // or was superseded — publishing only on a verified commit would leave
+      // them on the old identity while the jar holds the new session.
+      if (!isTwoFactorChallenge(response)) {
+        publishSessionChange('changed');
+      }
+      if (!isCurrent()) {
+        throw new Error('sign-in superseded');
+      }
+      // Two-factor accounts stop after the password step: no session is opened
+      // here, the caller must collect a one-time code and call verifyTwoFactor.
+      if (isTwoFactorChallenge(response)) {
+        return response;
+      }
+      // Session-cookie verification with one silent retry: the same-origin
+      // proxy intermittently drops the login response's Set-Cookie, which
+      // surfaced as an instant "Lần đăng nhập của bạn đã kết thúc" banner right
+      // after a successful sign-in (production repro, PR #26 thread). me() runs
+      // with skipAuthRedirect, so a failed probe can never bounce the user
+      // through redirectToLogin mid-login.
+      let sessionVerified = false;
+      let sessionMismatch = false;
+      for (let attempt = 0; attempt < 2 && !sessionVerified; attempt += 1) {
+        if (!isCurrent()) {
+          throw new Error('sign-in superseded');
+        }
+        if (attempt > 0) {
+          try {
+            await authApi.login(email, password);
+          } catch {
+            break;
+          }
+        }
+        if (!isCurrent()) {
+          throw new Error('sign-in superseded');
+        }
         try {
-          await authApi.login(email, password);
+          // A probe that merely succeeds is not enough: a stale cookie from a
+          // previous account would answer me() too, and committing
+          // response.user would render that account's portal under this
+          // identity. Require the probed session to be the same user.
+          const probed = await authApi.me();
+          sessionVerified = probed.id === response.user.id;
+          sessionMismatch = !sessionVerified;
         } catch {
-          break;
+          sessionVerified = false;
+          sessionMismatch = false;
         }
       }
-      try {
-        await authApi.me();
-        sessionVerified = true;
-      } catch {
-        sessionVerified = false;
+      if (!isCurrent()) {
+        throw new Error('sign-in superseded');
+      }
+      if (sessionMismatch) {
+        clearSessionState();
+        throw new SessionVerificationError('sign-in session mismatch');
+      }
+      if (!sessionVerified) {
+        clearSessionState();
+        throw new SessionVerificationError('sign-in session unverified');
+      }
+      logoutPathnameRef.current = null;
+      setIsLoggingOut(false);
+      getBrowserQueryClient().clear();
+      setUserIdentity(response.user);
+      return response.user;
+    } finally {
+      if (isCurrent()) {
+        sessionMutationPendingRef.current = false;
       }
     }
-    if (!sessionVerified) {
-      console.warn('auth: session cookie missing after sign-in; the portal may ask you to sign in again');
-    }
-    setIsLoggingOut(false);
-    getBrowserQueryClient().clear();
-    setUserIdentity(response.user);
-    return response.user;
-  }, [setUserIdentity]);
+  }, [clearSessionState, setUserIdentity]);
 
   const verifyTwoFactor = useCallback(async (challengeId: string, code: string) => {
-    const response = await authApi.verifyTwoFactor(challengeId, code);
-    setIsLoggingOut(false);
-    getBrowserQueryClient().clear();
-    setUserIdentity(response.user);
-    return response.user;
-  }, [setUserIdentity]);
+    const generation = ++sessionGenerationRef.current;
+    sessionMutationPendingRef.current = true;
+    logoutPendingRef.current = false;
+    const isCurrent = () =>
+      generation === sessionGenerationRef.current &&
+      !sessionReloadPendingRef.current;
+    try {
+      await waitForPendingSessionRefresh();
+      if (!isCurrent()) {
+        throw new Error('verification superseded');
+      }
+      const response = await authApi.verifyTwoFactor(challengeId, code);
+      // Same publish-on-arrival rule as login: the Set-Cookie landed with
+      // this response, so siblings must resync even if this tab's probe
+      // later fails or the call was superseded.
+      publishSessionChange('changed');
+      if (!isCurrent()) {
+        throw new Error('verification superseded');
+      }
+      let sessionVerified = false;
+      let sessionMismatch = false;
+      for (let attempt = 0; attempt < 2 && !sessionVerified; attempt += 1) {
+        if (!isCurrent()) {
+          throw new Error('verification superseded');
+        }
+        try {
+          const probed = await authApi.me();
+          sessionVerified = probed.id === response.user.id;
+          sessionMismatch = !sessionVerified;
+        } catch {
+          sessionVerified = false;
+          sessionMismatch = false;
+        }
+      }
+      if (!isCurrent()) {
+        throw new Error('verification superseded');
+      }
+      if (sessionMismatch) {
+        clearSessionState();
+        throw new SessionVerificationError('verification session mismatch');
+      }
+      if (!sessionVerified) {
+        clearSessionState();
+        throw new SessionVerificationError('verification session unverified');
+      }
+      logoutPathnameRef.current = null;
+      setIsLoggingOut(false);
+      getBrowserQueryClient().clear();
+      setUserIdentity(response.user);
+      return response.user;
+    } finally {
+      if (isCurrent()) {
+        sessionMutationPendingRef.current = false;
+      }
+    }
+  }, [clearSessionState, setUserIdentity]);
 
   const logout = useCallback(async (options?: { redirect?: boolean }) => {
+    const generation = ++sessionGenerationRef.current;
+    logoutPendingRef.current = true;
+    sessionMutationPendingRef.current = false;
     setIsLoggingOut(true);
+    const recordedPath = pathname;
+    logoutPathnameRef.current = recordedPath;
     try {
-      await authApi.logout();
+      await waitForPendingSessionRefresh();
+      if (generation === sessionGenerationRef.current) {
+        await authApi.logout();
+      }
     } catch {
       // Ignore logout API failures and still clear the client session.
     } finally {
-      getBrowserQueryClient().clear();
-      setUserIdentity(null);
-      if (options?.redirect === false) {
+      if (generation === sessionGenerationRef.current) {
+        getBrowserQueryClient().clear();
+        setUserIdentity(null);
+        publishSessionChange('signed-out');
+        if (options?.redirect === false) {
+          logoutPathnameRef.current = null;
+          setIsLoggingOut(false);
+          return;
+        }
+
+        const target = loginHref(href, portalFromUser(user), 'signed-out');
+        router.replace(target);
+        // Same-path navigation never fires the pathname effect below — clear
+        // inline or isLoggingOut stays stuck when logout starts on /login.
+        if (target.split('?')[0] === pathname) {
+          logoutPathnameRef.current = null;
+          setIsLoggingOut(false);
+        }
+      } else if (logoutPathnameRef.current === recordedPath) {
+        // A newer login/verify superseded this logout. If it has not claimed
+        // the flag (its success path clears it, but a failed call never gets
+        // there), this call still owns isLoggingOut and must release it or
+        // every protected page spins forever.
+        logoutPathnameRef.current = null;
         setIsLoggingOut(false);
+      }
+    }
+  }, [href, pathname, router, setUserIdentity, user]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeSessionChanges((kind) => {
+      if (sessionReloadPendingRef.current) {
         return;
       }
+      sessionReloadPendingRef.current = true;
+      sessionGenerationRef.current += 1;
+      sessionMutationPendingRef.current = false;
+      logoutPendingRef.current = false;
+      logoutPathnameRef.current = null;
+      setIsLoading(true);
+      setIsLoggingOut(false);
+      clearSessionState();
+      if (kind === 'signed-out') {
+        window.location.replace(
+          loginHref(href, portalFromPathname(window.location.pathname), 'signed-out'),
+        );
+      } else {
+        window.location.reload();
+      }
+    });
+    return unsubscribe;
+  }, [clearSessionState, href]);
 
-      router.replace(loginHref(href, portalFromUser(user), 'signed-out'));
+  useEffect(() => {
+    if (
+      isLoggingOut &&
+      logoutPathnameRef.current !== null &&
+      pathname !== logoutPathnameRef.current
+    ) {
+      logoutPathnameRef.current = null;
+      setIsLoggingOut(false);
     }
-  }, [href, router, setUserIdentity, user]);
+  }, [isLoggingOut, pathname]);
 
   const isStudent = user?.roles?.includes('STUDENT') ?? false;
   const isLecturer = user?.roles?.includes('LECTURER') ?? false;
