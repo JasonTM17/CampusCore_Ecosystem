@@ -86,4 +86,39 @@ class ThesisAssistantOwnershipTest {
         org.junit.jupiter.api.Assertions.assertTrue(response.citations().isEmpty(),
                 "a not-published answer must not carry retrieval citations: " + response.citations());
     }
+
+    @Test
+    void multiPartAnswerKeepsCitationsWhenOnlyOneSectionIsDenied() {
+        // Live provider proof (session-race audit): a three-section grounded
+        // answer that ended with one "Cổng học vụ chưa công bố" section lost
+        // every citation. The grounded sections legitimately earned their
+        // provenance — only a wholly-denied answer may shed citations.
+        ThesisAssistantKnowledgeRepository knowledge = mock(ThesisAssistantKnowledgeRepository.class);
+        DeepSeekClient provider = mock(DeepSeekClient.class);
+        ThesisAssistantRepository history = mock(ThesisAssistantRepository.class);
+        var document = new ThesisAssistantKnowledgeRepository.KnowledgeDocument(
+                "11111111-1111-1111-1111-111111111111", "hoc-phi", "vi", "Học phí học kỳ",
+                "Grounded context", "office", "THESIS", null, null, null, null, null, null, null, null, 30);
+        when(knowledge.search(anyString(), any(), anyInt())).thenReturn(List.of(document));
+        when(history.ensureConversation(anyString(), any(), anyString(), anyInt())).thenReturn(UUID.randomUUID());
+        when(history.appendMessage(any(), anyString(), anyString(), anyString(), anyBoolean(), anyString()))
+                .thenReturn(UUID.randomUUID());
+        when(history.consumeQuota(anyString(), anyInt(), anyInt())).thenReturn(true);
+        when(provider.complete(anyString(), anyString(), anyString()))
+                .thenReturn("## Xử lý khi nhận điểm F\n\n"
+                        + "- Học phần bị coi là không đạt khi điểm tổng kết dưới 4.0 (thang 10).\n"
+                        + "- Bạn phải đăng ký học lại chính môn đó trong các học kỳ tiếp theo.\n\n"
+                        + "## Lịch bảo vệ\n\n"
+                        + "Cổng học vụ chưa công bố lịch bảo vệ khóa luận.");
+        ThesisAssistantService service = new ThesisAssistantService(knowledge, provider, history,
+                new DeepSeekProperties(true, "fixture", "https://api.deepseek.com", "deepseek-v4-flash", 8000, 800),
+                new AssistantProperties(6000, 2000, 20, 200, 90, true));
+
+        var response = service.answer("học phí?", "vi", null, "owner-a");
+
+        assertEquals("ANSWERED", response.reasonCode());
+        org.junit.jupiter.api.Assertions.assertFalse(response.citations().isEmpty(),
+                "a multi-part answer keeps the citations its grounded sections earned");
+        assertEquals(1, response.citations().size());
+    }
 }
