@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useI18n } from '@/i18n';
 import type { User } from '@/types/api';
+import { SessionVerificationError } from '@/lib/api';
 import { campusCodeMessage, type CampusErrorCopy } from '@/lib/campus-error';
 import { isStaleDemoPassword } from '@/lib/demo-credentials';
 import {
@@ -256,6 +257,14 @@ export default function LoginPage() {
       const user = await verifyTwoFactor(challenge.challengeId, normalizedCode);
       await finishLogin(user);
     } catch (error: unknown) {
+      if (error instanceof SessionVerificationError) {
+        setChallenge(null);
+        setCode('');
+        setPassword('');
+        setMismatchPortal(null);
+        setFormError(messages.login.errors.fallback);
+        return;
+      }
       setFormError(
         campusCodeMessage(
           error,

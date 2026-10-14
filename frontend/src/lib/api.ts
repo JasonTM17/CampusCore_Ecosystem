@@ -59,6 +59,7 @@ type ApiObject = Record<string, unknown>;
 type AuthRequestConfig = AxiosRequestConfig & {
   skipAuthRefresh?: boolean;
   skipAuthRedirect?: boolean;
+  skipColdStartRetry?: boolean;
   _retry?: boolean;
   _retryNoCache?: boolean;
   _coldStartRetry?: boolean;
@@ -66,6 +67,7 @@ type AuthRequestConfig = AxiosRequestConfig & {
 type AuthInternalRequestConfig = InternalAxiosRequestConfig & {
   skipAuthRefresh?: boolean;
   skipAuthRedirect?: boolean;
+  skipColdStartRetry?: boolean;
   _retry?: boolean;
   _retryNoCache?: boolean;
   _coldStartRetry?: boolean;
@@ -315,19 +317,85 @@ const api = axios.create({
 // before the first stream byte is received.
 let sessionRefreshPromise: Promise<LoginResponse> | null = null;
 
+// Every transport that writes or clears session cookies runs through one FIFO
+// gate. A Web Locks critical section coordinates across tabs (each tab has
+// its own copy of this module, so an in-memory queue alone cannot stop a
+// second tab's refresh from racing this tab's sign-in); the in-memory queue
+// is the fallback where the Locks API is unavailable. A late refresh
+// Set-Cookie must never overwrite a newer sign-in session cookie.
+let sessionTransportQueue: Promise<unknown> = Promise.resolve();
+
+// Every transport task carries this axios timeout, so a stalled login/logout
+// holds the lock for seconds, not the lifetime of the tab. Waiters bound their
+// acquisition wait separately: without it, one wedged request in a background
+// tab would starve sign-in in every other tab forever.
+const SESSION_TRANSPORT_TIMEOUT_MS = 15000;
+const SESSION_TRANSPORT_WAIT_MS = 30000;
+
+function withSessionTransport<T>(task: () => Promise<T>): Promise<T> {
+  const lockManager = isBrowser() ? navigator.locks : undefined;
+  if (
+    lockManager &&
+    typeof lockManager.request === 'function' &&
+    typeof AbortController === 'function'
+  ) {
+    const controller = new AbortController();
+    const acquisitionTimer = setTimeout(
+      () => controller.abort(),
+      SESSION_TRANSPORT_WAIT_MS,
+    );
+    return lockManager
+      .request('campuscore-session-transport', { signal: controller.signal }, () => {
+        clearTimeout(acquisitionTimer);
+        return task();
+      })
+      .finally(() => {
+        clearTimeout(acquisitionTimer);
+      }) as Promise<T>;
+  }
+  return new Promise<T>((resolve, reject) => {
+    let expired = false;
+    const waitTimer = setTimeout(() => {
+      expired = true;
+      reject(new Error('session transport wait timed out'));
+    }, SESSION_TRANSPORT_WAIT_MS);
+    const run = async () => {
+      clearTimeout(waitTimer);
+      if (expired) return;
+      try {
+        resolve(await task());
+      } catch (error) {
+        reject(error);
+      }
+    };
+    sessionTransportQueue = sessionTransportQueue.then(run, run);
+  });
+}
+
 export function refreshSessionSingleFlight(): Promise<LoginResponse> {
   if (sessionRefreshPromise) return sessionRefreshPromise;
-  sessionRefreshPromise = api
-    .post<LoginResponse>(
+  sessionRefreshPromise = withSessionTransport(() =>
+    api.post<LoginResponse>(
       '/auth/refresh',
       {},
-      { skipAuthRefresh: true, skipAuthRedirect: true } as AuthRequestConfig,
-    )
+      {
+        skipAuthRefresh: true,
+        skipAuthRedirect: true,
+        timeout: SESSION_TRANSPORT_TIMEOUT_MS,
+      } as AuthRequestConfig,
+    ))
     .then((response) => response.data)
     .finally(() => {
       sessionRefreshPromise = null;
     });
   return sessionRefreshPromise;
+}
+
+export async function waitForPendingSessionRefresh(): Promise<void> {
+  await sessionRefreshPromise?.then(
+    () => undefined,
+    () => undefined,
+  );
 }
 
 api.interceptors.request.use((config) => {
@@ -356,6 +424,7 @@ api.interceptors.response.use(
       backendWarming &&
       originalConfig &&
       isSafeRequest(originalConfig) &&
+      !originalConfig.skipColdStartRetry &&
       !originalConfig._coldStartRetry
     ) {
       originalConfig._coldStartRetry = true;
@@ -392,23 +461,32 @@ api.interceptors.response.use(
   },
 );
 
+export class SessionVerificationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SessionVerificationError';
+  }
+}
+
 // Auth API
 export const authApi = {
   // A normal sign-in resolves to a full session; an account with two-factor
   // enabled instead answers with TwoFactorChallengeResponse (no tokens) and
   // the caller must finish with verifyTwoFactor.
   login: async (email: string, password: string): Promise<LoginResult> => {
-    const response = await api.post<LoginResult>(
-      '/auth/login',
-      {
-        email,
-        password,
-      },
-      {
-        skipAuthRefresh: true,
-        skipAuthRedirect: true,
-      } as AuthRequestConfig,
-    );
+    const response = await withSessionTransport(() =>
+      api.post<LoginResult>(
+        '/auth/login',
+        {
+          email,
+          password,
+        },
+        {
+          skipAuthRefresh: true,
+          skipAuthRedirect: true,
+          timeout: SESSION_TRANSPORT_TIMEOUT_MS,
+        } as AuthRequestConfig,
+      ));
     return response.data;
   },
 
@@ -420,14 +498,16 @@ export const authApi = {
     challengeId: string,
     code: string,
   ): Promise<LoginResponse> => {
-    const response = await api.post<LoginResponse>(
-      '/auth/two-factor/verify',
-      { challengeId, code },
-      {
-        skipAuthRefresh: true,
-        skipAuthRedirect: true,
-      } as AuthRequestConfig,
-    );
+    const response = await withSessionTransport(() =>
+      api.post<LoginResponse>(
+        '/auth/two-factor/verify',
+        { challengeId, code },
+        {
+          skipAuthRefresh: true,
+          skipAuthRedirect: true,
+          timeout: SESSION_TRANSPORT_TIMEOUT_MS,
+        } as AuthRequestConfig,
+      ));
     return response.data;
   },
 
@@ -482,6 +562,8 @@ export const authApi = {
     const response = await api.get<User>('/auth/me', {
       skipAuthRedirect: true,
       skipAuthRefresh: true,
+      skipColdStartRetry: true,
+      timeout: SESSION_TRANSPORT_TIMEOUT_MS,
     } as AuthRequestConfig);
     return response.data;
   },
@@ -499,14 +581,16 @@ export const authApi = {
   },
 
   logout: async (): Promise<void> => {
-    await api.post(
-      '/auth/logout',
-      {},
-      {
-        skipAuthRefresh: true,
-        skipAuthRedirect: true,
-      } as AuthRequestConfig,
-    );
+    await withSessionTransport(() =>
+      api.post(
+        '/auth/logout',
+        {},
+        {
+          skipAuthRefresh: true,
+          skipAuthRedirect: true,
+          timeout: SESSION_TRANSPORT_TIMEOUT_MS,
+        } as AuthRequestConfig,
+      ));
   },
 
   refresh: async (): Promise<LoginResponse> => {
