@@ -7,6 +7,7 @@ import static org.mockito.Mockito.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.UUID;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -65,6 +66,114 @@ class ThesisAssistantQuestionFitTest {
                 .groundedFallback(QUESTION, "vi", false, "specialized");
         assertEquals("NO_MATCH", response.reasonCode());
         assertTrue(response.citations().isEmpty());
+    }
+
+    @Test
+    void fullTurnWithoutProviderCannotBypassQuestionFitAndCiteArchitecture() throws Exception {
+        assertFullTurn("vi", "disabled", false);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"disabled", "quota", "truncated", "unavailable", "invalid", "unsafe"})
+    void everyFullTurnFallbackKeepsAnswerAndProvenanceConsistent(String branch) throws Exception {
+        for (String locale : List.of("vi", "en")) {
+            assertFullTurn(locale, branch, false);
+            assertFullTurn(locale, branch, true);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"vi", "en"})
+    void questionFitDoesNotDiscardApprovedContextForSuccessfulSynthesis(String locale) throws Exception {
+        assertFullTurn(locale, "answered", false);
+    }
+
+    private static void assertFullTurn(String locale, String branch, boolean matching) throws Exception {
+        String sourceId = "11111111-1111-1111-1111-111111111111";
+        String content = matching ? injectionSeed(locale)
+                : "## Spring Boot architecture\nSpring Boot uses MVC and repositories.";
+        String question = "vi".equals(locale) ? QUESTION
+                : "Explain Dependency Injection in Spring Boot with a constructor injection example.";
+        var knowledge = mock(ThesisAssistantKnowledgeRepository.class);
+        when(knowledge.search(anyString(), anyList(), anyInt(), eq("specialized"))).thenReturn(List.of(
+                new ThesisAssistantKnowledgeRepository.KnowledgeDocument(sourceId,
+                        "focus-test", locale, matching ? "Dependency Injection / constructor injection in Spring Boot" : "Spring Boot architecture", content, "curated", "SPECIALIZED",
+                        null, null, null, null, null, null, null, null, 50)));
+        var turns = mock(ThesisAssistantTurnRepository.class);
+        UUID turn = UUID.randomUUID(), conversation = UUID.randomUUID(), message = UUID.randomUUID();
+        when(turns.reserve(anyString(), any(), anyString(), isNull(), anyString(), anyString(), anyInt()))
+                .thenReturn(new ThesisAssistantTurnRepository.Reservation(
+                        ThesisAssistantTurnRepository.ReservationStatus.NEW, turn, conversation, 1L, true, null, null, false));
+        when(turns.markSnapshotReady(any(), anyString(), anyLong(), anyString())).thenReturn(true);
+        when(turns.dispatch(any(), anyString(), anyLong(), anyInt(), anyInt()))
+                .thenReturn(new ThesisAssistantTurnRepository.DispatchDecision(!"quota".equals(branch),
+                        !"quota".equals(branch), "quota".equals(branch) ? "QUOTA_EXCEEDED" : "DISPATCHED"));
+        when(turns.complete(any(), anyString(), anyLong(), anyString(), anyString(), anyString(), anyBoolean(), anyString(), anyList()))
+                .thenAnswer(invocation -> new ThesisAssistantTurnRepository.TerminalResult(conversation, message,
+                        invocation.getArgument(5), invocation.getArgument(4), invocation.getArgument(6),
+                        invocation.getArgument(7), invocation.getArgument(8), false, "COMPLETED"));
+        var provider = mock(DeepSeekClient.class);
+        doAnswer(invocation -> {
+            var request = invocation.getArgument(0, AssistantCompletionProvider.CompletionRequest.class);
+            assertTrue(request.context().contains(content), "provider context remains the approved retrieval");
+            assertEquals(List.of(sourceId), request.sourceIds());
+            if ("unavailable".equals(branch)) throw new DeepSeekClient.ProviderUnavailableException("fixture");
+            @SuppressWarnings("unchecked")
+            var sink = (java.util.function.Consumer<AssistantCompletionProvider.ProviderSegment>) invocation.getArgument(1);
+            String text = "unsafe".equals(branch) ? "Contact student@example.com" : "Synthesized answer";
+            sink.accept(new AssistantCompletionProvider.ProviderSegment(0, text,
+                    List.of("invalid".equals(branch) ? "unapproved-source" : sourceId)));
+            return new AssistantCompletionProvider.CompletionResult(text, List.of(),
+                    "truncated".equals(branch) ? "length" : "stop");
+        }).when(provider).complete(any(AssistantCompletionProvider.CompletionRequest.class),
+                any(java.util.function.Consumer.class), any(java.util.function.BooleanSupplier.class));
+        var assistant = new ThesisAssistantService(knowledge, provider, null, turns, null, null,
+                new DeepSeekProperties(!"disabled".equals(branch), "fixture", "https://api.deepseek.com", "deepseek-v4-flash", 8000, 800),
+                new AssistantProperties(6000, 2000, 20, 200, 90, true));
+        var events = new java.util.ArrayList<ThesisAssistantService.StreamEvent>();
+        var response = assistant.stream(question, locale, null, "owner-focus", UUID.randomUUID(), events::add, "specialized");
+        String reason = switch (branch) {
+            case "disabled" -> "PROVIDER_DISABLED";
+            case "quota" -> "QUOTA_EXCEEDED";
+            case "truncated" -> "PROVIDER_TRUNCATED";
+            case "unsafe" -> "PROVIDER_UNSAFE_OUTPUT";
+            case "answered" -> "ANSWERED";
+            default -> "PROVIDER_UNAVAILABLE";
+        };
+        assertEquals(reason, response.reasonCode());
+        assertEquals(!"answered".equals(branch), response.degraded());
+        assertEquals(locale, response.locale());
+        assertEquals("quota".equals(branch), response.resetAt() != null);
+        verify(turns).complete(eq(turn), eq("owner-focus"), eq(1L), eq(question), anyString(),
+                eq(response.answer()), eq(response.degraded()), eq(reason), eq(response.citations()));
+        var visible = events.stream().filter(event -> event instanceof ThesisAssistantService.StreamDelta
+                        || event instanceof ThesisAssistantService.StreamReplace).toList();
+        assertFalse(visible.isEmpty());
+        var last = visible.getLast();
+        String finalText = last instanceof ThesisAssistantService.StreamReplace replace ? replace.text()
+                : ((ThesisAssistantService.StreamDelta) last).text();
+        List<String> finalSources = last instanceof ThesisAssistantService.StreamReplace replace ? replace.sourceIds()
+                : ((ThesisAssistantService.StreamDelta) last).sourceIds();
+        assertEquals(response.answer(), finalText);
+        if ("answered".equals(branch)) {
+            assertEquals("Synthesized answer", response.answer());
+            assertEquals(List.of(sourceId), finalSources);
+            assertEquals(1, response.citations().size());
+            return;
+        }
+        assertFalse(response.answer().contains("Spring Boot architecture"));
+        if (matching) {
+            assertTrue(response.answer().contains("public OrderService(PaymentGateway gateway)"));
+            assertEquals(List.of(sourceId), finalSources);
+            assertEquals(1, response.citations().size());
+        } else {
+            assertTrue(response.answer().startsWith("vi".equals(locale)
+                    ? "Mình chưa tìm thấy nội dung khớp câu hỏi này"
+                    : "I could not find content matching this question"));
+            assertTrue(finalSources.isEmpty());
+            assertTrue(response.citations().isEmpty());
+            assertTrue(events.stream().noneMatch(event -> event instanceof ThesisAssistantService.StreamCitation));
+        }
     }
 
     @ParameterizedTest
