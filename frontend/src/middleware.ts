@@ -9,6 +9,19 @@ import {
 const LOCALE_COOKIE = 'cc_locale';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
+const DOCUMENT_FETCH_DESTINATIONS = new Set([
+  'document',
+  'frame',
+  'iframe',
+  'nested-document',
+]);
+
+function isNonDocumentFetch(secFetchDest: string | null) {
+  return (
+    secFetchDest !== null && !DOCUMENT_FETCH_DESTINATIONS.has(secFetchDest)
+  );
+}
+
 function withRequestLocaleCookie(request: NextRequest, locale: string) {
   const cookieHeader = request.headers.get('cookie') ?? '';
   const cookieParts = cookieHeader
@@ -53,11 +66,22 @@ export function middleware(request: NextRequest) {
       },
     });
 
-    response.cookies.set(LOCALE_COOKIE, locale, {
-      path: '/',
-      sameSite: 'lax',
-      maxAge: COOKIE_MAX_AGE,
-    });
+    const isPrefetch =
+      request.headers.has('rsc') ||
+      request.headers.has('next-router-prefetch') ||
+      request.headers.get('purpose')?.toLowerCase() === 'prefetch' ||
+      /(?:^|[\s,;])prefetch(?:$|[\s,;])/.test(
+        request.headers.get('sec-purpose')?.toLowerCase() ?? '',
+      ) ||
+      isNonDocumentFetch(request.headers.get('sec-fetch-dest'));
+
+    if (!isPrefetch) {
+      response.cookies.set(LOCALE_COOKIE, locale, {
+        path: '/',
+        sameSite: 'lax',
+        maxAge: COOKIE_MAX_AGE,
+      });
+    }
 
     return response;
   }

@@ -86,3 +86,120 @@ test('readLocaleCookie decodes encoded values without throwing on malformed inpu
   assert.equal(readLocaleCookie('cc_locale=%65n'), 'en');
   assert.equal(readLocaleCookie('cc_locale=%E0%A4%A'), '%E0%A4%A');
 });
+
+function loadTsCommonJs(file, stubs) {
+  const source = fs.readFileSync(path.join(root, file), 'utf8');
+  const { outputText } = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+    },
+    fileName: path.basename(file),
+  });
+  const mod = { exports: {} };
+  const requireStub = (spec) => {
+    if (spec in stubs) return stubs[spec];
+    throw new Error(`unexpected import in ${file}: ${spec}`);
+  };
+  new Function('require', 'module', 'exports', outputText)(requireStub, mod, mod.exports);
+  return mod.exports;
+}
+
+class FakeNextRequest {
+  constructor(url, headers = {}) {
+    this.nextUrl = new URL(url);
+    this.headers = new Headers(headers);
+    const jar = new Map();
+    for (const part of (this.headers.get('cookie') ?? '').split(';')) {
+      const [key, ...rest] = part.trim().split('=');
+      if (key) jar.set(key, rest.join('='));
+    }
+    this.cookies = {
+      get: (name) => (jar.has(name) ? { name, value: jar.get(name) } : undefined),
+    };
+  }
+}
+
+const FakeNextResponse = {
+  next(init = {}) {
+    const response = {
+      requestHeaders: init.request?.headers ?? new Headers(),
+      headers: new Headers(),
+      _setCookies: [],
+      cookies: {
+        set(name, value, options) {
+          response._setCookies.push({ name, value, options });
+        },
+      },
+    };
+    return response;
+  },
+};
+
+async function loadMiddleware() {
+  const realConfig = await loadTsModule('src/i18n/config.ts');
+  const realPaths = loadTsCommonJs('src/i18n/paths.ts', { '@/i18n/config': realConfig });
+  return loadTsCommonJs('src/middleware.ts', {
+    '@/i18n/config': realConfig,
+    '@/i18n/paths': realPaths,
+    'next/server': { NextRequest: FakeNextRequest, NextResponse: FakeNextResponse },
+  });
+}
+
+test('prefetch requests never receive a cc_locale response cookie but still get the route locale', async () => {
+  const { middleware } = await loadMiddleware();
+  const prefetchHeaders = [
+    { 'next-router-prefetch': '1' },
+    { 'next-router-prefetch': '2' },
+    { 'next-router-prefetch': '1', rsc: '1', 'next-url': '/login' },
+    { rsc: '1' },
+    { purpose: 'prefetch' },
+    { 'sec-purpose': 'prefetch' },
+    { 'sec-purpose': 'prefetch; prerender' },
+    { 'sec-fetch-dest': 'empty' },
+    { 'sec-fetch-dest': 'empty', rsc: '1', 'next-url': '/login' },
+  ];
+  for (const extra of prefetchHeaders) {
+    const response = middleware(new FakeNextRequest('http://local.test/en/login', {
+      cookie: 'cc_locale=vi',
+      ...extra,
+    }));
+    assert.equal(
+      response._setCookies.length,
+      0,
+      `speculative request ${JSON.stringify(extra)} must not rotate cc_locale`,
+    );
+    assert.equal(response.requestHeaders.get('x-cc-locale'), 'en', `route locale lost for ${JSON.stringify(extra)}`);
+    assert.match(response.requestHeaders.get('cookie') ?? '', /cc_locale=en/);
+  }
+});
+
+test('committed prefixed navigations still persist the selected locale', async () => {
+  const { middleware } = await loadMiddleware();
+  for (const [pathname, expected] of [['/vi/login', 'vi'], ['/en/login', 'en']]) {
+    const response = middleware(new FakeNextRequest(`http://local.test${pathname}`));
+    assert.deepEqual(
+      response._setCookies.map((entry) => [entry.name, entry.value]),
+      [['cc_locale', expected]],
+      `${pathname} should write the committed locale`,
+    );
+  }
+});
+
+test('unprefixed requests honor the saved cookie and never write cc_locale', async () => {
+  const { middleware } = await loadMiddleware();
+  const response = middleware(new FakeNextRequest('http://local.test/login', {
+    cookie: 'cc_locale=en',
+  }));
+  assert.equal(response.requestHeaders.get('x-cc-locale'), 'en');
+  assert.equal(response._setCookies.length, 0);
+});
+
+test('bypassed API paths carry no locale request override or response cookie', async () => {
+  const { middleware } = await loadMiddleware();
+  const response = middleware(new FakeNextRequest('http://local.test/api/v1/auth/login', {
+    cookie: 'cc_locale=en',
+  }));
+  assert.equal(response.requestHeaders.get('x-cc-locale'), null);
+  assert.equal(response._setCookies.length, 0);
+});
