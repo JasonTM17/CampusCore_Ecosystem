@@ -26,8 +26,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Falls back to the OS preference when no stored choice exists so the
     // React state matches what the pre-hydration bootstrap script applied.
+    let storedTheme: string | null = null;
+    try {
+      storedTheme = localStorage.getItem('theme');
+    } catch {}
     const initialTheme = resolveStoredTheme(
-      localStorage.getItem('theme'),
+      storedTheme,
       systemPreferredTheme(),
     );
     if (!userToggled.current) {
