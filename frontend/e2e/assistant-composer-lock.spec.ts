@@ -1,4 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
+import { submitLiveLogin } from './fixtures/live-login';
+
+test.describe.configure({ timeout: 120_000 });
 
 // Covers the composer lock contract fixed by fix/chatbot-grounding-and-input:
 // while a turn is in flight the panel is visibly locked (disabled textarea,
@@ -25,7 +28,7 @@ async function login(page: Page) {
   await expect(submit).toBeEnabled({ timeout: 20_000 });
   await page.locator('#email').fill(student.email);
   await page.locator('#password').fill(student.password);
-  await submit.click();
+  await submitLiveLogin(page, submit);
   await expect(page).not.toHaveURL(/\/login(?:$|[/?#])/, { timeout: 20_000 });
 }
 

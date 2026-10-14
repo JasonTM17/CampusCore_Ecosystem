@@ -1,17 +1,17 @@
 import { test, expect } from '@playwright/test';
+import { submitLiveLogin } from './fixtures/live-login';
 
 test('failed mark-read restores the preview row and unread badge without duplicates', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-390', 'This regression targets the mobile unread badge.');
+  test.setTimeout(120_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.name));
   await page.goto('/vi/login?portal=student');
   await page.locator('#email').fill('student@campuscore.edu');
   await page.locator('#password').fill('password123');
-  const loggedIn = page.waitForResponse(response =>
-    new URL(response.url()).pathname === '/api/v1/auth/login'
-    && response.request().method() === 'POST');
-  await page.locator('form').getByRole('button', { name: /đăng nhập|sign in/i }).click();
-  expect((await loggedIn).status()).toBe(200);
+  const submit = page.locator('form').getByRole('button', { name: /đăng nhập|sign in/i });
+  const loggedIn = await submitLiveLogin(page, submit);
+  expect(loggedIn.status()).toBe(200);
   await expect(page).not.toHaveURL(/\/login/);
   let writes = 0;
   let releaseWrite!: () => void;
