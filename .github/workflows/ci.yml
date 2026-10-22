@@ -98,7 +98,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # Expo SDK57 requires Node >=22.13 (docs.ecosystem/baseline.md, C-E5).
+          node-version: '22.13'
           cache: npm
           cache-dependency-path: mobile/package-lock.json
       - name: Install mobile dependencies
@@ -190,6 +191,13 @@ jobs:
           fi
           node scripts/check-assistant-secrets.mjs
           node scripts/check-doc-hygiene.mjs
+      # R2-1 ownership: P05 owns the host-registry + static-policy CI gates
+      # (docs/ecosystem/host-policy.md subjects). They also run as named
+      # cases in the `bff` runner gate; a missing report is nonzero NOT_RUN.
+      - name: BFF host registry parity
+        run: node scripts/host-registry-verify.mjs
+      - name: BFF static policy sentinels
+        run: node scripts/static-policy-verify.mjs
       - name: Supabase content tooling tests
         run: node --test scripts/supabase/assistant-knowledge.test.mjs
       - name: Assistant RLS provisioning script tests

@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.campuscore.restfulapi.academic.service.LecturerMutationService;
 import io.campuscore.restfulapi.auth.service.AdminUserMutationService;
 import java.util.List;
@@ -25,7 +25,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -103,6 +103,41 @@ class AdminUserMutationPersistenceTest {
                 Integer.class,
                 "target-user"))
                 .isZero();
+    }
+
+    @Test
+    void roleChangeBumpsCredentialEpochAndKillsIssuedBearerTokens() throws Exception {
+        // An access token is stateless: deleting sessions only stops refresh
+        // and BFF resolution — the demoted account's old ROLE_ADMIN claims
+        // would stay valid until TTL. The admin-mutation kill therefore also
+        // bumps the credential epoch so the next bearer request fails the
+        // current-account gate.
+        String password = "role-change-" + java.util.UUID.randomUUID();
+        jdbc.update("UPDATE campuscore_auth.\"User\" SET \"password\"=? WHERE \"id\"='target-user'",
+                new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode(password));
+        MvcResult login = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"target@campuscore.edu\",\"password\":\"" + password + "\"}"))
+                .andExpect(status().isOk()).andReturn();
+        String oldAccess = objectMapper.readTree(login.getResponse().getContentAsString())
+                .get("accessToken").asText();
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + oldAccess))
+                .andExpect(status().isOk());
+
+        mvc.perform(put("/api/v1/users/target-user").with(superJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"role": "STUDENT", "studentId": "SV2026001", "curriculumId": "curriculum-demo", "year": 2}
+                                """))
+                .andExpect(status().isOk());
+
+        assertThat(jdbc.queryForObject(
+                "SELECT \"credentialVersion\" FROM campuscore_auth.\"User\" WHERE \"id\"='target-user'",
+                Long.class))
+                .as("admin role change commits exactly one epoch bump")
+                .isEqualTo(1L);
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + oldAccess))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("SESSION_INVALID"));
     }
 
     @Test

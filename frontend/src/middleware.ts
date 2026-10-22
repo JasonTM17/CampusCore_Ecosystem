@@ -5,9 +5,74 @@ import {
   isBypassedPath,
   stripLocaleFromPathname,
 } from '@/i18n/paths';
+import { baseFor, devBaseFor, surfaceFromHost } from '@/lib/surfaces';
 
 const LOCALE_COOKIE = 'cc_locale';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
+// Legacy session cookie names: on a BFF surface host these must be deleted
+// host-only so a stale cc_* can never shadow the opaque lane (§2 contract).
+const LEGACY_COOKIE_PREFIX = 'cc_';
+
+interface HostRouting {
+  /** Terminal response (not-found rewrite or apex redirect) — skip the rest. */
+  terminal?: NextResponse;
+  /** Resolved surface for this host; null for the legacy localhost lane. */
+  surface?: ReturnType<typeof surfaceFromHost>;
+}
+
+/**
+ * Host routing (docs/ecosystem/host-policy.md §1/§6) runs before any locale
+ * handling: the edge is the single point that knows the public host, so it
+ * resolves the surface here and stamps x-campuscore-surface for downstream
+ * route handlers. Unknown hosts get a not-found rewrite, never a redirect —
+ * an open redirect by host header is exactly what this guard exists for.
+ * Plain localhost/127.0.0.1 stays routable so the existing dev/CI loops keep
+ * working against the legacy single-host lane.
+ */
+function routeByHost(request: NextRequest): HostRouting {
+  const host = request.headers.get('host') ?? '';
+  const bare = host.split(':')[0].toLowerCase();
+  const surface = surfaceFromHost(host);
+  if (surface === null) {
+    if (bare === 'localhost' || bare === '127.0.0.1' || bare === '[::1]') {
+      return { surface: null };
+    }
+    // Fail closed with a bare 404 — never a redirect (an open redirect by
+    // host header is exactly what this guard exists for). A rewrite into the
+    // locale-aware not-found tree is intentionally avoided: it must resolve
+    // the [locale] layout and proved flaky (500) under the preview stack.
+    return {
+      terminal: new NextResponse('SURFACE_UNKNOWN', {
+        status: 404,
+        headers: { 'Cache-Control': 'no-store' },
+      }),
+    };
+  }
+  if (surface.mode === 'redirect' && surface.redirectTo) {
+    const target = bare.endsWith('.localhost')
+      ? devBaseFor(surface.redirectTo,
+          request.nextUrl.protocol.replace(':', ''), host)
+      : baseFor(surface.redirectTo);
+    return {
+      terminal: NextResponse.redirect(
+        `${target}${request.nextUrl.pathname}${request.nextUrl.search}`, 301),
+    };
+  }
+  return { surface };
+}
+
+/** Delete each legacy cc_* cookie on this surface host — host-only delete. */
+function expireLegacyCookies(request: NextRequest, response: NextResponse) {
+  const seen = new Set<string>();
+  for (const cookie of request.cookies.getAll()) {
+    if (cookie.name.startsWith(LEGACY_COOKIE_PREFIX) && cookie.name !== LOCALE_COOKIE
+        && !seen.has(cookie.name)) {
+      seen.add(cookie.name);
+      response.cookies.set(cookie.name, '', { path: '/', maxAge: 0 });
+    }
+  }
+}
 
 // RT-P2-4 graduation: the report-only CSP is now enforced with a per-request
 // nonce. Setting the policy on the *request* headers is what lets Next.js
@@ -74,6 +139,11 @@ function withRequestLocaleCookie(request: NextRequest, locale: string) {
 }
 
 export function middleware(request: NextRequest) {
+  const routing = routeByHost(request);
+  if (routing.terminal) {
+    return routing.terminal;
+  }
+
   const { pathname } = request.nextUrl;
 
   if (isBypassedPath(pathname)) {
@@ -89,6 +159,22 @@ export function middleware(request: NextRequest) {
     localeMatch.locale ?? (isLocale(cookieLocale) ? cookieLocale : defaultLocale);
   const strippedPath = localeMatch.pathname;
   const requestHeaders = new Headers(request.headers);
+
+  // The edge is the only writer of the routing headers — caller-stamped
+  // x-campuscore-* is stripped before the surface pair is stamped, and the
+  // BFF session lane trusts only this pair (validated by the proxy token).
+  for (const name of [...requestHeaders.keys()]) {
+    if (name.toLowerCase().startsWith('x-campuscore-')) {
+      requestHeaders.delete(name);
+    }
+  }
+  if (routing.surface) {
+    requestHeaders.set('x-campuscore-surface', routing.surface.id);
+    requestHeaders.set(
+      'x-campuscore-scheme',
+      request.nextUrl.protocol.replace(':', ''),
+    );
+  }
 
   requestHeaders.set('x-cc-locale', locale);
   requestHeaders.set('x-cc-visible-pathname', pathname);
@@ -131,6 +217,9 @@ export function middleware(request: NextRequest) {
       });
     }
 
+    if (routing.surface) {
+      expireLegacyCookies(request, response);
+    }
     return response;
   }
 
@@ -140,6 +229,9 @@ export function middleware(request: NextRequest) {
     },
   });
   response.headers.set('Content-Security-Policy', csp);
+  if (routing.surface) {
+    expireLegacyCookies(request, response);
+  }
   return response;
 }
 

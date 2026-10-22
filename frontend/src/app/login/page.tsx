@@ -23,6 +23,7 @@ import {
   type LoginPortal,
 } from '@/lib/login-portal';
 import { isTwoFactorChallenge, maskEmail, normalizeOtpCode } from '@/lib/two-factor';
+import { surfaceFromHost } from '@/lib/surfaces';
 import { cn } from '@/lib/utils';
 
 /**
@@ -101,6 +102,9 @@ export default function LoginPage() {
   const [challenge, setChallenge] = useState<{ challengeId: string; email: string } | null>(null);
   const [code, setCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
+  // The SSO lane exists only on BFF surface hosts — the host name is known
+  // only in the browser, so the button is revealed after hydration.
+  const [bffSurface, setBffSurface] = useState(false);
   const formErrorRef = useRef<HTMLDivElement>(null);
   const { login, verifyTwoFactor, logout } = useAuth();
   const { href, messages, locale } = useI18n();
@@ -118,6 +122,10 @@ export default function LoginPage() {
     fetch(`${API_BASE_URL}/health/liveness`, { cache: 'no-store', credentials: 'omit' }).catch(() => {
       /* best-effort wake-up only; login itself surfaces real connectivity errors */
     });
+    setBffSurface(
+      surfaceFromHost(window.location.host)?.mode === 'bff'
+        && process.env.NEXT_PUBLIC_BFF_LANE !== 'false',
+    );
   }, []);
 
   useEffect(() => {
@@ -739,6 +747,32 @@ export default function LoginPage() {
               </span>
             )}
           </Button>
+
+          {bffSurface ? (
+            <div className="space-y-3 pt-1">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                  <span className="w-full border-t border-border/70" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    {locale === 'vi' ? 'hoặc' : 'or'}
+                  </span>
+                </div>
+              </div>
+              {/* Full-page navigation: the BFF login leg must ride a real
+                  redirect chain so the opaque host-only cookie is written by
+                  the surface host itself. `return` stays a relative path —
+                  the Java allowlist rejects anything else. */}
+              <a
+                href={`/session/login?return=${encodeURIComponent(href(postLoginRoute(portal)))}`}
+                className="inline-flex w-full min-h-10 items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                {locale === 'vi' ? 'Đăng nhập qua SSO' : 'Sign in with SSO'}
+              </a>
+            </div>
+          ) : null}
         </form>
         )}
 

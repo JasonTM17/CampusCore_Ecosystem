@@ -3,6 +3,12 @@ import axios, {
   AxiosRequestConfig,
   InternalAxiosRequestConfig,
 } from 'axios';
+import {
+  newRequestId,
+  pathTemplate,
+  recordApiMetric,
+  REQUEST_ID_HEADER,
+} from '@/lib/observability';
 import type { TaxonomyCategory } from '@/lib/announcement-presentation';
 import {
   LoginResponse,
@@ -33,6 +39,7 @@ import { addLocalePrefix, stripLocaleFromPathname } from '@/i18n/paths';
 import { resolvePublicApiBaseUrl } from '@/lib/public-api-url';
 import { CSRF_COOKIE_NAME, isLogoutInProgress } from '@/lib/session-hint';
 import { publishSessionChange } from '@/lib/session-sync';
+import { surfaceFromHost } from '@/lib/surfaces';
 
 export const API_BASE_URL = resolvePublicApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
@@ -64,6 +71,7 @@ type AuthRequestConfig = AxiosRequestConfig & {
   _retry?: boolean;
   _retryNoCache?: boolean;
   _coldStartRetry?: boolean;
+  __requestStartedAt?: number;
 };
 type AuthInternalRequestConfig = InternalAxiosRequestConfig & {
   skipAuthRefresh?: boolean;
@@ -72,6 +80,7 @@ type AuthInternalRequestConfig = InternalAxiosRequestConfig & {
   _retry?: boolean;
   _retryNoCache?: boolean;
   _coldStartRetry?: boolean;
+  __requestStartedAt?: number;
 };
 export type AnnouncementPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
 export type AnnouncementAudienceRole =
@@ -215,6 +224,19 @@ function navigateToLogin(reason: 'session-expired' | 'unauthorized') {
   // so the login page's own session probe still 401s. Re-navigating from here
   // would reload /login forever and block the sign-in form.
   if (pathname === '/login') {
+    return;
+  }
+  // BFF surface hosts re-enter through the full-page SSO leg: the opaque
+  // session cookie is dead, and only the BFF login flow can mint a new one.
+  // `return` is the current relative path — the Java allowlist enforces it.
+  if (
+    surfaceFromHost(window.location.host)?.mode === 'bff'
+    && process.env.NEXT_PUBLIC_BFF_LANE !== 'false'
+  ) {
+    const target = `/session/login?return=${encodeURIComponent(
+      window.location.pathname + window.location.search,
+    )}`;
+    window.location.href = target;
     return;
   }
   const loginPath = locale ? addLocalePrefix('/login', locale) : '/login';
@@ -467,13 +489,48 @@ api.interceptors.request.use((config) => {
   if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
     config.headers.delete('Content-Type');
   }
+  // Correlation contract (P03): every outbound call carries a request id the
+  // backend RequestIdFilter validates and echoes back for support/audit joins.
+  if (!config.headers.get(REQUEST_ID_HEADER)) {
+    config.headers.set(REQUEST_ID_HEADER, newRequestId());
+  }
+  (config as AuthInternalRequestConfig).__requestStartedAt = Date.now();
   return applyCsrfHeader(config as AuthInternalRequestConfig);
 });
 
+function recordApiOutcome(
+  config: AuthRequestConfig | undefined,
+  status: number,
+  requestId: string | null,
+): void {
+  if (!config) return;
+  const started = (config as AuthInternalRequestConfig).__requestStartedAt;
+  recordApiMetric({
+    method: (config.method ?? 'GET').toUpperCase(),
+    path: pathTemplate(config.url),
+    status,
+    durationMs: started ? Date.now() - started : 0,
+    requestId,
+    at: Date.now(),
+  });
+}
+
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    recordApiOutcome(
+      response.config as AuthRequestConfig | undefined,
+      response.status,
+      response.headers?.[REQUEST_ID_HEADER.toLowerCase()] ?? null,
+    );
+    return response;
+  },
   async (error: AxiosError) => {
     const originalConfig = error.config as AuthRequestConfig | undefined;
+    recordApiOutcome(
+      originalConfig,
+      error.response?.status ?? 0,
+      (error.response?.headers?.[REQUEST_ID_HEADER.toLowerCase()] as string | undefined) ?? null,
+    );
     const unauthorized = error.response?.status === 401;
     const notModified = error.response?.status === 304;
 
