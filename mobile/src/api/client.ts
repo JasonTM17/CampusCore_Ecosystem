@@ -227,6 +227,78 @@ export interface MobileEventRegistration {
   event: MobileEvent;
 }
 
+/** D5 learning contract (P09): enrolled-section read-through, materials,
+ * assignments and the draft→submit→resubmit lifecycle with immutable
+ * revisions. Staff lanes are intentionally absent on native — section
+ * authority is lecturer-only and the native surface is the student lane. */
+export type MobileAssignmentStatus = 'DRAFT' | 'PUBLISHED' | 'CLOSED' | 'ARCHIVED';
+export type MobileSubmissionStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'RETURNED'
+  | 'RESUBMITTED'
+  | 'REVIEWED';
+
+export interface MobileLearningSection {
+  sectionId: string;
+  sectionNumber: string;
+  courseCode: string;
+  courseName: string;
+  enrollmentStatus: string;
+  materialCount: number;
+  assignmentCount: number;
+}
+
+export interface MobileLearningMaterial {
+  id: string;
+  sectionId: string;
+  title: string;
+  description?: string | null;
+  fileName?: string | null;
+  contentType?: string | null;
+  sizeBytes?: number | null;
+  version: number;
+}
+
+export interface MobileLearningAssignment {
+  id: string;
+  sectionId: string;
+  title: string;
+  description?: string | null;
+  deadlineAt?: string | null;
+  maxScore?: number | null;
+  status: MobileAssignmentStatus;
+  version: number;
+  mySubmissionId?: string | null;
+  mySubmissionStatus?: MobileSubmissionStatus | null;
+}
+
+export interface MobileLearningSubmission {
+  id: string;
+  assignmentId: string;
+  status: MobileSubmissionStatus;
+  currentRevisionId?: string | null;
+  submittedAt?: string | null;
+  returnedAt?: string | null;
+  reviewedAt?: string | null;
+  version: number;
+}
+
+export interface MobileLearningRevision {
+  id: string;
+  revisionNo: number;
+  fileName?: string | null;
+  textBody?: string | null;
+  submittedAt: string;
+}
+
+export interface MobileLearningFeedback {
+  id: string;
+  comment?: string | null;
+  score?: number | null;
+  createdAt: string;
+}
+
 export interface LecturerScheduleEntry {
   sectionId: string;
   sectionNumber?: string;
@@ -767,6 +839,50 @@ export const campusApi = {
       `/events/registrations/${encodeURIComponent(registrationId)}/cancel`,
       {},
       { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  // Learning (D5): student read-through + draft/submit/resubmit lifecycle.
+  // Text answers only on native — the file-picking matrix is P13 scope; the
+  // server still enforces deadline/immutability/authority server-side.
+  learningSections: () =>
+    apiClient.get<MobileLearningSection[]>('/learning/sections'),
+  learningMaterials: (sectionId: string) =>
+    apiClient.get<MobileLearningMaterial[]>(
+      `/learning/sections/${encodeURIComponent(sectionId)}/materials`,
+    ),
+  learningAssignments: (sectionId: string) =>
+    apiClient.get<MobileLearningAssignment[]>(
+      `/learning/sections/${encodeURIComponent(sectionId)}/assignments`,
+    ),
+  learningOpenDraft: (assignmentId: string) =>
+    apiClient.post<MobileLearningSubmission>(
+      `/learning/assignments/${encodeURIComponent(assignmentId)}/draft`,
+      {},
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  learningSaveDraft: (submissionId: string, textBody: string) =>
+    apiClient.put<MobileLearningSubmission>(
+      `/learning/submissions/${encodeURIComponent(submissionId)}/draft`,
+      { textBody },
+    ),
+  learningSubmit: (assignmentId: string) =>
+    apiClient.post<MobileLearningSubmission>(
+      `/learning/assignments/${encodeURIComponent(assignmentId)}/submit`,
+      {},
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  learningResubmit: (assignmentId: string, textBody: string) =>
+    apiClient.post<MobileLearningSubmission>(
+      `/learning/assignments/${encodeURIComponent(assignmentId)}/resubmit`,
+      { textBody },
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  learningRevisions: (submissionId: string) =>
+    apiClient.get<MobileLearningRevision[]>(
+      `/learning/submissions/${encodeURIComponent(submissionId)}/revisions`,
+    ),
+  learningFeedback: (submissionId: string) =>
+    apiClient.get<MobileLearningFeedback[]>(
+      `/learning/submissions/${encodeURIComponent(submissionId)}/feedback`,
     ),
   createThesisGroup: (roundId: string) =>
     apiClient.post<MobileThesisGroup>(apiRoutes.thesis.groups, { roundId }),
