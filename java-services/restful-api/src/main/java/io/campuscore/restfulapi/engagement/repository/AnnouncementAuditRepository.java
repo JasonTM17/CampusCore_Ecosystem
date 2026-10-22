@@ -65,7 +65,7 @@ public class AnnouncementAuditRepository {
                 "SELECT \"id\", \"announcementId\", \"action\", \"actorId\", \"actorLabel\", \"reason\", "
                         + "\"version\", \"beforeState\", \"afterState\", \"createdAt\" FROM " + TABLE
                         + " WHERE \"announcementId\" = :announcementId"
-                        + " ORDER BY \"createdAt\" DESC, \"id\" DESC"
+                        + " ORDER BY \"createdAt\" DESC, \"version\" DESC, \"id\" DESC"
                         + " LIMIT :limit OFFSET :offset",
                 new MapSqlParameterSource()
                         .addValue("announcementId", announcementId)
