@@ -86,23 +86,28 @@ async function ok(token: string, method: string, path: string, data?: unknown, h
 }
 
 test.beforeAll(async () => {
+  // The roster leg waits for the event start (~45s) before marking attendance.
+  test.setTimeout(120000);
   const admin = await login(ADMIN.email, ADMIN.password);
   const student = await login(STUDENT.email, STUDENT.password);
   const student2 = await login(STUDENT2.email, STUDENT2.password);
 
-  // Capacity-1 event whose start time is already past — after registration
-  // closes the roster leg can mark attendance (EVT-T06).
+  // Capacity-1 event that starts shortly after the registration steps: the
+  // server refuses signup and cancellation once an event has started, and
+  // refuses attendance before it starts, so the roster leg waits for the
+  // start time (EVT-T06).
   const now = Date.now();
+  const startsAtMs = now + 45 * 1000;
   const created = await ok(admin, 'POST', '/api/v1/events/staff', {
     title: `E2E Union Fair ${SUFFIX}`,
     description: 'e2e fixture',
     location: 'Hall A',
     organizer: 'Đoàn Thanh niên',
     capacity: 1,
-    startsAt: new Date(now - 60 * 60 * 1000).toISOString(),
+    startsAt: new Date(startsAtMs).toISOString(),
     endsAt: new Date(now + 2 * 60 * 60 * 1000).toISOString(),
     registrationOpensAt: new Date(now - 2 * 60 * 60 * 1000).toISOString(),
-    registrationClosesAt: new Date(now + 30 * 60 * 1000).toISOString(),
+    registrationClosesAt: new Date(startsAtMs - 5 * 1000).toISOString(),
   });
   expect(created.status).toBe('DRAFT');
   await ok(admin, 'POST', `/api/v1/events/staff/${created.id}/publish`);
@@ -133,6 +138,10 @@ test.beforeAll(async () => {
   });
 
   await ok(admin, 'POST', `/api/v1/events/staff/${created.id}/close-registration`);
+  const untilStart = startsAtMs + 1000 - Date.now();
+  if (untilStart > 0) {
+    await new Promise((resolve) => setTimeout(resolve, untilStart));
+  }
   const roster = await ok(admin, 'POST', `/api/v1/events/staff/${created.id}/attendance`, {
     marks: [{ registrationId: second.id, status: 'ATTENDED' }],
   });
