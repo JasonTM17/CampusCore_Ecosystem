@@ -436,6 +436,25 @@ class EcosystemBffContractTest {
                 SESSION_COOKIE.length() + 1, sessionSetCookie.indexOf(';'));
         assertThat(opaque).isNotEqualTo(txCookie.substring(txCookie.indexOf('=') + 1));
 
+        // §2 cc_csrf hint: readable (the SPA bootstrap + X-CSRF-Token echo
+        // depend on document.cookie), host-only, Lax, and carrying the same
+        // csrfToken /session/state reports for this session.
+        String csrfSetCookie = cb.headers().allValues("Set-Cookie").stream()
+                .filter(h -> h.startsWith("cc_csrf="))
+                .findFirst().orElseThrow();
+        assertThat(csrfSetCookie).contains("Path=/;")
+                .contains("SameSite=Strict")
+                .doesNotContain("Domain=")
+                .doesNotContain("HttpOnly");
+        String csrfHint = csrfSetCookie.substring(
+                "cc_csrf=".length(), csrfSetCookie.indexOf(';'));
+        Map<String, String> stateHeaders = edgePortal();
+        stateHeaders.put("Cookie", SESSION_COOKIE + "=" + opaque);
+        HttpResponse<String> state = get(BASE + "/session/state", stateHeaders);
+        assertThat(state.statusCode()).as("state: %s", state.body()).isEqualTo(200);
+        assertThat(mapper.readTree(state.body()).get("csrfToken").asText())
+                .isEqualTo(csrfHint);
+
         // §3 schema: only sha256(opaque) is stored — a database dump can
         // never be replayed as a session cookie.
         String storedId = jdbc.queryForObject(
@@ -508,6 +527,11 @@ class EcosystemBffContractTest {
                 .anyMatch(h -> h.startsWith(SESSION_COOKIE + "=")
                         && h.contains("Max-Age=0"));
         assertThat(cleared).isTrue();
+        // The csrf hint dies with it — a stale hint would make the SPA
+        // bootstrap a session that no longer exists.
+        boolean csrfCleared = logout.headers().allValues("Set-Cookie").stream()
+                .anyMatch(h -> h.startsWith("cc_csrf=") && h.contains("Max-Age=0"));
+        assertThat(csrfCleared).isTrue();
 
         // §6: the logged-out landing endpoint is reachable on the surface.
         HttpResponse<String> loggedOut = get(BASE + "/session/logged-out",
