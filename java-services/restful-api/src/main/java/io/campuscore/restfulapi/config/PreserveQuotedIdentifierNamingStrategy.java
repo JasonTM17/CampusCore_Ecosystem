@@ -1,6 +1,6 @@
 package io.campuscore.restfulapi.config;
 
-import org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy;
+import org.hibernate.boot.model.naming.PhysicalNamingStrategySnakeCaseImpl;
 import org.hibernate.boot.model.naming.Identifier;
 import org.hibernate.engine.jdbc.env.spi.JdbcEnvironment;
 
@@ -11,7 +11,7 @@ import org.hibernate.engine.jdbc.env.spi.JdbcEnvironment;
  * schemas use snake_case tables ({@code thesis.thesis_topic}), while the enterprise
  * announcement and article tables were migrated as quoted camelCase objects
  * ({@code engagement."ArticleCategory"} with columns like {@code "nameVi"}). Hibernate's
- * default {@link CamelCaseToUnderscoresNamingStrategy} rewrites <em>every</em> identifier,
+ * default snake-case physical naming strategy rewrites <em>every</em> identifier,
  * quoted or not, so an entity that declares {@code @Table(name = "\"ArticleCategory\"")}
  * still produced {@code engagement."article_category"} and every read of the mapped article
  * routes failed with "table not found" (HTTP 500).
@@ -20,7 +20,7 @@ import org.hibernate.engine.jdbc.env.spi.JdbcEnvironment;
  * unchanged, and every unquoted identifier keeps going through the default camel-case to
  * underscore conversion, so all snake_case mappings resolve exactly as before.
  */
-public class PreserveQuotedIdentifierNamingStrategy extends CamelCaseToUnderscoresNamingStrategy {
+public class PreserveQuotedIdentifierNamingStrategy extends PhysicalNamingStrategySnakeCaseImpl {
 
     @Override
     public Identifier toPhysicalCatalogName(Identifier name, JdbcEnvironment jdbcEnvironment) {
