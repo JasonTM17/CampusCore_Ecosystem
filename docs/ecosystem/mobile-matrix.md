@@ -1,4 +1,4 @@
-# Mobile matrix — CampusUTE native app (P07)
+# Mobile matrix — CampusUTE native app (P07; events row landed P08)
 
 Lane coverage theo `mobile-policy.md` §4. Mỗi surface ghi
 `native | web-only | planned`; platform evidence ghi rõ
@@ -14,7 +14,7 @@ Lane coverage theo `mobile-policy.md` §4. Mỗi surface ghi
 | `ADMIN` + `LECTURER` | lecturer | Admin role không mở lecturer.* — `lecturerRoles` đã gỡ `admin` (KM-8). |
 | no mapped role | signed-out | "account không có native surface" → blocked UX + portal. |
 
-## 2. Route matrix (21 screens → expo-router tree)
+## 2. Route matrix (22 screens → expo-router tree)
 
 | ScreenName | Path | Role | Lane | API source |
 | --- | --- | --- | --- | --- |
@@ -27,6 +27,7 @@ Lane coverage theo `mobile-policy.md` §4. Mỗi surface ghi
 | `attendance` | `/attendance` | student | native | `attendance/my/summary` |
 | `registration` | `/registration` | student | native | `registration/rounds`, `me/registration/sections`, `me/enrollments` |
 | `notifications` | `/notifications` | all | native | `notifications/my` |
+| `events` | `/events` | student | native | `events`, `events/my/registrations`, register/cancel (Idempotency-Key) |
 | `profile` | `/profile` | all | native | `auth/me`, `auth/profile`, `auth/change-password` |
 | `thesis.topics` | `/thesis` | student | native | `thesis/rounds`, `thesis/topics`, `thesis/groups` |
 | `thesis.detail` | `/thesis/[topicId]` | student | native | idem — dynamic segment, id trên path (KM-5) |
