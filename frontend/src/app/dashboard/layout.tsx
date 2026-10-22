@@ -85,6 +85,7 @@ type DashboardMenuLabelKey =
   | 'teachingSchedule'
   | 'gradeManagement'
   | 'mailCompose'
+  | 'events'
   | 'deanOverview';
 
 type DashboardMenuSectionKey = 'overview' | 'academic' | 'teaching' | 'campus';
@@ -125,6 +126,7 @@ const studentMenuSections: readonly DashboardMenuSectionConfig[] = [
     items: [
       { href: '/dashboard/thesis', icon: ScrollText, labelKey: 'thesis' },
       { href: '/dashboard/certificates', icon: ClipboardCheck, labelKey: 'certificates' },
+      { href: '/dashboard/events', icon: Users, labelKey: 'events' },
       { href: '/dashboard/announcements', icon: Megaphone, labelKey: 'announcements' },
       { href: '/dashboard/notifications', icon: Bell, labelKey: 'notifications' },
     ],
@@ -151,6 +153,7 @@ const lecturerMenuSections: readonly DashboardMenuSectionConfig[] = [
     sectionKey: 'campus',
     items: [
       { href: '/dashboard/thesis', icon: ScrollText, labelKey: 'thesis' },
+      { href: '/dashboard/events', icon: Users, labelKey: 'events' },
       { href: '/dashboard/lecturer/announcements', icon: Megaphone, labelKey: 'announcements' },
       { href: '/dashboard/notifications', icon: Bell, labelKey: 'notifications' },
     ],
