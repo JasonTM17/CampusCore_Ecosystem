@@ -44,6 +44,7 @@ scripts/*
 !scripts/
 !scripts/*.sh
 !scripts/*.mjs
+!scripts/verify-ecosystem.gates.json
 
 # Test
 coverage/
@@ -81,6 +82,9 @@ src/designs/
 
 # Local agent harness
 .omp/
+
+# Contract generator staging dirs (cleaned on success; crash-safe leftovers)
+/.contract-check-*/
 
 # Local-only planning and Grok workflow artifacts
 /plans/260901-1809-campuscore-production-readiness-and-professional-ux/
