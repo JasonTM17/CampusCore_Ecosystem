@@ -57,6 +57,7 @@ Callback exact per client: `{base}/session/callback`; post-logout:
 | Cookie | Host | Attrs | Mục đích |
 | --- | --- | --- | --- |
 | `__Host-cu_session` | mỗi BFF surface host | Secure, HttpOnly, Path=/, **không Domain**, SameSite=Strict nếu redirect spec pass (Lax chỉ khi có lý do ghi lại) | opaque BFF session id |
+| `cc_csrf` | mỗi BFF surface host | Secure, **không HttpOnly** (SPA đọc), Path=/, không Domain, **SameSite=Strict** (callback là cross-site response — Lax ở đây bị Chrome store dạng lax-allowing, chỉ đi top-level nav, không đi same-site fetch), maxAge = session TTL | session-hint + double-submit: SPA bootstrap đọc sự hiện hữu session, axios echo thành `X-CSRF-Token` — đúng csrfToken của `/session/state`, mint ở callback, expire cùng logout |
 | `cu_bff_tx_<txId>` | surface host | Secure, HttpOnly, Path=/session/callback, không Domain, SameSite=Lax, maxAge≤300s | transaction marker per-login — tên cookie mang txId để **nhiều tab login đồng thời không đè nhau** (KM-M6) |
 | `cc_*` legacy | `id` + business surfaces | như hiện hữu | central session (id) + legacy lane trong transition window |
 | dev tương đương | `*.localhost` HTTP | tên **không prefix** `__Host-`, Secure off — chỉ khi `identity.bff.dev-http=true` (local/test profile only) | dev không TLS |

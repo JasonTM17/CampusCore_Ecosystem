@@ -37,6 +37,14 @@ public class BffSessionController {
 
     static final String SESSION_COOKIE = "__Host-cu_session";
     static final String SESSION_COOKIE_DEV = "cu_session_dev";
+    /**
+     * Session-hint + double-submit cookie the SPA already owns on the
+     * direct lane (AuthContext bootstrap + X-CSRF-Token echo). On BFF
+     * surfaces the callback mints it with the session's csrfToken so the
+     * same frontend machinery works unchanged — it is the `cc_*` legacy
+     * row the cookie matrix reserves for business surfaces.
+     */
+    static final String CSRF_COOKIE = "cc_csrf";
     static final String TX_COOKIE_PREFIX = "cu_bff_tx_";
     static final String TX_COOKIE_PREFIX_DEV = "cu_bff_tx_dev_";
 
@@ -96,6 +104,17 @@ public class BffSessionController {
         response.addHeader(HttpHeaders.SET_COOKIE, cookie(
                 sessionCookieName(), result.cookieValue(), "/", "Strict",
                 properties.getBff().getSessionTtl().toSeconds(), true));
+        // Readable hint carrying the session csrfToken: AuthContext treats
+        // its presence as "session exists" and the axios layer echoes it as
+        // X-CSRF-Token — which is exactly what csrfGuard verifies.
+        // SameSite=Strict mirrors the session cookie: the callback response
+        // is cross-site (the browser just came back from the id host), and a
+        // Lax cookie set there is stored "lax-allowing" — eligible only on
+        // top-level navigations, never on same-site fetches or
+        // document.cookie. Strict rides every same-site request once landed.
+        response.addHeader(HttpHeaders.SET_COOKIE, readableCookie(
+                CSRF_COOKIE, result.csrfToken(), "/", "Strict",
+                properties.getBff().getSessionTtl().toSeconds()));
         return ResponseEntity.status(HttpStatus.FOUND)
                 .header(HttpHeaders.LOCATION, base + result.redirectTo())
                 .build();
@@ -179,6 +198,8 @@ public class BffSessionController {
         LogoutResult result = sessions.logout(surface, base, opaque);
         response.addHeader(HttpHeaders.SET_COOKIE, cookie(
                 sessionCookieName(), "", "/", "Strict", 0, true));
+        response.addHeader(HttpHeaders.SET_COOKIE, readableCookie(
+                CSRF_COOKIE, "", "/", "Strict", 0));
         return ResponseEntity.ok(Map.of("logoutUrl", result.logoutUrl()));
     }
 
@@ -283,6 +304,18 @@ public class BffSessionController {
                 .maxAge(maxAgeSeconds);
         // No Domain ever: host-only is the cookie-tossing defense.
         return builder.build().toString();
+    }
+
+    /** Non-HttpOnly twin of {@link #cookie} — only the csrf hint uses it. */
+    private String readableCookie(String name, String value, String path,
+            String sameSite, long maxAgeSeconds) {
+        return ResponseCookie.from(name, value)
+                .httpOnly(false)
+                .secure(!properties.getBff().isDevHttp())
+                .path(path)
+                .sameSite(sameSite)
+                .maxAge(maxAgeSeconds)
+                .build().toString();
     }
 
     private static void noStore(HttpServletResponse response) {
