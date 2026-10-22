@@ -58,7 +58,7 @@ public class SecurityConfig {
      * {@code isAuthenticated()}. The {@code roles} claim is likewise required:
      * every access token this service mints carries it.
      */
-    static Jwt requireAccessTokenShape(Jwt jwt) {
+    public static Jwt requireAccessTokenShape(Jwt jwt) {
         if (!"access".equals(jwt.getClaimAsString("tokenType"))) {
             throw new BadCredentialsException("Invalid access token");
         }
@@ -144,7 +144,10 @@ public class SecurityConfig {
             io.campuscore.restfulapi.security.ratelimit.RateLimitFilter rateLimitFilter,
             AccountStateFilter accountStateFilter,
             ApiErrorWriter errorWriter,
-            CorsConfigurationSource corsConfigurationSource) throws Exception {
+            CorsConfigurationSource corsConfigurationSource,
+            @org.springframework.beans.factory.annotation.Qualifier("jwtDecoder") JwtDecoder jwtDecoder,
+            @org.springframework.beans.factory.annotation.Qualifier("identityJwtDecoder")
+                    org.springframework.beans.factory.ObjectProvider<JwtDecoder> identityDecoder) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
@@ -180,6 +183,18 @@ public class SecurityConfig {
                                 // the template previews require any login.
                                 "/error",
                                 "/actuator/health/**",
+                                // BFF browser lane (P05): these endpoints do
+                                // their own opaque-session authentication —
+                                // the resource chain must not demand a bearer
+                                // token the browser never holds. When
+                                // identity.bff.enabled=false the controllers
+                                // are absent, so the pattern inertly matches
+                                // nothing.
+                                "/bff/**",
+                                "/session/**",
+                                // SAS login page (the authorize chain's
+                                // unauthenticated entrypoint target).
+                                "/login",
                                 "/api/docs/**",
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
@@ -214,7 +229,12 @@ public class SecurityConfig {
                 .oauth2ResourceServer(oauth -> oauth
                         .bearerTokenResolver(tokenResolver)
                         .authenticationEntryPoint(authenticationEntryPoint(errorWriter))
-                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))
+                        // Explicit decoder: when the OIDC lane is enabled the
+                        // dual-lane dispatcher owns bearer validation; when it
+                        // is absent the legacy HS256 bean answers as before.
+                        .jwt(jwt -> jwt
+                                .decoder(identityDecoder.getIfAvailable(() -> jwtDecoder))
+                                .jwtAuthenticationConverter(jwtAuthenticationConverter())))
                 .addFilterAfter(csrfCookieFilter, BearerTokenAuthenticationFilter.class)
                 .addFilterAfter(accountStateFilter, BearerTokenAuthenticationFilter.class)
                 .addFilterAfter(rateLimitFilter, CsrfCookieFilter.class);
