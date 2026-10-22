@@ -236,12 +236,28 @@ public class TwoFactorService {
      */
     private void revokeOtherRefreshSessions(String userId, String keepSessionId) {
         if (keepSessionId == null) {
-            users.deleteAllRefreshSessions(userId);
+            if (unifiedSessions != null) {
+                unifiedSessions.revokeGrants(userId, "LEGACY", "TWO_FACTOR_CHANGED", null);
+            } else {
+                users.deleteAllRefreshSessions(userId);
+            }
             users.clearUserRefreshToken(userId);
             return;
         }
-        users.deleteOtherRefreshSessions(userId, keepSessionId);
+        if (unifiedSessions != null) {
+            unifiedSessions.revokeOtherGrants(userId, keepSessionId, "LEGACY",
+                    "TWO_FACTOR_CHANGED", null);
+        } else {
+            users.deleteOtherRefreshSessions(userId, keepSessionId);
+        }
     }
+
+    /**
+     * Unified revocation bridge — optional so hand-built test contexts keep
+     * the legacy session-only path.
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private io.campuscore.restfulapi.identity.UnifiedSessionAuthority unifiedSessions;
 
     /**
      * Resolves the refresh token of the request being served, if any. Returns
