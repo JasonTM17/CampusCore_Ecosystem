@@ -79,7 +79,7 @@ export default function HubPage() {
     return (
       <article
         key={entry.key}
-        aria-disabled={planned || undefined}
+        data-availability={entry.availability}
         className={cn(
           'flex min-w-0 flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-xs transition',
           planned ? 'opacity-70' : 'hover:border-primary/40 hover:shadow-md',

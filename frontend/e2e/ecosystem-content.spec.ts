@@ -250,7 +250,7 @@ test.describe('hub + locale', () => {
     await page.goto(`${PORTAL}/hub`);
     await expect(page.getByRole('heading', { name: /campus hub|trung tâm trường/i }))
       .toBeVisible({ timeout: 30000 });
-    const events = page.locator('article[aria-disabled="true"]', {
+    const events = page.locator('article[data-availability="planned"]', {
       hasText: /campus events|sự kiện trường/i,
     });
     await expect(events).toBeVisible();

@@ -968,6 +968,7 @@ function loadApiModule() {
     '@/lib/session-sync': {
       publishSessionChange: (kind) => sessionSyncPublished.push(kind),
     },
+    '@/lib/surfaces': { surfaceFromHost: () => null },
     '@/lib/observability': {
       REQUEST_ID_HEADER: 'X-Request-Id',
       newRequestId: () => 'test-request-id',
@@ -3210,6 +3211,9 @@ function loadMobileClientModule() {
     if (spec === './observability') {
       return { recordApiMetric: () => {}, pathTemplate: (p) => p };
     }
+    if (spec === '../auth/mobile-session-store') {
+      return { sessionStore: {} };
+    }
     throw new Error(`unexpected import in mobile client.ts: ${spec}`);
   };
   const mod = { exports: {} };
@@ -3217,45 +3221,45 @@ function loadMobileClientModule() {
   return { exports: mod.exports };
 }
 
-test('mobile sessionEpoch discards a stale refresh after a newer sign-in', async () => {
+test('mobile sessionEpoch keeps a stale lane from evicting the newer session', async () => {
   const { exports: mobileApi } = loadMobileClientModule();
-  const client = mobileApi.createApiClient({ baseUrl: 'http://example.test', mode: 'live' });
-  client.setSessionTokens('access-a', 'refresh-a');
-
-  const calls = [];
-  let releaseRefresh;
+  const unauthorized = () => Promise.resolve(new Response(JSON.stringify({ message: 'unauthorized' }), {
+    status: 401,
+    headers: { 'Content-Type': 'application/json' },
+  }));
   const originalFetch = global.fetch;
-  global.fetch = (url) => {
-    calls.push(String(url));
-    if (String(url).endsWith('/auth/refresh')) {
-      return new Promise((resolve) => { releaseRefresh = resolve; });
-    }
-    return Promise.resolve(new Response(JSON.stringify({ message: 'unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    }));
-  };
+  global.fetch = unauthorized;
   try {
-    const pending = client.requestWithMeta('/me').then(
-      () => ({ ok: true }),
-      (err) => ({ ok: false, err }),
-    );
-    await new Promise((resolve) => setImmediate(resolve));
-    await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(calls.length, 2, 'the 401 must trigger exactly one refresh call');
-
-    client.setSessionTokens('access-b', 'refresh-b'); // newer sign-in bumps the epoch
-    releaseRefresh(new Response(
-      JSON.stringify({ accessToken: 'stale-a2', refreshToken: 'stale-ra2' }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    ));
-    const outcome = await pending;
-    assert.equal(outcome.ok, false, 'request surfaces the original 401 once refresh is discarded');
-    assert.equal(
-      client.getRefreshToken(),
-      'refresh-b',
-      'stale refresh rotation must never overwrite the newer session',
-    );
+    for (const [bumpEpoch, expectedExpired] of [[true, 0], [false, 1]]) {
+      let epoch = 1;
+      let expired = 0;
+      let releaseRefresh;
+      const client = mobileApi.createApiClient({
+        baseUrl: 'http://example.test',
+        mode: 'live',
+        getAccessToken: () => 'access-a',
+        setAccessToken: () => {},
+        refreshSession: () => new Promise((resolve) => { releaseRefresh = resolve; }),
+        sessionEpoch: () => epoch,
+        onSessionExpired: () => { expired += 1; },
+      });
+      const pending = client.requestWithMeta('/me').then(
+        () => ({ ok: true }),
+        (err) => ({ ok: false, err }),
+      );
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+      if (bumpEpoch) epoch += 1; // a newer sign-in replaced the lane
+      releaseRefresh(false);
+      await pending;
+      assert.equal(
+        expired,
+        expectedExpired,
+        bumpEpoch
+          ? 'a request from a superseded epoch must never sign the new session out'
+          : 'a dead refresh in the current epoch must bridge back to sign-in',
+      );
+    }
   } finally {
     global.fetch = originalFetch;
   }
