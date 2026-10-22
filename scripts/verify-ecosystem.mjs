@@ -20,6 +20,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { captureSourceIdentity } from './ecosystem-source-identity.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REGISTRY_PATH = path.join(REPO, 'scripts', 'verify-ecosystem.gates.json');
@@ -164,6 +165,8 @@ function main() {
     console.error(`NOT_RUN --only matched no cases in gate '${args.gate}'`);
     process.exit(EXIT.NOT_RUN);
   }
+  const sourceBefore = captureSourceIdentity(REPO);
+  fs.writeFileSync(path.join(evidenceDir, 'source-before.json'), JSON.stringify(sourceBefore, null, 2) + '\n');
   const results = [];
   const runLogLines = [];
   for (const kase of selected) {
@@ -176,6 +179,9 @@ function main() {
     fs.writeFileSync(logPath, res.log || res.reason || '', 'utf8');
   }
 
+  const sourceAfter = captureSourceIdentity(REPO);
+  fs.writeFileSync(path.join(evidenceDir, 'source-after.json'), JSON.stringify(sourceAfter, null, 2) + '\n');
+  const sourceStable = sourceBefore.sha256 === sourceAfter.sha256;
   const executed = results.filter((r) => r.status === 'PASS' || r.status === 'FAIL');
   const failed = results.filter((r) => r.status === 'FAIL');
   const blocked = results.filter((r) => r.status === 'BLOCKED_CAPABILITY');
@@ -192,6 +198,7 @@ function main() {
   else if (requiredNotRun.length) { verdict = 'NOT_RUN'; code = EXIT.NOT_RUN; }
   // A --only subset that passes must never read as a full-gate PASS (tester F8).
   else if (selected.length < gate.cases.length) { verdict = 'PASS_PARTIAL'; code = EXIT.PASS; }
+  if (!sourceStable) { verdict = 'FAIL'; code = EXIT.FAIL; console.error('SOURCE_DRIFT: inputs changed during gate'); }
 
   const report = {
     gate: args.gate,
@@ -203,6 +210,10 @@ function main() {
       gitSha: gitSha(), checkedAt: new Date().toISOString(),
       evidenceDir: path.relative(REPO, evidenceDir),
       runId: crypto.randomUUID(),
+      sourceBeforeSha256: sourceBefore.sha256,
+      sourceAfterSha256: sourceAfter.sha256,
+      sourceFileCount: sourceBefore.fileCount,
+      sourceStable,
     },
     counts: {
       total: results.length, selected: selected.length, executed: executed.length,

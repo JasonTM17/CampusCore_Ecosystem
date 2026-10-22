@@ -2,6 +2,7 @@ package io.campuscore.restfulapi.events.web;
 
 import java.time.Instant;
 import java.util.List;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /** Request/response records for the events domain (contract D4, phase-08). */
 public final class EventDtos {
@@ -30,7 +31,9 @@ public final class EventDtos {
             Instant startsAt,
             Instant endsAt,
             Instant registrationOpensAt,
-            Instant registrationClosesAt) {
+            Instant registrationClosesAt,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Version returned by the latest draft read")
+            Integer version) {
     }
 
     /** Optional window override; omitted fields keep the stored window. */
@@ -43,7 +46,8 @@ public final class EventDtos {
     }
 
     /** One roster mark; status is ATTENDED or ABSENT (manual marking only). */
-    public record AttendanceMarkRequest(String registrationId, String status) {
+    public record AttendanceMarkRequest(String registrationId, String status,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Integer version) {
     }
 
     public record AttendanceBatchRequest(List<AttendanceMarkRequest> marks) {
@@ -95,6 +99,7 @@ public final class EventDtos {
 
     public record RosterEntry(
             String registrationId,
+            int version,
             String studentId,
             String studentName,
             String email,

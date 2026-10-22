@@ -719,8 +719,15 @@
           },
           "status": {
             "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
           }
         },
+        "required": [
+          "version"
+        ],
         "type": "object"
       },
       "AttendanceMutationResponse": {
@@ -4819,6 +4826,10 @@
           },
           "studentName": {
             "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -6283,8 +6294,16 @@
           },
           "title": {
             "type": "string"
+          },
+          "version": {
+            "description": "Version returned by the latest draft read",
+            "format": "int32",
+            "type": "integer"
           }
         },
+        "required": [
+          "version"
+        ],
         "type": "object"
       },
       "UpdateProfileRequest": {

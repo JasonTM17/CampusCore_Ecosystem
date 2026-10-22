@@ -142,33 +142,13 @@ function generateCerts(dir) {
 function stopChildren() {
   for (const child of children) {
     if (child.exitCode !== null || child.signalCode !== null) continue;
-    try { child.kill('SIGTERM'); } catch { /* best effort */ }
     if (process.platform === 'win32' && child.pid) {
       try {
         execFileSync('taskkill', ['/pid', String(child.pid), '/t', '/f'],
           { stdio: 'ignore' });
       } catch { /* best effort */ }
-    }
-  }
-}
-
-function killPortListeners(ports) {
-  if (process.platform !== 'win32') return;
-  let table = '';
-  try {
-    table = execFileSync('netstat', ['-ano'], { encoding: 'utf8' });
-  } catch {
-    return;
-  }
-  const killed = new Set();
-  for (const line of table.split('\n')) {
-    const match = line.match(/TCP\s+\S+:(\d+)\s+\S+\s+LISTENING\s+(\d+)/);
-    if (match && ports.includes(Number(match[1])) && !killed.has(match[2])) {
-      killed.add(match[2]);
-      try {
-        execFileSync('taskkill', ['/pid', match[2], '/t', '/f'],
-          { stdio: 'ignore' });
-      } catch { /* best effort */ }
+    } else {
+      try { child.kill('SIGTERM'); } catch { /* best effort */ }
     }
   }
 }
@@ -202,6 +182,7 @@ async function casePreview(args) {
   const dir = path.resolve(REPO, args.evidence);
   fs.mkdirSync(dir, { recursive: true });
   const result = { case: 'events-e2e-preview', project: args.project };
+  let ownsStack = false;
   try {
     const which = tryRun('openssl', ['version']);
     if (!which.ok) throw new Error('openssl unavailable — HTTPS preview cannot build certs (BLOCKED_CAPABILITY)');
@@ -213,6 +194,7 @@ async function casePreview(args) {
       throw new Error(`compose project ${args.project} already exists — refusing collision`);
     }
 
+    ownsStack = true;
     const up = tryRun('docker', composeArgs(args,
       ['up', '-d', '--build', 'postgres', 'assistant-db-provisioner', 'restful-api']),
       { timeoutMs: 600000 });
@@ -220,6 +202,9 @@ async function casePreview(args) {
     await waitFor(`http://127.0.0.1:${API_PORT}/api/v1/health/liveness`,
       { timeoutMs: BOOT_TIMEOUT_MS });
     result.apiHealthy = true;
+    const spec = await fetch(`http://127.0.0.1:${API_PORT}/v3/api-docs`);
+    if (!spec.ok) throw new Error(`OpenAPI capture failed: ${spec.status}`);
+    fs.writeFileSync(path.join(dir, 'runtime-openapi.json'), JSON.stringify(await spec.json(), null, 2) + '\n');
     result.adminGrant = await grantE2eAdminEvents();
 
     const { key, cert } = generateCerts(dir);
@@ -281,10 +266,13 @@ async function casePreview(args) {
     result.error = String(error.message || error).slice(-3000);
   } finally {
     stopChildren();
-    killPortListeners([WEB_PORT, ID_TLS_PORT]);
-    const down = tryRun('docker', composeArgs(args,
-      ['down', '-v', '--remove-orphans']), { timeoutMs: 120000 });
-    result.teardown = down.ok ? 'clean' : `degraded: ${down.out.slice(-300)}`;
+    if (ownsStack) {
+      const down = tryRun('docker', composeArgs(args,
+        ['down', '-v', '--remove-orphans']), { timeoutMs: 120000 });
+      result.teardown = down.ok ? 'clean' : `degraded: ${down.out.slice(-300)}`;
+    } else {
+      result.teardown = 'not-created';
+    }
   }
   fs.writeFileSync(path.join(dir, 'preview.json'),
     `${JSON.stringify(result, null, 2)}\n`, 'utf8');

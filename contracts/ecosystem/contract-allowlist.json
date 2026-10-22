@@ -1,5 +1,16 @@
 {
   "$schema": "campusute/contract-allowlist@1",
   "purpose": "Audited exceptions for generate-api-contract invariants. Every entry needs a reason and the phase that sanctioned it; an entry suppresses exactly one flagged item.",
-  "entries": []
+  "entries": [
+    {
+      "label": "schema:AttendanceMarkRequest.version newly-required",
+      "phase": "P08",
+      "reason": "Enforce the existing stale-write contract for manual attendance: include the roster registration version; stale batches return 409 and roll back all marks/audits. Web and E2E callers migrate together. Missing version returns 400. Kongming identified and recommended this bounded repair on 2026-10-22."
+    },
+    {
+      "label": "schema:UpdateEventRequest.version newly-required",
+      "phase": "P08",
+      "reason": "Restore the agreed optimistic-concurrency contract: draft edits must include the last-read version and stale edits return 409. No existing web/mobile draft-update caller exists; missing-version requests now return 400. User-authorized defect repair after independent review, 2026-10-22. No other compatibility exception is granted."
+    }
+  ]
 }

@@ -23,6 +23,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Student-facing event registration (contract D4 / EVT-T03, EVT-T04, EVT-X01,
@@ -49,15 +50,18 @@ public class EventStudentService {
     private final NamedParameterJdbcTemplate jdbc;
     private final NotificationWriteRepository notifications;
     private final EventService events;
+    private final ObjectMapper objectMapper;
     private final boolean postgres;
 
     public EventStudentService(
             NamedParameterJdbcTemplate jdbc,
             NotificationWriteRepository notifications,
-            EventService events) {
+            EventService events,
+            ObjectMapper objectMapper) {
         this.jdbc = jdbc;
         this.notifications = notifications;
         this.events = events;
+        this.objectMapper = objectMapper;
         this.postgres = jdbc.getJdbcOperations().execute((ConnectionCallback<Boolean>) connection ->
                 "PostgreSQL".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName()));
     }
@@ -146,7 +150,7 @@ public class EventStudentService {
         String hash = sha256("register:" + eventId);
         Map<String, Object> replay = claimIdempotency(studentId, idempotencyKey, hash);
         if (replay != null) {
-            return findRegistration(String.valueOf(replay.get("registration_id")));
+            return replayResponse(replay);
         }
         Map<String, Object> event = events.lockEvent(eventId);
         if ("DRAFT".equals(String.valueOf(event.get("status")))) {
@@ -210,8 +214,7 @@ public class EventStudentService {
                 "Đăng ký sự kiện thành công",
                 "Bạn đã đăng ký tham gia: " + event.get("title"),
                 "SUCCESS", "/dashboard/events?event=" + eventId, Instant.now())));
-        completeIdempotency(studentId, idempotencyKey, registrationId, hash);
-        return findRegistration(registrationId);
+        return completeIdempotency(studentId, idempotencyKey, registrationId, hash);
     }
 
     // ------------------------------------------------------------------
@@ -224,7 +227,7 @@ public class EventStudentService {
         String hash = sha256("cancel:" + registrationId);
         Map<String, Object> replay = claimIdempotency(studentId, idempotencyKey, hash);
         if (replay != null) {
-            return findRegistration(String.valueOf(replay.get("registration_id")));
+            return replayResponse(replay);
         }
         String eventId;
         try {
@@ -290,8 +293,7 @@ public class EventStudentService {
                 "Đã hủy đăng ký sự kiện",
                 "Bạn đã hủy đăng ký tham gia: " + event.get("title"),
                 "INFO", "/dashboard/events?event=" + eventId, Instant.now())));
-        completeIdempotency(studentId, idempotencyKey, registrationId, hash);
-        return findRegistration(registrationId);
+        return completeIdempotency(studentId, idempotencyKey, registrationId, hash);
     }
 
     // ------------------------------------------------------------------
@@ -327,7 +329,8 @@ public class EventStudentService {
             }
         }
         Map<String, Object> existing = jdbc.queryForMap(
-                "SELECT \"requestHash\" AS request_hash, \"state\", \"registrationId\" AS registration_id"
+                "SELECT \"requestHash\" AS request_hash, \"state\", \"registrationId\" AS registration_id,"
+                        + " CAST(\"responseBody\" AS VARCHAR) AS response_body"
                         + " FROM " + IDEMPOTENCY
                         + " WHERE \"ownerId\" = :ownerId AND \"idempotencyKey\" = :key",
                 new MapSqlParameterSource().addValue("ownerId", ownerId).addValue("key", key));
@@ -342,17 +345,30 @@ public class EventStudentService {
         return existing;
     }
 
-    private void completeIdempotency(String ownerId, String key, String registrationId, String hash) {
+    private RegistrationResponse replayResponse(Map<String, Object> replay) {
+        Object body = replay.get("response_body");
+        if (!(body instanceof String json) || json.isBlank()) {
+            // Older keys have no snapshot. Never fabricate a replay from mutable state.
+            throw EventService.problem(HttpStatus.CONFLICT, "IDEMPOTENCY_RESPONSE_UNAVAILABLE",
+                    "The original response is unavailable; refresh the current registration state");
+        }
+        return objectMapper.readValue(json, RegistrationResponse.class);
+    }
+
+    private RegistrationResponse completeIdempotency(String ownerId, String key, String registrationId, String hash) {
+        RegistrationResponse response = findRegistration(registrationId);
         jdbc.update(
                 "UPDATE " + IDEMPOTENCY
                         + " SET \"state\" = 'COMPLETED', \"registrationId\" = :registrationId,"
-                        + " \"requestHash\" = :hash, \"updatedAt\" = CURRENT_TIMESTAMP"
+                        + " \"requestHash\" = :hash, \"responseBody\" = :responseBody, \"updatedAt\" = CURRENT_TIMESTAMP"
                         + " WHERE \"ownerId\" = :ownerId AND \"idempotencyKey\" = :key",
                 new MapSqlParameterSource()
                         .addValue("registrationId", registrationId)
                         .addValue("hash", hash)
+                        .addValue("responseBody", objectMapper.writeValueAsString(response))
                         .addValue("ownerId", ownerId)
                         .addValue("key", key));
+        return response;
     }
 
     private static void requireKey(String idempotencyKey) {
