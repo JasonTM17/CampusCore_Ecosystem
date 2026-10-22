@@ -968,6 +968,13 @@ function loadApiModule() {
     '@/lib/session-sync': {
       publishSessionChange: (kind) => sessionSyncPublished.push(kind),
     },
+    '@/lib/observability': {
+      REQUEST_ID_HEADER: 'X-Request-Id',
+      newRequestId: () => 'test-request-id',
+      pathOf: (url) => (url ?? '').split('?')[0],
+      pathTemplate: (url) => (url ?? '').split('?')[0],
+      recordApiMetric: () => {},
+    },
   };
   const source = readSource('src/lib/api.ts');
   const { outputText } = ts.transpileModule(source, {
@@ -3172,4 +3179,84 @@ test('session sync: a retried sign-in response publishes its cookie arrival even
     ['changed', 'changed'],
     'every cookie-bearing login response publishes, including the retry',
   );
+});
+
+// --- P03 hardening: mechanism-level proofs, not just "clear() was called" ---
+
+test('real QueryClient.clear() evicts every cached entry', () => {
+  // The real package, not a stub: proves the mechanism the identity guard
+  // relies on actually drops data, so a second account cannot see it.
+  const { QueryClient } = require('@tanstack/react-query');
+  const client = new QueryClient();
+  client.setQueryData(['me'], { id: 'user-a' });
+  client.setQueryData(['announcements'], [{ id: 'a1' }]);
+  client.setQueryData(['sections', 'u-a'], { enrolled: true });
+  client.clear();
+  assert.equal(client.getQueryData(['me']), undefined);
+  assert.equal(client.getQueryData(['announcements']), undefined);
+  assert.equal(client.getQueryData(['sections', 'u-a']), undefined);
+  assert.equal(client.getQueryCache().getAll().length, 0);
+});
+
+function loadMobileClientModule() {
+  const mobileClientPath = path.resolve(root, '..', 'mobile', 'src', 'api', 'client.ts');
+  const source = fs.readFileSync(mobileClientPath, 'utf8');
+  const { outputText } = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    fileName: 'client.ts',
+  });
+  const requireStub = (spec) => {
+    if (spec === 'react-native') return { Platform: { OS: 'android' } };
+    if (spec === './observability') {
+      return { recordApiMetric: () => {}, pathTemplate: (p) => p };
+    }
+    throw new Error(`unexpected import in mobile client.ts: ${spec}`);
+  };
+  const mod = { exports: {} };
+  new Function('require', 'module', 'exports', outputText)(requireStub, mod, mod.exports);
+  return { exports: mod.exports };
+}
+
+test('mobile sessionEpoch discards a stale refresh after a newer sign-in', async () => {
+  const { exports: mobileApi } = loadMobileClientModule();
+  const client = mobileApi.createApiClient({ baseUrl: 'http://example.test', mode: 'live' });
+  client.setSessionTokens('access-a', 'refresh-a');
+
+  const calls = [];
+  let releaseRefresh;
+  const originalFetch = global.fetch;
+  global.fetch = (url) => {
+    calls.push(String(url));
+    if (String(url).endsWith('/auth/refresh')) {
+      return new Promise((resolve) => { releaseRefresh = resolve; });
+    }
+    return Promise.resolve(new Response(JSON.stringify({ message: 'unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+  };
+  try {
+    const pending = client.requestWithMeta('/me').then(
+      () => ({ ok: true }),
+      (err) => ({ ok: false, err }),
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(calls.length, 2, 'the 401 must trigger exactly one refresh call');
+
+    client.setSessionTokens('access-b', 'refresh-b'); // newer sign-in bumps the epoch
+    releaseRefresh(new Response(
+      JSON.stringify({ accessToken: 'stale-a2', refreshToken: 'stale-ra2' }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ));
+    const outcome = await pending;
+    assert.equal(outcome.ok, false, 'request surfaces the original 401 once refresh is discarded');
+    assert.equal(
+      client.getRefreshToken(),
+      'refresh-b',
+      'stale refresh rotation must never overwrite the newer session',
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
 });
