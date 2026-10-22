@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import {
@@ -13,6 +13,7 @@ import {
   Badge,
   Button,
   Card,
+  DataNotice,
   Divider,
   ListRow,
   ProgressBar,
@@ -22,6 +23,7 @@ import {
   UiText,
 } from '../../components/Ui';
 import { tokens } from '../../design/tokens';
+import { useScreenQuery } from '../../hooks/useScreenQuery';
 import type { MobileScreenProps } from '../../navigation/types';
 
 const previewRound: MobileThesisRound = {
@@ -50,6 +52,8 @@ interface ThesisWorkspace {
   groups: MobileThesisGroup[];
   loading: boolean;
   error: string | null;
+  /** Stale-data banner copy — refetch failed but prior data stays visible. */
+  warning: string | null;
   refresh(): Promise<void>;
 }
 
@@ -70,71 +74,72 @@ function statusTone(status: string): 'neutral' | 'primary' | 'success' | 'warnin
   return 'neutral';
 }
 
+interface ThesisWorkspaceData {
+  round: MobileThesisRound | null;
+  topics: MobileThesisTopic[];
+  groups: MobileThesisGroup[];
+}
+
 function useThesisWorkspace(): ThesisWorkspace {
-  const [round, setRound] = useState<MobileThesisRound | null>(null);
-  const [topics, setTopics] = useState<MobileThesisTopic[]>([]);
-  const [groups, setGroups] = useState<MobileThesisGroup[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    if (apiClient.mode === 'preview') {
-      setRound(previewRound);
-      setTopics(previewTopics);
-      setGroups([]);
-      setLoading(false);
-      return;
-    }
-
-    try {
+  const isPreview = apiClient.mode === 'preview';
+  const query = useScreenQuery<ThesisWorkspaceData>(
+    'thesis:workspace',
+    async () => {
       const rounds = await campusApi.thesisRounds();
       const activeRound = rounds.find((item) => item.status === 'REGISTRATION_OPEN')
         ?? rounds.find((item) => item.status === 'PROPOSALS_PUBLISHED')
         ?? rounds[0]
         ?? null;
-      setRound(activeRound);
       if (!activeRound) {
-        setTopics([]);
-        setGroups([]);
-        return;
+        return { round: null, topics: [], groups: [] };
       }
-
       const [availableTopics, availableGroups, account] = await Promise.all([
         campusApi.thesisTopics(activeRound.id),
         campusApi.thesisGroups(activeRound.id),
-        campusApi.account(),
+        campusApi.profile(),
       ]);
       const studentId = account.studentId;
-      setTopics(availableTopics);
-      setGroups(studentId
-        ? availableGroups.filter((group) => group.leaderStudentId === studentId || group.memberStudentIds.includes(studentId))
-        : []);
-    } catch (nextError) {
-      setError(getErrorMessage(nextError));
-      setTopics([]);
-      setGroups([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return {
+        round: activeRound,
+        topics: availableTopics,
+        groups: studentId
+          ? availableGroups.filter((group) => group.leaderStudentId === studentId || group.memberStudentIds.includes(studentId))
+          : [],
+      };
+    },
+    {
+      enabled: !isPreview,
+      errorMessage: 'Thesis data is unavailable.',
+      mapError: getErrorMessage,
+    },
+  );
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  return { round, topics, groups, loading, error, refresh };
+  const data = isPreview
+    ? { round: previewRound, topics: previewTopics, groups: [] as MobileThesisGroup[] }
+    : query.data;
+  return {
+    round: data?.round ?? null,
+    topics: data?.topics ?? [],
+    groups: data?.groups ?? [],
+    loading: !isPreview && query.isLoading,
+    error: isPreview ? null : query.error,
+    warning: isPreview ? null : query.warning,
+    refresh: query.reload,
+  };
 }
 
-function WorkspaceState({ loading, error }: Pick<ThesisWorkspace, 'loading' | 'error'>) {
-  if (loading) {
-    return <Card tone="low"><UiText variant="bodySmall" tone="muted">Loading thesis workspace...</UiText></Card>;
-  }
-  if (error) {
-    return <Card tone="low"><UiText variant="bodySmall" tone="error">{error}</UiText></Card>;
-  }
-  return null;
+function WorkspaceState({ loading, error, warning }: Pick<ThesisWorkspace, 'loading' | 'error' | 'warning'>) {
+  return (
+    <>
+      {warning ? <DataNotice message={warning} /> : null}
+      {loading ? (
+        <Card tone="low"><UiText variant="bodySmall" tone="muted">Loading thesis workspace...</UiText></Card>
+      ) : null}
+      {error ? (
+        <Card tone="low"><UiText variant="bodySmall" tone="error">{error}</UiText></Card>
+      ) : null}
+    </>
+  );
 }
 
 export function ThesisTopicsScreen({ navigation }: MobileScreenProps) {
@@ -152,7 +157,7 @@ export function ThesisTopicsScreen({ navigation }: MobileScreenProps) {
         </Card>
       ) : null}
       <ScreenSpacer />
-      <WorkspaceState loading={workspace.loading} error={workspace.error} />
+      <WorkspaceState loading={workspace.loading} error={workspace.error} warning={workspace.warning} />
       {!workspace.loading && !workspace.error ? (
         <>
           <SectionHeading title="Published topics" actionLabel="My group" onAction={() => navigation.navigate('thesis.progress')} />
@@ -188,7 +193,7 @@ export function ThesisDetailScreen({ navigation, selectedThesisTopicId }: Mobile
 
   return (
     <ScreenShell title="Topic detail" eyebrow={topic?.departmentId ?? 'Thesis core'} subtitle={topic?.title ?? 'Published topic'}>
-      <WorkspaceState loading={workspace.loading} error={workspace.error} />
+      <WorkspaceState loading={workspace.loading} error={workspace.error} warning={workspace.warning} />
       {topic ? (
         <>
           <Card style={styles.detailCard}>
@@ -247,7 +252,7 @@ export function ThesisRegistrationScreen({ navigation, selectedThesisTopicId }: 
 
   return (
     <ScreenShell title="Thesis registration" eyebrow="Group and topic" subtitle="One live registration path with clear conflicts.">
-      <WorkspaceState loading={workspace.loading} error={workspace.error} />
+      <WorkspaceState loading={workspace.loading} error={workspace.error} warning={workspace.warning} />
       {workspace.round && topic ? (
         <>
           <Card tone="primary" style={styles.registrationProgress}>
@@ -302,7 +307,7 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
 
   return (
     <ScreenShell title="Thesis progress" eyebrow="My group" subtitle="Current group, topic, and status from the Java API.">
-      <WorkspaceState loading={workspace.loading} error={workspace.error} />
+      <WorkspaceState loading={workspace.loading} error={workspace.error} warning={workspace.warning} />
       {group ? (
         <>
           <Card tone="primary" style={styles.progressHero}>

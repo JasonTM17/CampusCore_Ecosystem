@@ -412,6 +412,24 @@ export function ScrollSection({ children }: { children: ReactNode }) {
   return <View style={styles.scrollSection}>{children}</View>;
 }
 
+/**
+ * Offline-stale banner (mobile-policy §5): rendered above real data when a
+ * revalidation failed — the memory copy stays visible, the banner is the
+ * "dữ liệu có thể cũ" warning. Never rendered instead of data.
+ */
+export function DataNotice({ message }: { message: string }) {
+  return (
+    <View
+      accessibilityLiveRegion="polite"
+      style={[styles.statePanel, styles.dataNotice]}
+    >
+      <UiText variant="bodySmall" tone="warning">
+        {message}
+      </UiText>
+    </View>
+  );
+}
+
 const textStyles = StyleSheet.create<Record<TextVariant, TextStyle>>({
   display: { ...tokens.typography.display, fontFamily: tokens.typography.family },
   headlineLarge: { ...tokens.typography.headlineLarge, fontFamily: tokens.typography.family },
@@ -503,6 +521,7 @@ const styles = StyleSheet.create({
   scrollSection: { marginBottom: tokens.spacing.lg },
   statePanel: { alignItems: 'center', backgroundColor: tokens.colors.card, borderColor: tokens.colors.outlineVariant, borderLeftColor: tokens.colors.primary, borderLeftWidth: 3, borderRadius: tokens.radii.card, borderWidth: 1, flexDirection: 'row', padding: tokens.spacing.md },
   statePanelError: { borderLeftColor: tokens.colors.error },
+  dataNotice: { borderLeftColor: tokens.colors.warning },
   stateCopy: { flex: 1, marginHorizontal: tokens.spacing.sm },
   stateDescription: { marginTop: tokens.spacing.xs },
 });

@@ -60,6 +60,16 @@ public class IdentityProperties {
          * No default — enabling OIDC without the key fails fast.
          */
         private String tokenEncryptionKey = "";
+        /**
+         * Public clients (ClientAuthenticationMethod.NONE) allowlisted to
+         * receive refresh tokens at the authorization-code exchange. SAS
+         * suppresses refresh issuance for public clients in
+         * {@code OAuth2RefreshTokenGenerator} by default; native apps per
+         * RFC 8252 keep the token in SecureStore and rotate on every use,
+         * so {@code cu-mobile} is listed explicitly — any unlisted public
+         * client keeps the stock no-refresh behavior.
+         */
+        private List<String> nativeRefreshClientIds = new ArrayList<>();
 
         public boolean isEnabled() {
             return enabled;
@@ -107,6 +117,15 @@ public class IdentityProperties {
 
         public void setTokenEncryptionKey(String tokenEncryptionKey) {
             this.tokenEncryptionKey = tokenEncryptionKey;
+        }
+
+        public List<String> getNativeRefreshClientIds() {
+            return nativeRefreshClientIds;
+        }
+
+        public void setNativeRefreshClientIds(List<String> nativeRefreshClientIds) {
+            this.nativeRefreshClientIds =
+                    nativeRefreshClientIds == null ? new ArrayList<>() : nativeRefreshClientIds;
         }
     }
 

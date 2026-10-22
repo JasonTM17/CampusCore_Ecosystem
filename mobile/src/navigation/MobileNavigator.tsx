@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { SafeAreaView, StatusBar, StyleSheet, View } from 'react-native';
 
-import { apiClient, campusApi } from '../api/client';
+import { apiClient } from '../api/client';
+import { sessionStore } from '../auth/mobile-session-store';
+import { clearQueryCache } from '../hooks/query-cache';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { MenuPanel } from '../components/MenuPanel';
 import { tokens } from '../design/tokens';
@@ -81,10 +83,11 @@ export function MobileNavigator() {
     },
     signOut() {
       if (apiClient.mode === 'live') {
-        void campusApi.logout().catch(() => undefined).finally(() => apiClient.clearAccessToken());
+        void sessionStore.signOut();
       } else {
         apiClient.clearAccessToken();
       }
+      clearQueryCache();
       setSessionKind('signedOut');
       setRole('student');
       setSelectedThesisTopicId(null);
