@@ -190,6 +190,43 @@ export interface MobileNotification {
   createdAt: string;
 }
 
+/** D4 events contract (P08): student register/cancel/history surface. */
+export type MobileEventStatus =
+  | 'DRAFT'
+  | 'PUBLISHED'
+  | 'REGISTRATION_OPEN'
+  | 'REGISTRATION_CLOSED'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export interface MobileEvent {
+  id: string;
+  title: string;
+  description?: string | null;
+  location?: string | null;
+  organizer: string;
+  status: MobileEventStatus;
+  capacity: number;
+  registeredCount: number;
+  seatsRemaining: number;
+  startsAt: string;
+  endsAt: string;
+  registrationOpensAt?: string | null;
+  registrationClosesAt?: string | null;
+  myRegistrationId?: string | null;
+  myRegistrationStatus?: 'REGISTERED' | 'CANCELLED' | null;
+  myAttendanceStatus?: 'ABSENT' | 'ATTENDED' | null;
+}
+
+export interface MobileEventRegistration {
+  registrationId: string;
+  registrationStatus: 'REGISTERED' | 'CANCELLED';
+  attendanceStatus: 'ABSENT' | 'ATTENDED';
+  registeredAt: string;
+  cancelledAt?: string | null;
+  event: MobileEvent;
+}
+
 export interface LecturerScheduleEntry {
   sectionId: string;
   sectionNumber?: string;
@@ -713,6 +750,23 @@ export const campusApi = {
     apiClient.post<JsonObject>(
       `/sections/${encodeURIComponent(sectionId)}/grades/publish`,
       {},
+    ),
+  // Events (D4): published catalog, self register/cancel with
+  // Idempotency-Key, and the student's own registration history.
+  events: () => apiClient.get<MobileEvent[]>('/events'),
+  myEventRegistrations: () =>
+    apiClient.get<MobileEventRegistration[]>('/events/my/registrations'),
+  registerEvent: (eventId: string) =>
+    apiClient.post<JsonObject>(
+      `/events/${encodeURIComponent(eventId)}/register`,
+      {},
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  cancelEventRegistration: (registrationId: string) =>
+    apiClient.post<JsonObject>(
+      `/events/registrations/${encodeURIComponent(registrationId)}/cancel`,
+      {},
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
     ),
   createThesisGroup: (roundId: string) =>
     apiClient.post<MobileThesisGroup>(apiRoutes.thesis.groups, { roundId }),

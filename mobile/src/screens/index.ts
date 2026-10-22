@@ -11,6 +11,7 @@ import {
   LecturerGradingScreen,
   LecturerScheduleScreen,
 } from './operations/OperationsScreens';
+import { EventsScreen } from './student/EventsScreen';
 import {
   AttendanceScreen,
   CoursesScreen,
@@ -38,6 +39,7 @@ export const screenComponents: Record<ScreenName, ComponentType<MobileScreenProp
   grades: GradesScreen,
   attendance: AttendanceScreen,
   registration: RegistrationScreen,
+  events: EventsScreen,
   notifications: NotificationsScreen,
   profile: ProfileScreen,
   'thesis.topics': ThesisTopicsScreen,
