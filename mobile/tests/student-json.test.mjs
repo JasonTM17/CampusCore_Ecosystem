@@ -21,7 +21,12 @@ test('student live JSON uses new registration contract and profile APIs', () => 
   assert.match(screens, /campusApi\.announcements/);
   assert.match(screens, /campusApi\.updateProfile/);
   assert.match(screens, /campusApi\.changePassword/);
-  assert.doesNotMatch(operations, /campusApi\./);
+  // Lecturer lanes call the live academic APIs (mobile-policy §4) — the only
+  // static surface left is the admin web-only panel.
+  assert.match(operations, /campusApi\.lecturerSchedule/);
+  assert.match(operations, /campusApi\.saveSectionAttendance/);
+  assert.match(operations, /campusApi\.saveSectionGrades/);
+  assert.match(operations, /campusApi\.publishSectionGrades/);
 
   const registrationStart = screens.indexOf('export function RegistrationScreen');
   const registrationEnd = screens.indexOf('export function', registrationStart + 1);

@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { sessionStore } from '../auth/mobile-session-store';
 import { recordApiMetric, pathTemplate } from './observability';
 
 export type JsonObject = Record<string, unknown>;
@@ -90,12 +91,6 @@ export interface AuthUser {
   permissions?: string[];
   studentId?: string | null;
   lecturerId?: string | null;
-}
-
-export interface LoginResponse {
-  user: AuthUser;
-  accessToken: string;
-  refreshToken: string;
 }
 
 export interface MobileSection {
@@ -195,11 +190,119 @@ export interface MobileNotification {
   createdAt: string;
 }
 
+export interface LecturerScheduleEntry {
+  sectionId: string;
+  sectionNumber?: string;
+  courseCode?: string;
+  courseName?: string;
+  courseNameEn?: string;
+  courseNameVi?: string;
+  semesterId?: string;
+  semesterName?: string;
+  enrolledCount?: number;
+  capacity?: number;
+  schedules?: Array<{
+    id?: string;
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    classroom?: { building?: string; roomNumber?: string };
+  }>;
+}
+
+export interface LecturerGradingSection {
+  sectionId: string;
+  sectionNumber?: string;
+  courseCode?: string;
+  courseName?: string;
+  courseNameEn?: string;
+  courseNameVi?: string;
+  semesterId?: string;
+  enrolledCount: number;
+  gradedCount: number;
+  publishedCount: number;
+  gradeStatus?: string;
+  canPublish?: boolean;
+}
+
+export interface AttendanceRosterEntry {
+  studentId: string;
+  studentCode?: string;
+  firstName?: string;
+  lastName?: string;
+  studentEmail?: string;
+  enrollmentStatus?: string;
+}
+
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'RESET';
+
+export interface AttendanceRecord {
+  id?: string;
+  studentId: string;
+  status: string;
+  date?: string;
+  notes?: string;
+}
+
+/** GET /sections/{id}/grades — SectionGradesResponse.enrollments item. */
+export interface SectionGradeEnrollment {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentCode: string;
+  email?: string;
+  processScore?: number | null;
+  finalExamScore?: number | null;
+  finalGrade?: number | null;
+  letterGrade?: string | null;
+  gradeStatus?: string;
+  enrollmentStatus?: string;
+}
+
+interface SectionGradesResponse {
+  sectionId: string;
+  enrollments: SectionGradeEnrollment[];
+}
+
+export interface StudentGradeRow {
+  enrollmentId: string;
+  studentId?: string;
+  studentCode?: string;
+  studentName?: string;
+  calculatedTotal?: number;
+  finalGrade?: number | null;
+  letterGrade?: string | null;
+  gradeStatus?: string;
+  processScore?: number | null;
+  finalExamScore?: number | null;
+  grades?: Array<{
+    gradeItemId?: string;
+    gradeItemName?: string;
+    gradeItemType?: string;
+    score?: number;
+    maxScore?: number;
+    weight?: number;
+  }>;
+}
+
 export interface ApiClientOptions {
   baseUrl?: string;
   mode?: ApiMode;
   getAccessToken?: () => string | undefined;
+  setAccessToken?: (token: string | undefined) => void;
+  /**
+   * Delegated session refresh (mobile-policy §3, KM-7): the apiClient owns the
+   * shared single-flight promise; the actual grant lives in session-store so
+   * refresh material never enters client memory.
+   */
+  refreshSession?: () => Promise<boolean>;
   onSessionExpired?: () => void;
+  /**
+   * Session epoch reader (mobile-policy §3): a request that started under an
+   * older epoch and fails after a sign-out/sign-in cycle must not kick the
+   * NEW session out — its 401 belongs to a dead lane (review F4).
+   */
+  sessionEpoch?: () => number;
 }
 
 export type ApiMode = 'preview' | 'live';
@@ -208,8 +311,6 @@ export interface ApiClient {
   readonly baseUrl: string;
   readonly mode: ApiMode;
   setAccessToken(token: string | undefined): void;
-  setSessionTokens(accessToken: string | undefined, refreshToken: string | undefined): void;
-  getRefreshToken(): string | undefined;
   setOnSessionExpired(handler: (() => void) | undefined): void;
   clearAccessToken(): void;
   request<TResponse>(path: string, init?: RequestInit): Promise<TResponse>;
@@ -294,14 +395,11 @@ function getErrorDetails(body: unknown) {
   };
 }
 
-function shouldRefreshAfterUnauthorized(path: string, status: number) {
-  const normalizedPath = normalizePath(path);
-  return (
-    status === 401 &&
-    !normalizedPath.startsWith('/auth/login') &&
-    !normalizedPath.startsWith('/auth/refresh') &&
-    !normalizedPath.startsWith('/auth/logout')
-  );
+function shouldRefreshAfterUnauthorized(_path: string, status: number) {
+  // Legacy /auth/login|refresh|logout excludes are gone with the OIDC lane —
+  // any 401 on the API host is a refresh candidate (issuer calls never
+  // reach this client; they run through session-store on the issuer host).
+  return status === 401;
 }
 
 export function createApiClient(options: ApiClientOptions = {}): ApiClient {
@@ -310,74 +408,21 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   );
   const mode = options.mode ?? configuredApiMode;
   let accessToken: string | undefined;
-  let refreshToken: string | undefined;
   const getAccessToken = options.getAccessToken ?? (() => accessToken);
+  const setAccessTokenExternal = options.setAccessToken;
   let onSessionExpired = options.onSessionExpired;
-  // All transports share one refresh promise: the backend rotates refresh tokens
+  // All transports share one refresh promise: the issuer rotates refresh tokens
   // on every refresh, so concurrent independent refreshes race and log the user
   // out even though one rotation succeeded.
   let sessionRefreshPromise: Promise<boolean> | null = null;
-  // Bumped whenever the app replaces or clears the session; an in-flight refresh
-  // must not apply rotated tokens over a newer sign-in or sign-out.
-  let sessionEpoch = 0;
 
-  async function refreshMobileSession(requestId: string) {
-    if (!refreshToken) {
-      return false;
-    }
-    const epoch = sessionEpoch;
-
-    const response = await fetch(`${baseUrl}${apiRoutes.auth.refresh}`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'X-Request-Id': `${requestId}-refresh`,
-      },
-      body: JSON.stringify({ refreshToken }),
-    });
-    const body = await readResponseBody(response);
-
-    if (epoch !== sessionEpoch) {
-      return false;
-    }
-
-    if (!response.ok) {
-      accessToken = undefined;
-      refreshToken = undefined;
-      onSessionExpired?.();
-      const details = getErrorDetails(body);
-      throw new ApiClientError(
-        details.message,
-        response.status,
-        requestId,
-        details.code,
-      );
-    }
-
-    const nextSession = body as LoginResponse;
-    if (!nextSession?.accessToken || !nextSession.refreshToken) {
-      accessToken = undefined;
-      refreshToken = undefined;
-      onSessionExpired?.();
-      throw new ApiClientError(
-        'The Java auth refresh response did not include rotated tokens',
-        401,
-        requestId,
-        'INVALID_REFRESH_RESPONSE',
-      );
-    }
-
-    accessToken = nextSession.accessToken;
-    refreshToken = nextSession.refreshToken;
-    return true;
-  }
-
-  function refreshSessionOnce(requestId: string): Promise<boolean> {
+  function refreshSessionOnce(): Promise<boolean> {
     if (!sessionRefreshPromise) {
-      sessionRefreshPromise = refreshMobileSession(requestId).finally(() => {
-        sessionRefreshPromise = null;
-      });
+      sessionRefreshPromise = Promise.resolve()
+        .then(() => options.refreshSession?.() ?? false)
+        .finally(() => {
+          sessionRefreshPromise = null;
+        });
     }
     return sessionRefreshPromise;
   }
@@ -387,17 +432,11 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     mode,
 
     setAccessToken(token) {
-      accessToken = token;
-    },
-
-    setSessionTokens(nextAccessToken, nextRefreshToken) {
-      sessionEpoch += 1;
-      accessToken = nextAccessToken;
-      refreshToken = nextRefreshToken;
-    },
-
-    getRefreshToken() {
-      return refreshToken;
+      if (setAccessTokenExternal) {
+        setAccessTokenExternal(token);
+      } else {
+        accessToken = token;
+      }
     },
 
     setOnSessionExpired(handler) {
@@ -405,15 +444,18 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     },
 
     clearAccessToken() {
-      sessionEpoch += 1;
-      accessToken = undefined;
-      refreshToken = undefined;
+      if (setAccessTokenExternal) {
+        setAccessTokenExternal(undefined);
+      } else {
+        accessToken = undefined;
+      }
     },
 
     async requestWithMeta<TResponse>(path: string, init: RequestInit = {}) {
       const requestId = createRequestId();
       const startedAt = Date.now();
       const method = (init.method ?? 'GET').toUpperCase();
+      const requestEpoch = options.sessionEpoch?.();
       if (mode !== 'live') {
         throw new ApiClientError(
           'Live mobile API mode is disabled for this preview build',
@@ -440,10 +482,23 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       });
       let body = await readResponseBody(response);
 
-      if (shouldRefreshAfterUnauthorized(path, response.status) && refreshToken) {
-        const refreshed = await refreshSessionOnce(requestId);
-        if (refreshed && accessToken) {
-          headers.set('Authorization', `Bearer ${accessToken}`);
+      if (shouldRefreshAfterUnauthorized(path, response.status) && options.refreshSession) {
+        const refreshed = await refreshSessionOnce();
+        const rotated = getAccessToken();
+        if (!refreshed || !rotated) {
+          // Failed refresh = dead session: the store already wiped; bridge
+          // back to sign-in instead of leaving screens in a dead end. A
+          // stale lane (request predates the current epoch) is skipped so a
+          // previous account's dying request can never evict the session
+          // that replaced it.
+          const staleLane = requestEpoch !== undefined
+            && options.sessionEpoch !== undefined
+            && options.sessionEpoch() !== requestEpoch;
+          if (!staleLane) {
+            onSessionExpired?.();
+          }
+        } else {
+          headers.set('Authorization', `Bearer ${rotated}`);
           response = await fetch(`${baseUrl}${normalizePath(path)}`, {
             ...init,
             headers,
@@ -459,6 +514,10 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         durationMs: Date.now() - startedAt,
         requestId,
         at: startedAt,
+        // §6 envelope tags — surface + client so mobile traffic is
+        // distinguishable in the metric ring without leaking identity.
+        surface: 'native',
+        clientId: 'cu-mobile',
       });
 
       if (!response.ok) {
@@ -515,15 +574,15 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   return client;
 }
 
-export const apiClient = createApiClient();
+export const apiClient = createApiClient({
+  getAccessToken: () => sessionStore.getAccessToken() ?? undefined,
+  setAccessToken: (token) => sessionStore.setAccessToken(token ?? null),
+  refreshSession: async () =>
+    (await sessionStore.refreshAccessToken()).accessToken !== null,
+  sessionEpoch: () => sessionStore.sessionEpoch(),
+});
 
 export const apiRoutes = {
-  auth: {
-    login: '/auth/login',
-    refresh: '/auth/refresh',
-    logout: '/auth/logout',
-    me: '/auth/me',
-  },
   identity: '/me',
   health: '/health/liveness',
   contract: '/contract',
@@ -549,19 +608,7 @@ export const campusApi = {
   health: () => apiClient.get<JsonObject>(apiRoutes.health),
   contract: () => apiClient.get<JsonObject>(apiRoutes.contract),
   me: () => apiClient.get<JsonObject>(apiRoutes.identity),
-  account: () => apiClient.get<AuthUser>(apiRoutes.auth.me),
-  login: (email: string, password: string) =>
-    apiClient.post<LoginResponse>(apiRoutes.auth.login, { email, password }),
-  refresh: async () => {
-    const response = await apiClient.post<LoginResponse>(
-      apiRoutes.auth.refresh,
-      { refreshToken: apiClient.getRefreshToken() },
-    );
-    apiClient.setSessionTokens(response.accessToken, response.refreshToken);
-    return response;
-  },
-  logout: () =>
-    apiClient.post<void>(apiRoutes.auth.logout, { refreshToken: apiClient.getRefreshToken() }),
+  profile: () => apiClient.get<AuthUser>('/auth/me'),
   sections: (semesterId?: string) =>
     apiClient.get<{ data: MobileSection[] }>(
       apiRoutes.sections + (semesterId ? `?semesterId=${encodeURIComponent(semesterId)}` : ''),
@@ -612,6 +659,60 @@ export const campusApi = {
   thesisGroups: (roundId: string) =>
     apiClient.get<MobileThesisGroup[]>(
       `${apiRoutes.thesis.groups}?roundId=${encodeURIComponent(roundId)}`,
+    ),
+  lecturerSchedule: () =>
+    apiClient.get<LecturerScheduleEntry[]>('/sections/my/schedule'),
+  lecturerGradingSections: () =>
+    apiClient.get<LecturerGradingSection[]>('/sections/my/grading'),
+  attendanceRoster: (sectionId: string) =>
+    apiClient.get<AttendanceRosterEntry[]>(
+      `/attendance/section/${encodeURIComponent(sectionId)}/roster`,
+    ),
+  sectionAttendance: (sectionId: string, date?: string) =>
+    apiClient.get<AttendanceRecord[]>(
+      `/attendance/section/${encodeURIComponent(sectionId)}`
+        + (date ? `?date=${encodeURIComponent(date)}` : ''),
+    ),
+  saveSectionAttendance: (sectionId: string, date: string, records: AttendanceRecord[]) =>
+    apiClient.put<{ updatedCount?: number; message?: string }>(
+      `/attendance/section/${encodeURIComponent(sectionId)}`,
+      { date, records: records.map((r) => ({ studentId: r.studentId, status: r.status, ...(r.notes ? { notes: r.notes } : {}) })) },
+    ),
+  /**
+   * Gradebook editor source — GET /sections/{id}/grades returns the draft
+   * process/final scores per enrollment (`SectionGradeEnrollmentResponse`).
+   * `/grades/student-grades/section/{id}` is the itemised read model and
+   * does NOT carry editable scores — saving rows built from it would wipe
+   * every draft (review F2).
+   */
+  sectionGrades: async (sectionId: string): Promise<StudentGradeRow[]> => {
+    const response = await apiClient.get<SectionGradesResponse>(
+      `/sections/${encodeURIComponent(sectionId)}/grades`,
+    );
+    return response.enrollments.map((entry) => ({
+      enrollmentId: entry.id,
+      studentId: entry.studentId,
+      studentCode: entry.studentCode,
+      studentName: entry.studentName,
+      processScore: entry.processScore,
+      finalExamScore: entry.finalExamScore,
+      finalGrade: entry.finalGrade,
+      letterGrade: entry.letterGrade,
+      gradeStatus: entry.gradeStatus,
+    }));
+  },
+  saveSectionGrades: (
+    sectionId: string,
+    grades: Array<{ enrollmentId: string; processScore?: number | null; finalExamScore?: number | null }>,
+  ) =>
+    apiClient.put<JsonObject>(
+      `/sections/${encodeURIComponent(sectionId)}/grades`,
+      { grades },
+    ),
+  publishSectionGrades: (sectionId: string) =>
+    apiClient.post<JsonObject>(
+      `/sections/${encodeURIComponent(sectionId)}/grades/publish`,
+      {},
     ),
   createThesisGroup: (roundId: string) =>
     apiClient.post<MobileThesisGroup>(apiRoutes.thesis.groups, { roundId }),

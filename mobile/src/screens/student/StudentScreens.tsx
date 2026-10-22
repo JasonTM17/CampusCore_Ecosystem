@@ -6,6 +6,7 @@ import {
   Badge,
   Button,
   Card,
+  DataNotice,
   Divider,
   Field,
   ListRow,
@@ -19,6 +20,7 @@ import {
 } from '../../components/Ui';
 import { tokens } from '../../design/tokens';
 import { ApiClientError, apiClient, campusApi, type AuthUser, type JsonObject, type MobileAttendanceSummary, type MobileEnrollment, type MobileNotification, type RegistrationCatalogSection } from '../../api/client';
+import { useScreenQuery } from '../../hooks/useScreenQuery';
 import type { MobileScreenProps } from '../../navigation/types';
 
 const friendlyErrorMessageByCode: Record<string, string> = {
@@ -65,60 +67,47 @@ const previewNotifications = [
   { title: 'Library maintenance notice', subtitle: 'Online renewals pause this weekend.', meta: 'Yesterday', unread: false },
 ];
 
+/**
+ * Screen-local resource helper — the shared lifecycle lives in
+ * `useScreenQuery` (mobile-policy §5: mount/focus/foreground refetch,
+ * per-account SWR cache); this keeps the legacy call-site shape and adds the
+ * student-friendly error mapping.
+ */
 function useLiveResource<T>(
+  key: string,
   initialValue: T,
   request: () => Promise<T>,
   fallbackMessage: string,
 ) {
-  const requestRef = useRef(request);
-  requestRef.current = request;
-  const mountedRef = useRef(true);
-  const [data, setData] = useState<T>(initialValue);
-  const [isLoading, setIsLoading] = useState(apiClient.mode === 'live');
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => () => {
-    mountedRef.current = false;
-  }, []);
-
-  const reload = useCallback(async () => {
-    if (apiClient.mode !== 'live') {
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    try {
-      const nextData = await requestRef.current();
-      if (mountedRef.current) {
-        setData(nextData);
-      }
-    } catch (nextError) {
-      if (mountedRef.current) {
-        setError(studentFriendlyErrorMessage(nextError, fallbackMessage));
-      }
-    } finally {
-      if (mountedRef.current) {
-        setIsLoading(false);
-      }
-    }
-  }, [fallbackMessage]);
-
-  useEffect(() => {
-    void reload();
-  }, [reload]);
-
-  return { data, error, isLoading, reload, setData };
+  const query = useScreenQuery<T>(key, request, {
+    enabled: apiClient.mode === 'live',
+    errorMessage: fallbackMessage,
+    mapError: (error) => studentFriendlyErrorMessage(error, fallbackMessage),
+  });
+  return {
+    data: query.data ?? initialValue,
+    error: query.error,
+    warning: query.warning,
+    isLoading: query.isLoading,
+    reload: query.reload,
+    setData: (next: T | ((current: T) => T)) =>
+      query.setData(
+        typeof next === 'function'
+          ? (next as (current: T) => T)(query.data ?? initialValue)
+          : next,
+      ),
+  };
 }
 
 export function StudentDashboardScreen({ navigation }: MobileScreenProps) {
   const {
     data: liveEnrollments,
     error,
+    warning,
     isLoading,
     reload,
   } = useLiveResource<MobileEnrollment[]>(
+    'enrollments',
     [],
     () => campusApi.enrollments(),
     'Dashboard data is unavailable.',
@@ -126,6 +115,7 @@ export function StudentDashboardScreen({ navigation }: MobileScreenProps) {
   const {
     data: liveAnnouncements,
   } = useLiveResource<JsonObject[]>(
+    'announcements',
     [],
     async () => (await campusApi.announcements()).data ?? [],
     'Announcements are unavailable.',
@@ -166,6 +156,7 @@ export function StudentDashboardScreen({ navigation }: MobileScreenProps) {
       title="Academic dashboard"
       subtitle="Your current sections and next academic actions."
     >
+      {warning ? <DataNotice message={warning} /> : null}
       <Card tone="primary" style={styles.heroCard}>
         <View style={styles.heroCopy}>
           <UiText variant="meta" tone="primary">
@@ -221,9 +212,11 @@ export function ScheduleScreen({ navigation }: MobileScreenProps) {
   const {
     data: liveEnrollments,
     error,
+    warning,
     isLoading,
     reload,
   } = useLiveResource<MobileEnrollment[]>(
+    'enrollments',
     [],
     () => campusApi.enrollments(),
     'Schedule is unavailable.',
@@ -266,6 +259,7 @@ export function ScheduleScreen({ navigation }: MobileScreenProps) {
 
   return (
     <ScreenShell title="Schedule" eyebrow="Current semester" subtitle="Your published class sessions.">
+      {warning ? <DataNotice message={warning} /> : null}
       <Card tone="low" style={styles.weekCard}>
         <View style={styles.weekHeader}>
           <Button accessibilityLabel="Previous week" label="‹" onPress={() => setWeekOffset((current) => current - 1)} variant="text" />
@@ -315,9 +309,11 @@ export function CoursesScreen({ navigation }: MobileScreenProps) {
   const {
     data: liveEnrollments,
     error,
+    warning,
     isLoading,
     reload,
   } = useLiveResource<MobileEnrollment[]>(
+    'enrollments',
     [],
     () => campusApi.enrollments(),
     'Courses are unavailable.',
@@ -351,6 +347,7 @@ export function CoursesScreen({ navigation }: MobileScreenProps) {
 
   return (
     <ScreenShell title="Courses" eyebrow="My learning" subtitle={`${visibleCourses.length} active courses this semester.`}>
+      {warning ? <DataNotice message={warning} /> : null}
       <Card tone="primary" style={styles.summaryCard}>
         <UiText variant="bodySmall" tone="muted">Credits completed</UiText>
         <UiText variant="display" tone="primary">{visibleCourses.length}</UiText>
@@ -381,9 +378,11 @@ export function GradesScreen({ navigation }: MobileScreenProps) {
   const {
     data: liveGrades,
     error,
+    warning,
     isLoading,
     reload,
   } = useLiveResource<Array<{ id: string; code: string; name: string; score: string; letter: string; detail: string }>>(
+    'grades',
     [],
     async () => {
       const items = await campusApi.grades();
@@ -421,6 +420,7 @@ export function GradesScreen({ navigation }: MobileScreenProps) {
 
   return (
     <ScreenShell title="Grades" eyebrow="Academic record" subtitle="Your latest published results.">
+      {warning ? <DataNotice message={warning} /> : null}
       <View style={styles.metricGrid}>
         <MetricCard label="Average grade" value={apiClient.mode === 'preview' ? '8.76' : averageGrade} detail="Published results" style={styles.metricLeft} />
         <MetricCard label="Records" value={String(visibleGrades.length)} detail="Current transcript" />
@@ -456,9 +456,11 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
   const {
     data: liveAttendance,
     error,
+    warning,
     isLoading,
     reload,
   } = useLiveResource<MobileAttendanceSummary[]>(
+    'attendanceSummary',
     [],
     () => campusApi.attendanceSummary(),
     'Attendance is unavailable.',
@@ -488,6 +490,7 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
 
   return (
     <ScreenShell title="Attendance" eyebrow="Spring 2026" subtitle="Stay ahead of participation thresholds.">
+      {warning ? <DataNotice message={warning} /> : null}
       <Card tone="primary" style={styles.attendanceHero}>
         <UiText variant="bodySmall" tone="muted">Overall attendance</UiText>
         <UiText variant="display" tone="primary">{overallAttendance}%</UiText>
@@ -518,6 +521,7 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
   const {
     data: registrationData,
     error,
+    warning,
     isLoading,
     reload,
     setData: setRegistrationData,
@@ -526,6 +530,7 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
     enrollments: MobileEnrollment[];
     roundOpen: boolean;
   }>(
+    'registration',
     { sections: [], enrollments: [], roundOpen: true },
     async () => {
       const enrollmentResponse = await campusApi.enrollments();
@@ -613,6 +618,7 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
 
   return (
     <ScreenShell title="Registration" eyebrow="Course planning" subtitle="Compare available sections and review your current choices.">
+      {warning ? <DataNotice message={warning} /> : null}
       <Card tone="primary" style={styles.registrationHero}>
         <UiText variant="meta" tone="primary">COURSE REGISTRATION</UiText>
         <View style={styles.registrationHeroHeader}>
@@ -680,10 +686,12 @@ export function NotificationsScreen({ navigation }: MobileScreenProps) {
   const {
     data: liveNotifications,
     error,
+    warning,
     isLoading,
     reload,
     setData: setLiveNotifications,
   } = useLiveResource<MobileNotification[]>(
+    'notifications',
     [],
     async () => (await campusApi.notifications()).data,
     'Notifications are unavailable.',
@@ -738,6 +746,7 @@ export function NotificationsScreen({ navigation }: MobileScreenProps) {
 
   return (
     <ScreenShell title="Notifications" eyebrow="Stay informed" subtitle="Unread items are marked clearly for continuity.">
+      {warning ? <DataNotice message={warning} /> : null}
       <Card tone="low" style={styles.notificationSummary}>
         <View accessibilityLiveRegion="polite">
           <UiText variant="label" tone="primary">{visibleNotifications.filter((item) => !item.isRead).length} unread updates</UiText>
@@ -783,11 +792,13 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   const {
     data: account,
     error,
+    warning,
     isLoading,
     reload,
   } = useLiveResource<AuthUser | null>(
+    'profile',
     null,
-    () => campusApi.account(),
+    () => campusApi.profile(),
     'Profile is unavailable.',
   );
   const [firstName, setFirstName] = useState(account?.firstName ?? '');
@@ -857,6 +868,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
 
   return (
     <ScreenShell title="Profile" eyebrow="Account" subtitle="Your identity and academic preferences.">
+      {warning ? <DataNotice message={warning} /> : null}
       <Card style={styles.profileHero}>
         <View style={styles.profileHeader}>
           <Avatar label={displayName} size={64} />

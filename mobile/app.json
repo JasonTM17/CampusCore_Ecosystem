@@ -11,6 +11,11 @@
     },
     "android": {
       "package": "io.campuscore.mobile"
-    }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser"
+    ]
   }
 }
