@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.campuscore.restfulapi.engagement.service.AnnouncementHtmlSanitizer;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -121,7 +121,7 @@ class AnnouncementHtmlSanitizerTest {
         JsonNode tagAttributes = policy.get("tagAttributes");
         assertEquals(tagAttributes.size(), AnnouncementHtmlSanitizer.tagAttributes().size(),
                 "tagAttributes drifted from the shared fixture");
-        tagAttributes.fieldNames().forEachRemaining(tag -> assertEquals(
+        tagAttributes.propertyNames().forEach(tag -> assertEquals(
                 stringSet(tagAttributes.get(tag)),
                 AnnouncementHtmlSanitizer.tagAttributes().get(tag),
                 "attributes for <" + tag + "> drifted from the shared fixture"));

@@ -9,8 +9,8 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.campuscore.restfulapi.thesis.ThesisAuthorityFixture;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantDtos.ChatResponse;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantKnowledgeRepository.KnowledgeDocument;
@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
@@ -192,7 +192,7 @@ class ThesisAssistantGroupPolicyRetrievalTest {
     @Test
     void specializedScopeDoesNotBorrowAcademicGroupPolicy() throws Exception {
         JsonNode response = chat("How many members can a thesis project group have?", "en", "specialized");
-        assertThat(response.path("citations").findValuesAsText("slug"))
+        assertThat(response.path("citations").findValuesAsString("slug"))
                 .noneMatch(slug -> slug.startsWith("thesis-group-members-rules-"));
     }
 

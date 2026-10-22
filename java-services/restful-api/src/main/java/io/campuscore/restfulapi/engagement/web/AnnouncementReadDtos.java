@@ -1,7 +1,8 @@
 package io.campuscore.restfulapi.engagement.web;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.databind.JsonNode;
+import io.swagger.v3.oas.annotations.media.Schema;
+import tools.jackson.databind.JsonNode;
 import java.time.Instant;
 import java.util.List;
 
@@ -20,8 +21,10 @@ public final class AnnouncementReadDtos {
             List<Integer> targetYears,
             boolean isGlobal,
             @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSX", timezone = "UTC")
+            @Schema(types = {"string", "null"}, format = "date-time")
             Instant publishAt,
             @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSX", timezone = "UTC")
+            @Schema(types = {"string", "null"}, format = "date-time")
             Instant expiresAt,
             String publishedBy,
             String semesterId,
@@ -38,7 +41,9 @@ public final class AnnouncementReadDtos {
             Instant updatedAt,
             int version,
             @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSX", timezone = "UTC")
+            @Schema(types = {"string", "null"}, format = "date-time")
             Instant archivedAt,
+            @Schema(types = {"string", "null"})
             String archivedBy,
             SemesterSummary semester,
             SectionSummary section,
@@ -99,8 +104,10 @@ public final class AnnouncementReadDtos {
             String categoryId,
             String slug,
             @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSX", timezone = "UTC")
+            @Schema(types = {"string", "null"}, format = "date-time")
             Instant publishAt,
             @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSX", timezone = "UTC")
+            @Schema(types = {"string", "null"}, format = "date-time")
             Instant expiresAt,
             @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSX", timezone = "UTC")
             Instant createdAt,

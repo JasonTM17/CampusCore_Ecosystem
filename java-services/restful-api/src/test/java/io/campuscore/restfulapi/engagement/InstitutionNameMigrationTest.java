@@ -2,7 +2,7 @@ package io.campuscore.restfulapi.engagement;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import java.sql.Connection;
 import java.util.Map;
 import java.util.UUID;

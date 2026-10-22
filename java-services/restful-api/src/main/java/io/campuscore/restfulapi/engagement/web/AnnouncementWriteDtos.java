@@ -1,13 +1,13 @@
 package io.campuscore.restfulapi.engagement.web;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
+
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -145,9 +145,7 @@ public final class AnnouncementWriteDtos {
 
     private static Set<String> presentAllowedFields(ObjectNode body, boolean lifecycleAllowed) {
         Set<String> present = new LinkedHashSet<>();
-        Iterator<String> fieldNames = body.fieldNames();
-        while (fieldNames.hasNext()) {
-            String field = fieldNames.next();
+        for (String field : body.propertyNames()) {
             if (!ANNOUNCEMENT_FIELDS.contains(field)) {
                 if (!lifecycleAllowed || !LIFECYCLE_FIELDS.contains(field)) {
                     throw new IllegalArgumentException("Unexpected body property: " + field);
@@ -159,9 +157,7 @@ public final class AnnouncementWriteDtos {
     }
 
     private static void presentLifecycleFields(ObjectNode body) {
-        Iterator<String> fieldNames = body.fieldNames();
-        while (fieldNames.hasNext()) {
-            String field = fieldNames.next();
+        for (String field : body.propertyNames()) {
             if (!LIFECYCLE_FIELDS.contains(field)) {
                 throw new IllegalArgumentException("Unexpected body property: " + field);
             }
