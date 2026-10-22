@@ -84,6 +84,14 @@ public class EventService {
         return count != null && count > 0;
     }
 
+    /** Domain membership permits creation; an existing event is assigned to its owner. */
+    private static void requireEventOwner(String actorId, String ownerId) {
+        if (!actorId.equals(ownerId)) {
+            throw problem(HttpStatus.FORBIDDEN, "EVENT_NOT_OWNER",
+                    "This event is assigned to another staff member");
+        }
+    }
+
     public List<StaffGrantResponse> listGrants(String actorId) {
         requireStaffGrant(actorId);
         return jdbc.query(
@@ -197,6 +205,12 @@ public class EventService {
         if (!"DRAFT".equals(String.valueOf(event.get("status")))) {
             throw problem(HttpStatus.CONFLICT, "EVENT_NOT_DRAFT", "Only draft events can be edited");
         }
+        if (request.version() == null || request.version() < 0) {
+            throw problem(HttpStatus.BAD_REQUEST, "EVENT_VERSION_REQUIRED", "The current event version is required");
+        }
+        if (request.version() != ((Number) event.get("version")).intValue()) {
+            throw problem(HttpStatus.CONFLICT, "STALE_VERSION", "The event changed; reload before editing");
+        }
         int capacity = request.capacity() == null ? ((Number) event.get("capacity")).intValue() : request.capacity();
         Instant startsAt = request.startsAt() == null ? toInstant(event.get("starts_at")) : request.startsAt();
         Instant endsAt = request.endsAt() == null ? toInstant(event.get("ends_at")) : request.endsAt();
@@ -255,6 +269,7 @@ public class EventService {
     public EventResponse openRegistration(String actorId, String eventId, OpenRegistrationRequest request) {
         requireStaffGrant(actorId);
         Map<String, Object> event = lockEvent(eventId);
+        requireEventOwner(actorId, String.valueOf(event.get("owner_id")));
         Instant opensAt = request != null && request.registrationOpensAt() != null
                 ? request.registrationOpensAt() : toInstant(event.get("registration_opens_at"));
         Instant closesAt = request != null && request.registrationClosesAt() != null
@@ -290,7 +305,8 @@ public class EventService {
     @Transactional
     public EventResponse closeRegistration(String actorId, String eventId) {
         requireStaffGrant(actorId);
-        lockEvent(eventId);
+        Map<String, Object> event = lockEvent(eventId);
+        requireEventOwner(actorId, String.valueOf(event.get("owner_id")));
         transition(eventId, "REGISTRATION_OPEN", "REGISTRATION_CLOSED", actorId, null);
         return findEvent(eventId, null);
     }
@@ -299,6 +315,7 @@ public class EventService {
     public EventResponse complete(String actorId, String eventId) {
         requireStaffGrant(actorId);
         Map<String, Object> event = lockEvent(eventId);
+        requireEventOwner(actorId, String.valueOf(event.get("owner_id")));
         Instant startsAt = toInstant(event.get("starts_at"));
         if (startsAt != null && Instant.now().isBefore(startsAt)) {
             throw problem(HttpStatus.CONFLICT, "EVENT_NOT_STARTED",
@@ -319,6 +336,7 @@ public class EventService {
     public EventResponse cancel(String actorId, String eventId, String reason) {
         requireStaffGrant(actorId);
         Map<String, Object> event = lockEvent(eventId);
+        requireEventOwner(actorId, String.valueOf(event.get("owner_id")));
         String status = String.valueOf(event.get("status"));
         if ("CANCELLED".equals(status) || "COMPLETED".equals(status)) {
             throw problem(HttpStatus.CONFLICT, "EVENT_TERMINAL",
@@ -361,9 +379,9 @@ public class EventService {
     /** Roster is staff-scope only; students never see other registrants. */
     public List<RosterEntry> roster(String actorId, String eventId) {
         requireStaffGrant(actorId);
-        requireEvent(eventId);
+        requireEventOwner(actorId, findEvent(eventId, null).ownerId());
         return jdbc.query(
-                "SELECT r.\"id\" AS registration_id, r.\"studentId\" AS student_id,"
+                "SELECT r.\"id\" AS registration_id, r.\"version\" AS version, r.\"studentId\" AS student_id,"
                         + " u.\"firstName\" AS first_name, u.\"lastName\" AS last_name, u.\"email\" AS email,"
                         + " r.\"status\" AS status, r.\"attendanceStatus\" AS attendance_status,"
                         + " r.\"attendanceMarkedBy\" AS marked_by, r.\"attendanceMarkedAt\" AS marked_at,"
@@ -375,6 +393,7 @@ public class EventService {
                 new MapSqlParameterSource("eventId", eventId),
                 (row, index) -> new RosterEntry(
                         row.getString("registration_id"),
+                        row.getInt("version"),
                         row.getString("student_id"),
                         (String.valueOf(row.getString("last_name")) + " "
                                 + String.valueOf(row.getString("first_name"))).trim(),
@@ -396,6 +415,7 @@ public class EventService {
     public List<RosterEntry> markAttendance(String actorId, String eventId, AttendanceBatchRequest request) {
         requireStaffGrant(actorId);
         Map<String, Object> event = lockEvent(eventId);
+        requireEventOwner(actorId, String.valueOf(event.get("owner_id")));
         String status = String.valueOf(event.get("status"));
         if (!"REGISTRATION_CLOSED".equals(status) && !"COMPLETED".equals(status)) {
             throw problem(HttpStatus.CONFLICT, "EVENT_ATTENDANCE_STATE",
@@ -409,22 +429,36 @@ public class EventService {
             throw problem(HttpStatus.BAD_REQUEST, "EVENT_MARKS_REQUIRED", "At least one mark is required");
         }
         for (AttendanceMarkRequest mark : request.marks()) {
-            if (mark.registrationId() == null || mark.registrationId().isBlank()
+            if (mark == null || mark.registrationId() == null || mark.registrationId().isBlank()
                     || mark.status() == null
                     || !(mark.status().equals("ATTENDED") || mark.status().equals("ABSENT"))) {
                 throw problem(HttpStatus.BAD_REQUEST, "EVENT_MARK_INVALID",
                         "Each mark needs a registrationId and status ATTENDED or ABSENT");
             }
+            if (mark.version() == null || mark.version() < 0) {
+                throw problem(HttpStatus.BAD_REQUEST, "EVENT_VERSION_REQUIRED", "Each mark needs its roster version");
+            }
+            List<Integer> versions = jdbc.queryForList(
+                    "SELECT \"version\" FROM " + REGISTRATION
+                            + " WHERE \"id\" = :id AND \"eventId\" = :eventId AND \"status\" = 'REGISTERED' FOR UPDATE",
+                    new MapSqlParameterSource("id", mark.registrationId()).addValue("eventId", eventId), Integer.class);
+            if (versions.isEmpty()) {
+                throw problem(HttpStatus.CONFLICT, "EVENT_REGISTRATION_NOT_ON_ROSTER", "Registration is not an active roster entry");
+            }
+            if (!mark.version().equals(versions.getFirst())) {
+                throw problem(HttpStatus.CONFLICT, "STALE_VERSION", "Reload the roster before marking attendance");
+            }
             int updated = jdbc.update(
                     "UPDATE " + REGISTRATION + " SET \"attendanceStatus\" = :mark,"
                             + " \"attendanceMarkedBy\" = :actor, \"attendanceMarkedAt\" = CURRENT_TIMESTAMP,"
                             + " \"version\" = \"version\" + 1"
-                            + " WHERE \"id\" = :id AND \"eventId\" = :eventId AND \"status\" = 'REGISTERED'",
+                            + " WHERE \"id\" = :id AND \"eventId\" = :eventId AND \"status\" = 'REGISTERED' AND \"version\" = :version",
                     new MapSqlParameterSource()
                             .addValue("id", mark.registrationId())
                             .addValue("eventId", eventId)
                             .addValue("mark", mark.status())
-                            .addValue("actor", actorId));
+                            .addValue("actor", actorId)
+                            .addValue("version", mark.version()));
             if (updated == 0) {
                 throw problem(HttpStatus.CONFLICT, "EVENT_REGISTRATION_NOT_ON_ROSTER",
                         "Registration " + mark.registrationId() + " is not an active roster entry");
@@ -442,14 +476,16 @@ public class EventService {
     public List<EventResponse> listStaffEvents(String actorId) {
         requireStaffGrant(actorId);
         return jdbc.query(
-                eventSelect(null) + " ORDER BY e.\"startsAt\" DESC",
-                new MapSqlParameterSource().addValue("studentId", null),
+                eventSelect(null) + " WHERE e.\"ownerId\" = :ownerId ORDER BY e.\"startsAt\" DESC",
+                new MapSqlParameterSource().addValue("studentId", null).addValue("ownerId", actorId),
                 (row, index) -> mapEvent(row, null));
     }
 
     public EventResponse staffEvent(String actorId, String eventId) {
         requireStaffGrant(actorId);
-        return findEvent(eventId, null);
+        EventResponse event = findEvent(eventId, null);
+        requireEventOwner(actorId, event.ownerId());
+        return event;
     }
 
     // ------------------------------------------------------------------
@@ -502,7 +538,7 @@ public class EventService {
     Map<String, Object> lockEvent(String eventId) {
         try {
             return jdbc.queryForMap(
-                    "SELECT \"id\", \"status\", \"capacity\", \"registeredCount\", \"title\","
+                    "SELECT \"id\", \"version\", \"status\", \"capacity\", \"registeredCount\", \"title\","
                             + " \"description\", \"location\", \"organizer\","
                             + " \"ownerId\" AS owner_id, \"startsAt\" AS starts_at, \"endsAt\" AS ends_at,"
                             + " \"registrationOpensAt\" AS registration_opens_at,"

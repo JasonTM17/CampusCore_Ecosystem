@@ -1,6 +1,7 @@
 package io.campuscore.restfulapi.events;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -8,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
+import io.campuscore.restfulapi.events.service.EventStudentService;
+import io.campuscore.restfulapi.events.service.EventService;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -58,6 +61,12 @@ class EventContractPersistenceTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private EventStudentService students;
+
+    @Autowired
+    private EventService eventService;
 
     private RequestPostProcessor staffJwt;
     private RequestPostProcessor secondStaffJwt;
@@ -133,7 +142,7 @@ class EventContractPersistenceTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createEventJson(capacity, startsAt, endsAt,
                                 Instant.now().minus(1, ChronoUnit.HOURS),
-                                Instant.now().plus(1, ChronoUnit.HOURS))))
+                                startsAt.minus(1, ChronoUnit.SECONDS))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("DRAFT"))
                 .andReturn();
@@ -203,7 +212,7 @@ class EventContractPersistenceTest {
         mvc.perform(post("/api/v1/events/staff/" + eventId + "/attendance").with(staffJwt)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"marks\":[{\"registrationId\":\"" + registrationId
-                                + "\",\"status\":\"ATTENDED\"}]}"))
+                                + "\",\"status\":\"ATTENDED\",\"version\":0}]}"))
                 .andExpect(status().isConflict());
 
         mvc.perform(post("/api/v1/events/staff/" + eventId + "/close-registration").with(staffJwt))
@@ -215,7 +224,7 @@ class EventContractPersistenceTest {
         mvc.perform(post("/api/v1/events/staff/" + eventId + "/attendance").with(staffJwt)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"marks\":[{\"registrationId\":\"" + registrationId
-                                + "\",\"status\":\"ATTENDED\"}]}"))
+                                + "\",\"status\":\"ATTENDED\",\"version\":0}]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].attendanceStatus").value("ATTENDED"))
                 .andExpect(jsonPath("$[0].attendanceMarkedBy").value("staff-user"));
@@ -255,8 +264,7 @@ class EventContractPersistenceTest {
     void publishRequiresOwnerGrantee() throws Exception {
         String eventId = createDraft(staffJwt, 5,
                 Instant.now().plus(1, ChronoUnit.HOURS), Instant.now().plus(2, ChronoUnit.HOURS));
-        // Second grant holder may administer grants/rosters but may not
-        // publish an event owned by another staff member (EVT-T01 owner).
+        // A domain grant does not assign another staff member's event.
         mvc.perform(post("/api/v1/events/staff/" + eventId + "/publish").with(secondStaffJwt))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("EVENT_NOT_OWNER"));
@@ -464,7 +472,7 @@ class EventContractPersistenceTest {
         // Unknown registration id → not on roster.
         mvc.perform(post("/api/v1/events/staff/" + eventId + "/attendance").with(staffJwt)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"marks\":[{\"registrationId\":\"nope\",\"status\":\"ATTENDED\"}]}"))
+                        .content("{\"marks\":[{\"registrationId\":\"nope\",\"status\":\"ATTENDED\",\"version\":0}]}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("EVENT_REGISTRATION_NOT_ON_ROSTER"));
 
@@ -472,14 +480,43 @@ class EventContractPersistenceTest {
         mvc.perform(post("/api/v1/events/staff/" + eventId + "/attendance").with(staffJwt)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"marks\":[{\"registrationId\":\"" + registrationId
-                                + "\",\"status\":\"ATTENDED\"}]}"))
+                                + "\",\"status\":\"ATTENDED\",\"version\":0}]}"))
                 .andExpect(status().isOk());
         mvc.perform(post("/api/v1/events/staff/" + eventId + "/attendance").with(staffJwt)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"marks\":[{\"registrationId\":\"" + registrationId
-                                + "\",\"status\":\"ABSENT\"}]}"))
+                                + "\",\"status\":\"ABSENT\",\"version\":1}]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].attendanceStatus").value("ABSENT"));
+    }
+
+    @Test
+    void staleAttendanceBatchRollsBackEarlierMarksAndAudit() throws Exception {
+        String eventId = openEventId();
+        String first = register(eventId, studentJwt, "attendance-first");
+        String second = register(eventId, student2Jwt, "attendance-second");
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/close-registration").with(staffJwt))
+                .andExpect(status().isOk());
+        startEventNow(eventId);
+        String path = "/api/v1/events/staff/" + eventId + "/attendance";
+        mvc.perform(post(path).with(staffJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("marks", List.of(
+                                Map.of("registrationId", second, "status", "ATTENDED", "version", 0))))))
+                .andExpect(status().isOk());
+        int auditBefore = jdbc.queryForObject("SELECT COUNT(*) FROM events.\"Audit\"", Integer.class);
+        mvc.perform(post(path).with(staffJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("marks", List.of(
+                                Map.of("registrationId", first, "status", "ATTENDED", "version", 0),
+                                Map.of("registrationId", second, "status", "ABSENT", "version", 0))))))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("STALE_VERSION"));
+        List<io.campuscore.restfulapi.events.web.EventDtos.RosterEntry> roster = eventService.roster("staff-user", eventId);
+        assertThat(roster.stream().filter(row -> row.registrationId().equals(first)).findFirst().orElseThrow().attendanceStatus()).isEqualTo("ABSENT");
+        assertThat(roster.stream().filter(row -> row.registrationId().equals(second)).findFirst().orElseThrow().attendanceStatus()).isEqualTo("ATTENDED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM events.\"Audit\"", Integer.class)).isEqualTo(auditBefore);
+        mvc.perform(post(path).with(staffJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("marks", List.of(
+                                Map.of("registrationId", first, "status", "ATTENDED"))))))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("EVENT_VERSION_REQUIRED"));
     }
 
     @Test
@@ -495,7 +532,7 @@ class EventContractPersistenceTest {
         mvc.perform(post("/api/v1/events/staff/" + eventId + "/attendance").with(staffJwt)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"marks\":[{\"registrationId\":\"" + registrationId
-                                + "\",\"status\":\"ATTENDED\"}]}"))
+                                + "\",\"status\":\"ATTENDED\",\"version\":0}]}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("EVENT_NOT_STARTED"));
     }
@@ -529,6 +566,125 @@ class EventContractPersistenceTest {
     // ---------------------------------------------------------------
 
     @Test
+    void openApiRequiresVersionForDraftUpdates() throws Exception {
+        var result = mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn();
+        JsonNode schema = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(schema.at("/components/schemas/UpdateEventRequest/required").toString()).contains("version");
+        Path output = Path.of("..", "..", "artifacts", "verification", "events-repair", "runtime-openapi.json");
+        Files.createDirectories(output.getParent());
+        Files.writeString(output, result.getResponse().getContentAsString(), StandardCharsets.UTF_8);
+    }
+
+    @Test
+    void grantedStaffCannotReadOrMutateAnotherOwnersEvent() throws Exception {
+        String eventId = openEventId();
+        mvc.perform(get("/api/v1/events/staff/" + eventId + "/roster").with(secondStaffJwt))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/events/staff/" + eventId).with(secondStaffJwt))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/events/staff").with(secondStaffJwt))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+        for (String action : List.of("open-registration", "close-registration", "complete", "cancel", "attendance")) {
+            mvc.perform(post("/api/v1/events/staff/" + eventId + "/" + action).with(secondStaffJwt)
+                            .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isForbidden());
+        }
+        assertThat(jdbc.queryForObject("SELECT \"status\" FROM events.\"Event\" WHERE \"id\" = ?",
+                String.class, eventId)).isEqualTo("REGISTRATION_OPEN");
+    }
+
+    @Test
+    void staleDraftVersionCannotOverwriteNewerEdit() throws Exception {
+        String eventId = createDraft(staffJwt, 5,
+                Instant.now().plus(2, ChronoUnit.HOURS), Instant.now().plus(4, ChronoUnit.HOURS));
+        mvc.perform(put("/api/v1/events/staff/" + eventId).with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"version\":0,\"title\":\"new edit\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(1));
+        mvc.perform(put("/api/v1/events/staff/" + eventId).with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"version\":0,\"title\":\"stale overwrite\"}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("STALE_VERSION"));
+        mvc.perform(put("/api/v1/events/staff/" + eventId).with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"missing version\"}"))
+                .andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject("SELECT \"title\" FROM events.\"Event\" WHERE \"id\" = ?",
+                String.class, eventId)).isEqualTo("new edit");
+    }
+
+    @Test
+    void replayPreservesFirstResponseAfterLaterCancellation() throws Exception {
+        String eventId = openEventId();
+        MvcResult original = mvc.perform(post("/api/v1/events/" + eventId + "/register").with(studentJwt)
+                        .header("Idempotency-Key", "immutable-register"))
+                .andExpect(status().isCreated()).andReturn();
+        JsonNode body = objectMapper.readTree(original.getResponse().getContentAsString());
+        String registrationId = body.get("id").asText();
+        mvc.perform(post("/api/v1/events/registrations/" + registrationId + "/cancel").with(studentJwt)
+                        .header("Idempotency-Key", "immutable-cancel"))
+                .andExpect(status().isOk());
+        MvcResult replay = mvc.perform(post("/api/v1/events/" + eventId + "/register").with(studentJwt)
+                        .header("Idempotency-Key", "immutable-register"))
+                .andExpect(status().isCreated()).andReturn();
+        assertThat(objectMapper.readTree(replay.getResponse().getContentAsString())).isEqualTo(body);
+        assertThat(jdbc.queryForObject("SELECT \"registeredCount\" FROM events.\"Event\" WHERE \"id\" = ?",
+                Integer.class, eventId)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notifications.notification WHERE user_id = ?",
+                Integer.class, "student-1")).isEqualTo(2);
+    }
+
+    @Test
+    void notificationFailureRollsBackRegistrationAndIdempotency() throws Exception {
+        String eventId = openEventId();
+        jdbc.execute("ALTER TABLE notifications.notification ADD CONSTRAINT reject_event_notice CHECK (user_id <> 'student-1')");
+        try {
+            assertThatThrownBy(() -> students.register("student-1", eventId, "failed-register"))
+                    .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+            assertThat(jdbc.queryForObject("SELECT \"registeredCount\" FROM events.\"Event\" WHERE \"id\" = ?",
+                    Integer.class, eventId)).isZero();
+            for (String table : List.of("Registration", "Idempotency")) {
+                assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM events.\"" + table + "\"", Integer.class)).isZero();
+            }
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM events.\"Audit\" WHERE \"action\" = 'REGISTERED'",
+                    Integer.class)).isZero();
+        } finally {
+            jdbc.execute("ALTER TABLE notifications.notification DROP CONSTRAINT reject_event_notice");
+        }
+        students.register("student-1", eventId, "failed-register");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notifications.notification WHERE user_id='student-1'",
+                Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    void notificationFailureRollsBackIndividualAndWholeEventCancel() throws Exception {
+        String eventId = openEventId();
+        String registrationId = register(eventId, studentJwt, "before-cancel");
+        jdbc.execute("ALTER TABLE notifications.notification ADD CONSTRAINT reject_cancel_notice CHECK (user_id <> 'student-1' OR title = 'Đăng ký sự kiện thành công')");
+        try {
+            assertThatThrownBy(() -> students.cancel("student-1", registrationId, "failed-cancel"))
+                    .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+            assertThatThrownBy(() -> eventService.cancel("staff-user", eventId, "rollback rehearsal"))
+                    .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+            assertThat(jdbc.queryForObject("SELECT \"registeredCount\" FROM events.\"Event\" WHERE \"id\" = ?",
+                    Integer.class, eventId)).isEqualTo(1);
+            assertThat(jdbc.queryForObject("SELECT \"status\" FROM events.\"Event\" WHERE \"id\" = ?",
+                    String.class, eventId)).isEqualTo("REGISTRATION_OPEN");
+            assertThat(jdbc.queryForObject("SELECT \"status\" FROM events.\"Registration\" WHERE \"id\" = ?",
+                    String.class, registrationId)).isEqualTo("REGISTERED");
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM events.\"Idempotency\" WHERE \"idempotencyKey\"='failed-cancel'",
+                    Integer.class)).isZero();
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM events.\"Audit\" WHERE \"action\" IN ('REGISTRATION_CANCELLED','CANCELLED')",
+                    Integer.class)).isZero();
+        } finally {
+            jdbc.execute("ALTER TABLE notifications.notification DROP CONSTRAINT reject_cancel_notice");
+        }
+        var firstCancel = students.cancel("student-1", registrationId, "failed-cancel");
+        assertThat(students.cancel("student-1", registrationId, "failed-cancel")).isEqualTo(firstCancel);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM notifications.notification WHERE user_id='student-1'",
+                Integer.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM events.\"Audit\" WHERE \"action\"='REGISTRATION_CANCELLED'",
+                Integer.class)).isEqualTo(1);
+    }
+
+    @Test
     void nonOwnerGranteeCannotEditAnotherOwnersDraft() throws Exception {
         String eventId = createDraft(staffJwt, 5,
                 Instant.now().plus(2, ChronoUnit.HOURS), Instant.now().plus(4, ChronoUnit.HOURS));
@@ -539,7 +695,7 @@ class EventContractPersistenceTest {
                 .andExpect(jsonPath("$.code").value("EVENT_NOT_OWNER"));
         mvc.perform(put("/api/v1/events/staff/" + eventId).with(staffJwt)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"owner edit\"}"))
+                        .content("{\"version\":0,\"title\":\"owner edit\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("owner edit"));
     }
@@ -596,7 +752,7 @@ class EventContractPersistenceTest {
         mvc.perform(post("/api/v1/events/staff/" + eventId + "/attendance").with(staffJwt)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"marks\":[{\"registrationId\":\"" + registrationId
-                                + "\",\"status\":\"ATTENDED\"}]}"))
+                                + "\",\"status\":\"ATTENDED\",\"version\":0}]}"))
                 .andExpect(status().isOk());
         mvc.perform(post("/api/v1/events/registrations/" + registrationId + "/cancel").with(studentJwt)
                         .header("Idempotency-Key", "cancel-late-key"))

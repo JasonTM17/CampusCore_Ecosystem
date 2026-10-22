@@ -7,7 +7,7 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "test": "node --test tests/screen-atlas.test.mjs tests/phase-six-repair.test.mjs tests/student-json.test.mjs tests/router-guard.test.mjs tests/session-storage.test.mjs tests/oidc-flow.test.mjs tests/query-lifecycle.test.mjs",
+    "test": "node --test tests/screen-atlas.test.mjs tests/phase-six-repair.test.mjs tests/student-json.test.mjs tests/router-guard.test.mjs tests/session-storage.test.mjs tests/oidc-flow.test.mjs tests/query-lifecycle.test.mjs tests/events-messages.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

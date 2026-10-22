@@ -3,6 +3,7 @@ package io.campuscore.restfulapi.events;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.campuscore.restfulapi.events.service.EventStudentService;
+import io.campuscore.restfulapi.events.service.EventService;
 import io.campuscore.restfulapi.web.DomainException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -51,6 +52,9 @@ class EventCapacityPostgresIT {
 
     @Autowired
     private EventStudentService students;
+
+    @Autowired
+    private EventService events;
 
     @Autowired
     private NamedParameterJdbcTemplate jdbc;
@@ -212,6 +216,134 @@ class EventCapacityPostgresIT {
             pool.shutdownNow();
             assertThat(pool.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
         }
+    }
+
+    @Test
+    void twoCancelKeysFreeOneSeatAndNotifyOnce() throws Exception {
+        var registration = students.register(studentIds.get(0), eventId, "register-before-cancel");
+        var results = contend(() -> students.cancel(studentIds.get(0), registration.id(), "cancel-a"),
+                () -> students.cancel(studentIds.get(0), registration.id(), "cancel-b"));
+        assertThat(results.stream().filter(Outcome::registered).count()).isEqualTo(1);
+        assertInvariant(0);
+        assertThat(notices()).isEqualTo(2);
+        assertThat(audits("REGISTRATION_CANCELLED")).isEqualTo(1);
+    }
+
+    @Test
+    void cancellationAndLastSeatRegistrationSerializeWithoutCountDrift() throws Exception {
+        jdbc.update("UPDATE events.\"Event\" SET \"capacity\"=1 WHERE \"id\"=:id", Map.of("id", eventId));
+        var registration = students.register(studentIds.get(0), eventId, "initial-register");
+        var results = contend(() -> students.cancel(studentIds.get(0), registration.id(), "release-seat"),
+                () -> students.register(studentIds.get(1), eventId, "claim-seat"));
+        assertThat(results.get(0).registered()).isTrue();
+        int newRegistration = results.get(1).registered() ? 1 : 0;
+        assertInvariant(newRegistration);
+        assertThat(notices()).isEqualTo(2 + newRegistration);
+    }
+
+    @Test
+    void eventCancellationAndRegistrationLeaveNoActiveSeats() throws Exception {
+        grantFixtureStaff();
+        var results = contend(() -> events.cancel("it-staff", eventId, "race cancellation"),
+                () -> students.register(studentIds.get(0), eventId, "racing-register"));
+        assertThat(results.get(0).registered()).isTrue();
+        assertInvariant(0);
+        assertThat(jdbc.queryForObject("SELECT \"status\" FROM events.\"Event\" WHERE \"id\"=:id",
+                Map.of("id", eventId), String.class)).isEqualTo("CANCELLED");
+        assertThat(notices()).isEqualTo(results.get(1).registered() ? 2 : 0);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> students.register(studentIds.get(1), eventId, "after-terminal"))
+                .isInstanceOf(DomainException.class);
+    }
+
+    @Test
+    void eventCancellationAndIndividualCancellationDoNotDuplicateNotices() throws Exception {
+        grantFixtureStaff();
+        var registration = students.register(studentIds.get(0), eventId, "before-both-cancels");
+        var results = contend(() -> students.cancel(studentIds.get(0), registration.id(), "individual-cancel"),
+                () -> events.cancel("it-staff", eventId, "whole-event-cancel"));
+        assertThat(results.get(1).registered()).isTrue();
+        assertInvariant(0);
+        assertThat(notices()).isEqualTo(2);
+        assertThat(audits("CANCELLED")).isEqualTo(1);
+    }
+
+    @Test
+    void oldReplayDoesNotChangeFreshRegistrationOrRepeatSideEffects() {
+        var original = students.register(studentIds.get(0), eventId, "old-register");
+        var cancelled = students.cancel(studentIds.get(0), original.id(), "old-cancel");
+        var fresh = students.register(studentIds.get(0), eventId, "fresh-register");
+        assertThat(students.register(studentIds.get(0), eventId, "old-register")).isEqualTo(original);
+        assertThat(students.cancel(studentIds.get(0), original.id(), "old-cancel")).isEqualTo(cancelled);
+        assertThat(fresh.id()).isNotEqualTo(original.id());
+        assertInvariant(1);
+        assertThat(notices()).isEqualTo(3);
+        assertThat(audits("REGISTERED")).isEqualTo(2);
+        assertThat(audits("REGISTRATION_CANCELLED")).isEqualTo(1);
+    }
+
+    private void grantFixtureStaff() {
+        jdbc.update("INSERT INTO events.\"StaffGrant\" (\"id\",\"userId\",\"scope\",\"grantedBy\")"
+                + " VALUES ('it-staff-grant','it-staff','events','fixture') ON CONFLICT (\"userId\",\"scope\") DO NOTHING",
+                Map.of());
+    }
+
+    /** Both requests must be observed waiting on the held event lock, not a timing-only race. */
+    private List<Outcome> contend(Callable<?> first, Callable<?> second) throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try (var anchor = jdbc.getJdbcTemplate().getDataSource().getConnection()) {
+            anchor.setAutoCommit(false);
+            try (var statement = anchor.prepareStatement("SELECT \"id\" FROM events.\"Event\" WHERE \"id\"=? FOR UPDATE")) {
+                statement.setString(1, eventId);
+                try (var rows = statement.executeQuery()) { assertThat(rows.next()).isTrue(); }
+            }
+            List<Future<Outcome>> futures = new ArrayList<>();
+            for (Callable<?> action : List.of(first, second)) {
+                futures.add(pool.submit(() -> {
+                    try { action.call(); return new Outcome(true, 200, ""); }
+                    catch (DomainException rejection) {
+                        return new Outcome(false, rejection.getStatus().value(), rejection.code());
+                    }
+                }));
+            }
+            int waiting = 0;
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (System.nanoTime() < deadline) {
+                waiting = jdbc.queryForObject("SELECT COUNT(*) FROM pg_stat_activity WHERE datname=current_database()"
+                        + " AND wait_event_type='Lock' AND state='active'", Map.of(), Integer.class);
+                if (waiting >= 2) break;
+                Thread.sleep(20);
+            }
+            assertThat(waiting).as("both contenders observed at PostgreSQL lock fault point").isGreaterThanOrEqualTo(2);
+            anchor.commit();
+            List<Outcome> outcomes = new ArrayList<>();
+            for (Future<Outcome> future : futures) outcomes.add(future.get(30, TimeUnit.SECONDS));
+            assertThat(outcomes).allMatch(outcome -> outcome.registered() || outcome.status() == 409);
+            return outcomes;
+        } finally {
+            pool.shutdownNow();
+            assertThat(pool.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    private void assertInvariant(int expected) {
+        var args = Map.of("id", eventId);
+        int count = jdbc.queryForObject("SELECT \"registeredCount\" FROM events.\"Event\" WHERE \"id\"=:id", args, Integer.class);
+        int active = jdbc.queryForObject("SELECT COUNT(*) FROM events.\"Registration\" WHERE \"eventId\"=:id AND \"status\"='REGISTERED'", args, Integer.class);
+        int capacity = jdbc.queryForObject("SELECT \"capacity\" FROM events.\"Event\" WHERE \"id\"=:id", args, Integer.class);
+        assertThat(count).isEqualTo(active).isEqualTo(expected).isBetween(0, capacity);
+        int duplicatePairs = jdbc.queryForObject("SELECT COUNT(*) FROM (SELECT \"studentId\" FROM events.\"Registration\""
+                + " WHERE \"eventId\"=:id AND \"status\"='REGISTERED' GROUP BY \"studentId\" HAVING COUNT(*)>1) d", args, Integer.class);
+        assertThat(duplicatePairs).isZero();
+    }
+
+    private int notices() {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM notifications.notification WHERE link=:link",
+                Map.of("link", "/dashboard/events?event=" + eventId), Integer.class);
+    }
+
+    private int audits(String action) {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM events.\"Audit\" WHERE \"eventId\"=:id AND \"action\"=:action",
+                Map.of("id", eventId, "action", action), Integer.class);
     }
 
     static boolean postgresTargetConfigured() {

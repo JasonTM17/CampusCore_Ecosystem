@@ -142,8 +142,10 @@ test.beforeAll(async () => {
   if (untilStart > 0) {
     await new Promise((resolve) => setTimeout(resolve, untilStart));
   }
+  const beforeAttendance = await ok(admin, 'GET', `/api/v1/events/staff/${created.id}/roster`);
+  const currentRegistration = beforeAttendance.find((entry: { registrationId: string }) => entry.registrationId === second.id);
   const roster = await ok(admin, 'POST', `/api/v1/events/staff/${created.id}/attendance`, {
-    marks: [{ registrationId: second.id, status: 'ATTENDED' }],
+    marks: [{ registrationId: second.id, status: 'ATTENDED', version: currentRegistration.version }],
   });
   const attended = roster.find(
     (entry: { registrationId: string }) => entry.registrationId === second.id);
@@ -246,5 +248,116 @@ test.describe('ecosystem-events (P08 D4)', () => {
       (entry: { registrationId: string }) => entry.registrationId === seed.secondRegistrationId,
     );
     expect(attended.attendanceStatus).toBe('ATTENDED');
+  });
+});
+
+// UI regressions use the real authenticated shell and intercept only domain
+// responses (and the additional STUDENT claim for the dual-capability case).
+test.describe('events workspace recovery and capabilities', () => {
+  test.skip(({ browserName }) => browserName !== 'chromium');
+
+  test('initial staff failure exposes a retry that recovers the workspace', async ({ page }) => {
+    let failing = true;
+    await page.route('**/events/staff', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      return route.fulfill({ status: failing ? 500 : 200, contentType: 'application/json',
+        body: JSON.stringify(failing ? { code: 'INTERNAL_ERROR' } : []) });
+    });
+    await ssoAdminLogin(page, '/admin/events');
+    await expect(page.getByText('Thao tác chưa thành công — thử lại.')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByText('Đang tải sự kiện', { exact: true })).toHaveCount(0);
+    failing = false;
+    await page.getByRole('button', { name: /Thử lại|Try again/ }).click();
+    await expect(page.getByRole('button', { name: 'Tạo sự kiện' })).toBeVisible();
+    await expect(page.getByText('Thao tác chưa thành công — thử lại.')).toHaveCount(0);
+  });
+
+  for (const locale of ['vi', 'en'] as const) {
+    test(`student with staff capability can switch both views (${locale})`, async ({ page }) => {
+      const event = { id: 'ui-event', title: 'UI participation fixture', organizer: 'Union',
+        status: 'REGISTRATION_OPEN', capacity: 10, registeredCount: 0, seatsRemaining: 10,
+        startsAt: '2099-11-05T07:30:00Z', endsAt: '2099-11-05T10:30:00Z',
+        myRegistrationId: null, myRegistrationStatus: null, myAttendanceStatus: null };
+      await page.route('**/events/staff', (route) => route.fulfill({ json: [event] }));
+      // API path only: a bare '**/events' also matches the /admin/events page
+      // document, which a reload would then receive as JSON.
+      await page.route('**/api/v1/events', (route) => route.fulfill({ json: [event] }));
+      await page.route('**/events/my/registrations', (route) => route.fulfill({ json: [{
+        registrationId: 'ui-history', registrationStatus: 'CANCELLED', attendanceStatus: 'ABSENT',
+        registeredAt: '2026-10-21T12:00:00Z', event: { ...event, title: 'UI retained history' },
+      }] }));
+      // Real profile through loopback; only the additional UI capability is mocked.
+      // Install before bootstrap: reloading during auth initialization can abort it.
+      const token = await login(ADMIN.email, ADMIN.password);
+      const user = await ok(token, 'GET', '/api/v1/auth/me');
+      expect(user.roles).toContain('ADMIN');
+      let interceptedMe = 0;
+      await page.route('**/api/v1/auth/me', (route) => {
+        interceptedMe++;
+        return route.fulfill({ status: 200,
+          json: { ...user, roles: [...new Set([...(user.roles ?? []), 'STUDENT'])] } });
+      });
+      await ssoAdminLogin(page, locale === 'en' ? '/en/admin/events' : '/admin/events');
+      await expect.poll(() => interceptedMe).toBeGreaterThan(0);
+      const participate = locale === 'vi' ? 'Tham gia & lịch sử' : 'Participation & history';
+      const staff = locale === 'vi' ? 'Công cụ cán bộ' : 'Staff tools';
+      const create = locale === 'vi' ? 'Tạo sự kiện' : 'Create event';
+      await expect(page.getByRole('button', { name: create })).toBeVisible({ timeout: 30000 });
+      await page.getByRole('button', { name: participate }).click();
+      await expect(page.getByRole('button', { name: locale === 'vi' ? 'Đăng ký tham gia' : 'Register', exact: true })).toBeVisible();
+      await expect(page.getByText('UI retained history')).toBeVisible();
+      await expect(page.getByRole('button', { name: create })).toHaveCount(0);
+      await page.getByRole('button', { name: staff, exact: true }).click();
+      await expect(page.getByRole('button', { name: create })).toBeVisible();
+      await expect(page.getByRole('button', { name: locale === 'vi' ? 'Đóng đăng ký' : 'Close registration', exact: true })).toBeVisible();
+    });
+  }
+
+  test('late roster response cannot replace a newly selected event roster', async ({ page }) => {
+    const event = { status: 'REGISTRATION_CLOSED', capacity: 10, registeredCount: 1, seatsRemaining: 9,
+      organizer: 'Union', startsAt: '2026-01-01T10:00:00Z', endsAt: '2026-01-01T12:00:00Z' };
+    await page.route('**/events/staff', (route) => route.fulfill({ json: [
+      { ...event, id: 'slow-event', title: 'Slow roster event' },
+      { ...event, id: 'fast-event', title: 'Fast roster event' },
+    ] }));
+    let releaseSlow!: () => void;
+    let sawSlow!: () => void;
+    const slowStarted = new Promise<void>((resolve) => { sawSlow = resolve; });
+    const slowRelease = new Promise<void>((resolve) => { releaseSlow = resolve; });
+    const entry = (email: string) => [{ registrationId: email, studentName: email, email,
+      status: 'REGISTERED', attendanceStatus: 'ABSENT' }];
+    await page.route('**/events/staff/slow-event/roster', async (route) => {
+      sawSlow();
+      await slowRelease;
+      await route.fulfill({ json: entry('slow@example.test') });
+    });
+    await page.route('**/events/staff/fast-event/roster', (route) => route.fulfill({ json: entry('fast@example.test') }));
+    await ssoAdminLogin(page, '/admin/events');
+    await page.getByRole('button', { name: 'Slow roster event', exact: true }).click();
+    await slowStarted;
+    await page.getByRole('button', { name: 'Fast roster event', exact: true }).click();
+    await expect(page.locator('tr', { hasText: 'fast@example.test' })).toBeVisible();
+    const response = page.waitForResponse((item) => item.url().endsWith('/slow-event/roster'));
+    releaseSlow();
+    await (await response).finished();
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    await expect(page.locator('tr', { hasText: 'fast@example.test' })).toBeVisible();
+    await expect(page.locator('tr', { hasText: 'slow@example.test' })).toHaveCount(0);
+  });
+
+  test('non-student browsing exposes no participation or history requests', async ({ page }) => {
+    await page.route('**/events/staff', (route) => route.fulfill({ status: 403, json: { code: 'EVENTS_STAFF_REQUIRED' } }));
+    let historyRequests = 0;
+    await page.route('**/events/my/registrations', (route) => {
+      historyRequests++;
+      return route.fulfill({ json: [] });
+    });
+    await page.route('**/events', (route) => route.fulfill({ json: [{ id: 'read-only', title: 'Campus fair',
+      status: 'REGISTRATION_OPEN', seatsRemaining: 10, capacity: 10, startsAt: '2099-01-01T10:00:00Z', endsAt: '2099-01-01T12:00:00Z' }] }));
+    await ssoAdminLogin(page, '/admin/events');
+    await expect(page.getByText('Campus fair')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole('button', { name: 'Đăng ký tham gia' })).toHaveCount(0);
+    await expect(page.getByText('Đăng ký của tôi')).toHaveCount(0);
+    expect(historyRequests).toBe(0);
   });
 });
