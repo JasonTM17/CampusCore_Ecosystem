@@ -43,7 +43,9 @@ public class AnnouncementStudentNotifier {
     private final PeopleReadService people;
     private final NotificationWriteRepository notifications;
     private final AnnouncementWriteRepository announcements;
-    private final Clock clock = Clock.systemUTC();
+    // Microsecond ticks match the column precision: the database rounds finer
+    // values up, which would leave a stored publishAt ahead of a later "now".
+    private final Clock clock = Clock.tick(Clock.systemUTC(), java.time.Duration.ofNanos(1000));
 
     public AnnouncementStudentNotifier(
             PeopleReadService people,

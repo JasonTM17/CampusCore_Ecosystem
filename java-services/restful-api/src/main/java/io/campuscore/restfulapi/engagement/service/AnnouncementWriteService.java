@@ -47,7 +47,9 @@ public class AnnouncementWriteService {
     private final AnnouncementAuditRepository audits;
     private final AnnouncementStudentNotifier studentNotifier;
     private final ObjectMapper objectMapper;
-    private final Clock clock = Clock.systemUTC();
+    // Microsecond ticks match the column precision: the database rounds finer
+    // values up, which would leave a stored publishAt ahead of a later "now".
+    private final Clock clock = Clock.tick(Clock.systemUTC(), java.time.Duration.ofNanos(1000));
 
     public AnnouncementWriteService(
             AnnouncementWriteRepository announcements,
