@@ -23,6 +23,7 @@ import {
   Palette,
   School,
   ScrollText,
+  TicketCheck,
   Users,
   X,
 } from 'lucide-react';
@@ -147,6 +148,11 @@ export function AdminFrame({
         { href: '/admin/thesis', icon: GraduationCap, label: messages.admin.menuItems[0]?.[0] },
         { href: '/dashboard/editor', icon: FileEdit, label: messages.adminShell.menuSiteEditor },
         { href: '/admin/announcements', icon: Megaphone, label: messages.admin.menuItems[9]?.[0] },
+        {
+          href: '/admin/events',
+          icon: TicketCheck,
+          label: messages.adminShell.menuEvents,
+        },
         {
           href: '/admin/notifications',
           icon: Bell,
