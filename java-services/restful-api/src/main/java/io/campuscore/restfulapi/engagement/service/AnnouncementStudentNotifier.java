@@ -6,6 +6,7 @@ import io.campuscore.restfulapi.notification.repository.NotificationWriteReposit
 import io.campuscore.restfulapi.people.service.PeopleReadService;
 import io.campuscore.restfulapi.engagement.repository.AnnouncementWriteRepository;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,7 +46,7 @@ public class AnnouncementStudentNotifier {
     private final AnnouncementWriteRepository announcements;
     // Microsecond ticks match the column precision: the database rounds finer
     // values up, which would leave a stored publishAt ahead of a later "now".
-    private final Clock clock = Clock.tick(Clock.systemUTC(), java.time.Duration.ofNanos(1000));
+    private final Clock clock = Clock.tick(Clock.systemUTC(), Duration.ofNanos(1000));
 
     public AnnouncementStudentNotifier(
             PeopleReadService people,

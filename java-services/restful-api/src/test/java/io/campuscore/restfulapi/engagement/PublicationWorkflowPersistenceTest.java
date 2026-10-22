@@ -12,7 +12,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.campuscore.restfulapi.engagement.service.AnnouncementStudentNotifier;
+import io.campuscore.restfulapi.engagement.service.AnnouncementWriteService;
 import io.campuscore.restfulapi.testsupport.AccountAuthorityFixture;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +32,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.springframework.test.util.AopTestUtils;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * content-lifecycle gate (publication-policy §3): the announcement workflow
@@ -388,6 +396,27 @@ class PublicationWorkflowPersistenceTest {
     // ------------------------------------------------------------------
     // Notification gate + lecturer queue
     // ------------------------------------------------------------------
+
+    @Test
+    void publicationClocksSurviveTheTimestampColumnUnchanged(
+            @Autowired AnnouncementWriteService writeService,
+            @Autowired AnnouncementStudentNotifier notifier) {
+        // The fan-out gate compares a stored publishAt with a later clock
+        // reading. A reading finer than the column is rounded up on write and
+        // can land after that later reading, silently skipping the send.
+        for (Object owner : List.of(writeService, notifier)) {
+            Clock clock = (Clock) ReflectionTestUtils.getField((Object) AopTestUtils.getUltimateTargetObject(owner), "clock");
+            for (int i = 0; i < 2000; i++) {
+                Instant reading = Instant.now(clock);
+                assertEquals(0, reading.getNano() % 1000, owner.getClass().getSimpleName() + " " + reading);
+            }
+            Instant reading = Instant.now(clock);
+            OffsetDateTime stored = jdbc.queryForObject(
+                    "SELECT CAST(? AS TIMESTAMP WITH TIME ZONE)", OffsetDateTime.class,
+                    OffsetDateTime.ofInstant(reading, ZoneOffset.UTC));
+            assertEquals(reading, stored.toInstant());
+        }
+    }
 
     @Test
     void draftsAndReviewQueueSendZeroNotificationsUntilApprove() throws Exception {

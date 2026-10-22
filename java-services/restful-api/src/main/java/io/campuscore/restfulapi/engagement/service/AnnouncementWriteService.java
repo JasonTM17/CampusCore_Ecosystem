@@ -19,7 +19,9 @@ import io.campuscore.restfulapi.engagement.web.AnnouncementWriteDtos.LifecycleRe
 import io.campuscore.restfulapi.engagement.web.AnnouncementWriteDtos.UpdateAnnouncementRequest;
 import io.campuscore.restfulapi.web.DomainException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -49,7 +51,7 @@ public class AnnouncementWriteService {
     private final ObjectMapper objectMapper;
     // Microsecond ticks match the column precision: the database rounds finer
     // values up, which would leave a stored publishAt ahead of a later "now".
-    private final Clock clock = Clock.tick(Clock.systemUTC(), java.time.Duration.ofNanos(1000));
+    private final Clock clock = Clock.tick(Clock.systemUTC(), Duration.ofNanos(1000));
 
     public AnnouncementWriteService(
             AnnouncementWriteRepository announcements,
@@ -98,8 +100,8 @@ public class AnnouncementWriteService {
                 targetRoles,
                 targetYears,
                 Boolean.TRUE.equals(request.isGlobal()),
-                request.publishAt(),
-                request.expiresAt(),
+                toMicros(request.publishAt()),
+                toMicros(request.expiresAt()),
                 publisher,
                 request.semesterId(),
                 request.sectionId(),
@@ -211,8 +213,8 @@ public class AnnouncementWriteService {
                         "targetYears",
                         request.has("targetYears") ? immutableYears(request.targetYears()) : null),
                 patch(request, "isGlobal", request.isGlobal()),
-                patch(request, "publishAt", request.publishAt()),
-                patch(request, "expiresAt", request.expiresAt()),
+                patch(request, "publishAt", toMicros(request.publishAt())),
+                patch(request, "expiresAt", toMicros(request.expiresAt())),
                 patch(request, "semesterId", request.semesterId()),
                 patch(request, "sectionId", request.sectionId()),
                 lecturer ? PatchValue.present(lecturerId) : patch(request, "lecturerId", request.lecturerId()),
@@ -222,7 +224,7 @@ public class AnnouncementWriteService {
             throw conflict("ANNOUNCEMENT_VERSION_CONFLICT", "Announcement was changed by another administrator");
         }
         if (request.has("publishAt") && request.publishAt() != null
-                && request.publishAt().isAfter(now)) {
+                && toMicros(request.publishAt()).isAfter(now)) {
             // Re-scheduling into the future re-arms the notification marker:
             // ScheduledAnnouncementNotifyJob refires when the new publish
             // time arrives. A publishAt moved to the past with a NULL marker
@@ -587,6 +589,11 @@ public class AnnouncementWriteService {
         if (announcement.archivedAt() != null) {
             throw conflict("ANNOUNCEMENT_ARCHIVED", "Archived announcements must be restored before editing");
         }
+    }
+
+    /** Client instants are cut to the column precision so the stored value equals the compared one. */
+    private static Instant toMicros(Instant value) {
+        return value == null ? null : value.truncatedTo(ChronoUnit.MICROS);
     }
 
     private void appendAudit(
