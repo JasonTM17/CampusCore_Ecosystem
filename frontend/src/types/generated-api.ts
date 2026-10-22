@@ -82,14 +82,14 @@ export interface paths {
      * Phê duyệt và xuất bản tài liệu tri thức (Publish - 2-man rule)
      * @description Yêu cầu một Admin khác với người tạo kiểm duyệt và chính thức xuất bản tri thức cho AI sử dụng
      */
-    post: operations["publish_2"];
+    post: operations["publish_3"];
   };
   "/api/v1/admin/assistant/knowledge/{id}/submit": {
     /**
      * Nộp bản nháp để chờ xét duyệt (Submit for Review)
      * @description Chuyển trạng thái phiên bản từ DRAFT sang PENDING_REVIEW để người khác duyệt
      */
-    post: operations["submit_2"];
+    post: operations["submit_3"];
   };
   "/api/v1/admin/audit": {
     /**
@@ -154,14 +154,14 @@ export interface paths {
      * Phê duyệt và xuất bản tài liệu tri thức (Publish - 2-man rule)
      * @description Yêu cầu một Admin khác với người tạo kiểm duyệt và chính thức xuất bản tri thức cho AI sử dụng
      */
-    post: operations["publish_1"];
+    post: operations["publish_2"];
   };
   "/api/v1/admin/thesis/assistant/knowledge/{id}/submit": {
     /**
      * Nộp bản nháp để chờ xét duyệt (Submit for Review)
      * @description Chuyển trạng thái phiên bản từ DRAFT sang PENDING_REVIEW để người khác duyệt
      */
-    post: operations["submit_3"];
+    post: operations["submit_4"];
   };
   "/api/v1/announcements": {
     /**
@@ -225,7 +225,7 @@ export interface paths {
      * Lưu trữ (Archive) thông báo
      * @description Đưa thông báo vào trạng thái lưu trữ bảo mật
      */
-    post: operations["archive_1"];
+    post: operations["archive_2"];
   };
   "/api/v1/announcements/{id}/history": {
     /**
@@ -260,7 +260,7 @@ export interface paths {
      * Gửi duyệt bản nháp
      * @description Chuyển bản nháp (DRAFT) sang hàng chờ duyệt (IN_REVIEW); tác giả gửi bài của mình, quản trị viên có thể nhận xử lý bản nháp bị bỏ lại
      */
-    post: operations["submit_1"];
+    post: operations["submit_2"];
   };
   "/api/v1/article-attachments": {
     /**
@@ -503,7 +503,7 @@ export interface paths {
      * Đăng xuất tài khoản
      * @description Thu hồi Refresh Token và xóa toàn bộ cookie xác thực an toàn.
      */
-    post: operations["logout"];
+    post: operations["logout_1"];
   };
   "/api/v1/auth/me": {
     /**
@@ -685,7 +685,7 @@ export interface paths {
      * Lưu trữ tài liệu
      * @description Rút tài liệu khỏi bề mặt công khai (unpublish) — revisions giữ nguyên làm lịch sử
      */
-    post: operations["archive"];
+    post: operations["archive_1"];
   };
   "/api/v1/docs/{id}/restore": {
     /**
@@ -706,7 +706,7 @@ export interface paths {
      * Gửi duyệt head revision
      * @description Tác giả revision (hoặc quản trị viên) gửi bản nháp vào hàng chờ duyệt
      */
-    post: operations["submit"];
+    post: operations["submit_1"];
   };
   "/api/v1/enrollments": {
     /**
@@ -832,11 +832,11 @@ export interface paths {
   };
   "/api/v1/events/staff/{eventId}/publish": {
     /** Công bố sự kiện (chủ sở hữu) */
-    post: operations["publish"];
+    post: operations["publish_1"];
   };
   "/api/v1/events/staff/{eventId}/roster": {
     /** Roster đăng ký (staff only) */
-    get: operations["roster"];
+    get: operations["roster_1"];
   };
   "/api/v1/events/{eventId}": {
     /** Chi tiết sự kiện */
@@ -908,6 +908,130 @@ export interface paths {
      * @description Kiểm tra kết nối tới cơ sở dữ liệu PostgreSQL trước khi tiếp nhận lưu lượng truy cập.
      */
     get: operations["readiness"];
+  };
+  "/api/v1/learning/assignments/{assignmentId}": {
+    /** Chi tiết bài tập (sinh viên đang học) */
+    get: operations["assignment_1"];
+  };
+  "/api/v1/learning/assignments/{assignmentId}/draft": {
+    /** Mở nháp bài nộp — idempotent (LMS-T03) */
+    post: operations["openDraft"];
+  };
+  "/api/v1/learning/assignments/{assignmentId}/resubmit": {
+    /** Nộp lại sau khi bị trả (LMS-T05) — tạo revision mới, không ghi đè */
+    post: operations["resubmit"];
+  };
+  "/api/v1/learning/assignments/{assignmentId}/submit": {
+    /** Nộp bài — deadline theo đồng hồ máy chủ (LMS-X01), revision bất biến (LMS-X02) */
+    post: operations["submit"];
+  };
+  "/api/v1/learning/materials/{materialId}/file": {
+    /** Tải tệp học liệu (sinh viên đang học) */
+    get: operations["downloadMaterial_1"];
+  };
+  "/api/v1/learning/revisions/{revisionId}/file": {
+    /** Tải tệp revision của tôi (LMS-T07 — chỉ chủ bài) */
+    get: operations["downloadRevision_1"];
+  };
+  "/api/v1/learning/sections": {
+    /** Các lớp học phần đang học (roster học tập) */
+    get: operations["mySections"];
+  };
+  "/api/v1/learning/sections/{sectionId}/assignments": {
+    /** Bài tập của lớp học phần (không gồm nháp) */
+    get: operations["listAssignments_1"];
+  };
+  "/api/v1/learning/sections/{sectionId}/materials": {
+    /** Học liệu của lớp học phần (sinh viên đang học) */
+    get: operations["listMaterials_1"];
+  };
+  "/api/v1/learning/sections/{sectionId}/submissions": {
+    /** Bài nộp của tôi trong lớp học phần */
+    get: operations["mySubmissions"];
+  };
+  "/api/v1/learning/staff/assignments/{assignmentId}": {
+    /** Chi tiết bài tập (giảng viên phụ trách) */
+    get: operations["assignment"];
+    /** Sửa bài tập nháp (optimistic version) */
+    put: operations["updateAssignment"];
+  };
+  "/api/v1/learning/staff/assignments/{assignmentId}/archive": {
+    /** Lưu trữ bài tập đã đóng */
+    post: operations["archive"];
+  };
+  "/api/v1/learning/staff/assignments/{assignmentId}/close": {
+    /** Đóng bài tập — chặn mọi thao tác nộp (LMS-T02) */
+    post: operations["close"];
+  };
+  "/api/v1/learning/staff/assignments/{assignmentId}/publish": {
+    /** Công bố bài tập (LMS-T01) */
+    post: operations["publish"];
+  };
+  "/api/v1/learning/staff/assignments/{assignmentId}/roster": {
+    /** Danh sách roster với trạng thái nộp bài */
+    get: operations["roster"];
+  };
+  "/api/v1/learning/staff/materials/{materialId}": {
+    /** Cập nhật học liệu (optimistic version) */
+    put: operations["updateMaterial"];
+    /** Xoá học liệu */
+    delete: operations["deleteMaterial"];
+  };
+  "/api/v1/learning/staff/materials/{materialId}/file": {
+    /** Tải tệp học liệu (giảng viên phụ trách) */
+    get: operations["downloadMaterial"];
+  };
+  "/api/v1/learning/staff/revisions/{revisionId}/file": {
+    /** Tải tệp của một revision (LMS-T07 — chỉ giảng viên phụ trách) */
+    get: operations["downloadRevision"];
+  };
+  "/api/v1/learning/staff/sections/{sectionId}/assignments": {
+    /** Danh sách bài tập của lớp học phần (gồm nháp) */
+    get: operations["listAssignments"];
+    /** Tạo bài tập nháp (LMS-T01: DRAFT → PUBLISHED → CLOSED → ARCHIVED) */
+    post: operations["createAssignment"];
+  };
+  "/api/v1/learning/staff/sections/{sectionId}/materials": {
+    /** Danh sách học liệu của lớp học phần (giảng viên phụ trách) */
+    get: operations["listMaterials"];
+    /** Tạo học liệu mới cho lớp học phần */
+    post: operations["createMaterial"];
+  };
+  "/api/v1/learning/staff/submissions/{submissionId}": {
+    /** Chi tiết bài nộp (giảng viên phụ trách) */
+    get: operations["submission"];
+  };
+  "/api/v1/learning/staff/submissions/{submissionId}/feedback": {
+    /** Lịch sử phản hồi (append-only) */
+    get: operations["feedback_2"];
+  };
+  "/api/v1/learning/staff/submissions/{submissionId}/return": {
+    /** Trả bài kèm phản hồi (LMS-T04: SUBMITTED|RESUBMITTED → RETURNED) */
+    post: operations["returnSubmission"];
+  };
+  "/api/v1/learning/staff/submissions/{submissionId}/review": {
+    /** Đánh dấu đã duyệt (LMS-T06: RETURNED → REVIEWED) */
+    post: operations["reviewSubmission"];
+  };
+  "/api/v1/learning/staff/submissions/{submissionId}/revisions": {
+    /** Lịch sử revision bất biến của bài nộp (LMS-X02) */
+    get: operations["revisions"];
+  };
+  "/api/v1/learning/submissions/{submissionId}": {
+    /** Chi tiết bài nộp của tôi */
+    get: operations["mySubmission"];
+  };
+  "/api/v1/learning/submissions/{submissionId}/draft": {
+    /** Lưu nội dung nháp (văn bản + tệp đính kèm) */
+    put: operations["saveDraft"];
+  };
+  "/api/v1/learning/submissions/{submissionId}/feedback": {
+    /** Phản hồi trên bài nộp của tôi */
+    get: operations["myFeedback"];
+  };
+  "/api/v1/learning/submissions/{submissionId}/revisions": {
+    /** Lịch sử revision của bài nộp của tôi */
+    get: operations["myRevisions"];
   };
   "/api/v1/lecturers": {
     /**
@@ -1668,6 +1792,33 @@ export interface paths {
      */
     post: operations["unlock"];
   };
+  "/bff/api/**": {
+    get: operations["proxy"];
+    put: operations["proxy_2"];
+    post: operations["proxy_1"];
+    delete: operations["proxy_3"];
+    options: operations["proxy_6"];
+    head: operations["proxy_5"];
+    patch: operations["proxy_4"];
+  };
+  "/login": {
+    get: operations["loginPage"];
+  };
+  "/session/callback": {
+    get: operations["callback"];
+  };
+  "/session/logged-out": {
+    get: operations["loggedOut"];
+  };
+  "/session/login": {
+    get: operations["login_1"];
+  };
+  "/session/logout": {
+    post: operations["logout"];
+  };
+  "/session/state": {
+    get: operations["state"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -1873,6 +2024,35 @@ export interface components {
     };
     AssignTopicRequest: {
       topicId: string;
+    };
+    AssignmentResponse: {
+      /** Format: date-time */
+      createdAt?: string;
+      /** Format: date-time */
+      deadlineAt?: string;
+      description?: string;
+      id?: string;
+      /** Format: double */
+      maxScore?: number;
+      mySubmissionId?: string;
+      mySubmissionStatus?: string;
+      sectionId?: string;
+      status?: string;
+      title?: string;
+      /** Format: date-time */
+      updatedAt?: string;
+      /** Format: int32 */
+      version?: number;
+    };
+    AssignmentUpsertRequest: {
+      /** Format: date-time */
+      deadlineAt?: string;
+      description?: string;
+      /** Format: double */
+      maxScore?: number;
+      title?: string;
+      /** Format: int32 */
+      version?: number;
     };
     AttachmentDto: {
       announcementId?: string;
@@ -2942,6 +3122,33 @@ export interface components {
       /** Format: int32 */
       updated?: number;
     };
+    MaterialResponse: {
+      checksum?: string;
+      contentType?: string;
+      /** Format: date-time */
+      createdAt?: string;
+      description?: string;
+      fileName?: string;
+      id?: string;
+      sectionId?: string;
+      /** Format: int64 */
+      sizeBytes?: number;
+      title?: string;
+      /** Format: date-time */
+      updatedAt?: string;
+      /** Format: int32 */
+      version?: number;
+    };
+    MaterialUpsertRequest: {
+      checksum?: string;
+      contentBase64?: string;
+      contentType?: string;
+      description?: string;
+      fileName?: string;
+      title?: string;
+      /** Format: int32 */
+      version?: number;
+    };
     MediaGalleryDto: {
       altText?: string;
       announcementId?: string;
@@ -3303,6 +3510,13 @@ export interface components {
       /** Format: date-time */
       updatedAt?: string;
     };
+    ReturnRequest: {
+      comment?: string;
+      /** Format: int32 */
+      expectedVersion?: number;
+      /** Format: double */
+      score?: number;
+    };
     ReviewRequest: {
       decision: string;
       note?: string;
@@ -3344,6 +3558,17 @@ export interface components {
       studentName?: string;
       /** Format: int32 */
       version?: number;
+    };
+    RosterRowResponse: {
+      enrollmentId?: string;
+      enrollmentStatus?: string;
+      studentEmail?: string;
+      studentId?: string;
+      studentName?: string;
+      submissionId?: string;
+      submissionStatus?: string;
+      /** Format: date-time */
+      submittedAt?: string;
     };
     RoundCreateRequest: {
       /** Format: date-time */
@@ -3725,6 +3950,51 @@ export interface components {
       id?: string;
       studentId?: string;
       user?: components["schemas"]["UserSummary"];
+    };
+    SubmissionResponse: {
+      assignmentId?: string;
+      currentRevisionId?: string;
+      id?: string;
+      /** Format: date-time */
+      returnedAt?: string;
+      /** Format: date-time */
+      reviewedAt?: string;
+      status?: string;
+      studentEmail?: string;
+      studentId?: string;
+      studentName?: string;
+      /** Format: date-time */
+      submittedAt?: string;
+      /** Format: int32 */
+      version?: number;
+    };
+    SubmissionReviewRequest: {
+      comment?: string;
+      /** Format: int32 */
+      expectedVersion?: number;
+      /** Format: double */
+      score?: number;
+    };
+    SubmissionRevisionResponse: {
+      checksum?: string;
+      contentType?: string;
+      fileName?: string;
+      id?: string;
+      /** Format: int32 */
+      revisionNo?: number;
+      /** Format: int64 */
+      sizeBytes?: number;
+      submissionId?: string;
+      /** Format: date-time */
+      submittedAt?: string;
+      textBody?: string;
+    };
+    SubmissionUpsertRequest: {
+      checksum?: string;
+      contentBase64?: string;
+      contentType?: string;
+      fileName?: string;
+      textBody?: string;
     };
     SubmitScoreRequest: {
       comment?: string;
@@ -4235,7 +4505,7 @@ export interface operations {
    * Phê duyệt và xuất bản tài liệu tri thức (Publish - 2-man rule)
    * @description Yêu cầu một Admin khác với người tạo kiểm duyệt và chính thức xuất bản tri thức cho AI sử dụng
    */
-  publish_2: {
+  publish_3: {
     parameters: {
       path: {
         /** @description Mã định danh tài liệu tri thức (UUID) */
@@ -4261,7 +4531,7 @@ export interface operations {
    * Nộp bản nháp để chờ xét duyệt (Submit for Review)
    * @description Chuyển trạng thái phiên bản từ DRAFT sang PENDING_REVIEW để người khác duyệt
    */
-  submit_2: {
+  submit_3: {
     parameters: {
       path: {
         /** @description Mã định danh tài liệu tri thức (UUID) */
@@ -4502,7 +4772,7 @@ export interface operations {
    * Phê duyệt và xuất bản tài liệu tri thức (Publish - 2-man rule)
    * @description Yêu cầu một Admin khác với người tạo kiểm duyệt và chính thức xuất bản tri thức cho AI sử dụng
    */
-  publish_1: {
+  publish_2: {
     parameters: {
       path: {
         /** @description Mã định danh tài liệu tri thức (UUID) */
@@ -4528,7 +4798,7 @@ export interface operations {
    * Nộp bản nháp để chờ xét duyệt (Submit for Review)
    * @description Chuyển trạng thái phiên bản từ DRAFT sang PENDING_REVIEW để người khác duyệt
    */
-  submit_3: {
+  submit_4: {
     parameters: {
       path: {
         /** @description Mã định danh tài liệu tri thức (UUID) */
@@ -4810,7 +5080,7 @@ export interface operations {
    * Lưu trữ (Archive) thông báo
    * @description Đưa thông báo vào trạng thái lưu trữ bảo mật
    */
-  archive_1: {
+  archive_2: {
     parameters: {
       path: {
         /** @description Mã định danh thông báo (UUID) */
@@ -4961,7 +5231,7 @@ export interface operations {
    * Gửi duyệt bản nháp
    * @description Chuyển bản nháp (DRAFT) sang hàng chờ duyệt (IN_REVIEW); tác giả gửi bài của mình, quản trị viên có thể nhận xử lý bản nháp bị bỏ lại
    */
-  submit_1: {
+  submit_2: {
     parameters: {
       path: {
         /** @description Mã định danh thông báo (UUID) */
@@ -5811,7 +6081,7 @@ export interface operations {
    * Đăng xuất tài khoản
    * @description Thu hồi Refresh Token và xóa toàn bộ cookie xác thực an toàn.
    */
-  logout: {
+  logout_1: {
     requestBody?: {
       content: {
         "application/json": components["schemas"]["LogoutRequest"];
@@ -6574,7 +6844,7 @@ export interface operations {
    * Lưu trữ tài liệu
    * @description Rút tài liệu khỏi bề mặt công khai (unpublish) — revisions giữ nguyên làm lịch sử
    */
-  archive: {
+  archive_1: {
     parameters: {
       path: {
         id: string;
@@ -6646,7 +6916,7 @@ export interface operations {
    * Gửi duyệt head revision
    * @description Tác giả revision (hoặc quản trị viên) gửi bản nháp vào hàng chờ duyệt
    */
-  submit: {
+  submit_1: {
     parameters: {
       path: {
         id: string;
@@ -7150,7 +7420,7 @@ export interface operations {
     };
   };
   /** Công bố sự kiện (chủ sở hữu) */
-  publish: {
+  publish_1: {
     parameters: {
       path: {
         eventId: string;
@@ -7166,7 +7436,7 @@ export interface operations {
     };
   };
   /** Roster đăng ký (staff only) */
-  roster: {
+  roster_1: {
     parameters: {
       path: {
         eventId: string;
@@ -7388,6 +7658,581 @@ export interface operations {
           "*/*": {
             [key: string]: unknown;
           };
+        };
+      };
+    };
+  };
+  /** Chi tiết bài tập (sinh viên đang học) */
+  assignment_1: {
+    parameters: {
+      path: {
+        assignmentId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AssignmentResponse"];
+        };
+      };
+    };
+  };
+  /** Mở nháp bài nộp — idempotent (LMS-T03) */
+  openDraft: {
+    parameters: {
+      header?: {
+        /** @description Khóa chống gửi trùng */
+        "Idempotency-Key"?: string;
+      };
+      path: {
+        assignmentId: string;
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        content: {
+          "*/*": components["schemas"]["SubmissionResponse"];
+        };
+      };
+    };
+  };
+  /** Nộp lại sau khi bị trả (LMS-T05) — tạo revision mới, không ghi đè */
+  resubmit: {
+    parameters: {
+      header?: {
+        "Idempotency-Key"?: string;
+      };
+      path: {
+        assignmentId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SubmissionUpsertRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["SubmissionResponse"];
+        };
+      };
+    };
+  };
+  /** Nộp bài — deadline theo đồng hồ máy chủ (LMS-X01), revision bất biến (LMS-X02) */
+  submit: {
+    parameters: {
+      header?: {
+        "Idempotency-Key"?: string;
+      };
+      path: {
+        assignmentId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["SubmissionResponse"];
+        };
+      };
+    };
+  };
+  /** Tải tệp học liệu (sinh viên đang học) */
+  downloadMaterial_1: {
+    parameters: {
+      path: {
+        materialId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
+  /** Tải tệp revision của tôi (LMS-T07 — chỉ chủ bài) */
+  downloadRevision_1: {
+    parameters: {
+      path: {
+        revisionId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
+  /** Các lớp học phần đang học (roster học tập) */
+  mySections: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": {
+              [key: string]: unknown;
+            }[];
+        };
+      };
+    };
+  };
+  /** Bài tập của lớp học phần (không gồm nháp) */
+  listAssignments_1: {
+    parameters: {
+      path: {
+        sectionId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AssignmentResponse"][];
+        };
+      };
+    };
+  };
+  /** Học liệu của lớp học phần (sinh viên đang học) */
+  listMaterials_1: {
+    parameters: {
+      path: {
+        /** @description Mã lớp học phần */
+        sectionId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["MaterialResponse"][];
+        };
+      };
+    };
+  };
+  /** Bài nộp của tôi trong lớp học phần */
+  mySubmissions: {
+    parameters: {
+      path: {
+        sectionId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["SubmissionResponse"][];
+        };
+      };
+    };
+  };
+  /** Chi tiết bài tập (giảng viên phụ trách) */
+  assignment: {
+    parameters: {
+      path: {
+        assignmentId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AssignmentResponse"];
+        };
+      };
+    };
+  };
+  /** Sửa bài tập nháp (optimistic version) */
+  updateAssignment: {
+    parameters: {
+      path: {
+        assignmentId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AssignmentUpsertRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AssignmentResponse"];
+        };
+      };
+    };
+  };
+  /** Lưu trữ bài tập đã đóng */
+  archive: {
+    parameters: {
+      path: {
+        assignmentId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AssignmentResponse"];
+        };
+      };
+    };
+  };
+  /** Đóng bài tập — chặn mọi thao tác nộp (LMS-T02) */
+  close: {
+    parameters: {
+      path: {
+        assignmentId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AssignmentResponse"];
+        };
+      };
+    };
+  };
+  /** Công bố bài tập (LMS-T01) */
+  publish: {
+    parameters: {
+      path: {
+        assignmentId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AssignmentResponse"];
+        };
+      };
+    };
+  };
+  /** Danh sách roster với trạng thái nộp bài */
+  roster: {
+    parameters: {
+      path: {
+        assignmentId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["RosterRowResponse"][];
+        };
+      };
+    };
+  };
+  /** Cập nhật học liệu (optimistic version) */
+  updateMaterial: {
+    parameters: {
+      path: {
+        materialId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MaterialUpsertRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["MaterialResponse"];
+        };
+      };
+    };
+  };
+  /** Xoá học liệu */
+  deleteMaterial: {
+    parameters: {
+      path: {
+        materialId: string;
+      };
+    };
+    responses: {
+      /** @description No Content */
+      204: {
+        content: never;
+      };
+    };
+  };
+  /** Tải tệp học liệu (giảng viên phụ trách) */
+  downloadMaterial: {
+    parameters: {
+      path: {
+        materialId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
+  /** Tải tệp của một revision (LMS-T07 — chỉ giảng viên phụ trách) */
+  downloadRevision: {
+    parameters: {
+      path: {
+        revisionId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
+  /** Danh sách bài tập của lớp học phần (gồm nháp) */
+  listAssignments: {
+    parameters: {
+      path: {
+        sectionId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AssignmentResponse"][];
+        };
+      };
+    };
+  };
+  /** Tạo bài tập nháp (LMS-T01: DRAFT → PUBLISHED → CLOSED → ARCHIVED) */
+  createAssignment: {
+    parameters: {
+      path: {
+        sectionId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AssignmentUpsertRequest"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        content: {
+          "*/*": components["schemas"]["AssignmentResponse"];
+        };
+      };
+    };
+  };
+  /** Danh sách học liệu của lớp học phần (giảng viên phụ trách) */
+  listMaterials: {
+    parameters: {
+      path: {
+        /** @description Mã lớp học phần */
+        sectionId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["MaterialResponse"][];
+        };
+      };
+    };
+  };
+  /** Tạo học liệu mới cho lớp học phần */
+  createMaterial: {
+    parameters: {
+      path: {
+        sectionId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MaterialUpsertRequest"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        content: {
+          "*/*": components["schemas"]["MaterialResponse"];
+        };
+      };
+    };
+  };
+  /** Chi tiết bài nộp (giảng viên phụ trách) */
+  submission: {
+    parameters: {
+      path: {
+        submissionId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["SubmissionResponse"];
+        };
+      };
+    };
+  };
+  /** Lịch sử phản hồi (append-only) */
+  feedback_2: {
+    parameters: {
+      path: {
+        submissionId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["FeedbackResponse"][];
+        };
+      };
+    };
+  };
+  /** Trả bài kèm phản hồi (LMS-T04: SUBMITTED|RESUBMITTED → RETURNED) */
+  returnSubmission: {
+    parameters: {
+      path: {
+        submissionId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReturnRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["SubmissionResponse"];
+        };
+      };
+    };
+  };
+  /** Đánh dấu đã duyệt (LMS-T06: RETURNED → REVIEWED) */
+  reviewSubmission: {
+    parameters: {
+      path: {
+        submissionId: string;
+      };
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["SubmissionReviewRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["SubmissionResponse"];
+        };
+      };
+    };
+  };
+  /** Lịch sử revision bất biến của bài nộp (LMS-X02) */
+  revisions: {
+    parameters: {
+      path: {
+        submissionId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["SubmissionRevisionResponse"][];
+        };
+      };
+    };
+  };
+  /** Chi tiết bài nộp của tôi */
+  mySubmission: {
+    parameters: {
+      path: {
+        submissionId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["SubmissionResponse"];
+        };
+      };
+    };
+  };
+  /** Lưu nội dung nháp (văn bản + tệp đính kèm) */
+  saveDraft: {
+    parameters: {
+      path: {
+        submissionId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SubmissionUpsertRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["SubmissionResponse"];
+        };
+      };
+    };
+  };
+  /** Phản hồi trên bài nộp của tôi */
+  myFeedback: {
+    parameters: {
+      path: {
+        submissionId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["FeedbackResponse"][];
+        };
+      };
+    };
+  };
+  /** Lịch sử revision của bài nộp của tôi */
+  myRevisions: {
+    parameters: {
+      path: {
+        submissionId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["SubmissionRevisionResponse"][];
         };
       };
     };
@@ -10562,6 +11407,151 @@ export interface operations {
     };
     responses: {
       /** @description Tài khoản được gỡ khóa, có thể đăng nhập lại ngay */
+      200: {
+        content: {
+          "*/*": {
+            [key: string]: unknown;
+          };
+        };
+      };
+    };
+  };
+  proxy: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
+  proxy_2: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
+  proxy_1: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
+  proxy_3: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
+  proxy_6: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
+  proxy_5: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
+  proxy_4: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
+  loginPage: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
+  callback: {
+    parameters: {
+      query?: {
+        code?: string;
+        state?: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": Record<string, never>;
+        };
+      };
+    };
+  };
+  loggedOut: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
+  login_1: {
+    parameters: {
+      query?: {
+        return?: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": Record<string, never>;
+        };
+      };
+    };
+  };
+  logout: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": {
+            [key: string]: unknown;
+          };
+        };
+      };
+    };
+  };
+  state: {
+    responses: {
+      /** @description OK */
       200: {
         content: {
           "*/*": {

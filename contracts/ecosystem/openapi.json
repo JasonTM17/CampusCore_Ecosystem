@@ -645,6 +645,75 @@
         ],
         "type": "object"
       },
+      "AssignmentResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "deadlineAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "maxScore": {
+            "format": "double",
+            "type": "number"
+          },
+          "mySubmissionId": {
+            "type": "string"
+          },
+          "mySubmissionStatus": {
+            "type": "string"
+          },
+          "sectionId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "AssignmentUpsertRequest": {
+        "properties": {
+          "deadlineAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "maxScore": {
+            "format": "double",
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "AttachmentDto": {
         "properties": {
           "announcementId": {
@@ -3694,6 +3763,75 @@
         },
         "type": "object"
       },
+      "MaterialResponse": {
+        "properties": {
+          "checksum": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "sectionId": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "MaterialUpsertRequest": {
+        "properties": {
+          "checksum": {
+            "type": "string"
+          },
+          "contentBase64": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "MediaGalleryDto": {
         "properties": {
           "altText": {
@@ -4697,6 +4835,22 @@
         },
         "type": "object"
       },
+      "ReturnRequest": {
+        "properties": {
+          "comment": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "score": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
       "ReviewRequest": {
         "properties": {
           "decision": {
@@ -4830,6 +4984,36 @@
           "version": {
             "format": "int32",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RosterRowResponse": {
+        "properties": {
+          "enrollmentId": {
+            "type": "string"
+          },
+          "enrollmentStatus": {
+            "type": "string"
+          },
+          "studentEmail": {
+            "type": "string"
+          },
+          "studentId": {
+            "type": "string"
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "submissionId": {
+            "type": "string"
+          },
+          "submissionStatus": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
           }
         },
         "type": "object"
@@ -5818,6 +6002,119 @@
           },
           "user": {
             "$ref": "#/components/schemas/UserSummary"
+          }
+        },
+        "type": "object"
+      },
+      "SubmissionResponse": {
+        "properties": {
+          "assignmentId": {
+            "type": "string"
+          },
+          "currentRevisionId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "returnedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reviewedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "studentEmail": {
+            "type": "string"
+          },
+          "studentId": {
+            "type": "string"
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SubmissionReviewRequest": {
+        "properties": {
+          "comment": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "score": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "SubmissionRevisionResponse": {
+        "properties": {
+          "checksum": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "revisionNo": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sizeBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "submissionId": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "textBody": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SubmissionUpsertRequest": {
+        "properties": {
+          "checksum": {
+            "type": "string"
+          },
+          "contentBase64": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "textBody": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -6900,7 +7197,7 @@
     "/api/v1/admin/assistant/knowledge/{id}/publish": {
       "post": {
         "description": "Yêu cầu một Admin khác với người tạo kiểm duyệt và chính thức xuất bản tri thức cho AI sử dụng",
-        "operationId": "publish_2",
+        "operationId": "publish_3",
         "parameters": [
           {
             "description": "Mã định danh tài liệu tri thức (UUID)",
@@ -6944,7 +7241,7 @@
     "/api/v1/admin/assistant/knowledge/{id}/submit": {
       "post": {
         "description": "Chuyển trạng thái phiên bản từ DRAFT sang PENDING_REVIEW để người khác duyệt",
-        "operationId": "submit_2",
+        "operationId": "submit_3",
         "parameters": [
           {
             "description": "Mã định danh tài liệu tri thức (UUID)",
@@ -7402,7 +7699,7 @@
     "/api/v1/admin/thesis/assistant/knowledge/{id}/publish": {
       "post": {
         "description": "Yêu cầu một Admin khác với người tạo kiểm duyệt và chính thức xuất bản tri thức cho AI sử dụng",
-        "operationId": "publish_1",
+        "operationId": "publish_2",
         "parameters": [
           {
             "description": "Mã định danh tài liệu tri thức (UUID)",
@@ -7446,7 +7743,7 @@
     "/api/v1/admin/thesis/assistant/knowledge/{id}/submit": {
       "post": {
         "description": "Chuyển trạng thái phiên bản từ DRAFT sang PENDING_REVIEW để người khác duyệt",
-        "operationId": "submit_3",
+        "operationId": "submit_4",
         "parameters": [
           {
             "description": "Mã định danh tài liệu tri thức (UUID)",
@@ -7988,7 +8285,7 @@
     "/api/v1/announcements/{id}/archive": {
       "post": {
         "description": "Đưa thông báo vào trạng thái lưu trữ bảo mật",
-        "operationId": "archive_1",
+        "operationId": "archive_2",
         "parameters": [
           {
             "description": "Mã định danh thông báo (UUID)",
@@ -8263,7 +8560,7 @@
     "/api/v1/announcements/{id}/submit": {
       "post": {
         "description": "Chuyển bản nháp (DRAFT) sang hàng chờ duyệt (IN_REVIEW); tác giả gửi bài của mình, quản trị viên có thể nhận xử lý bản nháp bị bỏ lại",
-        "operationId": "submit_1",
+        "operationId": "submit_2",
         "parameters": [
           {
             "description": "Mã định danh thông báo (UUID)",
@@ -9833,7 +10130,7 @@
     "/api/v1/auth/logout": {
       "post": {
         "description": "Thu hồi Refresh Token và xóa toàn bộ cookie xác thực an toàn.",
-        "operationId": "logout",
+        "operationId": "logout_1",
         "requestBody": {
           "content": {
             "application/json": {
@@ -11191,7 +11488,7 @@
     "/api/v1/docs/{id}/archive": {
       "post": {
         "description": "Rút tài liệu khỏi bề mặt công khai (unpublish) — revisions giữ nguyên làm lịch sử",
-        "operationId": "archive",
+        "operationId": "archive_1",
         "parameters": [
           {
             "in": "path",
@@ -11317,7 +11614,7 @@
     "/api/v1/docs/{id}/submit": {
       "post": {
         "description": "Tác giả revision (hoặc quản trị viên) gửi bản nháp vào hàng chờ duyệt",
-        "operationId": "submit",
+        "operationId": "submit_1",
         "parameters": [
           {
             "in": "path",
@@ -12346,7 +12643,7 @@
     },
     "/api/v1/events/staff/{eventId}/publish": {
       "post": {
-        "operationId": "publish",
+        "operationId": "publish_1",
         "parameters": [
           {
             "in": "path",
@@ -12377,7 +12674,7 @@
     },
     "/api/v1/events/staff/{eventId}/roster": {
       "get": {
-        "operationId": "roster",
+        "operationId": "roster_1",
         "parameters": [
           {
             "in": "path",
@@ -12794,6 +13091,1148 @@
         "summary": "Kiểm tra Readiness Probe",
         "tags": [
           "Health & Probes"
+        ]
+      }
+    },
+    "/api/v1/learning/assignments/{assignmentId}": {
+      "get": {
+        "operationId": "assignment_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Chi tiết bài tập (sinh viên đang học)",
+        "tags": [
+          "learning-student-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/assignments/{assignmentId}/draft": {
+      "post": {
+        "operationId": "openDraft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Khóa chống gửi trùng",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "summary": "Mở nháp bài nộp — idempotent (LMS-T03)",
+        "tags": [
+          "learning-student-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/assignments/{assignmentId}/resubmit": {
+      "post": {
+        "operationId": "resubmit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Nộp lại sau khi bị trả (LMS-T05) — tạo revision mới, không ghi đè",
+        "tags": [
+          "learning-student-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/assignments/{assignmentId}/submit": {
+      "post": {
+        "operationId": "submit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Nộp bài — deadline theo đồng hồ máy chủ (LMS-X01), revision bất biến (LMS-X02)",
+        "tags": [
+          "learning-student-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/materials/{materialId}/file": {
+      "get": {
+        "operationId": "downloadMaterial_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "materialId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Tải tệp học liệu (sinh viên đang học)",
+        "tags": [
+          "learning-student-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/revisions/{revisionId}/file": {
+      "get": {
+        "operationId": "downloadRevision_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Tải tệp revision của tôi (LMS-T07 — chỉ chủ bài)",
+        "tags": [
+          "learning-student-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/sections": {
+      "get": {
+        "operationId": "mySections",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": {},
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Các lớp học phần đang học (roster học tập)",
+        "tags": [
+          "learning-student-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/sections/{sectionId}/assignments": {
+      "get": {
+        "operationId": "listAssignments_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sectionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AssignmentResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Bài tập của lớp học phần (không gồm nháp)",
+        "tags": [
+          "learning-student-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/sections/{sectionId}/materials": {
+      "get": {
+        "operationId": "listMaterials_1",
+        "parameters": [
+          {
+            "description": "Mã lớp học phần",
+            "in": "path",
+            "name": "sectionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MaterialResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Học liệu của lớp học phần (sinh viên đang học)",
+        "tags": [
+          "learning-student-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/sections/{sectionId}/submissions": {
+      "get": {
+        "operationId": "mySubmissions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sectionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SubmissionResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Bài nộp của tôi trong lớp học phần",
+        "tags": [
+          "learning-student-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/staff/assignments/{assignmentId}": {
+      "get": {
+        "operationId": "assignment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Chi tiết bài tập (giảng viên phụ trách)",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      },
+      "put": {
+        "operationId": "updateAssignment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Sửa bài tập nháp (optimistic version)",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/staff/assignments/{assignmentId}/archive": {
+      "post": {
+        "operationId": "archive",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Lưu trữ bài tập đã đóng",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/staff/assignments/{assignmentId}/close": {
+      "post": {
+        "operationId": "close",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Đóng bài tập — chặn mọi thao tác nộp (LMS-T02)",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/staff/assignments/{assignmentId}/publish": {
+      "post": {
+        "operationId": "publish",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Công bố bài tập (LMS-T01)",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/staff/assignments/{assignmentId}/roster": {
+      "get": {
+        "operationId": "roster",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RosterRowResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Danh sách roster với trạng thái nộp bài",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/staff/materials/{materialId}": {
+      "delete": {
+        "operationId": "deleteMaterial",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "materialId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "summary": "Xoá học liệu",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      },
+      "put": {
+        "operationId": "updateMaterial",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "materialId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MaterialUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Cập nhật học liệu (optimistic version)",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/staff/materials/{materialId}/file": {
+      "get": {
+        "operationId": "downloadMaterial",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "materialId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Tải tệp học liệu (giảng viên phụ trách)",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/staff/revisions/{revisionId}/file": {
+      "get": {
+        "operationId": "downloadRevision",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Tải tệp của một revision (LMS-T07 — chỉ giảng viên phụ trách)",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/staff/sections/{sectionId}/assignments": {
+      "get": {
+        "operationId": "listAssignments",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sectionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AssignmentResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Danh sách bài tập của lớp học phần (gồm nháp)",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createAssignment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sectionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "summary": "Tạo bài tập nháp (LMS-T01: DRAFT → PUBLISHED → CLOSED → ARCHIVED)",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/staff/sections/{sectionId}/materials": {
+      "get": {
+        "operationId": "listMaterials",
+        "parameters": [
+          {
+            "description": "Mã lớp học phần",
+            "in": "path",
+            "name": "sectionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MaterialResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Danh sách học liệu của lớp học phần (giảng viên phụ trách)",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createMaterial",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sectionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MaterialUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "summary": "Tạo học liệu mới cho lớp học phần",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/staff/submissions/{submissionId}": {
+      "get": {
+        "operationId": "submission",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submissionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Chi tiết bài nộp (giảng viên phụ trách)",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/staff/submissions/{submissionId}/feedback": {
+      "get": {
+        "operationId": "feedback_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submissionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FeedbackResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Lịch sử phản hồi (append-only)",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/staff/submissions/{submissionId}/return": {
+      "post": {
+        "operationId": "returnSubmission",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submissionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReturnRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Trả bài kèm phản hồi (LMS-T04: SUBMITTED|RESUBMITTED → RETURNED)",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/staff/submissions/{submissionId}/review": {
+      "post": {
+        "operationId": "reviewSubmission",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submissionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionReviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Đánh dấu đã duyệt (LMS-T06: RETURNED → REVIEWED)",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/staff/submissions/{submissionId}/revisions": {
+      "get": {
+        "operationId": "revisions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submissionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SubmissionRevisionResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Lịch sử revision bất biến của bài nộp (LMS-X02)",
+        "tags": [
+          "learning-staff-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/submissions/{submissionId}": {
+      "get": {
+        "operationId": "mySubmission",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submissionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Chi tiết bài nộp của tôi",
+        "tags": [
+          "learning-student-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/submissions/{submissionId}/draft": {
+      "put": {
+        "operationId": "saveDraft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submissionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionUpsertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Lưu nội dung nháp (văn bản + tệp đính kèm)",
+        "tags": [
+          "learning-student-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/submissions/{submissionId}/feedback": {
+      "get": {
+        "operationId": "myFeedback",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submissionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FeedbackResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Phản hồi trên bài nộp của tôi",
+        "tags": [
+          "learning-student-controller"
+        ]
+      }
+    },
+    "/api/v1/learning/submissions/{submissionId}/revisions": {
+      "get": {
+        "operationId": "myRevisions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submissionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SubmissionRevisionResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Lịch sử revision của bài nộp của tôi",
+        "tags": [
+          "learning-student-controller"
         ]
       }
     },
@@ -18595,6 +20034,291 @@
         "summary": "Gỡ khóa đăng nhập",
         "tags": [
           "User Management (Admin)"
+        ]
+      }
+    },
+    "/bff/api/**": {
+      "delete": {
+        "operationId": "proxy_3",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "bff-api-proxy-controller"
+        ]
+      },
+      "get": {
+        "operationId": "proxy",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "bff-api-proxy-controller"
+        ]
+      },
+      "head": {
+        "operationId": "proxy_5",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "bff-api-proxy-controller"
+        ]
+      },
+      "options": {
+        "operationId": "proxy_6",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "bff-api-proxy-controller"
+        ]
+      },
+      "patch": {
+        "operationId": "proxy_4",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "bff-api-proxy-controller"
+        ]
+      },
+      "post": {
+        "operationId": "proxy_1",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "bff-api-proxy-controller"
+        ]
+      },
+      "put": {
+        "operationId": "proxy_2",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "bff-api-proxy-controller"
+        ]
+      }
+    },
+    "/login": {
+      "get": {
+        "operationId": "loginPage",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "identity-login-page-controller"
+        ]
+      }
+    },
+    "/session/callback": {
+      "get": {
+        "operationId": "callback",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "bff-session-controller"
+        ]
+      }
+    },
+    "/session/logged-out": {
+      "get": {
+        "operationId": "loggedOut",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "bff-session-controller"
+        ]
+      }
+    },
+    "/session/login": {
+      "get": {
+        "operationId": "login_1",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "return",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "bff-session-controller"
+        ]
+      }
+    },
+    "/session/logout": {
+      "post": {
+        "operationId": "logout",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "bff-session-controller"
+        ]
+      }
+    },
+    "/session/state": {
+      "get": {
+        "operationId": "state",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "bff-session-controller"
         ]
       }
     }

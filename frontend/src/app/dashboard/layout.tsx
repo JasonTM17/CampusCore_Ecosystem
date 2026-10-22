@@ -86,6 +86,7 @@ type DashboardMenuLabelKey =
   | 'gradeManagement'
   | 'mailCompose'
   | 'events'
+  | 'learning'
   | 'deanOverview';
 
 type DashboardMenuSectionKey = 'overview' | 'academic' | 'teaching' | 'campus';
@@ -113,6 +114,7 @@ const studentMenuSections: readonly DashboardMenuSectionConfig[] = [
     items: [
       { href: '/dashboard/register', icon: ClipboardList, labelKey: 'courseRegistration' },
       { href: '/dashboard/enrollments', icon: BookOpen, labelKey: 'myCourses' },
+      { href: '/dashboard/learn', icon: ClipboardList, labelKey: 'learning' },
       { href: '/dashboard/curriculum', icon: GraduationCap, labelKey: 'curriculum' },
       { href: '/dashboard/schedule', icon: Calendar, labelKey: 'schedule' },
       { href: '/dashboard/grades', icon: FileText, labelKey: 'grades' },
@@ -145,6 +147,7 @@ const lecturerMenuSections: readonly DashboardMenuSectionConfig[] = [
     items: [
       { href: '/dashboard/lecturer/schedule', icon: Calendar, labelKey: 'teachingSchedule' },
       { href: '/dashboard/lecturer/grades', icon: FileText, labelKey: 'gradeManagement' },
+      { href: '/dashboard/lecturer/learn', icon: ClipboardList, labelKey: 'learning' },
       { href: '/dashboard/lecturer/attendance', icon: CalendarCheck, labelKey: 'attendance' },
       { href: '/dashboard/lecturer/mail', icon: Mail, labelKey: 'mailCompose' },
     ],

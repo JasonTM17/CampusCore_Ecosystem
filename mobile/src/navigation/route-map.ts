@@ -29,6 +29,7 @@ const pathByScreen: Record<ScreenName, string> = {
   attendance: '/attendance',
   registration: '/registration',
   events: '/events',
+  learning: '/learning',
   notifications: '/notifications',
   profile: '/profile',
   'thesis.topics': '/thesis',

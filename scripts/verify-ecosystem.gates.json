@@ -9,48 +9,100 @@
         {
           "id": "node-version",
           "required": true,
-          "targets": ["local", "preview", "demo"],
+          "targets": [
+            "local",
+            "preview",
+            "demo"
+          ],
           "run": {
             "cmd": "node",
-            "args": ["-e", "const v=process.versions.node.split('.').map(Number);process.exit(v[0]>22||(v[0]===22&&v[1]>=13)?0:1)"]
+            "args": [
+              "-e",
+              "const v=process.versions.node.split('.').map(Number);process.exit(v[0]>22||(v[0]===22&&v[1]>=13)?0:1)"
+            ]
           }
         },
         {
           "id": "frontend-npm-ci",
           "required": true,
-          "targets": ["local"],
-          "run": { "cmd": "npm", "args": ["ci"], "cwd": "frontend", "timeoutMs": 1200000 }
+          "targets": [
+            "local"
+          ],
+          "run": {
+            "cmd": "npm",
+            "args": [
+              "ci"
+            ],
+            "cwd": "frontend",
+            "timeoutMs": 1200000
+          }
         },
         {
           "id": "mobile-npm-ci",
           "required": true,
-          "targets": ["local"],
-          "run": { "cmd": "npm", "args": ["ci"], "cwd": "mobile", "timeoutMs": 1200000 }
+          "targets": [
+            "local"
+          ],
+          "run": {
+            "cmd": "npm",
+            "args": [
+              "ci"
+            ],
+            "cwd": "mobile",
+            "timeoutMs": 1200000
+          }
         },
         {
           "id": "mobile-npm-test",
           "required": true,
-          "targets": ["local", "preview", "demo"],
-          "run": { "cmd": "npm", "args": ["test"], "cwd": "mobile", "timeoutMs": 600000 }
+          "targets": [
+            "local",
+            "preview",
+            "demo"
+          ],
+          "run": {
+            "cmd": "npm",
+            "args": [
+              "test"
+            ],
+            "cwd": "mobile",
+            "timeoutMs": 600000
+          }
         },
         {
           "id": "mobile-typecheck",
           "required": true,
-          "targets": ["local", "preview", "demo"],
-          "run": { "cmd": "npm", "args": ["run", "typecheck"], "cwd": "mobile", "timeoutMs": 600000 }
+          "targets": [
+            "local",
+            "preview",
+            "demo"
+          ],
+          "run": {
+            "cmd": "npm",
+            "args": [
+              "run",
+              "typecheck"
+            ],
+            "cwd": "mobile",
+            "timeoutMs": 600000
+          }
         },
         {
           "id": "fixture-pack",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "capability": "docker",
           "run": {
             "cmd": "node",
             "args": [
               "scripts/ecosystem-fixture.mjs",
               "generate",
-              "--project", "{auto-project}",
-              "--output", "{evidence}/fixture"
+              "--project",
+              "{auto-project}",
+              "--output",
+              "{evidence}/fixture"
             ],
             "timeoutMs": 2700000
           }
@@ -64,23 +116,39 @@
         {
           "id": "java-verify",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "run": {
             "cmd": "mvn",
-            "args": ["-q", "-f", "java-services/pom.xml", "verify", "-Dstyle.color=never"],
+            "args": [
+              "-q",
+              "-f",
+              "java-services/pom.xml",
+              "verify",
+              "-Dstyle.color=never"
+            ],
             "timeoutMs": 1800000
           }
         },
         {
           "id": "contract-snapshot",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "run": {
             "cmd": "mvn",
             "args": [
-              "-q", "-f", "java-services/pom.xml", "-pl", "restful-api", "test",
+              "-q",
+              "-f",
+              "java-services/pom.xml",
+              "-pl",
+              "restful-api",
+              "test",
               "-Dtest=*ContractTest,KnowledgeSnapshotParityTest",
-              "-Dsurefire.failIfNoSpecifiedTests=false", "-Dstyle.color=never"
+              "-Dsurefire.failIfNoSpecifiedTests=false",
+              "-Dstyle.color=never"
             ],
             "timeoutMs": 900000
           }
@@ -88,25 +156,37 @@
         {
           "id": "platform-image",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "capability": "docker",
           "run": {
             "cmd": "node",
-            "args": ["scripts/platform-verify.mjs", "image", "--evidence", "{evidence}"],
+            "args": [
+              "scripts/platform-verify.mjs",
+              "image",
+              "--evidence",
+              "{evidence}"
+            ],
             "timeoutMs": 2400000
           }
         },
         {
           "id": "platform-stack",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "capability": "docker",
           "run": {
             "cmd": "node",
             "args": [
-              "scripts/platform-verify.mjs", "stack",
-              "--project", "{auto-project}",
-              "--evidence", "{evidence}"
+              "scripts/platform-verify.mjs",
+              "stack",
+              "--project",
+              "{auto-project}",
+              "--evidence",
+              "{evidence}"
             ],
             "timeoutMs": 1200000
           }
@@ -114,15 +194,21 @@
         {
           "id": "postgres-lock-order",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "capability": "docker",
           "run": {
             "cmd": "node",
             "args": [
-              "scripts/platform-verify.mjs", "pgit",
-              "--project", "{auto-project}-pg",
-              "--evidence", "{evidence}",
-              "--its", "*PostgresIT,!*CorrectionMigrationPostgresIT,!DemoTeamMigrationPostgresIT,!SpringInjectionKnowledgeMigrationPostgresIT,!ThesisCancellationMembershipMigrationPostgresIT"
+              "scripts/platform-verify.mjs",
+              "pgit",
+              "--project",
+              "{auto-project}-pg",
+              "--evidence",
+              "{evidence}",
+              "--its",
+              "*PostgresIT,!*CorrectionMigrationPostgresIT,!DemoTeamMigrationPostgresIT,!SpringInjectionKnowledgeMigrationPostgresIT,!ThesisCancellationMembershipMigrationPostgresIT"
             ],
             "timeoutMs": 1500000
           }
@@ -130,18 +216,26 @@
         {
           "id": "postgres-content-audit",
           "required": false,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "capability": "docker",
           "description": "Correction-migration IT family (policy/certificate/spring-injection/demo-team/cancellation). Authored for the audit rig at an older migration head — outcomes are recorded, not gate-blocking; failures feed the defect ledger instead of masking the lock-order verdict.",
           "run": {
             "cmd": "node",
             "args": [
-              "scripts/platform-verify.mjs", "pgit",
-              "--project", "{auto-project}-ca",
-              "--evidence", "{evidence}",
-              "--its", "*CorrectionMigrationPostgresIT,DemoTeamMigrationPostgresIT,SpringInjectionKnowledgeMigrationPostgresIT,ThesisCancellationMembershipMigrationPostgresIT",
-              "--result", "content-audit.json",
-              "--log-name", "content-audit-mvn.log"
+              "scripts/platform-verify.mjs",
+              "pgit",
+              "--project",
+              "{auto-project}-ca",
+              "--evidence",
+              "{evidence}",
+              "--its",
+              "*CorrectionMigrationPostgresIT,DemoTeamMigrationPostgresIT,SpringInjectionKnowledgeMigrationPostgresIT,ThesisCancellationMembershipMigrationPostgresIT",
+              "--result",
+              "content-audit.json",
+              "--log-name",
+              "content-audit-mvn.log"
             ],
             "timeoutMs": 1500000
           }
@@ -155,20 +249,35 @@
         {
           "id": "tokens-check",
           "required": true,
-          "targets": ["local", "preview", "demo"],
-          "run": { "cmd": "node", "args": ["scripts/sync-tokens.mjs", "--check"] }
+          "targets": [
+            "local",
+            "preview",
+            "demo"
+          ],
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/sync-tokens.mjs",
+              "--check"
+            ]
+          }
         },
         {
           "id": "contract-probes",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "capability": "docker",
           "run": {
             "cmd": "node",
             "args": [
-              "scripts/contract-verify.mjs", "contract-probes",
-              "--project", "{auto-project}",
-              "--evidence", "{evidence}"
+              "scripts/contract-verify.mjs",
+              "contract-probes",
+              "--project",
+              "{auto-project}",
+              "--evidence",
+              "{evidence}"
             ],
             "timeoutMs": 1500000
           }
@@ -176,10 +285,17 @@
         {
           "id": "cross-account-cache",
           "required": true,
-          "targets": ["local", "preview", "demo"],
+          "targets": [
+            "local",
+            "preview",
+            "demo"
+          ],
           "run": {
             "cmd": "node",
-            "args": ["--test", "tests/query-cache-identity.test.js"],
+            "args": [
+              "--test",
+              "tests/query-cache-identity.test.js"
+            ],
             "cwd": "frontend",
             "timeoutMs": 300000
           }
@@ -187,14 +303,19 @@
         {
           "id": "pgit-real",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "capability": "docker",
           "run": {
             "cmd": "node",
             "args": [
-              "scripts/contract-verify.mjs", "pgit-real",
-              "--project", "{auto-project}-pg",
-              "--evidence", "{evidence}"
+              "scripts/contract-verify.mjs",
+              "pgit-real",
+              "--project",
+              "{auto-project}-pg",
+              "--evidence",
+              "{evidence}"
             ],
             "timeoutMs": 1800000
           }
@@ -202,14 +323,34 @@
         {
           "id": "frontend-typecheck",
           "required": true,
-          "targets": ["local"],
-          "run": { "cmd": "npm", "args": ["run", "typecheck"], "cwd": "frontend", "timeoutMs": 600000 }
+          "targets": [
+            "local"
+          ],
+          "run": {
+            "cmd": "npm",
+            "args": [
+              "run",
+              "typecheck"
+            ],
+            "cwd": "frontend",
+            "timeoutMs": 600000
+          }
         },
         {
           "id": "mobile-typecheck",
           "required": true,
-          "targets": ["local"],
-          "run": { "cmd": "npx", "args": ["tsc", "--noEmit"], "cwd": "mobile", "timeoutMs": 600000 }
+          "targets": [
+            "local"
+          ],
+          "run": {
+            "cmd": "npx",
+            "args": [
+              "tsc",
+              "--noEmit"
+            ],
+            "cwd": "mobile",
+            "timeoutMs": 600000
+          }
         }
       ]
     },
@@ -220,13 +361,19 @@
         {
           "id": "identity-contract-tests",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "run": {
             "cmd": "mvn",
             "args": [
-              "-q", "-f", "java-services/restful-api/pom.xml", "test",
+              "-q",
+              "-f",
+              "java-services/restful-api/pom.xml",
+              "test",
               "-Dtest=EcosystemIdentity*Test",
-              "-Dsurefire.failIfNoSpecifiedTests=false", "-Dstyle.color=never"
+              "-Dsurefire.failIfNoSpecifiedTests=false",
+              "-Dstyle.color=never"
             ],
             "timeoutMs": 900000
           }
@@ -234,14 +381,19 @@
         {
           "id": "postgres-race",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "capability": "docker",
           "run": {
             "cmd": "node",
             "args": [
-              "scripts/identity-verify.mjs", "pg-race",
-              "--project", "{auto-project}-pg",
-              "--evidence", "{evidence}"
+              "scripts/identity-verify.mjs",
+              "pg-race",
+              "--project",
+              "{auto-project}-pg",
+              "--evidence",
+              "{evidence}"
             ],
             "timeoutMs": 1800000
           }
@@ -255,33 +407,51 @@
         {
           "id": "host-registry",
           "required": true,
-          "targets": ["local", "preview", "demo"],
+          "targets": [
+            "local",
+            "preview",
+            "demo"
+          ],
           "run": {
             "cmd": "node",
-            "args": ["scripts/host-registry-verify.mjs"],
+            "args": [
+              "scripts/host-registry-verify.mjs"
+            ],
             "timeoutMs": 120000
           }
         },
         {
           "id": "static-policy",
           "required": true,
-          "targets": ["local", "preview", "demo"],
+          "targets": [
+            "local",
+            "preview",
+            "demo"
+          ],
           "run": {
             "cmd": "node",
-            "args": ["scripts/static-policy-verify.mjs"],
+            "args": [
+              "scripts/static-policy-verify.mjs"
+            ],
             "timeoutMs": 120000
           }
         },
         {
           "id": "bff-contract-tests",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "run": {
             "cmd": "mvn",
             "args": [
-              "-q", "-f", "java-services/restful-api/pom.xml", "test",
+              "-q",
+              "-f",
+              "java-services/restful-api/pom.xml",
+              "test",
               "-Dtest=EcosystemBffContractTest",
-              "-Dsurefire.failIfNoSpecifiedTests=false", "-Dstyle.color=never"
+              "-Dsurefire.failIfNoSpecifiedTests=false",
+              "-Dstyle.color=never"
             ],
             "timeoutMs": 900000
           }
@@ -289,14 +459,19 @@
         {
           "id": "bff-postgres-race",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "capability": "docker",
           "run": {
             "cmd": "node",
             "args": [
-              "scripts/bff-verify.mjs", "pg-race",
-              "--project", "{auto-project}-bff-pg",
-              "--evidence", "{evidence}"
+              "scripts/bff-verify.mjs",
+              "pg-race",
+              "--project",
+              "{auto-project}-bff-pg",
+              "--evidence",
+              "{evidence}"
             ],
             "timeoutMs": 1800000
           }
@@ -304,14 +479,19 @@
         {
           "id": "browser-sso",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "capability": "docker",
           "run": {
             "cmd": "node",
             "args": [
-              "scripts/ecosystem-sso-verify.mjs", "preview",
-              "--project", "{auto-project}-sso",
-              "--evidence", "{evidence}"
+              "scripts/ecosystem-sso-verify.mjs",
+              "preview",
+              "--project",
+              "{auto-project}-sso",
+              "--evidence",
+              "{evidence}"
             ],
             "timeoutMs": 1800000
           }
@@ -325,13 +505,19 @@
         {
           "id": "content-lifecycle",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "run": {
             "cmd": "mvn",
             "args": [
-              "-q", "-f", "java-services/restful-api/pom.xml", "test",
+              "-q",
+              "-f",
+              "java-services/restful-api/pom.xml",
+              "test",
               "-Dtest=PublicationWorkflowPersistenceTest",
-              "-Dsurefire.failIfNoSpecifiedTests=false", "-Dstyle.color=never"
+              "-Dsurefire.failIfNoSpecifiedTests=false",
+              "-Dstyle.color=never"
             ],
             "timeoutMs": 900000
           }
@@ -339,13 +525,19 @@
         {
           "id": "content-docs",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "run": {
             "cmd": "mvn",
             "args": [
-              "-q", "-f", "java-services/restful-api/pom.xml", "test",
+              "-q",
+              "-f",
+              "java-services/restful-api/pom.xml",
+              "test",
               "-Dtest=PublicDocumentPersistenceTest",
-              "-Dsurefire.failIfNoSpecifiedTests=false", "-Dstyle.color=never"
+              "-Dsurefire.failIfNoSpecifiedTests=false",
+              "-Dstyle.color=never"
             ],
             "timeoutMs": 900000
           }
@@ -353,14 +545,20 @@
         {
           "id": "content-assets",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "description": "ANN-T05: article media/attachment reads follow the parent announcement lifecycle + audience (public/scoped/section/draft/in-review/archived-expired tiers) plus v2 pagination DTOs.",
           "run": {
             "cmd": "mvn",
             "args": [
-              "-q", "-f", "java-services/restful-api/pom.xml", "test",
+              "-q",
+              "-f",
+              "java-services/restful-api/pom.xml",
+              "test",
               "-Dtest=ArticleAssetGatePersistenceTest,ArticleTaxonomyV2PersistenceTest,ArticleTaxonomyControllerTest",
-              "-Dsurefire.failIfNoSpecifiedTests=false", "-Dstyle.color=never"
+              "-Dsurefire.failIfNoSpecifiedTests=false",
+              "-Dstyle.color=never"
             ],
             "timeoutMs": 900000
           }
@@ -368,15 +566,20 @@
         {
           "id": "content-e2e",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "capability": "docker",
           "description": "HTTPS preview anonymous content journeys (publication-policy §8): seeded published news/docs visible, drafts leak nothing, revision permalink superseded, rich-text payload sanitized, VI locale.",
           "run": {
             "cmd": "node",
             "args": [
-              "scripts/ecosystem-content-verify.mjs", "preview",
-              "--project", "{auto-project}-content",
-              "--evidence", "{evidence}"
+              "scripts/ecosystem-content-verify.mjs",
+              "preview",
+              "--project",
+              "{auto-project}-content",
+              "--evidence",
+              "{evidence}"
             ],
             "timeoutMs": 1800000
           }
@@ -390,13 +593,19 @@
         {
           "id": "mobile-oidc-probe",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "run": {
             "cmd": "mvn",
             "args": [
-              "-q", "-f", "java-services/restful-api/pom.xml", "test",
+              "-q",
+              "-f",
+              "java-services/restful-api/pom.xml",
+              "test",
               "-Dtest=MobileOidcPublicClientProbeTest",
-              "-Dsurefire.failIfNoSpecifiedTests=false", "-Dstyle.color=never"
+              "-Dsurefire.failIfNoSpecifiedTests=false",
+              "-Dstyle.color=never"
             ],
             "timeoutMs": 900000
           }
@@ -404,20 +613,33 @@
         {
           "id": "mobile-tests",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "run": {
             "cmd": "npm",
-            "args": ["test", "--prefix", "mobile"],
+            "args": [
+              "test",
+              "--prefix",
+              "mobile"
+            ],
             "timeoutMs": 300000
           }
         },
         {
           "id": "mobile-typecheck",
           "required": true,
-          "targets": ["local"],
+          "targets": [
+            "local"
+          ],
           "run": {
             "cmd": "npm",
-            "args": ["run", "typecheck", "--prefix", "mobile"],
+            "args": [
+              "run",
+              "typecheck",
+              "--prefix",
+              "mobile"
+            ],
             "timeoutMs": 300000
           }
         }
@@ -505,6 +727,94 @@
               "preview",
               "--project",
               "{auto-project}-events",
+              "--evidence",
+              "{evidence}"
+            ],
+            "timeoutMs": 1800000
+          }
+        }
+      ]
+    },
+    "learning": {
+      "owner_phase": "P09",
+      "description": "P09 exit (domain-contracts §6): assignment DRAFT→PUBLISHED→CLOSED→ARCHIVED, submission DRAFT→SUBMITTED→RETURNED→RESUBMITTED→REVIEWED with immutable revisions, section-lecturer authority, enrolled-student read-through roster, server-clock deadline, idempotent draft/submit/resubmit replay, checksum-bound file upload with owner/lecturer-scoped download, and the forbidden-write guarantee that learning never touches Enrollment/StudentGrade. learning-contract is the H2 MockMvc matrix; learning-postgres-race runs LearningAuthorityPostgresIT on a disposable compose Postgres (deadline-under-lock, same-key draft/submit races, cross-section authority); learning-e2e drives the HTTPS preview create→submit→return→resubmit→review journey with the official-grade-unchanged assertion plus lecturer/student portal render.",
+      "cases": [
+        {
+          "id": "learning-contract",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "description": "LMS-T01..T07 + LMS-X01/X02 on H2: lifecycle transitions, section-lecturer scope, revoked-enrollment denial, deadline/closed rejection, immutable revisions, idempotent replay, checksum mismatch (FILE_CHECKSUM_MISMATCH), owner-scoped download, source scan proving no Enrollment/grade writes.",
+          "run": {
+            "cmd": "mvn",
+            "args": [
+              "-q",
+              "-f",
+              "java-services/restful-api/pom.xml",
+              "test",
+              "-Dtest=LearningContractPersistenceTest",
+              "-Dsurefire.failIfNoSpecifiedTests=false",
+              "-Dstyle.color=never"
+            ],
+            "timeoutMs": 900000
+          }
+        },
+        {
+          "id": "learning-mobile",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "description": "Native student surface: 23-screen registry incl. learning, route-map round-trip, source scans.",
+          "run": {
+            "cmd": "npm",
+            "args": [
+              "test",
+              "--prefix",
+              "mobile"
+            ],
+            "timeoutMs": 300000
+          }
+        },
+        {
+          "id": "learning-postgres-race",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "capability": "docker",
+          "description": "LMS-X01/X02 + §6 authority on real Postgres: deadline rejection under row lock, concurrent same-key draft/submit collapse to one row+revision, cross-section lecturer denial and dropped-seat refusal.",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/platform-verify.mjs",
+              "pgit",
+              "--project",
+              "{auto-project}-learning-pg",
+              "--evidence",
+              "{evidence}",
+              "--its",
+              "LearningAuthorityPostgresIT"
+            ],
+            "timeoutMs": 1500000
+          }
+        },
+        {
+          "id": "learning-e2e",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "capability": "docker",
+          "description": "HTTPS preview learning journey: lecturer create→publish, idempotent student draft→submit, roster return, resubmit as a second immutable revision, review close, NOT_ENROLLED cross-section denial, official-grade rows bit-identical, portal lecturer/student render.",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/ecosystem-learning-verify.mjs",
+              "preview",
+              "--project",
+              "{auto-project}-learning",
               "--evidence",
               "{evidence}"
             ],

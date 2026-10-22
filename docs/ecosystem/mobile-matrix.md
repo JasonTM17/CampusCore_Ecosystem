@@ -28,6 +28,7 @@ Lane coverage theo `mobile-policy.md` §4. Mỗi surface ghi
 | `registration` | `/registration` | student | native | `registration/rounds`, `me/registration/sections`, `me/enrollments` |
 | `notifications` | `/notifications` | all | native | `notifications/my` |
 | `events` | `/events` | student | native | `events`, `events/my/registrations`, register/cancel (Idempotency-Key) |
+| `learning` | `/learning` | student | native (text lane) | `learning/sections`, `learning/sections/{id}/materials`, `learning/sections/{id}/assignments`, draft/save/submit/resubmit + revisions/feedback (Idempotency-Key; file picking P13) |
 | `profile` | `/profile` | all | native | `auth/me`, `auth/profile`, `auth/change-password` |
 | `thesis.topics` | `/thesis` | student | native | `thesis/rounds`, `thesis/topics`, `thesis/groups` |
 | `thesis.detail` | `/thesis/[topicId]` | student | native | idem — dynamic segment, id trên path (KM-5) |
