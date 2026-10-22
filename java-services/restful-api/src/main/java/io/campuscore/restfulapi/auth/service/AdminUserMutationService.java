@@ -232,7 +232,7 @@ public class AdminUserMutationService {
                         .addValue("password", passwordEncoder.encode(temporaryPassword)));
         if (updated == 0) throw problem(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "User not found");
         authUsers.invalidateLoginChallenges(id);
-        revokeSessions(id);
+        revokeSessions(id, false);
         // Recorded as an event, never as state: the new credential must not reach
         // the audit table, and a password reset is exactly the operation whose
         // author an investigation needs to know.
@@ -937,9 +937,38 @@ public class AdminUserMutationService {
     }
 
     private void revokeSessions(String userId) {
-        authUsers.deleteAllRefreshSessions(userId);
+        revokeSessions(userId, true);
+    }
+
+    private void revokeSessions(String userId, boolean bumpCredentials) {
+        // Every admin mutation kill also bumps the credential revision:
+        // deleting sessions stops refresh/BFF resolution, but an access
+        // token minted before the change is stateless — only the epoch
+        // bump makes its stale claims (e.g. a demoted role) fail the
+        // current-account gate on the next request. Callers whose own
+        // write already bumps (the password-reset SQL) pass false so one
+        // event commits exactly one epoch.
+        if (unifiedSessions != null) {
+            if (bumpCredentials) {
+                unifiedSessions.revokeAccount(userId, "LEGACY", "ADMIN_MUTATION", null);
+            } else {
+                unifiedSessions.revokeGrants(userId, "LEGACY", "ADMIN_MUTATION", null);
+            }
+        } else {
+            authUsers.deleteAllRefreshSessions(userId);
+            if (bumpCredentials) {
+                authUsers.bumpCredentialVersion(userId);
+            }
+        }
         authUsers.clearUserRefreshToken(userId);
     }
+
+    /**
+     * Unified revocation bridge — optional so hand-built test contexts keep
+     * the legacy session-only path.
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private io.campuscore.restfulapi.identity.UnifiedSessionAuthority unifiedSessions;
 
     private static String required(Map<String, Object> input, String key) {
         String value = text(input, key, null);
