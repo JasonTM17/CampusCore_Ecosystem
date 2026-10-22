@@ -3,6 +3,7 @@ package io.campuscore.restfulapi.events;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -10,6 +11,7 @@ import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -151,6 +153,13 @@ class EventContractPersistenceTest {
         return eventId;
     }
 
+    /** Moves the stored start into the past, standing in for the clock reaching the event. */
+    private void startEventNow(String eventId) {
+        jdbc.update("UPDATE events.\"Event\" SET \"startsAt\" = ?, \"endsAt\" = ? WHERE \"id\" = ?",
+                Timestamp.from(Instant.now().minus(1, ChronoUnit.HOURS)),
+                Timestamp.from(Instant.now().plus(1, ChronoUnit.HOURS)), eventId);
+    }
+
     private String register(String eventId, RequestPostProcessor student, String key) throws Exception {
         MvcResult result = mvc.perform(post("/api/v1/events/" + eventId + "/register").with(student)
                         .header("Idempotency-Key", key))
@@ -168,7 +177,7 @@ class EventContractPersistenceTest {
     @Test
     void lifecycleDraftHiddenPublishOpenRegisterCloseAttendComplete() throws Exception {
         String eventId = createDraft(staffJwt, 5,
-                Instant.now().minus(1, ChronoUnit.HOURS), Instant.now().plus(2, ChronoUnit.HOURS));
+                Instant.now().plus(2, ChronoUnit.HOURS), Instant.now().plus(4, ChronoUnit.HOURS));
 
         // DRAFT is staff-scope: students see an indistinguishable 404/empty.
         mvc.perform(get("/api/v1/events/" + eventId).with(studentJwt))
@@ -201,6 +210,8 @@ class EventContractPersistenceTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("REGISTRATION_CLOSED"));
 
+        // Attendance and completion only exist once the event has started.
+        startEventNow(eventId);
         mvc.perform(post("/api/v1/events/staff/" + eventId + "/attendance").with(staffJwt)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"marks\":[{\"registrationId\":\"" + registrationId
@@ -442,12 +453,13 @@ class EventContractPersistenceTest {
     @Test
     void attendanceRejectsNonRosterMarksAndCorrections() throws Exception {
         String eventId = createDraft(staffJwt, 3,
-                Instant.now().minus(1, ChronoUnit.HOURS), Instant.now().plus(2, ChronoUnit.HOURS));
+                Instant.now().plus(2, ChronoUnit.HOURS), Instant.now().plus(4, ChronoUnit.HOURS));
         mvc.perform(post("/api/v1/events/staff/" + eventId + "/publish").with(staffJwt));
         mvc.perform(post("/api/v1/events/staff/" + eventId + "/open-registration").with(staffJwt)
                 .contentType(MediaType.APPLICATION_JSON).content("{}"));
         String registrationId = register(eventId, studentJwt, "att-key");
         mvc.perform(post("/api/v1/events/staff/" + eventId + "/close-registration").with(staffJwt));
+        startEventNow(eventId);
 
         // Unknown registration id → not on roster.
         mvc.perform(post("/api/v1/events/staff/" + eventId + "/attendance").with(staffJwt)
@@ -510,6 +522,136 @@ class EventContractPersistenceTest {
         // The newly granted outsider can now use staff operations.
         mvc.perform(get("/api/v1/events/staff").with(outsiderJwt))
                 .andExpect(status().isOk());
+    }
+
+    // ---------------------------------------------------------------
+    // Regression: authority and time preconditions
+    // ---------------------------------------------------------------
+
+    @Test
+    void nonOwnerGranteeCannotEditAnotherOwnersDraft() throws Exception {
+        String eventId = createDraft(staffJwt, 5,
+                Instant.now().plus(2, ChronoUnit.HOURS), Instant.now().plus(4, ChronoUnit.HOURS));
+        mvc.perform(put("/api/v1/events/staff/" + eventId).with(secondStaffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"hijacked\",\"capacity\":1}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("EVENT_NOT_OWNER"));
+        mvc.perform(put("/api/v1/events/staff/" + eventId).with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"owner edit\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("owner edit"));
+    }
+
+    @Test
+    void adminWithoutGrantCannotRunStaffOperations() throws Exception {
+        RequestPostProcessor ungrantedAdmin = CurrentAccountJwt.fixtureJwt(jdbc, "admin-no-grant", "ADMIN");
+        String eventId = openEventId();
+        mvc.perform(get("/api/v1/events/staff").with(ungrantedAdmin))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("EVENTS_STAFF_REQUIRED"));
+        mvc.perform(get("/api/v1/events/staff/" + eventId + "/roster").with(ungrantedAdmin))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("EVENTS_STAFF_REQUIRED"));
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/cancel").with(ungrantedAdmin)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("EVENTS_STAFF_REQUIRED"));
+    }
+
+    @Test
+    void studentRegisterOnDraftIsIndistinguishableFromMissing() throws Exception {
+        String draftId = createDraft(staffJwt, 5,
+                Instant.now().plus(2, ChronoUnit.HOURS), Instant.now().plus(4, ChronoUnit.HOURS));
+        String draft = mvc.perform(post("/api/v1/events/" + draftId + "/register").with(studentJwt)
+                        .header("Idempotency-Key", "draft-key"))
+                .andExpect(status().isNotFound())
+                .andReturn().getResponse().getContentAsString();
+        String missing = mvc.perform(post("/api/v1/events/no-such-event/register").with(studentJwt)
+                        .header("Idempotency-Key", "missing-key"))
+                .andExpect(status().isNotFound())
+                .andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(objectMapper.readTree(draft).get("code").asText())
+                .isEqualTo(objectMapper.readTree(missing).get("code").asText());
+    }
+
+    @Test
+    void registerRejectedAfterEventStart() throws Exception {
+        String eventId = openEventId();
+        startEventNow(eventId);
+        mvc.perform(post("/api/v1/events/" + eventId + "/register").with(studentJwt)
+                        .header("Idempotency-Key", "late-start-key"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("EVENT_STARTED"));
+    }
+
+    @Test
+    void studentCannotCancelAfterEventStartOrAttendanceMark() throws Exception {
+        String eventId = openEventId();
+        String registrationId = register(eventId, studentJwt, "cancel-late-reg");
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/close-registration").with(staffJwt))
+                .andExpect(status().isOk());
+        startEventNow(eventId);
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/attendance").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"marks\":[{\"registrationId\":\"" + registrationId
+                                + "\",\"status\":\"ATTENDED\"}]}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/events/registrations/" + registrationId + "/cancel").with(studentJwt)
+                        .header("Idempotency-Key", "cancel-late-key"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("EVENT_STARTED"));
+        mvc.perform(get("/api/v1/events/my/registrations").with(studentJwt))
+                .andExpect(jsonPath("$[0].registrationStatus").value("REGISTERED"))
+                .andExpect(jsonPath("$[0].attendanceStatus").value("ATTENDED"));
+    }
+
+    @Test
+    void registrationWindowMustBeOrderedAndCloseBeforeStart() throws Exception {
+        Instant start = Instant.now().plus(2, ChronoUnit.HOURS);
+        Instant end = Instant.now().plus(4, ChronoUnit.HOURS);
+        // Closes after the event starts.
+        mvc.perform(post("/api/v1/events/staff").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createEventJson(5, start, end, Instant.now(), start.plus(1, ChronoUnit.HOURS))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EVENT_WINDOW_INVALID"));
+        // Inverted window.
+        mvc.perform(post("/api/v1/events/staff").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createEventJson(5, start, end,
+                                Instant.now().plus(1, ChronoUnit.HOURS), Instant.now())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EVENT_WINDOW_INVALID"));
+        // Opening cannot override the stored window past the start either.
+        String eventId = createDraft(staffJwt, 5, start, end);
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/publish").with(staffJwt))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/open-registration").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"registrationClosesAt\":\"" + start.plus(1, ChronoUnit.HOURS) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EVENT_WINDOW_INVALID"));
+    }
+
+    @Test
+    void completeRejectedBeforeEventStarts() throws Exception {
+        String eventId = openEventId();
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/close-registration").with(staffJwt))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/events/staff/" + eventId + "/complete").with(staffJwt))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("EVENT_NOT_STARTED"));
+    }
+
+    @Test
+    void oversizedIdempotencyKeyIsRejectedAsBadRequest() throws Exception {
+        String eventId = openEventId();
+        mvc.perform(post("/api/v1/events/" + eventId + "/register").with(studentJwt)
+                        .header("Idempotency-Key", "k".repeat(201)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_INVALID"));
     }
 
     @Test
