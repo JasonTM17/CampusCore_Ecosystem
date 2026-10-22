@@ -45,12 +45,12 @@ export interface paths {
      * Danh sách tài liệu tri thức RAG
      * @description Truy vấn danh sách tài liệu tri thức học vụ theo lĩnh vực (domain) và trạng thái (DRAFT, PENDING_REVIEW, PUBLISHED, ARCHIVED)
      */
-    get: operations["list_4"];
+    get: operations["list_6"];
     /**
      * Tạo mới tài liệu tri thức (Bản nháp DRAFT)
      * @description Tạo một tài liệu tri thức mới kèm phiên bản 1 trạng thái DRAFT
      */
-    post: operations["create_4"];
+    post: operations["create_6"];
   };
   "/api/v1/admin/assistant/knowledge/sync": {
     /** Thực hiện đồng bộ tri thức ngay lập tức (Sync Now) */
@@ -70,7 +70,7 @@ export interface paths {
      * Cập nhật bản nháp tài liệu tri thức
      * @description Chỉnh sửa nội dung tài liệu bản nháp của người tạo hoặc sinh phiên bản mới
      */
-    put: operations["update_5"];
+    put: operations["update_6"];
     /**
      * Lưu trữ tài liệu tri thức (Archive/Delete)
      * @description Đưa tài liệu tri thức vào trạng thái lưu trữ ngưng hoạt động
@@ -82,21 +82,21 @@ export interface paths {
      * Phê duyệt và xuất bản tài liệu tri thức (Publish - 2-man rule)
      * @description Yêu cầu một Admin khác với người tạo kiểm duyệt và chính thức xuất bản tri thức cho AI sử dụng
      */
-    post: operations["publish_1"];
+    post: operations["publish_2"];
   };
   "/api/v1/admin/assistant/knowledge/{id}/submit": {
     /**
      * Nộp bản nháp để chờ xét duyệt (Submit for Review)
      * @description Chuyển trạng thái phiên bản từ DRAFT sang PENDING_REVIEW để người khác duyệt
      */
-    post: operations["submit"];
+    post: operations["submit_2"];
   };
   "/api/v1/admin/audit": {
     /**
      * Danh sách vết kiểm toán quản trị
      * @description Truy vấn phân trang các bản ghi audit hệ thống, lọc theo hành động, loại/thực thể hoặc tác nhân.
      */
-    get: operations["list_6"];
+    get: operations["list_10"];
   };
   "/api/v1/admin/registration/credit-limit-applications": {
     /**
@@ -117,12 +117,12 @@ export interface paths {
      * Danh sách tài liệu tri thức RAG
      * @description Truy vấn danh sách tài liệu tri thức học vụ theo lĩnh vực (domain) và trạng thái (DRAFT, PENDING_REVIEW, PUBLISHED, ARCHIVED)
      */
-    get: operations["list_5"];
+    get: operations["list_7"];
     /**
      * Tạo mới tài liệu tri thức (Bản nháp DRAFT)
      * @description Tạo một tài liệu tri thức mới kèm phiên bản 1 trạng thái DRAFT
      */
-    post: operations["create_5"];
+    post: operations["create_7"];
   };
   "/api/v1/admin/thesis/assistant/knowledge/sync": {
     /** Thực hiện đồng bộ tri thức ngay lập tức (Sync Now) */
@@ -142,7 +142,7 @@ export interface paths {
      * Cập nhật bản nháp tài liệu tri thức
      * @description Chỉnh sửa nội dung tài liệu bản nháp của người tạo hoặc sinh phiên bản mới
      */
-    put: operations["update_4"];
+    put: operations["update_5"];
     /**
      * Lưu trữ tài liệu tri thức (Archive/Delete)
      * @description Đưa tài liệu tri thức vào trạng thái lưu trữ ngưng hoạt động
@@ -154,14 +154,14 @@ export interface paths {
      * Phê duyệt và xuất bản tài liệu tri thức (Publish - 2-man rule)
      * @description Yêu cầu một Admin khác với người tạo kiểm duyệt và chính thức xuất bản tri thức cho AI sử dụng
      */
-    post: operations["publish"];
+    post: operations["publish_1"];
   };
   "/api/v1/admin/thesis/assistant/knowledge/{id}/submit": {
     /**
      * Nộp bản nháp để chờ xét duyệt (Submit for Review)
      * @description Chuyển trạng thái phiên bản từ DRAFT sang PENDING_REVIEW để người khác duyệt
      */
-    post: operations["submit_1"];
+    post: operations["submit_3"];
   };
   "/api/v1/announcements": {
     /**
@@ -173,7 +173,7 @@ export interface paths {
      * Tạo thông báo hoặc tin tức mới
      * @description Tạo bài thông báo mới kèm phân quyền phạm vi đối tượng (toàn trường, khoa, bộ môn, lớp học phần)
      */
-    post: operations["create_3"];
+    post: operations["create_5"];
   };
   "/api/v1/announcements/my": {
     /**
@@ -189,6 +189,13 @@ export interface paths {
      */
     get: operations["getPublicAnnouncements"];
   };
+  "/api/v1/announcements/public/{idOrSlug}": {
+    /**
+     * Bản tin công khai chi tiết theo id hoặc slug
+     * @description Nội dung công khai của một bản tin đã xuất bản, dùng cho permalink trang news công khai
+     */
+    get: operations["getPublicAnnouncement"];
+  };
   "/api/v1/announcements/{id}": {
     /**
      * Xem chi tiết một thông báo theo id
@@ -199,19 +206,26 @@ export interface paths {
      * Cập nhật nội dung thông báo
      * @description Chỉnh sửa tiêu đề, nội dung, phạm vi hoặc tệp đính kèm của thông báo hiện có
      */
-    put: operations["update_3"];
+    put: operations["update_4"];
     /**
      * Xóa thông báo (Soft Delete an toàn)
      * @description Lưu trữ an toàn thông báo và bảo toàn vết kiểm toán audit log
      */
     delete: operations["delete_3"];
   };
+  "/api/v1/announcements/{id}/approve": {
+    /**
+     * Duyệt xuất bản thông báo
+     * @description Người duyệt (khác tác giả) phê duyệt bài IN_REVIEW thành PUBLISHED — đây là lối duy nhất đưa nội dung lên trực tuyến
+     */
+    post: operations["approve_1"];
+  };
   "/api/v1/announcements/{id}/archive": {
     /**
      * Lưu trữ (Archive) thông báo
      * @description Đưa thông báo vào trạng thái lưu trữ bảo mật
      */
-    post: operations["archive"];
+    post: operations["archive_1"];
   };
   "/api/v1/announcements/{id}/history": {
     /**
@@ -232,7 +246,21 @@ export interface paths {
      * Khôi phục thông báo từ lưu trữ
      * @description Khôi phục trạng thái hoạt động bình thường của thông báo đã lưu trữ
      */
-    post: operations["restore"];
+    post: operations["restore_1"];
+  };
+  "/api/v1/announcements/{id}/return": {
+    /**
+     * Trả bài về nháp kèm ghi chú
+     * @description Người duyệt trả bài IN_REVIEW về DRAFT; ghi chú lý do bắt buộc để tác giả biết phải sửa gì
+     */
+    post: operations["returnForRework_1"];
+  };
+  "/api/v1/announcements/{id}/submit": {
+    /**
+     * Gửi duyệt bản nháp
+     * @description Chuyển bản nháp (DRAFT) sang hàng chờ duyệt (IN_REVIEW); tác giả gửi bài của mình, quản trị viên có thể nhận xử lý bản nháp bị bỏ lại
+     */
+    post: operations["submit_1"];
   };
   "/api/v1/article-attachments": {
     /**
@@ -621,6 +649,65 @@ export interface paths {
     /** Xóa Khoa */
     delete: operations["deleteDepartment"];
   };
+  "/api/v1/docs": {
+    /**
+     * Danh sách tài liệu (staff)
+     * @description Liệt kê tài liệu theo trạng thái vòng đời; giảng viên chỉ thấy tài liệu của mình và hàng chờ duyệt
+     */
+    get: operations["list_5"];
+    /**
+     * Tạo tài liệu công khai (bản nháp)
+     * @description Tạo tài liệu mới với revision đầu tiên ở trạng thái DRAFT — chưa công khai cho đến khi được duyệt
+     */
+    post: operations["create_4"];
+  };
+  "/api/v1/docs/{id}": {
+    /**
+     * Chi tiết tài liệu (staff)
+     * @description Truy vấn tài liệu kèm head revision — bao gồm cả bản nháp đang soạn
+     */
+    get: operations["detail_1"];
+    /**
+     * Sửa tài liệu — tạo revision mới
+     * @description Mỗi lần sửa tạo head revision mới ở DRAFT; nội dung đang công khai không bị gián đoạn
+     */
+    put: operations["revise"];
+  };
+  "/api/v1/docs/{id}/approve": {
+    /**
+     * Duyệt xuất bản head revision
+     * @description Người duyệt (khác tác giả revision) xuất bản — revision cũ chuyển SUPERSEDED, doc chuyển PUBLISHED
+     */
+    post: operations["approve"];
+  };
+  "/api/v1/docs/{id}/archive": {
+    /**
+     * Lưu trữ tài liệu
+     * @description Rút tài liệu khỏi bề mặt công khai (unpublish) — revisions giữ nguyên làm lịch sử
+     */
+    post: operations["archive"];
+  };
+  "/api/v1/docs/{id}/restore": {
+    /**
+     * Khôi phục tài liệu về nháp
+     * @description Khôi phục tài liệu đã lưu trữ về DRAFT — phải duyệt lại mới công khai trở lại
+     */
+    post: operations["restore"];
+  };
+  "/api/v1/docs/{id}/return": {
+    /**
+     * Trả head revision về nháp
+     * @description Người duyệt trả bài kèm ghi chú lý do bắt buộc
+     */
+    post: operations["returnForRework"];
+  };
+  "/api/v1/docs/{id}/submit": {
+    /**
+     * Gửi duyệt head revision
+     * @description Tác giả revision (hoặc quản trị viên) gửi bản nháp vào hàng chờ duyệt
+     */
+    post: operations["submit"];
+  };
   "/api/v1/enrollments": {
     /**
      * Quản trị tra cứu danh sách ghi danh toàn hệ thống
@@ -688,6 +775,76 @@ export interface paths {
      * @description Rút khỏi lớp học phần đã đăng ký qua cổng mutation legacy
      */
     post: operations["drop_1"];
+  };
+  "/api/v1/events": {
+    /** Danh sách sự kiện đã công bố */
+    get: operations["list_9"];
+  };
+  "/api/v1/events/my/registrations": {
+    /** Lịch sử đăng ký của tôi */
+    get: operations["myRegistrations"];
+  };
+  "/api/v1/events/registrations/{registrationId}/cancel": {
+    /** Hủy đăng ký sự kiện của chính mình */
+    post: operations["cancel_3"];
+  };
+  "/api/v1/events/staff": {
+    /** Danh sách sự kiện (staff, gồm draft) */
+    get: operations["list_4"];
+    /** Tạo sự kiện nháp */
+    post: operations["create_3"];
+  };
+  "/api/v1/events/staff/grants": {
+    /** Danh sách staff grants */
+    get: operations["grants"];
+    /** Cấp grant STAFF:events (admin) */
+    post: operations["grant"];
+  };
+  "/api/v1/events/staff/grants/{grantId}": {
+    /** Thu hồi grant (admin) */
+    delete: operations["revoke"];
+  };
+  "/api/v1/events/staff/{eventId}": {
+    /** Chi tiết sự kiện (staff) */
+    get: operations["detail"];
+    /** Sửa sự kiện nháp */
+    put: operations["update_3"];
+  };
+  "/api/v1/events/staff/{eventId}/attendance": {
+    /** Điểm danh thủ công theo roster */
+    post: operations["markAttendance"];
+  };
+  "/api/v1/events/staff/{eventId}/cancel": {
+    /** Hủy sự kiện (kèm thông báo cùng giao dịch) */
+    post: operations["cancel_2"];
+  };
+  "/api/v1/events/staff/{eventId}/close-registration": {
+    /** Đóng đăng ký */
+    post: operations["closeRegistration_1"];
+  };
+  "/api/v1/events/staff/{eventId}/complete": {
+    /** Hoàn tất sự kiện */
+    post: operations["complete_2"];
+  };
+  "/api/v1/events/staff/{eventId}/open-registration": {
+    /** Mở đăng ký trong cửa sổ */
+    post: operations["openRegistration_1"];
+  };
+  "/api/v1/events/staff/{eventId}/publish": {
+    /** Công bố sự kiện (chủ sở hữu) */
+    post: operations["publish"];
+  };
+  "/api/v1/events/staff/{eventId}/roster": {
+    /** Roster đăng ký (staff only) */
+    get: operations["roster"];
+  };
+  "/api/v1/events/{eventId}": {
+    /** Chi tiết sự kiện */
+    get: operations["detail_3"];
+  };
+  "/api/v1/events/{eventId}/register": {
+    /** Đăng ký tham gia sự kiện */
+    post: operations["register"];
   };
   "/api/v1/faculties": {
     /**
@@ -974,6 +1131,34 @@ export interface paths {
      * @description Quản trị viên xóa thông báo khỏi toàn hệ thống
      */
     delete: operations["delete_1"];
+  };
+  "/api/v1/public/docs": {
+    /**
+     * Danh mục tài liệu công khai
+     * @description Liệt kê tài liệu đã xuất bản, hỗ trợ tìm kiếm VI/EN không dấu, lọc theo chuyên mục và thẻ
+     */
+    get: operations["list_8"];
+  };
+  "/api/v1/public/docs/{slug}": {
+    /**
+     * Tài liệu công khai theo slug
+     * @description Nội dung revision đã xuất bản của tài liệu — slug không tồn tại hoặc chưa xuất bản đều trả 404
+     */
+    get: operations["detail_2"];
+  };
+  "/api/v1/public/docs/{slug}/attachments/{attachmentId}": {
+    /**
+     * Tệp đính kèm tài liệu công khai
+     * @description Metadata tệp đính kèm — chỉ phục vụ khi tài liệu đang xuất bản và tệp được đánh dấu công khai
+     */
+    get: operations["attachment"];
+  };
+  "/api/v1/public/docs/{slug}/revisions/{revision}": {
+    /**
+     * Tài liệu công khai theo slug và revision
+     * @description Permalink phiên bản — chỉ phục vụ revision đã xuất bản hoặc cũ hơn; revision mới hơn publishedRevision trả 404
+     */
+    get: operations["revision"];
   };
   "/api/v1/registration/rounds": {
     /**
@@ -1595,6 +1780,7 @@ export interface components {
       /** Format: date-time */
       archivedAt?: string | null;
       archivedBy?: string | null;
+      authorId?: string | null;
       content?: string;
       courseCode?: string;
       courseName?: string;
@@ -1611,12 +1797,20 @@ export interface components {
       /** Format: date-time */
       publishAt?: string | null;
       publishedBy?: string;
+      /** Format: int32 */
+      publishedRevision?: number | null;
+      reviewNote?: string | null;
+      /** Format: date-time */
+      reviewedAt?: string | null;
+      reviewerId?: string | null;
       section?: components["schemas"]["SectionSummary"];
       sectionId?: string;
       sectionNumber?: string;
       semester?: components["schemas"]["SemesterSummary"];
       semesterId?: string;
       semesterName?: string;
+      /** @enum {string|null} */
+      status?: "DRAFT" | "IN_REVIEW" | "PUBLISHED" | "ARCHIVED";
       targetRoles?: string[];
       targetYears?: number[];
       title?: string;
@@ -1695,9 +1889,16 @@ export interface components {
       data?: components["schemas"]["AttachmentDto"][];
       meta?: components["schemas"]["PageMeta"];
     };
+    AttendanceBatchRequest: {
+      marks?: components["schemas"]["AttendanceMarkRequest"][];
+    };
     AttendanceListResponse: {
       data?: components["schemas"]["AttendanceResponse"][];
       meta?: components["schemas"]["PageMeta"];
+    };
+    AttendanceMarkRequest: {
+      registrationId?: string;
+      status?: string;
     };
     AttendanceMutationResponse: {
       date?: string;
@@ -1747,6 +1948,9 @@ export interface components {
       status?: string;
       student?: components["schemas"]["StudentContext"];
       studentId?: string;
+    };
+    CancelEventRequest: {
+      reason?: string;
     };
     CancelResponse: {
       /** Format: uuid */
@@ -2025,6 +2229,22 @@ export interface components {
       name?: string;
       roundId: string;
     };
+    CreateEventRequest: {
+      /** Format: int32 */
+      capacity?: number;
+      description?: string;
+      /** Format: date-time */
+      endsAt?: string;
+      location?: string;
+      organizer?: string;
+      /** Format: date-time */
+      registrationClosesAt?: string;
+      /** Format: date-time */
+      registrationOpensAt?: string;
+      /** Format: date-time */
+      startsAt?: string;
+      title?: string;
+    };
     CreateRequest: {
       reason: string;
       roundId: string;
@@ -2195,6 +2415,28 @@ export interface components {
     DisableTwoFactorRequest: {
       password: string;
     };
+    DocumentListResponse: {
+      data?: components["schemas"]["DocumentResponse"][];
+      meta?: components["schemas"]["PageMeta"];
+    };
+    DocumentResponse: {
+      authorId?: string;
+      categoryId?: string | null;
+      /** Format: date-time */
+      createdAt?: string;
+      /** Format: int32 */
+      currentRevision?: number;
+      headRevision?: components["schemas"]["RevisionResponse"];
+      id?: string;
+      /** Format: int32 */
+      publishedRevision?: number | null;
+      slug?: string;
+      /** @enum {string} */
+      status?: "DRAFT" | "IN_REVIEW" | "PUBLISHED" | "ARCHIVED";
+      tagIds?: string[];
+      /** Format: date-time */
+      updatedAt?: string;
+    };
     /** @description Kết quả hủy đăng ký lớp học phần */
     DropResponse: {
       /**
@@ -2261,6 +2503,38 @@ export interface components {
       studentId?: string;
       /** Format: date-time */
       updatedAt?: string;
+    };
+    EventResponse: {
+      /** Format: int32 */
+      capacity?: number;
+      /** Format: date-time */
+      createdAt?: string;
+      description?: string;
+      /** Format: date-time */
+      endsAt?: string;
+      id?: string;
+      location?: string;
+      myAttendanceStatus?: string;
+      myRegistrationId?: string;
+      myRegistrationStatus?: string;
+      organizer?: string;
+      ownerId?: string;
+      /** Format: int32 */
+      registeredCount?: number;
+      /** Format: date-time */
+      registrationClosesAt?: string;
+      /** Format: date-time */
+      registrationOpensAt?: string;
+      /** Format: int32 */
+      seatsRemaining?: number;
+      /** Format: date-time */
+      startsAt?: string;
+      status?: string;
+      title?: string;
+      /** Format: date-time */
+      updatedAt?: string;
+      /** Format: int32 */
+      version?: number;
     };
     FacultyDepartmentSummary: {
       building?: string;
@@ -2736,6 +3010,16 @@ export interface components {
       courses?: components["schemas"]["MyCurriculumCourse"][];
       curriculum?: components["schemas"]["CurriculumBrief"];
     };
+    MyRegistrationResponse: {
+      attendanceStatus?: string;
+      /** Format: date-time */
+      cancelledAt?: string;
+      event?: components["schemas"]["EventResponse"];
+      /** Format: date-time */
+      registeredAt?: string;
+      registrationId?: string;
+      registrationStatus?: string;
+    };
     NotificationListResponse: {
       data?: components["schemas"]["NotificationResponse"][];
       meta?: components["schemas"]["PageMeta"];
@@ -2754,6 +3038,12 @@ export interface components {
       /** Format: date-time */
       updatedAt?: string;
       userId?: string;
+    };
+    OpenRegistrationRequest: {
+      /** Format: date-time */
+      registrationClosesAt?: string;
+      /** Format: date-time */
+      registrationOpensAt?: string;
     };
     OverviewStats: {
       byDepartment?: components["schemas"]["DepartmentCount"][];
@@ -2847,6 +3137,48 @@ export interface components {
       /** Format: date-time */
       updatedAt?: string;
     };
+    PublicDocumentAttachmentResponse: {
+      checksumSha256?: string | null;
+      fileName?: string;
+      /** Format: int64 */
+      fileSizeBytes?: number;
+      fileUrl?: string;
+      id?: string;
+      mimeType?: string;
+    };
+    PublicDocumentListItem: {
+      categoryId?: string | null;
+      /** Format: date-time */
+      publishedAt?: string;
+      /** Format: int32 */
+      publishedRevision?: number;
+      slug?: string;
+      summaryEn?: string | null;
+      summaryVi?: string | null;
+      tagIds?: string[];
+      titleEn?: string;
+      titleVi?: string;
+    };
+    PublicDocumentListResponse: {
+      data?: components["schemas"]["PublicDocumentListItem"][];
+      meta?: components["schemas"]["PageMeta"];
+    };
+    PublicDocumentResponse: {
+      bodyEn?: string;
+      bodyVi?: string;
+      categoryId?: string | null;
+      /** Format: date-time */
+      publishedAt?: string;
+      /** Format: int32 */
+      publishedRevision?: number;
+      slug?: string;
+      summaryEn?: string | null;
+      summaryVi?: string | null;
+      superseded?: boolean;
+      tagIds?: string[];
+      titleEn?: string;
+      titleVi?: string;
+    };
     ReasonCount: {
       /** Format: int64 */
       count?: number;
@@ -2867,6 +3199,17 @@ export interface components {
     };
     RefreshRequest: {
       refreshToken?: string;
+    };
+    RegistrationResponse: {
+      attendanceStatus?: string;
+      /** Format: date-time */
+      cancelledAt?: string;
+      eventId?: string;
+      id?: string;
+      /** Format: date-time */
+      registeredAt?: string;
+      status?: string;
+      studentId?: string;
     };
     ReportDeadlineUpdateRequest: {
       /** Format: date-time */
@@ -2965,6 +3308,38 @@ export interface components {
     ReviewerScoreRequest: {
       comment?: string;
       score?: string;
+    };
+    RevisionResponse: {
+      authorId?: string;
+      bodyEn?: string;
+      bodyVi?: string;
+      /** Format: date-time */
+      createdAt?: string;
+      reviewNote?: string | null;
+      /** Format: date-time */
+      reviewedAt?: string | null;
+      reviewerId?: string | null;
+      /** Format: int32 */
+      revision?: number;
+      /** @enum {string} */
+      state?: "DRAFT" | "IN_REVIEW" | "PUBLISHED" | "SUPERSEDED";
+      summaryEn?: string | null;
+      summaryVi?: string | null;
+      titleEn?: string;
+      titleVi?: string;
+    };
+    RosterEntry: {
+      /** Format: date-time */
+      attendanceMarkedAt?: string;
+      attendanceMarkedBy?: string;
+      attendanceStatus?: string;
+      email?: string;
+      /** Format: date-time */
+      registeredAt?: string;
+      registrationId?: string;
+      status?: string;
+      studentId?: string;
+      studentName?: string;
     };
     RoundCreateRequest: {
       /** Format: date-time */
@@ -3222,6 +3597,14 @@ export interface components {
       /** Format: int64 */
       count?: number;
       semester?: string;
+    };
+    StaffGrantResponse: {
+      /** Format: date-time */
+      createdAt?: string;
+      grantedBy?: string;
+      id?: string;
+      scope?: string;
+      userId?: string;
     };
     StudentAttendanceEntry: {
       notes?: string;
@@ -3505,6 +3888,22 @@ export interface components {
       /** Format: int32 */
       displayOrder: number;
     };
+    UpdateEventRequest: {
+      /** Format: int32 */
+      capacity?: number;
+      description?: string;
+      /** Format: date-time */
+      endsAt?: string;
+      location?: string;
+      organizer?: string;
+      /** Format: date-time */
+      registrationClosesAt?: string;
+      /** Format: date-time */
+      registrationOpensAt?: string;
+      /** Format: date-time */
+      startsAt?: string;
+      title?: string;
+    };
     UpdateProfileRequest: {
       address?: string;
       avatar?: string;
@@ -3691,7 +4090,7 @@ export interface operations {
    * Danh sách tài liệu tri thức RAG
    * @description Truy vấn danh sách tài liệu tri thức học vụ theo lĩnh vực (domain) và trạng thái (DRAFT, PENDING_REVIEW, PUBLISHED, ARCHIVED)
    */
-  list_4: {
+  list_6: {
     parameters: {
       query?: {
         /** @description Lĩnh vực tri thức (THESIS, ACADEMIC, ENROLLMENT, CONDUCT, TUITION) */
@@ -3713,7 +4112,7 @@ export interface operations {
    * Tạo mới tài liệu tri thức (Bản nháp DRAFT)
    * @description Tạo một tài liệu tri thức mới kèm phiên bản 1 trạng thái DRAFT
    */
-  create_4: {
+  create_6: {
     requestBody: {
       content: {
         "application/json": components["schemas"]["KnowledgeRequest"];
@@ -3780,7 +4179,7 @@ export interface operations {
    * Cập nhật bản nháp tài liệu tri thức
    * @description Chỉnh sửa nội dung tài liệu bản nháp của người tạo hoặc sinh phiên bản mới
    */
-  update_5: {
+  update_6: {
     parameters: {
       path: {
         /** @description Mã định danh tài liệu tri thức (UUID) */
@@ -3827,7 +4226,7 @@ export interface operations {
    * Phê duyệt và xuất bản tài liệu tri thức (Publish - 2-man rule)
    * @description Yêu cầu một Admin khác với người tạo kiểm duyệt và chính thức xuất bản tri thức cho AI sử dụng
    */
-  publish_1: {
+  publish_2: {
     parameters: {
       path: {
         /** @description Mã định danh tài liệu tri thức (UUID) */
@@ -3853,7 +4252,7 @@ export interface operations {
    * Nộp bản nháp để chờ xét duyệt (Submit for Review)
    * @description Chuyển trạng thái phiên bản từ DRAFT sang PENDING_REVIEW để người khác duyệt
    */
-  submit: {
+  submit_2: {
     parameters: {
       path: {
         /** @description Mã định danh tài liệu tri thức (UUID) */
@@ -3879,7 +4278,7 @@ export interface operations {
    * Danh sách vết kiểm toán quản trị
    * @description Truy vấn phân trang các bản ghi audit hệ thống, lọc theo hành động, loại/thực thể hoặc tác nhân.
    */
-  list_6: {
+  list_10: {
     parameters: {
       query: {
         page?: number;
@@ -3958,7 +4357,7 @@ export interface operations {
    * Danh sách tài liệu tri thức RAG
    * @description Truy vấn danh sách tài liệu tri thức học vụ theo lĩnh vực (domain) và trạng thái (DRAFT, PENDING_REVIEW, PUBLISHED, ARCHIVED)
    */
-  list_5: {
+  list_7: {
     parameters: {
       query?: {
         /** @description Lĩnh vực tri thức (THESIS, ACADEMIC, ENROLLMENT, CONDUCT, TUITION) */
@@ -3980,7 +4379,7 @@ export interface operations {
    * Tạo mới tài liệu tri thức (Bản nháp DRAFT)
    * @description Tạo một tài liệu tri thức mới kèm phiên bản 1 trạng thái DRAFT
    */
-  create_5: {
+  create_7: {
     requestBody: {
       content: {
         "application/json": components["schemas"]["KnowledgeRequest"];
@@ -4047,7 +4446,7 @@ export interface operations {
    * Cập nhật bản nháp tài liệu tri thức
    * @description Chỉnh sửa nội dung tài liệu bản nháp của người tạo hoặc sinh phiên bản mới
    */
-  update_4: {
+  update_5: {
     parameters: {
       path: {
         /** @description Mã định danh tài liệu tri thức (UUID) */
@@ -4094,7 +4493,7 @@ export interface operations {
    * Phê duyệt và xuất bản tài liệu tri thức (Publish - 2-man rule)
    * @description Yêu cầu một Admin khác với người tạo kiểm duyệt và chính thức xuất bản tri thức cho AI sử dụng
    */
-  publish: {
+  publish_1: {
     parameters: {
       path: {
         /** @description Mã định danh tài liệu tri thức (UUID) */
@@ -4120,7 +4519,7 @@ export interface operations {
    * Nộp bản nháp để chờ xét duyệt (Submit for Review)
    * @description Chuyển trạng thái phiên bản từ DRAFT sang PENDING_REVIEW để người khác duyệt
    */
-  submit_1: {
+  submit_3: {
     parameters: {
       path: {
         /** @description Mã định danh tài liệu tri thức (UUID) */
@@ -4159,7 +4558,7 @@ export interface operations {
         sectionId?: string;
         /** @description Mức độ ưu tiên (LOW, NORMAL, HIGH, URGENT) */
         priority?: string;
-        /** @description Trạng thái thông báo (ACTIVE, ARCHIVED) */
+        /** @description Trạng thái thông báo (ACTIVE, ARCHIVED, DRAFT, IN_REVIEW, PUBLISHED) */
         status?: string;
         /** @description Từ khóa tìm kiếm (tiêu đề, nội dung, môn học, giảng viên) */
         search?: string;
@@ -4185,7 +4584,7 @@ export interface operations {
    * Tạo thông báo hoặc tin tức mới
    * @description Tạo bài thông báo mới kèm phân quyền phạm vi đối tượng (toàn trường, khoa, bộ môn, lớp học phần)
    */
-  create_3: {
+  create_5: {
     requestBody: {
       content: {
         "application/json": components["schemas"]["JsonNode"];
@@ -4271,6 +4670,31 @@ export interface operations {
     };
   };
   /**
+   * Bản tin công khai chi tiết theo id hoặc slug
+   * @description Nội dung công khai của một bản tin đã xuất bản, dùng cho permalink trang news công khai
+   */
+  getPublicAnnouncement: {
+    parameters: {
+      path: {
+        idOrSlug: string;
+      };
+    };
+    responses: {
+      /** @description Truy vấn chi tiết công khai thành công */
+      200: {
+        content: {
+          "*/*": components["schemas"]["PublicAnnouncementResponse"];
+        };
+      };
+      /** @description Không tìm thấy bản tin công khai */
+      404: {
+        content: {
+          "*/*": components["schemas"]["PublicAnnouncementResponse"];
+        };
+      };
+    };
+  };
+  /**
    * Xem chi tiết một thông báo theo id
    * @description Truy vấn nội dung đầy đủ của một thông báo cho giảng viên/quản trị viên
    */
@@ -4300,7 +4724,7 @@ export interface operations {
    * Cập nhật nội dung thông báo
    * @description Chỉnh sửa tiêu đề, nội dung, phạm vi hoặc tệp đính kèm của thông báo hiện có
    */
-  update_3: {
+  update_4: {
     parameters: {
       path: {
         /** @description Mã định danh thông báo (UUID) */
@@ -4348,10 +4772,36 @@ export interface operations {
     };
   };
   /**
+   * Duyệt xuất bản thông báo
+   * @description Người duyệt (khác tác giả) phê duyệt bài IN_REVIEW thành PUBLISHED — đây là lối duy nhất đưa nội dung lên trực tuyến
+   */
+  approve_1: {
+    parameters: {
+      path: {
+        /** @description Mã định danh thông báo (UUID) */
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Đã xuất bản thành công */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AnnouncementResponse"];
+        };
+      };
+      /** @description Người duyệt trùng tác giả, trạng thái không hợp lệ hoặc hết hạn xuất bản */
+      409: {
+        content: {
+          "*/*": components["schemas"]["AnnouncementResponse"];
+        };
+      };
+    };
+  };
+  /**
    * Lưu trữ (Archive) thông báo
    * @description Đưa thông báo vào trạng thái lưu trữ bảo mật
    */
-  archive: {
+  archive_1: {
     parameters: {
       path: {
         /** @description Mã định danh thông báo (UUID) */
@@ -4440,7 +4890,7 @@ export interface operations {
    * Khôi phục thông báo từ lưu trữ
    * @description Khôi phục trạng thái hoạt động bình thường của thông báo đã lưu trữ
    */
-  restore: {
+  restore_1: {
     parameters: {
       path: {
         /** @description Mã định danh thông báo (UUID) */
@@ -4455,6 +4905,75 @@ export interface operations {
     responses: {
       /** @description Khôi phục thành công */
       200: {
+        content: {
+          "*/*": components["schemas"]["AnnouncementResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Trả bài về nháp kèm ghi chú
+   * @description Người duyệt trả bài IN_REVIEW về DRAFT; ghi chú lý do bắt buộc để tác giả biết phải sửa gì
+   */
+  returnForRework_1: {
+    parameters: {
+      path: {
+        /** @description Mã định danh thông báo (UUID) */
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["JsonNode"];
+      };
+    };
+    responses: {
+      /** @description Đã trả về nháp thành công */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AnnouncementResponse"];
+        };
+      };
+      /** @description Thiếu ghi chú lý do */
+      400: {
+        content: {
+          "*/*": components["schemas"]["AnnouncementResponse"];
+        };
+      };
+      /** @description Trạng thái vòng đời không hợp lệ */
+      409: {
+        content: {
+          "*/*": components["schemas"]["AnnouncementResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Gửi duyệt bản nháp
+   * @description Chuyển bản nháp (DRAFT) sang hàng chờ duyệt (IN_REVIEW); tác giả gửi bài của mình, quản trị viên có thể nhận xử lý bản nháp bị bỏ lại
+   */
+  submit_1: {
+    parameters: {
+      path: {
+        /** @description Mã định danh thông báo (UUID) */
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Đã gửi duyệt thành công */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AnnouncementResponse"];
+        };
+      };
+      /** @description Không phải tác giả hoặc quản trị viên */
+      403: {
+        content: {
+          "*/*": components["schemas"]["AnnouncementResponse"];
+        };
+      };
+      /** @description Trạng thái vòng đời không hợp lệ */
+      409: {
         content: {
           "*/*": components["schemas"]["AnnouncementResponse"];
         };
@@ -5911,6 +6430,229 @@ export interface operations {
     };
   };
   /**
+   * Danh sách tài liệu (staff)
+   * @description Liệt kê tài liệu theo trạng thái vòng đời; giảng viên chỉ thấy tài liệu của mình và hàng chờ duyệt
+   */
+  list_5: {
+    parameters: {
+      query: {
+        /** @description Số trang phân trang (bắt đầu từ 1) */
+        page?: number;
+        /** @description Số lượng tài liệu trên một trang */
+        limit?: number;
+        /** @description Trạng thái vòng đời (DRAFT, IN_REVIEW, PUBLISHED, ARCHIVED, ALL) */
+        status?: string;
+        queryParameters: components["schemas"]["MultiValueMapStringString"];
+      };
+    };
+    responses: {
+      /** @description Truy vấn danh sách thành công */
+      200: {
+        content: {
+          "*/*": components["schemas"]["DocumentListResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Tạo tài liệu công khai (bản nháp)
+   * @description Tạo tài liệu mới với revision đầu tiên ở trạng thái DRAFT — chưa công khai cho đến khi được duyệt
+   */
+  create_4: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["JsonNode"];
+      };
+    };
+    responses: {
+      /** @description Tạo tài liệu thành công */
+      201: {
+        content: {
+          "*/*": components["schemas"]["DocumentResponse"];
+        };
+      };
+      /** @description Slug đã tồn tại */
+      409: {
+        content: {
+          "*/*": components["schemas"]["DocumentResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Chi tiết tài liệu (staff)
+   * @description Truy vấn tài liệu kèm head revision — bao gồm cả bản nháp đang soạn
+   */
+  detail_1: {
+    parameters: {
+      path: {
+        /** @description Mã định danh tài liệu (UUID) */
+        id: string;
+      };
+    };
+    responses: {
+      /** @description Truy vấn chi tiết thành công */
+      200: {
+        content: {
+          "*/*": components["schemas"]["DocumentResponse"];
+        };
+      };
+      /** @description Không tìm thấy tài liệu */
+      404: {
+        content: {
+          "*/*": components["schemas"]["DocumentResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Sửa tài liệu — tạo revision mới
+   * @description Mỗi lần sửa tạo head revision mới ở DRAFT; nội dung đang công khai không bị gián đoạn
+   */
+  revise: {
+    parameters: {
+      path: {
+        /** @description Mã định danh tài liệu (UUID) */
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["JsonNode"];
+      };
+    };
+    responses: {
+      /** @description Tạo revision thành công */
+      200: {
+        content: {
+          "*/*": components["schemas"]["DocumentResponse"];
+        };
+      };
+      /** @description Không tìm thấy tài liệu */
+      404: {
+        content: {
+          "*/*": components["schemas"]["DocumentResponse"];
+        };
+      };
+      /** @description Tài liệu đã lưu trữ hoặc slug bị đổi */
+      409: {
+        content: {
+          "*/*": components["schemas"]["DocumentResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Duyệt xuất bản head revision
+   * @description Người duyệt (khác tác giả revision) xuất bản — revision cũ chuyển SUPERSEDED, doc chuyển PUBLISHED
+   */
+  approve: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["DocumentResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Lưu trữ tài liệu
+   * @description Rút tài liệu khỏi bề mặt công khai (unpublish) — revisions giữ nguyên làm lịch sử
+   */
+  archive: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["JsonNode"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["DocumentResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Khôi phục tài liệu về nháp
+   * @description Khôi phục tài liệu đã lưu trữ về DRAFT — phải duyệt lại mới công khai trở lại
+   */
+  restore: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["JsonNode"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["DocumentResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Trả head revision về nháp
+   * @description Người duyệt trả bài kèm ghi chú lý do bắt buộc
+   */
+  returnForRework: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["JsonNode"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["DocumentResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Gửi duyệt head revision
+   * @description Tác giả revision (hoặc quản trị viên) gửi bản nháp vào hàng chờ duyệt
+   */
+  submit: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["DocumentResponse"];
+        };
+      };
+    };
+  };
+  /**
    * Quản trị tra cứu danh sách ghi danh toàn hệ thống
    * @description Truy vấn danh sách ghi danh với bộ lọc trạng thái, học kỳ, sinh viên, học phần, lớp học phần
    */
@@ -6151,6 +6893,316 @@ export interface operations {
           "*/*": {
             [key: string]: string;
           };
+        };
+      };
+    };
+  };
+  /** Danh sách sự kiện đã công bố */
+  list_9: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["EventResponse"][];
+        };
+      };
+    };
+  };
+  /** Lịch sử đăng ký của tôi */
+  myRegistrations: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["MyRegistrationResponse"][];
+        };
+      };
+    };
+  };
+  /** Hủy đăng ký sự kiện của chính mình */
+  cancel_3: {
+    parameters: {
+      header?: {
+        "Idempotency-Key"?: string;
+      };
+      path: {
+        registrationId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["RegistrationResponse"];
+        };
+      };
+    };
+  };
+  /** Danh sách sự kiện (staff, gồm draft) */
+  list_4: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["EventResponse"][];
+        };
+      };
+    };
+  };
+  /** Tạo sự kiện nháp */
+  create_3: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateEventRequest"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        content: {
+          "*/*": components["schemas"]["EventResponse"];
+        };
+      };
+    };
+  };
+  /** Danh sách staff grants */
+  grants: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["StaffGrantResponse"][];
+        };
+      };
+    };
+  };
+  /** Cấp grant STAFF:events (admin) */
+  grant: {
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        content: {
+          "*/*": components["schemas"]["StaffGrantResponse"];
+        };
+      };
+    };
+  };
+  /** Thu hồi grant (admin) */
+  revoke: {
+    parameters: {
+      path: {
+        grantId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: never;
+      };
+    };
+  };
+  /** Chi tiết sự kiện (staff) */
+  detail: {
+    parameters: {
+      path: {
+        eventId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["EventResponse"];
+        };
+      };
+    };
+  };
+  /** Sửa sự kiện nháp */
+  update_3: {
+    parameters: {
+      path: {
+        eventId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateEventRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["EventResponse"];
+        };
+      };
+    };
+  };
+  /** Điểm danh thủ công theo roster */
+  markAttendance: {
+    parameters: {
+      path: {
+        eventId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AttendanceBatchRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["RosterEntry"][];
+        };
+      };
+    };
+  };
+  /** Hủy sự kiện (kèm thông báo cùng giao dịch) */
+  cancel_2: {
+    parameters: {
+      path: {
+        eventId: string;
+      };
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["CancelEventRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["EventResponse"];
+        };
+      };
+    };
+  };
+  /** Đóng đăng ký */
+  closeRegistration_1: {
+    parameters: {
+      path: {
+        eventId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["EventResponse"];
+        };
+      };
+    };
+  };
+  /** Hoàn tất sự kiện */
+  complete_2: {
+    parameters: {
+      path: {
+        eventId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["EventResponse"];
+        };
+      };
+    };
+  };
+  /** Mở đăng ký trong cửa sổ */
+  openRegistration_1: {
+    parameters: {
+      path: {
+        eventId: string;
+      };
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["OpenRegistrationRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["EventResponse"];
+        };
+      };
+    };
+  };
+  /** Công bố sự kiện (chủ sở hữu) */
+  publish: {
+    parameters: {
+      path: {
+        eventId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["EventResponse"];
+        };
+      };
+    };
+  };
+  /** Roster đăng ký (staff only) */
+  roster: {
+    parameters: {
+      path: {
+        eventId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["RosterEntry"][];
+        };
+      };
+    };
+  };
+  /** Chi tiết sự kiện */
+  detail_3: {
+    parameters: {
+      path: {
+        eventId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["EventResponse"];
+        };
+      };
+    };
+  };
+  /** Đăng ký tham gia sự kiện */
+  register: {
+    parameters: {
+      header?: {
+        "Idempotency-Key"?: string;
+      };
+      path: {
+        eventId: string;
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        content: {
+          "*/*": components["schemas"]["RegistrationResponse"];
         };
       };
     };
@@ -7144,6 +8196,117 @@ export interface operations {
       200: {
         content: {
           "*/*": components["schemas"]["DeleteNotificationResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Danh mục tài liệu công khai
+   * @description Liệt kê tài liệu đã xuất bản, hỗ trợ tìm kiếm VI/EN không dấu, lọc theo chuyên mục và thẻ
+   */
+  list_8: {
+    parameters: {
+      query: {
+        /** @description Số trang phân trang (bắt đầu từ 1) */
+        page?: number;
+        /** @description Số lượng tài liệu trên một trang */
+        limit?: number;
+        /** @description Từ khóa tìm kiếm (tiêu đề, tóm tắt, nội dung — cả hai ngôn ngữ) */
+        search?: string;
+        /** @description Lọc theo mã chuyên mục */
+        category?: string;
+        /** @description Lọc theo mã thẻ */
+        tag?: string;
+        queryParameters: components["schemas"]["MultiValueMapStringString"];
+      };
+    };
+    responses: {
+      /** @description Truy vấn danh mục thành công */
+      200: {
+        content: {
+          "*/*": components["schemas"]["PublicDocumentListResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Tài liệu công khai theo slug
+   * @description Nội dung revision đã xuất bản của tài liệu — slug không tồn tại hoặc chưa xuất bản đều trả 404
+   */
+  detail_2: {
+    parameters: {
+      path: {
+        /** @description Slug công khai của tài liệu */
+        slug: string;
+      };
+    };
+    responses: {
+      /** @description Truy vấn tài liệu thành công */
+      200: {
+        content: {
+          "*/*": components["schemas"]["PublicDocumentResponse"];
+        };
+      };
+      /** @description Không tìm thấy tài liệu */
+      404: {
+        content: {
+          "*/*": components["schemas"]["PublicDocumentResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Tệp đính kèm tài liệu công khai
+   * @description Metadata tệp đính kèm — chỉ phục vụ khi tài liệu đang xuất bản và tệp được đánh dấu công khai
+   */
+  attachment: {
+    parameters: {
+      path: {
+        /** @description Slug công khai của tài liệu */
+        slug: string;
+        /** @description Mã định danh tệp đính kèm */
+        attachmentId: string;
+      };
+    };
+    responses: {
+      /** @description Truy vấn tệp đính kèm thành công */
+      200: {
+        content: {
+          "*/*": components["schemas"]["PublicDocumentAttachmentResponse"];
+        };
+      };
+      /** @description Không tìm thấy tệp đính kèm */
+      404: {
+        content: {
+          "*/*": components["schemas"]["PublicDocumentAttachmentResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Tài liệu công khai theo slug và revision
+   * @description Permalink phiên bản — chỉ phục vụ revision đã xuất bản hoặc cũ hơn; revision mới hơn publishedRevision trả 404
+   */
+  revision: {
+    parameters: {
+      path: {
+        /** @description Slug công khai của tài liệu */
+        slug: string;
+        /** @description Số phiên bản (bắt đầu từ 1) */
+        revision: number;
+      };
+    };
+    responses: {
+      /** @description Truy vấn revision thành công */
+      200: {
+        content: {
+          "*/*": components["schemas"]["PublicDocumentResponse"];
+        };
+      };
+      /** @description Không tìm thấy revision */
+      404: {
+        content: {
+          "*/*": components["schemas"]["PublicDocumentResponse"];
         };
       };
     };
