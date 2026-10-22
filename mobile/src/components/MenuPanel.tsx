@@ -100,7 +100,7 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
           })}
           <UiText variant="bodySmall" tone="muted" style={styles.menuNote}>
             {getScreenDefinition(activeRoute)?.family === 'staff'
-              ? 'Staff screens are available only in explicit preview mode.'
+              ? 'Lecturer lanes run on live data — administration stays on the web portal.'
               : 'Choose a screen to continue your academic workflow.'}
           </UiText>
         </ScrollView>

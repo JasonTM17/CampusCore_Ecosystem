@@ -13,6 +13,19 @@ services:
       IDENTITY_DEV_KEYGEN: "true"
       IDENTITY_ISSUER_URI: ${IDENTITY_ISSUER_URI:-https://id.localhost:4443}
       IDENTITY_TOKEN_ENCRYPTION_KEY: ${IDENTITY_TOKEN_ENCRYPTION_KEY:-dGVzdC1rZXktMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY=}
+      # Native OIDC client (mobile-policy.md §3): public client + PKCE, the
+      # exact campuscore:// callback, and the native-refresh allowlist that
+      # lets the minted grant carry a refresh token for SecureStore.
+      IDENTITY_CLIENTS_0_CLIENTID: cu-mobile
+      IDENTITY_CLIENTS_0_PUBLICCLIENT: "true"
+      IDENTITY_CLIENTS_0_REDIRECTURIS_0: campuscore://auth/callback
+      IDENTITY_CLIENTS_0_SCOPES_0: openid
+      IDENTITY_CLIENTS_0_SCOPES_1: profile
+      IDENTITY_CLIENTS_0_SCOPES_2: email
+      IDENTITY_CLIENTS_0_SCOPES_3: offline_access
+      IDENTITY_CLIENTS_0_ACCESSTOKENTTL: PT15M
+      IDENTITY_CLIENTS_0_REFRESHTOKENTTL: P7D
+      IDENTITY_OIDC_NATIVE_REFRESH_CLIENT_IDS_0: cu-mobile
       IDENTITY_BFF_ENABLED: "true"
       IDENTITY_BFF_DEV_HTTP: "false"
       IDENTITY_BFF_ISSUER_LOOPBACK: http://127.0.0.1:4100

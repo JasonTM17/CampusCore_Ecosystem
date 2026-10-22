@@ -123,17 +123,20 @@ test('mobile never replays a terminal or fenced request key', () => {
 test('mobile refreshes the session single-flight and exits to sign-in on expiry', () => {
   const client = read('src/api/client.ts');
   const navigator = read('src/navigation/MobileNavigator.tsx');
+  const store = read('src/auth/session-store.ts');
 
   // Concurrent 401s must share one refresh rotation; independent refreshes race
-  // the backend rotation and clear both tokens.
+  // the issuer rotation and revoke both tokens.
   assert.match(client, /let sessionRefreshPromise: Promise<boolean> \| null = null/);
-  assert.match(client, /refreshSessionOnce\(requestId\)/);
-  assert.doesNotMatch(client, /await refreshMobileSession\(requestId\)/);
+  assert.match(client, /refreshSessionOnce\(\)/);
+  assert.match(client, /options\.refreshSession\?\.\(\)/);
+  assert.doesNotMatch(client, /refreshToken/);
   assert.match(client, /setOnSessionExpired\(handler: \(\(\) => void\) \| undefined\): void/);
   assert.match(client, /onSessionExpired\?\.\(\)/);
-  // An in-flight refresh must not clobber a newer sign-in or sign-out.
-  assert.match(client, /sessionEpoch \+= 1/);
-  assert.match(client, /if \(epoch !== sessionEpoch\)/);
+  // An in-flight refresh must not clobber a newer sign-in or sign-out — the
+  // epoch gates live in session-store where the disk write happens (KM-6).
+  assert.match(store, /sessionEpoch \+= 1/);
+  assert.match(store, /if \(epoch !== sessionEpoch\)/);
   // A failed refresh must bridge back to the sign-in screen instead of a dead end.
   assert.match(navigator, /apiClient\.setOnSessionExpired\(/);
   assert.match(navigator, /setSessionKind\('signedOut'\)/);

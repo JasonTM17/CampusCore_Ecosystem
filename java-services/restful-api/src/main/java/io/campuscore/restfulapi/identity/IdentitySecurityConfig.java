@@ -39,7 +39,6 @@ import org.springframework.security.oauth2.server.authorization.settings.TokenSe
 import org.springframework.security.oauth2.server.authorization.token.DelegatingOAuth2TokenGenerator;
 import org.springframework.security.oauth2.server.authorization.token.JwtGenerator;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2AccessTokenGenerator;
-import org.springframework.security.oauth2.server.authorization.token.OAuth2RefreshTokenGenerator;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationProvider;
@@ -86,6 +85,24 @@ public class IdentitySecurityConfig {
                         .authorizationConsentService(identityConsentService)
                         .authorizationServerSettings(identityServerSettings)
                         .tokenGenerator(identityTokenGenerator)
+                        // Public clients authenticate with client_id alone on
+                        // every endpoint (stock SAS only converts that shape
+                        // for authorization_code+code_verifier requests —
+                        // KM-3 probe: refresh grant and revoke were left
+                        // anonymous). Registered last; confidential converters
+                        // keep precedence and non-NONE registrations are
+                        // still rejected by PublicClientAuthenticationProvider.
+                        .clientAuthentication(clientAuth -> clientAuth
+                                .authenticationConverters(converters -> converters
+                                        .add(new NativePublicClientAuthenticationConverter()))
+                                // Provider registered FIRST so it can claim
+                                // non-authorization_code requests before the
+                                // stock provider's authenticateRequired
+                                // rejects them (it returns null for the
+                                // auth-code shape so stock keeps PKCE).
+                                .authenticationProviders(providers -> providers
+                                        .add(0, new NativePublicClientAuthenticationProvider(
+                                                identityClientRepository))))
                         .tokenEndpoint(token -> token.errorResponseHandler(
                                 new OidcRefreshReplayHandler(mirror, authority,
                                         OidcRefreshReplayHandler.defaultDelegate())))
@@ -272,11 +289,13 @@ public class IdentitySecurityConfig {
 
     @Bean
     OAuth2TokenGenerator<?> identityTokenGenerator(JwtEncoder identityJwtEncoder,
-            AuthUserRepository users) {
+            AuthUserRepository users, IdentityProperties properties) {
         JwtGenerator jwtGenerator = new JwtGenerator(identityJwtEncoder);
         jwtGenerator.setJwtCustomizer(new IdentityTokenCustomizer(users));
         return new DelegatingOAuth2TokenGenerator(jwtGenerator,
-                new OAuth2AccessTokenGenerator(), new OAuth2RefreshTokenGenerator());
+                new OAuth2AccessTokenGenerator(),
+                new NativeRefreshTokenGenerator(
+                        properties.getOidc().getNativeRefreshClientIds()));
     }
 
     /**

@@ -42,17 +42,19 @@ design inspection and is never treated as authenticated evidence.
 The app uses one base URL for all requests and does not embed credentials. The
 local preview entry point is deliberately labeled as a preview; it does not
 represent a successful Java authentication. When live mode is selected, sign
-in calls `/auth/login`, stores the returned bearer access token in the in-memory
-API client together with the body refresh token, and enters the role-specific
-home screen only after the Java auth candidate returns a token. Refresh and
-logout requests send the in-memory refresh token in the request body, matching
-the Java mobile-token contract; an explicit refresh call stores the rotated
-access and refresh tokens returned by Java. A live request that receives `401`
-will attempt one Java refresh-token rotation and retry once, excluding
-login/refresh/logout to avoid auth loops. The navigator keeps `signedOut`,
-`preview`, and `authenticated` as distinct session states; role switching is
-available only inside the explicit preview state and is never an authorization
-substitute.
+in runs an OIDC authorization-code + PKCE flow against the identity issuer
+(`EXPO_PUBLIC_ISSUER_URL`, mandatory when the issuer host differs from the API
+host) inside the system browser for the `cu-mobile` public client — the app
+never sees a password. The access token lives in session-store memory only;
+the refresh token persists solely in `expo-secure-store` (`cu.refresh`,
+`WHEN_UNLOCKED_THIS_DEVICE_ONLY`), and a two-layer install marker
+(`cu.install` + an AsyncStorage `installMarker` twin) wipes stale refresh
+material after reinstall. A live request that receives `401` attempts one
+issuer-side refresh rotation and retries once, excluding
+login/refresh/logout paths to avoid auth loops. The session keeps
+`signedOut`, `preview`, and `authenticated` as distinct states; role
+switching is available only inside the explicit preview state and is never
+an authorization substitute.
 
 For live API access, Android Emulator uses `http://10.0.2.2:4010/api/v1`.
 iOS Simulator and Expo web can use `http://127.0.0.1:4010/api/v1`. A physical

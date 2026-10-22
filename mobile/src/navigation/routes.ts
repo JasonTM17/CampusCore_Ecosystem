@@ -55,7 +55,7 @@ export interface StitchMobileReference {
 
 const allRoles: readonly UserRole[] = ['student', 'lecturer', 'admin'];
 const studentRoles: readonly UserRole[] = ['student'];
-const lecturerRoles: readonly UserRole[] = ['lecturer', 'admin'];
+const lecturerRoles: readonly UserRole[] = ['lecturer'];
 const adminRoles: readonly UserRole[] = ['admin'];
 
 export const screenRegistry: readonly ScreenDefinition[] = [

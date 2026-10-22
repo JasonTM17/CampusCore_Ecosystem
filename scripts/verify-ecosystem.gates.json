@@ -382,6 +382,46 @@
           }
         }
       ]
+    },
+    "mobile-core": {
+      "owner_phase": "P07",
+      "description": "P07 exit: native mobile core. mobile-oidc-probe proves the cu-mobile public-client OIDC contract (PKCE exchange minting a refresh token via NativeRefreshTokenGenerator, client_id-only refresh grant with rotation reuse-detection, idempotent /oauth2/revoke, suspended/mustChangePassword freshness-gate denial, PKCE-missing rejection). mobile-unit/typecheck/auth cases register as the phase implements.",
+      "cases": [
+        {
+          "id": "mobile-oidc-probe",
+          "required": true,
+          "targets": ["local"],
+          "run": {
+            "cmd": "mvn",
+            "args": [
+              "-q", "-f", "java-services/restful-api/pom.xml", "test",
+              "-Dtest=MobileOidcPublicClientProbeTest",
+              "-Dsurefire.failIfNoSpecifiedTests=false", "-Dstyle.color=never"
+            ],
+            "timeoutMs": 900000
+          }
+        },
+        {
+          "id": "mobile-tests",
+          "required": true,
+          "targets": ["local"],
+          "run": {
+            "cmd": "npm",
+            "args": ["test", "--prefix", "mobile"],
+            "timeoutMs": 300000
+          }
+        },
+        {
+          "id": "mobile-typecheck",
+          "required": true,
+          "targets": ["local"],
+          "run": {
+            "cmd": "npm",
+            "args": ["run", "typecheck", "--prefix", "mobile"],
+            "timeoutMs": 300000
+          }
+        }
+      ]
     }
   }
 }

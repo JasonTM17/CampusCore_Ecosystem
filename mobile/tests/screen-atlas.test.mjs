@@ -42,12 +42,12 @@ test('native registry keeps the Stitch mobile atlas above the 20-screen requirem
 });
 
 test('native tokens preserve the institutional portal contract', () => {
-  assert.match(tokens, /background: '#F9F9FF'/);
-  assert.match(tokens, /primary: '#003F87'/);
-  assert.match(tokens, /primaryContainer: '#0056B3'/);
-  assert.match(tokens, /accent: '#E5A900'/);
-  assert.match(tokens, /mobileGutter: 16/);
-  assert.match(tokens, /touchTarget: 48/);
+  assert.match(tokens, /"background": "#F9F9FF"/);
+  assert.match(tokens, /"primary": "#003F87"/);
+  assert.match(tokens, /"primaryContainer": "#0056B3"/);
+  assert.match(tokens, /"accent": "#E5A900"/);
+  assert.match(tokens, /"mobileGutter": 16/);
+  assert.match(tokens, /"touchTarget": 44/);
   assert.match(tokens, /family: Platform\.select\(/);
 });
 
@@ -57,20 +57,19 @@ test('native API seam fails closed until live mode is explicitly enabled', () =>
   assert.match(client, /EXPO_PUBLIC_API_MODE === 'preview'/);
   assert.match(client, /MOBILE_API_PREVIEW/);
   assert.match(client, /mode: ApiMode/);
-  assert.match(client, /setSessionTokens\(accessToken: string \| undefined, refreshToken: string \| undefined\): void/);
-  assert.match(client, /getRefreshToken\(\): string \| undefined/);
-  assert.match(client, /function shouldRefreshAfterUnauthorized\(path: string, status: number\)/);
-  assert.match(client, /!normalizedPath\.startsWith\('\/auth\/login'\)/);
-  assert.match(client, /!normalizedPath\.startsWith\('\/auth\/refresh'\)/);
-  assert.match(client, /!normalizedPath\.startsWith\('\/auth\/logout'\)/);
-  assert.match(client, /async function refreshMobileSession\(requestId: string\)/);
-  assert.match(client, /'X-Request-Id': `\$\{requestId\}-refresh`/);
-  assert.match(client, /'The Java auth refresh response did not include rotated tokens'/);
-  assert.match(client, /shouldRefreshAfterUnauthorized\(path, response\.status\) && refreshToken/);
-  assert.match(client, /headers\.set\('Authorization', `Bearer \$\{accessToken\}`\)/);
-  assert.match(client, /apiRoutes\.auth\.refresh,[\s\S]*?\{ refreshToken: apiClient\.getRefreshToken\(\) \}/);
-  assert.match(client, /apiClient\.setSessionTokens\(response\.accessToken, response\.refreshToken\)/);
-  assert.match(client, /apiRoutes\.auth\.logout, \{ refreshToken: apiClient\.getRefreshToken\(\) \}/);
+  assert.match(client, /refreshSession\?: \(\) => Promise<boolean>/);
+  assert.match(client, /function shouldRefreshAfterUnauthorized\(_?path: string, status: number\)/);
+  // OIDC lane: every 401 on the API host is a refresh candidate — the
+  // legacy /auth/login|refresh|logout excludes are gone with those routes
+  // (the comment naming them in the source is intentional provenance).
+  assert.match(client, /return status === 401;/);
+  assert.doesNotMatch(client, /normalizedPath\.startsWith\('\/auth\//);
+  assert.match(client, /refreshSessionOnce\(\)/);
+  assert.match(client, /options\.refreshSession\?\.\(\)/);
+  assert.match(client, /shouldRefreshAfterUnauthorized\(path, response\.status\) && options\.refreshSession/);
+  assert.match(client, /headers\.set\('Authorization', `Bearer \$\{rotated\}`\)/);
+  assert.doesNotMatch(client, /refreshToken|LoginResponse|apiRoutes\.auth/);
+  assert.match(client, /from '\.\.\/auth\/mobile-session-store'/);
   assert.match(client, /export type AssistantLocale = 'en' \| 'vi'/);
   assert.match(client, /assistantChat: \(/);
   assert.match(client, /conversationId\?: string/);
@@ -98,12 +97,12 @@ test('mobile role navigation rejects unauthorized routes and uses role-specific 
   assert.match(navigator, /if \(route !== 'auth\.signIn' \|\| apiClient\.mode !== 'live'\)/);
   assert.match(navigator, /setSessionKind\('authenticated'\)/);
   assert.match(navigator, /if \(apiClient\.mode === 'live'\) \{/);
-  assert.match(navigator, /void campusApi\.logout\(\)\.catch\(\(\) => undefined\)\.finally\(\(\) => apiClient\.clearAccessToken\(\)\)/);
+  assert.match(navigator, /void sessionStore\.signOut\(\)/);
   assert.match(navigationTypes, /enterPreview\(\): void/);
-  assert.match(navigationTypes, /completeSignIn\(role: UserRole\): void/);
+  assert.match(navigationTypes, /completeSignIn\(role: UserRole, accountId\?: string \| null\): void/);
 });
 
-test('Stitch mobile references stay traceable and live sign-in enforces the student-only course scope', () => {
+test('Stitch mobile references stay traceable and live sign-in runs the OIDC PKCE flow', () => {
   const stitchReferenceIds = (routes.match(/id: '([0-9a-f]{32})'/g) ?? [])
     .map((match) => match.slice(5, -1));
   const metadataIds = new Set(
@@ -127,19 +126,19 @@ test('Stitch mobile references stay traceable and live sign-in enforces the stud
   assert.match(routes, /export const stitchMobileReferences/);
   assert.doesNotMatch(routes, /thesis\.evaluation|3073bce589eb4d4e97ef9775e921a506/);
   assert.match(routes, /'admin\.lecturers': \[[\s\S]*?36c60dec6ed9458a80bc5b1cfe6f82a5/);
+  // OIDC PKCE sign-in (mobile-policy §3): the system browser owns credentials;
+  // the screen stores the refresh via session-store and completes through the
+  // navigation adapter. Preview keeps the local pseudo-session entry (KM-9).
   assert.match(signIn, /const isPreview = apiClient\.mode === 'preview'/);
-  assert.match(signIn, /label=\{isPreview \? 'Explore preview' : 'Sign in'\}/);
+  assert.match(signIn, /Explore preview/);
+  assert.match(signIn, /Sign in with CampusCore ID/);
   assert.match(signIn, /navigation\.enterPreview\(\)/);
-  assert.match(signIn, /campusApi\.login\(email\.trim\(\), password\)/);
-  assert.match(signIn, /apiClient\.setSessionTokens\(response\.accessToken, response\.refreshToken\)/);
-  assert.match(signIn, /const role = resolveRole\(response\.user\?\.roles\)/);
-  assert.match(signIn, /if \(role !== 'student'\)/);
-  assert.match(signIn, /await campusApi\.logout\(\)\.catch\(\(\) => undefined\)/);
-  assert.match(signIn, /navigation\.completeSignIn\(role\)/);
+  assert.match(signIn, /signInWithOidc\(/);
+  assert.match(signIn, /sessionStore\.saveRefresh\(outcome\.refreshToken\)/);
+  assert.match(signIn, /navigation\.completeSignIn\(outcome\.role, outcome\.accountId\)/);
+  assert.match(signIn, /session\.markBlocked\(outcome\.reason\)/);
+  assert.doesNotMatch(signIn, /campusApi\.login|password|setSessionTokens/);
   assert.doesNotMatch(signIn, /navigation\.navigate\('dashboard\.student'\)/);
-  assert.match(signIn, /The Java auth response did not include an access token/);
-  assert.match(signIn, /Live sign in could not be completed against the Java auth contract/);
-  assert.match(signIn, /Use the web portal for lecturer or admin work/);
   assert.match(readme, /role-specific bottom bar/);
 });
 

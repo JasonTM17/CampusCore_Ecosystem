@@ -98,6 +98,10 @@ identity:
     issuer-uri: ${IDENTITY_ISSUER_URI:http://127.0.0.1:4010}
     login-page: ${IDENTITY_LOGIN_PAGE:/login}
     token-encryption-key: ${IDENTITY_TOKEN_ENCRYPTION_KEY:}
+    # Public clients allowlisted for refresh-token issuance at the code
+    # exchange (SAS suppresses it for NONE clients; RFC 8252 native apps need
+    # it — mobile-policy.md §3). cu-mobile today; confidential unaffected.
+    native-refresh-client-ids: ${IDENTITY_NATIVE_REFRESH_CLIENT_IDS:}
   retention:
     enabled: ${IDENTITY_RETENTION_ENABLED:true}
     cron: ${IDENTITY_RETENTION_CRON:0 39 4 * * *}

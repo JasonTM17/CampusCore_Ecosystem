@@ -23,6 +23,10 @@ export interface ApiMetric {
   durationMs: number;
   requestId: string | null;
   at: number;
+  /** Client surface tag (mobile-policy §6) — 'native' for this transport. */
+  surface?: string;
+  /** OIDC client id the request rode on (mobile-policy §6). */
+  clientId?: string;
 }
 
 const METRIC_RING_LIMIT = 100;
