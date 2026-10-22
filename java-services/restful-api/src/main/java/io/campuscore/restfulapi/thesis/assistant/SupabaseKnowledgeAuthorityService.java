@@ -1,8 +1,9 @@
 package io.campuscore.restfulapi.thesis.assistant;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantKnowledgeAdminController.KnowledgeDocumentView;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantKnowledgeAdminController.KnowledgeRequest;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantKnowledgeAdminController.KnowledgeRevision;
@@ -94,7 +95,7 @@ public class SupabaseKnowledgeAuthorityService {
         String serialized;
         try {
             serialized = mapper.writeValueAsString(body);
-        } catch (IOException impossible) {
+        } catch (JacksonException impossible) {
             throw new DomainException(HttpStatus.BAD_REQUEST, "KNOWLEDGE_REQUEST_INVALID", "Knowledge request could not be serialized");
         }
         HttpRequest request = HttpRequest.newBuilder(URI.create(properties.url().replaceAll("/+$", "") + "/rest/v1/rpc/knowledge_admin"))
@@ -125,7 +126,7 @@ public class SupabaseKnowledgeAuthorityService {
     private <T> T convert(JsonNode node, Class<T> type) {
         try {
             return mapper.treeToValue(node, type);
-        } catch (IOException | IllegalArgumentException malformed) {
+        } catch (JacksonException | IllegalArgumentException malformed) {
             throw new DomainException(HttpStatus.BAD_GATEWAY, "KNOWLEDGE_AUTHORITY_INVALID", "Knowledge authority response was invalid");
         }
     }

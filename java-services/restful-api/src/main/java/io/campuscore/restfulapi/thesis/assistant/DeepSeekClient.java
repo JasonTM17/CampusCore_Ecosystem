@@ -1,7 +1,8 @@
 package io.campuscore.restfulapi.thesis.assistant;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.campuscore.restfulapi.thesis.assistant.AssistantCompletionProvider.CompletionRequest;
 import io.campuscore.restfulapi.thesis.assistant.AssistantCompletionProvider.CompletionResult;
 import io.campuscore.restfulapi.thesis.assistant.AssistantCompletionProvider.ProviderSegment;
@@ -142,7 +143,7 @@ public class DeepSeekClient implements AssistantCompletionProvider {
                     "messages", List.of(
                             Map.of("role", "system", "content", systemMessage),
                             Map.of("role", "user", "content", userMessage))));
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw unavailable("provider payload unavailable", true, exception);
         }
 
@@ -373,7 +374,7 @@ public class DeepSeekClient implements AssistantCompletionProvider {
                 sourceIds = parsedSourceIds;
             }
             return new ParsedFrame(false, text, finish.isTextual() ? finish.asText() : null, sourceIds, utf8Bytes(data));
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw invalid("provider frame is malformed");
         }
     }
