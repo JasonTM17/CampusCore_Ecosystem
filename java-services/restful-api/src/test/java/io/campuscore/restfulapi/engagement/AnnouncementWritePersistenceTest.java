@@ -132,6 +132,12 @@ class AnnouncementWritePersistenceTest {
                     "version" INTEGER NOT NULL DEFAULT 0,
                     "archivedAt" TIMESTAMP WITH TIME ZONE,
                     "archivedBy" VARCHAR(120),
+                    "status" VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
+                    "authorId" VARCHAR(120),
+                    "reviewerId" VARCHAR(120),
+                    "reviewedAt" TIMESTAMP WITH TIME ZONE,
+                    "reviewNote" VARCHAR(500),
+                    "publishedRevision" INTEGER,
                     "displayOrder" INTEGER,
                     "notifiedAt" TIMESTAMP WITH TIME ZONE
                 )
@@ -467,7 +473,8 @@ class AnnouncementWritePersistenceTest {
 
     @Test
     void archiveRestoreHistoryIsProtectedAndKeepsFeedStateConsistent() throws Exception {
-        seedAnnouncement();
+        // A live row so archive/restore exercises real feed transitions.
+        seedPublishedAnnouncement();
 
         mvc.perform(post("/api/v1/announcements/existing-announcement/archive")
                         .with(superAdminJwt("super-admin-1"))
@@ -530,6 +537,33 @@ class AnnouncementWritePersistenceTest {
                 .andExpect(jsonPath("$.version").value(2))
                 .andExpect(jsonPath("$.archivedAt").doesNotExist());
 
+        // ARCHIVED -> DRAFT (publication-policy §2): a restored post does NOT
+        // go back live — the student feed stays empty until a fresh review.
+        mvc.perform(get("/api/v1/announcements/my")
+                        .with(fixtureJwt(jdbc, "student-1", token -> token
+                                        .subject("student-1")
+                                        .claim("email", "student-1@campuscore.edu")
+                                        .claim("roles", List.of("STUDENT"))
+                                        .claim("studentId", "student-profile")
+                                        .claim("student", Map.of("year", 1)), "STUDENT")
+                                .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
+
+        // Fresh review cycle returns it to the feed: author submits, a
+        // different reviewer approves (reviewer != author binding).
+        mvc.perform(post("/api/v1/announcements/existing-announcement/submit")
+                        .with(adminJwt("admin-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IN_REVIEW"));
+
+        mvc.perform(post("/api/v1/announcements/existing-announcement/approve")
+                        .with(adminJwt("admin-2")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.reviewerId").value("admin-2"))
+                .andExpect(jsonPath("$.publishedRevision").value(4));
+
         mvc.perform(get("/api/v1/announcements/my")
                         .with(fixtureJwt(jdbc, "student-1", token -> token
                                         .subject("student-1")
@@ -540,13 +574,16 @@ class AnnouncementWritePersistenceTest {
                                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1))
-                .andExpect(jsonPath("$.data[0].version").value(2));
+                .andExpect(jsonPath("$.data[0].version").value(4));
 
         mvc.perform(get("/api/v1/announcements/existing-announcement/history")
                         .with(adminJwt("admin-1")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(2))
-                .andExpect(jsonPath("$.data[0].action").value("RESTORED"));
+                .andExpect(jsonPath("$.data.length()").value(4))
+                .andExpect(jsonPath("$.data[0].action").value("APPROVED"))
+                .andExpect(jsonPath("$.data[1].action").value("SUBMITTED"))
+                .andExpect(jsonPath("$.data[2].action").value("RESTORED"))
+                .andExpect(jsonPath("$.data[3].action").value("ARCHIVED"));
     }
 
     @Test
@@ -773,11 +810,11 @@ class AnnouncementWritePersistenceTest {
     @Test
     void dueNotificationPickupCoversImmediateRowsAndClaimRejectsRescheduled() {
         // Kongming C1: an immediate announcement (publishAt NULL) whose
-        // create-path fan-out failed keeps notifiedAt NULL — the refire job
+        // approve-path fan-out failed keeps notifiedAt NULL — the refire job
         // must still pick it up. Kongming C4: a reschedule-to-future landing
         // between the due-scan and the stamp must reject the claim so the
         // marker survives for the real refire.
-        seedAnnouncement();
+        seedPublishedAnnouncement();
         Instant now = Instant.parse("2026-10-07T00:00:00Z");
 
         List<AnnouncementResponse> due = announcements.findDueForNotification(now, 50);
@@ -830,8 +867,9 @@ class AnnouncementWritePersistenceTest {
                         + " (\"id\", \"title\", \"content\", \"priority\", \"targetRoles\", \"targetYears\","
                         + " \"isGlobal\", \"publishAt\", \"expiresAt\", \"publishedBy\", \"semesterId\","
                         + " \"semesterName\", \"sectionId\", \"sectionNumber\", \"courseCode\", \"courseName\","
-                        + " \"lecturerId\", \"lecturerDisplayName\", \"createdAt\", \"updatedAt\")"
-                        + " VALUES (?, ?, ?, ?, ARRAY['ADMIN'], ARRAY[1], ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        + " \"lecturerId\", \"lecturerDisplayName\", \"createdAt\", \"updatedAt\", \"status\","
+                        + " \"authorId\")"
+                        + " VALUES (?, ?, ?, ?, ARRAY['ADMIN'], ARRAY[1], ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT', 'admin-1')",
                 "existing-announcement",
                 "Original title",
                 "Original content",
@@ -848,6 +886,37 @@ class AnnouncementWritePersistenceTest {
                 "Web Programming",
                 "lecturer-1",
                 "Lecturer One",
+                offsetDateTime(BASE_TIME),
+                offsetDateTime(BASE_TIME));
+    }
+
+    /** A row already live under the workflow: PUBLISHED, authored by admin-1. */
+    private void seedPublishedAnnouncement() {
+        jdbc.update(
+                "INSERT INTO \"engagement\".\"Announcement\""
+                        + " (\"id\", \"title\", \"content\", \"priority\", \"targetRoles\", \"targetYears\","
+                        + " \"isGlobal\", \"publishAt\", \"expiresAt\", \"publishedBy\", \"semesterId\","
+                        + " \"semesterName\", \"sectionId\", \"sectionNumber\", \"courseCode\", \"courseName\","
+                        + " \"lecturerId\", \"lecturerDisplayName\", \"createdAt\", \"updatedAt\", \"status\","
+                        + " \"authorId\", \"reviewerId\", \"reviewedAt\", \"publishedRevision\")"
+                        + " VALUES (?, ?, ?, ?, ARRAY['STUDENT'], ARRAY[1], ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PUBLISHED', 'admin-1', 'admin-2', ?, 1)",
+                "existing-announcement",
+                "Original title",
+                "Original content",
+                "NORMAL",
+                false,
+                null,
+                null,
+                "admin-1",
+                "semester-1",
+                "Semester 1",
+                "section-1",
+                "01",
+                "CS101",
+                "Web Programming",
+                "lecturer-1",
+                "Lecturer One",
+                offsetDateTime(BASE_TIME),
                 offsetDateTime(BASE_TIME),
                 offsetDateTime(BASE_TIME));
     }

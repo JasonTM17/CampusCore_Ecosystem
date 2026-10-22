@@ -33,7 +33,9 @@ public class AnnouncementWriteRepository {
             "isGlobal", "publishAt", "expiresAt", "publishedBy", "semesterId",
             "semesterName", "sectionId", "sectionNumber", "courseCode", "courseName",
             "lecturerId", "lecturerDisplayName", "createdAt", "updatedAt",
-            "version", "archivedAt", "archivedBy"
+            "version", "archivedAt", "archivedBy",
+            "status", "authorId", "reviewerId", "reviewedAt", "reviewNote",
+            "publishedRevision"
             """;
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -49,8 +51,10 @@ public class AnnouncementWriteRepository {
                         "id", "title", "content", "priority", "targetRoles", "targetYears",
                         "isGlobal", "publishAt", "expiresAt", "publishedBy", "semesterId",
                         "semesterName", "sectionId", "sectionNumber", "courseCode", "courseName",
-                        "lecturerId", "lecturerDisplayName", "createdAt", "updatedAt"
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, NULL, NULL, ?, NULL, ?, ?)
+                        "lecturerId", "lecturerDisplayName", "createdAt", "updatedAt",
+                        "status", "authorId"
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, NULL, NULL, ?, NULL, ?, ?,
+                        'DRAFT', ?)
                     """)) {
                 statement.setString(1, command.id());
                 statement.setString(2, command.title());
@@ -67,6 +71,7 @@ public class AnnouncementWriteRepository {
                 statement.setString(13, command.lecturerId());
                 timestamp(statement, 14, command.createdAt());
                 timestamp(statement, 15, command.createdAt());
+                statement.setString(16, command.authorId());
                 statement.executeUpdate();
             }
             return null;
@@ -101,7 +106,7 @@ public class AnnouncementWriteRepository {
         Integer changed = jdbc.getJdbcOperations().execute((ConnectionCallback<Integer>) connection -> {
             String sql = "UPDATE \"engagement\".\"Announcement\" SET "
                     + String.join(", ", assignments)
-                    + " WHERE \"id\" = ? AND \"version\" = ? AND \"archivedAt\" IS NULL";
+                    + " WHERE \"id\" = ? AND \"version\" = ? AND \"status\" = 'DRAFT'";
             try (PreparedStatement statement = connection.prepareStatement(sql)) {
                 int index = 1;
                 for (SqlBinder binder : binders) {
@@ -148,6 +153,7 @@ public class AnnouncementWriteRepository {
         return jdbc.update(
                 "UPDATE " + TABLE + " SET \"notifiedAt\" = :at"
                         + " WHERE \"id\" = :id AND \"notifiedAt\" IS NULL"
+                        + " AND \"status\" = 'PUBLISHED'"
                         + " AND (\"publishAt\" IS NULL OR \"publishAt\" <= :at)"
                         + " AND \"archivedAt\" IS NULL",
                 new MapSqlParameterSource()
@@ -190,6 +196,7 @@ public class AnnouncementWriteRepository {
         return jdbc.query(
                 "SELECT " + SELECT_COLUMNS + " FROM " + TABLE
                         + " WHERE \"notifiedAt\" IS NULL"
+                        + " AND \"status\" = 'PUBLISHED'"
                         + " AND (\"publishAt\" IS NULL OR \"publishAt\" <= :now)"
                         + " AND (\"expiresAt\" IS NULL OR \"expiresAt\" > :now)"
                         + " AND \"archivedAt\" IS NULL"
@@ -208,7 +215,8 @@ public class AnnouncementWriteRepository {
     public int markExpiredAsNotified(Instant now) {
         return jdbc.update(
                 "UPDATE " + TABLE + " SET \"notifiedAt\" = :now"
-                        + " WHERE \"notifiedAt\" IS NULL AND \"expiresAt\" IS NOT NULL"
+                        + " WHERE \"notifiedAt\" IS NULL AND \"status\" = 'PUBLISHED'"
+                        + " AND \"expiresAt\" IS NOT NULL"
                         + " AND \"expiresAt\" <= :now",
                 new MapSqlParameterSource()
                         .addValue("now", OffsetDateTime.ofInstant(now, ZoneOffset.UTC),
@@ -222,9 +230,11 @@ public class AnnouncementWriteRepository {
     private int transition(TransitionCommand command, boolean archive) {
         String sql = archive
                 ? "UPDATE " + TABLE + " SET \"archivedAt\" = ?, \"archivedBy\" = ?, "
+                        + "\"status\" = 'ARCHIVED', "
                         + "\"version\" = \"version\" + 1, \"updatedAt\" = ? "
                         + "WHERE \"id\" = ? AND \"version\" = ? AND \"archivedAt\" IS NULL"
                 : "UPDATE " + TABLE + " SET \"archivedAt\" = NULL, \"archivedBy\" = NULL, "
+                        + "\"status\" = 'DRAFT', "
                         + "\"version\" = \"version\" + 1, \"updatedAt\" = ? "
                         + "WHERE \"id\" = ? AND \"version\" = ? AND \"archivedAt\" IS NOT NULL";
         Integer changed = jdbc.getJdbcOperations().execute((ConnectionCallback<Integer>) connection -> {
@@ -241,6 +251,77 @@ public class AnnouncementWriteRepository {
             }
         });
         return changed == null ? 0 : changed;
+    }
+
+    /**
+     * DRAFT {@literal ->} IN_REVIEW. The row lock re-check in the service is the
+     * guard; this predicate keeps the CAS honest if a second writer slips in.
+     */
+    public int submitForReview(String id, int expectedVersion, Instant updatedAt) {
+        return jdbc.update(
+                "UPDATE " + TABLE + " SET \"status\" = 'IN_REVIEW',"
+                        + " \"version\" = \"version\" + 1, \"updatedAt\" = :updatedAt"
+                        + " WHERE \"id\" = :id AND \"version\" = :expectedVersion"
+                        + " AND \"status\" = 'DRAFT'",
+                transitionParams(id, expectedVersion, updatedAt));
+    }
+
+    /**
+     * IN_REVIEW {@literal ->} PUBLISHED; binds the version the reviewer saw as
+     * {@code publishedRevision} (the post-bump version, matching the row's new
+     * value) and stamps reviewer identity.
+     */
+    public int approveForPublication(
+            String id,
+            int expectedVersion,
+            String reviewerId,
+            Instant reviewedAt) {
+        MapSqlParameterSource params = transitionParams(id, expectedVersion, reviewedAt)
+                .addValue("reviewerId", reviewerId, Types.VARCHAR);
+        return jdbc.update(
+                "UPDATE " + TABLE + " SET \"status\" = 'PUBLISHED',"
+                        + " \"reviewerId\" = :reviewerId, \"reviewedAt\" = :updatedAt,"
+                        + " \"publishedRevision\" = \"version\" + 1,"
+                        // Approval starts the visibility window when the author
+                        // did not schedule one, and re-arms the fan-out claim
+                        // so a re-published row notifies again.
+                        + " \"publishAt\" = COALESCE(\"publishAt\", :updatedAt),"
+                        + " \"notifiedAt\" = NULL,"
+                        + " \"version\" = \"version\" + 1, \"updatedAt\" = :updatedAt"
+                        + " WHERE \"id\" = :id AND \"version\" = :expectedVersion"
+                        + " AND \"status\" = 'IN_REVIEW'",
+                params);
+    }
+
+    /** IN_REVIEW {@literal ->} DRAFT with the mandatory reviewer note. */
+    public int returnForRework(
+            String id,
+            int expectedVersion,
+            String reviewerId,
+            String reviewNote,
+            Instant reviewedAt) {
+        MapSqlParameterSource params = transitionParams(id, expectedVersion, reviewedAt)
+                .addValue("reviewerId", reviewerId, Types.VARCHAR)
+                .addValue("reviewNote", reviewNote, Types.VARCHAR);
+        return jdbc.update(
+                "UPDATE " + TABLE + " SET \"status\" = 'DRAFT',"
+                        + " \"reviewerId\" = :reviewerId, \"reviewedAt\" = :updatedAt,"
+                        + " \"reviewNote\" = :reviewNote,"
+                        + " \"version\" = \"version\" + 1, \"updatedAt\" = :updatedAt"
+                        + " WHERE \"id\" = :id AND \"version\" = :expectedVersion"
+                        + " AND \"status\" = 'IN_REVIEW'",
+                params);
+    }
+
+    private static MapSqlParameterSource transitionParams(
+            String id,
+            int expectedVersion,
+            Instant updatedAt) {
+        return new MapSqlParameterSource()
+                .addValue("id", id, Types.VARCHAR)
+                .addValue("expectedVersion", expectedVersion, Types.INTEGER)
+                .addValue("updatedAt", OffsetDateTime.ofInstant(updatedAt, ZoneOffset.UTC),
+                        Types.TIMESTAMP_WITH_TIMEZONE);
     }
 
     public Optional<AnnouncementResponse> findById(String id) {
@@ -424,9 +505,20 @@ public class AnnouncementWriteRepository {
                 resultSet.getInt("version"),
                 instant(resultSet, "archivedAt"),
                 resultSet.getString("archivedBy"),
+                resultSet.getString("status"),
+                resultSet.getString("authorId"),
+                resultSet.getString("reviewerId"),
+                instant(resultSet, "reviewedAt"),
+                resultSet.getString("reviewNote"),
+                nullableInteger(resultSet, "publishedRevision"),
                 semester,
                 section,
                 lecturer);
+    }
+
+    private static Integer nullableInteger(ResultSet resultSet, String column) throws SQLException {
+        int value = resultSet.getInt(column);
+        return resultSet.wasNull() ? null : value;
     }
 
     private static List<String> stringList(Array sqlArray) throws SQLException {
@@ -476,7 +568,8 @@ public class AnnouncementWriteRepository {
             String semesterId,
             String sectionId,
             String lecturerId,
-            Instant createdAt) {
+            Instant createdAt,
+            String authorId) {
     }
 
     public record UpdateAnnouncementCommand(

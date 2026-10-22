@@ -100,6 +100,15 @@ public class BffApiProxyController {
         }
         ResolvedSession resolved = sessions.resolveForBusiness(surface, opaque);
         if (!resolved.ok()) {
+            // Anonymous public lane (P06, host-policy §5a): with NO session
+            // cookie at all, a GET/HEAD onto the public allowlist proxies
+            // without a bearer — upstream permitAll is the authority. A
+            // present-but-invalid cookie still fails closed so a stale
+            // session never silently downgrades to anonymous.
+            if (opaque == null && isPublicPath(upstream)
+                    && ("GET".equals(method) || "HEAD".equals(method))) {
+                return forward(request, upstream, surface, null);
+            }
             HttpStatus status = "ACCOUNT_INELIGIBLE".equals(resolved.failure())
                     || "PASSWORD_CHANGE_REQUIRED".equals(resolved.failure())
                     ? HttpStatus.FORBIDDEN : HttpStatus.UNAUTHORIZED;
@@ -131,7 +140,9 @@ public class BffApiProxyController {
                 conn.addRequestProperty(name, values.nextElement());
             }
         }
-        conn.setRequestProperty("Authorization", "Bearer " + accessToken);
+        if (accessToken != null) {
+            conn.setRequestProperty("Authorization", "Bearer " + accessToken);
+        }
         conn.setRequestProperty(BffSurfaceRegistry.SURFACE_HEADER, surface.getId());
         if (!surface.getProxySecret().isEmpty()) {
             conn.setRequestProperty("X-Campuscore-Bff-Secret", surface.getProxySecret());
@@ -200,7 +211,24 @@ public class BffApiProxyController {
                 return upstream;
             }
         }
+        for (String allowed : properties.getBff().getPublicApiAllowlist()) {
+            if (upstream.equals(allowed) || upstream.startsWith(allowed + "/")
+                    || upstream.startsWith(allowed + "?")) {
+                return upstream;
+            }
+        }
         return null;
+    }
+
+    /** Same prefix semantics as {@link #upstreamPath} — the anonymous set. */
+    private boolean isPublicPath(String upstream) {
+        for (String allowed : properties.getBff().getPublicApiAllowlist()) {
+            if (upstream.equals(allowed) || upstream.startsWith(allowed + "/")
+                    || upstream.startsWith(allowed + "?")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String sessionCookieValue(HttpServletRequest request) {

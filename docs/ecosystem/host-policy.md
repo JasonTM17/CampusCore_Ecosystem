@@ -243,6 +243,21 @@ Không proxy `/bff/**`, `/oauth2/**`, `/connect/**`, actuator. Loopback call
 vào `/oauth2/token` + `/api/v1` đi dedicated `RateLimitFilter` bucket qua
 `x-campuscore-bff-secret` auth (KM-L16 — tránh self-DoS khi burst).
 
+### 5a. Anonymous public lane (P06)
+
+Bước 2–4 yêu cầu opaque session; ngoại lệ duy nhất: **không có cookie
+session** + `GET|HEAD` + upstream nằm trong
+`identity.bff.public-api-allowlist` → forward **không** `Authorization`
+(header bị bỏ hoàn toàn, không phải Bearer rỗng). Upstream `permitAll`
+trong `SecurityConfig` là authority — allowlist mirror đúng tập anonymous:
+`/api/v1/announcements/public`, `/api/v1/public/docs`,
+`/api/v1/article-taxonomy/v2/categories`, `GET /api/v1/site-appearance`.
+Cookie session có mặt nhưng không hợp lệ (revoked/expired/forged) → vẫn
+401 `SESSION_REQUIRED`: không bao giờ silently downgrade caller có session
+sang anonymous. Non-GET không qua lane này (csrfGuard + upstream 401/403).
+Contract evidence: `EcosystemBffContractTest` — anonymous pass-through 200,
+session path vẫn 401, stale cookie trên public path vẫn 401.
+
 ## 6. Frontend plumbing
 
 - `src/lib/surfaces.ts` — đọc `NEXT_PUBLIC_SURFACE_HOSTS` JSON (env-build),

@@ -8,14 +8,17 @@ import {
   Bell,
   CalendarClock,
   Check,
+  CheckCircle,
   FileText,
   History,
   Pencil,
   Plus,
   RefreshCw,
   RotateCcw,
+  Send,
   ShieldCheck,
   Sparkles,
+  Undo2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
@@ -96,9 +99,9 @@ import {
 import { useOrderedPosts } from '@/components/providers/SiteAppearanceProvider';
 import type { Lecturer, Section, Semester } from '@/types/api';
 
-type StatusFilter = 'ACTIVE' | 'ARCHIVED' | 'ALL';
+type StatusFilter = 'ACTIVE' | 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED' | 'ARCHIVED' | 'ALL';
 type ModalKind = 'editor' | 'history' | 'lifecycle' | 'reorder' | null;
-type LifecycleAction = 'archive' | 'restore';
+type LifecycleAction = 'archive' | 'restore' | 'return';
 
 type AnnouncementDraft = {
   title: string;
@@ -234,7 +237,7 @@ function ReorderGuardNotice({ copy, blockedBy, extra }: ReorderGuardNoticeProps)
 
 export default function AdminAnnouncementsPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: authLoading, isLoggingOut } = useAuth();
-  const { href, locale, formatDateTime } = useI18n();
+  const { href, locale, formatDateTime, messages } = useI18n();
   const router = useRouter();
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const vi = locale === 'vi';
@@ -267,10 +270,14 @@ export default function AdminAnnouncementsPage() {
   const [lifecycleReason, setLifecycleReason] = useState('');
   const [previewRole, setPreviewRole] = useState<AnnouncementRole>('STUDENT');
   const [previewYear, setPreviewYear] = useState('1');
-  const statusTabs = useRovingTabs(['ACTIVE', 'ARCHIVED', 'ALL'], filters.status, (status) => {
-    setFilters((current) => ({ ...current, status }));
-    setPage(1);
-  });
+  const statusTabs = useRovingTabs(
+    ['ACTIVE', 'DRAFT', 'IN_REVIEW', 'PUBLISHED', 'ARCHIVED', 'ALL'],
+    filters.status,
+    (status) => {
+      setFilters((current) => ({ ...current, status }));
+      setPage(1);
+    },
+  );
   const previewRoleTabs = useRovingTabs(['STUDENT', 'LECTURER'], previewRole, setPreviewRole);
   const [busy, setBusy] = useState(false);
   const editorSnapshot = useRef('');
@@ -403,7 +410,7 @@ export default function AdminAnnouncementsPage() {
         archiveTitle: 'Lưu trữ thông báo?',
         restoreTitle: 'Khôi phục thông báo?',
         archiveMessage: 'Thông báo sẽ rời khỏi bảng tin sinh viên và giảng viên cho đến khi được khôi phục.',
-        restoreMessage: 'Thông báo sẽ xuất hiện lại theo đối tượng và lịch hiển thị hiện tại.',
+        restoreMessage: 'Thông báo quay về bản nháp và phải được duyệt lại trước khi xuất hiện trên bảng tin.',
         confirmArchive: 'Lưu trữ',
         confirmRestore: 'Khôi phục',
         changeReason: 'Nhập lý do để tiếp tục.',
@@ -487,7 +494,7 @@ export default function AdminAnnouncementsPage() {
         archiveTitle: 'Archive announcement?',
         restoreTitle: 'Restore announcement?',
         archiveMessage: 'The notice will leave student and lecturer feeds until it is restored.',
-        restoreMessage: 'The notice will appear again for its audience and schedule.',
+        restoreMessage: 'The notice returns to draft and must be reviewed again before it can appear in feeds.',
         confirmArchive: 'Archive',
         confirmRestore: 'Restore',
         changeReason: 'Enter a reason to continue.',
@@ -738,19 +745,45 @@ export default function AdminAnnouncementsPage() {
     setModal('lifecycle');
   };
 
+  const lifecycleCopy = messages.content.lifecycle;
+
   const submitLifecycle = async () => {
     if (!lifecycle || !lifecycleReason.trim() || Array.from(lifecycleReason.trim()).length > 500) {
-      toast.error(copy.changeReason);
+      toast.error(lifecycle?.action === 'return' ? lifecycleCopy.returnReasonRequired : copy.changeReason);
       return;
     }
     setBusy(true);
     try {
-      const request = { reason: lifecycleReason.trim(), expectedVersion: lifecycle.item.version ?? 0 };
-      if (lifecycle.action === 'archive') await announcementsApi.archive(lifecycle.item.id, request);
-      else await announcementsApi.restore(lifecycle.item.id, request);
-      toast.success(copy.transitioned);
+      if (lifecycle.action === 'return') {
+        await announcementsApi.returnForRework(lifecycle.item.id, { reason: lifecycleReason.trim() });
+        toast.success(lifecycleCopy.returned);
+      } else {
+        const request = { reason: lifecycleReason.trim(), expectedVersion: lifecycle.item.version ?? 0 };
+        if (lifecycle.action === 'archive') await announcementsApi.archive(lifecycle.item.id, request);
+        else await announcementsApi.restore(lifecycle.item.id, request);
+        toast.success(copy.transitioned);
+      }
       setModal(null);
       setLifecycle(null);
+      await fetchAnnouncements();
+    } catch (cause) {
+      toast.error(friendlyError(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** DRAFT -> IN_REVIEW -> PUBLISHED — the only live path (publication-policy §3). */
+  const runWorkflow = async (item: AnnouncementRecord, action: 'submit' | 'approve') => {
+    setBusy(true);
+    try {
+      if (action === 'submit') {
+        await announcementsApi.submit(item.id);
+        toast.success(lifecycleCopy.submitted);
+      } else {
+        await announcementsApi.approve(item.id);
+        toast.success(lifecycleCopy.approved);
+      }
       await fetchAnnouncements();
     } catch (cause) {
       toast.error(friendlyError(cause));
@@ -937,8 +970,8 @@ export default function AdminAnnouncementsPage() {
                 <div>
                   <p className="text-sm font-semibold text-foreground">{copy.status}</p>
                   <div className="mt-2 flex flex-wrap gap-2" role="tablist" aria-label={copy.status}>
-                    {(['ACTIVE', 'ARCHIVED', 'ALL'] as const).map((status, statusIndex) => {
-                      const label = status === 'ACTIVE' ? copy.active : status === 'ARCHIVED' ? copy.archived : copy.all;
+                    {(['ACTIVE', 'DRAFT', 'IN_REVIEW', 'PUBLISHED', 'ARCHIVED', 'ALL'] as const).map((status, statusIndex) => {
+                      const label = status === 'ACTIVE' ? copy.active : lifecycleCopy.filter[status];
                       return (
                         <button
                           key={status}
@@ -1019,8 +1052,26 @@ export default function AdminAnnouncementsPage() {
                       <div className="min-w-0 flex-1 space-y-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={`rounded-md px-2.5 py-1 text-xs font-semibold ${tone}`}>{announcementPriorityLabel(item.priority, locale)}</span>
-                          {item.archivedAt ? <span className="rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-muted-foreground">{copy.archived}</span> : null}
+                          {item.status ? (
+                            <span className={`rounded-md px-2.5 py-1 text-xs font-semibold ${
+                              item.status === 'PUBLISHED'
+                                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                : item.status === 'IN_REVIEW'
+                                  ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                                  : item.status === 'ARCHIVED'
+                                    ? 'bg-secondary text-muted-foreground'
+                                    : 'bg-blue-500/10 text-blue-700 dark:text-blue-400'
+                            }`}>
+                              {lifecycleCopy.status[item.status as keyof typeof lifecycleCopy.status] ?? item.status}
+                            </span>
+                          ) : null}
+                          {item.archivedAt && item.status !== 'ARCHIVED' ? <span className="rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-muted-foreground">{copy.archived}</span> : null}
                           {updated ? <span className="rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-muted-foreground">{copy.updated}</span> : null}
+                          {item.reviewNote && item.status === 'DRAFT' ? (
+                            <span className="rounded-md bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400" title={`${lifecycleCopy.reviewNoteLabel}: ${item.reviewNote}`}>
+                              {lifecycleCopy.reviewNoteLabel}
+                            </span>
+                          ) : null}
                         </div>
                         <div>
                           <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
@@ -1043,11 +1094,30 @@ export default function AdminAnnouncementsPage() {
                         <Button type="button" size="icon" variant="ghost" onClick={() => void openHistory(item)} aria-label={`${copy.history}: ${item.title}`} title={copy.history}>
                           <History className="h-4 w-4" aria-hidden="true" />
                         </Button>
+                        {item.status === 'DRAFT' ? (
+                          <Button type="button" size="icon" variant="ghost" onClick={() => void runWorkflow(item, 'submit')} aria-label={`${lifecycleCopy.actions.submit}: ${item.title}`} title={lifecycleCopy.actions.submit} disabled={busy}>
+                            <Send className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        ) : null}
+                        {item.status === 'IN_REVIEW' ? (
+                          <>
+                            {item.authorId && item.authorId === user?.id ? null : (
+                              <Button type="button" size="icon" variant="ghost" onClick={() => void runWorkflow(item, 'approve')} aria-label={`${lifecycleCopy.actions.approve}: ${item.title}`} title={lifecycleCopy.actions.approve} disabled={busy}>
+                                <CheckCircle className="h-4 w-4" aria-hidden="true" />
+                              </Button>
+                            )}
+                            <Button type="button" size="icon" variant="ghost" onClick={() => openLifecycle(item, 'return')} aria-label={`${lifecycleCopy.actions.returnForRework}: ${item.title}`} title={lifecycleCopy.actions.returnForRework} disabled={busy}>
+                              <Undo2 className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          </>
+                        ) : null}
                         {!item.archivedAt ? (
                           <>
-                            <Button type="button" size="icon" variant="ghost" onClick={() => openEdit(item)} aria-label={`${copy.edit}: ${item.title}`} title={copy.edit} disabled={busy}>
-                              <Pencil className="h-4 w-4" aria-hidden="true" />
-                            </Button>
+                            {item.status === 'DRAFT' ? (
+                              <Button type="button" size="icon" variant="ghost" onClick={() => openEdit(item)} aria-label={`${copy.edit}: ${item.title}`} title={copy.edit} disabled={busy}>
+                                <Pencil className="h-4 w-4" aria-hidden="true" />
+                              </Button>
+                            ) : null}
                             <Button type="button" size="icon" variant="ghost" onClick={() => openLifecycle(item, 'archive')} aria-label={`${copy.archive}: ${item.title}`} title={copy.archive} disabled={busy}>
                               <Archive className="h-4 w-4" aria-hidden="true" />
                             </Button>
@@ -1291,20 +1361,56 @@ export default function AdminAnnouncementsPage() {
       ) : null}
 
       {modal === 'lifecycle' && lifecycle ? (
-        <Modal isOpen onClose={closeModal} title={lifecycle.action === 'archive' ? copy.archiveTitle : copy.restoreTitle} closeLabel={copy.cancel}>
+        <Modal
+          isOpen
+          onClose={closeModal}
+          title={
+            lifecycle.action === 'archive'
+              ? copy.archiveTitle
+              : lifecycle.action === 'return'
+                ? lifecycleCopy.returnReasonTitle
+                : copy.restoreTitle
+          }
+          closeLabel={copy.cancel}
+        >
           <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); void submitLifecycle(); }}>
-            <p className="text-sm leading-6 text-muted-foreground">{lifecycle.action === 'archive' ? copy.archiveMessage : copy.restoreMessage}</p>
+            <p className="text-sm leading-6 text-muted-foreground">
+              {lifecycle.action === 'archive'
+                ? copy.archiveMessage
+                : lifecycle.action === 'return'
+                  ? lifecycleCopy.returnReasonLabel
+                  : copy.restoreMessage}
+            </p>
             <div className="rounded-md border border-border/70 bg-secondary/25 p-4">
               <p className="font-semibold text-foreground">{lifecycle.item.title}</p>
               <p className="mt-1 text-sm text-muted-foreground">{announcementAudienceLabel(lifecycle.item, locale)}</p>
             </div>
-            <AdminFormField label={`${copy.reason} · ${copy.required}`} description={copy.reasonHint}>
-              <Textarea autoFocus className="min-h-[110px]" value={lifecycleReason} maxLength={500} required onChange={(event) => setLifecycleReason(event.target.value)} />
+            <AdminFormField
+              label={`${lifecycle.action === 'return' ? lifecycleCopy.returnReasonLabel : copy.reason} · ${copy.required}`}
+              description={copy.reasonHint}
+            >
+              <Textarea
+                autoFocus
+                className="min-h-[110px]"
+                value={lifecycleReason}
+                maxLength={500}
+                required
+                placeholder={lifecycle.action === 'return' ? lifecycleCopy.returnReasonPlaceholder : undefined}
+                onChange={(event) => setLifecycleReason(event.target.value)}
+              />
             </AdminFormField>
             <p className="text-right text-xs text-muted-foreground" aria-live="polite">{Array.from(lifecycleReason).length} / 500</p>
             <AdminDialogFooter>
               <Button type="button" variant="outline" onClick={closeModal} disabled={busy}>{copy.cancel}</Button>
-              <Button type="submit" disabled={busy}>{busy ? (vi ? 'Đang xử lý…' : 'Working…') : lifecycle.action === 'archive' ? copy.confirmArchive : copy.confirmRestore}</Button>
+              <Button type="submit" disabled={busy}>
+                {busy
+                  ? vi ? 'Đang xử lý…' : 'Working…'
+                  : lifecycle.action === 'archive'
+                    ? copy.confirmArchive
+                    : lifecycle.action === 'return'
+                      ? lifecycleCopy.actions.returnForRework
+                      : copy.confirmRestore}
+              </Button>
             </AdminDialogFooter>
           </form>
         </Modal>

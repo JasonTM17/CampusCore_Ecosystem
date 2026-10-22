@@ -7,10 +7,14 @@ import {
   Bell,
   BookOpen,
   Calendar,
+  CheckCircle,
   GraduationCap,
+  Loader2,
   Plus,
   RefreshCw,
   Search,
+  Send,
+  Undo2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRequireAuth } from '@/context/AuthContext';
@@ -20,6 +24,8 @@ import { LecturerAnnouncementCreateModal } from '@/components/announcements/Lect
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Modal } from '@/components/ui/modal';
+import { Textarea } from '@/components/ui/textarea';
 import { LinkButton } from '@/components/ui/link-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
@@ -53,9 +59,12 @@ type LecturerNoticeCategory =
   | 'EXAM_GRADES'
   | 'RESEARCH_SYLLABUS';
 
+type QueueStatusFilter = 'ALL' | 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED';
+
 export default function LecturerAnnouncementsPage() {
   const { user, hasAccess, isLoading: authLoading, isForbidden } = useRequireAuth(['LECTURER']);
-  const { locale, formatDateTime } = useI18n();
+  const { locale, formatDateTime, messages } = useI18n();
+  const lifecycleCopy = messages.content.lifecycle;
   const [items, setItems] = useState<AnnouncementRecord[]>([]);
   const orderedItems = useOrderedPosts(items);
   const [isLoading, setIsLoading] = useState(true);
@@ -71,6 +80,17 @@ export default function LecturerAnnouncementsPage() {
   const [readingNotice, setReadingNotice] = useState<AnnouncementRecord | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
+  // publication-policy §3 (KM-C1c): the authored surface is the scoped list
+  // — own posts in every status plus the IN_REVIEW queue — with status
+  // filters, never a hidden /mine route. Without it a UI-created draft has
+  // no visible submit path and strands (KM-M13).
+  const [queueStatus, setQueueStatus] = useState<QueueStatusFilter>('ALL');
+  const [queueItems, setQueueItems] = useState<AnnouncementRecord[]>([]);
+  const [queueLoading, setQueueLoading] = useState(true);
+  const [queueError, setQueueError] = useState(false);
+  const [queueBusyId, setQueueBusyId] = useState<string | null>(null);
+  const [returnTarget, setReturnTarget] = useState<AnnouncementRecord | null>(null);
+  const [returnReason, setReturnReason] = useState('');
   const { confirm, confirmationDialog } = useConfirmationDialog();
 
   const copy =
@@ -102,6 +122,12 @@ export default function LecturerAnnouncementsPage() {
           loadMore: 'Tải thêm thông báo',
           loadingMore: 'Đang tải thêm…',
           loadMoreFailed: 'Chưa tải thêm được — nhấn lại để thử.',
+          queueTitle: 'Bài của tôi & hàng chờ duyệt',
+          queueEmpty: 'Chưa có bài nào trong nhóm trạng thái này.',
+          queueLoadFailed: 'Chưa tải được danh sách bài của bạn.',
+          queueOwnBadge: 'Bài của tôi',
+          queueReviewBadge: 'Chờ duyệt',
+          queueCancel: 'Hủy',
         }
       : {
           eyebrow: 'Lecturer area',
@@ -130,6 +156,12 @@ export default function LecturerAnnouncementsPage() {
           loadMore: 'Load more notices',
           loadingMore: 'Loading more…',
           loadMoreFailed: 'Could not load more — press again to retry.',
+          queueTitle: 'My notices & review queue',
+          queueEmpty: 'No notices in this status group yet.',
+          queueLoadFailed: 'Your notices could not be loaded.',
+          queueOwnBadge: 'Mine',
+          queueReviewBadge: 'Awaiting review',
+          queueCancel: 'Cancel',
         };
 
   const fetchFeed = useCallback(async (nextPage = 1) => {
@@ -169,11 +201,79 @@ export default function LecturerAnnouncementsPage() {
     }
   }, [copy.loadFailed]);
 
+  const fetchQueue = useCallback(async () => {
+    setQueueLoading(true);
+    setQueueError(false);
+    try {
+      const response = await announcementsApi.getAll({
+        status: queueStatus,
+        page: 1,
+        limit: 50,
+      });
+      setQueueItems(response.data ?? []);
+    } catch {
+      setQueueError(true);
+    } finally {
+      setQueueLoading(false);
+    }
+  }, [queueStatus]);
+
   useEffect(() => {
     if (hasAccess) {
       void fetchFeed();
+      void fetchQueue();
     }
-  }, [fetchFeed, hasAccess]);
+  }, [fetchFeed, fetchQueue, hasAccess]);
+
+  /** DRAFT -> IN_REVIEW (own posts) or IN_REVIEW -> PUBLISHED (others'). */
+  const runQueueWorkflow = async (
+    item: AnnouncementRecord,
+    action: 'submit' | 'approve',
+  ) => {
+    setQueueBusyId(item.id);
+    try {
+      if (action === 'submit') {
+        await announcementsApi.submit(item.id);
+        toast.success(lifecycleCopy.submitted);
+      } else {
+        await announcementsApi.approve(item.id);
+        toast.success(lifecycleCopy.approved);
+      }
+      await fetchQueue();
+    } catch {
+      toast.error(
+        locale === 'vi'
+          ? 'Không thể chuyển trạng thái thông báo. Vui lòng thử lại.'
+          : 'Could not transition the notice. Please try again.',
+      );
+    } finally {
+      setQueueBusyId(null);
+    }
+  };
+
+  /** IN_REVIEW -> DRAFT — the reviewer note is mandatory (publication-policy §3). */
+  const submitReturn = async () => {
+    if (!returnTarget || !returnReason.trim()) {
+      toast.error(lifecycleCopy.returnReasonRequired);
+      return;
+    }
+    setQueueBusyId(returnTarget.id);
+    try {
+      await announcementsApi.returnForRework(returnTarget.id, { reason: returnReason.trim() });
+      toast.success(lifecycleCopy.returned);
+      setReturnTarget(null);
+      setReturnReason('');
+      await fetchQueue();
+    } catch {
+      toast.error(
+        locale === 'vi'
+          ? 'Không thể trả thông báo về nháp. Vui lòng thử lại.'
+          : 'Could not return the notice to draft. Please try again.',
+      );
+    } finally {
+      setQueueBusyId(null);
+    }
+  };
 
   // Same fake-search guard as the student feed: while a keyword or category
   // chip is active the feed walks itself to the last page so the filter
@@ -203,6 +303,7 @@ export default function LecturerAnnouncementsPage() {
       await announcementsApi.delete(announcement.id);
       toast.success(isVi ? 'Đã lưu trữ thông báo' : 'Notice archived');
       await fetchFeed(1);
+      await fetchQueue();
     } catch {
       toast.error(isVi ? 'Không thể lưu trữ thông báo. Vui lòng thử lại.' : 'Could not archive the notice. Please try again.');
     } finally {
@@ -269,7 +370,7 @@ export default function LecturerAnnouncementsPage() {
           <div className="flex flex-wrap gap-3">
             <Button type="button" onClick={() => setIsComposerOpen(true)}>
               <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-              {locale === 'vi' ? 'Đăng thông báo cho sinh viên' : 'Post student announcement'}
+              {locale === 'vi' ? 'Soạn thông báo cho sinh viên' : 'Draft student announcement'}
             </Button>
             <LinkButton
               href="/dashboard/lecturer"
@@ -298,7 +399,10 @@ export default function LecturerAnnouncementsPage() {
       <LecturerAnnouncementCreateModal
         isOpen={isComposerOpen}
         onClose={() => setIsComposerOpen(false)}
-        onSuccess={() => void fetchFeed()}
+        onSuccess={() => {
+          void fetchFeed();
+          void fetchQueue();
+        }}
         lecturerName={user ? `${user.lastName ?? ''} ${user.firstName ?? ''}`.trim() : undefined}
       />
 
@@ -342,6 +446,145 @@ export default function LecturerAnnouncementsPage() {
           />
         </div>
       </div>
+
+      {/* Authored notices + review queue — publication-policy §3 (KM-C1c). */}
+      <Card variant="muted">
+        <CardHeader>
+          <CardTitle className="text-xl">{copy.queueTitle}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-1.5">
+            {(['ALL', 'DRAFT', 'IN_REVIEW', 'PUBLISHED'] as const).map((statusKey) => (
+              <button
+                key={statusKey}
+                type="button"
+                aria-pressed={queueStatus === statusKey}
+                onClick={() => setQueueStatus(statusKey)}
+                className={cn(
+                  'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
+                  queueStatus === statusKey
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'bg-secondary/60 text-muted-foreground hover:bg-secondary hover:text-foreground',
+                )}
+              >
+                {lifecycleCopy.filter[statusKey]}
+              </button>
+            ))}
+          </div>
+          {queueLoading ? (
+            <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              {copy.loading}
+            </div>
+          ) : queueError ? (
+            <p className="py-4 text-sm text-destructive">{copy.queueLoadFailed}</p>
+          ) : queueItems.length === 0 ? (
+            <p className="py-4 text-sm text-muted-foreground">{copy.queueEmpty}</p>
+          ) : (
+            queueItems.map((item) => {
+              const isOwn = Boolean(item.authorId) && item.authorId === user?.id;
+              const statusKey = item.status as keyof typeof lifecycleCopy.status | undefined;
+              const statusLabel = statusKey ? lifecycleCopy.status[statusKey] : (item.status ?? '');
+              return (
+                <article
+                  key={item.id}
+                  className="rounded-lg border border-border/70 bg-card p-4 shadow-xs"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={cn(
+                          'rounded-md px-2.5 py-0.5 text-xs font-semibold border',
+                          item.status === 'PUBLISHED'
+                            ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400'
+                            : item.status === 'IN_REVIEW'
+                              ? 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400'
+                              : item.status === 'ARCHIVED'
+                                ? 'bg-secondary text-muted-foreground border-border/60'
+                                : 'bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400',
+                        )}>
+                          {statusLabel}
+                        </span>
+                        <span className="rounded-md bg-secondary px-2.5 py-0.5 text-xs font-semibold text-foreground border border-border/60">
+                          {isOwn ? copy.queueOwnBadge : copy.queueReviewBadge}
+                        </span>
+                      </div>
+                      <h3 className="text-base font-semibold text-foreground">{item.title}</h3>
+                      {item.reviewNote ? (
+                        <p className="text-xs text-amber-700 dark:text-amber-400">
+                          {lifecycleCopy.reviewNoteLabel}: {item.reviewNote}
+                        </p>
+                      ) : null}
+                      <p className="text-xs text-muted-foreground">
+                        {formatDateTime(item.updatedAt || item.createdAt)}
+                      </p>
+                    </div>
+                    <div className="inline-flex shrink-0 items-center gap-1">
+                      {item.status === 'DRAFT' && isOwn ? (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => void runQueueWorkflow(item, 'submit')}
+                          aria-label={`${lifecycleCopy.actions.submit}: ${item.title}`}
+                          title={lifecycleCopy.actions.submit}
+                          disabled={queueBusyId === item.id}
+                        >
+                          {queueBusyId === item.id
+                            ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                            : <Send className="h-4 w-4" aria-hidden="true" />}
+                        </Button>
+                      ) : null}
+                      {item.status === 'IN_REVIEW' && !isOwn ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => void runQueueWorkflow(item, 'approve')}
+                            aria-label={`${lifecycleCopy.actions.approve}: ${item.title}`}
+                            title={lifecycleCopy.actions.approve}
+                            disabled={queueBusyId === item.id}
+                          >
+                            <CheckCircle className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => {
+                              setReturnTarget(item);
+                              setReturnReason('');
+                            }}
+                            aria-label={`${lifecycleCopy.actions.returnForRework}: ${item.title}`}
+                            title={lifecycleCopy.actions.returnForRework}
+                            disabled={queueBusyId === item.id}
+                          >
+                            <Undo2 className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        </>
+                      ) : null}
+                      {isOwn && !item.archivedAt ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleArchiveOwn(item)}
+                          disabled={archivingId === item.id}
+                          className="inline-flex items-center gap-1.5 px-2 text-xs font-bold text-destructive/80 hover:text-destructive hover:underline disabled:opacity-50"
+                        >
+                          <Archive className="h-3.5 w-3.5" />
+                          {archivingId === item.id
+                            ? (locale === 'vi' ? 'Đang lưu trữ…' : 'Archiving…')
+                            : (locale === 'vi' ? 'Lưu trữ' : 'Archive')}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
 
       {error ? (
         <ErrorState
@@ -486,6 +729,51 @@ export default function LecturerAnnouncementsPage() {
             <p className="text-xs text-destructive" role="alert">{copy.loadMoreFailed}</p>
           ) : null}
         </div>
+      ) : null}
+
+      {returnTarget ? (
+        <Modal
+          isOpen
+          onClose={() => setReturnTarget(null)}
+          title={lifecycleCopy.returnReasonTitle}
+          className="max-w-lg"
+        >
+          <form
+            className="space-y-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submitReturn();
+            }}
+          >
+            <p className="text-sm leading-6 text-muted-foreground">
+              {lifecycleCopy.returnReasonLabel}
+            </p>
+            <p className="rounded-md border border-border/70 bg-secondary/25 p-4 font-semibold text-foreground">
+              {returnTarget.title}
+            </p>
+            <Textarea
+              autoFocus
+              value={returnReason}
+              onChange={(event) => setReturnReason(event.target.value)}
+              placeholder={lifecycleCopy.returnReasonPlaceholder}
+              rows={4}
+              maxLength={500}
+            />
+            <div className="flex items-center justify-end gap-3 border-t border-border/70 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setReturnTarget(null)}
+                disabled={queueBusyId === returnTarget.id}
+              >
+                {copy.queueCancel}
+              </Button>
+              <Button type="submit" disabled={queueBusyId === returnTarget.id}>
+                {lifecycleCopy.actions.returnForRework}
+              </Button>
+            </div>
+          </form>
+        </Modal>
       ) : null}
 
       {confirmationDialog}

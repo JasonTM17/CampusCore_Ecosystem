@@ -117,6 +117,49 @@ public class AnnouncementWriteController {
                 request.displayOrder());
     }
 
+    @Operation(summary = "Gửi duyệt bản nháp", description = "Chuyển bản nháp (DRAFT) sang hàng chờ duyệt (IN_REVIEW); tác giả gửi bài của mình, quản trị viên có thể nhận xử lý bản nháp bị bỏ lại")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Đã gửi duyệt thành công"),
+        @ApiResponse(responseCode = "403", description = "Không phải tác giả hoặc quản trị viên"),
+        @ApiResponse(responseCode = "409", description = "Trạng thái vòng đời không hợp lệ")
+    })
+    @PostMapping("{id}/submit")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('LECTURER', 'ADMIN', 'SUPER_ADMIN')")
+    public AnnouncementResponse submit(
+            @Parameter(description = "Mã định danh thông báo (UUID)", required = true) @PathVariable String id,
+            @AuthenticationPrincipal Jwt jwt) {
+        return announcements.submit(subject(jwt), actorLabel(jwt), jwt.getClaimAsStringList("roles"), id);
+    }
+
+    @Operation(summary = "Duyệt xuất bản thông báo", description = "Người duyệt (khác tác giả) phê duyệt bài IN_REVIEW thành PUBLISHED — đây là lối duy nhất đưa nội dung lên trực tuyến")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Đã xuất bản thành công"),
+        @ApiResponse(responseCode = "409", description = "Người duyệt trùng tác giả, trạng thái không hợp lệ hoặc hết hạn xuất bản")
+    })
+    @PostMapping("{id}/approve")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('LECTURER', 'ADMIN', 'SUPER_ADMIN')")
+    public AnnouncementResponse approve(
+            @Parameter(description = "Mã định danh thông báo (UUID)", required = true) @PathVariable String id,
+            @AuthenticationPrincipal Jwt jwt) {
+        return announcements.approve(subject(jwt), actorLabel(jwt), jwt.getClaimAsStringList("roles"), id);
+    }
+
+    @Operation(summary = "Trả bài về nháp kèm ghi chú", description = "Người duyệt trả bài IN_REVIEW về DRAFT; ghi chú lý do bắt buộc để tác giả biết phải sửa gì")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Đã trả về nháp thành công"),
+        @ApiResponse(responseCode = "400", description = "Thiếu ghi chú lý do"),
+        @ApiResponse(responseCode = "409", description = "Trạng thái vòng đời không hợp lệ")
+    })
+    @PostMapping("{id}/return")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('LECTURER', 'ADMIN', 'SUPER_ADMIN')")
+    public AnnouncementResponse returnForRework(
+            @Parameter(description = "Mã định danh thông báo (UUID)", required = true) @PathVariable String id,
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestBody JsonNode request) {
+        return announcements.returnForRework(subject(jwt), actorLabel(jwt),
+                jwt.getClaimAsStringList("roles"), id, LifecycleRequest.from(request));
+    }
+
     @Operation(summary = "Lưu trữ (Archive) thông báo", description = "Đưa thông báo vào trạng thái lưu trữ bảo mật")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Lưu trữ thông báo thành công")

@@ -251,6 +251,14 @@ public class IdentityProperties {
         private Duration transactionTtl = Duration.ofMinutes(5);
         private List<Surface> surfaces = new ArrayList<>();
         private List<String> apiAllowlist = new ArrayList<>();
+        /**
+         * GET/HEAD prefixes that may be proxied without a session (P06 public
+         * content lane): the upstream SecurityConfig permitAll set is the
+         * authority — this list only admits truly anonymous reads, and a
+         * present-but-invalid session cookie still fails closed instead of
+         * silently downgrading to anonymous.
+         */
+        private List<String> publicApiAllowlist = new ArrayList<>();
 
         public boolean isEnabled() {
             return enabled;
@@ -314,6 +322,14 @@ public class IdentityProperties {
 
         public void setApiAllowlist(List<String> apiAllowlist) {
             this.apiAllowlist = apiAllowlist == null ? new ArrayList<>() : apiAllowlist;
+        }
+
+        public List<String> getPublicApiAllowlist() {
+            return publicApiAllowlist;
+        }
+
+        public void setPublicApiAllowlist(List<String> publicApiAllowlist) {
+            this.publicApiAllowlist = publicApiAllowlist == null ? new ArrayList<>() : publicApiAllowlist;
         }
     }
 

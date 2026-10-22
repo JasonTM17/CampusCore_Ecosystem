@@ -120,7 +120,14 @@ export type AnnouncementRecord = {
   } | null;
   lecturer?: { id?: string; displayName?: string } | null;
   categoryId?: string | null;
+  /** Lifecycle: DRAFT | IN_REVIEW | PUBLISHED | ARCHIVED (publication-policy §2). */
   status?: string;
+  authorId?: string | null;
+  reviewerId?: string | null;
+  reviewedAt?: string | null;
+  reviewNote?: string | null;
+  publishedRevision?: number | null;
+  notifiedAt?: string | null;
   coverImageUrl?: string | null;
   summary?: string | null;
   readingTimeMinutes?: number;
@@ -1475,7 +1482,7 @@ export const announcementsApi = {
     semesterId?: string;
     sectionId?: string;
     priority?: string;
-    status?: 'ACTIVE' | 'ARCHIVED' | 'ALL';
+    status?: 'ACTIVE' | 'ARCHIVED' | 'ALL' | 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED';
     search?: string;
   }): Promise<ApiResponse<AnnouncementRecord[]>> => {
     const response = await api.get<ApiResponse<AnnouncementRecord[]>>(
@@ -1503,6 +1510,28 @@ export const announcementsApi = {
   },
   restore: async (id: string, data: { reason: string; expectedVersion: number }): Promise<AnnouncementRecord> => {
     const response = await api.post<AnnouncementRecord>(`/announcements/${id}/restore`, data);
+    return response.data;
+  },
+  /** DRAFT -> IN_REVIEW (author or governance adopting a stranded draft). */
+  submit: async (id: string): Promise<AnnouncementRecord> => {
+    const response = await api.post<AnnouncementRecord>(`/announcements/${id}/submit`);
+    return response.data;
+  },
+  /** IN_REVIEW -> PUBLISHED; the reviewer must differ from the author. */
+  approve: async (id: string): Promise<AnnouncementRecord> => {
+    const response = await api.post<AnnouncementRecord>(`/announcements/${id}/approve`);
+    return response.data;
+  },
+  /** IN_REVIEW -> DRAFT with the mandatory reviewer note. */
+  returnForRework: async (id: string, data: { reason: string }): Promise<AnnouncementRecord> => {
+    const response = await api.post<AnnouncementRecord>(`/announcements/${id}/return`, data);
+    return response.data;
+  },
+  /** Anonymous public detail — 404 for unpublished or unknown ids/slugs. */
+  getPublicById: async (idOrSlug: string): Promise<AnnouncementRecord> => {
+    const response = await api.get<AnnouncementRecord>(
+      `/announcements/public/${encodeURIComponent(idOrSlug)}`,
+    );
     return response.data;
   },
   history: async (id: string, params?: { page?: number; limit?: number }): Promise<ApiResponse<AnnouncementHistoryRecord[]>> => {
@@ -1543,6 +1572,60 @@ export const articleTaxonomyApi = {
       '/article-taxonomy/v2/categories',
     );
     return Array.isArray(response.data) ? response.data : [];
+  },
+};
+
+/** Anonymous public document row (publication-policy §5). */
+export type PublicDocumentListItem = {
+  slug: string;
+  categoryId?: string | null;
+  publishedRevision: number;
+  titleVi: string;
+  titleEn: string;
+  summaryVi?: string | null;
+  summaryEn?: string | null;
+  publishedAt: string;
+  tagIds: string[];
+};
+
+export type PublicDocumentRecord = PublicDocumentListItem & {
+  publishedRevision: number;
+  superseded: boolean;
+  bodyVi: string;
+  bodyEn: string;
+};
+
+/**
+ * Public-documentation lane (`/public/docs`). Every route answers `no-store`
+ * so an unpublish is effective immediately; drafts and unknown slugs share
+ * the same 404 — never surface the difference to the reader.
+ */
+export const publicDocsApi = {
+  list: async (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    category?: string;
+    tag?: string;
+  }): Promise<ApiResponse<PublicDocumentListItem[]>> => {
+    const response = await api.get<ApiResponse<PublicDocumentListItem[]>>(
+      '/public/docs',
+      { params },
+    );
+    return response.data;
+  },
+  detail: async (slug: string): Promise<PublicDocumentRecord> => {
+    const response = await api.get<PublicDocumentRecord>(
+      `/public/docs/${encodeURIComponent(slug)}`,
+    );
+    return response.data;
+  },
+  /** Permalinked revision — only published/superseded revisions resolve. */
+  revision: async (slug: string, revision: number): Promise<PublicDocumentRecord> => {
+    const response = await api.get<PublicDocumentRecord>(
+      `/public/docs/${encodeURIComponent(slug)}/revisions/${revision}`,
+    );
+    return response.data;
   },
 };
 

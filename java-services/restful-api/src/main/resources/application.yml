@@ -128,6 +128,14 @@ identity:
       - /api/v1/careers
       - /api/v1/lms
       - /api/v1/auth/change-password
+    # Anonymous read lane (P06): GET/HEAD onto these prefixes proxies WITHOUT
+    # a session cookie — the upstream permitAll set in SecurityConfig is the
+    # authority, so this list mirrors it exactly and adds nothing private.
+    public-api-allowlist:
+      - /api/v1/announcements/public
+      - /api/v1/public/docs
+      - /api/v1/article-taxonomy/v2/categories
+      - /api/v1/site-appearance
   # keys[]/clients[] bind via indexed env properties
   # (IDENTITY_KEYS_0_KID, IDENTITY_CLIENTS_0_CLIENTID, ...) — see contract §2.1
 

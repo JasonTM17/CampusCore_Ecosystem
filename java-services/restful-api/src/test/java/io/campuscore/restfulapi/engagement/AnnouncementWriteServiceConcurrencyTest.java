@@ -150,6 +150,12 @@ class AnnouncementWriteServiceConcurrencyTest {
                 version,
                 archivedAt,
                 archivedAt == null ? null : "admin-1",
+                archivedAt == null ? "DRAFT" : "ARCHIVED",
+                "publisher-1",
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null);
