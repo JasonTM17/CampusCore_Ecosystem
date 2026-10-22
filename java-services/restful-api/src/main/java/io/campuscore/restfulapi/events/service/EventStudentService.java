@@ -149,11 +149,20 @@ public class EventStudentService {
             return findRegistration(String.valueOf(replay.get("registration_id")));
         }
         Map<String, Object> event = events.lockEvent(eventId);
+        if ("DRAFT".equals(String.valueOf(event.get("status")))) {
+            // §1.1: a draft is not visible to students, so deny exactly like a missing id.
+            throw EventService.problem(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found");
+        }
         if (!"REGISTRATION_OPEN".equals(String.valueOf(event.get("status")))) {
             throw EventService.problem(HttpStatus.CONFLICT, "EVENT_NOT_OPEN",
                     "Event registration is not open");
         }
         Instant now = Instant.now();
+        Instant startsAt = EventService.toInstant(event.get("starts_at"));
+        if (startsAt != null && !now.isBefore(startsAt)) {
+            throw EventService.problem(HttpStatus.CONFLICT, "EVENT_STARTED",
+                    "The event has already started");
+        }
         Instant opensAt = EventService.toInstant(event.get("registration_opens_at"));
         Instant closesAt = EventService.toInstant(event.get("registration_closes_at"));
         if (opensAt != null && now.isBefore(opensAt)) {
@@ -231,7 +240,8 @@ public class EventStudentService {
         Map<String, Object> registration;
         try {
             registration = jdbc.queryForMap(
-                    "SELECT \"id\", \"studentId\" AS student_id, \"status\", \"eventId\" AS event_id"
+                    "SELECT \"id\", \"studentId\" AS student_id, \"status\", \"eventId\" AS event_id,"
+                            + " \"attendanceStatus\" AS attendance_status"
                             + " FROM " + REGISTRATION + " WHERE \"id\" = :id FOR UPDATE",
                     new MapSqlParameterSource("id", registrationId));
         } catch (EmptyResultDataAccessException exception) {
@@ -251,6 +261,13 @@ public class EventStudentService {
         if ("CANCELLED".equals(eventStatus) || "COMPLETED".equals(eventStatus)) {
             throw EventService.problem(HttpStatus.CONFLICT, "EVENT_TERMINAL",
                     "Registration can no longer be cancelled for this event");
+        }
+        Instant eventStart = EventService.toInstant(event.get("starts_at"));
+        if ("ATTENDED".equals(String.valueOf(registration.get("attendance_status")))
+                || (eventStart != null && !Instant.now().isBefore(eventStart))) {
+            // A started event keeps its roster: a no-show cannot relabel itself as a cancellation.
+            throw EventService.problem(HttpStatus.CONFLICT, "EVENT_STARTED",
+                    "Registration can no longer be cancelled once the event has started");
         }
         // Guarded transition: exactly one row flips, exactly one seat frees.
         int cancelled = jdbc.update(
@@ -342,6 +359,10 @@ public class EventStudentService {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw EventService.problem(HttpStatus.BAD_REQUEST, "IDEMPOTENCY_KEY_REQUIRED",
                     "Idempotency-Key is required");
+        }
+        if (idempotencyKey.length() > 200) {
+            throw EventService.problem(HttpStatus.BAD_REQUEST, "IDEMPOTENCY_KEY_INVALID",
+                    "Idempotency-Key must be at most 200 characters");
         }
     }
 
