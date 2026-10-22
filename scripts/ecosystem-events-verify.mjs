@@ -173,6 +173,31 @@ function killPortListeners(ports) {
   }
 }
 
+// Migrations no longer seed an events grant (V138), so the disposable e2e
+// stack grants its admin explicitly — an ADMIN may grant itself, audited
+// with grantedBy = that admin.
+async function grantE2eAdminEvents() {
+  const api = `http://127.0.0.1:${API_PORT}/api/v1`;
+  const login = await fetch(`${api}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: 'admin@campuscore.edu',
+      password: process.env.E2E_ADMIN_PASSCODE ?? 'password123',
+    }),
+  });
+  if (!login.ok) throw new Error(`e2e admin login failed: ${login.status}`);
+  const { accessToken } = await login.json();
+  const userId = JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64url').toString('utf8')).sub;
+  const grant = await fetch(`${api}/events/staff/grants`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ userId }),
+  });
+  if (!grant.ok) throw new Error(`e2e admin events grant failed: ${grant.status}`);
+  return { userId, status: grant.status };
+}
+
 async function casePreview(args) {
   const dir = path.resolve(REPO, args.evidence);
   fs.mkdirSync(dir, { recursive: true });
@@ -195,6 +220,7 @@ async function casePreview(args) {
     await waitFor(`http://127.0.0.1:${API_PORT}/api/v1/health/liveness`,
       { timeoutMs: BOOT_TIMEOUT_MS });
     result.apiHealthy = true;
+    result.adminGrant = await grantE2eAdminEvents();
 
     const { key, cert } = generateCerts(dir);
     spawnLog(process.execPath, [
