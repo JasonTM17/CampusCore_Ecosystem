@@ -2923,6 +2923,23 @@ export const en = {
     statSessionsHeldSuffix: 'sessions held',
     sheetTitle: 'Class section attendance sheet',
   },
+  ui: {
+    state: {
+      loading: 'Loading…',
+      empty: 'No data found',
+      error: 'We could not complete that action. Please try again.',
+      denied: 'You do not have access to this action.',
+      offline:
+        'CampusUTE could not reach the campus portal right now. Try again in a moment.',
+      offlineReadWarning: 'You are offline — showing the last synced content.',
+    },
+    action: {
+      retry: 'Try again',
+    },
+    session: {
+      expired: 'Your session has expired. Please sign in again.',
+    },
+  },
 } as const;
 
 type DeepWiden<T> = T extends string
@@ -5849,6 +5866,23 @@ export const vi: I18nMessages = {
     statExcusedSuffix: 'có phép',
     statSessionsHeldSuffix: 'buổi đã học',
     sheetTitle: 'Bảng điểm danh lớp học phần',
+  },
+  ui: {
+    state: {
+      loading: 'Đang tải…',
+      empty: 'Không có dữ liệu',
+      error: 'Không thể hoàn tất thao tác. Vui lòng thử lại.',
+      denied: 'Bạn không có quyền thực hiện thao tác này.',
+      offline:
+        'CampusUTE hiện không kết nối được cổng thông tin. Vui lòng thử lại sau ít phút.',
+      offlineReadWarning: 'Bạn đang ngoại tuyến — hiển thị nội dung đã đồng bộ lần cuối.',
+    },
+    action: {
+      retry: 'Thử lại',
+    },
+    session: {
+      expired: 'Lần đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
+    },
   },
 };
 
