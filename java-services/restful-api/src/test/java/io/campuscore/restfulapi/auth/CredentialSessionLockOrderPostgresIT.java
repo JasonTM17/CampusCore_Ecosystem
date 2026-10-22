@@ -297,7 +297,9 @@ class CredentialSessionLockOrderPostgresIT {
             assertThat(jdbc.queryForObject("SELECT count(*) FROM campuscore_auth.\"Session\" WHERE \"userId\"=?", Integer.class, f.id())).isZero();
             if (challenge) assertThat(jdbc.queryForObject("SELECT \"consumedAt\" IS NOT NULL FROM campuscore_auth.\"TwoFactorChallenge\" WHERE id=?", Boolean.class, challengeId)).isTrue();
             assertThat(auth.login(f.email(), f.after(), "127.0.0.1", "credential-lock-it").response().user().id()).isEqualTo(f.id());
-            assertThat(users.findById(f.id()).orElseThrow().credentialVersion()).isEqualTo(1);
+            // The password change bumps once. A stale refresh token presented after it is a
+            // replay, and account-wide replay revocation bumps the credential version again.
+            assertThat(users.findById(f.id()).orElseThrow().credentialVersion()).isEqualTo(challenge ? 1 : 2);
         } finally {
             releaseWriter.countDown(); pool.shutdownNow();
             assertThat(pool.awaitTermination(WAIT_SECONDS, TimeUnit.SECONDS)).isTrue();
