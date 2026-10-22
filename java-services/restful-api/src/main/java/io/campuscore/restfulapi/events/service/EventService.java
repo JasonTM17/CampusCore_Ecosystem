@@ -170,6 +170,8 @@ public class EventService {
         requireStaffGrant(actorId);
         validatePayload(request.title(), request.organizer(), request.capacity(),
                 request.startsAt(), request.endsAt());
+        validateRegistrationWindow(request.registrationOpensAt(), request.registrationClosesAt(),
+                request.startsAt());
         String id = UUID.randomUUID().toString();
         jdbc.update(
                 "INSERT INTO " + EVENT
@@ -188,6 +190,10 @@ public class EventService {
     public EventResponse update(String actorId, String eventId, UpdateEventRequest request) {
         requireStaffGrant(actorId);
         Map<String, Object> event = lockEvent(eventId);
+        if (!actorId.equals(String.valueOf(event.get("owner_id")))) {
+            throw problem(HttpStatus.FORBIDDEN, "EVENT_NOT_OWNER",
+                    "Only the event owner can edit this event");
+        }
         if (!"DRAFT".equals(String.valueOf(event.get("status")))) {
             throw problem(HttpStatus.CONFLICT, "EVENT_NOT_DRAFT", "Only draft events can be edited");
         }
@@ -197,6 +203,12 @@ public class EventService {
         validatePayload(request.title() == null ? String.valueOf(event.get("title")) : request.title(),
                 request.organizer() == null ? String.valueOf(event.get("organizer")) : request.organizer(),
                 capacity, startsAt, endsAt);
+        validateRegistrationWindow(
+                request.registrationOpensAt() == null
+                        ? toInstant(event.get("registration_opens_at")) : request.registrationOpensAt(),
+                request.registrationClosesAt() == null
+                        ? toInstant(event.get("registration_closes_at")) : request.registrationClosesAt(),
+                startsAt);
         jdbc.update(
                 "UPDATE " + EVENT + " SET \"title\" = :title, \"description\" = :description,"
                         + " \"location\" = :location, \"organizer\" = :organizer, \"capacity\" = :capacity,"
@@ -248,9 +260,11 @@ public class EventService {
         Instant closesAt = request != null && request.registrationClosesAt() != null
                 ? request.registrationClosesAt() : toInstant(event.get("registration_closes_at"));
         Instant now = Instant.now();
-        if (opensAt != null && closesAt != null && !closesAt.isAfter(opensAt)) {
-            throw problem(HttpStatus.BAD_REQUEST, "EVENT_WINDOW_INVALID",
-                    "registrationClosesAt must be after registrationOpensAt");
+        Instant startsAt = toInstant(event.get("starts_at"));
+        validateRegistrationWindow(opensAt, closesAt, startsAt);
+        if (startsAt != null && !now.isBefore(startsAt)) {
+            throw problem(HttpStatus.CONFLICT, "EVENT_STARTED",
+                    "Registration cannot open once the event has started");
         }
         if (opensAt != null && now.isBefore(opensAt)) {
             throw problem(HttpStatus.CONFLICT, "EVENT_WINDOW_NOT_STARTED",
@@ -284,7 +298,12 @@ public class EventService {
     @Transactional
     public EventResponse complete(String actorId, String eventId) {
         requireStaffGrant(actorId);
-        lockEvent(eventId);
+        Map<String, Object> event = lockEvent(eventId);
+        Instant startsAt = toInstant(event.get("starts_at"));
+        if (startsAt != null && Instant.now().isBefore(startsAt)) {
+            throw problem(HttpStatus.CONFLICT, "EVENT_NOT_STARTED",
+                    "An event cannot be completed before it starts");
+        }
         transition(eventId, "REGISTRATION_CLOSED", "COMPLETED", actorId, null);
         return findEvent(eventId, null);
     }
@@ -544,6 +563,18 @@ public class EventService {
                         .addValue("action", action)
                         .addValue("actorId", actorId == null ? "system" : actorId)
                         .addValue("detail", detail));
+    }
+
+    /** The window must be ordered and must close no later than the event starts. */
+    private static void validateRegistrationWindow(Instant opensAt, Instant closesAt, Instant startsAt) {
+        if (opensAt != null && closesAt != null && !closesAt.isAfter(opensAt)) {
+            throw problem(HttpStatus.BAD_REQUEST, "EVENT_WINDOW_INVALID",
+                    "registrationClosesAt must be after registrationOpensAt");
+        }
+        if (startsAt != null && closesAt != null && closesAt.isAfter(startsAt)) {
+            throw problem(HttpStatus.BAD_REQUEST, "EVENT_WINDOW_INVALID",
+                    "registrationClosesAt must not be after startsAt");
+        }
     }
 
     private static void validatePayload(String title, String organizer, Integer capacity,
