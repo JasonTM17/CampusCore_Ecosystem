@@ -422,6 +422,60 @@
           }
         }
       ]
+    },
+    "events": {
+      "owner_phase": "P08",
+      "description": "P08 exit (domain-contracts §5): event lifecycle DRAFT→PUBLISHED→REGISTRATION_OPEN→REGISTRATION_CLOSED→COMPLETED|CANCELLED, owner-scoped staff publish, capacity-gated single-active registration, idempotent register replay, cancel freeing exactly one seat, event-cancel notify+retained history, roster-scoped manual attendance with zero conduct-score coupling. events-contract is the H2 MockMvc contract; events-postgres-race runs EventCapacityPostgresIT on a disposable compose Postgres; events-e2e drives the HTTPS preview create→publish→register→attend journey plus the staff roster surface.",
+      "cases": [
+        {
+          "id": "events-contract",
+          "required": true,
+          "targets": ["local"],
+          "description": "EVT-T01..T06 + EVT-X02 on H2: lifecycle grants, capacity conflict, single-active registration, idempotency replay, cancel/notification/audit, attendance scope, negative conduct-score source scan.",
+          "run": {
+            "cmd": "mvn",
+            "args": [
+              "-q", "-f", "java-services/restful-api/pom.xml", "test",
+              "-Dtest=EventContractPersistenceTest",
+              "-Dsurefire.failIfNoSpecifiedTests=false", "-Dstyle.color=never"
+            ],
+            "timeoutMs": 900000
+          }
+        },
+        {
+          "id": "events-postgres-race",
+          "required": true,
+          "targets": ["local"],
+          "capability": "docker",
+          "description": "EVT-X01: N-student last-seat race on real Postgres — exactly capacity succeeds, losers get EVENT_FULL not 5xx, no duplicate active registration.",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/platform-verify.mjs", "pgit",
+              "--project", "{auto-project}-events-pg",
+              "--evidence", "{evidence}",
+              "--its", "EventCapacityPostgresIT"
+            ],
+            "timeoutMs": 1500000
+          }
+        },
+        {
+          "id": "events-e2e",
+          "required": true,
+          "targets": ["local"],
+          "capability": "docker",
+          "description": "HTTPS preview event journey: staff create→publish→open, idempotent student register, EVENT_FULL on overflow, cancel frees one seat, roster attendance mark, event-cancel notification + retained history, portal roster render.",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/ecosystem-events-verify.mjs", "preview",
+              "--project", "{auto-project}-events",
+              "--evidence", "{evidence}"
+            ],
+            "timeoutMs": 1800000
+          }
+        }
+      ]
     }
   }
 }
