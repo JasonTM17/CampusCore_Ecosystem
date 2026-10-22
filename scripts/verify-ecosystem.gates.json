@@ -1,0 +1,322 @@
+{
+  "version": 1,
+  "notes": "Each phase registers its gate cases here (verification contract). R2-1 bindings: P03 registers contract-drift, P05 registers host-registry + static-policy. Required case missing capability = BLOCKED_CAPABILITY; unimplemented gate = NOT_RUN; never empty-pass.",
+  "gates": {
+    "baseline": {
+      "owner_phase": "P01",
+      "description": "P01 exit: toolchain >=22.13, per-app npm ci, mobile test+typecheck, synthetic fixture pack provenance/zero live URLs/zero personal leftovers.",
+      "cases": [
+        {
+          "id": "node-version",
+          "required": true,
+          "targets": ["local", "preview", "demo"],
+          "run": {
+            "cmd": "node",
+            "args": ["-e", "const v=process.versions.node.split('.').map(Number);process.exit(v[0]>22||(v[0]===22&&v[1]>=13)?0:1)"]
+          }
+        },
+        {
+          "id": "frontend-npm-ci",
+          "required": true,
+          "targets": ["local"],
+          "run": { "cmd": "npm", "args": ["ci"], "cwd": "frontend", "timeoutMs": 1200000 }
+        },
+        {
+          "id": "mobile-npm-ci",
+          "required": true,
+          "targets": ["local"],
+          "run": { "cmd": "npm", "args": ["ci"], "cwd": "mobile", "timeoutMs": 1200000 }
+        },
+        {
+          "id": "mobile-npm-test",
+          "required": true,
+          "targets": ["local", "preview", "demo"],
+          "run": { "cmd": "npm", "args": ["test"], "cwd": "mobile", "timeoutMs": 600000 }
+        },
+        {
+          "id": "mobile-typecheck",
+          "required": true,
+          "targets": ["local", "preview", "demo"],
+          "run": { "cmd": "npm", "args": ["run", "typecheck"], "cwd": "mobile", "timeoutMs": 600000 }
+        },
+        {
+          "id": "fixture-pack",
+          "required": true,
+          "targets": ["local"],
+          "capability": "docker",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/ecosystem-fixture.mjs",
+              "generate",
+              "--project", "{auto-project}",
+              "--output", "{evidence}/fixture"
+            ],
+            "timeoutMs": 2700000
+          }
+        }
+      ]
+    },
+    "platform": {
+      "owner_phase": "P02",
+      "description": "P02 exit: full mvn verify on Boot 4.1.1/Security 7/Jackson 3, contract tests, rebuilt image digest + preserved pre-upgrade image, one-time disposable-stack boot (startup/RSS/fail-closed), env-gated *PostgresIT lock-order set on disposable postgres (zero-IT refused), plus a non-required content-audit run whose outcome is recorded for the defect ledger.",
+      "cases": [
+        {
+          "id": "java-verify",
+          "required": true,
+          "targets": ["local"],
+          "run": {
+            "cmd": "mvn",
+            "args": ["-q", "-f", "java-services/pom.xml", "verify", "-Dstyle.color=never"],
+            "timeoutMs": 1800000
+          }
+        },
+        {
+          "id": "contract-snapshot",
+          "required": true,
+          "targets": ["local"],
+          "run": {
+            "cmd": "mvn",
+            "args": [
+              "-q", "-f", "java-services/pom.xml", "-pl", "restful-api", "test",
+              "-Dtest=*ContractTest,KnowledgeSnapshotParityTest",
+              "-Dsurefire.failIfNoSpecifiedTests=false", "-Dstyle.color=never"
+            ],
+            "timeoutMs": 900000
+          }
+        },
+        {
+          "id": "platform-image",
+          "required": true,
+          "targets": ["local"],
+          "capability": "docker",
+          "run": {
+            "cmd": "node",
+            "args": ["scripts/platform-verify.mjs", "image", "--evidence", "{evidence}"],
+            "timeoutMs": 2400000
+          }
+        },
+        {
+          "id": "platform-stack",
+          "required": true,
+          "targets": ["local"],
+          "capability": "docker",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/platform-verify.mjs", "stack",
+              "--project", "{auto-project}",
+              "--evidence", "{evidence}"
+            ],
+            "timeoutMs": 1200000
+          }
+        },
+        {
+          "id": "postgres-lock-order",
+          "required": true,
+          "targets": ["local"],
+          "capability": "docker",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/platform-verify.mjs", "pgit",
+              "--project", "{auto-project}-pg",
+              "--evidence", "{evidence}",
+              "--its", "*PostgresIT,!*CorrectionMigrationPostgresIT,!DemoTeamMigrationPostgresIT,!SpringInjectionKnowledgeMigrationPostgresIT,!ThesisCancellationMembershipMigrationPostgresIT"
+            ],
+            "timeoutMs": 1500000
+          }
+        },
+        {
+          "id": "postgres-content-audit",
+          "required": false,
+          "targets": ["local"],
+          "capability": "docker",
+          "description": "Correction-migration IT family (policy/certificate/spring-injection/demo-team/cancellation). Authored for the audit rig at an older migration head — outcomes are recorded, not gate-blocking; failures feed the defect ledger instead of masking the lock-order verdict.",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/platform-verify.mjs", "pgit",
+              "--project", "{auto-project}-ca",
+              "--evidence", "{evidence}",
+              "--its", "*CorrectionMigrationPostgresIT,DemoTeamMigrationPostgresIT,SpringInjectionKnowledgeMigrationPostgresIT,ThesisCancellationMembershipMigrationPostgresIT",
+              "--result", "content-audit.json",
+              "--log-name", "content-audit-mvn.log"
+            ],
+            "timeoutMs": 1500000
+          }
+        }
+      ]
+    },
+    "contracts": {
+      "owner_phase": "P03",
+      "description": "P03 exit: openapi regen byte-equal + invariants (required paths, no-register, upload/nullable/enum/paging fixtures) on a disposable 4100 stack, private-response no-store + X-Request-Id contract probes, log-redaction sentinel, sync-tokens byte-equal, cross-account cache test, real PostgreSQL contract families, one typecheck per app.",
+      "cases": [
+        {
+          "id": "tokens-check",
+          "required": true,
+          "targets": ["local", "preview", "demo"],
+          "run": { "cmd": "node", "args": ["scripts/sync-tokens.mjs", "--check"] }
+        },
+        {
+          "id": "contract-probes",
+          "required": true,
+          "targets": ["local"],
+          "capability": "docker",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/contract-verify.mjs", "contract-probes",
+              "--project", "{auto-project}",
+              "--evidence", "{evidence}"
+            ],
+            "timeoutMs": 1500000
+          }
+        },
+        {
+          "id": "cross-account-cache",
+          "required": true,
+          "targets": ["local", "preview", "demo"],
+          "run": {
+            "cmd": "node",
+            "args": ["--test", "tests/query-cache-identity.test.js"],
+            "cwd": "frontend",
+            "timeoutMs": 300000
+          }
+        },
+        {
+          "id": "pgit-real",
+          "required": true,
+          "targets": ["local"],
+          "capability": "docker",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/contract-verify.mjs", "pgit-real",
+              "--project", "{auto-project}-pg",
+              "--evidence", "{evidence}"
+            ],
+            "timeoutMs": 1800000
+          }
+        },
+        {
+          "id": "frontend-typecheck",
+          "required": true,
+          "targets": ["local"],
+          "run": { "cmd": "npm", "args": ["run", "typecheck"], "cwd": "frontend", "timeoutMs": 600000 }
+        },
+        {
+          "id": "mobile-typecheck",
+          "required": true,
+          "targets": ["local"],
+          "run": { "cmd": "npx", "args": ["tsc", "--noEmit"], "cwd": "mobile", "timeoutMs": 600000 }
+        }
+      ]
+    },
+    "identity": {
+      "owner_phase": "P04",
+      "description": "P04 exit: OIDC/legacy unified session authority — H2 contract tests cover SSO discovery contract shape, JWKS rollover ring, auth-code+PKCE+nonce grant, claim-shaped tokens, resource-lane authorization, userinfo, single-use code, wrong verifier, offlist callback, missing-session redirect, suspended/must-change-password gates, ciphertext token columns, wrong issuer/audience, rollover-key decode, disabled and paused surfaces. Disposable-postgres case runs UnifiedSessionRevocationPostgresIT for legacy-replay cross-lane revoke, save/revoke race serialization, and per-client logout scoping.",
+      "cases": [
+        {
+          "id": "identity-contract-tests",
+          "required": true,
+          "targets": ["local"],
+          "run": {
+            "cmd": "mvn",
+            "args": [
+              "-q", "-f", "java-services/restful-api/pom.xml", "test",
+              "-Dtest=EcosystemIdentity*Test",
+              "-Dsurefire.failIfNoSpecifiedTests=false", "-Dstyle.color=never"
+            ],
+            "timeoutMs": 900000
+          }
+        },
+        {
+          "id": "postgres-race",
+          "required": true,
+          "targets": ["local"],
+          "capability": "docker",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/identity-verify.mjs", "pg-race",
+              "--project", "{auto-project}-pg",
+              "--evidence", "{evidence}"
+            ],
+            "timeoutMs": 1800000
+          }
+        }
+      ]
+    },
+    "bff": {
+      "owner_phase": "P05",
+      "description": "P05 exit: browser BFF + host isolation — H2 real-HTTP contract tests cover login/callback/state/logout journey, PKCE+nonce, per-transaction cookies, session-bound CSRF triple-check, surface registry fail-closed, forged proxy headers, redirect-mode surfaces, allowlisted /bff/api proxying (header strip + bearer inject + no-store), unified client-scoped revoke sweeping the BFF lane. Disposable-postgres case runs BffSessionPostgresIT for single-flight concurrent refresh (exactly-once rotation), logout-vs-refresh leaving the session dead, callback-vs-grant-deletion, account and per-client sweep, one-time transaction consume, and bounded retention. R2-1 CI gates: host-registry (doc/projection/migration parity) + static-policy (cookie/CSRF/token-leak sentinels).",
+      "cases": [
+        {
+          "id": "host-registry",
+          "required": true,
+          "targets": ["local", "preview", "demo"],
+          "run": {
+            "cmd": "node",
+            "args": ["scripts/host-registry-verify.mjs"],
+            "timeoutMs": 120000
+          }
+        },
+        {
+          "id": "static-policy",
+          "required": true,
+          "targets": ["local", "preview", "demo"],
+          "run": {
+            "cmd": "node",
+            "args": ["scripts/static-policy-verify.mjs"],
+            "timeoutMs": 120000
+          }
+        },
+        {
+          "id": "bff-contract-tests",
+          "required": true,
+          "targets": ["local"],
+          "run": {
+            "cmd": "mvn",
+            "args": [
+              "-q", "-f", "java-services/restful-api/pom.xml", "test",
+              "-Dtest=EcosystemBffContractTest",
+              "-Dsurefire.failIfNoSpecifiedTests=false", "-Dstyle.color=never"
+            ],
+            "timeoutMs": 900000
+          }
+        },
+        {
+          "id": "bff-postgres-race",
+          "required": true,
+          "targets": ["local"],
+          "capability": "docker",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/bff-verify.mjs", "pg-race",
+              "--project", "{auto-project}-bff-pg",
+              "--evidence", "{evidence}"
+            ],
+            "timeoutMs": 1800000
+          }
+        },
+        {
+          "id": "browser-sso",
+          "required": true,
+          "targets": ["local"],
+          "capability": "docker",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/ecosystem-sso-verify.mjs", "preview",
+              "--project", "{auto-project}-sso",
+              "--evidence", "{evidence}"
+            ],
+            "timeoutMs": 1800000
+          }
+        }
+      ]
+    }
+  }
+}
