@@ -100,6 +100,12 @@ class AnnouncementStudentFanoutPersistenceTest {
                     "version" INTEGER NOT NULL DEFAULT 0,
                     "archivedAt" TIMESTAMP WITH TIME ZONE,
                     "archivedBy" VARCHAR(120),
+                    "status" VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
+                    "authorId" VARCHAR(120),
+                    "reviewerId" VARCHAR(120),
+                    "reviewedAt" TIMESTAMP WITH TIME ZONE,
+                    "reviewNote" VARCHAR(500),
+                    "publishedRevision" INTEGER,
                     "displayOrder" INTEGER,
                     "notifiedAt" TIMESTAMP WITH TIME ZONE
                 )
@@ -204,7 +210,11 @@ class AnnouncementStudentFanoutPersistenceTest {
                         .contentType("application/json")
                         .content("{\"title\":\"Học phí học kỳ 1\",\"content\":\"" + content + "\",\"isGlobal\":true}"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.title").value("Học phí học kỳ 1"));
+                .andExpect(jsonPath("$.title").value("Học phí học kỳ 1"))
+                .andExpect(jsonPath("$.status").value("DRAFT"));
+        // The fan-out trigger moved to approve (publication-policy §3): the
+        // draft only reaches inboxes after a different reviewer publishes it.
+        publishByTitle("Học phí học kỳ 1");
 
         List<String> recipients = jdbc.queryForList(
                 "SELECT user_id FROM notifications.notification WHERE title = ? ORDER BY user_id",
@@ -239,6 +249,7 @@ class AnnouncementStudentFanoutPersistenceTest {
                         .contentType("application/json")
                         .content("{\"title\":\"Thông báo ảnh\",\"content\":\"" + content + "\",\"isGlobal\":true}"))
                 .andExpect(status().isCreated());
+        publishByTitle("Thông báo ảnh");
 
         List<String> messages = jdbc.queryForList(
                 "SELECT DISTINCT message FROM notifications.notification WHERE title = ?",
@@ -261,6 +272,10 @@ class AnnouncementStudentFanoutPersistenceTest {
                         .contentType("application/json")
                         .content("{\"title\":\"Báo lỗi fan-out\",\"content\":\"Vẫn phải 201\",\"isGlobal\":true}"))
                 .andExpect(status().isCreated());
+        // Approve fires the fan-out against the dropped table; the fail-soft
+        // contract keeps the publication committed and the marker NULL so the
+        // sweep stays eligible to retry.
+        publishByTitle("Báo lỗi fan-out");
 
         Integer announcements = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM \"engagement\".\"Announcement\" WHERE \"title\" = 'Báo lỗi fan-out'",
@@ -330,6 +345,7 @@ class AnnouncementStudentFanoutPersistenceTest {
                 .contentType("application/json")
                 .content("{\"title\":\"Private student notice\",\"content\":\"Private body\",\"isGlobal\":false,\"targetRoles\":[\"STUDENT\"],\"targetYears\":[1]}"))
                 .andExpect(status().isCreated());
+        publishByTitle("Private student notice");
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM notifications.notification WHERE user_id='fanout-u-1'", Integer.class));
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/announcements/my").with(currentLecturer))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.meta.total").value(0));
@@ -344,6 +360,7 @@ class AnnouncementStudentFanoutPersistenceTest {
                 .contentType("application/json")
                 .content("{\"title\":\"Other lecturer notice\",\"content\":\"Private body\",\"isGlobal\":false,\"targetRoles\":[\"STUDENT\"],\"targetYears\":[1],\"sectionId\":\"scoped-section\",\"lecturerId\":\"other-lecturer\"}"))
                 .andExpect(status().isCreated());
+        publishByTitle("Other lecturer notice");
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM notifications.notification WHERE user_id='fanout-u-1'", Integer.class));
     }
 
@@ -353,7 +370,26 @@ class AnnouncementStudentFanoutPersistenceTest {
         return new io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.AnnouncementResponse(
                 "scoped", "Private title", "Private content", "NORMAL", roles, years, global,
                 null, expires, "publisher", null, null, section, null, null, null, null, null,
-                java.time.Instant.now(), java.time.Instant.now(), 0, archived, null, null, null, null);
+                java.time.Instant.now(), java.time.Instant.now(), 0, archived, null,
+                "PUBLISHED", "author", null, null, null, null,
+                null, null, null);
+    }
+
+    /**
+     * Runs the lifecycle that makes a draft live: the author submits and a
+     * DIFFERENT admin approves (reviewer != author is contract-required).
+     */
+    private void publishByTitle(String title) throws Exception {
+        String id = jdbc.queryForObject(
+                "SELECT \"id\" FROM \"engagement\".\"Announcement\" WHERE \"title\" = ?",
+                String.class, title);
+        mvc.perform(post("/api/v1/announcements/" + id + "/submit")
+                        .with(adminJwt("fanout-admin")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/announcements/" + id + "/approve")
+                        .with(adminJwt("fanout-approver")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PUBLISHED"));
     }
 
     private RequestPostProcessor adminJwt(String subject) {

@@ -45,6 +45,19 @@ public final class AnnouncementReadDtos {
             Instant archivedAt,
             @Schema(types = {"string", "null"})
             String archivedBy,
+            @Schema(types = {"string", "null"}, allowableValues = {"DRAFT", "IN_REVIEW", "PUBLISHED", "ARCHIVED"})
+            String status,
+            @Schema(types = {"string", "null"})
+            String authorId,
+            @Schema(types = {"string", "null"})
+            String reviewerId,
+            @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSX", timezone = "UTC")
+            @Schema(types = {"string", "null"}, format = "date-time")
+            Instant reviewedAt,
+            @Schema(types = {"string", "null"})
+            String reviewNote,
+            @Schema(types = {"integer", "null"})
+            Integer publishedRevision,
             SemesterSummary semester,
             SectionSummary section,
             LecturerSummary lecturer) {

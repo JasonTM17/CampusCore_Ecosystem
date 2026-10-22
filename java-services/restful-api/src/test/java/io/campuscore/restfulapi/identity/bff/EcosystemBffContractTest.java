@@ -52,6 +52,12 @@ import tools.jackson.databind.ObjectMapper;
         // Second allowlist entry exists so businessLaneNeverLeaksUpstreamSetCookie
         // can drive a known Set-Cookie-emitting upstream through /bff/api.
         "identity.bff.api-allowlist[1]=/api/v1/auth/login",
+        // P06 anonymous public lane — GET-only pass-through without a session.
+        // /public/docs is the probe path: V136 creates the real upstream
+        // schema in this H2 set, so a 200 empty page proves the pass-through
+        // end-to-end (the app-boot Announcement stub's column coverage
+        // belongs to the engagement fixtures, not this suite).
+        "identity.bff.public-api-allowlist[0]=/api/v1/public/docs",
         "identity.bff.surfaces[0].id=portal",
         "identity.bff.surfaces[0].mode=BFF",
         "identity.bff.surfaces[0].client-id=cu-portal",
@@ -509,6 +515,39 @@ class EcosystemBffContractTest {
         assertThat(loggedOut.statusCode()).isEqualTo(200);
         assertThat(loggedOut.headers().firstValue("Content-Type").orElse(""))
                 .contains("text/html");
+    }
+
+    // ---- anonymous public lane (host-policy §5a, P06) --------------------
+
+    @Test
+    void anonymousGetOnPublicLaneProxiesWithoutBearer() throws Exception {
+        // No session cookie at all + GET on the public allowlist → the proxy
+        // forwards with NO Authorization header; upstream permitAll answers.
+        HttpResponse<String> response = get(BASE + "/bff/api/public/docs",
+                edgePortal());
+        assertThat(response.statusCode())
+                .as("anonymous public read: %s", response.body())
+                .isEqualTo(200);
+    }
+
+    @Test
+    void anonymousGetOnSessionPathStillRequiresSession() throws Exception {
+        // The public lane never widens: session-scoped paths still 401.
+        HttpResponse<String> response = get(BASE + "/bff/api/auth/me",
+                edgePortal());
+        assertThat(response.statusCode()).isEqualTo(401);
+        assertThat(response.body()).contains("SESSION_REQUIRED");
+    }
+
+    @Test
+    void staleSessionCookieOnPublicPathFailsClosed() throws Exception {
+        // A present-but-invalid opaque cookie must NOT silently downgrade to
+        // anonymous — fail closed so the surface notices the dead session.
+        Map<String, String> headers = edgePortal();
+        headers.put("Cookie", SESSION_COOKIE + "=forged-opaque-value");
+        HttpResponse<String> response = get(BASE + "/bff/api/public/docs",
+                headers);
+        assertThat(response.statusCode()).isEqualTo(401);
     }
 
     @Test

@@ -171,7 +171,15 @@ public class SecurityConfig {
                                 "/api/v1/health/**",
                                 // Anonymous public campus news feed for the
                                 // homepage; read-only and safe-subset only.
+                                // The /* child is the public permalink detail
+                                // (id or slug) — same safe subset, same 404.
                                 "/api/v1/announcements/public",
+                                "/api/v1/announcements/public/*",
+                                // Anonymous public documentation surface
+                                // (publication-policy §5): list, slug detail,
+                                // revision permalinks, attachment metadata.
+                                "/api/v1/public/docs",
+                                "/api/v1/public/docs/**",
                                 // Read-only public-safe category feed the
                                 // anonymous homepage uses to label articles by
                                 // their editorial taxonomy instead of guessing.

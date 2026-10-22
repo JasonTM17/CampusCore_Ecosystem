@@ -1,6 +1,7 @@
 import type { Locale } from '@/i18n/config';
 import { thesisWorkflowEn, thesisWorkflowVi } from '@/i18n/messages-thesis-workflow';
 import { deanOverviewEn, deanOverviewVi } from '@/i18n/messages-dean-overview';
+import { contentEn, contentVi } from '@/i18n/messages-content';
 
 export const en = {
   common: {
@@ -2826,6 +2827,7 @@ export const en = {
   },
   thesisWorkflow: thesisWorkflowEn,
   deanOverview: deanOverviewEn,
+  content: contentEn,
   attendance: {
     eyebrow: 'Student area',
     title: 'Attendance',
@@ -5770,6 +5772,7 @@ export const vi: I18nMessages = {
   },
   thesisWorkflow: thesisWorkflowVi,
   deanOverview: deanOverviewVi,
+  content: contentVi,
   attendance: {
     eyebrow: 'Khu vực Sinh viên',
     title: 'Điểm danh',
