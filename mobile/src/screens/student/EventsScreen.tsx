@@ -21,6 +21,7 @@ import {
   type MobileEventRegistration,
 } from '../../api/client';
 import { useScreenQuery } from '../../hooks/useScreenQuery';
+import { eventsMessages, type EventsLocale } from '../../i18n/events-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 
 /**
@@ -64,32 +65,23 @@ const previewEvents: MobileEvent[] = [
 
 const previewRegistrations: MobileEventRegistration[] = [];
 
-function eventSubtitle(event: MobileEvent): string {
+function eventSubtitle(event: MobileEvent, locale: EventsLocale): string {
   const when = new Date(event.startsAt);
   const whenText = Number.isNaN(when.getTime())
     ? event.startsAt
-    : when.toLocaleString();
+    : when.toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US');
   return [event.organizer, event.location, whenText].filter(Boolean).join(' · ');
 }
 
-function statusLabel(status: MobileEvent['status']): string {
-  switch (status) {
-    case 'REGISTRATION_OPEN':
-      return 'Open';
-    case 'REGISTRATION_CLOSED':
-      return 'Closed';
-    case 'PUBLISHED':
-      return 'Published';
-    case 'COMPLETED':
-      return 'Completed';
-    case 'CANCELLED':
-      return 'Cancelled';
-    default:
-      return status;
-  }
-}
-
 export function EventsScreen(_props: MobileScreenProps) {
+  // Follow the existing AssistantScreen locale selector; session has no locale field.
+  const [locale, setLocale] = useState<EventsLocale>('vi');
+  const copy = eventsMessages[locale];
+  const statusLabel = (status: string) => copy.statusLabels[status as keyof typeof copy.statusLabels] ?? status;
+  const languageSelector = <View style={styles.actionRow}>
+    <UiText>{copy.language}</UiText>
+    {(['vi', 'en'] as const).map((option) => <Button key={option} label={option.toUpperCase()} accessibilityLabel={option === 'vi' ? 'Tiếng Việt' : 'English'} variant={locale === option ? 'primary' : 'secondary'} onPress={() => setLocale(option)} />)}
+  </View>;
   const [mutating, setMutating] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
 
@@ -98,8 +90,8 @@ export function EventsScreen(_props: MobileScreenProps) {
     () => campusApi.events(),
     {
       enabled: apiClient.mode === 'live',
-      errorMessage: 'Events are unavailable.',
-      mapError: () => 'Events are unavailable.',
+      errorMessage: copy.unavailable,
+      mapError: () => copy.unavailable,
     },
   );
   const registrationsQuery = useScreenQuery<MobileEventRegistration[]>(
@@ -107,8 +99,8 @@ export function EventsScreen(_props: MobileScreenProps) {
     () => campusApi.myEventRegistrations(),
     {
       enabled: apiClient.mode === 'live',
-      errorMessage: 'Your registrations are unavailable.',
-      mapError: () => 'Your registrations are unavailable.',
+      errorMessage: copy.mineUnavailable,
+      mapError: () => copy.mineUnavailable,
     },
   );
 
@@ -136,14 +128,14 @@ export function EventsScreen(_props: MobileScreenProps) {
       } catch (error) {
         setMutationError(
           error instanceof ApiClientError && error.code === 'EVENT_FULL'
-            ? 'This event is full.'
-            : 'Registration failed — please try again.',
+            ? copy.full
+            : copy.registerFailed,
         );
       } finally {
         setMutating(false);
       }
     },
-    [isPreview, mutating, reloadAll],
+    [copy, isPreview, mutating, reloadAll],
   );
 
   const cancel = useCallback(
@@ -157,12 +149,12 @@ export function EventsScreen(_props: MobileScreenProps) {
         await campusApi.cancelEventRegistration(registrationId);
         reloadAll();
       } catch {
-        setMutationError('Cancellation failed — please try again.');
+        setMutationError(copy.cancelFailed);
       } finally {
         setMutating(false);
       }
     },
-    [isPreview, mutating, reloadAll],
+    [copy, isPreview, mutating, reloadAll],
   );
 
   const isLoading =
@@ -177,15 +169,16 @@ export function EventsScreen(_props: MobileScreenProps) {
   if (isLoading || error) {
     return (
       <ScreenShell
-        title="Events"
-        eyebrow="Union & association"
-        subtitle="Đoàn–Hội activities you can join."
+        title={copy.title}
+        eyebrow={copy.eyebrow}
+        subtitle={copy.subtitle}
       >
+        {languageSelector}
         <StatePanel
           kind={isLoading ? 'loading' : 'error'}
-          title={isLoading ? 'Loading events…' : 'Events unavailable'}
-          description={error ?? 'Retrieving the event catalog.'}
-          actionLabel={error ? 'Try again' : undefined}
+          title={isLoading ? copy.loading : copy.errorTitle}
+          description={error ?? copy.retrieving}
+          actionLabel={error ? copy.retry : undefined}
           onAction={error ? reloadAll : undefined}
         />
       </ScreenShell>
@@ -194,21 +187,22 @@ export function EventsScreen(_props: MobileScreenProps) {
 
   return (
     <ScreenShell
-      title="Events"
-      eyebrow="Union & association"
-      subtitle="Đoàn–Hội activities you can join."
+      title={copy.title}
+      eyebrow={copy.eyebrow}
+      subtitle={copy.subtitle}
     >
+      {languageSelector}
       {warning ? <DataNotice message={warning} /> : null}
       {mutationError ? (
         <StatePanel kind="error" title={mutationError} />
       ) : null}
 
-      <SectionHeading title="Published events" />
+      <SectionHeading title={copy.published} />
       {events.length === 0 ? (
         <StatePanel
           kind="empty"
-          title="No events yet"
-          description="Published Đoàn–Hội events will appear here."
+          title={copy.empty}
+          description={copy.emptyDescription}
         />
       ) : (
         <Card>
@@ -218,7 +212,7 @@ export function EventsScreen(_props: MobileScreenProps) {
               <View key={event.id}>
                 <ListRow
                   title={event.title}
-                  subtitle={eventSubtitle(event)}
+                  subtitle={eventSubtitle(event, locale)}
                   meta={`${event.seatsRemaining}/${event.capacity}`}
                 />
                 <View style={styles.actionRow}>
@@ -227,7 +221,7 @@ export function EventsScreen(_props: MobileScreenProps) {
                   </UiText>
                   {event.status === 'REGISTRATION_OPEN' && !registered ? (
                     <Button
-                      label="Register"
+                      label={copy.register}
                       variant="secondary"
                       loading={mutating}
                       disabled={event.seatsRemaining <= 0 || isPreview}
@@ -239,7 +233,7 @@ export function EventsScreen(_props: MobileScreenProps) {
                   event.status !== 'COMPLETED' &&
                   event.myRegistrationId ? (
                     <Button
-                      label="Cancel"
+                      label={copy.cancel}
                       variant="text"
                       loading={mutating}
                       disabled={isPreview}
@@ -255,12 +249,12 @@ export function EventsScreen(_props: MobileScreenProps) {
       )}
 
       <ScreenSpacer />
-      <SectionHeading title="My registrations" />
+      <SectionHeading title={copy.mine} />
       {registrations.length === 0 ? (
         <StatePanel
           kind="empty"
-          title="No registrations"
-          description="Events you join will appear here."
+          title={copy.noRegistrations}
+          description={copy.historyHint}
         />
       ) : (
         <Card>
@@ -268,8 +262,8 @@ export function EventsScreen(_props: MobileScreenProps) {
             <View key={entry.registrationId}>
               <ListRow
                 title={entry.event.title}
-                subtitle={eventSubtitle(entry.event)}
-                meta={entry.attendanceStatus === 'ATTENDED' ? 'Attended' : entry.registrationStatus}
+                subtitle={eventSubtitle(entry.event, locale)}
+                meta={entry.attendanceStatus === 'ATTENDED' ? copy.attended : statusLabel(entry.registrationStatus)}
               />
               {index < registrations.length - 1 ? <Divider /> : null}
             </View>

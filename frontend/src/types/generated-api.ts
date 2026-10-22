@@ -1899,6 +1899,8 @@ export interface components {
     AttendanceMarkRequest: {
       registrationId?: string;
       status?: string;
+      /** Format: int32 */
+      version: number;
     };
     AttendanceMutationResponse: {
       date?: string;
@@ -3340,6 +3342,8 @@ export interface components {
       status?: string;
       studentId?: string;
       studentName?: string;
+      /** Format: int32 */
+      version?: number;
     };
     RoundCreateRequest: {
       /** Format: date-time */
@@ -3903,6 +3907,11 @@ export interface components {
       /** Format: date-time */
       startsAt?: string;
       title?: string;
+      /**
+       * Format: int32
+       * @description Version returned by the latest draft read
+       */
+      version: number;
     };
     UpdateProfileRequest: {
       address?: string;

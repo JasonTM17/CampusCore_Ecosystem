@@ -45,6 +45,8 @@ scripts/*
 !scripts/*.sh
 !scripts/*.mjs
 !scripts/verify-ecosystem.gates.json
+!scripts/tests/
+!scripts/tests/*.test.mjs
 
 # Test
 coverage/

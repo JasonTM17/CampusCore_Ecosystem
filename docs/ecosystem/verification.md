@@ -44,7 +44,7 @@ Exit code con 4 được ánh sang `BLOCKED_CAPABILITY`; exit 3 sang `FAIL` kèm
 | `bff` | P05 | `host-registry` + `static-policy` (R2-1 CI gates: doc↔code↔projection parity, cookie/CSRF/token-leak sentinels), `bff-contract-tests` (H2 real-HTTP `EcosystemBffContractTest`: login→callback→state→logout journey, PKCE+nonce, tx-scoped cookies, CSRF triple-check, registry fail-closed, forged proxy headers, redirect surfaces, `/bff/api` allowlist + bearer inject + no-store, client-scoped revoke), `bff-postgres-race` (capability: docker — `BffSessionPostgresIT` trên disposable Postgres: single-flight concurrent refresh, logout-vs-refresh, callback-vs-grant-delete, account/per-client sweep, one-time tx consume, bounded retention), `browser-sso` (capability: docker — `ecosystem-sso-verify.mjs preview`: compose BFF lane + self-signed TLS terminator `id.localhost:4443` + `next dev --experimental-https` trên mọi `*.localhost` surface + Playwright `ecosystem-sso.spec.ts`: host routing, SSO journey 2 surfaces, cookie isolation, sibling CSRF, mix-up/open-redirect, tab race, revoke-deny, no-store, VI/EN) |
 | `content` | P06 | `content-lifecycle` (H2 `AnnouncementContractPersistenceTest`: DRAFT→REVIEW→PUBLISHED→ARCHIVED, FOR UPDATE transitions, scheduled publish, version guard, VI/EN search, no-RAG-leak), `content-docs` (docs registry contract), `content-assets` (attachment/gallery scoping), `content-e2e` (capability: docker — `ecosystem-content-verify.mjs preview` + Playwright `ecosystem-content.spec.ts`: hub modules incl. planned-disabled entries, news read VI/EN, docs read, lecturer queue workflow, cache `no-store` on authenticated lanes) |
 | `mobile-core` | P07 | `mobile-oidc-probe` (H2 `EcosystemMobileOidcProbeTest`: `cu-mobile` public client — authorize+PKCE exchange, refresh mint/rotate, revoke, account freshness gate, missing-verifier invalid_grant), `mobile-tests` (`npm test` — route guards, session storage mirror, OIDC flow pure core, query lifecycle, screen atlas), `mobile-typecheck` |
-| `events` | P08 | `events-contract` (H2 `EventContractPersistenceTest`: lifecycle, scoped staff grants, roster/attendance authz, idempotent register/cancel, notifications same-tx, no `conduct_semester_score` writes), `events-postgres-race` (capability: docker — `EventCapacityPostgresIT` trên disposable Postgres: last-seat race exactly-one-winner, cancel frees one seat), `events-e2e` (capability: docker — `ecosystem-events-verify.mjs preview` + Playwright `ecosystem-events.spec.ts`: create→publish→open→register journey, EVENT_FULL, cancel notify + retained history, `/admin/events` staff roster render + attended mark) |
+| `events` | P08 | `events-contract` (H2 `EventContractPersistenceTest`: lifecycle, owner-scoped staff grants — every staff op checks `ownerId`, roster/attendance authz, draft-update `version` guard, immutable idempotent replay `responseBody`, notifications same-tx, no `conduct_semester_score` writes), `events-postgres-race` (capability: docker — `EventCapacityPostgresIT` trên disposable Postgres: last-seat race, cancel frees one seat, two-cancel-keys notify once, cancel+claim serialization), `events-e2e` (capability: docker — `ecosystem-events-verify.mjs preview` + Playwright `ecosystem-events.spec.ts`: create→publish→open→register journey, EVENT_FULL, cancel notify + retained history, `/admin/events` staff roster render + attended mark, workspace recovery + capability split), `events-messages-and-harness` (VI/EN domain message parity web+mobile, source-identity dirty-aware manifest, preview port-collision) |
 
 Binding R2-1 (`execution-contract.md` §Sửa đổi R2): P03 đăng ký `contract-drift` (kèm CI workflow diff), P05 đăng ký `host-registry` + `static-policy`; P14 `demo` tái chạy các gate này.
 
@@ -93,4 +93,34 @@ Mỗi gate chạy một lần tại exit pha; chỉ rerun phần fail hoặc ph�
 
 ## Evidence identity
 
-`report.json.identity` ghi node version, platform, gitSha, timestamp, evidenceDir, runId; `counts` tách executed/passed/failed/blocked/notRun. Checkbox thoát pha chỉ được check khi đường dẫn evidence này đã ghi trong ledger (R2-3).
+`report.json.identity` ghi node version, platform, gitSha, timestamp, evidenceDir, runId và SHA-256 nguồn trước/sau gate. `source-before.json`/`source-after.json` ghi hash byte thực của source tracked, dirty và untracked trong scope code/config/contracts; không hash credential/output. Có source drift thì toàn gate FAIL dù child tests xanh. `counts` tách executed/passed/failed/blocked/notRun. Checkbox thoát pha chỉ được check khi đường dẫn evidence này đã ghi trong ledger (R2-3).
+
+### Events: scope và hồi phục
+
+Staff grant cho phép tạo sự kiện; `ownerId` là assignment của từng sự kiện.
+Staff list/detail/roster và lifecycle/attendance chỉ cho owner có grant;
+không suy quyền từ ADMIN hay grant của sự kiện khác. P08 chưa có assignment
+nhiều staff. Publish/edit giữ mã403 `EVENT_NOT_OWNER` hiện hữu; các thao tác
+cùng đối tượng dùng cùng policy. Student có staff grant vẫn tham gia/hủy/xem
+lịch sử qua view cá nhân; non-STUDENT chỉ xem catalog khi không có grant.
+
+PUT draft bắt buộc `version` nhận từ lần đọc gần nhất: thiếu400, stale409
+`STALE_VERSION`. Đây là sửa về hợp đồng optimistic concurrency đã chốt;
+hiện không có web/mobile draft-update caller. Điểm danh nhận `version` của
+từng roster entry; stale batch trả409 và rollback cả marks/audit. Web gửi
+version đã đọc. Hai required-version changes có ngoại lệ compatibility cụ thể
+trong allowlist; không miễn quy tắc stale-write cho operation khác.
+
+Idempotency lưu response bất biến trong cùng transaction. Retry trả response
+đầu tiên dù record đã đổi; đọc trạng thái mới qua endpoints đọc. Key cũ không
+có snapshot trả409 `IDEMPOTENCY_RESPONSE_UNAVAILABLE`, không dựng response từ
+row mutable. Hủy/đăng ký/event-cancel tranh cùng lock; tests đếm chính xác
+registration/counter/audit/notification và fault-inject lỗi notification để
+chứng minh rollback. Preview chỉ dừng process tree/compose stack do chính nó
+tạo; collision không dừng listener/stack có sẵn.
+
+Gate events bổ sung `events-messages-and-harness` cho VI/EN web/mobile, source
+identity và collision. Browser có ca lỗi tải→retry, student+staff ở VI/EN,
+non-STUDENT read-only và response roster đến muộn. Các ca dùng intercepted
+domain data chỉ chứng minh UI; lifecycle gốc vẫn dùng API/PostgreSQL thật của
+disposable stack. Smoke native/signing P07/P13 vẫn cần thiết bị riêng.

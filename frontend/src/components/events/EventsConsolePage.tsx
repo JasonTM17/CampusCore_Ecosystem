@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Ban,
   Calendar,
@@ -32,6 +32,7 @@ import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { statusToneClass } from '@/components/ui/status';
 import { useI18n } from '@/i18n';
+import { eventsMessages } from '@/i18n/events-messages';
 import { cn } from '@/lib/utils';
 
 /**
@@ -70,7 +71,15 @@ export function EventsConsolePage() {
   ]);
   const { locale, formatDateTime } = useI18n();
 
-  const [mode, setMode] = useState<'loading' | 'staff' | 'student'>('loading');
+  const [mode, setMode] = useState<'loading' | 'error' | 'staff' | 'student'>('loading');
+  const isStudent = user?.roles?.includes('STUDENT') ?? false;
+  const [staffGranted, setStaffGranted] = useState(false);
+  const accountId = user?.id;
+  const accountRef = useRef(accountId);
+  accountRef.current = accountId;
+  const loadSequence = useRef(0);
+  const rosterSequence = useRef(0);
+  const selectedRef = useRef<string | null>(null);
   const [staffEvents, setStaffEvents] = useState<CampusEvent[]>([]);
   const [studentEvents, setStudentEvents] = useState<CampusEvent[]>([]);
   const [myRegistrations, setMyRegistrations] = useState<MyEventRegistration[]>([]);
@@ -97,192 +106,127 @@ export function EventsConsolePage() {
     description: '',
   });
 
-  const copy = useMemo(
-    () =>
-      locale === 'vi'
-        ? {
-            eyebrow: 'ĐOÀN – HỘI • SỰ KIỆN TRƯỜNG',
-            title: 'Sự kiện & Hoạt động Đoàn–Hội',
-            description:
-              'Quản lý vòng đời sự kiện, đăng ký chỗ và điểm danh thủ công theo danh sách.',
-            refresh: 'Làm mới',
-            loading: 'Đang tải sự kiện',
-            create: 'Tạo sự kiện',
-            emptyStaff: 'Chưa có sự kiện nào — tạo sự kiện nháp đầu tiên.',
-            emptyStudent: 'Chưa có sự kiện nào được công bố.',
-            roster: 'Danh sách đăng ký',
-            rosterEmpty: 'Chưa có đăng ký nào.',
-            capacity: 'Sức chứa',
-            seats: 'Còn trống',
-            registered: 'Đã đăng ký',
-            publish: 'Công bố',
-            open: 'Mở đăng ký',
-            close: 'Đóng đăng ký',
-            complete: 'Hoàn tất',
-            cancelEvent: 'Hủy sự kiện',
-            cancelReason: 'Lý do hủy (thông báo tới người đăng ký)',
-            register: 'Đăng ký tham gia',
-            cancelRegistration: 'Hủy đăng ký',
-            myRegistrations: 'Đăng ký của tôi',
-            attended: 'Có mặt',
-            absent: 'Vắng',
-            markPresent: 'Điểm danh Có mặt',
-            markAbsent: 'Đánh dấu Vắng',
-            status: 'Trạng thái',
-            when: 'Thời gian',
-            where: 'Địa điểm',
-            organizer: 'Đơn vị tổ chức',
-            window: 'Cửa sổ đăng ký',
-            titleField: 'Tên sự kiện',
-            submitCreate: 'Tạo bản nháp',
-            created: 'Đã tạo sự kiện nháp.',
-            actionDone: 'Đã cập nhật trạng thái sự kiện.',
-            registeredOk: 'Đăng ký thành công.',
-            cancelledOk: 'Đã hủy đăng ký.',
-            cancelledEventOk: 'Đã hủy sự kiện và thông báo cho người đăng ký.',
-            markedOk: 'Đã cập nhật điểm danh.',
-            failed: 'Thao tác chưa thành công — thử lại.',
-            full: 'Sự kiện đã hết chỗ.',
-            started: 'Sự kiện đã bắt đầu nên không thể đăng ký hoặc hủy.',
-            attendanceHint: 'Điểm danh chỉ mở sau khi đóng đăng ký và sự kiện đã bắt đầu.',
-            studentHint: 'Bạn đang xem sự kiện với vai trò người tham gia.',
-            ownerOnly: 'Chỉ chủ sở hữu sự kiện mới được công bố.',
-            statusLabels: {
-              DRAFT: 'Bản nháp',
-              PUBLISHED: 'Đã công bố',
-              REGISTRATION_OPEN: 'Đang mở đăng ký',
-              REGISTRATION_CLOSED: 'Đã đóng đăng ký',
-              COMPLETED: 'Đã hoàn tất',
-              CANCELLED: 'Đã hủy',
-            } as Record<string, string>,
-          }
-        : {
-            eyebrow: 'UNION & ASSOCIATION • CAMPUS EVENTS',
-            title: 'Events & Union Activities',
-            description:
-              'Manage the event lifecycle, seat registration and manual roster attendance.',
-            refresh: 'Refresh',
-            loading: 'Loading events',
-            create: 'Create event',
-            emptyStaff: 'No events yet — create the first draft.',
-            emptyStudent: 'No published events yet.',
-            roster: 'Roster',
-            rosterEmpty: 'No registrations yet.',
-            capacity: 'Capacity',
-            seats: 'Seats left',
-            registered: 'Registered',
-            publish: 'Publish',
-            open: 'Open registration',
-            close: 'Close registration',
-            complete: 'Complete',
-            cancelEvent: 'Cancel event',
-            cancelReason: 'Cancellation reason (sent to registrants)',
-            register: 'Register',
-            cancelRegistration: 'Cancel registration',
-            myRegistrations: 'My registrations',
-            attended: 'Attended',
-            absent: 'Absent',
-            markPresent: 'Mark attended',
-            markAbsent: 'Mark absent',
-            status: 'Status',
-            when: 'When',
-            where: 'Where',
-            organizer: 'Organizer',
-            window: 'Registration window',
-            titleField: 'Event title',
-            submitCreate: 'Create draft',
-            created: 'Draft event created.',
-            actionDone: 'Event updated.',
-            registeredOk: 'Registration confirmed.',
-            cancelledOk: 'Registration cancelled.',
-            cancelledEventOk: 'Event cancelled; registrants notified.',
-            markedOk: 'Attendance updated.',
-            failed: 'Action failed — please retry.',
-            full: 'This event is full.',
-            started: 'The event has started, so registration can no longer change.',
-            attendanceHint:
-              'Attendance opens once registration is closed and the event has started.',
-            studentHint: 'You are browsing events as a participant.',
-            ownerOnly: 'Only the event owner can publish it.',
-            statusLabels: {
-              DRAFT: 'Draft',
-              PUBLISHED: 'Published',
-              REGISTRATION_OPEN: 'Registration open',
-              REGISTRATION_CLOSED: 'Registration closed',
-              COMPLETED: 'Completed',
-              CANCELLED: 'Cancelled',
-            } as Record<string, string>,
-          },
-    [locale],
-  );
+  const copy = eventsMessages[locale];
 
   const loadStaff = useCallback(async () => {
     const events = await eventsApi.staffList();
-    setStaffEvents(events);
-    setMode('staff');
-  }, []);
+    if (accountRef.current === accountId) setStaffEvents(events);
+  }, [accountId]);
 
   const loadStudent = useCallback(async () => {
     const [events, mine] = await Promise.all([
       eventsApi.listPublished(),
-      eventsApi.myRegistrations(),
+      isStudent ? eventsApi.myRegistrations() : Promise.resolve([]),
     ]);
+    if (accountRef.current !== accountId) return;
     setStudentEvents(events);
     setMyRegistrations(mine);
-    setMode('student');
-  }, []);
+  }, [accountId, isStudent]);
 
   const load = useCallback(async () => {
+    const request = ++loadSequence.current;
+    const current = () => request === loadSequence.current && accountRef.current === accountId;
     setError('');
     try {
-      await loadStaff();
+      const events = await eventsApi.staffList();
+      if (!current()) return;
+      setStaffEvents(events);
+      setStaffGranted(true);
+      setMode((previous) => previous === 'student' ? previous : 'staff');
+      if (isStudent) {
+        try { await loadStudent(); }
+        catch { if (current()) setError(copy.failed); }
+      }
     } catch (staffError) {
+      if (!current()) return;
       if (isEventsStaffDenied(staffError)) {
+        setStaffGranted(false);
         try {
           await loadStudent();
-        } catch (studentError) {
-          setError(copy.failed);
+          if (current()) setMode('student');
+        } catch {
+          if (current()) { setError(copy.failed); setMode('error'); }
         }
         return;
       }
       setError(copy.failed);
+      setMode('error');
     }
-  }, [copy.failed, loadStaff, loadStudent]);
+  }, [accountId, copy.failed, isStudent, loadStudent]);
+
+  const invalidateReads = useCallback(() => {
+    ++loadSequence.current;
+    ++rosterSequence.current;
+  }, []);
+
+  // Locale-sensitive loading may restart; unresolved operation identity belongs
+  // to the account and must survive those restarts.
+  useEffect(() => {
+    pendingKeys.current.clear();
+  }, [accountId]);
 
   useEffect(() => {
-    if (!authLoading && hasAccess) {
-      void load();
+    invalidateReads();
+    selectedRef.current = null;
+    setSelectedEventId(null);
+    setRoster([]);
+    setStaffEvents([]);
+    setStudentEvents([]);
+    setMyRegistrations([]);
+    setStaffGranted(false);
+    setBusy(false);
+    setCreateOpen(false);
+    setCancelOpen(null);
+    setMode('loading');
+    if (!authLoading && hasAccess) void load();
+    return invalidateReads;
+  }, [accountId, authLoading, hasAccess, invalidateReads, load]);
+
+  const loadRoster = useCallback(async (eventId: string) => {
+    const request = ++rosterSequence.current;
+    const current = () => request === rosterSequence.current &&
+      accountRef.current === accountId && selectedRef.current === eventId;
+    setRoster([]);
+    setRosterLoading(true);
+    try {
+      const entries = await eventsApi.staffRoster(eventId);
+      if (current()) setRoster(entries);
+    } catch {
+      if (current()) setRoster([]);
+    } finally {
+      if (current()) setRosterLoading(false);
     }
-  }, [authLoading, hasAccess, load]);
+  }, [accountId]);
 
-  const loadRoster = useCallback(
-    async (eventId: string) => {
-      setRosterLoading(true);
-      try {
-        setRoster(await eventsApi.staffRoster(eventId));
-      } catch {
-        setRoster([]);
-      } finally {
-        setRosterLoading(false);
-      }
-    },
-    [],
-  );
+  const selectEvent = useCallback((eventId: string) => {
+    const next = selectedRef.current === eventId ? null : eventId;
+    selectedRef.current = next;
+    ++rosterSequence.current;
+    setSelectedEventId(next);
+    setRoster([]);
+    if (next) void loadRoster(next);
+  }, [loadRoster]);
 
-  const selectEvent = useCallback(
-    (eventId: string) => {
-      setSelectedEventId((current) => (current === eventId ? null : eventId));
-      void loadRoster(eventId);
-    },
-    [loadRoster],
-  );
+  const switchView = async (view: 'staff' | 'student') => {
+    ++rosterSequence.current;
+    selectedRef.current = null;
+    setSelectedEventId(null);
+    setRoster([]);
+    setError('');
+    setMode(view);
+    if (view === 'student') {
+      try { await loadStudent(); }
+      catch { if (accountRef.current === accountId) setError(copy.failed); }
+    }
+  };
 
   // Notification deep links carry ?event=<id> — expand that card once the
   // mode resolves (roster only loads for the staff surface).
   useEffect(() => {
-    if (mode === 'loading') return;
+    if (mode !== 'staff') return;
     const id = new URLSearchParams(window.location.search).get('event');
     if (id) {
+      selectedRef.current = id;
       setSelectedEventId(id);
       if (mode === 'staff') void loadRoster(id);
     }
@@ -293,20 +237,23 @@ export function EventsConsolePage() {
       setBusy(true);
       try {
         await action();
+        if (accountRef.current !== accountId) return;
         toast.success(message);
         await loadStaff();
-        if (selectedEventId) {
+        if (accountRef.current !== accountId) return;
+        if (selectedEventId && selectedRef.current === selectedEventId) {
           void loadRoster(selectedEventId);
         }
       } catch (actionError) {
+        if (accountRef.current !== accountId) return;
         const code = (actionError as { response?: { data?: { code?: string } } })
           ?.response?.data?.code;
         toast.error(code === 'EVENT_NOT_OWNER' ? copy.ownerOnly : copy.failed);
       } finally {
-        setBusy(false);
+        if (accountRef.current === accountId) setBusy(false);
       }
     },
-    [copy.failed, copy.ownerOnly, loadRoster, loadStaff, selectedEventId],
+    [accountId, copy.failed, copy.ownerOnly, loadRoster, loadStaff, selectedEventId],
   );
 
   const submitCreate = useCallback(async () => {
@@ -331,6 +278,7 @@ export function EventsConsolePage() {
           ? new Date(form.registrationClosesAt).toISOString()
           : null,
       });
+      if (accountRef.current !== accountId) return;
       toast.success(copy.created);
       setCreateOpen(false);
       setForm({
@@ -346,29 +294,31 @@ export function EventsConsolePage() {
       });
       await loadStaff();
     } catch {
-      toast.error(copy.failed);
+      if (accountRef.current === accountId) toast.error(copy.failed);
     } finally {
-      setBusy(false);
+      if (accountRef.current === accountId) setBusy(false);
     }
-  }, [copy.created, copy.failed, form, loadStaff]);
+  }, [accountId, copy.created, copy.failed, form, loadStaff]);
 
   const studentRegister = useCallback(
     async (eventId: string) => {
       setBusy(true);
       try {
         await eventsApi.register(eventId, pendingKeyFor(pendingKeys.current, `register:${eventId}`));
+        if (accountRef.current !== accountId) return;
         pendingKeys.current.delete(`register:${eventId}`);
         toast.success(copy.registeredOk);
         await loadStudent();
       } catch (registerError) {
+        if (accountRef.current !== accountId) return;
         const code = errorCode(registerError);
         if (code) pendingKeys.current.delete(`register:${eventId}`);
         toast.error(code === 'EVENT_FULL' ? copy.full : code === 'EVENT_STARTED' ? copy.started : copy.failed);
       } finally {
-        setBusy(false);
+        if (accountRef.current === accountId) setBusy(false);
       }
     },
-    [copy.failed, copy.full, copy.registeredOk, copy.started, loadStudent],
+    [accountId, copy.failed, copy.full, copy.registeredOk, copy.started, loadStudent],
   );
 
   const studentCancel = useCallback(
@@ -379,24 +329,26 @@ export function EventsConsolePage() {
           registrationId,
           pendingKeyFor(pendingKeys.current, `cancel:${registrationId}`),
         );
+        if (accountRef.current !== accountId) return;
         pendingKeys.current.delete(`cancel:${registrationId}`);
         toast.success(copy.cancelledOk);
         await loadStudent();
       } catch (cancelError) {
+        if (accountRef.current !== accountId) return;
         const code = errorCode(cancelError);
         if (code) pendingKeys.current.delete(`cancel:${registrationId}`);
         toast.error(code === 'EVENT_STARTED' ? copy.started : copy.failed);
       } finally {
-        setBusy(false);
+        if (accountRef.current === accountId) setBusy(false);
       }
     },
-    [copy.cancelledOk, copy.failed, copy.started, loadStudent],
+    [accountId, copy.cancelledOk, copy.failed, copy.started, loadStudent],
   );
 
   if (authLoading || (!hasAccess && !isForbidden)) {
     return <LoadingState label={copy.loading} />;
   }
-  if (mode === 'loading') {
+  if (mode === 'loading' && !error) {
     return <LoadingState label={copy.loading} />;
   }
 
@@ -502,6 +454,12 @@ export function EventsConsolePage() {
         description={copy.description}
         actions={
           <div className="flex items-center gap-2">
+            {staffGranted && isStudent ? (
+              <>
+                <Button size="sm" variant={mode === 'student' ? 'default' : 'outline'} onClick={() => void switchView('student')}>{copy.participation}</Button>
+                <Button size="sm" variant={mode === 'staff' ? 'default' : 'outline'} onClick={() => void switchView('staff')}>{copy.staffTools}</Button>
+              </>
+            ) : null}
             {mode === 'staff' ? (
               <Button size="sm" onClick={() => setCreateOpen(true)}>
                 <Plus className="h-4 w-4" /> {copy.create}
@@ -526,14 +484,10 @@ export function EventsConsolePage() {
                 key={event.id}
                 className="rounded-xl border border-border/60 bg-card/60 p-4 shadow-sm"
               >
-                <button
-                  type="button"
-                  className="flex w-full flex-wrap items-start justify-between gap-3 text-left"
-                  onClick={() => selectEvent(event.id)}
-                >
+                <div className="flex w-full flex-wrap items-start justify-between gap-3 text-left">
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-base font-semibold">{event.title}</h3>
+                      <h3 className="text-base font-semibold"><button type="button" className="text-left hover:underline" aria-expanded={selectedEventId === event.id} onClick={() => selectEvent(event.id)}>{event.title}</button></h3>
                       <span
                         className={cn(
                           'rounded-full px-2.5 py-0.5 text-xs font-medium',
@@ -565,7 +519,7 @@ export function EventsConsolePage() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">{eventActions(event)}</div>
-                </button>
+                </div>
 
                 {selectedEventId === event.id ? (
                   <div className="mt-4 border-t border-border/50 pt-4">
@@ -623,6 +577,7 @@ export function EventsConsolePage() {
                                             eventsApi.staffMarkAttendance(event.id, [
                                               {
                                                 registrationId: entry.registrationId,
+                                                version: entry.version,
                                                 status:
                                                   entry.attendanceStatus === 'ATTENDED'
                                                     ? 'ABSENT'
@@ -652,9 +607,9 @@ export function EventsConsolePage() {
             ))
           )}
         </div>
-      ) : (
+      ) : mode === 'student' ? (
         <div className="space-y-6">
-          <p className="text-sm text-muted-foreground">{copy.studentHint}</p>
+          <p className="text-sm text-muted-foreground">{isStudent ? copy.studentHint : copy.browseHint}</p>
           {studentEvents.length === 0 ? (
             <EmptyState title={copy.emptyStudent} description="" />
           ) : (
@@ -692,7 +647,7 @@ export function EventsConsolePage() {
                     </p>
                   </div>
                   <div className="mt-3 flex gap-2">
-                    {event.status === 'REGISTRATION_OPEN' &&
+                    {isStudent && event.status === 'REGISTRATION_OPEN' &&
                     event.myRegistrationStatus !== 'REGISTERED' ? (
                       <Button
                         size="sm"
@@ -702,7 +657,7 @@ export function EventsConsolePage() {
                         {copy.register}
                       </Button>
                     ) : null}
-                    {event.myRegistrationStatus === 'REGISTERED' &&
+                    {isStudent && event.myRegistrationStatus === 'REGISTERED' &&
                     event.status !== 'CANCELLED' &&
                     event.status !== 'COMPLETED' ? (
                       <Button
@@ -722,7 +677,7 @@ export function EventsConsolePage() {
             </div>
           )}
 
-          <div>
+          {isStudent ? <div>
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               {copy.myRegistrations}
             </h3>
@@ -753,9 +708,9 @@ export function EventsConsolePage() {
                 ))}
               </div>
             )}
-          </div>
+          </div> : null}
         </div>
-      )}
+      ) : null}
 
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title={copy.create}>
         <div className="space-y-3">
@@ -776,7 +731,7 @@ export function EventsConsolePage() {
           />
           <div className="grid grid-cols-2 gap-2">
             <label className="text-xs text-muted-foreground">
-              {copy.when} (start)
+              {copy.when} {copy.startLabel}
               <Input
                 type="datetime-local"
                 value={form.startsAt}
@@ -784,7 +739,7 @@ export function EventsConsolePage() {
               />
             </label>
             <label className="text-xs text-muted-foreground">
-              {copy.when} (end)
+              {copy.when} {copy.endLabel}
               <Input
                 type="datetime-local"
                 value={form.endsAt}
@@ -792,7 +747,7 @@ export function EventsConsolePage() {
               />
             </label>
             <label className="text-xs text-muted-foreground">
-              {copy.window} (open)
+              {copy.window} {copy.opensLabel}
               <Input
                 type="datetime-local"
                 value={form.registrationOpensAt}
@@ -802,7 +757,7 @@ export function EventsConsolePage() {
               />
             </label>
             <label className="text-xs text-muted-foreground">
-              {copy.window} (close)
+              {copy.window} {copy.closesLabel}
               <Input
                 type="datetime-local"
                 value={form.registrationClosesAt}
@@ -820,13 +775,13 @@ export function EventsConsolePage() {
             onChange={(e) => setForm((f) => ({ ...f, capacity: e.target.value }))}
           />
           <Input
-            placeholder="Description"
+            placeholder={copy.descriptionField}
             value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
           />
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
-              {locale === 'vi' ? 'Đóng' : 'Close'}
+              {copy.dismiss}
             </Button>
             <Button onClick={() => void submitCreate()} disabled={busy}>
               {copy.submitCreate}
@@ -848,7 +803,7 @@ export function EventsConsolePage() {
           />
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setCancelOpen(null)}>
-              {locale === 'vi' ? 'Đóng' : 'Close'}
+              {copy.dismiss}
             </Button>
             <Button
               variant="destructive"

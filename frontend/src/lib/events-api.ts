@@ -61,6 +61,7 @@ export interface MyEventRegistration {
 
 export interface EventRosterEntry {
   registrationId: string;
+  version: number;
   studentId: string;
   studentName: string;
   email: string;
@@ -174,7 +175,7 @@ export const eventsApi = {
   },
   staffMarkAttendance: async (
     eventId: string,
-    marks: Array<{ registrationId: string; status: EventAttendanceStatus }>,
+    marks: Array<{ registrationId: string; status: EventAttendanceStatus; version: number }>,
   ): Promise<EventRosterEntry[]> => {
     const response = await api.post<EventRosterEntry[]>(
       `/events/staff/${eventId}/attendance`,
