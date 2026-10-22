@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Ban,
   Calendar,
@@ -45,6 +45,20 @@ import { cn } from '@/lib/utils';
  * /admin/events (admin staff console — the dashboard layout bounces full
  * admins to /admin, so the staff surface lives inside the admin shell).
  */
+/** Reuse the key of an unresolved attempt; a settled outcome clears it. */
+function pendingKeyFor(keys: Map<string, string>, scope: string): string {
+  const existing = keys.get(scope);
+  if (existing) return existing;
+  const created = newIdempotencyKey();
+  keys.set(scope, created);
+  return created;
+}
+
+/** Server error code when the API answered (so the outcome is settled), else undefined. */
+function errorCode(error: unknown): string | undefined {
+  return (error as { response?: { data?: { code?: string } } })?.response?.data?.code;
+}
+
 export function EventsConsolePage() {
   const { user, isLoading: authLoading, hasAccess, isForbidden } = useRequireAuth([
     'STUDENT',
@@ -65,6 +79,9 @@ export function EventsConsolePage() {
   const [rosterLoading, setRosterLoading] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // A retry after a timeout must replay the same Idempotency-Key, so a
+  // registration that already landed is returned instead of failing as a duplicate.
+  const pendingKeys = useRef(new Map<string, string>());
   const [createOpen, setCreateOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState<CampusEvent | null>(null);
   const [cancelReason, setCancelReason] = useState('');
@@ -125,6 +142,8 @@ export function EventsConsolePage() {
             cancelledEventOk: 'Đã hủy sự kiện và thông báo cho người đăng ký.',
             markedOk: 'Đã cập nhật điểm danh.',
             failed: 'Thao tác chưa thành công — thử lại.',
+            full: 'Sự kiện đã hết chỗ.',
+            started: 'Sự kiện đã bắt đầu nên không thể đăng ký hoặc hủy.',
             attendanceHint: 'Điểm danh chỉ mở sau khi đóng đăng ký và sự kiện đã bắt đầu.',
             studentHint: 'Bạn đang xem sự kiện với vai trò người tham gia.',
             ownerOnly: 'Chỉ chủ sở hữu sự kiện mới được công bố.',
@@ -179,6 +198,8 @@ export function EventsConsolePage() {
             cancelledEventOk: 'Event cancelled; registrants notified.',
             markedOk: 'Attendance updated.',
             failed: 'Action failed — please retry.',
+            full: 'This event is full.',
+            started: 'The event has started, so registration can no longer change.',
             attendanceHint:
               'Attendance opens once registration is closed and the event has started.',
             studentHint: 'You are browsing events as a participant.',
@@ -335,32 +356,41 @@ export function EventsConsolePage() {
     async (eventId: string) => {
       setBusy(true);
       try {
-        await eventsApi.register(eventId, newIdempotencyKey());
+        await eventsApi.register(eventId, pendingKeyFor(pendingKeys.current, `register:${eventId}`));
+        pendingKeys.current.delete(`register:${eventId}`);
         toast.success(copy.registeredOk);
         await loadStudent();
-      } catch {
-        toast.error(copy.failed);
+      } catch (registerError) {
+        const code = errorCode(registerError);
+        if (code) pendingKeys.current.delete(`register:${eventId}`);
+        toast.error(code === 'EVENT_FULL' ? copy.full : code === 'EVENT_STARTED' ? copy.started : copy.failed);
       } finally {
         setBusy(false);
       }
     },
-    [copy.failed, copy.registeredOk, loadStudent],
+    [copy.failed, copy.full, copy.registeredOk, copy.started, loadStudent],
   );
 
   const studentCancel = useCallback(
     async (registrationId: string) => {
       setBusy(true);
       try {
-        await eventsApi.cancelRegistration(registrationId, newIdempotencyKey());
+        await eventsApi.cancelRegistration(
+          registrationId,
+          pendingKeyFor(pendingKeys.current, `cancel:${registrationId}`),
+        );
+        pendingKeys.current.delete(`cancel:${registrationId}`);
         toast.success(copy.cancelledOk);
         await loadStudent();
-      } catch {
-        toast.error(copy.failed);
+      } catch (cancelError) {
+        const code = errorCode(cancelError);
+        if (code) pendingKeys.current.delete(`cancel:${registrationId}`);
+        toast.error(code === 'EVENT_STARTED' ? copy.started : copy.failed);
       } finally {
         setBusy(false);
       }
     },
-    [copy.cancelledOk, copy.failed, loadStudent],
+    [copy.cancelledOk, copy.failed, copy.started, loadStudent],
   );
 
   if (authLoading || (!hasAccess && !isForbidden)) {
