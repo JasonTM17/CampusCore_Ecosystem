@@ -211,7 +211,7 @@ class PublicationWorkflowPersistenceTest {
 
         List<Map<String, Object>> audit = jdbc.queryForList(
                 "SELECT \"action\", \"actorId\", \"version\" FROM \"engagement\".\"AnnouncementAudit\""
-                        + " WHERE \"announcementId\" = ? ORDER BY \"createdAt\", \"id\"", id);
+                        + " WHERE \"announcementId\" = ? ORDER BY \"createdAt\", \"version\", \"id\"", id);
         assertEquals(List.of("CREATED", "SUBMITTED", "APPROVED"),
                 audit.stream().map(entry -> entry.get("action")).toList());
         assertEquals(List.of("admin-1", "admin-1", "admin-2"),
@@ -380,7 +380,7 @@ class PublicationWorkflowPersistenceTest {
 
         List<String> actions = jdbc.queryForList(
                 "SELECT \"action\" FROM \"engagement\".\"AnnouncementAudit\""
-                        + " WHERE \"announcementId\" = ? ORDER BY \"createdAt\", \"id\"",
+                        + " WHERE \"announcementId\" = ? ORDER BY \"createdAt\", \"version\", \"id\"",
                 String.class, id);
         assertEquals(List.of("CREATED", "SUBMITTED", "APPROVED", "ARCHIVED", "RESTORED"), actions);
     }
