@@ -192,7 +192,9 @@ class AnnouncementWriteServiceLecturerTest {
         Instant now = Instant.parse("2026-09-10T00:00:00Z");
         return new AnnouncementResponse("notice-1", "Notice", "Content", "NORMAL", List.of("STUDENT"),
                 List.of(), false, null, null, "user-1", null, null, "section-1",
-                null, null, null, lecturerId, null, now, now, 0, null, null, null, null, null);
+                null, null, null, lecturerId, null, now, now, 0, null, null,
+                "DRAFT", "user-1", null, null, null, null,
+                null, null, null);
     }
 
     private record Fixture(AnnouncementWriteRepository announcements, AnnouncementWriteService service) {

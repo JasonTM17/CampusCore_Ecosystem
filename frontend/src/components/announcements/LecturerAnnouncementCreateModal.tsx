@@ -302,8 +302,7 @@ export function LecturerAnnouncementCreateModal({
     setValidationError('');
   };
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleFormSubmit = async (submitForReview: boolean) => {
     if (!title.trim()) {
       setValidationError(isVi ? 'Vui lòng nhập tiêu đề thông báo' : 'Please enter a title');
       return;
@@ -340,18 +339,46 @@ export function LecturerAnnouncementCreateModal({
         sectionId: selectedSectionId,
       };
 
-      await announcementsApi.create(payload);
-      toast.success(isVi ? 'Đã đăng thông báo cho sinh viên thành công!' : 'Notice published to students successfully!');
-      // LEC-P3-B2: clear the published draft BEFORE closing. The host page
+      // publication-policy §3: create lands in DRAFT; publishing only happens
+      // through submit → a different reviewer's approve. `submitForReview`
+      // chains the draft straight into the review queue so author intent
+      // stays one click, while the honest copy never claims publication.
+      const created = await announcementsApi.create(payload);
+      if (submitForReview) {
+        try {
+          await announcementsApi.submit(created.id);
+          toast.success(
+            isVi
+              ? 'Đã gửi thông báo vào hàng chờ duyệt — người duyệt khác sẽ xuất bản.'
+              : 'Notice submitted for review — another reviewer publishes it.',
+          );
+        } catch {
+          // The draft already exists — reporting a save failure would invite
+          // a retry that creates a duplicate. The queue shows it for a
+          // one-click submit instead.
+          toast.success(
+            isVi
+              ? 'Đã lưu bản nháp — gửi duyệt từ danh sách bài của bạn.'
+              : 'Draft saved — submit it for review from your notices list.',
+          );
+        }
+      } else {
+        toast.success(
+          isVi
+            ? 'Đã lưu bản nháp — gửi duyệt từ danh sách bài của bạn.'
+            : 'Draft saved — submit it for review from your notices list.',
+        );
+      }
+      // LEC-P3-B2: clear the saved draft BEFORE closing. The host page
       // keeps this modal mounted, so leftover state used to reopen showing
-      // the just-published text, and a second Publish created a duplicate.
+      // the just-saved text, and a second save created a duplicate.
       resetForm();
       onSuccess();
       onClose();
     } catch (err: any) {
       toast.error(
         err?.response?.data?.message ||
-        (isVi ? 'Không thể đăng thông báo. Vui lòng thử lại.' : 'Failed to publish notice. Please try again.')
+        (isVi ? 'Không thể lưu thông báo. Vui lòng thử lại.' : 'Could not save the notice. Please try again.')
       );
     } finally {
       setIsSubmitting(false);
@@ -363,10 +390,10 @@ export function LecturerAnnouncementCreateModal({
     <Modal
       isOpen={isOpen}
       onClose={() => void requestClose()}
-      title={isVi ? 'Đăng thông báo cho Sinh viên lớp học phần' : 'Post Announcement for Students'}
+      title={isVi ? 'Soạn thông báo gửi sinh viên lớp học phần' : 'Draft announcement for students'}
       className="max-w-3xl"
     >
-      <form onSubmit={handleFormSubmit} className="space-y-5">
+      <form onSubmit={(e) => { e.preventDefault(); void handleFormSubmit(true); }} className="space-y-5">
         {/* Quick presets bar */}
         <div className="space-y-2">
           <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -665,6 +692,14 @@ export function LecturerAnnouncementCreateModal({
             {isVi ? 'Hủy bỏ' : 'Cancel'}
           </Button>
           <Button
+            type="button"
+            variant="outline"
+            disabled={isSubmitting}
+            onClick={() => void handleFormSubmit(false)}
+          >
+            {isVi ? 'Lưu bản nháp' : 'Save draft'}
+          </Button>
+          <Button
             type="submit"
             disabled={isSubmitting}
             className="gap-2"
@@ -672,12 +707,12 @@ export function LecturerAnnouncementCreateModal({
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>{isVi ? 'Đang đăng thông báo...' : 'Publishing...'}</span>
+                <span>{isVi ? 'Đang gửi duyệt...' : 'Submitting...'}</span>
               </>
             ) : (
               <>
                 <Send className="h-4 w-4" />
-                <span>{isVi ? 'Đăng thông báo cho sinh viên' : 'Publish Notice'}</span>
+                <span>{isVi ? 'Gửi duyệt' : 'Submit for review'}</span>
               </>
             )}
           </Button>

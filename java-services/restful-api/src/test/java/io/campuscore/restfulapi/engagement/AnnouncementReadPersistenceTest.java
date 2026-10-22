@@ -108,6 +108,12 @@ class AnnouncementReadPersistenceTest {
                     "version" INTEGER NOT NULL DEFAULT 0,
                     "archivedAt" TIMESTAMP WITH TIME ZONE,
                     "archivedBy" VARCHAR(120),
+                    "status" VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
+                    "authorId" VARCHAR(120),
+                    "reviewerId" VARCHAR(120),
+                    "reviewedAt" TIMESTAMP WITH TIME ZONE,
+                    "reviewNote" VARCHAR(500),
+                    "publishedRevision" INTEGER,
                     "displayOrder" INTEGER
                 )
                 """);
@@ -579,8 +585,8 @@ class AnnouncementReadPersistenceTest {
                         "id", "title", "content", "priority", "targetRoles", "targetYears",
                         "isGlobal", "publishAt", "expiresAt", "publishedBy", "semesterId",
                         "semesterName", "sectionId", "sectionNumber", "courseCode", "courseName",
-                        "lecturerId", "lecturerDisplayName", "createdAt", "updatedAt"
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        "lecturerId", "lecturerDisplayName", "createdAt", "updatedAt", "status"
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PUBLISHED')
                     """)) {
                 statement.setString(1, fixture.id());
                 statement.setString(2, "Title " + fixture.id());

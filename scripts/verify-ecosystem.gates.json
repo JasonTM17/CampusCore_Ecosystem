@@ -317,6 +317,71 @@
           }
         }
       ]
+    },
+    "content": {
+      "owner_phase": "P06",
+      "description": "P06 exit (publication-policy §8): announcement lifecycle — explicit DRAFT create, author submit, reviewer-not-author approve binding publishedRevision, mandatory return reason, expired-window approve guard + recoverable fix, archive/restore-to-DRAFT with audit, published content immutable, zero fan-out until approve, status filters, lecturer review-queue scope. Public docs — revision-pinned anonymous reads, permalink bound, VI/EN folded search, attachment gate, slug 404s. Asset gating — parent-aware attachment/media visibility across lifecycle + audience. content-e2e registers in P06e with the preview spec.",
+      "cases": [
+        {
+          "id": "content-lifecycle",
+          "required": true,
+          "targets": ["local"],
+          "run": {
+            "cmd": "mvn",
+            "args": [
+              "-q", "-f", "java-services/restful-api/pom.xml", "test",
+              "-Dtest=PublicationWorkflowPersistenceTest",
+              "-Dsurefire.failIfNoSpecifiedTests=false", "-Dstyle.color=never"
+            ],
+            "timeoutMs": 900000
+          }
+        },
+        {
+          "id": "content-docs",
+          "required": true,
+          "targets": ["local"],
+          "run": {
+            "cmd": "mvn",
+            "args": [
+              "-q", "-f", "java-services/restful-api/pom.xml", "test",
+              "-Dtest=PublicDocumentPersistenceTest",
+              "-Dsurefire.failIfNoSpecifiedTests=false", "-Dstyle.color=never"
+            ],
+            "timeoutMs": 900000
+          }
+        },
+        {
+          "id": "content-assets",
+          "required": true,
+          "targets": ["local"],
+          "description": "ANN-T05: article media/attachment reads follow the parent announcement lifecycle + audience (public/scoped/section/draft/in-review/archived-expired tiers) plus v2 pagination DTOs.",
+          "run": {
+            "cmd": "mvn",
+            "args": [
+              "-q", "-f", "java-services/restful-api/pom.xml", "test",
+              "-Dtest=ArticleAssetGatePersistenceTest,ArticleTaxonomyV2PersistenceTest,ArticleTaxonomyControllerTest",
+              "-Dsurefire.failIfNoSpecifiedTests=false", "-Dstyle.color=never"
+            ],
+            "timeoutMs": 900000
+          }
+        },
+        {
+          "id": "content-e2e",
+          "required": true,
+          "targets": ["local"],
+          "capability": "docker",
+          "description": "HTTPS preview anonymous content journeys (publication-policy §8): seeded published news/docs visible, drafts leak nothing, revision permalink superseded, rich-text payload sanitized, VI locale.",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/ecosystem-content-verify.mjs", "preview",
+              "--project", "{auto-project}-content",
+              "--evidence", "{evidence}"
+            ],
+            "timeoutMs": 1800000
+          }
+        }
+      ]
     }
   }
 }
