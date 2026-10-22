@@ -1,0 +1,5 @@
+{
+  "$schema": "campusute/contract-allowlist@1",
+  "purpose": "Audited exceptions for generate-api-contract invariants. Every entry needs a reason and the phase that sanctioned it; an entry suppresses exactly one flagged item.",
+  "entries": []
+}

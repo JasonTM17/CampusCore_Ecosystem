@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { recordApiMetric, pathTemplate } from './observability';
 
 export type JsonObject = Record<string, unknown>;
 export type AssistantLocale = 'en' | 'vi';
@@ -411,6 +412,8 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
 
     async requestWithMeta<TResponse>(path: string, init: RequestInit = {}) {
       const requestId = createRequestId();
+      const startedAt = Date.now();
+      const method = (init.method ?? 'GET').toUpperCase();
       if (mode !== 'live') {
         throw new ApiClientError(
           'Live mobile API mode is disabled for this preview build',
@@ -448,6 +451,15 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
           body = await readResponseBody(response);
         }
       }
+
+      recordApiMetric({
+        method,
+        path: pathTemplate(normalizePath(path)),
+        status: response.status,
+        durationMs: Date.now() - startedAt,
+        requestId,
+        at: startedAt,
+      });
 
       if (!response.ok) {
         const details = getErrorDetails(body);
