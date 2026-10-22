@@ -109,6 +109,8 @@ class FakeNextRequest {
   constructor(url, headers = {}) {
     this.nextUrl = new URL(url);
     this.headers = new Headers(headers);
+    // Plain localhost stays on the legacy single-host lane (no surface routing).
+    if (!this.headers.has('host')) this.headers.set('host', 'localhost:3000');
     const jar = new Map();
     for (const part of (this.headers.get('cookie') ?? '').split(';')) {
       const [key, ...rest] = part.trim().split('=');
@@ -116,6 +118,7 @@ class FakeNextRequest {
     }
     this.cookies = {
       get: (name) => (jar.has(name) ? { name, value: jar.get(name) } : undefined),
+      getAll: () => [...jar].map(([name, value]) => ({ name, value })),
     };
   }
 }
@@ -142,6 +145,7 @@ async function loadMiddleware() {
   return loadTsCommonJs('src/middleware.ts', {
     '@/i18n/config': realConfig,
     '@/i18n/paths': realPaths,
+    '@/lib/surfaces': loadTsCommonJs('src/lib/surfaces.ts', {}),
     'next/server': { NextRequest: FakeNextRequest, NextResponse: FakeNextResponse },
   });
 }

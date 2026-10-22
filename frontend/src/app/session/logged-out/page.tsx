@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Đã đăng xuất — CampusUTE',
@@ -29,7 +30,7 @@ export default function LoggedOutPage() {
           Phiên đăng nhập của bạn đã kết thúc trên mọi thiết bị liên kết
           với tài khoản này.
         </p>
-        <a
+        <Link
           href="/"
           style={{
             color: '#1d4ed8',
@@ -38,7 +39,7 @@ export default function LoggedOutPage() {
           }}
         >
           Về trang chủ
-        </a>
+        </Link>
       </div>
     </main>
   );
