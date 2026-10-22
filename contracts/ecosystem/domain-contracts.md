@@ -138,6 +138,19 @@ Registration: `REGISTERED → CANCELLED`; attendance: `ABSENT → ATTENDED` (man
 | EVT-X01 | Hai actor tranh chỗ cuối → đúng một thành công | `SYS` | unique active registration + locked capacity tx | Double-book |
 | EVT-X02 | Retry cùng `Idempotency-Key` không tăng count | `SYS` | §1.3 | Đếm hai lần |
 
+Quyết định phạm vi (người dùng chốt 2026-10-22):
+
+- **Grant:** chỉ `ADMIN` cấp/thu `STAFF:events`; ADMIN được tự cấp cho chính mình,
+  audit `GRANTED` với `grantedBy` = chính ADMIN đó. ADMIN không có grant vẫn bị
+  403 `EVENTS_STAFF_REQUIRED` ở mọi staff op.
+- **Owner-scope:** mọi thao tác staff trên một event đã tồn tại (sửa, publish,
+  mở/đóng đăng ký, roster, điểm danh, complete, cancel) chỉ dành cho owner;
+  grant holder khác nhận 403 `EVENT_NOT_OWNER`.
+- **DRAFT → CANCELLED** được phép (EVT-T05 áp dụng cho cả DRAFT); lịch sử giữ nguyên.
+- **Seed:** migration không seed grant nào (V138 xóa grant `system-migration`
+  của V137). Stack dev/e2e cấp grant tường minh qua
+  `POST /api/v1/events/staff/grants` (xem `scripts/ecosystem-events-verify.mjs`).
+
 ## 6. LMS (P09, schema `learning`; roster read-through)
 
 Assignment: `DRAFT → PUBLISHED → CLOSED → ARCHIVED`.
