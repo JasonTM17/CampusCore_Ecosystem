@@ -1,0 +1,85 @@
+export type LibraryLocale = 'vi' | 'en';
+export const libraryMessages = {
+  "vi": {
+    "title": "Thư viện mô phỏng",
+    "eyebrow": "Thư viện",
+    "subtitle": "Tra cứu danh mục, giữ chỗ và theo dõi lượt mượn — dữ liệu mô phỏng.",
+    "simulatedBanner": "Môi trường mô phỏng — không kết nối thư viện thật, không phạt thật.",
+    "unavailable": "Không thể tải dữ liệu thư viện.",
+    "loading": "Đang tải dữ liệu thư viện.",
+    "errorTitle": "Thao tác chưa thành công",
+    "failed": "Thao tác chưa thành công. Vui lòng thử lại.",
+    "retry": "Thử lại",
+    "language": "Ngôn ngữ",
+    "catalogue": "Danh mục",
+    "searchPlaceholder": "Tìm theo tên sách, tác giả, ISBN…",
+    "search": "Tìm kiếm",
+    "emptyCatalogue": "Không có đầu sách phù hợp.",
+    "copiesAvailable": "bản có sẵn",
+    "noCopiesAvailable": "Hết bản có sẵn",
+    "hold": "Giữ chỗ",
+    "held": "Đã gửi yêu cầu giữ chỗ.",
+    "cancelled": "Đã hủy giữ chỗ.",
+    "cancel": "Hủy giữ chỗ",
+    "myLoans": "Lượt mượn của tôi",
+    "emptyLoans": "Bạn chưa có lượt mượn nào.",
+    "expiresAt": "Giữ đến",
+    "dueAt": "Hạn trả",
+    "requestedAt": "Ngày yêu cầu",
+    "statusLabels": {
+      "REQUESTED": "Chờ duyệt",
+      "APPROVED": "Đã duyệt",
+      "ISSUED": "Đang mượn",
+      "RETURNED": "Đã trả",
+      "CANCELLED": "Đã hủy"
+    } as Record<string, string>,
+    "copyStatus": {
+      "AVAILABLE": "Có sẵn",
+      "RESERVED": "Đã giữ",
+      "ON_LOAN": "Đang mượn",
+      "RETIRED": "Ngừng lưu hành"
+    } as Record<string, string>,
+    "staffLaneNote": "Nhân viên thư viện duyệt, phát và nhận trả trên cổng web."
+  },
+  "en": {
+    "title": "Simulated library",
+    "eyebrow": "Library",
+    "subtitle": "Search the catalogue, hold copies and track your loans — simulated data.",
+    "simulatedBanner": "Simulated environment — not connected to a real library; no real fines.",
+    "unavailable": "Unable to load library data.",
+    "loading": "Loading library data.",
+    "errorTitle": "Action failed",
+    "failed": "The action could not be completed. Please try again.",
+    "retry": "Retry",
+    "language": "Language",
+    "catalogue": "Catalogue",
+    "searchPlaceholder": "Search by title, author, ISBN…",
+    "search": "Search",
+    "emptyCatalogue": "No titles match your search.",
+    "copiesAvailable": "copies available",
+    "noCopiesAvailable": "No copies available",
+    "hold": "Hold",
+    "held": "Hold request sent.",
+    "cancelled": "Hold cancelled.",
+    "cancel": "Cancel hold",
+    "myLoans": "My loans",
+    "emptyLoans": "You have no loans yet.",
+    "expiresAt": "Held until",
+    "dueAt": "Due",
+    "requestedAt": "Requested",
+    "statusLabels": {
+      "REQUESTED": "Requested",
+      "APPROVED": "Approved",
+      "ISSUED": "On loan",
+      "RETURNED": "Returned",
+      "CANCELLED": "Cancelled"
+    } as Record<string, string>,
+    "copyStatus": {
+      "AVAILABLE": "Available",
+      "RESERVED": "Reserved",
+      "ON_LOAN": "On loan",
+      "RETIRED": "Retired"
+    } as Record<string, string>,
+    "staffLaneNote": "Library staff approve, issue and take returns on the web portal."
+  }
+};

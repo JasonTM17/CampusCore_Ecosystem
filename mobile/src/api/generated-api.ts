@@ -199,7 +199,7 @@ export interface paths {
   };
   "/api/v1/admissions/staff/applications/{applicationId}": {
     /** Chi tiết hồ sơ (staff) */
-    get: operations["detail_5"];
+    get: operations["detail_6"];
   };
   "/api/v1/admissions/staff/applications/{applicationId}/attachments/{attachmentId}/file": {
     /** Tải nội dung tệp đính kèm (staff) */
@@ -219,17 +219,17 @@ export interface paths {
   };
   "/api/v1/admissions/staff/grants": {
     /** Danh sách staff grants */
-    get: operations["grants_1"];
+    get: operations["grants_2"];
     /** Cấp grant STAFF:admissions (admin) */
-    post: operations["grant_1"];
+    post: operations["grant_2"];
   };
   "/api/v1/admissions/staff/grants/{grantId}": {
     /** Thu hồi grant (admin) */
-    delete: operations["revoke_1"];
+    delete: operations["revoke_2"];
   };
   "/api/v1/admissions/staff/queue": {
     /** Hàng đợi hồ sơ (lọc theo trạng thái) */
-    get: operations["queue"];
+    get: operations["queue_1"];
   };
   "/api/v1/announcements": {
     /**
@@ -286,7 +286,7 @@ export interface paths {
      * Duyệt xuất bản thông báo
      * @description Người duyệt (khác tác giả) phê duyệt bài IN_REVIEW thành PUBLISHED — đây là lối duy nhất đưa nội dung lên trực tuyến
      */
-    post: operations["approve_1"];
+    post: operations["approve_2"];
   };
   "/api/v1/announcements/{id}/archive": {
     /**
@@ -746,7 +746,7 @@ export interface paths {
      * Duyệt xuất bản head revision
      * @description Người duyệt (khác tác giả revision) xuất bản — revision cũ chuyển SUPERSEDED, doc chuyển PUBLISHED
      */
-    post: operations["approve"];
+    post: operations["approve_1"];
   };
   "/api/v1/docs/{id}/archive": {
     /**
@@ -854,7 +854,7 @@ export interface paths {
   };
   "/api/v1/events/registrations/{registrationId}/cancel": {
     /** Hủy đăng ký sự kiện của chính mình */
-    post: operations["cancel_3"];
+    post: operations["cancel_5"];
   };
   "/api/v1/events/staff": {
     /** Danh sách sự kiện (staff, gồm draft) */
@@ -864,13 +864,13 @@ export interface paths {
   };
   "/api/v1/events/staff/grants": {
     /** Danh sách staff grants */
-    get: operations["grants"];
+    get: operations["grants_1"];
     /** Cấp grant STAFF:events (admin) */
-    post: operations["grant"];
+    post: operations["grant_1"];
   };
   "/api/v1/events/staff/grants/{grantId}": {
     /** Thu hồi grant (admin) */
-    delete: operations["revoke"];
+    delete: operations["revoke_1"];
   };
   "/api/v1/events/staff/{eventId}": {
     /** Chi tiết sự kiện (staff) */
@@ -884,7 +884,7 @@ export interface paths {
   };
   "/api/v1/events/staff/{eventId}/cancel": {
     /** Hủy sự kiện (kèm thông báo cùng giao dịch) */
-    post: operations["cancel_2"];
+    post: operations["cancel_4"];
   };
   "/api/v1/events/staff/{eventId}/close-registration": {
     /** Đóng đăng ký */
@@ -908,7 +908,7 @@ export interface paths {
   };
   "/api/v1/events/{eventId}": {
     /** Chi tiết sự kiện */
-    get: operations["detail_4"];
+    get: operations["detail_5"];
   };
   "/api/v1/events/{eventId}/register": {
     /** Đăng ký tham gia sự kiện */
@@ -1129,6 +1129,80 @@ export interface paths {
      * @description Xóa hồ sơ giảng viên khỏi hệ thống học vụ
      */
     delete: operations["delete_2"];
+  };
+  "/api/v1/library/catalogue": {
+    /** Tra cứu danh mục sách */
+    get: operations["catalogue"];
+  };
+  "/api/v1/library/catalogue/{titleId}": {
+    /** Chi tiết đầu sách + tình trạng các bản sao */
+    get: operations["title_1"];
+  };
+  "/api/v1/library/requests": {
+    /** Giữ chỗ một bản sao (AVAILABLE → RESERVED + REQUESTED) */
+    post: operations["request"];
+  };
+  "/api/v1/library/requests/my": {
+    /** Đơn mượn của tôi */
+    get: operations["myLoans"];
+  };
+  "/api/v1/library/requests/{requestId}": {
+    /** Chi tiết đơn mượn (chủ sở hữu) */
+    get: operations["myLoan"];
+  };
+  "/api/v1/library/requests/{requestId}/cancel": {
+    /** Hủy giữ chỗ trước khi phát sách (→ CANCELLED) */
+    post: operations["cancel_3"];
+  };
+  "/api/v1/library/staff/copies": {
+    /** Thêm bản sao */
+    post: operations["createCopy"];
+  };
+  "/api/v1/library/staff/copies/{copyId}/retire": {
+    /** Ngừng lưu hành bản sao (soft retire, giữ lịch sử) */
+    post: operations["retire"];
+  };
+  "/api/v1/library/staff/grants": {
+    /** Danh sách staff grants */
+    get: operations["grants"];
+    /** Cấp grant STAFF:library (admin) */
+    post: operations["grant"];
+  };
+  "/api/v1/library/staff/grants/{grantId}": {
+    /** Thu hồi grant (admin) */
+    delete: operations["revoke"];
+  };
+  "/api/v1/library/staff/requests": {
+    /** Hàng đợi đơn mượn (lọc theo trạng thái) */
+    get: operations["queue"];
+  };
+  "/api/v1/library/staff/requests/{requestId}": {
+    /** Chi tiết đơn mượn (staff) */
+    get: operations["detail_4"];
+  };
+  "/api/v1/library/staff/requests/{requestId}/approve": {
+    /** Duyệt đơn (REQUESTED → APPROVED, còn trong hạn giữ chỗ) */
+    post: operations["approve"];
+  };
+  "/api/v1/library/staff/requests/{requestId}/cancel": {
+    /** Hủy đơn trước phát (staff, → CANCELLED + giải phóng copy) */
+    post: operations["cancel_2"];
+  };
+  "/api/v1/library/staff/requests/{requestId}/issue": {
+    /** Phát sách (APPROVED → ISSUED, copy → ON_LOAN) */
+    post: operations["issue"];
+  };
+  "/api/v1/library/staff/requests/{requestId}/return": {
+    /** Nhận trả (ISSUED → RETURNED, copy → AVAILABLE) */
+    post: operations["returnLoan"];
+  };
+  "/api/v1/library/staff/titles": {
+    /** Thêm đầu sách */
+    post: operations["createTitle"];
+  };
+  "/api/v1/library/staff/titles/{titleId}": {
+    /** Chi tiết đầu sách (staff) */
+    get: operations["title"];
   };
   "/api/v1/mail/grade-alert": {
     /** Gửi thông báo bảng điểm & điểm rèn luyện */
@@ -2242,7 +2316,15 @@ export interface components {
       student?: components["schemas"]["StudentContext"];
       studentId?: string;
     };
+    BorrowRequest: {
+      copyId?: string;
+    };
     CancelEventRequest: {
+      reason?: string;
+    };
+    CancelRequest: {
+      /** Format: int32 */
+      expectedVersion?: number;
       reason?: string;
     };
     CancelResponse: {
@@ -2432,6 +2514,14 @@ export interface components {
       id?: string;
       locale?: string;
     };
+    CopyResponse: {
+      barcode?: string;
+      id?: string;
+      status?: string;
+      titleId?: string;
+      /** Format: int32 */
+      version?: number;
+    };
     CouncilAssignment: {
       /** Format: uuid */
       councilId?: string;
@@ -2526,6 +2616,10 @@ export interface components {
       locale?: string;
       scope?: string;
     };
+    CreateCopyRequest: {
+      barcode?: string;
+      titleId?: string;
+    };
     CreateCouncilRequest: {
       name?: string;
       roundId: string;
@@ -2549,6 +2643,16 @@ export interface components {
     CreateRequest: {
       reason: string;
       roundId: string;
+    };
+    CreateTitleRequest: {
+      author?: string;
+      category?: string;
+      description?: string;
+      isbn?: string;
+      /** Format: int32 */
+      publishedYear?: number;
+      publisher?: string;
+      title?: string;
     };
     CurriculumBrief: {
       code?: string;
@@ -3062,6 +3166,12 @@ export interface components {
       studentId?: string;
       subject?: string;
     };
+    IssueRequest: {
+      /** Format: int32 */
+      dueDays?: number;
+      /** Format: int32 */
+      expectedVersion?: number;
+    };
     JsonNode: {
       array?: boolean;
       bigDecimal?: boolean;
@@ -3220,6 +3330,39 @@ export interface components {
       councils?: components["schemas"]["CouncilAssignment"][];
       gradingTasks?: components["schemas"]["GradingTask"][];
       topics?: components["schemas"]["SupervisedTopic"][];
+    };
+    LoanRequestResponse: {
+      /** Format: date-time */
+      approvedAt?: string;
+      approvedBy?: string;
+      barcode?: string;
+      borrowerEmail?: string;
+      borrowerUserId?: string;
+      cancelReason?: string;
+      /** Format: date-time */
+      cancelledAt?: string;
+      cancelledBy?: string;
+      copyId?: string;
+      /** Format: date-time */
+      createdAt?: string;
+      /** Format: date-time */
+      dueAt?: string;
+      /** Format: date-time */
+      expiresAt?: string;
+      id?: string;
+      /** Format: date-time */
+      issuedAt?: string;
+      issuedBy?: string;
+      /** Format: date-time */
+      requestedAt?: string;
+      /** Format: date-time */
+      returnedAt?: string;
+      returnedBy?: string;
+      status?: string;
+      title?: string;
+      titleId?: string;
+      /** Format: int32 */
+      version?: number;
     };
     LoginRequest: {
       email: string;
@@ -4220,6 +4363,24 @@ export interface components {
       /** Format: email */
       to: string;
     };
+    TitleResponse: {
+      author?: string;
+      /** Format: int32 */
+      availableCopies?: number;
+      category?: string;
+      copies?: components["schemas"]["CopyResponse"][];
+      description?: string;
+      id?: string;
+      isbn?: string;
+      /** Format: int32 */
+      publishedYear?: number;
+      publisher?: string;
+      title?: string;
+      /** Format: int32 */
+      totalCopies?: number;
+      /** Format: int32 */
+      version?: number;
+    };
     TopicAssignmentRequest: {
       /** Format: uuid */
       topicId?: string;
@@ -5154,7 +5315,7 @@ export interface operations {
     };
   };
   /** Chi tiết hồ sơ (staff) */
-  detail_5: {
+  detail_6: {
     parameters: {
       path: {
         applicationId: string;
@@ -5250,7 +5411,7 @@ export interface operations {
     };
   };
   /** Danh sách staff grants */
-  grants_1: {
+  grants_2: {
     responses: {
       /** @description OK */
       200: {
@@ -5261,7 +5422,7 @@ export interface operations {
     };
   };
   /** Cấp grant STAFF:admissions (admin) */
-  grant_1: {
+  grant_2: {
     requestBody: {
       content: {
         "application/json": {
@@ -5279,7 +5440,7 @@ export interface operations {
     };
   };
   /** Thu hồi grant (admin) */
-  revoke_1: {
+  revoke_2: {
     parameters: {
       path: {
         grantId: string;
@@ -5293,7 +5454,7 @@ export interface operations {
     };
   };
   /** Hàng đợi hồ sơ (lọc theo trạng thái) */
-  queue: {
+  queue_1: {
     parameters: {
       query?: {
         status?: string;
@@ -5542,7 +5703,7 @@ export interface operations {
    * Duyệt xuất bản thông báo
    * @description Người duyệt (khác tác giả) phê duyệt bài IN_REVIEW thành PUBLISHED — đây là lối duy nhất đưa nội dung lên trực tuyến
    */
-  approve_1: {
+  approve_2: {
     parameters: {
       path: {
         /** @description Mã định danh thông báo (UUID) */
@@ -7313,7 +7474,7 @@ export interface operations {
    * Duyệt xuất bản head revision
    * @description Người duyệt (khác tác giả revision) xuất bản — revision cũ chuyển SUPERSEDED, doc chuyển PUBLISHED
    */
-  approve: {
+  approve_1: {
     parameters: {
       path: {
         id: string;
@@ -7687,7 +7848,7 @@ export interface operations {
     };
   };
   /** Hủy đăng ký sự kiện của chính mình */
-  cancel_3: {
+  cancel_5: {
     parameters: {
       header?: {
         "Idempotency-Key"?: string;
@@ -7733,7 +7894,7 @@ export interface operations {
     };
   };
   /** Danh sách staff grants */
-  grants: {
+  grants_1: {
     responses: {
       /** @description OK */
       200: {
@@ -7744,7 +7905,7 @@ export interface operations {
     };
   };
   /** Cấp grant STAFF:events (admin) */
-  grant: {
+  grant_1: {
     requestBody: {
       content: {
         "application/json": {
@@ -7762,7 +7923,7 @@ export interface operations {
     };
   };
   /** Thu hồi grant (admin) */
-  revoke: {
+  revoke_1: {
     parameters: {
       path: {
         grantId: string;
@@ -7834,7 +7995,7 @@ export interface operations {
     };
   };
   /** Hủy sự kiện (kèm thông báo cùng giao dịch) */
-  cancel_2: {
+  cancel_4: {
     parameters: {
       path: {
         eventId: string;
@@ -7940,7 +8101,7 @@ export interface operations {
     };
   };
   /** Chi tiết sự kiện */
-  detail_4: {
+  detail_5: {
     parameters: {
       path: {
         eventId: string;
@@ -8840,6 +9001,338 @@ export interface operations {
           "*/*": {
             [key: string]: string;
           };
+        };
+      };
+    };
+  };
+  /** Tra cứu danh mục sách */
+  catalogue: {
+    parameters: {
+      query?: {
+        query?: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["TitleResponse"][];
+        };
+      };
+    };
+  };
+  /** Chi tiết đầu sách + tình trạng các bản sao */
+  title_1: {
+    parameters: {
+      path: {
+        titleId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["TitleResponse"];
+        };
+      };
+    };
+  };
+  /** Giữ chỗ một bản sao (AVAILABLE → RESERVED + REQUESTED) */
+  request: {
+    parameters: {
+      header?: {
+        "Idempotency-Key"?: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BorrowRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["LoanRequestResponse"];
+        };
+      };
+    };
+  };
+  /** Đơn mượn của tôi */
+  myLoans: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["LoanRequestResponse"][];
+        };
+      };
+    };
+  };
+  /** Chi tiết đơn mượn (chủ sở hữu) */
+  myLoan: {
+    parameters: {
+      path: {
+        requestId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["LoanRequestResponse"];
+        };
+      };
+    };
+  };
+  /** Hủy giữ chỗ trước khi phát sách (→ CANCELLED) */
+  cancel_3: {
+    parameters: {
+      header?: {
+        "Idempotency-Key"?: string;
+      };
+      path: {
+        requestId: string;
+      };
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["CancelRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["LoanRequestResponse"];
+        };
+      };
+    };
+  };
+  /** Thêm bản sao */
+  createCopy: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateCopyRequest"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        content: {
+          "*/*": components["schemas"]["CopyResponse"];
+        };
+      };
+    };
+  };
+  /** Ngừng lưu hành bản sao (soft retire, giữ lịch sử) */
+  retire: {
+    parameters: {
+      path: {
+        copyId: string;
+      };
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["TransitionRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["CopyResponse"];
+        };
+      };
+    };
+  };
+  /** Danh sách staff grants */
+  grants: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["StaffGrantResponse"][];
+        };
+      };
+    };
+  };
+  /** Cấp grant STAFF:library (admin) */
+  grant: {
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        content: {
+          "*/*": components["schemas"]["StaffGrantResponse"];
+        };
+      };
+    };
+  };
+  /** Thu hồi grant (admin) */
+  revoke: {
+    parameters: {
+      path: {
+        grantId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: never;
+      };
+    };
+  };
+  /** Hàng đợi đơn mượn (lọc theo trạng thái) */
+  queue: {
+    parameters: {
+      query?: {
+        status?: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["LoanRequestResponse"][];
+        };
+      };
+    };
+  };
+  /** Chi tiết đơn mượn (staff) */
+  detail_4: {
+    parameters: {
+      path: {
+        requestId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["LoanRequestResponse"];
+        };
+      };
+    };
+  };
+  /** Duyệt đơn (REQUESTED → APPROVED, còn trong hạn giữ chỗ) */
+  approve: {
+    parameters: {
+      path: {
+        requestId: string;
+      };
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["TransitionRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["LoanRequestResponse"];
+        };
+      };
+    };
+  };
+  /** Hủy đơn trước phát (staff, → CANCELLED + giải phóng copy) */
+  cancel_2: {
+    parameters: {
+      path: {
+        requestId: string;
+      };
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["CancelRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["LoanRequestResponse"];
+        };
+      };
+    };
+  };
+  /** Phát sách (APPROVED → ISSUED, copy → ON_LOAN) */
+  issue: {
+    parameters: {
+      path: {
+        requestId: string;
+      };
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["IssueRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["LoanRequestResponse"];
+        };
+      };
+    };
+  };
+  /** Nhận trả (ISSUED → RETURNED, copy → AVAILABLE) */
+  returnLoan: {
+    parameters: {
+      path: {
+        requestId: string;
+      };
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["TransitionRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["LoanRequestResponse"];
+        };
+      };
+    };
+  };
+  /** Thêm đầu sách */
+  createTitle: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateTitleRequest"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        content: {
+          "*/*": components["schemas"]["TitleResponse"];
+        };
+      };
+    };
+  };
+  /** Chi tiết đầu sách (staff) */
+  title: {
+    parameters: {
+      path: {
+        titleId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["TitleResponse"];
         };
       };
     };

@@ -910,6 +910,94 @@
           }
         }
       ]
+    },
+    "library": {
+      "owner_phase": "P11",
+      "description": "P11 exit (domain-contracts §8): simulated library circulation — copy lifecycle AVAILABLE→RESERVED→ON_LOAN→AVAILABLE plus soft RETIRED preserving loan history, request lifecycle REQUESTED→APPROVED→ISSUED→RETURNED|CANCELLED, STAFF:library-scoped desk authority with admin-managed grants, transactional copy locking with a unique-active-loan invariant, server-clock reservation expiry, idempotent request/issue/return (returning twice never inflates stock), owner-indistinguishable 404 isolation, inactive-account denial, catalogue availability driven by server state, and status-change notifications. library-contract is the H2 MockMvc matrix; library-postgres-race runs LibraryInventoryPostgresIT on a disposable compose Postgres (request race collapse, double-issue serialization, return stock restoration); library-e2e drives the HTTPS preview patron+desk journey with isolation and grant-authority legs.",
+      "cases": [
+        {
+          "id": "library-contract",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "description": "LIB-T01..T05 + LIB-X01/X02 on H2 (MockMvc matrix): request→approve→issue→return state machine with copy flips in the same transaction, owner cancel before issue plus staff cancel with reason, issued loans rejecting cancel on both lanes, server-clock expiry on reads AND mutation lanes — approve and issue both deny an expired hold deterministically (RESERVATION_EXPIRED) and a patron request on a dead-hold copy sweeps it and succeeds, missing/stale version 400/409 (approve leg; issue-stale proven in e2e), same-key request/cancel replay + different-payload IDEMPOTENCY_CONFLICT, second-request-on-held-copy denial, double-return never inflating stock, retire preserving loan history while blocking active copies, grant-required denials (LIBRARY_STAFF_REQUIRED incl. ungranted ADMIN), grant-administration denials (LIBRARY_ADMIN_REQUIRED on a grant-holder without the ADMIN role), STAFF_GRANTED audit rows, indistinguishable 404 foreign isolation, inactive-account request denial, and status-change notification rows on approve/issue/expire.",
+          "run": {
+            "cmd": "mvn",
+            "args": [
+              "-q",
+              "-f",
+              "java-services/restful-api/pom.xml",
+              "test",
+              "-Dtest=LibraryContractPersistenceTest",
+              "-Dsurefire.failIfNoSpecifiedTests=false",
+              "-Dstyle.color=never"
+            ],
+            "timeoutMs": 900000
+          }
+        },
+        {
+          "id": "library-mobile",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "description": "Native patron library surface: 25-screen registry incl. library, route-map round-trip, source scans.",
+          "run": {
+            "cmd": "npm",
+            "args": [
+              "test",
+              "--prefix",
+              "mobile"
+            ],
+            "timeoutMs": 300000
+          }
+        },
+        {
+          "id": "library-postgres-race",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "capability": "docker",
+          "description": "LIB-X02/T04 on real Postgres: concurrent requests on one copy collapse to a single REQUESTED row via the unique-active-request index, double issue serializes to one ISSUED transition under FOR UPDATE copy locking, and return restores stock exactly once even under retry.",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/platform-verify.mjs",
+              "pgit",
+              "--project",
+              "{auto-project}-library-pg",
+              "--evidence",
+              "{evidence}",
+              "--its",
+              "LibraryInventoryPostgresIT"
+            ],
+            "timeoutMs": 1500000
+          }
+        },
+        {
+          "id": "library-e2e",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "capability": "docker",
+          "description": "HTTPS preview library journey: patron catalogue→hold (same-key replay), admin self-grant then approve→issue→return with availability decrement/restore, stale-version 409 on issue retry, double-return never inflating stock, ungranted-admin + non-grantee denials, foreign-id 404, terminal row with no desk actions, patron/staff portal render.",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/ecosystem-library-verify.mjs",
+              "preview",
+              "--project",
+              "{auto-project}-library",
+              "--evidence",
+              "{evidence}"
+            ],
+            "timeoutMs": 1800000
+          }
+        }
+      ]
     }
   }
 }

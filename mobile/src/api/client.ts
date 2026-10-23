@@ -348,6 +348,58 @@ export interface MobileAdmissionForm {
   essay: string;
 }
 
+/** §8 library circulation (P11): patron catalogue/loan shapes. */
+export type MobileLibraryCopyStatus = 'AVAILABLE' | 'RESERVED' | 'ON_LOAN' | 'RETIRED';
+export type MobileLibraryLoanStatus =
+  | 'REQUESTED'
+  | 'APPROVED'
+  | 'ISSUED'
+  | 'RETURNED'
+  | 'CANCELLED';
+
+export interface MobileLibraryCopy {
+  id: string;
+  titleId: string;
+  barcode: string;
+  status: MobileLibraryCopyStatus;
+  version: number;
+}
+
+export interface MobileLibraryTitle {
+  id: string;
+  title: string;
+  author?: string | null;
+  isbn?: string | null;
+  category?: string | null;
+  publisher?: string | null;
+  publishedYear?: number | null;
+  description?: string | null;
+  totalCopies: number;
+  availableCopies: number;
+  version: number;
+  copies?: MobileLibraryCopy[] | null;
+}
+
+export interface MobileLibraryLoan {
+  id: string;
+  copyId: string;
+  barcode?: string | null;
+  titleId?: string | null;
+  title?: string | null;
+  borrowerUserId: string;
+  borrowerEmail?: string | null;
+  status: MobileLibraryLoanStatus;
+  requestedAt: string;
+  expiresAt?: string | null;
+  issuedAt?: string | null;
+  dueAt?: string | null;
+  returnedAt?: string | null;
+  cancelledAt?: string | null;
+  cancelReason?: string | null;
+  version: number;
+  createdAt: string;
+}
+
 export interface LecturerScheduleEntry {
   sectionId: string;
   sectionNumber?: string;
@@ -957,6 +1009,31 @@ export const campusApi = {
   admissionsWithdraw: (applicationId: string, expectedVersion: number) =>
     apiClient.post<MobileAdmissionApplication>(
       `/admissions/applications/${encodeURIComponent(applicationId)}/withdraw`,
+      { expectedVersion },
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  // Library (§8): patron lane — catalogue/search, hold a copy, own
+  // history, owner cancel. Staff issue/return stays the web lane; every
+  // mutation carries Idempotency-Key and availability is server-owned.
+  libraryCatalogue: (query?: string) =>
+    apiClient.get<MobileLibraryTitle[]>(
+      `/library/catalogue${query ? `?query=${encodeURIComponent(query)}` : ''}`,
+    ),
+  libraryTitle: (titleId: string) =>
+    apiClient.get<MobileLibraryTitle>(
+      `/library/catalogue/${encodeURIComponent(titleId)}`,
+    ),
+  libraryMyLoans: () =>
+    apiClient.get<MobileLibraryLoan[]>('/library/requests/my'),
+  libraryRequest: (copyId: string) =>
+    apiClient.post<MobileLibraryLoan>(
+      '/library/requests',
+      { copyId },
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  libraryCancel: (requestId: string, expectedVersion: number) =>
+    apiClient.post<MobileLibraryLoan>(
+      `/library/requests/${encodeURIComponent(requestId)}/cancel`,
       { expectedVersion },
       { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
     ),

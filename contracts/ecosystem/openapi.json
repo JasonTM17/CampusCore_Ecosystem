@@ -1056,8 +1056,28 @@
         },
         "type": "object"
       },
+      "BorrowRequest": {
+        "properties": {
+          "copyId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CancelEventRequest": {
         "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CancelRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
           "reason": {
             "type": "string"
           }
@@ -1594,6 +1614,27 @@
         },
         "type": "object"
       },
+      "CopyResponse": {
+        "properties": {
+          "barcode": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "titleId": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "CouncilAssignment": {
         "properties": {
           "councilId": {
@@ -1865,6 +1906,17 @@
         },
         "type": "object"
       },
+      "CreateCopyRequest": {
+        "properties": {
+          "barcode": {
+            "type": "string"
+          },
+          "titleId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CreateCouncilRequest": {
         "properties": {
           "name": {
@@ -1936,6 +1988,33 @@
           "reason",
           "roundId"
         ],
+        "type": "object"
+      },
+      "CreateTitleRequest": {
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "isbn": {
+            "type": "string"
+          },
+          "publishedYear": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "publisher": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "CurriculumBrief": {
@@ -3402,6 +3481,19 @@
         },
         "type": "object"
       },
+      "IssueRequest": {
+        "properties": {
+          "dueDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "expectedVersion": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "JsonNode": {
         "properties": {
           "array": {
@@ -3842,6 +3934,86 @@
               "$ref": "#/components/schemas/SupervisedTopic"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "LoanRequestResponse": {
+        "properties": {
+          "approvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "approvedBy": {
+            "type": "string"
+          },
+          "barcode": {
+            "type": "string"
+          },
+          "borrowerEmail": {
+            "type": "string"
+          },
+          "borrowerUserId": {
+            "type": "string"
+          },
+          "cancelReason": {
+            "type": "string"
+          },
+          "cancelledAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "cancelledBy": {
+            "type": "string"
+          },
+          "copyId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "dueAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "issuedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "issuedBy": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "returnedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "returnedBy": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "titleId": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -6544,6 +6716,54 @@
         ],
         "type": "object"
       },
+      "TitleResponse": {
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "availableCopies": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "category": {
+            "type": "string"
+          },
+          "copies": {
+            "items": {
+              "$ref": "#/components/schemas/CopyResponse"
+            },
+            "type": "array"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "isbn": {
+            "type": "string"
+          },
+          "publishedYear": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "publisher": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "totalCopies": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "TopicAssignmentRequest": {
         "properties": {
           "topicId": {
@@ -8392,7 +8612,7 @@
     },
     "/api/v1/admissions/staff/applications/{applicationId}": {
       "get": {
-        "operationId": "detail_5",
+        "operationId": "detail_6",
         "parameters": [
           {
             "in": "path",
@@ -8585,7 +8805,7 @@
     },
     "/api/v1/admissions/staff/grants": {
       "get": {
-        "operationId": "grants_1",
+        "operationId": "grants_2",
         "responses": {
           "200": {
             "content": {
@@ -8607,7 +8827,7 @@
         ]
       },
       "post": {
-        "operationId": "grant_1",
+        "operationId": "grant_2",
         "requestBody": {
           "content": {
             "application/json": {
@@ -8641,7 +8861,7 @@
     },
     "/api/v1/admissions/staff/grants/{grantId}": {
       "delete": {
-        "operationId": "revoke_1",
+        "operationId": "revoke_2",
         "parameters": [
           {
             "in": "path",
@@ -8665,7 +8885,7 @@
     },
     "/api/v1/admissions/staff/queue": {
       "get": {
-        "operationId": "queue",
+        "operationId": "queue_1",
         "parameters": [
           {
             "in": "query",
@@ -9155,7 +9375,7 @@
     "/api/v1/announcements/{id}/approve": {
       "post": {
         "description": "Người duyệt (khác tác giả) phê duyệt bài IN_REVIEW thành PUBLISHED — đây là lối duy nhất đưa nội dung lên trực tuyến",
-        "operationId": "approve_1",
+        "operationId": "approve_2",
         "parameters": [
           {
             "description": "Mã định danh thông báo (UUID)",
@@ -12369,7 +12589,7 @@
     "/api/v1/docs/{id}/approve": {
       "post": {
         "description": "Người duyệt (khác tác giả revision) xuất bản — revision cũ chuyển SUPERSEDED, doc chuyển PUBLISHED",
-        "operationId": "approve",
+        "operationId": "approve_1",
         "parameters": [
           {
             "in": "path",
@@ -13128,7 +13348,7 @@
     },
     "/api/v1/events/registrations/{registrationId}/cancel": {
       "post": {
-        "operationId": "cancel_3",
+        "operationId": "cancel_5",
         "parameters": [
           {
             "in": "path",
@@ -13220,7 +13440,7 @@
     },
     "/api/v1/events/staff/grants": {
       "get": {
-        "operationId": "grants",
+        "operationId": "grants_1",
         "responses": {
           "200": {
             "content": {
@@ -13242,7 +13462,7 @@
         ]
       },
       "post": {
-        "operationId": "grant",
+        "operationId": "grant_1",
         "requestBody": {
           "content": {
             "application/json": {
@@ -13276,7 +13496,7 @@
     },
     "/api/v1/events/staff/grants/{grantId}": {
       "delete": {
-        "operationId": "revoke",
+        "operationId": "revoke_1",
         "parameters": [
           {
             "in": "path",
@@ -13414,7 +13634,7 @@
     },
     "/api/v1/events/staff/{eventId}/cancel": {
       "post": {
-        "operationId": "cancel_2",
+        "operationId": "cancel_4",
         "parameters": [
           {
             "in": "path",
@@ -13621,7 +13841,7 @@
     },
     "/api/v1/events/{eventId}": {
       "get": {
-        "operationId": "detail_4",
+        "operationId": "detail_5",
         "parameters": [
           {
             "in": "path",
@@ -15351,6 +15571,653 @@
         "summary": "Cập nhật hồ sơ giảng viên",
         "tags": [
           "Lecturer Administration (Admin)"
+        ]
+      }
+    },
+    "/api/v1/library/catalogue": {
+      "get": {
+        "operationId": "catalogue",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TitleResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Tra cứu danh mục sách",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/api/v1/library/catalogue/{titleId}": {
+      "get": {
+        "operationId": "title_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "titleId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TitleResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Chi tiết đầu sách + tình trạng các bản sao",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/api/v1/library/requests": {
+      "post": {
+        "operationId": "request",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BorrowRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoanRequestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Giữ chỗ một bản sao (AVAILABLE → RESERVED + REQUESTED)",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/api/v1/library/requests/my": {
+      "get": {
+        "operationId": "myLoans",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LoanRequestResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Đơn mượn của tôi",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/api/v1/library/requests/{requestId}": {
+      "get": {
+        "operationId": "myLoan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoanRequestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Chi tiết đơn mượn (chủ sở hữu)",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/api/v1/library/requests/{requestId}/cancel": {
+      "post": {
+        "operationId": "cancel_3",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoanRequestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Hủy giữ chỗ trước khi phát sách (→ CANCELLED)",
+        "tags": [
+          "Library"
+        ]
+      }
+    },
+    "/api/v1/library/staff/copies": {
+      "post": {
+        "operationId": "createCopy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCopyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CopyResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "summary": "Thêm bản sao",
+        "tags": [
+          "Library Staff"
+        ]
+      }
+    },
+    "/api/v1/library/staff/copies/{copyId}/retire": {
+      "post": {
+        "operationId": "retire",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "copyId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CopyResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Ngừng lưu hành bản sao (soft retire, giữ lịch sử)",
+        "tags": [
+          "Library Staff"
+        ]
+      }
+    },
+    "/api/v1/library/staff/grants": {
+      "get": {
+        "operationId": "grants",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StaffGrantResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Danh sách staff grants",
+        "tags": [
+          "Library Staff"
+        ]
+      },
+      "post": {
+        "operationId": "grant",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffGrantResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "summary": "Cấp grant STAFF:library (admin)",
+        "tags": [
+          "Library Staff"
+        ]
+      }
+    },
+    "/api/v1/library/staff/grants/{grantId}": {
+      "delete": {
+        "operationId": "revoke",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "grantId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "Thu hồi grant (admin)",
+        "tags": [
+          "Library Staff"
+        ]
+      }
+    },
+    "/api/v1/library/staff/requests": {
+      "get": {
+        "operationId": "queue",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LoanRequestResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Hàng đợi đơn mượn (lọc theo trạng thái)",
+        "tags": [
+          "Library Staff"
+        ]
+      }
+    },
+    "/api/v1/library/staff/requests/{requestId}": {
+      "get": {
+        "operationId": "detail_4",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoanRequestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Chi tiết đơn mượn (staff)",
+        "tags": [
+          "Library Staff"
+        ]
+      }
+    },
+    "/api/v1/library/staff/requests/{requestId}/approve": {
+      "post": {
+        "operationId": "approve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoanRequestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Duyệt đơn (REQUESTED → APPROVED, còn trong hạn giữ chỗ)",
+        "tags": [
+          "Library Staff"
+        ]
+      }
+    },
+    "/api/v1/library/staff/requests/{requestId}/cancel": {
+      "post": {
+        "operationId": "cancel_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoanRequestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Hủy đơn trước phát (staff, → CANCELLED + giải phóng copy)",
+        "tags": [
+          "Library Staff"
+        ]
+      }
+    },
+    "/api/v1/library/staff/requests/{requestId}/issue": {
+      "post": {
+        "operationId": "issue",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoanRequestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Phát sách (APPROVED → ISSUED, copy → ON_LOAN)",
+        "tags": [
+          "Library Staff"
+        ]
+      }
+    },
+    "/api/v1/library/staff/requests/{requestId}/return": {
+      "post": {
+        "operationId": "returnLoan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoanRequestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Nhận trả (ISSUED → RETURNED, copy → AVAILABLE)",
+        "tags": [
+          "Library Staff"
+        ]
+      }
+    },
+    "/api/v1/library/staff/titles": {
+      "post": {
+        "operationId": "createTitle",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTitleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TitleResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "summary": "Thêm đầu sách",
+        "tags": [
+          "Library Staff"
+        ]
+      }
+    },
+    "/api/v1/library/staff/titles/{titleId}": {
+      "get": {
+        "operationId": "title",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "titleId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TitleResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Chi tiết đầu sách (staff)",
+        "tags": [
+          "Library Staff"
         ]
       }
     },
@@ -21319,6 +22186,10 @@
       "name": "Attendance Operations"
     },
     {
+      "description": "Quầy thư viện mô phỏng: duyệt, phát sách, nhận trả, kho, grants",
+      "name": "Library Staff"
+    },
+    {
       "description": "Danh bạ hồ sơ sinh viên, cán bộ giảng viên trường HCM-UTE",
       "name": "People & Profiles"
     },
@@ -21373,6 +22244,10 @@
     {
       "description": "Vết kiểm toán các thao tác quản trị: đổi vai trò, đặt lại mật khẩu, xóa dữ liệu, gỡ khóa tài khoản",
       "name": "Admin Audit"
+    },
+    {
+      "description": "Thư viện mô phỏng: tra cứu, giữ chỗ, lịch sử mượn",
+      "name": "Library"
     },
     {
       "description": "Kiểm tra trạng thái sẵn sàng (Readiness) và khả năng hoạt động (Liveness) của dịch vụ",
