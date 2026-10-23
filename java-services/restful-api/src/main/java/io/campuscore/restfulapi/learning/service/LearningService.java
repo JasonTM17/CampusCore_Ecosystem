@@ -10,6 +10,8 @@ import io.campuscore.restfulapi.learning.web.LearningDtos.SubmissionReviewReques
 import io.campuscore.restfulapi.learning.web.LearningDtos.RosterRowResponse;
 import io.campuscore.restfulapi.learning.web.LearningDtos.SubmissionResponse;
 import io.campuscore.restfulapi.learning.web.LearningDtos.SubmissionRevisionResponse;
+import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository;
+import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository.CreateNotificationCommand;
 import io.campuscore.restfulapi.web.DomainException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -58,9 +60,12 @@ public class LearningService {
     static final String ROSTER_STATUSES = "('ENROLLED','PENDING','CONFIRMED','COMPLETED')";
 
     private final NamedParameterJdbcTemplate jdbc;
+    private final NotificationWriteRepository notifications;
 
-    public LearningService(NamedParameterJdbcTemplate jdbc) {
+    public LearningService(NamedParameterJdbcTemplate jdbc,
+            NotificationWriteRepository notifications) {
         this.jdbc = jdbc;
+        this.notifications = notifications;
     }
 
     // ------------------------------------------------------------------
@@ -370,6 +375,9 @@ public class LearningService {
                 lecturerId, request.comment(), request.score());
         audit(String.valueOf(submission.get("assignmentId")), submissionId, lecturerId,
                 "SUBMISSION_RETURNED", null);
+        notifyStudent(submission, "Bài tập đã được trả về",
+                "Bài nộp của bạn vừa nhận nhận xét — xem phản hồi và nộp lại bản sửa.",
+                "INFO");
         return mapSubmission(getSubmission(submissionId));
     }
 
@@ -381,9 +389,11 @@ public class LearningService {
         requireSectionLecturer(lecturerId,
                 sectionOfAssignment(String.valueOf(submission.get("assignmentId"))));
         String status = String.valueOf(submission.get("status"));
-        if (!"SUBMITTED".equals(status) && !"RESUBMITTED".equals(status) && !"RETURNED".equals(status)) {
+        // The first cycle must pass through RETURNED (feedback is mandatory
+        // there); afterwards review closes RESUBMITTED or RETURNED work.
+        if (!"RESUBMITTED".equals(status) && !"RETURNED".equals(status)) {
             throw problem(HttpStatus.CONFLICT, "SUBMISSION_STATE_INVALID",
-                    "Only submitted or returned work can be marked reviewed");
+                    "Only resubmitted or returned work can be marked reviewed");
         }
         if (request != null && request.expectedVersion() != null
                 && request.expectedVersion() != ((Number) submission.get("version")).intValue()) {
@@ -393,7 +403,7 @@ public class LearningService {
         int updated = jdbc.update("UPDATE " + SUBMISSION
                         + " SET \"status\" = 'REVIEWED', \"reviewedAt\" = CURRENT_TIMESTAMP,"
                         + " \"version\" = \"version\" + 1, \"updatedAt\" = CURRENT_TIMESTAMP"
-                        + " WHERE \"id\" = :id AND \"status\" IN ('SUBMITTED','RESUBMITTED','RETURNED')",
+                        + " WHERE \"id\" = :id AND \"status\" IN ('RESUBMITTED','RETURNED')",
                 new MapSqlParameterSource("id", submissionId));
         if (updated == 0) {
             throw problem(HttpStatus.CONFLICT, "SUBMISSION_STATE_INVALID",
@@ -406,7 +416,33 @@ public class LearningService {
         }
         audit(String.valueOf(submission.get("assignmentId")), submissionId, lecturerId,
                 "SUBMISSION_REVIEWED", null);
+        notifyStudent(submission, "Bài tập đã được chấm xong",
+                "Bài nộp của bạn đã được giảng viên chấm xong — xem đánh giá cuối.",
+                "SUCCESS");
         return mapSubmission(getSubmission(submissionId));
+    }
+
+    /** §11 feedback notification: the student learns about return/review in
+     * the same transaction as the state change (events pattern). The inbox
+     * user_id is the AUTH user id — resolve it through the academic Student
+     * row (submission.studentId is the academic profile pk). */
+    private void notifyStudent(Map<String, Object> submission, String title,
+            String message, String type) {
+        String assignmentId = String.valueOf(submission.get("assignmentId"));
+        String assignmentTitle = jdbc.queryForObject(
+                "SELECT \"title\" FROM " + ASSIGNMENT + " WHERE \"id\" = :id",
+                new MapSqlParameterSource("id", assignmentId), String.class);
+        String authUserId = jdbc.queryForObject(
+                "SELECT \"userId\" FROM " + STUDENT + " WHERE \"id\" = :studentId",
+                new MapSqlParameterSource("studentId", submission.get("studentId")),
+                String.class);
+        if (authUserId == null) {
+            return;
+        }
+        notifications.create(new CreateNotificationCommand(
+                UUID.randomUUID().toString(), authUserId,
+                title + ": " + assignmentTitle, message, type,
+                "/dashboard/learn", Instant.now()));
     }
 
     @Transactional(readOnly = true)
