@@ -7,10 +7,27 @@
     "userInterfaceStyle": "light",
     "scheme": "campuscore",
     "ios": {
-      "bundleIdentifier": "io.campuscore.mobile"
+      "bundleIdentifier": "io.campuscore.mobile",
+      "associatedDomains": [
+        "applinks:www.campusute.io.vn"
+      ]
     },
     "android": {
-      "package": "io.campuscore.mobile"
+      "package": "io.campuscore.mobile",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https", "host": "www.campusute.io.vn", "path": "/news" },
+            { "scheme": "https", "host": "www.campusute.io.vn", "path": "/docs" },
+            { "scheme": "https", "host": "www.campusute.io.vn", "path": "/careers" },
+            { "scheme": "https", "host": "www.campusute.io.vn", "path": "/library" },
+            { "scheme": "https", "host": "www.campusute.io.vn", "path": "/apply" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "plugins": [
       "expo-router",

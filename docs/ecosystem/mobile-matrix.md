@@ -14,7 +14,7 @@ Lane coverage theo `mobile-policy.md` §4. Mỗi surface ghi
 | `ADMIN` + `LECTURER` | lecturer | Admin role không mở lecturer.* — `lecturerRoles` đã gỡ `admin` (KM-8). |
 | no mapped role | signed-out | "account không có native surface" → blocked UX + portal. |
 
-## 2. Route matrix (22 screens → expo-router tree)
+## 2. Route matrix (28 screens → expo-router tree)
 
 | ScreenName | Path | Role | Lane | API source |
 | --- | --- | --- | --- | --- |
@@ -29,6 +29,11 @@ Lane coverage theo `mobile-policy.md` §4. Mỗi surface ghi
 | `notifications` | `/notifications` | all | native | `notifications/my` |
 | `events` | `/events` | student | native | `events`, `events/my/registrations`, register/cancel (Idempotency-Key) |
 | `learning` | `/learning` | student | native (text lane) | `learning/sections`, `learning/sections/{id}/materials`, `learning/sections/{id}/assignments`, draft/save/submit/resubmit + revisions/feedback (Idempotency-Key; file picking P13) |
+| `admissions` | `/apply` | student | native (simulated) | `admissions/applications` draft/save/submit/withdraw (Idempotency-Key; attachments web lane; app path mirrors the portal `/apply` route) |
+| `library` | `/library` | student | native (simulated) | `library/catalogue`, `library/requests` hold/cancel, `library/loans/my` (Idempotency-Key) |
+| `careers` | `/careers` | student | native (simulated) | `careers/opportunities`, `careers/applications` apply/withdraw (Idempotency-Key; recruiter/reviewer web) |
+| `news` | `/news` | student | native | `announcements/public` anonymous feed (PUBLISHED/global only) |
+| `docs` | `/docs` | student | native | `public/docs` search + `public/docs/{slug}` (publishedRevision body only) |
 | `profile` | `/profile` | all | native | `auth/me`, `auth/profile`, `auth/change-password` |
 | `thesis.topics` | `/thesis` | student | native | `thesis/rounds`, `thesis/topics`, `thesis/groups` |
 | `thesis.detail` | `/thesis/[topicId]` | student | native | idem — dynamic segment, id trên path (KM-5) |
