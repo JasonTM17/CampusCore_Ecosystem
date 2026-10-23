@@ -25,7 +25,7 @@ test('native registry keeps the Stitch mobile atlas above the 20-screen requirem
   ].map((match) => match[1] ?? match[2]);
   const screenCount = registeredRoutes.length;
 
-  assert.equal(screenCount, 25);
+  assert.equal(screenCount, 26);
   assert.equal(new Set(registeredRoutes).size, screenCount);
   assert.deepEqual(componentRoutes.sort(), [...registeredRoutes].sort());
   for (const requiredRoute of [
@@ -38,7 +38,7 @@ test('native registry keeps the Stitch mobile atlas above the 20-screen requirem
   ]) {
     assert.match(routes, new RegExp(`name: '${requiredRoute.replace('.', '\\.')}'`));
   }
-  assert.match(readme, /25 navigable screens/);
+  assert.match(readme, /26 navigable screens/);
 });
 
 test('native tokens preserve the institutional portal contract', () => {

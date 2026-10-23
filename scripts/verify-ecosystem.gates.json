@@ -998,6 +998,94 @@
           }
         }
       ]
+    },
+    "careers": {
+      "owner_phase": "P12",
+      "description": "P12 exit (domain-contracts §9): simulated moderated careers — opportunity lifecycle DRAFT→IN_REVIEW→PUBLISHED→PAUSED→CLOSED plus IN_REVIEW→REJECTED, application lifecycle SUBMITTED→REVIEWING→INTERVIEW→OFFER→REJECTED|WITHDRAWN strictly forward, organization-scoped recruiter grants (careers:<org>) with platform reviewers (empty-org grant) moderating publication and never their own submission (SELF_PUBLISH_FORBIDDEN), one-active-application-per-opportunity, moderation reasons required and visible on REJECTED/PAUSED/CLOSED, owner-indistinguishable 404 candidate isolation, attachment sha256 ownership, and no academic/admissions data bleed into the recruiter lane. careers-contract is the H2 MockMvc matrix; careers-postgres-race runs CareerApplicationPostgresIT on a disposable compose Postgres (same-candidate apply collapse, transition and publish serialization); careers-e2e drives the HTTPS preview candidate+desk journey with isolation, XSS and authority legs.",
+      "cases": [
+        {
+          "id": "careers-contract",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "description": "CAR-T01..T07 + CAR-X01/X02 on H2 (MockMvc matrix): draft→submit-review→publish→apply→REVIEWING→INTERVIEW→OFFER lifecycle, reviewer-cannot-moderate-own-submission (SELF_PUBLISH_FORBIDDEN on publish AND reject, second reviewer publishes), org isolation on queue/detail/write lanes, ungranted ADMIN + non-grantee + reviewer-on-recruiter-lane denials, grant-administration denials (CAREERS_ADMIN_REQUIRED), pause/close with visible reason and terminal no-new-applications, one-active-application-per-opportunity with withdraw-then-reapply, idempotent apply/withdraw replay + IDEMPOTENCY_CONFLICT, rejection requiring a candidate-visible moderation reason, strictly-forward progression (skip and backwards APPLICATION_STATE_INVALID, STALE_VERSION), attachment Idempotency-Key + checksum verify/mismatch + owner/staff/foreign/cross-org reads, indistinguishable 404 candidate isolation, suspended-account denial, and no studentId/gpa/grade/admissions fields in the recruiter lane.",
+          "run": {
+            "cmd": "mvn",
+            "args": [
+              "-q",
+              "-f",
+              "java-services/restful-api/pom.xml",
+              "test",
+              "-Dtest=CareerContractPersistenceTest",
+              "-Dsurefire.failIfNoSpecifiedTests=false",
+              "-Dstyle.color=never"
+            ],
+            "timeoutMs": 900000
+          }
+        },
+        {
+          "id": "careers-mobile",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "description": "Native candidate careers surface: 26-screen registry incl. careers, route-map round-trip, source scans.",
+          "run": {
+            "cmd": "npm",
+            "args": [
+              "test",
+              "--prefix",
+              "mobile"
+            ],
+            "timeoutMs": 300000
+          }
+        },
+        {
+          "id": "careers-postgres-race",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "capability": "docker",
+          "description": "CAR-T04/T05/T02 on real Postgres: concurrent applies by one candidate collapse to a single active application via the partial unique index (distinct candidates all succeed), two org-staff lanes racing SUBMITTED→REVIEWING serialize to exactly one transition, two reviewer lanes racing publish serialize to exactly one PUBLISHED row.",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/platform-verify.mjs",
+              "pgit",
+              "--project",
+              "{auto-project}-careers-pg",
+              "--evidence",
+              "{evidence}",
+              "--its",
+              "CareerApplicationPostgresIT"
+            ],
+            "timeoutMs": 1500000
+          }
+        },
+        {
+          "id": "careers-e2e",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "capability": "docker",
+          "description": "HTTPS preview careers journey: grant orchestration (org recruiter, reviewer, cross-org), draft→submit-review→SELF_PUBLISH_FORBIDDEN→second-reviewer publish, apply with same-key replay + duplicate denial, attachment sha256 upload with owner/staff/foreign/cross-org download legs, strictly-forward progression to OFFER, withdraw replay + reapply, rejection reason visible to candidate, closed posting denying new applications, XSS title rendering as text, candidate board + recruiter desk + cross-org empty lane portal render.",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/ecosystem-careers-verify.mjs",
+              "preview",
+              "--project",
+              "{auto-project}-careers",
+              "--evidence",
+              "{evidence}"
+            ],
+            "timeoutMs": 1800000
+          }
+        }
+      ]
     }
   }
 }

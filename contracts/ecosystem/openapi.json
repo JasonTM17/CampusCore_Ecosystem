@@ -572,6 +572,29 @@
         },
         "type": "object"
       },
+      "ApplicationTransitionRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "toStatus": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApplyRequest": {
+        "properties": {
+          "coverLetter": {
+            "type": "string"
+          },
+          "opportunityId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ArticleCategory": {
         "properties": {
           "active": {
@@ -1972,6 +1995,29 @@
         },
         "type": "object"
       },
+      "CreateOpportunityRequest": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "employmentType": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "salaryText": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CreateRequest": {
         "properties": {
           "reason": {
@@ -3356,6 +3402,17 @@
         },
         "type": "object"
       },
+      "GrantRequest": {
+        "properties": {
+          "organizationId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "GroupCreateRequest": {
         "properties": {
           "roundId": {
@@ -4448,6 +4505,89 @@
           "registrationOpensAt": {
             "format": "date-time",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "OpportunityResponse": {
+        "properties": {
+          "closedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "employmentType": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "moderationReason": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "pausedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reviewedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reviewedBy": {
+            "type": "string"
+          },
+          "salaryText": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "submittedBy": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "OrganizationResponse": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -7656,7 +7796,7 @@
     "/api/v1/admin/assistant/knowledge/{id}/publish": {
       "post": {
         "description": "Yêu cầu một Admin khác với người tạo kiểm duyệt và chính thức xuất bản tri thức cho AI sử dụng",
-        "operationId": "publish_3",
+        "operationId": "publish_4",
         "parameters": [
           {
             "description": "Mã định danh tài liệu tri thức (UUID)",
@@ -8158,7 +8298,7 @@
     "/api/v1/admin/thesis/assistant/knowledge/{id}/publish": {
       "post": {
         "description": "Yêu cầu một Admin khác với người tạo kiểm duyệt và chính thức xuất bản tri thức cho AI sử dụng",
-        "operationId": "publish_2",
+        "operationId": "publish_3",
         "parameters": [
           {
             "description": "Mã định danh tài liệu tri thức (UUID)",
@@ -8286,7 +8426,7 @@
     },
     "/api/v1/admissions/applications/my": {
       "get": {
-        "operationId": "myApplications",
+        "operationId": "myApplications_1",
         "responses": {
           "200": {
             "content": {
@@ -8380,7 +8520,7 @@
     },
     "/api/v1/admissions/applications/{applicationId}/attachments": {
       "post": {
-        "operationId": "uploadAttachment",
+        "operationId": "uploadAttachment_1",
         "parameters": [
           {
             "in": "path",
@@ -8476,7 +8616,7 @@
     },
     "/api/v1/admissions/applications/{applicationId}/attachments/{attachmentId}/file": {
       "get": {
-        "operationId": "downloadAttachment_1",
+        "operationId": "downloadAttachment_3",
         "parameters": [
           {
             "in": "path",
@@ -8564,7 +8704,7 @@
     },
     "/api/v1/admissions/applications/{applicationId}/withdraw": {
       "post": {
-        "operationId": "withdraw",
+        "operationId": "withdraw_1",
         "parameters": [
           {
             "in": "path",
@@ -8643,7 +8783,7 @@
     },
     "/api/v1/admissions/staff/applications/{applicationId}/attachments/{attachmentId}/file": {
       "get": {
-        "operationId": "downloadAttachment",
+        "operationId": "downloadAttachment_2",
         "parameters": [
           {
             "in": "path",
@@ -8805,7 +8945,7 @@
     },
     "/api/v1/admissions/staff/grants": {
       "get": {
-        "operationId": "grants_2",
+        "operationId": "grants_3",
         "responses": {
           "200": {
             "content": {
@@ -8827,7 +8967,7 @@
         ]
       },
       "post": {
-        "operationId": "grant_2",
+        "operationId": "grant_3",
         "requestBody": {
           "content": {
             "application/json": {
@@ -8861,7 +9001,7 @@
     },
     "/api/v1/admissions/staff/grants/{grantId}": {
       "delete": {
-        "operationId": "revoke_2",
+        "operationId": "revoke_3",
         "parameters": [
           {
             "in": "path",
@@ -11492,6 +11632,985 @@
         ]
       }
     },
+    "/api/v1/careers/applications": {
+      "post": {
+        "operationId": "apply",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Ứng tuyển một tin PUBLISHED (→ SUBMITTED)",
+        "tags": [
+          "Careers"
+        ]
+      }
+    },
+    "/api/v1/careers/applications/my": {
+      "get": {
+        "operationId": "myApplications",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApplicationResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Hồ sơ ứng tuyển của tôi",
+        "tags": [
+          "Careers"
+        ]
+      }
+    },
+    "/api/v1/careers/applications/{applicationId}": {
+      "get": {
+        "operationId": "myApplication",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Chi tiết hồ sơ của tôi (chủ sở hữu)",
+        "tags": [
+          "Careers"
+        ]
+      }
+    },
+    "/api/v1/careers/applications/{applicationId}/attachments": {
+      "post": {
+        "operationId": "uploadAttachment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachmentUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Tải hồ sơ đính kèm lên đơn của tôi",
+        "tags": [
+          "Careers"
+        ]
+      }
+    },
+    "/api/v1/careers/applications/{applicationId}/attachments/{attachmentId}/download": {
+      "get": {
+        "operationId": "downloadAttachment_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Tải xuống tệp đính kèm của tôi",
+        "tags": [
+          "Careers"
+        ]
+      }
+    },
+    "/api/v1/careers/applications/{applicationId}/withdraw": {
+      "post": {
+        "operationId": "withdraw",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Rút hồ sơ trước trạng thái kết thúc (→ WITHDRAWN)",
+        "tags": [
+          "Careers"
+        ]
+      }
+    },
+    "/api/v1/careers/opportunities": {
+      "get": {
+        "operationId": "opportunities",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OpportunityResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Tin tuyển dụng đang đăng (PUBLISHED)",
+        "tags": [
+          "Careers"
+        ]
+      }
+    },
+    "/api/v1/careers/opportunities/{opportunityId}": {
+      "get": {
+        "operationId": "opportunity",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "opportunityId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Chi tiết tin đang đăng",
+        "tags": [
+          "Careers"
+        ]
+      }
+    },
+    "/api/v1/careers/organizations": {
+      "get": {
+        "operationId": "organizations",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrganizationResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Danh mục tổ chức tuyển dụng",
+        "tags": [
+          "Careers"
+        ]
+      }
+    },
+    "/api/v1/careers/staff/applications": {
+      "get": {
+        "operationId": "applicationQueue",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "opportunityId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApplicationResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Hàng đợi hồ sơ trong các tổ chức tôi quản",
+        "tags": [
+          "Careers staff"
+        ]
+      }
+    },
+    "/api/v1/careers/staff/applications/{applicationId}": {
+      "get": {
+        "operationId": "staffApplication",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Chi tiết hồ sơ trong phạm vi tổ chức",
+        "tags": [
+          "Careers staff"
+        ]
+      }
+    },
+    "/api/v1/careers/staff/applications/{applicationId}/attachments/{attachmentId}/download": {
+      "get": {
+        "operationId": "downloadAttachment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Tải tệp đính kèm hồ sơ trong phạm vi tổ chức",
+        "tags": [
+          "Careers staff"
+        ]
+      }
+    },
+    "/api/v1/careers/staff/applications/{applicationId}/reject": {
+      "post": {
+        "operationId": "rejectApplication",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "→ REJECTED (kèm moderation reason)",
+        "tags": [
+          "Careers staff"
+        ]
+      }
+    },
+    "/api/v1/careers/staff/applications/{applicationId}/transition": {
+      "post": {
+        "operationId": "transition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "SUBMITTED→REVIEWING→INTERVIEW→OFFER (từng bước)",
+        "tags": [
+          "Careers staff"
+        ]
+      }
+    },
+    "/api/v1/careers/staff/grants": {
+      "get": {
+        "operationId": "grants_2",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StaffGrantResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Danh sách grants careers (org/reviewer)",
+        "tags": [
+          "Careers staff"
+        ]
+      },
+      "post": {
+        "operationId": "grant_2",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffGrantResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "summary": "Cấp grant theo tổ chức hoặc reviewer (admin)",
+        "tags": [
+          "Careers staff"
+        ]
+      }
+    },
+    "/api/v1/careers/staff/grants/{grantId}/revoke": {
+      "post": {
+        "operationId": "revoke",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "grantId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "Thu hồi grant careers (admin)",
+        "tags": [
+          "Careers staff"
+        ]
+      }
+    },
+    "/api/v1/careers/staff/opportunities": {
+      "get": {
+        "operationId": "opportunityQueue",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OpportunityResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Hàng đợi tin tuyển dụng của các tổ chức tôi quản",
+        "tags": [
+          "Careers staff"
+        ]
+      },
+      "post": {
+        "operationId": "createOpportunity",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOpportunityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "summary": "Tạo tin DRAFT trong tổ chức tôi quản",
+        "tags": [
+          "Careers staff"
+        ]
+      }
+    },
+    "/api/v1/careers/staff/opportunities/{opportunityId}": {
+      "get": {
+        "operationId": "staffOpportunity",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "opportunityId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Chi tiết tin trong phạm vi tổ chức",
+        "tags": [
+          "Careers staff"
+        ]
+      }
+    },
+    "/api/v1/careers/staff/opportunities/{opportunityId}/close": {
+      "post": {
+        "operationId": "close_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "opportunityId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "→ CLOSED (kèm lý do, dừng nhận hồ sơ)",
+        "tags": [
+          "Careers staff"
+        ]
+      }
+    },
+    "/api/v1/careers/staff/opportunities/{opportunityId}/pause": {
+      "post": {
+        "operationId": "pause",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "opportunityId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "PUBLISHED → PAUSED (kèm lý do)",
+        "tags": [
+          "Careers staff"
+        ]
+      }
+    },
+    "/api/v1/careers/staff/opportunities/{opportunityId}/publish": {
+      "post": {
+        "operationId": "publish_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "opportunityId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "IN_REVIEW → PUBLISHED (reviewer ≠ người nộp)",
+        "tags": [
+          "Careers staff"
+        ]
+      }
+    },
+    "/api/v1/careers/staff/opportunities/{opportunityId}/reject": {
+      "post": {
+        "operationId": "rejectOpportunity",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "opportunityId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "IN_REVIEW → REJECTED (kèm moderation reason)",
+        "tags": [
+          "Careers staff"
+        ]
+      }
+    },
+    "/api/v1/careers/staff/opportunities/{opportunityId}/resume": {
+      "post": {
+        "operationId": "resume",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "opportunityId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "PAUSED → PUBLISHED (mở lại)",
+        "tags": [
+          "Careers staff"
+        ]
+      }
+    },
+    "/api/v1/careers/staff/opportunities/{opportunityId}/submit-review": {
+      "post": {
+        "operationId": "submitReview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "opportunityId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunityResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "DRAFT → IN_REVIEW (nộp duyệt)",
+        "tags": [
+          "Careers staff"
+        ]
+      }
+    },
+    "/api/v1/careers/staff/organizations/my": {
+      "get": {
+        "operationId": "myOrganizations",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrganizationResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Tổ chức tôi được gán recruiter",
+        "tags": [
+          "Careers staff"
+        ]
+      }
+    },
+    "/api/v1/careers/staff/review-queue": {
+      "get": {
+        "operationId": "reviewQueue",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OpportunityResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Hàng đợi IN_REVIEW (chỉ reviewer)",
+        "tags": [
+          "Careers staff"
+        ]
+      }
+    },
     "/api/v1/classrooms": {
       "get": {
         "description": "Tra cứu hệ thống phòng lý thuyết, thực hành, xưởng tại các cơ sở đào tạo, hỗ trợ tìm kiếm theo tòa nhà hoặc số phòng.",
@@ -13496,7 +14615,7 @@
     },
     "/api/v1/events/staff/grants/{grantId}": {
       "delete": {
-        "operationId": "revoke_1",
+        "operationId": "revoke_2",
         "parameters": [
           {
             "in": "path",
@@ -15912,7 +17031,7 @@
     },
     "/api/v1/library/staff/grants/{grantId}": {
       "delete": {
-        "operationId": "revoke",
+        "operationId": "revoke_1",
         "parameters": [
           {
             "in": "path",
@@ -22182,6 +23301,10 @@
       "name": "Notifications & Alerts"
     },
     {
+      "description": "Tin tuyển dụng theo tổ chức, duyệt đăng, xét hồ sơ",
+      "name": "Careers staff"
+    },
+    {
       "description": "Thao tác ghi nhận và cập nhật điểm danh lớp học phần của giảng viên",
       "name": "Attendance Operations"
     },
@@ -22232,6 +23355,10 @@
     {
       "description": "Tra cứu danh mục học vụ: Khoa, Bộ môn, Học kỳ, Năm học, Học phần, Khung chương trình đào tạo và Phòng học",
       "name": "Academic Catalog"
+    },
+    {
+      "description": "Việc làm mô phỏng: tin tuyển dụng, ứng tuyển, rút hồ sơ",
+      "name": "Careers"
     },
     {
       "description": "Tài liệu công khai của trường — vòng đời duyệt theo phiên bản (DRAFT → IN_REVIEW → PUBLISHED → ARCHIVED)",
