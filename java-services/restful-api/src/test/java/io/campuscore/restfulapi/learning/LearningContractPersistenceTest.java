@@ -70,10 +70,27 @@ class LearningContractPersistenceTest {
     @BeforeEach
     void fixture() throws Exception {
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS campuscore_auth");
+        jdbc.execute("CREATE SCHEMA IF NOT EXISTS notifications");
         jdbc.execute("DROP SCHEMA IF EXISTS learning CASCADE");
         jdbc.execute("DROP SCHEMA IF EXISTS academic CASCADE");
+        jdbc.execute("DROP TABLE IF EXISTS notifications.notification");
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS learning");
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS academic");
+        // Return/review feedback notifies the student in the same transaction
+        // (§11) — the inbox stub mirrors the events fixture.
+        jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS notifications.notification (
+                    id VARCHAR(120) PRIMARY KEY,
+                    user_id VARCHAR(120) NOT NULL,
+                    title VARCHAR(240) NOT NULL,
+                    message VARCHAR(2000) NOT NULL,
+                    type VARCHAR(60) NOT NULL,
+                    link VARCHAR(500),
+                    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+                    read_at TIMESTAMP WITH TIME ZONE,
+                    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )""");
         // Minimal academic authority tables — the LMS never writes them;
         // they exist so the roster/authority read-through runs on real SQL.
         jdbc.execute("""
@@ -359,6 +376,12 @@ class LearningContractPersistenceTest {
         assertThat(revisions).isEqualTo(2);
         // One return comment + one review comment = two append-only feedback rows.
         assertThat(feedback).isEqualTo(2);
+        // §11: return + review each notified the student in the same tx —
+        // user_id is the auth user id resolved through academic."Student".
+        Integer notices = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM notifications.notification WHERE user_id = 'student-1'",
+                Integer.class);
+        assertThat(notices).isEqualTo(2);
     }
 
     // ---------------------------------------------------------------
@@ -396,14 +419,52 @@ class LearningContractPersistenceTest {
     @Test
     void midCourseRevocationBlocksNewWork() throws Exception {
         String assignmentId = publishedAssignmentId();
-        openDraft(assignmentId, studentJwt, "draft-early");
-        // Registrar revokes the seat after the draft exists.
+        String submissionId = openDraft(assignmentId, studentJwt, "draft-early");
+        // Wukong F1: work actually submitted before the seat is revoked.
+        mvc.perform(put("/api/v1/learning/submissions/" + submissionId + "/draft")
+                        .with(studentJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"textBody\":\"draft before revocation\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/learning/assignments/" + assignmentId + "/submit")
+                        .with(studentJwt).header("Idempotency-Key", "pre-drop-submit"))
+                .andExpect(status().isOk());
+        MvcResult revisionsResult = mvc.perform(
+                        get("/api/v1/learning/submissions/" + submissionId + "/revisions")
+                                .with(studentJwt))
+                .andExpect(status().isOk())
+                .andReturn();
+        String revisionId = objectMapper.readTree(revisionsResult.getResponse()
+                .getContentAsString()).get(0).get("id").asText();
+        // Registrar revokes the seat after the submission exists.
         jdbc.update("UPDATE academic.\"Enrollment\" SET \"status\" = 'DROPPED'"
                 + " WHERE \"id\" = 'enr-1'");
-        mvc.perform(post("/api/v1/learning/assignments/" + assignmentId + "/submit")
-                        .with(studentJwt).header("Idempotency-Key", "late-submit"))
+        mvc.perform(post("/api/v1/learning/assignments/" + assignmentId + "/resubmit")
+                        .with(studentJwt).header("Idempotency-Key", "late-resubmit")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"textBody\":\"revoked seat write attempt\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ENROLLMENT_NOT_ACTIVE"));
+        // Draft writes die with the seat (ownership alone is not authority).
+        mvc.perform(put("/api/v1/learning/submissions/" + submissionId + "/draft")
+                        .with(studentJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"textBody\":\"post-revocation edit\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ENROLLMENT_NOT_ACTIVE"));
+        // Read lanes close too — submission, revisions, feedback, file bytes.
+        mvc.perform(get("/api/v1/learning/submissions/" + submissionId).with(studentJwt))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("NOT_ENROLLED"));
+        mvc.perform(get("/api/v1/learning/submissions/" + submissionId + "/revisions")
+                        .with(studentJwt))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("NOT_ENROLLED"));
+        mvc.perform(get("/api/v1/learning/submissions/" + submissionId + "/feedback")
+                        .with(studentJwt))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("NOT_ENROLLED"));
+        mvc.perform(get("/api/v1/learning/revisions/" + revisionId + "/file").with(studentJwt))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("NOT_ENROLLED"));
     }
 
     // ---------------------------------------------------------------

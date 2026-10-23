@@ -193,6 +193,12 @@ public class LearningStudentService {
     public SubmissionResponse ensureDraft(String studentId, String assignmentId, String idempotencyKey) {
         Map<String, Object> assignment = assignmentForStudent(assignmentId, studentId);
         requireSubmittableEnrollment(studentId, String.valueOf(assignment.get("sectionId")));
+        // A closed/archived assignment cannot take new work — drafting on it
+        // would only pollute the roster (Wukong F3).
+        if (!"PUBLISHED".equals(String.valueOf(assignment.get("status")))) {
+            throw problem(HttpStatus.CONFLICT, "ASSIGNMENT_NOT_OPEN",
+                    "This assignment is not open for submissions");
+        }
         Map<String, Object> claimed = claimIdempotency(studentId, idempotencyKey,
                 "draft:" + assignmentId);
         if (claimed != null) {
@@ -231,6 +237,18 @@ public class LearningStudentService {
     public SubmissionResponse saveDraft(String studentId, String submissionId,
             SubmissionUpsertRequest request) {
         Map<String, Object> submission = lockOwnedSubmission(studentId, submissionId);
+        // Ownership alone is not the authority: a seat revoked after the
+        // draft opened still cannot write (Wukong F1 — §6 student scope).
+        requireSubmittableEnrollment(studentId,
+                staff.sectionOfAssignment(String.valueOf(submission.get("assignmentId"))));
+        // CLOSED/ARCHIVED assignments take no new work — not even draft
+        // edits on a pre-existing row (Kongming N1).
+        String assignmentStatus = staff.findAssignment(
+                String.valueOf(submission.get("assignmentId")), studentId).status();
+        if (!"PUBLISHED".equals(assignmentStatus)) {
+            throw problem(HttpStatus.CONFLICT, "ASSIGNMENT_NOT_OPEN",
+                    "This assignment is not open for submissions");
+        }
         if (!"DRAFT".equals(String.valueOf(submission.get("status")))) {
             throw problem(HttpStatus.CONFLICT, "SUBMISSION_NOT_DRAFT",
                     "Only a draft can be edited");
@@ -444,6 +462,10 @@ public class LearningStudentService {
             // §1.1: another student's submission is a 404, not a 403 oracle.
             throw problem(HttpStatus.NOT_FOUND, "SUBMISSION_NOT_FOUND", "Submission not found");
         }
+        // Reads stay open for every non-revoked seat (roster-visible
+        // PENDING/COMPLETED), but a DROPPED/CANCELLED seat loses read too.
+        requireActiveEnrollment(studentId,
+                staff.sectionOfAssignment(String.valueOf(row.get("assignmentId"))));
         return row;
     }
 

@@ -168,6 +168,22 @@ Submission: `DRAFT → SUBMITTED → RETURNED → RESUBMITTED → REVIEWED`.
 | LMS-X01 | Submit gần deadline theo **server clock** | `SYS` | clock oracle trong test | Client timestamp quyết định |
 | LMS-X02 | Immutable submitted revision | `SYS` | mọi write sau SUBMITTED tạo revision mới | Mutate in-place |
 
+- **Authority denials:** staff-scope sử dụng 403 `SECTION_NOT_ASSIGNED` /
+  `LECTURER_SCOPE_REQUIRED`; student-scope sử dụng 403 `NOT_ENROLLED` /
+  `ENROLLMENT_NOT_ACTIVE` — cùng posture §5 `EVENT_NOT_OWNER` (existence của
+  section/assignment published là thông tin catalog, không phải object bí mật).
+  Object-scope trong cùng capability (submission/file của student khác) vẫn
+  là 404 indistinguishable theo §1.1.
+- **REVIEWED window:** LMS-T06 chấp nhận `RESUBMITTED → REVIEWED` và
+  `RETURNED → REVIEWED` (chu kỳ đầu bắt buộc qua RETURNED vì feedback là
+  precondition T04; bare `SUBMITTED → REVIEWED` không hợp lệ).
+- **Seat semantics:** read lanes (materials, assignments, submissions của
+  chính mình) mở cho mọi seat không bị thu hồi (ENROLLED/PENDING/CONFIRMED/
+  COMPLETED — khớp roster); write lanes (draft open/save, submit, resubmit)
+  chỉ cho `ENROLLED|CONFIRMED`. DROPPED/CANCELLED mất cả read lẫn write.
+- **Feedback notice:** return/review tạo notification trong cùng transaction
+  (§11); official grade authority không bị chạm.
+
 ## 7. Admissions mô phỏng (P10, schema `admissions`)
 
 `DRAFT → SUBMITTED → IN_REVIEW → RETURNED → SUBMITTED → ACCEPTED | REJECTED`;
