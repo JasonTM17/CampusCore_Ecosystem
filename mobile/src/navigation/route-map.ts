@@ -32,6 +32,7 @@ const pathByScreen: Record<ScreenName, string> = {
   learning: '/learning',
   admissions: '/admissions',
   library: '/library',
+  careers: '/careers',
   notifications: '/notifications',
   profile: '/profile',
   'thesis.topics': '/thesis',

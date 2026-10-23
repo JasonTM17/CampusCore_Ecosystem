@@ -16,6 +16,7 @@ export type ScreenName =
   | 'learning'
   | 'admissions'
   | 'library'
+  | 'careers'
   | 'notifications'
   | 'profile'
   | 'thesis.topics'
@@ -74,6 +75,7 @@ export const screenRegistry: readonly ScreenDefinition[] = [
   { name: 'learning', title: 'Materials & assignments', family: 'student', roles: studentRoles, icon: 'book-education-outline' },
   { name: 'admissions', title: 'Admissions (simulated)', family: 'student', roles: studentRoles, icon: 'account-edit-outline' },
   { name: 'library', title: 'Library (simulated)', family: 'student', roles: studentRoles, icon: 'bookshelf' },
+  { name: 'careers', title: 'Careers (simulated)', family: 'student', roles: studentRoles, icon: 'briefcase-search-outline' },
   { name: 'notifications', title: 'Notifications', family: 'student', roles: allRoles, icon: 'bell-outline' },
   { name: 'profile', title: 'Profile', family: 'student', roles: allRoles, icon: 'account-circle-outline' },
   { name: 'thesis.topics', title: 'Thesis topics', family: 'thesis', roles: studentRoles, icon: 'lightbulb-on-outline' },

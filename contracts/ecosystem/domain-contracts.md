@@ -218,7 +218,7 @@ Request: `REQUESTED → APPROVED → ISSUED → RETURNED | CANCELLED`.
 
 ## 9. Careers (P12, schema `careers`)
 
-Opportunity: `DRAFT → IN_REVIEW → PUBLISHED → PAUSED → CLOSED`; `IN_REVIEW → REJECTED`; `PUBLISHED → CLOSED`.
+Opportunity: `DRAFT → IN_REVIEW → PUBLISHED → PAUSED → CLOSED`; `IN_REVIEW → REJECTED`; `PUBLISHED → CLOSED`; `PAUSED → PUBLISHED` (resume — org staff, không qua reviewer).
 Application: `SUBMITTED → REVIEWING → INTERVIEW → OFFER → (REJECTED | WITHDRAWN)`; mọi pre-terminal `→ WITHDRAWN` (owner) / `→ REJECTED` (recruiter).
 
 | Id | Transition | Actor | Precondition | Forbidden write |
