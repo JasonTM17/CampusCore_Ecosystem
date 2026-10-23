@@ -822,6 +822,94 @@
           }
         }
       ]
+    },
+    "admissions": {
+      "owner_phase": "P10",
+      "description": "P10 exit (domain-contracts §7): simulated admissions lifecycle DRAFT→SUBMITTED→IN_REVIEW→RETURNED→SUBMITTED→ACCEPTED/REJECTED plus WITHDRAWN, STAFF:admissions-scoped review authority with claim/release ownership, per-cycle single-active-application uniqueness, checklist/reason review history, decisionLabel='SIMULATED' labeling, auth-user-keyed applicants (never academic Student), idempotent create/submit/attachment replay, attachment checksum + owner/staff download scope, and the forbidden-write guarantee that acceptance never creates Enrollment/Student. admissions-contract is the H2 MockMvc matrix; admissions-postgres-race runs AdmissionAuthorityPostgresIT on a disposable compose Postgres (cycle-unique race collapse, same-key submit replay, claim serialization); admissions-e2e drives the HTTPS preview applicant+staff journey with isolation and grant-authority legs.",
+      "cases": [
+        {
+          "id": "admissions-contract",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "description": "ADM-T01..T06 + ADM-X01/X02 on H2 (MockMvc matrix): lifecycle transitions incl. resubmit-after-RETURNED, one-active-per-cycle uniqueness, claim ownership scope on return/decision, checklist + RETURN_REASON_REQUIRED, SIMULATED decision labeling, withdraw-frees-slot, idempotent create/submit/attachment replay with same-key-different-payload conflict, FILE_CHECKSUM_MISMATCH upload rejection, owner/staff-scoped attachment download, grant-required + admin-required denials, STAFF_GRANTED/REVOKED audit rows, indistinguishable 404 isolation incl. foreign attachment reads, and the accepted-application API surface carrying no student link.",
+          "run": {
+            "cmd": "mvn",
+            "args": [
+              "-q",
+              "-f",
+              "java-services/restful-api/pom.xml",
+              "test",
+              "-Dtest=AdmissionContractPersistenceTest",
+              "-Dsurefire.failIfNoSpecifiedTests=false",
+              "-Dstyle.color=never"
+            ],
+            "timeoutMs": 900000
+          }
+        },
+        {
+          "id": "admissions-mobile",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "description": "Native applicant/staff admissions surface: 24-screen registry incl. admissions, route-map round-trip, source scans.",
+          "run": {
+            "cmd": "npm",
+            "args": [
+              "test",
+              "--prefix",
+              "mobile"
+            ],
+            "timeoutMs": 300000
+          }
+        },
+        {
+          "id": "admissions-postgres-race",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "capability": "docker",
+          "description": "ADM-X01/X02 + §7 authority on real Postgres: same-cycle concurrent create collapses to one application via the partial unique index, same-key submit replays one transition under the idempotency claim, and concurrent claims leave exactly one reviewer (FOR UPDATE serialization).",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/platform-verify.mjs",
+              "pgit",
+              "--project",
+              "{auto-project}-admissions-pg",
+              "--evidence",
+              "{evidence}",
+              "--its",
+              "AdmissionAuthorityPostgresIT"
+            ],
+            "timeoutMs": 1500000
+          }
+        },
+        {
+          "id": "admissions-e2e",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "capability": "docker",
+          "description": "HTTPS preview admissions journey: applicant create→attach→submit (same-key replay), admin self-grant then claim→return(with checklist)→resubmit→decide with SIMULATED label, ungranted-admin + non-grantee denials, foreign-id 404, terminal immutability on both lanes, no studentId claim on the accepted applicant token, applicant/staff portal render.",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/ecosystem-admissions-verify.mjs",
+              "preview",
+              "--project",
+              "{auto-project}-admissions",
+              "--evidence",
+              "{evidence}"
+            ],
+            "timeoutMs": 1800000
+          }
+        }
+      ]
     }
   }
 }

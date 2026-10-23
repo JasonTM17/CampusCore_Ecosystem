@@ -496,6 +496,82 @@
         },
         "type": "object"
       },
+      "ApplicationResponse": {
+        "properties": {
+          "applicantEmail": {
+            "type": "string"
+          },
+          "applicantUserId": {
+            "type": "string"
+          },
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/AttachmentResponse"
+            },
+            "type": "array"
+          },
+          "claimedBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "cycle": {
+            "type": "string"
+          },
+          "dateOfBirth": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "decisionAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decisionLabel": {
+            "type": "string"
+          },
+          "essay": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "intendedMajor": {
+            "type": "string"
+          },
+          "reviews": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewResponse"
+            },
+            "type": "array"
+          },
+          "schoolName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "ArticleCategory": {
         "properties": {
           "active": {
@@ -752,6 +828,48 @@
           },
           "meta": {
             "$ref": "#/components/schemas/PageMeta"
+          }
+        },
+        "type": "object"
+      },
+      "AttachmentResponse": {
+        "properties": {
+          "checksum": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "AttachmentUploadRequest": {
+        "properties": {
+          "checksum": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "dataBase64": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -1164,6 +1282,20 @@
           },
           "turnId": {
             "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ChecklistItemRequest": {
+        "properties": {
+          "item": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "result": {
             "type": "string"
           }
         },
@@ -1714,6 +1846,14 @@
         },
         "type": "object"
       },
+      "CreateApplicationRequest": {
+        "properties": {
+          "cycle": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CreateConversationRequest": {
         "properties": {
           "locale": {
@@ -2068,6 +2208,27 @@
           "supervisorOrder": {
             "format": "int32",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DecisionRequest": {
+        "properties": {
+          "checklist": {
+            "items": {
+              "$ref": "#/components/schemas/ChecklistItemRequest"
+            },
+            "type": "array"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "note": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -4835,6 +4996,24 @@
         },
         "type": "object"
       },
+      "ReturnApplicationRequest": {
+        "properties": {
+          "checklist": {
+            "items": {
+              "$ref": "#/components/schemas/ChecklistItemRequest"
+            },
+            "type": "array"
+          },
+          "expectedVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ReturnRequest": {
         "properties": {
           "comment": {
@@ -4866,6 +5045,33 @@
         "required": [
           "decision"
         ],
+        "type": "object"
+      },
+      "ReviewResponse": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "checklist": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "reviewerId": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "ReviewerScoreRequest": {
@@ -5138,6 +5344,30 @@
             "type": "string"
           },
           "thesisType": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SaveApplicationRequest": {
+        "properties": {
+          "dateOfBirth": {
+            "type": "string"
+          },
+          "essay": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "intendedMajor": {
+            "type": "string"
+          },
+          "schoolName": {
             "type": "string"
           }
         },
@@ -6528,6 +6758,15 @@
         },
         "type": "object"
       },
+      "TransitionRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "TwoFactorStatusResponse": {
         "properties": {
           "enabled": {
@@ -7009,7 +7248,7 @@
       },
       "post": {
         "description": "Tạo một tài liệu tri thức mới kèm phiên bản 1 trạng thái DRAFT",
-        "operationId": "create_6",
+        "operationId": "create_7",
         "requestBody": {
           "content": {
             "application/json": {
@@ -7241,7 +7480,7 @@
     "/api/v1/admin/assistant/knowledge/{id}/submit": {
       "post": {
         "description": "Chuyển trạng thái phiên bản từ DRAFT sang PENDING_REVIEW để người khác duyệt",
-        "operationId": "submit_3",
+        "operationId": "submit_4",
         "parameters": [
           {
             "description": "Mã định danh tài liệu tri thức (UUID)",
@@ -7511,7 +7750,7 @@
       },
       "post": {
         "description": "Tạo một tài liệu tri thức mới kèm phiên bản 1 trạng thái DRAFT",
-        "operationId": "create_7",
+        "operationId": "create_8",
         "requestBody": {
           "content": {
             "application/json": {
@@ -7743,7 +7982,7 @@
     "/api/v1/admin/thesis/assistant/knowledge/{id}/submit": {
       "post": {
         "description": "Chuyển trạng thái phiên bản từ DRAFT sang PENDING_REVIEW để người khác duyệt",
-        "operationId": "submit_4",
+        "operationId": "submit_5",
         "parameters": [
           {
             "description": "Mã định danh tài liệu tri thức (UUID)",
@@ -7781,6 +8020,680 @@
         "summary": "Nộp bản nháp để chờ xét duyệt (Submit for Review)",
         "tags": [
           "AI Assistant Knowledge Base (Admin)"
+        ]
+      }
+    },
+    "/api/v1/admissions/applications": {
+      "post": {
+        "operationId": "create_6",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApplicationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "summary": "Tạo hồ sơ nháp cho một đợt tuyển",
+        "tags": [
+          "Admissions"
+        ]
+      }
+    },
+    "/api/v1/admissions/applications/my": {
+      "get": {
+        "operationId": "myApplications",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApplicationResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Danh sách hồ sơ của tôi",
+        "tags": [
+          "Admissions"
+        ]
+      }
+    },
+    "/api/v1/admissions/applications/{applicationId}": {
+      "get": {
+        "operationId": "detail_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Chi tiết hồ sơ của tôi",
+        "tags": [
+          "Admissions"
+        ]
+      },
+      "put": {
+        "operationId": "save_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveApplicationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Lưu trường hồ sơ nháp (optimistic version)",
+        "tags": [
+          "Admissions"
+        ]
+      }
+    },
+    "/api/v1/admissions/applications/{applicationId}/attachments": {
+      "post": {
+        "operationId": "uploadAttachment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachmentUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "summary": "Tải tệp đính kèm (checksum-bound)",
+        "tags": [
+          "Admissions"
+        ]
+      }
+    },
+    "/api/v1/admissions/applications/{applicationId}/attachments/{attachmentId}": {
+      "delete": {
+        "operationId": "deleteAttachment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Xóa tệp đính kèm (dọn byte, không để orphan)",
+        "tags": [
+          "Admissions"
+        ]
+      }
+    },
+    "/api/v1/admissions/applications/{applicationId}/attachments/{attachmentId}/file": {
+      "get": {
+        "operationId": "downloadAttachment_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Tải nội dung tệp (chỉ chủ hồ sơ)",
+        "tags": [
+          "Admissions"
+        ]
+      }
+    },
+    "/api/v1/admissions/applications/{applicationId}/submit": {
+      "post": {
+        "operationId": "submit_3",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Nộp hồ sơ (DRAFT hoặc RETURNED)",
+        "tags": [
+          "Admissions"
+        ]
+      }
+    },
+    "/api/v1/admissions/applications/{applicationId}/withdraw": {
+      "post": {
+        "operationId": "withdraw",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Rút hồ sơ (khi còn cho phép)",
+        "tags": [
+          "Admissions"
+        ]
+      }
+    },
+    "/api/v1/admissions/staff/applications/{applicationId}": {
+      "get": {
+        "operationId": "detail_5",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Chi tiết hồ sơ (staff)",
+        "tags": [
+          "Admissions Staff"
+        ]
+      }
+    },
+    "/api/v1/admissions/staff/applications/{applicationId}/attachments/{attachmentId}/file": {
+      "get": {
+        "operationId": "downloadAttachment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Tải nội dung tệp đính kèm (staff)",
+        "tags": [
+          "Admissions Staff"
+        ]
+      }
+    },
+    "/api/v1/admissions/staff/applications/{applicationId}/claim": {
+      "post": {
+        "operationId": "claim",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Nhận duyệt hồ sơ (SUBMITTED → IN_REVIEW)",
+        "tags": [
+          "Admissions Staff"
+        ]
+      }
+    },
+    "/api/v1/admissions/staff/applications/{applicationId}/decision": {
+      "post": {
+        "operationId": "decide",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Quyết định mô phỏng (IN_REVIEW → ACCEPTED|REJECTED)",
+        "tags": [
+          "Admissions Staff"
+        ]
+      }
+    },
+    "/api/v1/admissions/staff/applications/{applicationId}/return": {
+      "post": {
+        "operationId": "returnApplication",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReturnApplicationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Trả hồ sơ kèm checklist (IN_REVIEW → RETURNED)",
+        "tags": [
+          "Admissions Staff"
+        ]
+      }
+    },
+    "/api/v1/admissions/staff/grants": {
+      "get": {
+        "operationId": "grants_1",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StaffGrantResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Danh sách staff grants",
+        "tags": [
+          "Admissions Staff"
+        ]
+      },
+      "post": {
+        "operationId": "grant_1",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffGrantResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "summary": "Cấp grant STAFF:admissions (admin)",
+        "tags": [
+          "Admissions Staff"
+        ]
+      }
+    },
+    "/api/v1/admissions/staff/grants/{grantId}": {
+      "delete": {
+        "operationId": "revoke_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "grantId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "Thu hồi grant (admin)",
+        "tags": [
+          "Admissions Staff"
+        ]
+      }
+    },
+    "/api/v1/admissions/staff/queue": {
+      "get": {
+        "operationId": "queue",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApplicationResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Hàng đợi hồ sơ (lọc theo trạng thái)",
+        "tags": [
+          "Admissions Staff"
         ]
       }
     },
@@ -12708,7 +13621,7 @@
     },
     "/api/v1/events/{eventId}": {
       "get": {
-        "operationId": "detail_3",
+        "operationId": "detail_4",
         "parameters": [
           {
             "in": "path",
@@ -15740,7 +16653,7 @@
     "/api/v1/public/docs/{slug}": {
       "get": {
         "description": "Nội dung revision đã xuất bản của tài liệu — slug không tồn tại hoặc chưa xuất bản đều trả 404",
-        "operationId": "detail_2",
+        "operationId": "detail_3",
         "parameters": [
           {
             "description": "Slug công khai của tài liệu",
@@ -20350,6 +21263,10 @@
       "name": "Thesis Dean Overview"
     },
     {
+      "description": "Hàng đợi tuyển sinh mô phỏng: claim, trả hồ sơ, quyết định, grants",
+      "name": "Admissions Staff"
+    },
+    {
       "description": "Tài liệu công khai của trường — đọc ẩn danh, chỉ nội dung đã duyệt xuất bản",
       "name": "Public Documents"
     },
@@ -20480,6 +21397,10 @@
     {
       "description": "Kiểm tra và truy xuất thông tin xác thực định danh (claims) đóng băng từ JWT",
       "name": "Identity Claims"
+    },
+    {
+      "description": "Tuyển sinh mô phỏng: hồ sơ, đính kèm, nộp/rút hồ sơ",
+      "name": "Admissions"
     },
     {
       "description": "Quy trình chuyển đổi trạng thái đợt khóa luận, đề xuất đề tài, phân công GVHD, quản lý nhóm và nộp báo cáo",

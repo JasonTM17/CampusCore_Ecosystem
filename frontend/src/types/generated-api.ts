@@ -50,7 +50,7 @@ export interface paths {
      * Tạo mới tài liệu tri thức (Bản nháp DRAFT)
      * @description Tạo một tài liệu tri thức mới kèm phiên bản 1 trạng thái DRAFT
      */
-    post: operations["create_6"];
+    post: operations["create_7"];
   };
   "/api/v1/admin/assistant/knowledge/sync": {
     /** Thực hiện đồng bộ tri thức ngay lập tức (Sync Now) */
@@ -89,7 +89,7 @@ export interface paths {
      * Nộp bản nháp để chờ xét duyệt (Submit for Review)
      * @description Chuyển trạng thái phiên bản từ DRAFT sang PENDING_REVIEW để người khác duyệt
      */
-    post: operations["submit_3"];
+    post: operations["submit_4"];
   };
   "/api/v1/admin/audit": {
     /**
@@ -122,7 +122,7 @@ export interface paths {
      * Tạo mới tài liệu tri thức (Bản nháp DRAFT)
      * @description Tạo một tài liệu tri thức mới kèm phiên bản 1 trạng thái DRAFT
      */
-    post: operations["create_7"];
+    post: operations["create_8"];
   };
   "/api/v1/admin/thesis/assistant/knowledge/sync": {
     /** Thực hiện đồng bộ tri thức ngay lập tức (Sync Now) */
@@ -161,7 +161,75 @@ export interface paths {
      * Nộp bản nháp để chờ xét duyệt (Submit for Review)
      * @description Chuyển trạng thái phiên bản từ DRAFT sang PENDING_REVIEW để người khác duyệt
      */
-    post: operations["submit_4"];
+    post: operations["submit_5"];
+  };
+  "/api/v1/admissions/applications": {
+    /** Tạo hồ sơ nháp cho một đợt tuyển */
+    post: operations["create_6"];
+  };
+  "/api/v1/admissions/applications/my": {
+    /** Danh sách hồ sơ của tôi */
+    get: operations["myApplications"];
+  };
+  "/api/v1/admissions/applications/{applicationId}": {
+    /** Chi tiết hồ sơ của tôi */
+    get: operations["detail_2"];
+    /** Lưu trường hồ sơ nháp (optimistic version) */
+    put: operations["save_1"];
+  };
+  "/api/v1/admissions/applications/{applicationId}/attachments": {
+    /** Tải tệp đính kèm (checksum-bound) */
+    post: operations["uploadAttachment"];
+  };
+  "/api/v1/admissions/applications/{applicationId}/attachments/{attachmentId}": {
+    /** Xóa tệp đính kèm (dọn byte, không để orphan) */
+    delete: operations["deleteAttachment"];
+  };
+  "/api/v1/admissions/applications/{applicationId}/attachments/{attachmentId}/file": {
+    /** Tải nội dung tệp (chỉ chủ hồ sơ) */
+    get: operations["downloadAttachment_1"];
+  };
+  "/api/v1/admissions/applications/{applicationId}/submit": {
+    /** Nộp hồ sơ (DRAFT hoặc RETURNED) */
+    post: operations["submit_3"];
+  };
+  "/api/v1/admissions/applications/{applicationId}/withdraw": {
+    /** Rút hồ sơ (khi còn cho phép) */
+    post: operations["withdraw"];
+  };
+  "/api/v1/admissions/staff/applications/{applicationId}": {
+    /** Chi tiết hồ sơ (staff) */
+    get: operations["detail_5"];
+  };
+  "/api/v1/admissions/staff/applications/{applicationId}/attachments/{attachmentId}/file": {
+    /** Tải nội dung tệp đính kèm (staff) */
+    get: operations["downloadAttachment"];
+  };
+  "/api/v1/admissions/staff/applications/{applicationId}/claim": {
+    /** Nhận duyệt hồ sơ (SUBMITTED → IN_REVIEW) */
+    post: operations["claim"];
+  };
+  "/api/v1/admissions/staff/applications/{applicationId}/decision": {
+    /** Quyết định mô phỏng (IN_REVIEW → ACCEPTED|REJECTED) */
+    post: operations["decide"];
+  };
+  "/api/v1/admissions/staff/applications/{applicationId}/return": {
+    /** Trả hồ sơ kèm checklist (IN_REVIEW → RETURNED) */
+    post: operations["returnApplication"];
+  };
+  "/api/v1/admissions/staff/grants": {
+    /** Danh sách staff grants */
+    get: operations["grants_1"];
+    /** Cấp grant STAFF:admissions (admin) */
+    post: operations["grant_1"];
+  };
+  "/api/v1/admissions/staff/grants/{grantId}": {
+    /** Thu hồi grant (admin) */
+    delete: operations["revoke_1"];
+  };
+  "/api/v1/admissions/staff/queue": {
+    /** Hàng đợi hồ sơ (lọc theo trạng thái) */
+    get: operations["queue"];
   };
   "/api/v1/announcements": {
     /**
@@ -840,7 +908,7 @@ export interface paths {
   };
   "/api/v1/events/{eventId}": {
     /** Chi tiết sự kiện */
-    get: operations["detail_3"];
+    get: operations["detail_4"];
   };
   "/api/v1/events/{eventId}/register": {
     /** Đăng ký tham gia sự kiện */
@@ -1268,7 +1336,7 @@ export interface paths {
      * Tài liệu công khai theo slug
      * @description Nội dung revision đã xuất bản của tài liệu — slug không tồn tại hoặc chưa xuất bản đều trả 404
      */
-    get: operations["detail_2"];
+    get: operations["detail_3"];
   };
   "/api/v1/public/docs/{slug}/attachments/{attachmentId}": {
     /**
@@ -1970,6 +2038,33 @@ export interface components {
       /** Format: int32 */
       version?: number;
     };
+    ApplicationResponse: {
+      applicantEmail?: string;
+      applicantUserId?: string;
+      attachments?: components["schemas"]["AttachmentResponse"][];
+      claimedBy?: string;
+      /** Format: date-time */
+      createdAt?: string;
+      cycle?: string;
+      dateOfBirth?: string;
+      decision?: string;
+      /** Format: date-time */
+      decisionAt?: string;
+      decisionLabel?: string;
+      essay?: string;
+      fullName?: string;
+      id?: string;
+      intendedMajor?: string;
+      reviews?: components["schemas"]["ReviewResponse"][];
+      schoolName?: string;
+      status?: string;
+      /** Format: date-time */
+      submittedAt?: string;
+      /** Format: date-time */
+      updatedAt?: string;
+      /** Format: int32 */
+      version?: number;
+    };
     ArticleCategory: {
       active?: boolean;
       code?: string;
@@ -2068,6 +2163,22 @@ export interface components {
     AttachmentListResponse: {
       data?: components["schemas"]["AttachmentDto"][];
       meta?: components["schemas"]["PageMeta"];
+    };
+    AttachmentResponse: {
+      checksum?: string;
+      contentType?: string;
+      /** Format: date-time */
+      createdAt?: string;
+      fileName?: string;
+      id?: string;
+      /** Format: int64 */
+      sizeBytes?: number;
+    };
+    AttachmentUploadRequest: {
+      checksum?: string;
+      contentType?: string;
+      dataBase64?: string;
+      fileName?: string;
     };
     AttendanceBatchRequest: {
       marks?: components["schemas"]["AttendanceMarkRequest"][];
@@ -2211,6 +2322,11 @@ export interface components {
       terminalStatus?: string;
       /** Format: uuid */
       turnId?: string;
+    };
+    ChecklistItemRequest: {
+      item?: string;
+      note?: string;
+      result?: string;
     };
     Citation: {
       corpusHash?: string;
@@ -2403,6 +2519,9 @@ export interface components {
       code?: string;
       name?: string;
     };
+    CreateApplicationRequest: {
+      cycle?: string;
+    };
     CreateConversationRequest: {
       locale?: string;
       scope?: string;
@@ -2523,6 +2642,13 @@ export interface components {
       lecturerId?: string;
       /** Format: int32 */
       supervisorOrder?: number;
+    };
+    DecisionRequest: {
+      checklist?: components["schemas"]["ChecklistItemRequest"][];
+      decision?: string;
+      /** Format: int32 */
+      expectedVersion?: number;
+      note?: string;
     };
     DeleteAnnouncementResponse: {
       message?: string;
@@ -3510,6 +3636,12 @@ export interface components {
       /** Format: date-time */
       updatedAt?: string;
     };
+    ReturnApplicationRequest: {
+      checklist?: components["schemas"]["ChecklistItemRequest"][];
+      /** Format: int32 */
+      expectedVersion?: number;
+      note?: string;
+    };
     ReturnRequest: {
       comment?: string;
       /** Format: int32 */
@@ -3520,6 +3652,16 @@ export interface components {
     ReviewRequest: {
       decision: string;
       note?: string;
+    };
+    ReviewResponse: {
+      action?: string;
+      checklist?: string;
+      /** Format: date-time */
+      createdAt?: string;
+      decision?: string;
+      id?: string;
+      note?: string;
+      reviewerId?: string;
     };
     ReviewerScoreRequest: {
       comment?: string;
@@ -3622,6 +3764,15 @@ export interface components {
       /** @enum {string} */
       status?: "DRAFT" | "PROPOSAL_OPEN" | "PROPOSALS_PUBLISHED" | "REGISTRATION_OPEN" | "REGISTRATION_CLOSED" | "RESULTS_PUBLISHED" | "CLOSED" | "CANCELLED";
       thesisType?: string;
+    };
+    SaveApplicationRequest: {
+      dateOfBirth?: string;
+      essay?: string;
+      /** Format: int32 */
+      expectedVersion?: number;
+      fullName?: string;
+      intendedMajor?: string;
+      schoolName?: string;
     };
     ScheduleListResponse: {
       data?: components["schemas"]["ScheduleResponse"][];
@@ -4151,6 +4302,10 @@ export interface components {
       /** Format: int32 */
       totalCreditsEarned?: number;
     };
+    TransitionRequest: {
+      /** Format: int32 */
+      expectedVersion?: number;
+    };
     TwoFactorStatusResponse: {
       enabled?: boolean;
     };
@@ -4391,7 +4546,7 @@ export interface operations {
    * Tạo mới tài liệu tri thức (Bản nháp DRAFT)
    * @description Tạo một tài liệu tri thức mới kèm phiên bản 1 trạng thái DRAFT
    */
-  create_6: {
+  create_7: {
     requestBody: {
       content: {
         "application/json": components["schemas"]["KnowledgeRequest"];
@@ -4531,7 +4686,7 @@ export interface operations {
    * Nộp bản nháp để chờ xét duyệt (Submit for Review)
    * @description Chuyển trạng thái phiên bản từ DRAFT sang PENDING_REVIEW để người khác duyệt
    */
-  submit_3: {
+  submit_4: {
     parameters: {
       path: {
         /** @description Mã định danh tài liệu tri thức (UUID) */
@@ -4658,7 +4813,7 @@ export interface operations {
    * Tạo mới tài liệu tri thức (Bản nháp DRAFT)
    * @description Tạo một tài liệu tri thức mới kèm phiên bản 1 trạng thái DRAFT
    */
-  create_7: {
+  create_8: {
     requestBody: {
       content: {
         "application/json": components["schemas"]["KnowledgeRequest"];
@@ -4798,7 +4953,7 @@ export interface operations {
    * Nộp bản nháp để chờ xét duyệt (Submit for Review)
    * @description Chuyển trạng thái phiên bản từ DRAFT sang PENDING_REVIEW để người khác duyệt
    */
-  submit_4: {
+  submit_5: {
     parameters: {
       path: {
         /** @description Mã định danh tài liệu tri thức (UUID) */
@@ -4816,6 +4971,339 @@ export interface operations {
       409: {
         content: {
           "*/*": components["schemas"]["KnowledgeRevision"];
+        };
+      };
+    };
+  };
+  /** Tạo hồ sơ nháp cho một đợt tuyển */
+  create_6: {
+    parameters: {
+      header?: {
+        "Idempotency-Key"?: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateApplicationRequest"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        content: {
+          "*/*": components["schemas"]["ApplicationResponse"];
+        };
+      };
+    };
+  };
+  /** Danh sách hồ sơ của tôi */
+  myApplications: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["ApplicationResponse"][];
+        };
+      };
+    };
+  };
+  /** Chi tiết hồ sơ của tôi */
+  detail_2: {
+    parameters: {
+      path: {
+        applicationId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["ApplicationResponse"];
+        };
+      };
+    };
+  };
+  /** Lưu trường hồ sơ nháp (optimistic version) */
+  save_1: {
+    parameters: {
+      path: {
+        applicationId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SaveApplicationRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["ApplicationResponse"];
+        };
+      };
+    };
+  };
+  /** Tải tệp đính kèm (checksum-bound) */
+  uploadAttachment: {
+    parameters: {
+      header?: {
+        "Idempotency-Key"?: string;
+      };
+      path: {
+        applicationId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AttachmentUploadRequest"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        content: {
+          "*/*": components["schemas"]["ApplicationResponse"];
+        };
+      };
+    };
+  };
+  /** Xóa tệp đính kèm (dọn byte, không để orphan) */
+  deleteAttachment: {
+    parameters: {
+      header?: {
+        "Idempotency-Key"?: string;
+      };
+      path: {
+        applicationId: string;
+        attachmentId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["ApplicationResponse"];
+        };
+      };
+    };
+  };
+  /** Tải nội dung tệp (chỉ chủ hồ sơ) */
+  downloadAttachment_1: {
+    parameters: {
+      path: {
+        applicationId: string;
+        attachmentId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
+  /** Nộp hồ sơ (DRAFT hoặc RETURNED) */
+  submit_3: {
+    parameters: {
+      header?: {
+        "Idempotency-Key"?: string;
+      };
+      path: {
+        applicationId: string;
+      };
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["TransitionRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["ApplicationResponse"];
+        };
+      };
+    };
+  };
+  /** Rút hồ sơ (khi còn cho phép) */
+  withdraw: {
+    parameters: {
+      header?: {
+        "Idempotency-Key"?: string;
+      };
+      path: {
+        applicationId: string;
+      };
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["TransitionRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["ApplicationResponse"];
+        };
+      };
+    };
+  };
+  /** Chi tiết hồ sơ (staff) */
+  detail_5: {
+    parameters: {
+      path: {
+        applicationId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["ApplicationResponse"];
+        };
+      };
+    };
+  };
+  /** Tải nội dung tệp đính kèm (staff) */
+  downloadAttachment: {
+    parameters: {
+      path: {
+        applicationId: string;
+        attachmentId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": string;
+        };
+      };
+    };
+  };
+  /** Nhận duyệt hồ sơ (SUBMITTED → IN_REVIEW) */
+  claim: {
+    parameters: {
+      path: {
+        applicationId: string;
+      };
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["TransitionRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["ApplicationResponse"];
+        };
+      };
+    };
+  };
+  /** Quyết định mô phỏng (IN_REVIEW → ACCEPTED|REJECTED) */
+  decide: {
+    parameters: {
+      path: {
+        applicationId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DecisionRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["ApplicationResponse"];
+        };
+      };
+    };
+  };
+  /** Trả hồ sơ kèm checklist (IN_REVIEW → RETURNED) */
+  returnApplication: {
+    parameters: {
+      path: {
+        applicationId: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReturnApplicationRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["ApplicationResponse"];
+        };
+      };
+    };
+  };
+  /** Danh sách staff grants */
+  grants_1: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["StaffGrantResponse"][];
+        };
+      };
+    };
+  };
+  /** Cấp grant STAFF:admissions (admin) */
+  grant_1: {
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        content: {
+          "*/*": components["schemas"]["StaffGrantResponse"];
+        };
+      };
+    };
+  };
+  /** Thu hồi grant (admin) */
+  revoke_1: {
+    parameters: {
+      path: {
+        grantId: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: never;
+      };
+    };
+  };
+  /** Hàng đợi hồ sơ (lọc theo trạng thái) */
+  queue: {
+    parameters: {
+      query?: {
+        status?: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["ApplicationResponse"][];
         };
       };
     };
@@ -7452,7 +7940,7 @@ export interface operations {
     };
   };
   /** Chi tiết sự kiện */
-  detail_3: {
+  detail_4: {
     parameters: {
       path: {
         eventId: string;
@@ -9087,7 +9575,7 @@ export interface operations {
    * Tài liệu công khai theo slug
    * @description Nội dung revision đã xuất bản của tài liệu — slug không tồn tại hoặc chưa xuất bản đều trả 404
    */
-  detail_2: {
+  detail_3: {
     parameters: {
       path: {
         /** @description Slug công khai của tài liệu */
