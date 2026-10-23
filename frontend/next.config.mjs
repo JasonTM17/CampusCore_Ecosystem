@@ -74,6 +74,17 @@ const nextConfig = {
           },
         ],
       },
+      {
+        // Universal-links association is an extensionless path that must
+        // answer application/json — Next cannot infer it from a suffix.
+        source: '/.well-known/apple-app-site-association',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/json',
+          },
+        ],
+      },
     ];
   },
 };
