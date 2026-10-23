@@ -400,6 +400,60 @@ export interface MobileLibraryLoan {
   createdAt: string;
 }
 
+/** §9 careers contract (P12): candidate lane only on native — browse
+ * published postings, apply, own application history, withdraw. The
+ * recruiter/reviewer lanes and attachment uploads stay on the web
+ * surface; every decision carries a visible moderation reason. */
+export type MobileCareerOpportunityStatus =
+  | 'DRAFT'
+  | 'IN_REVIEW'
+  | 'PUBLISHED'
+  | 'PAUSED'
+  | 'CLOSED'
+  | 'REJECTED';
+
+export type MobileCareerApplicationStatus =
+  | 'SUBMITTED'
+  | 'REVIEWING'
+  | 'INTERVIEW'
+  | 'OFFER'
+  | 'REJECTED'
+  | 'WITHDRAWN';
+
+export interface MobileCareerOpportunity {
+  id: string;
+  organizationId: string;
+  organizationName?: string | null;
+  title: string;
+  description?: string | null;
+  location?: string | null;
+  employmentType?: string | null;
+  salaryText?: string | null;
+  status: MobileCareerOpportunityStatus;
+  publishedAt?: string | null;
+  closedAt?: string | null;
+  version: number;
+  createdAt: string;
+}
+
+export interface MobileCareerApplication {
+  id: string;
+  opportunityId: string;
+  opportunityTitle?: string | null;
+  organizationId: string;
+  organizationName?: string | null;
+  candidateUserId: string;
+  candidateEmail?: string | null;
+  status: MobileCareerApplicationStatus;
+  coverLetter?: string | null;
+  submittedAt?: string | null;
+  statusChangedBy?: string | null;
+  statusChangedAt?: string | null;
+  moderationReason?: string | null;
+  version: number;
+  createdAt: string;
+}
+
 export interface LecturerScheduleEntry {
   sectionId: string;
   sectionNumber?: string;
@@ -1034,6 +1088,27 @@ export const campusApi = {
   libraryCancel: (requestId: string, expectedVersion: number) =>
     apiClient.post<MobileLibraryLoan>(
       `/library/requests/${encodeURIComponent(requestId)}/cancel`,
+      { expectedVersion },
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  // Careers (§9): candidate lane — browse published postings, apply,
+  // own history, owner withdraw. Recruiter/reviewer moderation and
+  // attachment uploads stay the web lane; mutations carry Idempotency-Key.
+  careersOpportunities: (query?: string) =>
+    apiClient.get<MobileCareerOpportunity[]>(
+      `/careers/opportunities${query ? `?query=${encodeURIComponent(query)}` : ''}`,
+    ),
+  careersMyApplications: () =>
+    apiClient.get<MobileCareerApplication[]>('/careers/applications/my'),
+  careersApply: (opportunityId: string, coverLetter?: string) =>
+    apiClient.post<MobileCareerApplication>(
+      '/careers/applications',
+      { opportunityId, coverLetter },
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  careersWithdraw: (applicationId: string, expectedVersion: number) =>
+    apiClient.post<MobileCareerApplication>(
+      `/careers/applications/${encodeURIComponent(applicationId)}/withdraw`,
       { expectedVersion },
       { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
     ),
