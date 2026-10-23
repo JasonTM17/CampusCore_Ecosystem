@@ -133,6 +133,7 @@ identity:
       - /api/v1/lms
       - /api/v1/learning
       - /api/v1/sections
+      - /api/v1/admissions
       - /api/v1/auth/change-password
     # Anonymous read lane (P06): GET/HEAD onto these prefixes proxies WITHOUT
     # a session cookie — the upstream permitAll set in SecurityConfig is the

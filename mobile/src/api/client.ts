@@ -299,6 +299,55 @@ export interface MobileLearningFeedback {
   createdAt: string;
 }
 
+/** §7 admissions contract (P10): applicant lane only on native — draft,
+ * save, submit, withdraw and status/review history. Attachments and the
+ * staff queue stay web lanes; every decision carries the SIMULATED label
+ * and never creates an academic Student record. */
+export type MobileApplicationStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'IN_REVIEW'
+  | 'RETURNED'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'WITHDRAWN';
+
+export interface MobileAdmissionReview {
+  id: string;
+  action: 'CLAIM' | 'RETURN' | 'DECISION';
+  checklist?: string | null;
+  note?: string | null;
+  decision?: 'ACCEPTED' | 'REJECTED' | null;
+  createdAt: string;
+}
+
+export interface MobileAdmissionApplication {
+  id: string;
+  applicantUserId: string;
+  cycle: string;
+  status: MobileApplicationStatus;
+  fullName?: string | null;
+  dateOfBirth?: string | null;
+  schoolName?: string | null;
+  intendedMajor?: string | null;
+  essay?: string | null;
+  submittedAt?: string | null;
+  decision?: 'ACCEPTED' | 'REJECTED' | null;
+  decisionLabel?: 'SIMULATED' | null;
+  decisionAt?: string | null;
+  version: number;
+  createdAt: string;
+  reviews: MobileAdmissionReview[];
+}
+
+export interface MobileAdmissionForm {
+  fullName: string;
+  dateOfBirth: string;
+  schoolName: string;
+  intendedMajor: string;
+  essay: string;
+}
+
 export interface LecturerScheduleEntry {
   sectionId: string;
   sectionNumber?: string;
@@ -883,6 +932,33 @@ export const campusApi = {
   learningFeedback: (submissionId: string) =>
     apiClient.get<MobileLearningFeedback[]>(
       `/learning/submissions/${encodeURIComponent(submissionId)}/feedback`,
+    ),
+  // Admissions (§7): applicant lane — draft/save/submit/withdraw/status.
+  // Attachments stay the web lane; decisions are SIMULATED by contract.
+  admissionsMy: () =>
+    apiClient.get<MobileAdmissionApplication[]>('/admissions/applications/my'),
+  admissionsCreate: (cycle: string) =>
+    apiClient.post<MobileAdmissionApplication>(
+      '/admissions/applications',
+      { cycle },
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  admissionsSave: (applicationId: string, form: MobileAdmissionForm, expectedVersion: number) =>
+    apiClient.put<MobileAdmissionApplication>(
+      `/admissions/applications/${encodeURIComponent(applicationId)}`,
+      { ...form, expectedVersion },
+    ),
+  admissionsSubmit: (applicationId: string, expectedVersion: number) =>
+    apiClient.post<MobileAdmissionApplication>(
+      `/admissions/applications/${encodeURIComponent(applicationId)}/submit`,
+      { expectedVersion },
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  admissionsWithdraw: (applicationId: string, expectedVersion: number) =>
+    apiClient.post<MobileAdmissionApplication>(
+      `/admissions/applications/${encodeURIComponent(applicationId)}/withdraw`,
+      { expectedVersion },
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
     ),
   createThesisGroup: (roundId: string) =>
     apiClient.post<MobileThesisGroup>(apiRoutes.thesis.groups, { roundId }),
