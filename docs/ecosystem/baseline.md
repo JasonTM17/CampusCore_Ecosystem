@@ -40,7 +40,7 @@ Controller giữ ledger `plans/261021-2123-campusute-ecosystem/reports/execution
 | P02 | Nâng Java/Spring còn hỗ trợ, giữ public nghiệp vụ, gate `platform` | Kongming architecture + tester độc lập |
 | P03 | Contracts/quyền/design token/observability, gate `contracts`; owner CI `contract-drift` (R2-1) | Kongming + tester contract |
 | P04 | Authorization server + một session authority, gate `identity`; bound R2-5 | Kongming frozen architecture + Wukong auth/replay + independent security |
-| P05 | Browser BFF, host isolation, SSO xuyên miền, gate `browser-sso`; owner CI `host-registry` + `static-policy` (R2-1); bound R2-5 | security + Wukong sibling-host + tester độc lập |
+| P05 | Browser BFF, host isolation, SSO xuyên miền, gate `bff`; owner CI `host-registry` + `static-policy` (R2-1); bound R2-5 | security + Wukong sibling-host + tester độc lập |
 | P06 | Hub/news/docs, gate `content` | tester + security publication boundary |
 | P07 | Mobile nền + học vụ hiện hữu, gate `mobile-core` | tester mobile + security storage |
 | P08 | Events/Đoàn–Hội, gate `events` | tester + Wukong last-seat |

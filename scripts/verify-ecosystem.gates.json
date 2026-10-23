@@ -1154,6 +1154,116 @@
           "description": "iOS device lane (physical/simulator): install → update → restart → reinstall, key invalidation, browser SSO, picker, slow/cold API, denied role, logout/replay. EXTERNAL capability — no runner exists today; declare ECO_CAP_DEVICES_IOS=1 and register a runner when device access is supplied. Until then this case reports BLOCKED_CAPABILITY so the gate report never reads as full device coverage. See docs/ecosystem/device-runbook.md + device-evidence-template.md."
         }
       ]
+    },
+    "demo": {
+      "owner_phase": "P14",
+      "description": "P14 demo rehearsal + operations (phase-14): candidate manifest binds git SHA + source hash + Flyway head + spec/contract digests + per-gate evidence digests (no mixed snapshots); source/docs reconcile (gate citations, i18n vi/en parity, seed-email synthetic allowlist, identity-contract class names); backup→restore parity drill and host probe against a running demo stack; staged deploy + DNS + canary remain external capabilities. The capability-gated legs report BLOCKED_CAPABILITY until their stack/credentials exist — a PASS verdict covers only the executed legs and the report always shows counts.blocked/notRun.",
+      "cases": [
+        {
+          "id": "demo-manifest",
+          "required": true,
+          "targets": [
+            "local",
+            "demo"
+          ],
+          "description": "ecosystem-release-manifest.mjs: binds candidate to git SHA + source identity + flyway head + spec/contract digests + every artifacts/verification/*/report.json — fails if any gate evidence ran on unstable source or verdict FAIL; dirty worktree is recorded (never releasable) not asserted so the verify leg still proves evidence consistency",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/ecosystem-release-manifest.mjs",
+              "--exclude",
+              "{evidence}"
+            ],
+            "timeoutMs": 120000
+          }
+        },
+        {
+          "id": "demo-reconcile",
+          "required": true,
+          "targets": [
+            "local",
+            "demo"
+          ],
+          "description": "ecosystem-reconcile-check.mjs: doc↔manifest agreement — every gate cited in docs/ecosystem/*.md resolves in gates.json, vi/en key parity per i18n message file (mobile + frontend), seed-file email literals inside the synthetic allowlist, identity-contract class names exist",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/ecosystem-reconcile-check.mjs"
+            ],
+            "timeoutMs": 120000
+          }
+        },
+        {
+          "id": "demo-migrations",
+          "required": true,
+          "targets": [
+            "local",
+            "demo"
+          ],
+          "description": "check-migrations.mjs: flyway filename/version hygiene at the release head",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/check-migrations.mjs"
+            ],
+            "timeoutMs": 120000
+          }
+        },
+        {
+          "id": "demo-backup-drill",
+          "required": false,
+          "capability": "demo_stack",
+          "description": "ecosystem-backup-drill.mjs: pg_dump → isolated restore → per-table row-count parity + FK parity + orphan checks on the running demo postgres (ECO_DRILL_CONTAINER/ECO_DRILL_DB/ECO_DRILL_WRITER env). Reports BLOCKED_CAPABILITY until ECO_CAP_DEMO_STACK=1 plus a running stack are supplied.",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/ecosystem-backup-drill.mjs",
+              "--out",
+              "{evidence}"
+            ],
+            "timeoutMs": 300000
+          }
+        },
+        {
+          "id": "demo-host-probe",
+          "required": false,
+          "capability": "demo_stack",
+          "description": "probe-ecosystem-hosts.mjs against live surfaces: AASA/assetlinks synthetic + excludes, CSP, session no-store, apex→portal redirect, id liveness + X-Request-Id. Hosts come from ECO_PROBE_HOST_* env vars; --insecure only for the self-signed preview. Reports BLOCKED_CAPABILITY until ECO_CAP_DEMO_STACK=1 plus running surfaces are supplied.",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/probe-ecosystem-hosts.mjs",
+              "--json",
+              "{evidence}/host-probe.json"
+            ],
+            "timeoutMs": 180000
+          }
+        },
+        {
+          "id": "demo-deploy",
+          "required": false,
+          "capability": "deploy_dns",
+          "description": "Staged deploy: API/id image digest first, web hosts, surface registry, canary synthetic personas, full lifecycle suite, live smoke. EXTERNAL — DNS/hosting credentials not supplied; reports BLOCKED_CAPABILITY."
+        },
+        {
+          "id": "demo-rollback-drill",
+          "required": false,
+          "capability": "deploy_dns",
+          "description": "Rollback drill on the declared demo hostname: restore current backup → attachment parity → delta check → reopen; DNS rollback per real records (TTL not instant). EXTERNAL — reports BLOCKED_CAPABILITY."
+        }
+      ]
+    },
+    "pilot-preflight": {
+      "owner_phase": "P15",
+      "description": "P15 real-data pilot gate — separate from the synthetic demo. Registered so doc citations resolve; cases land with the phase. Legal/source-data authority is an external capability until supplied.",
+      "cases": [
+        {
+          "id": "pilot-preflight-authority",
+          "required": false,
+          "capability": "pilot_authority",
+          "description": "Legal/source-data authority + real-data import preflight. EXTERNAL — reports BLOCKED_CAPABILITY until the pilot authority exists; the synthetic demo never claims it."
+        }
+      ]
     }
   }
 }
