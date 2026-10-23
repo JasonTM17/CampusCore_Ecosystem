@@ -17,6 +17,8 @@ export type ScreenName =
   | 'admissions'
   | 'library'
   | 'careers'
+  | 'news'
+  | 'docs'
   | 'notifications'
   | 'profile'
   | 'thesis.topics'
@@ -76,6 +78,8 @@ export const screenRegistry: readonly ScreenDefinition[] = [
   { name: 'admissions', title: 'Admissions (simulated)', family: 'student', roles: studentRoles, icon: 'account-edit-outline' },
   { name: 'library', title: 'Library (simulated)', family: 'student', roles: studentRoles, icon: 'bookshelf' },
   { name: 'careers', title: 'Careers (simulated)', family: 'student', roles: studentRoles, icon: 'briefcase-search-outline' },
+  { name: 'news', title: 'Campus news', family: 'student', roles: studentRoles, icon: 'newspaper-variant-outline' },
+  { name: 'docs', title: 'Public documents', family: 'student', roles: studentRoles, icon: 'file-document-outline' },
   { name: 'notifications', title: 'Notifications', family: 'student', roles: allRoles, icon: 'bell-outline' },
   { name: 'profile', title: 'Profile', family: 'student', roles: allRoles, icon: 'account-circle-outline' },
   { name: 'thesis.topics', title: 'Thesis topics', family: 'thesis', roles: studentRoles, icon: 'lightbulb-on-outline' },

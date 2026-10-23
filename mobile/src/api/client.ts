@@ -454,6 +454,47 @@ export interface MobileCareerApplication {
   createdAt: string;
 }
 
+/** §5 public content lanes (P13): the anonymous news feed and public
+ * documentation read/search — the same PUBLISHED rows the public hub
+ * serves; audience-scoping metadata never leaves the server. */
+export interface MobilePublicAnnouncement {
+  id: string;
+  title: string;
+  content?: string | null;
+  summary?: string | null;
+  coverImageUrl?: string | null;
+  priority?: string | null;
+  categoryId?: string | null;
+  slug?: string | null;
+  publishAt?: string | null;
+  expiresAt?: string | null;
+  createdAt?: string | null;
+  publishedBy?: string | null;
+  lecturerDisplayName?: string | null;
+  semesterName?: string | null;
+}
+
+export interface MobilePublicDoc {
+  slug: string;
+  categoryId?: string | null;
+  publishedRevision: number;
+  titleVi: string;
+  titleEn: string;
+  summaryVi?: string | null;
+  summaryEn?: string | null;
+  bodyVi?: string | null;
+  bodyEn?: string | null;
+  publishedAt?: string | null;
+  tagIds?: string[];
+}
+
+export interface MobilePageMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export interface LecturerScheduleEntry {
   sectionId: string;
   sectionNumber?: string;
@@ -1112,6 +1153,25 @@ export const campusApi = {
       { expectedVersion },
       { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
     ),
+  // Public content (P13): anonymous news + public docs search — the
+  // server restricts these lanes to PUBLISHED, globally-visible rows.
+  publicAnnouncements: (page = 1, limit = 20) =>
+    apiClient.get<{ data: MobilePublicAnnouncement[]; meta: MobilePageMeta }>(
+      `/announcements/public?page=${page}&limit=${limit}`,
+    ),
+  publicAnnouncement: (idOrSlug: string) =>
+    apiClient.get<MobilePublicAnnouncement>(
+      `/announcements/public/${encodeURIComponent(idOrSlug)}`,
+    ),
+  publicDocs: (search?: string, page = 1, limit = 20) => {
+    const query = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (search) query.set('search', search);
+    return apiClient.get<{ data: MobilePublicDoc[]; meta: MobilePageMeta }>(
+      `/public/docs?${query.toString()}`,
+    );
+  },
+  publicDoc: (slug: string) =>
+    apiClient.get<MobilePublicDoc>(`/public/docs/${encodeURIComponent(slug)}`),
   createThesisGroup: (roundId: string) =>
     apiClient.post<MobileThesisGroup>(apiRoutes.thesis.groups, { roundId }),
   assignThesisTopic: (groupId: string, topicId: string) =>

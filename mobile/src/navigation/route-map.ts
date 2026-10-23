@@ -30,9 +30,13 @@ const pathByScreen: Record<ScreenName, string> = {
   registration: '/registration',
   events: '/events',
   learning: '/learning',
-  admissions: '/admissions',
+  // App path mirrors the portal's `/apply` so a claimed universal link
+  // resolves to this screen; `/admissions` is not a portal route.
+  admissions: '/apply',
   library: '/library',
   careers: '/careers',
+  news: '/news',
+  docs: '/docs',
   notifications: '/notifications',
   profile: '/profile',
   'thesis.topics': '/thesis',

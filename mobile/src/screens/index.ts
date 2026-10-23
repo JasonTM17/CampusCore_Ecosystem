@@ -16,6 +16,8 @@ import { LearningScreen } from './student/LearningScreen';
 import { AdmissionsScreen } from './student/AdmissionsScreen';
 import { LibraryScreen } from './student/LibraryScreen';
 import { CareersScreen } from './student/CareersScreen';
+import { NewsScreen } from './student/NewsScreen';
+import { DocsScreen } from './student/DocsScreen';
 import {
   AttendanceScreen,
   CoursesScreen,
@@ -48,6 +50,8 @@ export const screenComponents: Record<ScreenName, ComponentType<MobileScreenProp
   admissions: AdmissionsScreen,
   library: LibraryScreen,
   careers: CareersScreen,
+  news: NewsScreen,
+  docs: DocsScreen,
   notifications: NotificationsScreen,
   profile: ProfileScreen,
   'thesis.topics': ThesisTopicsScreen,

@@ -1086,6 +1086,74 @@
           }
         }
       ]
+    },
+    "devices": {
+      "owner_phase": "P13",
+      "description": "P13 native device acceptance (phase-13): native coverage of every domain lane (news/docs read+search, events register, LMS draft/submit, admissions draft/submit/status, library request/history, careers apply/status — no web-handoff-only screens), universal/app-link association contract on the exact www host with auth-callback and API lanes excluded, and per-OS device evidence. devices-mobile-* legs run the native suite + typecheck; devices-association checks the committed .well-known + app.json contract. The per-OS physical/emulator legs (install/update/restart/reinstall, key invalidation, browser SSO, picker, slow/cold API, denied role, logout/replay) are an EXTERNAL capability — recorded BLOCKED_CAPABILITY until EAS/signing/device access is supplied; see docs/ecosystem/device-runbook.md.",
+      "cases": [
+        {
+          "id": "devices-mobile-tests",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "description": "npm test --prefix mobile: 28-screen registry + route-map parity, domain-contracts coverage (every domain lane calls the API, no website-handoff screens), deep-link guard, session/OIDC flows",
+          "run": {
+            "cmd": "npm",
+            "args": [
+              "test",
+              "--prefix",
+              "mobile"
+            ],
+            "timeoutMs": 300000
+          }
+        },
+        {
+          "id": "devices-mobile-typecheck",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "description": "npm run typecheck --prefix mobile over the 28-screen tree incl. news/docs surfaces",
+          "run": {
+            "cmd": "npm",
+            "args": [
+              "run",
+              "typecheck",
+              "--prefix",
+              "mobile"
+            ],
+            "timeoutMs": 300000
+          }
+        },
+        {
+          "id": "devices-association",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "description": "scripts/ecosystem-devices-verify.mjs: .well-known AASA + assetlinks exist, synthetic identifiers only (real TeamID/fingerprint from secret store at signing), /session/* and /api/* excluded, business lanes scoped to www.campusute.io.vn, app.json associatedDomains + autoVerify intent filters",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/ecosystem-devices-verify.mjs"
+            ],
+            "timeoutMs": 120000
+          }
+        },
+        {
+          "id": "devices-android",
+          "required": false,
+          "capability": "devices_android",
+          "description": "Android device lane (physical/emulator): install → update → restart → reinstall, key invalidation, browser SSO, picker, slow/cold API, denied role, logout/replay. EXTERNAL capability — no runner exists today; declare ECO_CAP_DEVICES_ANDROID=1 and register a runner when device access is supplied. Until then this case reports BLOCKED_CAPABILITY so the gate report never reads as full device coverage. See docs/ecosystem/device-runbook.md + device-evidence-template.md."
+        },
+        {
+          "id": "devices-ios",
+          "required": false,
+          "capability": "devices_ios",
+          "description": "iOS device lane (physical/simulator): install → update → restart → reinstall, key invalidation, browser SSO, picker, slow/cold API, denied role, logout/replay. EXTERNAL capability — no runner exists today; declare ECO_CAP_DEVICES_IOS=1 and register a runner when device access is supplied. Until then this case reports BLOCKED_CAPABILITY so the gate report never reads as full device coverage. See docs/ecosystem/device-runbook.md + device-evidence-template.md."
+        }
+      ]
     }
   }
 }
