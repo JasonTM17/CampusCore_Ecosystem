@@ -48,7 +48,7 @@ test('every registry screen has a router path and round-trips', () => {
     assert.ok(p.startsWith('/'), `${name} path must be absolute`);
     assert.equal(screenForPath(p), name, `${name} must round-trip via ${p}`);
   }
-  assert.equal(screenRegistry.length, 28);
+  assert.equal(screenRegistry.length, 31);
 });
 
 test('thesis detail/registration carry topicId on the URL (KM-5)', () => {

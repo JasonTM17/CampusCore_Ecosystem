@@ -1,6 +1,8 @@
 import type { ComponentType } from 'react';
 
 import { SignInScreen } from './auth/SignInScreen';
+import { ForgotPasswordScreen, LoggedOutScreen } from './account';
+import ResetPasswordRoute from './account/ResetPasswordRoute';
 import { AssistantChatScreen } from './assistant/AssistantScreen';
 import {
   AdminDashboardScreen,
@@ -39,6 +41,9 @@ import type { MobileScreenProps } from '../navigation/types';
 
 export const screenComponents: Record<ScreenName, ComponentType<MobileScreenProps>> = {
   'auth.signIn': SignInScreen,
+  'auth.forgotPassword': ForgotPasswordScreen,
+  'auth.resetPassword': ResetPasswordRoute,
+  'auth.loggedOut': LoggedOutScreen,
   'dashboard.student': StudentDashboardScreen,
   schedule: ScheduleScreen,
   courses: CoursesScreen,

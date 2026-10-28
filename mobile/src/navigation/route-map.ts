@@ -21,6 +21,11 @@ import {
 
 export type SessionKind = 'signedOut' | 'preview' | 'authenticated';
 
+/** Paths a signed-out session may open: the sign-in family and account recovery. */
+const SIGNED_OUT_PATHS: ReadonlySet<string> = new Set([
+  '/', '/sign-in', '/sign-in-blocked', '/forgot-password', '/reset-password', '/session/logged-out',
+]);
+
 const roleHomeScreen: Record<UserRole, ScreenName> = {
   student: 'dashboard.student',
   lecturer: 'lecturer.dashboard',
@@ -29,6 +34,9 @@ const roleHomeScreen: Record<UserRole, ScreenName> = {
 
 const pathByScreen: Record<ScreenName, string> = {
   'auth.signIn': '/sign-in',
+  'auth.forgotPassword': '/forgot-password',
+  'auth.resetPassword': '/reset-password',
+  'auth.loggedOut': '/session/logged-out',
   'dashboard.student': '/dashboard',
   schedule: '/schedule',
   courses: '/courses',
@@ -196,7 +204,7 @@ export function resolveGuard(
     return { action: 'redirect', to: 'auth.signIn' };
   }
   if (session === 'signedOut') {
-    return clean === '/sign-in' || clean === '/sign-in-blocked' || clean === '/'
+    return SIGNED_OUT_PATHS.has(clean)
       ? { action: 'allow' }
       : { action: 'redirect', to: 'auth.signIn' };
   }
@@ -210,7 +218,7 @@ export function resolveGuard(
   if (clean === '/') {
     return { action: 'redirect', to: roleHomeScreen[role] };
   }
-  if (screen === 'auth.signIn') {
+  if (screen !== null && screen.startsWith('auth.')) {
     return { action: 'redirect', to: roleHomeScreen[role] };
   }
   if (screen === null) {

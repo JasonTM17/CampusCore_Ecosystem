@@ -63,7 +63,7 @@ export function useMobileNavigation(): MobileNavigation {
   const signOut = useCallback(() => {
     // The store failure is already surfaced by the wipe having run; the user
     // still lands on sign-in instead of an unhandled rejection.
-    void session.signOut().catch(() => undefined).finally(() => router.replace('/sign-in'));
+    void session.signOut().catch(() => undefined).finally(() => router.replace('/session/logged-out'));
   }, [router, session]);
 
   const switchRole = useCallback((role: UserRole) => {

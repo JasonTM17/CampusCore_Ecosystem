@@ -82,9 +82,9 @@ yet present.
 
 ## Screen atlas
 
-The registry contains 28 navigable screens:
+The registry contains 31 navigable screens:
 
-- Auth: sign in.
+- Auth: sign in, forgot password, reset password, signed out.
 - Student: dashboard, schedule, courses, grades, attendance, registration,
   events, learning (materials & assignments), admissions (simulated), library (simulated),
   careers (simulated), news, docs, notifications, profile.
