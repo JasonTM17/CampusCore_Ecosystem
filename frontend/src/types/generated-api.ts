@@ -75,7 +75,7 @@ export interface paths {
      * Lưu trữ tài liệu tri thức (Archive/Delete)
      * @description Đưa tài liệu tri thức vào trạng thái lưu trữ ngưng hoạt động
      */
-    delete: operations["delete_5"];
+    delete: operations["delete_6"];
   };
   "/api/v1/admin/assistant/knowledge/{id}/publish": {
     /**
@@ -147,7 +147,7 @@ export interface paths {
      * Lưu trữ tài liệu tri thức (Archive/Delete)
      * @description Đưa tài liệu tri thức vào trạng thái lưu trữ ngưng hoạt động
      */
-    delete: operations["delete_4"];
+    delete: operations["delete_5"];
   };
   "/api/v1/admin/thesis/assistant/knowledge/{id}/publish": {
     /**
@@ -279,7 +279,7 @@ export interface paths {
      * Xóa thông báo (Soft Delete an toàn)
      * @description Lưu trữ an toàn thông báo và bảo toàn vết kiểm toán audit log
      */
-    delete: operations["delete_3"];
+    delete: operations["delete_4"];
   };
   "/api/v1/announcements/{id}/approve": {
     /**
@@ -1020,7 +1020,7 @@ export interface paths {
   };
   "/api/v1/events/{eventId}/register": {
     /** Đăng ký tham gia sự kiện */
-    post: operations["register"];
+    post: operations["register_1"];
   };
   "/api/v1/faculties": {
     /**
@@ -1236,7 +1236,7 @@ export interface paths {
      * Xóa hồ sơ giảng viên
      * @description Xóa hồ sơ giảng viên khỏi hệ thống học vụ
      */
-    delete: operations["delete_2"];
+    delete: operations["delete_3"];
   };
   "/api/v1/library/catalogue": {
     /** Tra cứu danh mục sách */
@@ -1460,6 +1460,10 @@ export interface paths {
      * @description Truy vấn danh sách thông báo theo trạng thái đã đọc hoặc chưa đọc
      */
     get: operations["getMyNotifications"];
+  };
+  "/api/v1/notifications/my/devices/{installationId}": {
+    put: operations["register"];
+    delete: operations["delete_2"];
   };
   "/api/v1/notifications/my/read-all": {
     /**
@@ -3819,6 +3823,14 @@ export interface components {
       titleEn?: string;
       titleVi?: string;
     };
+    PushDeviceRegistrationResponse: {
+      installationId?: string;
+      platform?: string;
+      provider?: string;
+      status?: string;
+      /** Format: date-time */
+      updatedAt?: string;
+    };
     ReasonCount: {
       /** Format: int64 */
       count?: number;
@@ -4961,7 +4973,7 @@ export interface operations {
    * Lưu trữ tài liệu tri thức (Archive/Delete)
    * @description Đưa tài liệu tri thức vào trạng thái lưu trữ ngưng hoạt động
    */
-  delete_5: {
+  delete_6: {
     parameters: {
       path: {
         /** @description Mã định danh tài liệu tri thức (UUID) */
@@ -5228,7 +5240,7 @@ export interface operations {
    * Lưu trữ tài liệu tri thức (Archive/Delete)
    * @description Đưa tài liệu tri thức vào trạng thái lưu trữ ngưng hoạt động
    */
-  delete_4: {
+  delete_5: {
     parameters: {
       path: {
         /** @description Mã định danh tài liệu tri thức (UUID) */
@@ -5845,7 +5857,7 @@ export interface operations {
    * Xóa thông báo (Soft Delete an toàn)
    * @description Lưu trữ an toàn thông báo và bảo toàn vết kiểm toán audit log
    */
-  delete_3: {
+  delete_4: {
     parameters: {
       path: {
         /** @description Mã định danh thông báo (UUID) */
@@ -8764,7 +8776,7 @@ export interface operations {
     };
   };
   /** Đăng ký tham gia sự kiện */
-  register: {
+  register_1: {
     parameters: {
       header?: {
         "Idempotency-Key"?: string;
@@ -9634,7 +9646,7 @@ export interface operations {
    * Xóa hồ sơ giảng viên
    * @description Xóa hồ sơ giảng viên khỏi hệ thống học vụ
    */
-  delete_2: {
+  delete_3: {
     parameters: {
       path: {
         /** @description Mã định danh giảng viên (UUID) */
@@ -10546,6 +10558,39 @@ export interface operations {
         content: {
           "*/*": components["schemas"]["NotificationListResponse"];
         };
+      };
+    };
+  };
+  register: {
+    parameters: {
+      path: {
+        installationId: string;
+      };
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["JsonNode"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["PushDeviceRegistrationResponse"];
+        };
+      };
+    };
+  };
+  delete_2: {
+    parameters: {
+      path: {
+        installationId: string;
+      };
+    };
+    responses: {
+      /** @description No Content */
+      204: {
+        content: never;
       };
     };
   };
