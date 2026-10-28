@@ -109,19 +109,42 @@ test('Stitch mobile references stay traceable and live sign-in runs the OIDC PKC
     Object.values(stitchMetadata.screens).map((screen) => screen.id),
   );
 
-  assert.equal(stitchReferenceIds.length, 12);
+  assert.equal(stitchReferenceIds.length, 19);
   // The web atlas grew by three legitimate boards on 2026-09-20/21
   // (web-thesis-submission-workspace, web-assistant-mascot-brand,
-  // web-lecturer-grade-entry): 22 -> 25 total, mobile unchanged at 13.
-  assert.equal(stitchMetadata.inventory.screenCount, 25);
-  assert.equal(stitchMetadata.inventory.mobileCount, 13);
-  assert.equal(Object.keys(stitchMetadata.screens).length, 25);
+  // web-lecturer-grade-entry): 22 -> 25 total. On 2026-10-23 the seven
+  // CampusUTE ecosystem domain lanes were generated in the live Stitch
+  // project 8459672847959457355 under the CampusCore Institutional Mobile
+  // System: 25 -> 32 total, mobile 13 -> 20. The legacy project
+  // 16486483525927292845 is not in the active Stitch account; its records
+  // stay as reference only.
+  assert.equal(stitchMetadata.activeProjectId, '8459672847959457355');
+  assert.equal(stitchMetadata.inventory.screenCount, 32);
+  assert.equal(stitchMetadata.inventory.mobileCount, 20);
+  assert.equal(Object.keys(stitchMetadata.screens).length, 32);
   assert.equal(
     Object.values(stitchMetadata.screens).filter((screen) => screen.deviceType === 'MOBILE').length,
-    13,
+    20,
   );
   for (const referenceId of stitchReferenceIds) {
     assert.ok(metadataIds.has(referenceId), `Missing Stitch metadata for ${referenceId}`);
+  }
+  // Every ecosystem domain lane resolves to a screen in the live project.
+  const domainLaneRefs = {
+    news: '62e1c33865dc4baea955a00cc8bfb311',
+    docs: '02b1eec59ef749e199392e724ed6ca11',
+    events: 'fc5427a8d03549878d4acb90e696d646',
+    learning: '44f28aa4f58a4cd2bbba9ee6efa534f5',
+    admissions: 'bff380e5f2474201b169d6d6b3e7330c',
+    library: '46104df5b291438d828c9d1d85042e6a',
+    careers: '11bb52c7330c44428c503d35c343e2ff',
+  };
+  for (const [lane, referenceId] of Object.entries(domainLaneRefs)) {
+    assert.match(routes, new RegExp(`${lane}: \\[[\\s\\S]*?${referenceId}`), `Missing Stitch reference for ${lane}`);
+    const record = Object.values(stitchMetadata.screens).find((screen) => screen.id === referenceId);
+    assert.ok(record, `Missing Stitch metadata for ${lane} screen ${referenceId}`);
+    assert.equal(record.projectId, '8459672847959457355', `${lane} screen is not in the live CampusUTE project`);
+    assert.equal(record.deviceType, 'MOBILE');
   }
   assert.match(routes, /export const stitchMobileReferences/);
   assert.doesNotMatch(routes, /thesis\.evaluation|3073bce589eb4d4e97ef9775e921a506/);

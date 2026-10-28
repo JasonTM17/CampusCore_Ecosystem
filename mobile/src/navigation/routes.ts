@@ -117,13 +117,37 @@ const bottomNavigationByRole: Readonly<Record<UserRole, readonly BottomNavigatio
   ],
 };
 
-// Direct references only. Other registry screens derive from the same token and
-// interaction contract until a dedicated Stitch screen is added.
+// Direct references only. The seven ecosystem domain lanes resolve to the live
+// CampusUTE Stitch project (8459672847959457355, CampusCore Institutional
+// Mobile System); the capstone-era lanes reference the legacy project kept in
+// frontend/.stitch/metadata.json. Other registry screens derive from the same
+// token and interaction contract until a dedicated Stitch screen is added.
 export const stitchMobileReferences: Readonly<
   Partial<Record<ScreenName, readonly StitchMobileReference[]>>
 > = {
   'auth.signIn': [
     { id: '67e517e324ef454c810e2b41b4acdc99', title: 'Đăng nhập - Hệ thống Quản lý Đề tài' },
+  ],
+  events: [
+    { id: 'fc5427a8d03549878d4acb90e696d646', title: 'CampusCore - Sự kiện & Đoàn-Hội' },
+  ],
+  learning: [
+    { id: '44f28aa4f58a4cd2bbba9ee6efa534f5', title: 'CampusCore - Học tập & LMS' },
+  ],
+  admissions: [
+    { id: 'bff380e5f2474201b169d6d6b3e7330c', title: 'CampusCore - Tuyển sinh (Mô phỏng)' },
+  ],
+  library: [
+    { id: '46104df5b291438d828c9d1d85042e6a', title: 'CampusCore - Thư viện & Học liệu' },
+  ],
+  careers: [
+    { id: '11bb52c7330c44428c503d35c343e2ff', title: 'CampusCore - Việc làm & Hướng nghiệp' },
+  ],
+  news: [
+    { id: '62e1c33865dc4baea955a00cc8bfb311', title: 'CampusCore - Tin tức & Thông báo' },
+  ],
+  docs: [
+    { id: '02b1eec59ef749e199392e724ed6ca11', title: 'CampusCore - Tài liệu & Biểu mẫu' },
   ],
   'dashboard.student': [
     { id: '55abc697e13e416aa87c89fd331e6c62', title: 'Dashboard - Mobile App' },

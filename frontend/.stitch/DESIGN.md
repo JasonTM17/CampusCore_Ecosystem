@@ -1,6 +1,11 @@
 # Design System: Academic Continuity
 
-**Stitch project:** `16486483525927292845` (Smart Student Management Portal)
+**Stitch projects:**
+- `8459672847959457355` (CampusUTE Mobile — domain lanes) — live, CampusCore
+  Institutional Mobile System (`assets/31dbebae693f4d199243d567d8df41a6`)
+- `16486483525927292845` (Smart Student Management Portal) — legacy
+  capstone-era records; not present in the active Stitch account as of
+  2026-10-23
 
 ## Visual theme
 
@@ -64,7 +69,7 @@ At 767px and below, collapse multi-column layouts into one column, move core nav
 
 ## Stitch screen atlas
 
-The current Stitch project contains 22 relevant screens across web and mobile:
+The tracked atlas holds 32 named screens across both projects:
 
 - Dashboard: desktop, mobile, and localized home variants.
 - Authentication: mobile sign-in.
@@ -73,5 +78,10 @@ The current Stitch project contains 22 relevant screens across web and mobile:
 - Thesis lifecycle: topic list, topic detail, registration, progress, and evaluation on desktop/mobile.
 - Faculty and operations: lecturer lists and dashboard surfaces on desktop/mobile.
 - Notifications: desktop and mobile notification centers.
+- CampusUTE domain lanes (live project `8459672847959457355`, mobile-only,
+  generated 2026-10-23): news (Tin tức & Thông báo), docs (Tài liệu &
+  Biểu mẫu), events (Sự kiện & Đoàn-Hội), learning (Học tập & LMS),
+  admissions (Tuyển sinh mô phỏng), library (Thư viện & Học liệu), careers
+  (Việc làm & Hướng nghiệp).
 
 Every implementation change should name the corresponding screen family and verify both a desktop and a 390px/780px mobile viewport when the family has both references.
