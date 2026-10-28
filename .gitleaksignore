@@ -1,0 +1,3 @@
+
+# Shared fixture key used by the identity contract tests (not a credential)
+java-services/restful-api/src/test/java/io/campuscore/restfulapi/identity/MobileOidcTwoFactorFlowTest.java:generic-api-key:62
