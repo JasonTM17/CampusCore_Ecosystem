@@ -113,6 +113,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // callback from a previous session cannot kill the new one (KM-6).
   useEffect(() => {
     apiClient.setOnSessionExpired(() => {
+      clearQueryCache();
       setEpoch((e) => e + 1);
       setState((current) =>
         current.kind === 'authenticated' ? { ...initialState } : current);
