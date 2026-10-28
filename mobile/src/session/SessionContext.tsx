@@ -9,9 +9,11 @@ import {
   type ReactNode,
 } from 'react';
 
-import { apiClient } from '../api/client';
+import { apiClient, campusApi } from '../api/client';
+import { unregisterPushBestEffort } from '../api/push-notifications';
 import { decodeJwtPayload, roleFromClaims } from '../auth/oidc-session';
 import { sessionStore } from '../auth/mobile-session-store';
+import { PUSH_OPT_IN_ENABLED } from '../config/features';
 import { clearQueryCache } from '../hooks/query-cache';
 import type { SessionKind } from '../navigation/route-map';
 import type { UserRole } from '../navigation/routes';
@@ -164,6 +166,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       clearQueryCache();
       setState(initialState);
       return;
+    }
+    if (PUSH_OPT_IN_ENABLED) {
+      // Best effort and never awaited: the access token is captured before the
+      // wipe so the server can drop this device's registration (R23).
+      const accessTokenSnapshot = sessionStore.getAccessToken();
+      void import('../api/expo-push-platform')
+        .then(({ expoPushPlatform }) => expoPushPlatform.getInstallationId())
+        .then((installationId) => unregisterPushBestEffort(campusApi, installationId, accessTokenSnapshot))
+        .catch(() => undefined);
     }
     await sessionStore.signOut();
     clearQueryCache();
