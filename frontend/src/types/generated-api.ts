@@ -3823,6 +3823,11 @@ export interface components {
       titleEn?: string;
       titleVi?: string;
     };
+    PushDeviceRegistrationRequest: {
+      platform: string;
+      provider: string;
+      token: string;
+    };
     PushDeviceRegistrationResponse: {
       installationId?: string;
       platform?: string;
@@ -10567,9 +10572,9 @@ export interface operations {
         installationId: string;
       };
     };
-    requestBody?: {
+    requestBody: {
       content: {
-        "application/json": components["schemas"]["JsonNode"];
+        "application/json": components["schemas"]["PushDeviceRegistrationRequest"];
       };
     };
     responses: {
