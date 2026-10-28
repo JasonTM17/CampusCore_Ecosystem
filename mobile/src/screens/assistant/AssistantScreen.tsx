@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState , useMemo, useReducer } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import {
@@ -25,6 +25,18 @@ import { tokens } from '../../design/tokens';
 import { useThemedStyles, useTheme } from '../../design/theme';
 import type { ThemeColors } from '../../design/theme';
 import type { MobileScreenProps } from '../../navigation/types';
+import {
+  AssistantStreamError,
+  STREAMING_PARITY_VERIFIED,
+  createBufferedTransport,
+} from '../../api/assistant-stream';
+import type { AssistantChatRequest, AssistantCitationEvent, AssistantDoneEvent, AssistantErrorEvent, AssistantMetaEvent } from '../../api/assistant-stream';
+import {
+  assistantStreamReducer,
+  initialAssistantStreamState,
+  selectAssistantStreamView,
+} from '../../api/assistant-stream-state';
+import { assistantMessages } from '../../i18n/assistant-messages';
 
 const NON_REPLAYABLE_TERMINAL_CODES = new Set([
   'TURN_CANCELLED',
@@ -162,6 +174,30 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
   const lastFailedConversationIdRef = useRef<string | undefined>(undefined);
   const isPreview = apiClient.mode === 'preview';
   const t = copy[locale];
+  const msg = assistantMessages[locale];
+  const [streamState, dispatch] = useReducer(assistantStreamReducer, initialAssistantStreamState);
+  const stream = selectAssistantStreamView(streamState);
+  /**
+   * Streaming parity is NOT verified on this build (STREAMING_PARITY_VERIFIED
+   * = false until the M07 dev-build canary): the buffered transport is used and
+   * the UI never labels the turn "streaming" — partial content is only shown
+   * when real SSE parity is proven.
+   */
+  const transport = useMemo(
+    () => (STREAMING_PARITY_VERIFIED
+      ? campusApi.assistantStream()
+      : createBufferedTransport(
+          (request, init) => campusApi.assistantChat(
+            request.message,
+            request.locale,
+            request.conversationId,
+            request.clientRequestId,
+            init,
+          ) as unknown as Promise<import('../../api/assistant-stream').BufferedAssistantReply>,
+          (clientRequestId) => campusApi.cancelAssistantRequest(clientRequestId),
+        )),
+    [],
+  );
 
   const loadConversations = useCallback(async () => {
     if (isPreview) return;
@@ -208,6 +244,34 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
     finally { setDeletingConversationId(null); }
   };
 
+  const runAssistantTurn = async (request: AssistantChatRequest, signal: AbortSignal) => {
+    dispatch({ type: 'send', clientRequestId: request.clientRequestId });
+    let answer = '';
+    const collectedCitations: AssistantCitationEvent['citation'][] = [];
+    let metaEvent: AssistantMetaEvent | null = null;
+    let doneEvent: AssistantDoneEvent | null = null;
+    let errorEvent: AssistantErrorEvent | null = null;
+    for await (const event of transport.stream(request, { signal })) {
+      dispatch({ type: 'event', event });
+      if (event.type === 'delta') answer += event.text;
+      else if (event.type === 'citation') collectedCitations.push(event.citation);
+      else if (event.type === 'meta') metaEvent = event;
+      else if (event.type === 'done') doneEvent = event;
+      else if (event.type === 'error') errorEvent = event;
+    }
+    if (errorEvent) throw new AssistantStreamError(errorEvent.code, { retryable: errorEvent.retryable });
+    if (!doneEvent) throw new AssistantStreamError('STREAM_INCOMPLETE', { connectionLost: true, retryable: true });
+    return {
+      answer,
+      citations: collectedCitations as unknown as import('../../api/client').AssistantReply['citations'],
+      conversationId: metaEvent?.conversationId ?? request.conversationId ?? undefined,
+      messageId: doneEvent.messageId ?? null,
+      reasonCode: doneEvent.reasonCode,
+      degraded: doneEvent.degraded,
+      model: metaEvent?.model,
+    };
+  };
+
   const sendMessage = async (promptOverride?: string, clientRequestIdOverride?: string) => {
     const trimmedMessage = safeText(promptOverride ?? message, 2000);
     if (!trimmedMessage || isSending) return;
@@ -228,7 +292,7 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
     }
     const controller = new AbortController(); abortRef.current = controller; activeClientRequestIdRef.current = clientRequestId; activePromptRef.current = trimmedMessage; activeConversationIdRef.current = requestedConversationId; setIsSending(true);
     try {
-      const reply = await campusApi.assistantChat(trimmedMessage, locale, requestedConversationId, clientRequestId, { signal: controller.signal });
+      const reply = await runAssistantTurn({ message: trimmedMessage, locale, conversationId: requestedConversationId, clientRequestId }, controller.signal);
       if (reply.conversationId) setConversationId(reply.conversationId);
       setMessages((current) => [...current, { id: reply.messageId ?? `local-assistant-${Date.now()}`, from: 'assistant', text: safeText(reply.answer) || t.unavailable, citations: reply.citations, model: safeText(reply.model, 80), degraded: reply.degraded, reasonCode: reply.reasonCode }]);
       lastFailedConversationIdRef.current = undefined;
@@ -236,8 +300,24 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
     } catch (assistantError) {
       if (controller.signal.aborted) return;
       const apiError = assistantError instanceof ApiClientError ? assistantError : undefined;
-      const code = apiError?.code ?? (apiError?.status === 401 ? 'SESSION_EXPIRED' : apiError?.status === 403 ? 'FORBIDDEN' : undefined);
-      const message = apiError?.status === 401 ? t.sessionExpired : apiError?.status === 403 ? t.forbidden : apiError?.status === 0 || assistantError instanceof TypeError ? t.offline : apiError?.message ?? t.errorDescription;
+      const streamError = assistantError instanceof AssistantStreamError ? assistantError : undefined;
+      const code = apiError?.code ?? streamError?.code ?? (apiError?.status === 401 ? 'SESSION_EXPIRED' : apiError?.status === 403 ? 'FORBIDDEN' : undefined);
+      const streamCopy: Record<string, string> = {
+        ASSISTANT_UNAVAILABLE: msg.unavailable,
+        STREAMING_UNSUPPORTED: msg.unavailable,
+        STREAM_INVALID: msg.streamInvalid,
+        STREAM_INCOMPLETE: msg.interruptedStatus,
+        QUOTA_EXCEEDED: msg.quotaExceeded,
+        SESSION_EXPIRED: msg.sessionExpired,
+        FORBIDDEN: msg.forbidden,
+      };
+      const rateLimited = apiError?.status === 429 || code === 'RATE_LIMITED';
+      const message = streamCopy[code ?? ''] ?? (rateLimited
+        ? msg.rateLimited.replace('{seconds}', String(streamError?.retryAfter ?? '30'))
+        : apiError?.status === 401 ? t.sessionExpired : apiError?.status === 403 ? t.forbidden : apiError?.status === 0 || assistantError instanceof TypeError ? t.offline : apiError?.message ?? t.errorDescription);
+      if (streamError?.connectionLost || apiError?.status === 0 || assistantError instanceof TypeError) {
+        dispatch({ type: 'connectionLost' });
+      }
       setRequestError({ code, message }); setLastFailedPrompt(trimmedMessage); setLastFailedClientRequestId(clientRequestId); lastFailedConversationIdRef.current = requestedConversationId;
     } finally { if (abortRef.current === controller) abortRef.current = null; activeClientRequestIdRef.current = null; activePromptRef.current = null; activeConversationIdRef.current = undefined; setIsSending(false); }
   };
@@ -248,7 +328,7 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
     const prompt = activePromptRef.current;
     let cancelAccepted = false;
     let replayed = false;
-    try { await campusApi.cancelAssistantRequest(clientRequestId); cancelAccepted = true; }
+    try { await transport.cancel(clientRequestId); cancelAccepted = true; dispatch({ type: 'cancel' }); }
     catch (error) {
       if (error instanceof ApiClientError && error.status === 409 && activePromptRef.current) {
         // Completion won the server CAS. Replay the committed result with the
@@ -319,6 +399,28 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
       {isSending ? <StatePanel kind="loading" title={locale === 'vi' ? 'Đang tìm câu trả lời…' : 'Finding an answer…'} /> : null}
       {requestError ? <StatePanel kind="error" title={requestErrorIsQuota ? t.quotaTitle : requestError.code === 'SESSION_EXPIRED' ? t.sessionExpired : requestError.code === 'FORBIDDEN' ? t.forbidden : t.errorTitle} description={requestErrorIsQuota ? t.quotaDescription : requestError.message} actionLabel={lastFailedPrompt ? t.retry : undefined} onAction={lastFailedPrompt ? () => void sendMessage(lastFailedPrompt, lastFailedClientRequestId ?? undefined) : undefined} /> : null}
       <ScreenSpacer />
+      <View accessibilityLiveRegion="polite">
+        {stream.phase === 'sending' || stream.phase === 'streaming' ? (
+          <UiText variant="meta" tone="muted">{msg.a11yStreaming}</UiText>
+        ) : stream.phase === 'complete' ? (
+          <UiText variant="meta" tone="muted">{msg.a11yCompleted}</UiText>
+        ) : stream.phase === 'cancelled' ? (
+          <UiText variant="meta" tone="muted">{msg.a11yStopped}</UiText>
+        ) : stream.phase === 'error' && streamState.connectionLost ? (
+          <UiText variant="meta" tone="muted">{msg.a11yInterrupted}</UiText>
+        ) : null}
+      </View>
+      {STREAMING_PARITY_VERIFIED && stream.phase === 'streaming' && stream.answer ? (
+        <Card><UiText variant="bodyMedium">{stream.answer}</UiText></Card>
+      ) : null}
+      {stream.canResubmitSameRequest ? (
+        <StatePanel
+          kind="error"
+          title={msg.interruptedStatus}
+          actionLabel={msg.retryAction}
+          onAction={() => void sendMessage(lastFailedPrompt ?? activePromptRef.current ?? undefined, lastFailedClientRequestId ?? undefined)}
+        />
+      ) : null}
       <Card style={styles.composer}><Field label={t.ask} multiline editable={!isSending} maxLength={2000} onChangeText={setMessage} placeholder={t.placeholder} value={message} helperText={t.characterCount(message.length)} accessibilityHint={t.emptyDescription} /><View style={styles.composerActions}><Button label={t.send} loading={isSending} disabled={!message.trim()} onPress={() => void sendMessage()} style={styles.sendButton} />{isSending ? <Button label={t.stop} onPress={stopSending} variant="secondary" style={styles.stopButton} /> : null}</View></Card>
       <Button label={t.progress} onPress={() => navigation.navigate('thesis.progress')} variant="secondary" style={styles.progressButton} />
     </ScreenShell>
