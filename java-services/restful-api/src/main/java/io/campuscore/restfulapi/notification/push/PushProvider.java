@@ -5,7 +5,11 @@ public interface PushProvider {
 
     boolean isConfigured();
 
-    DeliveryReceipt send(String provider, String token, PushPayload payload) throws Exception;
+    /**
+     * deliveryKey is the stable outbox ID and must be reused as the adapter's idempotency key.
+     * Implementations must honor interruption and bound their own network I/O timeouts.
+     */
+    DeliveryReceipt send(String provider, String token, PushPayload payload, String deliveryKey) throws Exception;
 
     record PushPayload(String title, String body, String notificationId) {
 

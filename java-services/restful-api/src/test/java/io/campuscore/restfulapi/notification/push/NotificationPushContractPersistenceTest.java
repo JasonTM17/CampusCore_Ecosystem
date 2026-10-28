@@ -3,7 +3,9 @@ package io.campuscore.restfulapi.notification.push;
 import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -23,6 +25,10 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -80,6 +86,8 @@ class NotificationPushContractPersistenceTest {
     void prepareFixture() throws Exception {
         properties.setEnabled(false);
         properties.setTokenKey(testKey());
+        properties.setLeaseSeconds(60);
+        properties.setSendTimeoutMs(20_000);
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS notifications");
         jdbc.execute("DROP TABLE IF EXISTS notifications.delivery_outbox");
         jdbc.execute("DROP TABLE IF EXISTS notifications.device_registration");
@@ -210,6 +218,23 @@ class NotificationPushContractPersistenceTest {
     }
 
     @Test
+    void openApiDeclaresTypedRegistrationBodyWithAWriteOnlyToken() throws Exception {
+        mvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/notifications/my/devices/{installationId}']"
+                        + ".put.requestBody.content['application/json'].schema['$ref']")
+                        .value("#/components/schemas/PushDeviceRegistrationRequest"))
+                .andExpect(jsonPath("$.components.schemas.PushDeviceRegistrationRequest.properties.provider.type")
+                        .value("string"))
+                .andExpect(jsonPath("$.components.schemas.PushDeviceRegistrationRequest.properties.platform.type")
+                        .value("string"))
+                .andExpect(jsonPath("$.components.schemas.PushDeviceRegistrationRequest.properties.token.type")
+                        .value("string"))
+                .andExpect(jsonPath("$.components.schemas.PushDeviceRegistrationRequest.properties.token.writeOnly")
+                        .value(true));
+    }
+
+    @Test
     void rebindTransfersTokenOwnershipAndAuditsOnlyTheAllowedIdentifiers() throws Exception {
         String token = "push-fixture-rebind-token";
         register(ownerJwt, "owner-install", token);
@@ -308,34 +333,68 @@ class NotificationPushContractPersistenceTest {
         properties.setEnabled(true);
         MutableClock clock = new MutableClock(Instant.now().minusSeconds(2));
         createDelivery("blocked-notice", OWNER, "blocked-install", "token-blocked", clock.instant());
-        new PushDispatcher(outbox, cryptography, defaultProvider, properties, clock).dispatchBatch();
+        try (var dispatcher = new PushDispatcher(outbox, cryptography, defaultProvider, properties, clock)) {
+            dispatcher.dispatchBatch();
+        }
         OutboxState blocked = state("blocked-notice");
         assertThat(blocked.status()).isEqualTo("BLOCKED");
         assertThat(blocked.sentAt()).isNull();
 
         createDelivery("timeout-notice", OWNER, "timeout-install", "token-timeout", clock.instant());
         RecordingProvider timeoutProvider = new RecordingProvider(true);
-        PushDispatcher dispatcher = new PushDispatcher(
-                outbox, cryptography, timeoutProvider, properties, clock);
-        for (int attempt = 1; attempt <= 5; attempt++) {
-            dispatcher.dispatchBatch();
-            OutboxState state = state("timeout-notice");
-            assertThat(state.attemptCount()).isEqualTo(attempt);
-            assertThat(state.sentAt()).isNull();
-            if (attempt < 5) {
-                assertThat(state.status()).isEqualTo("RETRY_WAIT");
-                assertThat(state.nextAttemptAt()).isAfter(clock.instant());
-                long baseDelay = Math.min(300_000L, 1_000L << (attempt - 1));
-                long actualDelay = Duration.between(clock.instant(), state.nextAttemptAt()).toMillis();
-                assertThat(actualDelay).isBetween((long) (baseDelay * 0.8),
-                        (long) Math.min(300_000, baseDelay * 1.2));
-                makeRetryDue(notificationId("timeout-notice"));
-            } else {
-                assertThat(state.status()).isEqualTo("FAILED");
-                assertThat(state.lastErrorCode()).isEqualTo("RETRY_EXHAUSTED");
+        try (var dispatcher = new PushDispatcher(outbox, cryptography, timeoutProvider, properties, clock)) {
+            for (int attempt = 1; attempt <= 5; attempt++) {
+                dispatcher.dispatchBatch();
+                OutboxState state = state("timeout-notice");
+                assertThat(state.attemptCount()).isEqualTo(attempt);
+                assertThat(state.sentAt()).isNull();
+                if (attempt < 5) {
+                    assertThat(state.status()).isEqualTo("RETRY_WAIT");
+                    assertThat(state.nextAttemptAt()).isAfter(clock.instant());
+                    long baseDelay = Math.min(300_000L, 1_000L << (attempt - 1));
+                    long actualDelay = Duration.between(clock.instant(), state.nextAttemptAt()).toMillis();
+                    assertThat(actualDelay).isBetween((long) (baseDelay * 0.8),
+                            (long) Math.min(300_000, baseDelay * 1.2));
+                    makeRetryDue(notificationId("timeout-notice"));
+                } else {
+                    assertThat(state.status()).isEqualTo("FAILED");
+                    assertThat(state.lastErrorCode()).isEqualTo("RETRY_EXHAUSTED");
+                }
             }
         }
         assertThat(timeoutProvider.sendCount()).isEqualTo(5);
+    }
+
+    @Test
+    void blockingProviderIsInterruptedAndRetriesWithTheSameOutboxDeliveryKey() throws Exception {
+        properties.setEnabled(true);
+        properties.setSendTimeoutMs(100);
+        MutableClock clock = new MutableClock(Instant.now().minusSeconds(2));
+        createDelivery("blocking-notice", OWNER, "blocking-install", "token-blocking", clock.instant());
+        String outboxId = notificationId("blocking-notice");
+        BlockingProvider provider = new BlockingProvider();
+
+        try (var dispatcher = new PushDispatcher(outbox, cryptography, provider, properties, clock)) {
+            for (int attempt = 1; attempt <= 2; attempt++) {
+                int sent = assertTimeoutPreemptively(Duration.ofSeconds(3), dispatcher::dispatchBatch);
+                assertThat(sent).isZero();
+                assertThat(provider.interruptedSends.tryAcquire(3, TimeUnit.SECONDS)).isTrue();
+                OutboxState state = outbox.state(outboxId).orElseThrow();
+                assertThat(state.status()).isEqualTo("RETRY_WAIT");
+                assertThat(state.lastErrorCode()).isEqualTo("PROVIDER_TIMEOUT");
+                assertThat(state.attemptCount()).isEqualTo(attempt);
+                assertThat(state.sentAt()).isNull();
+                assertThat(provider.deliveryKeys).hasSize(attempt).containsOnly(outboxId);
+                if (attempt < 2) {
+                    makeRetryDue(outboxId);
+                }
+            }
+        }
+
+        for (Thread sendThread : provider.sendThreads) {
+            sendThread.join(3_000);
+            assertThat(sendThread.isAlive()).isFalse();
+        }
     }
 
     @Test
@@ -344,11 +403,13 @@ class NotificationPushContractPersistenceTest {
         MutableClock clock = new MutableClock(Instant.now().minusSeconds(2));
         createDelivery("confirmed-notice", OWNER, "confirmed-install", "token-confirmed", clock.instant());
         RecordingProvider provider = new RecordingProvider(false);
-        PushDispatcher dispatcher = new PushDispatcher(outbox, cryptography, provider, properties, clock);
-        assertThat(dispatcher.dispatchBatch()).isEqualTo(1);
+        try (var dispatcher = new PushDispatcher(outbox, cryptography, provider, properties, clock)) {
+            assertThat(dispatcher.dispatchBatch()).isEqualTo(1);
+        }
         assertThat(state("confirmed-notice").status()).isEqualTo("SENT");
         assertThat(state("confirmed-notice").sentAt()).isNotNull();
         assertThat(provider.lastToken()).isEqualTo("token-confirmed");
+        assertThat(provider.lastDeliveryKey()).isEqualTo(notificationId("confirmed-notice"));
     }
 
     @Test
@@ -364,8 +425,9 @@ class NotificationPushContractPersistenceTest {
                 Instant.now().minusSeconds(2)));
 
         RecordingProvider provider = new RecordingProvider(false);
-        PushDispatcher dispatcher = new PushDispatcher(outbox, cryptography, provider, properties);
-        assertThat(dispatcher.dispatchBatch()).isEqualTo(1);
+        try (var dispatcher = new PushDispatcher(outbox, cryptography, provider, properties)) {
+            assertThat(dispatcher.dispatchBatch()).isEqualTo(1);
+        }
 
         PushPayload payload = provider.lastPayload();
         assertThat(payload.title()).isEqualTo(PushPayload.GENERIC_TITLE);
@@ -375,8 +437,9 @@ class NotificationPushContractPersistenceTest {
     }
 
     private void assertSuppressed(RecordingProvider provider, MutableClock clock, String notificationId) {
-        PushDispatcher dispatcher = new PushDispatcher(outbox, cryptography, provider, properties, clock);
-        dispatcher.dispatchBatch();
+        try (var dispatcher = new PushDispatcher(outbox, cryptography, provider, properties, clock)) {
+            dispatcher.dispatchBatch();
+        }
         assertThat(state(notificationId).status()).isEqualTo("SUPPRESSED");
         assertThat(state(notificationId).sentAt()).isNull();
     }
@@ -454,6 +517,7 @@ class NotificationPushContractPersistenceTest {
         private int sendCount;
         private String lastToken;
         private PushPayload lastPayload;
+        private String lastDeliveryKey;
 
         private RecordingProvider(boolean timeout) {
             this.timeout = timeout;
@@ -465,10 +529,12 @@ class NotificationPushContractPersistenceTest {
         }
 
         @Override
-        public DeliveryReceipt send(String provider, String token, PushPayload payload) throws Exception {
+        public DeliveryReceipt send(String provider, String token, PushPayload payload, String deliveryKey)
+                throws Exception {
             sendCount++;
             lastToken = token;
             lastPayload = payload;
+            lastDeliveryKey = deliveryKey;
             if (timeout) {
                 throw new TimeoutException("synthetic timeout");
             }
@@ -478,6 +544,36 @@ class NotificationPushContractPersistenceTest {
         int sendCount() { return sendCount; }
         String lastToken() { return lastToken; }
         PushPayload lastPayload() { return lastPayload; }
+        String lastDeliveryKey() { return lastDeliveryKey; }
+    }
+
+    private static final class BlockingProvider implements PushProvider {
+        private final List<String> deliveryKeys = new CopyOnWriteArrayList<>();
+        private final List<Thread> sendThreads = new CopyOnWriteArrayList<>();
+        private final Semaphore interruptedSends = new Semaphore(0);
+        private final CountDownLatch release = new CountDownLatch(1);
+
+        @Override
+        public boolean isConfigured() {
+            return true;
+        }
+
+        @Override
+        public DeliveryReceipt send(String provider, String token, PushPayload payload, String deliveryKey)
+                throws Exception {
+            deliveryKeys.add(deliveryKey);
+            sendThreads.add(Thread.currentThread());
+            try {
+                if (!release.await(10, TimeUnit.SECONDS)) {
+                    throw new TimeoutException("Synthetic provider wait expired");
+                }
+            } catch (InterruptedException interrupted) {
+                interruptedSends.release();
+                // Even a late accepted receipt after cancellation must never mark this attempt SENT.
+                return new DeliveryReceipt(true);
+            }
+            return new DeliveryReceipt(true);
+        }
     }
 
     private static final class MutableClock extends Clock {

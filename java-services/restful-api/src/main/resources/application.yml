@@ -363,6 +363,7 @@ app:
       dispatcher-enabled: false
       batch-size: 25
       lease-seconds: 60
+      send-timeout-ms: 20000
       max-attempts: 5
       retry-initial-ms: 1000
       retry-cap-ms: 300000
