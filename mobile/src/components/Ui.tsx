@@ -57,7 +57,7 @@ function buildStyles(colors: ThemeColors) {
     },
     fieldGroup: { marginBottom: tokens.spacing.md },
     badge: { alignSelf: 'flex-start', borderRadius: tokens.radii.pill, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
-    metricCard: { flex: 1, minHeight: 108, padding: tokens.spacing.sm + tokens.spacing.xs },
+    metricCard: { flex: 1, minHeight: 88, padding: tokens.spacing.sm + tokens.spacing.xs },
     metricValue: { marginVertical: tokens.spacing.xs },
     sectionHeading: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
     listRow: { alignItems: 'center', flexDirection: 'row', minHeight: tokens.layout.touchTarget, paddingVertical: tokens.spacing.sm },
