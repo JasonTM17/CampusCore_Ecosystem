@@ -4980,6 +4980,27 @@
         },
         "type": "object"
       },
+      "PushDeviceRegistrationResponse": {
+        "properties": {
+          "installationId": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ReasonCount": {
         "properties": {
           "count": {
@@ -7682,7 +7703,7 @@
     "/api/v1/admin/assistant/knowledge/{id}": {
       "delete": {
         "description": "Đưa tài liệu tri thức vào trạng thái lưu trữ ngưng hoạt động",
-        "operationId": "delete_5",
+        "operationId": "delete_6",
         "parameters": [
           {
             "description": "Mã định danh tài liệu tri thức (UUID)",
@@ -8184,7 +8205,7 @@
     "/api/v1/admin/thesis/assistant/knowledge/{id}": {
       "delete": {
         "description": "Đưa tài liệu tri thức vào trạng thái lưu trữ ngưng hoạt động",
-        "operationId": "delete_4",
+        "operationId": "delete_5",
         "parameters": [
           {
             "description": "Mã định danh tài liệu tri thức (UUID)",
@@ -9390,7 +9411,7 @@
     "/api/v1/announcements/{id}": {
       "delete": {
         "description": "Lưu trữ an toàn thông báo và bảo toàn vết kiểm toán audit log",
-        "operationId": "delete_3",
+        "operationId": "delete_4",
         "parameters": [
           {
             "description": "Mã định danh thông báo (UUID)",
@@ -14991,7 +15012,7 @@
     },
     "/api/v1/events/{eventId}/register": {
       "post": {
-        "operationId": "register",
+        "operationId": "register_1",
         "parameters": [
           {
             "in": "path",
@@ -16586,7 +16607,7 @@
     "/api/v1/lecturers/{id}": {
       "delete": {
         "description": "Xóa hồ sơ giảng viên khỏi hệ thống học vụ",
-        "operationId": "delete_2",
+        "operationId": "delete_3",
         "parameters": [
           {
             "description": "Mã định danh giảng viên (UUID)",
@@ -18337,6 +18358,66 @@
         "summary": "Hộp thư thông báo cá nhân của người dùng",
         "tags": [
           "Notifications & Alerts"
+        ]
+      }
+    },
+    "/api/v1/notifications/my/devices/{installationId}": {
+      "delete": {
+        "operationId": "delete_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "installationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "push-device-controller"
+        ]
+      },
+      "put": {
+        "operationId": "register",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "installationId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonNode"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushDeviceRegistrationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "push-device-controller"
         ]
       }
     },
