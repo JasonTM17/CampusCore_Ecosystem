@@ -4980,6 +4980,26 @@
         },
         "type": "object"
       },
+      "PushDeviceRegistrationRequest": {
+        "properties": {
+          "platform": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "platform",
+          "provider",
+          "token"
+        ],
+        "type": "object"
+      },
       "PushDeviceRegistrationResponse": {
         "properties": {
           "installationId": {
@@ -18399,10 +18419,11 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JsonNode"
+                "$ref": "#/components/schemas/PushDeviceRegistrationRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
