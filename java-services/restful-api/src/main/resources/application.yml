@@ -354,6 +354,20 @@ app:
     # historical behavior of activating every demo role.
     roles: ${DEMO_ACCOUNTS_ROLES:}
 
+  notifications:
+    push:
+      enabled: false
+      # Supply a reviewed 32-byte Base64 key through the deployment secret store.
+      # Empty by default: registration fails closed and no device data is saved.
+      token-key: ""
+      dispatcher-enabled: false
+      batch-size: 25
+      lease-seconds: 60
+      max-attempts: 5
+      retry-initial-ms: 1000
+      retry-cap-ms: 300000
+      retry-jitter-ratio: 0.2
+
 deepseek:
   enabled: ${DEEPSEEK_ENABLED:false}
   api-key: ${DEEPSEEK_API_KEY:}
