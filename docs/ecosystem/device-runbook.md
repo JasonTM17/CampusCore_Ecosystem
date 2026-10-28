@@ -97,3 +97,15 @@ that resolve to native screens). The `devices` gate also registers
 reads as device coverage. The per-OS evidence files
 (`artifacts/verification/devices/<os>-evidence.json`) are produced by the
 device runners, not by this gate.
+
+## 6. Bổ sung v2 (mobile excellence) - các luồng chỉ chứng minh được trên thiết bị
+
+Mỗi dòng báo kết quả riêng cho từng hệ điều hành; thiếu thiết bị/công cụ/provider là `BLOCKED_CAPABILITY`, không phải PASS.
+
+| Luồng | Cách chạy | Oracle | Hiện trạng |
+|---|---|---|---|
+| Canary SSE trợ lý (`fetch` readable stream trên RN) | dev build; gửi một câu hỏi thật; ghi thứ tự event và thời điểm event đầu | `meta -> delta+ -> citation* -> done`, delta đến trước `done`; nếu `body.getReader` thiếu thì ghi `STREAMING_UNSUPPORTED` | BLOCKED_CAPABILITY; chỉ lật `STREAMING_PARITY_VERIFIED=true` khi cả Android lẫn iOS đạt |
+| TalkBack / VoiceOver trên 6 luồng ưu tiên (đăng nhập, dashboard, danh sách, biểu mẫu, trợ lý, thông báo) | thủ công, ghi thiết bị/OS/SHA | checklist đạt từng luồng, cỡ chữ 1.5, thứ tự focus, sheet/dialog | BLOCKED_CAPABILITY |
+| Sáng/tối, xoay, tablet/gập | `npm run test:device --prefix mobile -- --platform <os> --device <id> --flow core` (cần `maestro`) | bố cục đúng lớp compact/medium/expanded, không cắt hành động chính | BLOCKED_CAPABILITY (maestro + thiết bị) |
+| Push opt-in -> đăng ký -> nhận (cần provider + khóa token, bật `PUSH_OPT_IN_ENABLED` và `app.notifications.push.*`) | dev build + provider thật | tài khoản A không nhận thông báo của B sau đổi tài khoản/đăng xuất; không gửi trùng | BLOCKED_CAPABILITY |
+| Hiệu năng (cold start, cuộn danh sách, event đầu của trợ lý) | `npm run test:perf --prefix mobile -- --platform <os>` | median/p95 cùng thiết bị/build, ngưỡng đặt SAU khi đo | BLOCKED_CAPABILITY; số đo tĩnh bundle JS có trong `test:perf -- --platform static` |
