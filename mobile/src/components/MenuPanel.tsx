@@ -13,6 +13,9 @@ import {
 import { useShellCopy } from '../i18n/use-shell-copy';
 import { Button, UiText } from './Ui';
 
+/** Screens that only make sense with a target id, so they never get a menu entry. */
+const PARAMETERISED_SCREENS: ReadonlySet<ScreenName> = new Set(['thesis.detail', 'thesis.registration']);
+
 interface MenuPanelProps {
   activeRoute: ScreenName;
   role: UserRole;
@@ -66,8 +69,12 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
             const screens = screenRegistry.filter(
               (screen) =>
                 section.families.some((family) => family === screen.family) &&
-                screen.roles.includes(role),
+                screen.roles.includes(role) &&
+                !PARAMETERISED_SCREENS.has(screen.name),
             );
+            if (screens.length === 0) {
+              return null;
+            }
 
             return (
               <View key={section.title} style={styles.section}>
