@@ -1,62 +1,59 @@
-import { Linking, View } from 'react-native';
+import type { ReactNode } from 'react';
+import { Linking } from 'react-native';
 
 import { Button, Card, ScreenShell, UiText } from '../../../components/Ui';
-import { ApiClientError } from '../../../api/client';
-import type { AttendanceStatus, LecturerScheduleEntry } from '../../../api/client';
+import { useLocale } from '../../../i18n/locale-provider';
+import { fillCopy } from '../../../i18n/academic-messages';
+import { operationsMessages, type OperationsCopy } from '../../../i18n/operations-messages';
+import { DEFAULT_PORTAL_URL, portalUrl } from './portal-url';
 import { useOpsStyles } from './styles';
 
-export const PORTAL_URL = process.env.EXPO_PUBLIC_PORTAL_URL ?? 'https://portal.localhost:3102';
-export const ATTENDANCE_STATUSES: AttendanceStatus[] = ['PRESENT', 'LATE', 'ABSENT', 'EXCUSED'];
-export const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+export const PORTAL_URL = process.env.EXPO_PUBLIC_PORTAL_URL ?? DEFAULT_PORTAL_URL;
 
-export function lecturerErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiClientError) {
-    if (error.status === 403) {
-      return 'You do not have access to this academic record.';
-    }
-    if (error.status === 0) {
-      return 'You appear to be offline — showing the last known data.';
-    }
-  }
+export function useOpsCopy(): { copy: OperationsCopy; locale: 'vi' | 'en' } {
+  const { locale } = useLocale();
+  return { copy: operationsMessages[locale], locale };
+}
+
+/** Opens the portal route that owns the work; resolves false when the link cannot be opened. */
+export function openPortalPath(path: string): Promise<boolean> {
+  return Linking.openURL(portalUrl(path, PORTAL_URL)).then(() => true, () => false);
+}
+
+/**
+ * Localised message for a failed read or write; never the raw server text.
+ * 409 `GRADES_PUBLISHED_LOCKED` and the other 409/412 conflicts ask for a reload.
+ */
+export function opsErrorMessage(copy: OperationsCopy, error: unknown, fallback: string): string {
+  const status = (error as { status?: number } | null)?.status;
+  const code = (error as { code?: string } | null)?.code;
+  if (status === 0 || error instanceof TypeError) return copy.offline;
+  if (status === 401) return copy.signIn;
+  if (status === 403) return copy.denied;
+  if (code === 'GRADES_PUBLISHED_LOCKED') return copy.lockedConflict;
+  if (status === 409 || status === 412) return copy.conflictReload;
   return fallback;
 }
 
-export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+export interface WebOnlyPanelProps {
+  title: string;
+  /** Portal route that owns the work. */
+  path: string;
+  children?: ReactNode;
 }
 
-export function scheduleLine(entry: LecturerScheduleEntry): string {
-  const slot = entry.schedules?.[0];
-  if (!slot) {
-    return 'Schedule pending';
-  }
-  const day = DAY_LABELS[(slot.dayOfWeek ?? 1) - 1] ?? `Day ${slot.dayOfWeek}`;
-  const room = slot.classroom
-    ? `${slot.classroom.building ?? ''}${slot.classroom.roomNumber ? ` ${slot.classroom.roomNumber}` : ''}`
-    : 'Room pending';
-  return `${day} · ${slot.startTime} – ${slot.endTime} · ${room}`;
-}
-
-export function lecturerName(course: { courseName?: string; courseNameEn?: string; courseNameVi?: string }): string {
-  return course.courseName ?? course.courseNameVi ?? course.courseNameEn ?? 'Untitled course';
-}
-
-export function WebOnlyPanel({ title }: { title: string }) {
+/** Honest hand-off for work that stays on the web; shows no data of its own. */
+export function WebOnlyPanel({ title, path, children }: WebOnlyPanelProps) {
   const styles = useOpsStyles();
+  const { copy } = useOpsCopy();
   return (
-    <ScreenShell title={title} eyebrow="Web portal" subtitle="This workspace is managed on the web.">
+    <ScreenShell title={title}>
       <Card tone="primary" style={styles.webOnlyCard}>
-        <UiText variant="headlineSmall">{title} lives on the portal</UiText>
-        <UiText variant="bodySmall" tone="muted" style={styles.webOnlyCopy}>
-          Administration stays on the web portal so they keep the full
-          audit and accessibility surface. Sign in there with the same account.
-        </UiText>
-        <Button
-          label="Open web portal"
-          onPress={() => void Linking.openURL(PORTAL_URL).catch(() => undefined)}
-          style={styles.submit}
-        />
+        <UiText variant="headlineSmall">{fillCopy(copy.webOnlyTitle, { title })}</UiText>
+        <UiText variant="bodySmall" tone="muted" style={styles.webOnlyCopy}>{copy.webOnlyBody}</UiText>
+        <Button label={copy.openOnWeb} onPress={() => void openPortalPath(path)} style={styles.submit} />
       </Card>
+      {children}
     </ScreenShell>
   );
 }

@@ -35,7 +35,7 @@ test('session teardown wipes the per-account cache', () => {
 
 test('every data screen distinguishes loading/error/empty states', () => {
   const student = readSources(mobileRoot,'src/screens/student',/^(StudentDashboard|Schedule|Courses|Grades|Attendance|Registration|Notifications|Profile)Screen\.tsx$|^shared\//);
-  const operations = readSources(mobileRoot,'src/screens/operations',/^(AdminScreens|Lecturer(Dashboard|Schedule|Attendance|Grading)Screen)\.tsx$|^shared\//);
+  const operations = readSources(mobileRoot,'src/screens/operations',/^(AdminScreens|AttendanceRosterRow|GradeRowCard|lecturer-(ui|api|model|csv)|Lecturer(Dashboard|Schedule|Attendance|Grading)Screen)\.tsx?$|^shared\//);
 
   for (const source of [student, operations]) {
     assert.match(source, /StatePanel/);
@@ -49,18 +49,19 @@ test('every data screen distinguishes loading/error/empty states', () => {
 });
 
 test('admin surfaces render the web-only state, never fake data (KM-8)', () => {
-  const operations = readSources(mobileRoot,'src/screens/operations',/^(AdminScreens|Lecturer(Dashboard|Schedule|Attendance|Grading)Screen)\.tsx$|^shared\//);
+  const operations = readSources(mobileRoot,'src/screens/operations',/^(AdminScreens|AttendanceRosterRow|GradeRowCard|lecturer-(ui|api|model|csv)|Lecturer(Dashboard|Schedule|Attendance|Grading)Screen)\.tsx?$|^shared\//);
   assert.match(operations, /WebOnlyPanel/);
-  assert.match(operations, /Admin dashboard" \/>/);
-  assert.match(operations, /Manage students" \/>/);
-  assert.match(operations, /Manage lecturers" \/>/);
+  // The registry admin screens are localized hand-offs to the portal route that owns the work.
+  assert.match(operations, /title=\{copy\.adminDashboardTitle\} path="\/admin"/);
+  assert.match(operations, /title=\{copy\.adminStudentsTitle\} path="\/admin\/users"/);
+  assert.match(operations, /title=\{copy\.adminLecturersTitle\} path="\/admin\/lecturers"/);
   assert.match(operations, /EXPO_PUBLIC_PORTAL_URL/);
   // No admin screen may carry fabricated metrics or rosters.
   assert.doesNotMatch(operations, /12,418|12\.4k|486|Dr\. Le Minh|Nguyen Duc Minh.*Software Engineering · Year 4/);
 });
 
 test('lecturer lanes call the real academic APIs — no static operations data', () => {
-  const operations = readSources(mobileRoot,'src/screens/operations',/^(AdminScreens|Lecturer(Dashboard|Schedule|Attendance|Grading)Screen)\.tsx$|^shared\//);
+  const operations = readSources(mobileRoot,'src/screens/operations',/^(AdminScreens|AttendanceRosterRow|GradeRowCard|lecturer-(ui|api|model|csv)|Lecturer(Dashboard|Schedule|Attendance|Grading)Screen)\.tsx?$|^shared\//);
   const client = read('src/api/client.ts');
   assert.match(operations, /campusApi\.lecturerSchedule/);
   assert.match(operations, /campusApi\.attendanceRoster/);

@@ -1,215 +1,248 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
-import {
-  Badge,
-  Button,
-  Card,
-  DataNotice,
-  Field,
-  ProgressBar,
-  ScreenShell,
-  ScreenSpacer,
-  SectionHeading,
-  StatePanel,
-  UiText,
-} from '../../components/Ui';
-import { apiClient, campusApi } from '../../api/client';
-import type { StudentGradeRow } from '../../api/client';
-import { useScreenQuery } from '../../hooks/useScreenQuery';
+import { Badge, Button, Card, Notice, ProgressBar, StatePanel, UiText } from '../../components/Ui';
+import { Dialog, SearchBar } from '../../components/ui/primitives';
+import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileScreenProps } from '../../navigation/types';
-import { lecturerErrorMessage, lecturerName } from './shared/helpers';
-import { previewGrading, previewGrades } from './shared/preview';
+import { GradeRowCard } from './GradeRowCard';
+import { lecturerApi, type SectionGradeSheet } from './lecturer-api';
+import { generateGradeCsv, gradeCsvFilename } from './lecturer-csv';
+import {
+  buildGradeDraft,
+  courseTitle,
+  dirtyGradeCount,
+  gradedPercent,
+  localIsoDate,
+  windowOf,
+  type GradeDraft,
+  type ScoreEdit,
+} from './lecturer-model';
+import { CsvExport, HandoffButton, OpsShell, SectionPicker, isOpsPreview, useOpsQuery } from './lecturer-ui';
+import { opsErrorMessage, useOpsCopy } from './shared/helpers';
+import { previewGrades, previewGrading } from './shared/preview';
 import { useOpsStyles } from './shared/styles';
 
-export function LecturerGradingScreen({ navigation }: MobileScreenProps) {
+const PAGE_SIZE = 30;
+const NO_PROBLEMS: GradeDraft['problems'] = {};
+
+type Banner = { tone: 'success' | 'error' | 'warning'; message: string } | null;
+
+export function LecturerGradingScreen(_props: MobileScreenProps) {
   const styles = useOpsStyles();
-  const isPreview = apiClient.mode === 'preview';
+  const { copy, locale } = useOpsCopy();
+  const preview = isOpsPreview();
   const params = useLocalSearchParams<{ sectionId?: string }>();
-  const sectionsQuery = useScreenQuery('lecturer:grading', () => campusApi.lecturerGradingSections(), {
-    enabled: !isPreview,
-    errorMessage: 'The grading queue is unavailable.',
-    mapError: (error) => lecturerErrorMessage(error, 'The grading queue is unavailable.'),
-  });
-  const sections = isPreview ? previewGrading : sectionsQuery.data ?? [];
-  const sectionId = (typeof params.sectionId === 'string' && params.sectionId) || sections[0]?.sectionId;
+  const sectionsQuery = useOpsQuery('lecturer:grading', () => lecturerApi.gradingSections(), copy);
+  const sections = useMemo(() => (preview ? previewGrading : sectionsQuery.data ?? []), [preview, sectionsQuery.data]);
+
+  const [picked, setPicked] = useState(typeof params.sectionId === 'string' ? params.sectionId : '');
+  const sectionId = sections.some((section) => section.sectionId === picked) ? picked : sections[0]?.sectionId ?? '';
   const section = sections.find((item) => item.sectionId === sectionId);
 
-  const gradesQuery = useScreenQuery(
-    `lecturer:grades:${sectionId ?? 'none'}`,
-    async () => (sectionId ? campusApi.sectionGrades(sectionId) : [] as StudentGradeRow[]),
-    {
-      enabled: !isPreview && Boolean(sectionId),
-      errorMessage: 'Section grades are unavailable.',
-      mapError: (error) => lecturerErrorMessage(error, 'Section grades are unavailable.'),
-    },
-  );
+  const gradesQuery = useOpsQuery(`lecturer:grades:${sectionId}`, () => lecturerApi.sectionGrades(sectionId), copy, Boolean(sectionId));
+  // The hook keeps the previous key's data until the next fetch lands; only rows that carry this section are used.
+  const sheet: SectionGradeSheet | undefined = useMemo(() => {
+    if (preview) return { sectionId, rows: previewGrades };
+    const data = gradesQuery.data;
+    return data && data.sectionId === sectionId ? data : undefined;
+  }, [preview, gradesQuery.data, sectionId]);
+  const rows = useMemo(() => sheet?.rows ?? [], [sheet]);
 
-  const rows = useMemo(() => (isPreview ? previewGrades : gradesQuery.data ?? []), [isPreview, gradesQuery.data]);
-  const [edits, setEdits] = useState<Record<string, { processScore?: string; finalExamScore?: string }>>({});
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [publishState, setPublishState] = useState<'idle' | 'publishing' | 'published' | 'error'>('idle');
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [edits, setEdits] = useState<Record<string, ScoreEdit>>({});
+  const [problems, setProblems] = useState<GradeDraft['problems']>(NO_PROBLEMS);
+  const [busy, setBusy] = useState<'save' | 'publish' | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [message, setMessage] = useState<Banner>(null);
+  const [search, setSearch] = useState('');
+  const [pages, setPages] = useState(1);
 
-  const editFor = (enrollmentId: string, field: 'processScore' | 'finalExamScore', current: number | null | undefined) =>
-    edits[enrollmentId]?.[field] ?? (current == null ? '' : String(current));
+  useEffect(() => {
+    setEdits({});
+    setProblems(NO_PROBLEMS);
+    setMessage(null);
+    setSearch('');
+    setPages(1);
+  }, [sectionId]);
 
-  const parseScore = (value: string): number | null | undefined => {
-    if (value.trim() === '') {
-      return null;
+  const dirty = dirtyGradeCount(rows, edits);
+  const locked = rows.length > 0 && rows.every((row) => row.gradeStatus === 'PUBLISHED' || row.gradeStatus === 'APPEALED');
+  const needle = search.trim().toLowerCase();
+  const visible = needle
+    ? rows.filter((row) => `${row.studentName ?? ''} ${row.studentCode ?? ''}`.toLowerCase().includes(needle))
+    : rows;
+  const { rows: shown, hasMore } = windowOf(visible, pages, PAGE_SIZE);
+
+  const enrolled = section?.enrolledCount ?? rows.length;
+  const graded = section?.gradedCount ?? rows.filter((row) => row.finalGrade != null).length;
+  const status = section?.gradeStatus === 'PUBLISHED' || locked ? 'PUBLISHED' : 'DRAFT';
+
+  const edit = (enrollmentId: string, field: 'processScore' | 'finalExamScore', text: string) => {
+    setEdits((current) => ({ ...current, [enrollmentId]: { ...current[enrollmentId], [field]: text } }));
+    setMessage(null);
+    if (problems[enrollmentId]) {
+      setProblems((current) => {
+        const { [enrollmentId]: _removed, ...rest } = current;
+        return rest;
+      });
     }
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed >= 0 && parsed <= 10 ? parsed : undefined;
   };
 
-  const save = async () => {
-    if (!sectionId || isPreview) {
-      setSaveState('saved');
+  const reload = () => { void sectionsQuery.reload(); void gradesQuery.reload(); };
+
+  const saveScores = async () => {
+    const draft = buildGradeDraft(rows, edits);
+    if (Object.keys(draft.problems).length > 0) {
+      setProblems(draft.problems);
+      setMessage({ tone: 'error', message: copy.scoresInvalid });
       return;
     }
-    const grades = rows.map((row) => {
-      const processRaw = parseScore(editFor(row.enrollmentId, 'processScore', row.processScore));
-      const finalRaw = parseScore(editFor(row.enrollmentId, 'finalExamScore', row.finalExamScore));
-      return { enrollmentId: row.enrollmentId, processScore: processRaw, finalExamScore: finalRaw };
-    });
-    if (grades.some((grade) => grade.processScore === undefined || grade.finalExamScore === undefined)) {
-      setActionError('Scores must be numbers between 0 and 10.');
-      setSaveState('error');
+    if (draft.changes.length === 0) {
+      setMessage({ tone: 'warning', message: copy.nothingChanged });
       return;
     }
-    setSaveState('saving');
-    setActionError(null);
+    setBusy('save');
+    setMessage(null);
     try {
-      await campusApi.saveSectionGrades(sectionId, grades);
+      await lecturerApi.saveGrades(sectionId, draft.changes);
       setEdits({});
-      setSaveState('saved');
-      void gradesQuery.reload();
-      void sectionsQuery.reload();
-    } catch (nextError) {
-      setSaveState('error');
-      setActionError(lecturerErrorMessage(nextError, 'Grades could not be saved.'));
+      setProblems(NO_PROBLEMS);
+      setMessage({ tone: 'success', message: fillCopy(copy.scoresSaved, { n: draft.changes.length }) });
+      reload();
+    } catch (error) {
+      setMessage({ tone: 'error', message: opsErrorMessage(copy, error, copy.saveScoresFailed) });
+      if ((error as { status?: number } | null)?.status === 409) reload();
+    } finally {
+      setBusy(null);
     }
   };
 
   const publish = async () => {
-    if (!sectionId || isPreview) {
-      setPublishState('published');
-      return;
-    }
-    setPublishState('publishing');
-    setActionError(null);
+    setConfirming(false);
+    setBusy('publish');
+    setMessage(null);
     try {
-      await campusApi.publishSectionGrades(sectionId);
-      setPublishState('published');
-      void gradesQuery.reload();
-      void sectionsQuery.reload();
-    } catch (nextError) {
-      setPublishState('error');
-      setActionError(lecturerErrorMessage(nextError, 'Grades could not be published.'));
+      await lecturerApi.publishGrades(sectionId);
+      setMessage({ tone: 'success', message: copy.publishedOk });
+      reload();
+    } catch (error) {
+      setMessage({ tone: 'error', message: opsErrorMessage(copy, error, copy.publishFailed) });
+      if ((error as { status?: number } | null)?.status === 409) reload();
+    } finally {
+      setBusy(null);
     }
   };
 
-  if (!isPreview && (sectionsQuery.isLoading || (sectionId && gradesQuery.isLoading))) {
-    return (
-      <ScreenShell title="Gradebook" eyebrow="Lecturer workspace">
-        <StatePanel kind="loading" title="Loading gradebook…" description="Retrieving section enrollments." />
-      </ScreenShell>
-    );
-  }
-  const queryError = sectionsQuery.error ?? gradesQuery.error;
-  if (!isPreview && queryError) {
-    return (
-      <ScreenShell title="Gradebook" eyebrow="Lecturer workspace">
-        <StatePanel kind="error" title="Gradebook unavailable" description={queryError} actionLabel="Try again" onAction={() => { void sectionsQuery.reload(); void gradesQuery.reload(); }} />
-      </ScreenShell>
-    );
-  }
+  const buildCsv = () =>
+    generateGradeCsv({
+      sectionNumber: section?.sectionNumber ?? sectionId,
+      courseCode: section?.courseCode,
+      courseName: section ? courseTitle(section, locale) : undefined,
+      students: rows.map((row) => ({
+        studentId: row.studentId ?? row.enrollmentId,
+        studentCode: row.studentCode ?? '',
+        studentName: row.studentName ?? '',
+        processScore: row.processScore ?? null,
+        finalExamScore: row.finalExamScore ?? null,
+        letterGrade: row.letterGrade ?? null,
+        gradeStatus: row.gradeStatus ?? null,
+      })),
+      locale,
+    });
 
-  const graded = section ? section.gradedCount : rows.filter((row) => row.finalGrade != null).length;
-  const total = section ? section.enrolledCount : rows.length;
-  const progress = total > 0 ? Math.round((graded / total) * 100) : 0;
+  const queryError = preview ? null : sectionsQuery.error ?? gradesQuery.error;
+  const loading = !preview && (sectionsQuery.isLoading || (Boolean(sectionId) && !sheet && !queryError));
+  const canPublish = !preview && Boolean(section?.canPublish) && dirty === 0 && busy === null;
+  const publishHint = dirty > 0 ? copy.publishUnsavedFirst : section && !section.canPublish && status !== 'PUBLISHED' ? copy.publishBlocked : null;
 
   return (
-    <ScreenShell
-      title="Gradebook"
-      eyebrow={section ? `${section.courseCode ?? 'Section'} · ${lecturerName(section)}` : 'Lecturer workspace'}
-      subtitle="Keep feedback clear before publishing."
+    <OpsShell
+      title={copy.gradingTitle}
+      eyebrow={section ? `${section.courseCode ?? ''}` : undefined}
+      subtitle={section ? courseTitle(section, locale) : undefined}
+      loading={loading}
+      error={queryError}
+      warning={preview ? null : sectionsQuery.warning ?? gradesQuery.warning}
+      onRetry={reload}
     >
-      {sectionsQuery.warning ?? gradesQuery.warning ? <DataNotice message={sectionsQuery.warning ?? gradesQuery.warning ?? ''} /> : null}
-      <Card tone="primary" style={styles.gradingHero}>
-        <View style={styles.courseHeader}>
-          <View style={styles.topicCopy}>
-            <UiText variant="bodySmall" tone="muted">Pending scores</UiText>
-            <UiText variant="display" tone="primary">{Math.max(total - graded, 0)}</UiText>
-          </View>
-          <Badge label={section?.gradeStatus ?? 'DRAFT'} tone={section?.gradeStatus === 'PUBLISHED' ? 'success' : 'warning'} />
-        </View>
-        <ProgressBar label="Graded" value={progress} />
-      </Card>
-      <ScreenSpacer />
-      <SectionHeading
-        title="Students"
-        actionLabel={sections.length > 1 ? 'Switch section' : undefined}
-        onAction={sections.length > 1 ? () => {
-          const nextIndex = (sections.findIndex((item) => item.sectionId === sectionId) + 1) % sections.length;
-          navigation.navigate('lecturer.grading', { sectionId: sections[nextIndex].sectionId });
-        } : undefined}
-      />
-      {rows.length === 0 ? (
-        <StatePanel kind="empty" title="No enrollments" description="Enrolled students appear here once registration closes." />
+      {sections.length === 0 ? (
+        <StatePanel kind="empty" title={copy.emptySchedule} />
       ) : (
-        rows.map((row) => (
-          <Card key={row.enrollmentId} style={styles.gradeRow}>
-            <UiText variant="label">{row.studentName ?? row.studentCode ?? row.enrollmentId}</UiText>
-            <View style={styles.scoreFields}>
-              <Field
-                label="Process"
-                keyboardType="decimal-pad"
-                onChangeText={(value) => setEdits((current) => ({ ...current, [row.enrollmentId]: { ...current[row.enrollmentId], processScore: value } }))}
-                placeholder="0–10"
-                style={styles.scoreField}
-                value={editFor(row.enrollmentId, 'processScore', row.processScore)}
-              />
-              <Field
-                label="Final exam"
-                keyboardType="decimal-pad"
-                onChangeText={(value) => setEdits((current) => ({ ...current, [row.enrollmentId]: { ...current[row.enrollmentId], finalExamScore: value } }))}
-                placeholder="0–10"
-                style={styles.scoreField}
-                value={editFor(row.enrollmentId, 'finalExamScore', row.finalExamScore)}
-              />
+        <View>
+          <SectionPicker sections={sections} value={sectionId} onChange={setPicked} />
+          <Card tone="primary" style={styles.gradingHero}>
+            <View style={styles.courseHeader}>
+              <View style={styles.topicCopy}>
+                <UiText variant="bodySmall" tone="muted">{copy.pendingScores}</UiText>
+                <UiText variant="display" tone="primary">{Math.max(enrolled - graded, 0)}</UiText>
+              </View>
+              <Badge label={status === 'PUBLISHED' ? copy.published : copy.draft} tone={status === 'PUBLISHED' ? 'success' : 'warning'} />
             </View>
+            <ProgressBar label={copy.gradedProgress} value={gradedPercent(graded, enrolled)} />
           </Card>
-        ))
+          {rows.length === 0 ? (
+            <StatePanel kind="empty" title={copy.rosterEmpty} />
+          ) : (
+            <View>
+              <SearchBar
+                value={search}
+                onChangeText={(value) => { setSearch(value); setPages(1); }}
+                placeholder={copy.searchStudents}
+                accessibilityLabel={copy.searchStudents}
+                style={styles.searchBar}
+              />
+              {visible.length === 0 ? <StatePanel kind="empty" title={copy.noMatch} /> : null}
+              {shown.map((row) => (
+                <GradeRowCard
+                  key={row.enrollmentId}
+                  row={row}
+                  edit={edits[row.enrollmentId]}
+                  problems={problems[row.enrollmentId]}
+                  copy={copy}
+                  onEdit={edit}
+                  disabled={busy !== null}
+                />
+              ))}
+              {hasMore ? <Button label={copy.loadMore} variant="secondary" onPress={() => setPages((current) => current + 1)} /> : null}
+              {message ? <Notice tone={message.tone} message={message.message} /> : null}
+              {dirty > 0 ? <UiText variant="bodySmall" tone="muted">{fillCopy(copy.changesCount, { n: dirty })}</UiText> : null}
+              <Button
+                label={copy.saveScores}
+                loading={busy === 'save'}
+                disabled={preview || dirty === 0 || busy !== null}
+                onPress={() => void saveScores()}
+                style={styles.topButton}
+              />
+              <Button
+                label={copy.publishGrades}
+                variant="secondary"
+                loading={busy === 'publish'}
+                disabled={!canPublish || status === 'PUBLISHED'}
+                onPress={() => setConfirming(true)}
+                style={styles.secondaryButton}
+              />
+              {publishHint ? <UiText variant="bodySmall" tone="muted">{publishHint}</UiText> : null}
+              <CsvExport
+                name={gradeCsvFilename(section?.courseCode ?? 'section', section?.sectionNumber ?? sectionId, localIsoDate())}
+                build={buildCsv}
+                rows={rows.length}
+              />
+              <UiText variant="bodySmall" tone="muted">{copy.importPrintWeb}</UiText>
+              <HandoffButton label={copy.openOnWeb} path={`/dashboard/lecturer/grades/${encodeURIComponent(sectionId)}`} />
+            </View>
+          )}
+        </View>
       )}
-      <ScreenSpacer />
-      {actionError ? (
-        <View accessibilityLiveRegion="assertive" style={styles.actionStatusError}>
-          <UiText variant="bodySmall" tone="error">{actionError}</UiText>
-        </View>
-      ) : null}
-      {saveState === 'saved' || publishState === 'published' ? (
-        <View accessibilityLiveRegion="polite" style={styles.actionStatus}>
-          <UiText variant="bodySmall" tone="success">
-            {publishState === 'published' ? 'Grades published.' : 'Draft scores saved.'}
-          </UiText>
-        </View>
-      ) : null}
-      <Button
-        label={isPreview ? 'Save scores (preview)' : 'Save scores'}
-        loading={saveState === 'saving'}
-        disabled={rows.length === 0}
-        onPress={() => void save()}
+      <Dialog
+        visible={confirming}
+        title={copy.publishTitle}
+        description={fillCopy(copy.publishBody, { n: section?.sectionNumber ?? '', count: enrolled })}
+        confirmLabel={copy.publishConfirm}
+        cancelLabel={copy.publishCancel}
+        onConfirm={() => void publish()}
+        onCancel={() => setConfirming(false)}
       />
-      <Button
-        label="Publish grades"
-        variant="secondary"
-        loading={publishState === 'publishing'}
-        disabled={rows.length === 0 || (section ? !section.canPublish : true)}
-        onPress={() => void publish()}
-        style={styles.secondaryButton}
-      />
-    </ScreenShell>
+    </OpsShell>
   );
 }
