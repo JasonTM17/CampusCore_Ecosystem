@@ -34,7 +34,7 @@ for (const id of cited) {
 // hyphenated/dotted keys). A *-messages.ts file that yields no vi/en pair
 // is drift, not a skip — silence would mask a renamed locale block.
 function localeKeys(source, locale) {
-  const m = source.match(new RegExp(`["']?${locale}["']?\\s*:\\s*\\{`));
+  const m = source.match(new RegExp(`(?:["']?${locale}["']?\\s*:|(?:const|let)\\s+${locale}\\s*=)\\s*\\{`));
   if (!m) return null;
   let depth = 1; let i = m.index + m[0].length;
   const start = i;
