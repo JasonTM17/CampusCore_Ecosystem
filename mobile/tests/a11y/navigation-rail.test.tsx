@@ -1,3 +1,4 @@
+import { localizedNavLabel, shellMessages } from '../../src/i18n/shell-messages';
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
 import { render, screen } from '@testing-library/react-native';
 import { Dimensions, StyleSheet } from 'react-native';
@@ -27,10 +28,10 @@ describe('NavigationRail accessibility and theme', () => {
         expect(audit.unknownSize).toBe(0);
         expect(screen.getByTestId('navigation-rail')).toHaveStyle({ backgroundColor: colors.card, borderRightColor: colors.outlineVariant });
         for (const [index, item] of items.entries()) {
-          const label = screen.getByText(item.label);
+          const label = screen.getByText(localizedNavLabel('vi', item.label));
           expect(label).toHaveStyle({ color: index === 0 ? colors.primary : colors.textMuted });
         }
-        const actions = [...screen.getAllByRole('tab'), screen.getByRole('button', { name: 'Open menu' })];
+        const actions = [...screen.getAllByRole('tab'), screen.getByRole('button', { name: 'Mở menu' })];
         for (const action of actions) {
           const style = StyleSheet.flatten(action.props.style);
           expect(style.minHeight).toBeGreaterThanOrEqual(44);
@@ -40,7 +41,7 @@ describe('NavigationRail accessibility and theme', () => {
         }
         // Audit rule e permits a redundant visual label to truncate when an
         // accessibilityLabel exists. Rail labels must wrap visually as well.
-        for (const label of [...items.map((item) => item.label), 'Menu']) {
+        for (const label of [...items.map((item) => localizedNavLabel('vi', item.label)), 'Menu']) {
           const text = screen.getByText(label);
           expect(text.props.numberOfLines).toBeUndefined();
           expect(text.props.adjustsFontSizeToFit).not.toBe(true);

@@ -5,12 +5,12 @@ import { tokens } from '../design/tokens';
 import { useThemedStyles, useTheme } from '../design/theme';
 import type { ThemeColors } from '../design/theme';
 import {
-  getScreenDefinition,
   menuSections,
   screenRegistry,
   type ScreenName,
   type UserRole,
 } from '../navigation/routes';
+import { useShellCopy } from '../i18n/use-shell-copy';
 import { Button, UiText } from './Ui';
 
 interface MenuPanelProps {
@@ -25,23 +25,24 @@ interface MenuPanelProps {
 export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole, allowRoleSwitch }: MenuPanelProps) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
+  const { copy, screenTitle } = useShellCopy();
   return (
     <View style={styles.overlay}>
-      <Pressable accessibilityLabel="Close menu" accessibilityRole="button" onPress={onClose} style={styles.backdrop} />
+      <Pressable accessibilityLabel={copy.closeMenu} accessibilityRole="button" onPress={onClose} style={styles.backdrop} />
       <View accessibilityViewIsModal importantForAccessibility="yes" style={styles.panel}>
         <View style={styles.panelHeader}>
           <View style={styles.headerCopy}>
             <UiText variant="meta" tone="primary">
               CAMPUSCORE
             </UiText>
-            <UiText accessibilityRole="header" variant="headlineSmall">Complete menu</UiText>
+            <UiText accessibilityRole="header" variant="headlineSmall">{copy.menuTitle}</UiText>
           </View>
-          <Button label="Close" onPress={onClose} variant="text" />
+          <Button label={copy.close} onPress={onClose} variant="text" />
         </View>
 
         {allowRoleSwitch ? (
           <><UiText variant="label" tone="muted" style={styles.roleLabel}>
-            Preview role
+            {copy.previewRole}
           </UiText>
           <View style={styles.roleRow}>
             {(['student', 'lecturer', 'admin'] as const).map((candidate) => (
@@ -53,7 +54,7 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
               style={[styles.roleButton, candidate === role ? styles.roleButtonActive : undefined]}
             >
               <UiText variant="meta" tone={candidate === role ? 'onPrimary' : 'muted'}>
-                {candidate[0].toUpperCase() + candidate.slice(1)}
+                {copy.roles[candidate]}
               </UiText>
             </Pressable>
             ))}
@@ -71,7 +72,7 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
             return (
               <View key={section.title} style={styles.section}>
                 <UiText accessibilityRole="header" variant="label" tone="muted" style={styles.sectionTitle}>
-                  {section.title}
+                  {section.title === 'Staff' ? copy.sections.staff : copy.sections.student}
                 </UiText>
                 {screens.map((screen) => {
                   const active = screen.name === activeRoute;
@@ -79,7 +80,7 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
                   return (
                     <Pressable
                       key={screen.name}
-                      accessibilityLabel={screen.title}
+                      accessibilityLabel={screenTitle(screen.name)}
                       accessibilityRole="button"
                       accessibilityState={{ selected: active }}
                       onPress={() => onNavigate(screen.name)}
@@ -93,7 +94,7 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
                         />
                       </View>
                       <UiText variant="bodySmall" style={styles.menuLabel}>
-                        {screen.title}
+                        {screenTitle(screen.name)}
                       </UiText>
                       <MaterialCommunityIcons color={colors.textMuted} name="chevron-right" size={20} />
                     </Pressable>
@@ -102,11 +103,6 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
               </View>
             );
           })}
-          <UiText variant="bodySmall" tone="muted" style={styles.menuNote}>
-            {getScreenDefinition(activeRoute)?.family === 'staff'
-              ? 'Lecturer lanes run on live data — administration stays on the web portal.'
-              : 'Choose a screen to continue your academic workflow.'}
-          </UiText>
         </ScrollView>
       </View>
     </View>
@@ -139,5 +135,4 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   menuItemActive: { backgroundColor: colors.primaryFixed, borderLeftColor: colors.primary, borderLeftWidth: 3 },
   menuIcon: { alignItems: 'center', width: 32 },
   menuLabel: { flex: 1, marginLeft: tokens.spacing.sm },
-  menuNote: { paddingTop: tokens.spacing.sm },
 });

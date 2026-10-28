@@ -9,6 +9,7 @@ import {
 } from '@expo-google-fonts/be-vietnam-pro';
 
 import { ThemeProvider, useTheme } from '../src/design/theme';
+import { LocaleProvider } from '../src/i18n/locale-provider';
 import { pathFor, resolveGuard } from '../src/navigation/route-map';
 import { SessionProvider, useSession } from '../src/session/SessionContext';
 
@@ -34,9 +35,11 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <ThemedStatusBar />
-      <SessionProvider>
-        <RootNavigator />
-      </SessionProvider>
+      <LocaleProvider>
+        <SessionProvider>
+          <RootNavigator />
+        </SessionProvider>
+      </LocaleProvider>
     </ThemeProvider>
   );
 }
