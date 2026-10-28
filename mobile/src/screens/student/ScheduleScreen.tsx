@@ -110,8 +110,8 @@ export function ScheduleScreen(_props: MobileScreenProps) {
           {days.map((date, index) => {
             const items = agendaForDate(agenda, date, semester);
             return (
-              <View key={civilKey(date)} testID={`day-${civilKey(date)}`}>
-                <UiText accessibilityRole="header" variant="label" tone={civilKey(date) === civilKey(today) ? 'primary' : 'muted'}>
+              <View key={civilKey(date)} testID={`day-${civilKey(date)}`} style={{ marginTop: tokens.spacing.md }}>
+                <UiText accessibilityRole="header" variant="label" tone={civilKey(date) === civilKey(today) ? 'primary' : 'muted'} style={{ marginBottom: tokens.spacing.xs }}>
                   {copy.dayShort[index]} · {formatDate(civilKey(date))}
                 </UiText>
                 {items.length === 0 ? <UiText variant="bodySmall" tone="muted">{copy.noSessions}</UiText> : null}
@@ -126,8 +126,8 @@ export function ScheduleScreen(_props: MobileScreenProps) {
             const items = agenda.filter((item) => item.dayOfWeek === dow);
             if (items.length === 0) return null;
             return (
-              <View key={dow}>
-                <UiText accessibilityRole="header" variant="label" tone="muted">{copy.dayLong[dow] ?? copy.dayShort[index]}</UiText>
+              <View key={dow} style={{ marginTop: tokens.spacing.md }}>
+                <UiText accessibilityRole="header" variant="label" tone="muted" style={{ marginBottom: tokens.spacing.xs }}>{copy.dayLong[dow] ?? copy.dayShort[index]}</UiText>
                 {items.map((item) => <SessionCard key={item.id} item={item} expanded={openId === item.id} onToggle={() => toggle(item.id)} />)}
               </View>
             );
