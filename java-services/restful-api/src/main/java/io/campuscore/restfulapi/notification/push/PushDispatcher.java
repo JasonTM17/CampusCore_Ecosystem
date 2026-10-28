@@ -6,6 +6,7 @@ import io.campuscore.restfulapi.notification.push.DeliveryOutboxRepository.Deliv
 import io.campuscore.restfulapi.notification.push.PushProvider.DeliveryReceipt;
 import io.campuscore.restfulapi.notification.push.PushProvider.PushPayload;
 import io.campuscore.restfulapi.notification.push.PushProvider.PushProviderException;
+import jakarta.annotation.PreDestroy;
 import java.net.SocketTimeoutException;
 import java.net.http.HttpTimeoutException;
 import java.time.Clock;
@@ -13,7 +14,13 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
@@ -22,13 +29,17 @@ import org.springframework.stereotype.Service;
 /** Claims, validates, sends, and acknowledges one bounded outbox batch. */
 @Service
 @Profile("persistence")
-public class PushDispatcher {
+public class PushDispatcher implements AutoCloseable {
 
     private final DeliveryOutboxRepository outbox;
     private final PushTokenCryptography cryptography;
     private final PushProvider provider;
     private final PushProperties properties;
     private final Clock clock;
+    // A provider that ignores interruption cannot grow an unbounded pool or backlog.
+    private final ThreadPoolExecutor sendExecutor = new ThreadPoolExecutor(
+            0, 1, 1, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1),
+            Thread.ofVirtual().name("push-provider-", 0).factory());
 
     @Autowired
     public PushDispatcher(
@@ -92,8 +103,7 @@ public class PushDispatcher {
             }
 
             try {
-                DeliveryReceipt receipt = provider.send(delivery.provider(), token,
-                        PushPayload.forNotification(delivery.notificationId()));
+                DeliveryReceipt receipt = sendWithTimeout(delivery, token);
                 if (receipt != null && receipt.accepted()) {
                     if (outbox.acknowledgeSent(claim, clock.instant())) {
                         sent++;
@@ -106,6 +116,8 @@ public class PushDispatcher {
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
                 failRetryable(claim, "PROVIDER_INTERRUPTED");
+            } catch (RejectedExecutionException busy) {
+                failRetryable(claim, "PROVIDER_BUSY");
             } catch (PushProviderException failure) {
                 if (failure.retryable()) {
                     failRetryable(claim, failure.code());
@@ -117,6 +129,32 @@ public class PushDispatcher {
             }
         }
         return sent;
+    }
+
+    private DeliveryReceipt sendWithTimeout(DeliverySnapshot delivery, String token) throws Exception {
+        Future<DeliveryReceipt> send = sendExecutor.submit(() -> provider.send(
+                delivery.provider(), token, PushPayload.forNotification(delivery.notificationId()),
+                delivery.outboxId()));
+        try {
+            return send.get(properties.getSendTimeoutMs(), TimeUnit.MILLISECONDS);
+        } catch (ExecutionException failure) {
+            if (failure.getCause() instanceof Exception cause) {
+                throw cause;
+            }
+            if (failure.getCause() instanceof Error error) {
+                throw error;
+            }
+            throw new IllegalStateException("Push provider send failed");
+        } finally {
+            send.cancel(true);
+            sendExecutor.purge();
+        }
+    }
+
+    @Override
+    @PreDestroy
+    public void close() {
+        sendExecutor.shutdownNow();
     }
 
     private void failRetryable(Claim claim, String code) {
