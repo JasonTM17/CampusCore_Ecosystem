@@ -642,6 +642,24 @@
             ],
             "timeoutMs": 300000
           }
+        },
+        {
+          "id": "mobile-component",
+          "required": true,
+          "targets": [
+            "local"
+          ],
+          "description": "Component, accessibility-audit and structural visual (token/layout, not pixels) suites on jest-expo; device screenshots and TalkBack/VoiceOver stay BLOCKED_CAPABILITY.",
+          "run": {
+            "cmd": "npm",
+            "args": [
+              "run",
+              "test:component",
+              "--prefix",
+              "mobile"
+            ],
+            "timeoutMs": 600000
+          }
         }
       ]
     },
