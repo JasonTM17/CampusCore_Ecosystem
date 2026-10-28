@@ -77,9 +77,9 @@ Mặc định: **route trong portal và module trong API**; chỉ tách host khi
 | Library | sinh viên, thủ thư | library API | module `library` | MVP | route portal |
 | Careers (mô phỏng) | ứng viên, nhà tuyển dụng | careers API | module `careers` | MVP | route portal |
 | Thông báo hợp nhất + push | mọi vai trò | inbox + outbox/thiết bị (V143) | module `notifications` | inbox MVP; push NEXT sau cổng provider | module API |
-| Operations/Admin | quản trị | API có phân quyền | web `/admin` | web-first (R6) | route portal |
+| Operations/Admin | quản trị | API có phân quyền | web `/admin` | web-first (R6); giám sát và hàng đợi nghiệp vụ trên mobile là lane sau cờ `EXPO_PUBLIC_LANE_*` (mặc định tắt, xem `mobile-policy.md` §4/§10) | route portal |
 | Ý tưởng chưa có chủ thể (alumni, workspace nghiên cứu, hội sinh viên riêng, BI) | - | chưa có bằng chứng nghiệp vụ | - | STRETCH hoặc bỏ | không |
 
 ## 6. Kỳ vọng BLOCKED_CAPABILITY trên host này (R12)
 
-Không emulator/`expo run:*`/gradle: canary SSE trên RN, đo hiệu năng thiết bị, TalkBack/VoiceOver thủ công, build EAS, push thật, kiểm chứng gập/tablet vật lý. Các mục này kết thúc BLOCKED_CAPABILITY kèm lý do; test component/a11y tự động, parity token, contract và Java vẫn chạy local.
+Host này có emulator Android (AVD `campuscore-demo`, build debug bằng Gradle với `JAVA_TOOL_OPTIONS=--enable-native-access=ALL-UNNAMED` trên JDK 24), nên luồng preview, route công khai, deep link `campuscore://` và bàn phím đã được kiểm trên máy ảo. Vẫn BLOCKED_CAPABILITY: iOS, FCM/push thật, build EAS, TalkBack/VoiceOver thủ công, đo hiệu năng trên thiết bị thật, kiểm chứng gập/tablet vật lý và canary SSE trên RN (cờ `STREAMING_PARITY_VERIFIED` giữ `false`). Test component/a11y tự động, parity token, contract và Java vẫn chạy local.
