@@ -169,7 +169,7 @@ test('mobile assistant keeps preview local and calls the Java route only in live
   assert.match(assistant, /const isPreview = apiClient\.mode === 'preview'/);
   assert.match(assistant, /if \(isPreview\) \{/);
   assert.match(assistant, /Preview noted\. Live mode will answer through the Java assistant API after sign-in\./);
-  assert.match(assistant, /campusApi\.assistantChat\(trimmedMessage, locale, (?:conversationId|requestedConversationId)/);
+  assert.match(assistant, /campusApi\.assistantChat\(\s*(?:trimmedMessage|request\.message),\s*(?:locale|request\.locale),\s*(?:conversationId|requestedConversationId|request\.conversationId)/);
   assert.match(assistant, /const requestedConversationId = clientRequestIdOverride/);
   assert.match(assistant, /reply\.degraded/);
   assert.match(assistant, /reply\.citations/);
