@@ -3,7 +3,7 @@ package io.campuscore.restfulapi.notification.push;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.campuscore.restfulapi.notification.push.DeliveryOutboxRepository.Claim;
-import io.campuscore.restfulapi.notification.push.PushDeviceDtos.RegistrationRequest;
+import io.campuscore.restfulapi.notification.push.PushDeviceDtos.PushDeviceRegistrationRequest;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -243,7 +243,7 @@ class NotificationPushPostgresIT {
                 }
                 return transactions.execute(status -> deviceService.register(
                         userA, "install-a-" + suffix,
-                        new RegistrationRequest("FCM", "ANDROID", token)));
+                        new PushDeviceRegistrationRequest("FCM", "ANDROID", token)));
             });
             var registrationB = workers.submit(() -> {
                 if (!start.await(5, TimeUnit.SECONDS)) {
@@ -251,7 +251,7 @@ class NotificationPushPostgresIT {
                 }
                 return transactions.execute(status -> deviceService.register(
                         userB, "install-b-" + suffix,
-                        new RegistrationRequest("FCM", "ANDROID", token)));
+                        new PushDeviceRegistrationRequest("FCM", "ANDROID", token)));
             });
             start.countDown();
             assertThat(registrationA.get(20, TimeUnit.SECONDS)).isNotNull();
