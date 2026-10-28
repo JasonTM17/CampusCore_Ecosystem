@@ -14,6 +14,7 @@ import {
   StatePanel,
   UiText,
 } from '../../components/Ui';
+import { ResponsiveGrid } from '../../components/ui/ResponsiveGrid';
 import {
   ApiClientError,
   apiClient,
@@ -213,7 +214,7 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
           <UiText variant="bodySmall" tone="muted">{copy.emptyApplicationsDescription}</UiText>
         </Card>
       ) : null}
-      {applications.map((application) => (
+      <ResponsiveGrid>{applications.map((application) => (
         <ListRow
           key={application.id}
           title={application.fullName || application.cycle}
@@ -221,7 +222,7 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
           meta={statusLabel(application.status)}
           onPress={() => select(application)}
         />
-      ))}
+      ))}</ResponsiveGrid>
 
       <SectionHeading title={copy.newApplication} />
       <Card>

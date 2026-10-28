@@ -14,6 +14,7 @@ import {
   StatePanel,
   UiText,
 } from '../../components/Ui';
+import { ResponsiveGrid } from '../../components/ui/ResponsiveGrid';
 import {
   apiClient,
   campusApi,
@@ -154,7 +155,7 @@ export function DocsScreen(_props: MobileScreenProps) {
           <UiText variant="label">{copy.emptyDocs}</UiText>
         </Card>
       ) : null}
-      {docs.map((doc) => (
+      <ResponsiveGrid>{docs.map((doc) => (
         <ListRow
           key={doc.slug}
           title={docTitle(doc, locale)}
@@ -173,7 +174,7 @@ export function DocsScreen(_props: MobileScreenProps) {
             />
           )}
         />
-      ))}
+      ))}</ResponsiveGrid>
 
       {detailError ? (
         <StatePanel

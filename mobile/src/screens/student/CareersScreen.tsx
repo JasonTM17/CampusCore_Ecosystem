@@ -14,6 +14,7 @@ import {
   StatePanel,
   UiText,
 } from '../../components/Ui';
+import { ResponsiveGrid } from '../../components/ui/ResponsiveGrid';
 import {
   ApiClientError,
   apiClient,
@@ -204,7 +205,7 @@ export function CareersScreen(_props: MobileScreenProps) {
           <UiText variant="label">{copy.emptyBoard}</UiText>
         </Card>
       ) : null}
-      {opportunities.map((opportunity) => (
+      <ResponsiveGrid>{opportunities.map((opportunity) => (
         <Card key={opportunity.id}>
           <UiText variant="label">{opportunity.title}</UiText>
           <UiText variant="bodySmall" tone="muted">
@@ -235,7 +236,7 @@ export function CareersScreen(_props: MobileScreenProps) {
             </>
           )}
         </Card>
-      ))}
+      ))}</ResponsiveGrid>
 
       <SectionHeading title={copy.myApplications} />
       {applicationsQuery.isLoading && !isPreview ? (
@@ -246,7 +247,7 @@ export function CareersScreen(_props: MobileScreenProps) {
           <UiText variant="label">{copy.emptyApplications}</UiText>
         </Card>
       ) : null}
-      {applications.map((application) => (
+      <ResponsiveGrid>{applications.map((application) => (
         <ListRow
           key={application.id}
           title={application.opportunityTitle ?? application.opportunityId}
@@ -265,7 +266,7 @@ export function CareersScreen(_props: MobileScreenProps) {
             />
           ) : undefined}
         />
-      ))}
+      ))}</ResponsiveGrid>
 
       <UiText variant="bodySmall" tone="muted">{copy.staffLaneNote}</UiText>
       <ScreenSpacer />

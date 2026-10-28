@@ -35,7 +35,7 @@ test('session teardown wipes the per-account cache', () => {
 
 test('every data screen distinguishes loading/error/empty states', () => {
   const student = readSources(mobileRoot,'src/screens/student',/^(StudentDashboard|Schedule|Courses|Grades|Attendance|Registration|Notifications|Profile)Screen\.tsx$|^shared\//);
-  const operations = read('src/screens/operations/OperationsScreens.tsx');
+  const operations = readSources(mobileRoot,'src/screens/operations',/^(AdminScreens|Lecturer(Dashboard|Schedule|Attendance|Grading)Screen)\.tsx$|^shared\//);
 
   for (const source of [student, operations]) {
     assert.match(source, /StatePanel/);
@@ -49,7 +49,7 @@ test('every data screen distinguishes loading/error/empty states', () => {
 });
 
 test('admin surfaces render the web-only state, never fake data (KM-8)', () => {
-  const operations = read('src/screens/operations/OperationsScreens.tsx');
+  const operations = readSources(mobileRoot,'src/screens/operations',/^(AdminScreens|Lecturer(Dashboard|Schedule|Attendance|Grading)Screen)\.tsx$|^shared\//);
   assert.match(operations, /WebOnlyPanel/);
   assert.match(operations, /Admin dashboard" \/>/);
   assert.match(operations, /Manage students" \/>/);
@@ -60,7 +60,7 @@ test('admin surfaces render the web-only state, never fake data (KM-8)', () => {
 });
 
 test('lecturer lanes call the real academic APIs — no static operations data', () => {
-  const operations = read('src/screens/operations/OperationsScreens.tsx');
+  const operations = readSources(mobileRoot,'src/screens/operations',/^(AdminScreens|Lecturer(Dashboard|Schedule|Attendance|Grading)Screen)\.tsx$|^shared\//);
   const client = read('src/api/client.ts');
   assert.match(operations, /campusApi\.lecturerSchedule/);
   assert.match(operations, /campusApi\.attendanceRoster/);

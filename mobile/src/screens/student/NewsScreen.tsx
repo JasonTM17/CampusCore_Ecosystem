@@ -12,6 +12,7 @@ import {
   StatePanel,
   UiText,
 } from '../../components/Ui';
+import { ResponsiveGrid } from '../../components/ui/ResponsiveGrid';
 import {
   apiClient,
   campusApi,
@@ -111,7 +112,7 @@ export function NewsScreen(_props: MobileScreenProps) {
           <UiText variant="label">{copy.emptyFeed}</UiText>
         </Card>
       ) : null}
-      {items.map((item) => {
+      <ResponsiveGrid>{items.map((item) => {
         const isOpen = expanded === item.id;
         return (
           <Card key={item.id}>
@@ -143,7 +144,7 @@ export function NewsScreen(_props: MobileScreenProps) {
             ) : null}
           </Card>
         );
-      })}
+      })}</ResponsiveGrid>
 
       <ScreenSpacer />
     </ScreenShell>

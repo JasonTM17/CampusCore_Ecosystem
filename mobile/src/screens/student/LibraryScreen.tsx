@@ -14,6 +14,7 @@ import {
   StatePanel,
   UiText,
 } from '../../components/Ui';
+import { ResponsiveGrid } from '../../components/ui/ResponsiveGrid';
 import {
   ApiClientError,
   apiClient,
@@ -201,7 +202,7 @@ export function LibraryScreen(_props: MobileScreenProps) {
           <UiText variant="label">{copy.emptyCatalogue}</UiText>
         </Card>
       ) : null}
-      {titles.map((title) => (
+      <ResponsiveGrid>{titles.map((title) => (
         <ListRow
           key={title.id}
           title={title.title}
@@ -217,7 +218,7 @@ export function LibraryScreen(_props: MobileScreenProps) {
             />
           )}
         />
-      ))}
+      ))}</ResponsiveGrid>
 
       <SectionHeading title={copy.myLoans} />
       {loansQuery.isLoading && !isPreview ? (
@@ -228,7 +229,7 @@ export function LibraryScreen(_props: MobileScreenProps) {
           <UiText variant="label">{copy.emptyLoans}</UiText>
         </Card>
       ) : null}
-      {loans.map((loan) => (
+      <ResponsiveGrid>{loans.map((loan) => (
         <Card key={loan.id}>
           <UiText variant="label">{loan.title ?? loan.barcode ?? loan.copyId}</UiText>
           <UiText variant="bodySmall" tone="muted">
@@ -249,7 +250,7 @@ export function LibraryScreen(_props: MobileScreenProps) {
             </>
           ) : null}
         </Card>
-      ))}
+      ))}</ResponsiveGrid>
 
       <UiText variant="bodySmall" tone="muted">{copy.staffLaneNote}</UiText>
       <ScreenSpacer />

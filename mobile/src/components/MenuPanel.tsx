@@ -2,6 +2,8 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { tokens } from '../design/tokens';
+import { useThemedStyles, useTheme } from '../design/theme';
+import type { ThemeColors } from '../design/theme';
 import {
   getScreenDefinition,
   menuSections,
@@ -21,6 +23,8 @@ interface MenuPanelProps {
 }
 
 export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole, allowRoleSwitch }: MenuPanelProps) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   return (
     <View style={styles.overlay}>
       <Pressable accessibilityLabel="Close menu" accessibilityRole="button" onPress={onClose} style={styles.backdrop} />
@@ -83,7 +87,7 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
                     >
                       <View style={styles.menuIcon}>
                         <MaterialCommunityIcons
-                          color={active ? tokens.colors.primary : tokens.colors.textMuted}
+                          color={active ? colors.primary : colors.textMuted}
                           name={screen.icon}
                           size={19}
                         />
@@ -91,7 +95,7 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
                       <UiText variant="bodySmall" style={styles.menuLabel}>
                         {screen.title}
                       </UiText>
-                      <MaterialCommunityIcons color={tokens.colors.textMuted} name="chevron-right" size={20} />
+                      <MaterialCommunityIcons color={colors.textMuted} name="chevron-right" size={20} />
                     </Pressable>
                   );
                 })}
@@ -109,12 +113,12 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFill, justifyContent: 'flex-end', zIndex: 10 },
   backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(15, 27, 44, 0.52)' },
   panel: {
-    backgroundColor: tokens.colors.card,
-    borderColor: tokens.colors.outlineVariant,
+    backgroundColor: colors.card,
+    borderColor: colors.outlineVariant,
     borderWidth: 1,
     borderTopLeftRadius: tokens.radii.card,
     borderTopRightRadius: tokens.radii.card,
@@ -122,17 +126,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: tokens.layout.mobileGutter,
     paddingTop: tokens.spacing.md,
   },
-  panelHeader: { alignItems: 'center', borderBottomColor: tokens.colors.outlineVariant, borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.md, paddingBottom: tokens.spacing.sm },
+  panelHeader: { alignItems: 'center', borderBottomColor: colors.outlineVariant, borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.md, paddingBottom: tokens.spacing.sm },
   headerCopy: { flex: 1 },
   roleLabel: { marginBottom: tokens.spacing.xs },
   roleRow: { flexDirection: 'row', marginBottom: tokens.spacing.md },
-  roleButton: { alignItems: 'center', backgroundColor: tokens.colors.surfaceLow, borderColor: tokens.colors.outlineVariant, borderRadius: tokens.radii.control, borderWidth: 1, justifyContent: 'center', marginRight: tokens.spacing.sm, minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.md },
-  roleButtonActive: { backgroundColor: tokens.colors.primary },
+  roleButton: { alignItems: 'center', backgroundColor: colors.surfaceLow, borderColor: colors.outlineVariant, borderRadius: tokens.radii.control, borderWidth: 1, justifyContent: 'center', marginRight: tokens.spacing.sm, minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.md },
+  roleButtonActive: { backgroundColor: colors.primary },
   menuContent: { paddingBottom: tokens.spacing.xl },
   section: { marginBottom: tokens.spacing.lg },
   sectionTitle: { marginBottom: tokens.spacing.xs },
-  menuItem: { alignItems: 'center', borderBottomColor: tokens.colors.outlineVariant, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
-  menuItemActive: { backgroundColor: tokens.colors.primaryFixed, borderLeftColor: tokens.colors.primary, borderLeftWidth: 3 },
+  menuItem: { alignItems: 'center', borderBottomColor: colors.outlineVariant, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
+  menuItemActive: { backgroundColor: colors.primaryFixed, borderLeftColor: colors.primary, borderLeftWidth: 3 },
   menuIcon: { alignItems: 'center', width: 32 },
   menuLabel: { flex: 1, marginLeft: tokens.spacing.sm },
   menuNote: { paddingTop: tokens.spacing.sm },

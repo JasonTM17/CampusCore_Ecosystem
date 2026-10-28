@@ -14,6 +14,7 @@ import {
   StatePanel,
   UiText,
 } from '../../components/Ui';
+import { ResponsiveGrid } from '../../components/ui/ResponsiveGrid';
 import {
   ApiClientError,
   apiClient,
@@ -215,7 +216,7 @@ export function LearningScreen(_props: MobileScreenProps) {
         <StatePanel kind="empty" title={copy.emptySections} description={copy.emptySectionsDescription} />
       ) : (
         <Card>
-          {sections.map((section, index) => (
+          <ResponsiveGrid>{sections.map((section, index) => (
             <View key={section.sectionId}>
               <ListRow
                 title={`${section.courseCode} · ${section.sectionNumber}`}
@@ -225,7 +226,7 @@ export function LearningScreen(_props: MobileScreenProps) {
               />
               {index < sections.length - 1 ? <Divider /> : null}
             </View>
-          ))}
+          ))}</ResponsiveGrid>
         </Card>
       )}
 
@@ -235,7 +236,7 @@ export function LearningScreen(_props: MobileScreenProps) {
         <StatePanel kind="empty" title={copy.emptyMaterials} description={copy.emptyMaterialsDescription} />
       ) : (
         <Card>
-          {materials.map((material, index) => (
+          <ResponsiveGrid>{materials.map((material, index) => (
             <View key={material.id}>
               <ListRow
                 title={material.title}
@@ -243,7 +244,7 @@ export function LearningScreen(_props: MobileScreenProps) {
               />
               {index < materials.length - 1 ? <Divider /> : null}
             </View>
-          ))}
+          ))}</ResponsiveGrid>
         </Card>
       )}
 
@@ -253,7 +254,7 @@ export function LearningScreen(_props: MobileScreenProps) {
         <StatePanel kind="empty" title={copy.emptyAssignments} description={copy.emptyAssignmentsDescription} />
       ) : (
         <Card>
-          {assignments.map((assignment, index) => (
+          <ResponsiveGrid>{assignments.map((assignment, index) => (
             <View key={assignment.id}>
               <ListRow
                 title={assignment.title}
@@ -273,7 +274,7 @@ export function LearningScreen(_props: MobileScreenProps) {
               </View>
               {index < assignments.length - 1 ? <Divider /> : null}
             </View>
-          ))}
+          ))}</ResponsiveGrid>
         </Card>
       )}
 
