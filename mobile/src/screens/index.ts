@@ -23,6 +23,7 @@ import { LibraryScreen } from './student/LibraryScreen';
 import { CareersScreen } from './student/CareersScreen';
 import { NewsScreen } from './student/NewsScreen';
 import { DocsScreen } from './student/DocsScreen';
+import { AnnouncementsScreen, CertificatesScreen, ConductScreen } from './content';
 import {
   AttendanceScreen,
   CoursesScreen,
@@ -63,6 +64,9 @@ export const screenComponents: Record<ScreenName, ComponentType<MobileScreenProp
   careers: CareersScreen,
   news: NewsScreen,
   docs: DocsScreen,
+  announcements: AnnouncementsScreen,
+  conduct: ConductScreen,
+  certificates: CertificatesScreen,
   notifications: NotificationsScreen,
   profile: ProfileScreen,
   'thesis.topics': ThesisTopicsScreen,

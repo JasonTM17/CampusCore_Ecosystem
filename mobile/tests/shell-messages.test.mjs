@@ -24,7 +24,7 @@ const laneIds = [...routes.matchAll(/^\s*\{ id: '([a-z]+\.[A-Za-z]+)', title:/gm
 const navLabels = [...routes.matchAll(/label: '([^']+)'/g)].map((m) => m[1]);
 
 test('every registry screen and lane has a title in both locales', () => {
-  assert.ok(screenNames.length >= 34 && laneIds.length >= 11);
+  assert.ok(screenNames.length >= 37 && laneIds.length >= 11);
   for (const locale of ['vi', 'en']) {
     for (const name of screenNames) {
       assert.ok(shellMessages[locale].screens[name], `${locale} screen ${name}`);

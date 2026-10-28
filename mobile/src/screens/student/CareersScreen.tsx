@@ -1,283 +1,227 @@
-import { useCallback, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import {
-  Button,
-  Card,
-  DataNotice,
-  Divider,
-  Field,
-  ListRow,
-  ScreenShell,
-  ScreenSpacer,
-  SectionHeading,
-  StatePanel,
-  UiText,
-} from '../../components/Ui';
-import { ResponsiveGrid } from '../../components/ui/ResponsiveGrid';
-import {
-  ApiClientError,
-  apiClient,
-  campusApi,
-  type MobileCareerApplication,
-  type MobileCareerOpportunity,
-} from '../../api/client';
-import { useScreenQuery } from '../../hooks/useScreenQuery';
-import { careersMessages, type CareersLocale } from '../../i18n/careers-messages';
+import { Card, DataNotice, UiText } from '../../components/Ui';
+import { SearchBar, SegmentedControl } from '../../components/ui/index';
+import { apiClient } from '../../api/client';
+import type { MobileCareerOpportunity } from '../../api/client';
+import { tokens } from '../../design/tokens';
+import { careersMessages } from '../../i18n/careers-messages';
 import type { MobileScreenProps } from '../../navigation/types';
+import { contentApi, type CareerApplicationView } from '../content/content-api';
+import { contentErrorMessage, errorCode } from '../content/content-errors';
+import { activeOpportunityIds, joinMeta, isApplicationWithdrawable } from '../content/content-rules';
+import { ListFrame, StatusChip, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
+import { ApplicationDetail, OpportunityDetail } from '../content/CareerDetail';
+import { previewCareerApplications, previewOpportunities } from '../content/preview-data';
+import { useListQuery } from '../content/use-list-query';
+import { usePagedList } from '../content/use-paged-list';
 
-/**
- * §9 candidate careers surface (P12): browse published postings, apply,
- * own application history and owner withdraw. Recruiter/reviewer lanes
- * and attachment uploads stay on the web surface; every mutation carries
- * Idempotency-Key and application states are server-owned.
- */
-const previewOpportunities: MobileCareerOpportunity[] = [
-  {
-    id: 'preview-opp-1',
-    organizationId: 'preview-org',
-    organizationName: 'UTE Tech Partners',
-    title: 'Thực tập sinh Backend',
-    location: 'TP.HCM',
-    employmentType: 'INTERNSHIP',
-    status: 'PUBLISHED',
-    version: 1,
-    createdAt: '2026-10-01T00:00:00Z',
-  },
-];
+type Tab = 'board' | 'mine';
+type Sub = 'active' | 'history';
 
-const previewApplications: MobileCareerApplication[] = [
-  {
-    id: 'preview-app-1',
-    opportunityId: 'preview-opp-1',
-    opportunityTitle: 'Thực tập sinh Backend',
-    organizationId: 'preview-org',
-    organizationName: 'UTE Tech Partners',
-    candidateUserId: 'preview-user',
-    status: 'REVIEWING',
-    submittedAt: '2026-10-02T00:00:00Z',
-    version: 2,
-    createdAt: '2026-10-02T00:00:00Z',
-  },
-];
-
-function errorCode(error: unknown): string {
-  return error instanceof ApiClientError ? String(error.code ?? '') : '';
-}
-
-function isWithdrawable(application: MobileCareerApplication): boolean {
-  return ['SUBMITTED', 'REVIEWING', 'INTERVIEW', 'OFFER'].includes(application.status);
-}
-
+/** Candidate careers: published postings, apply, own applications, attachments and withdraw. States are server-owned. */
 export function CareersScreen(_props: MobileScreenProps) {
-  const [locale, setLocale] = useState<CareersLocale>('vi');
+  const { locale, formatDate, copy: common } = useContentCopy();
   const copy = careersMessages[locale];
-  const statusLabel = (status: string) => copy.statusLabels[status] ?? status;
-  const languageSelector = (
-    <View style={styles.actionRow}>
-      <UiText>{copy.language}</UiText>
-      {(['vi', 'en'] as const).map((option) => (
-        <Button
-          key={option}
-          label={option.toUpperCase()}
-          accessibilityLabel={option === 'vi' ? 'Tiếng Việt' : 'English'}
-          variant={locale === option ? 'primary' : 'secondary'}
-          onPress={() => setLocale(option)}
-        />
-      ))}
-    </View>
-  );
-
-  const [query, setQuery] = useState('');
+  const [tab, setTab] = useState<Tab>('board');
+  const [sub, setSub] = useState<Sub>('active');
+  const [input, setInput] = useState('');
   const [search, setSearch] = useState('');
-  const [coverLetters, setCoverLetters] = useState<Record<string, string>>({});
-  const [mutating, setMutating] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [mutationError, setMutationError] = useState<string | null>(null);
+  const [opportunity, setOpportunity] = useState<MobileCareerOpportunity | null>(null);
+  const [applicationId, setApplicationId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const { flash, success, fail, clear } = useFlash();
+  const { ask, dialog } = useConfirm();
+  const live = apiClient.mode === 'live';
 
-  const isPreview = apiClient.mode === 'preview';
+  const previewOpps = useMemo(() => previewOpportunities(locale), [locale]);
+  const previewApps = useMemo(() => previewCareerApplications(locale), [locale]);
+  const board = usePagedList<MobileCareerOpportunity>({
+    key: `content.careers.board.${search}`,
+    fetchPage: (page, limit, signal) => contentApi.careersOpportunities({ page, limit, signal, query: search || undefined }),
+    keyOf: (item) => item.id,
+    preview: previewOpps,
+  });
+  const apps = useListQuery<CareerApplicationView>({
+    key: 'content.careers.applications',
+    fetchAll: () => contentApi.careersApplications(),
+    preview: previewApps,
+  });
+  const liveIds = useMemo(() => activeOpportunityIds(apps.items), [apps.items]);
 
-  const boardQuery = useScreenQuery<MobileCareerOpportunity[]>(
-    `careers.board.${search}`,
-    () => campusApi.careersOpportunities(search || undefined),
-    {
-      enabled: apiClient.mode === 'live',
-      errorMessage: copy.unavailable,
-      mapError: () => copy.unavailable,
-    },
-  );
-  const applicationsQuery = useScreenQuery<MobileCareerApplication[]>(
-    'careers.myApplications',
-    () => campusApi.careersMyApplications(),
-    {
-      enabled: apiClient.mode === 'live',
-      errorMessage: copy.unavailable,
-      mapError: () => copy.unavailable,
-    },
-  );
-
-  const opportunities = isPreview ? previewOpportunities : boardQuery.data ?? [];
-  const applications = isPreview ? previewApplications : applicationsQuery.data ?? [];
-  const appliedIds = new Set(
-    applications.filter(isWithdrawable).map((application) => application.opportunityId));
-
-  const friendlyError = (error: unknown): string => {
-    const code = errorCode(error);
-    if (code === 'APPLICATION_ACTIVE') return copy.alreadyApplied;
-    if (code === 'OPPORTUNITY_NOT_OPEN') return copy.notOpen;
-    return copy.failed;
-  };
-
-  const refresh = useCallback(async () => {
-    await Promise.all([boardQuery.reload(), applicationsQuery.reload()]);
-  }, [boardQuery, applicationsQuery]);
-
-  const run = async (action: () => Promise<unknown>, okMessage: string) => {
-    setMutating(true);
-    setMutationError(null);
-    setNotice(null);
+  const run = useCallback(async (action: () => Promise<unknown>, ok: string, failureFor?: (code: string | undefined) => string | null) => {
+    if (busy || !live) return false;
+    setBusy(true);
+    clear();
     try {
       await action();
-      setNotice(okMessage);
-      await refresh();
+      success(ok);
+      void apps.reload();
+      return true;
     } catch (error) {
-      setMutationError(friendlyError(error));
+      fail(failureFor?.(errorCode(error)) ?? contentErrorMessage(common, error, copy.failed));
+      return false;
     } finally {
-      setMutating(false);
+      setBusy(false);
     }
-  };
+  }, [apps, busy, clear, common, copy.failed, fail, live, success]);
 
-  const apply = (opportunity: MobileCareerOpportunity) => {
-    void run(
-      () => campusApi.careersApply(opportunity.id, coverLetters[opportunity.id] ?? ''),
+  const apply = (target: MobileCareerOpportunity, coverLetter: string) => ask({
+    title: copy.applyTitle,
+    description: target.title,
+    confirmLabel: copy.apply,
+    cancelLabel: common.back,
+    onConfirm: () => void run(
+      () => contentApi.careersApply(target.id, coverLetter),
       copy.applied,
-    );
-  };
+      (code) => (code === 'APPLICATION_ACTIVE' ? copy.alreadyApplied : code === 'OPPORTUNITY_NOT_OPEN' ? copy.notOpen : null),
+    ),
+  });
 
-  const withdraw = (application: MobileCareerApplication) => {
-    void run(
-      () => campusApi.careersWithdraw(application.id, application.version),
-      copy.withdrawn,
+  const withdraw = (target: CareerApplicationView) => ask({
+    title: copy.withdrawTitle,
+    description: target.opportunityTitle ?? undefined,
+    confirmLabel: copy.withdraw,
+    cancelLabel: copy.keep,
+    destructive: true,
+    onConfirm: () => void run(() => contentApi.careersWithdraw(target.id, target.version), copy.withdrawn),
+  });
+
+  const selectedApplication = applicationId ? apps.items.find((item) => item.id === applicationId) ?? null : null;
+
+  if (opportunity) {
+    return (
+      <>
+        <OpportunityDetail
+          opportunity={opportunity}
+          alreadyApplied={liveIds.has(opportunity.id)}
+          busy={busy}
+          preview={!live}
+          flash={flash}
+          onBack={() => { setOpportunity(null); clear(); }}
+          onApply={(letter) => apply(opportunity, letter)}
+        />
+        {dialog}
+      </>
     );
-  };
+  }
+  if (selectedApplication) {
+    return (
+      <>
+        <ApplicationDetail
+          application={selectedApplication}
+          busy={busy}
+          preview={!live}
+          flash={flash}
+          onBack={() => { setApplicationId(null); clear(); }}
+          onWithdraw={withdraw}
+          onUploaded={() => { success(common.uploaded); void apps.reload(); }}
+        />
+        {dialog}
+      </>
+    );
+  }
+
+  const tabs = (
+    <SegmentedControl
+      accessibilityLabel={copy.title}
+      value={tab}
+      onChange={(value) => setTab(value as Tab)}
+      options={[{ value: 'board', label: copy.board }, { value: 'mine', label: copy.myApplications }]}
+    />
+  );
+  const banner = <DataNotice message={copy.simulatedBanner} />;
+  const mine = apps.items.filter((item) => (sub === 'active') === isApplicationWithdrawable(item));
 
   return (
-    <ScreenShell
-      title={copy.title}
-      eyebrow={copy.eyebrow}
-      subtitle={copy.subtitle}
-      headerAction={languageSelector}
-    >
-      <DataNotice message={copy.simulatedBanner} />
-      {notice ? <DataNotice message={notice} /> : null}
-      {mutationError ? <StatePanel kind="error" title={copy.errorTitle} description={mutationError} /> : null}
-
-      <SectionHeading title={copy.board} />
-      <Card>
-        <Field
-          label={copy.search}
-          placeholder={copy.searchPlaceholder}
-          value={query}
-          onChangeText={setQuery}
-        />
-        <View style={styles.actionRow}>
-          <Button
-            label={copy.search}
-            variant="secondary"
-            onPress={() => setSearch(query.trim())}
-          />
-        </View>
-      </Card>
-      {boardQuery.isLoading && !isPreview ? (
-        <StatePanel kind="loading" title={copy.loading} />
-      ) : null}
-      {boardQuery.error != null && !isPreview ? (
-        <StatePanel
-          kind="error"
-          title={copy.errorTitle}
-          description={copy.unavailable}
-          actionLabel={copy.retry}
-          onAction={() => void refresh()}
-        />
-      ) : null}
-      {opportunities.length === 0 && !boardQuery.isLoading ? (
-        <Card>
-          <UiText variant="label">{copy.emptyBoard}</UiText>
-        </Card>
-      ) : null}
-      <ResponsiveGrid>{opportunities.map((opportunity) => (
-        <Card key={opportunity.id}>
-          <UiText variant="label">{opportunity.title}</UiText>
-          <UiText variant="bodySmall" tone="muted">
-            {[opportunity.organizationName, opportunity.location,
-              opportunity.employmentType, opportunity.salaryText]
-              .filter(Boolean).join(' · ')}
-          </UiText>
-          {opportunity.description ? (
-            <UiText variant="bodySmall" tone="muted">{opportunity.description}</UiText>
-          ) : null}
-          {appliedIds.has(opportunity.id) ? null : (
-            <>
-              <Field
-                label={copy.coverLetter}
-                placeholder={copy.coverLetterPlaceholder}
-                value={coverLetters[opportunity.id] ?? ''}
-                onChangeText={(value) => setCoverLetters((current) => ({
-                  ...current, [opportunity.id]: value,
-                }))}
+    <>
+      {tab === 'board' ? (
+        <ListFrame
+          title={copy.title}
+          list={board}
+          filtered={search.length > 0}
+          keyOf={(item) => item.id}
+          emptyTitle={copy.emptyBoard}
+          flash={flash}
+          header={(
+            <View style={styles.header}>
+              {banner}
+              {tabs}
+              <SearchBar
+                value={input}
+                onChangeText={setInput}
+                onClear={() => { setInput(''); setSearch(''); }}
+                placeholder={copy.searchPlaceholder}
+                accessibilityLabel={copy.search}
+                returnKeyType="search"
+                onSubmitEditing={() => setSearch(input.trim())}
               />
-              <Button
-                label={copy.apply}
-                variant="secondary"
-                loading={mutating}
-                disabled={mutating}
-                onPress={() => apply(opportunity)}
-              />
-            </>
+            </View>
           )}
-        </Card>
-      ))}</ResponsiveGrid>
-
-      <SectionHeading title={copy.myApplications} />
-      {applicationsQuery.isLoading && !isPreview ? (
-        <StatePanel kind="loading" title={copy.loading} />
-      ) : null}
-      {applications.length === 0 && !applicationsQuery.isLoading ? (
-        <Card>
-          <UiText variant="label">{copy.emptyApplications}</UiText>
-        </Card>
-      ) : null}
-      <ResponsiveGrid>{applications.map((application) => (
-        <ListRow
-          key={application.id}
-          title={application.opportunityTitle ?? application.opportunityId}
-          subtitle={
-            `${application.organizationName ?? ''} · ${statusLabel(application.status)}`
-              + (application.submittedAt ? ` · ${copy.submittedAt}: ${application.submittedAt}` : '')
-              + (application.moderationReason ? ` · ${copy.reason}: ${application.moderationReason}` : '')
-          }
-          trailing={isWithdrawable(application) ? (
-            <Button
-              label={copy.withdraw}
-              variant="secondary"
-              loading={mutating}
-              disabled={mutating}
-              onPress={() => withdraw(application)}
-            />
-          ) : undefined}
+          renderItem={(item) => (
+            <Card>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={joinMeta([item.title, item.organizationName, item.location])}
+                onPress={() => setOpportunity(item)}
+                style={styles.rowMain}
+              >
+                <UiText variant="label">{item.title}</UiText>
+                <UiText variant="bodySmall" tone="muted">{joinMeta([item.organizationName, item.location, item.employmentType])}</UiText>
+                {liveIds.has(item.id) ? <UiText variant="meta" tone="success">{copy.alreadyApplied}</UiText> : null}
+              </Pressable>
+            </Card>
+          )}
         />
-      ))}</ResponsiveGrid>
-
-      <UiText variant="bodySmall" tone="muted">{copy.staffLaneNote}</UiText>
-      <ScreenSpacer />
-    </ScreenShell>
+      ) : (
+        <ListFrame
+          title={copy.title}
+          list={apps}
+          items={mine}
+          filtered
+          keyOf={(item) => item.id}
+          emptyTitle={sub === 'active' ? copy.emptyApplications : copy.emptyHistory}
+          flash={flash}
+          header={(
+            <View style={styles.header}>
+              {banner}
+              {tabs}
+              <SegmentedControl
+                accessibilityLabel={copy.myApplications}
+                value={sub}
+                onChange={(value) => setSub(value as Sub)}
+                options={[{ value: 'active', label: copy.applicationsActive }, { value: 'history', label: copy.applicationsHistory }]}
+              />
+            </View>
+          )}
+          renderItem={(item) => (
+            <Card>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={joinMeta([item.opportunityTitle, copy.statusLabels[item.status] ?? item.status, item.organizationName])}
+                onPress={() => setApplicationId(item.id)}
+                style={styles.rowMain}
+              >
+                <UiText variant="label">{item.opportunityTitle ?? item.opportunityId}</UiText>
+                <UiText variant="bodySmall" tone="muted">
+                  {joinMeta([item.organizationName, item.submittedAt ? `${copy.submittedAt}: ${formatDate(item.submittedAt)}` : null])}
+                </UiText>
+                <View style={styles.chips}>
+                  <StatusChip code={item.status} labels={copy.statusLabels} />
+                </View>
+              </Pressable>
+            </Card>
+          )}
+        />
+      )}
+      {dialog}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  actionRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
-  },
+  header: { gap: tokens.spacing.sm },
+  rowMain: { gap: tokens.spacing.xs, minHeight: tokens.layout.touchTarget },
+  chips: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
 });

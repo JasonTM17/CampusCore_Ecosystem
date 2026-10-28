@@ -82,12 +82,13 @@ yet present.
 
 ## Screen atlas
 
-The registry contains 34 navigable screens:
+The registry contains 37 navigable screens:
 
 - Auth: sign in, forgot password, reset password, signed out.
 - Student: dashboard, schedule, courses, grades, transcript, curriculum, enrollments, attendance, registration,
   events, learning (materials & assignments), admissions (simulated), library (simulated),
-  careers (simulated), news, docs, notifications, profile.
+  careers (simulated), news, docs, notifications, academic announcements, conduct score,
+  certificates, profile.
 - Thesis: topics, topic detail, registration, progress.
 - Assistant: CampusCore campus helpdesk chatbot.
 - Staff: admin dashboard, students, lecturers; lecturer dashboard,
