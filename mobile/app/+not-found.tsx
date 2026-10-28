@@ -7,6 +7,6 @@ import { useSession } from '../src/session/SessionContext';
 export default function NotFound() {
   const session = useSession();
   const pathname = usePathname() ?? '/';
-  const decision = resolveGuard(session.kind, session.role, pathname);
+  const decision = resolveGuard(session.kind, session.role, pathname, session.capabilities);
   return <Redirect href={decision.to ? pathFor(decision.to) : '/sign-in'} />;
 }

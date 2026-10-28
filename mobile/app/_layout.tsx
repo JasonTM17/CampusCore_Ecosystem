@@ -63,7 +63,7 @@ function RootNavigator() {
   if (session.blockedReason && pathname !== '/sign-in-blocked') {
     return <Redirect href="/sign-in-blocked" />;
   }
-  const decision = resolveGuard(session.kind, session.role, pathname);
+  const decision = resolveGuard(session.kind, session.role, pathname, session.capabilities);
   if (decision.action === 'redirect' && decision.to) {
     return <Redirect href={pathFor(decision.to)} />;
   }
