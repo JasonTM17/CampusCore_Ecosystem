@@ -9,6 +9,7 @@ import {
   type ScreenName,
   type UserRole,
 } from '../navigation/routes';
+import { useShellCopy } from '../i18n/use-shell-copy';
 import { UiText } from './Ui';
 
 export interface BottomNavigationProps {
@@ -22,6 +23,7 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: Bott
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const items = getBottomNavigation(role);
+  const { copy, navLabel } = useShellCopy();
 
   return (
     <View testID="bottom-navigation" style={styles.navigation}>
@@ -33,7 +35,7 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: Bott
             return (
               <Pressable
                 key={item.route}
-                accessibilityLabel={item.label}
+                accessibilityLabel={navLabel(item.label)}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
                 onPress={() => onNavigate(item.route)}
@@ -53,14 +55,14 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: Bott
                   variant="meta"
                   tone={active ? 'primary' : 'muted'}
                 >
-                  {item.label}
+                  {navLabel(item.label)}
                 </UiText>
               </Pressable>
             );
           })}
         </View>
         <Pressable
-          accessibilityLabel="Open menu"
+          accessibilityLabel={copy.openMenu}
           accessibilityRole="button"
           onPress={onMenu}
           style={({ pressed }) => [styles.item, pressed ? styles.pressed : undefined]}
@@ -69,7 +71,7 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: Bott
             <MaterialCommunityIcons color={colors.textMuted} name="menu" size={20} />
           </View>
           <UiText variant="meta" tone="muted">
-            Menu
+            {copy.menu}
           </UiText>
         </Pressable>
       </View>
