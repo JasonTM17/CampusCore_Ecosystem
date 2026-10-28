@@ -1,7 +1,7 @@
 /** @type {import('jest').Config} */
 module.exports = {
   preset: 'jest-expo',
-  testMatch: ['<rootDir>/tests/component/**/*.test.(ts|tsx|js|jsx)'],
+  testMatch: ['<rootDir>/tests/component/**/*.test.(ts|tsx|js|jsx)', '<rootDir>/tests/a11y/**/*.test.(ts|tsx|js|jsx)', '<rootDir>/tests/visual/**/*.test.(ts|tsx|js|jsx)'],
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|native-base|react-native-svg)',
   ],
