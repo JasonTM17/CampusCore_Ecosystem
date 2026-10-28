@@ -15,6 +15,15 @@ export const ASSISTANT_RECONCILE_MAX_ATTEMPTS = 4;
 /** Linear backoff base: 250ms, 500ms, 750ms between attempts. */
 export const ASSISTANT_RECONCILE_BACKOFF_BASE_MS = 250;
 export const ASSISTANT_MAX_MESSAGE_CHARS = 2000;
+/** Per-account daily turn allowance (`assistant.user-daily-quota`); the server stays the authority. */
+export const ASSISTANT_USER_DAILY_QUOTA = 20;
+/** Corpus scopes the server accepts (`ChatRequest.scope` pattern). */
+export const ASSISTANT_SCOPES = ['academic', 'specialized'] as const;
+/** Fixed feedback reasons the server accepts (`FeedbackRequest.reason` pattern). */
+export const ASSISTANT_FEEDBACK_REASONS = ['HELPFUL', 'CLEAR', 'INCORRECT', 'OUTDATED', 'NOT_RELEVANT', 'UNSAFE'] as const;
+/** Client page sizes; each must stay within the server clamp (conversations 50, messages 200). */
+export const ASSISTANT_CONVERSATION_PAGE_SIZE = 20;
+export const ASSISTANT_MESSAGE_PAGE_SIZE = 50;
 /** Mobile-only guard: XHR keeps the whole response text in memory, so cap it. */
 export const ASSISTANT_STREAM_MAX_RESPONSE_CHARS = 1_048_576;
 
