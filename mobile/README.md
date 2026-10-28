@@ -93,3 +93,7 @@ The registry contains 28 navigable screens:
   schedule, grading, attendance.
 
 This is a scaffold, not a claim of live Expo, device, API, or visual validation.
+
+## Mobile excellence v2
+
+Token một nguồn (`contracts/ecosystem/tokens.json`) sinh adapter cho web và mobile (`node scripts/sync-tokens.mjs --check`). Màn hình dùng `useTheme`/`useThemedStyles` (sáng/tối theo hệ thống) và `useWindowClass` (compact < 600 dp, medium 600-839, expanded >= 840). Chi tiết, dependency đã đóng băng và khóa i18n: `docs/ecosystem/mobile-excellence.md`. Test: `npm test` (node), `npm run test:component` (RNTL), `npm run typecheck`. Trợ lý dùng transport buffered cho tới khi canary SSE trên dev build qua; push mặc định tắt (`src/config/features.ts`).
