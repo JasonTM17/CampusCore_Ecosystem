@@ -27,3 +27,15 @@ export type {
   InlineErrorProps,
   FormFieldProps,
 } from './primitives';
+export { DataList } from './data-list';
+export type { DataListProps } from './data-list';
+export { FilterSheet, toggleFilterValue } from './filter-sheet';
+export type { FilterSheetProps, FilterGroup, FilterOption, FilterValue } from './filter-sheet';
+export { ChoiceField } from './choice-field';
+export type { ChoiceFieldProps } from './choice-field';
+export { DateField } from './date-field';
+export type { DateFieldProps } from './date-field';
+export { FileRow } from './file-row';
+export type { FileRowProps, FileRowAction, FileRowStatus } from './file-row';
+export { ChartSummary, barRatios } from './chart-summary';
+export type { ChartSummaryProps, ChartPoint } from './chart-summary';
