@@ -8,18 +8,21 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "test": "node --test tests/screen-atlas.test.mjs tests/phase-six-repair.test.mjs tests/student-json.test.mjs tests/router-guard.test.mjs tests/session-storage.test.mjs tests/oidc-flow.test.mjs tests/query-lifecycle.test.mjs tests/events-messages.test.mjs tests/domain-contracts.test.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:component": "jest --config jest.config.js"
   },
   "dependencies": {
     "@expo-google-fonts/be-vietnam-pro": "^0.4.1",
     "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/native": "^7.5.1",
-    "expo": "~57.0.19",
+    "expo": "~57.0.31",
     "expo-auth-session": "~57.0.16",
     "expo-constants": "~57.0.22",
     "expo-font": "~57.0.3",
+    "expo-haptics": "~57.0.3",
     "expo-network": "~57.0.3",
+    "expo-notifications": "~57.0.24",
     "expo-router": "~57.0.29",
     "expo-secure-store": "~57.0.4",
     "expo-web-browser": "~57.0.3",
@@ -30,10 +33,15 @@
     "react-native-screens": "~4.26.0"
   },
   "devDependencies": {
+    "@testing-library/react-native": "^14.1.0",
+    "@types/jest": "^29.5.14",
     "@types/node": "~22.10.2",
     "@types/react": "~19.2.4",
     "babel-preset-expo": "~57.0.14",
+    "jest": "~29.7.0",
+    "jest-expo": "~57.0.6",
     "openapi-typescript": "6.7.6",
+    "test-renderer": "^1.3.1",
     "typescript": "~6.0.3"
   },
   "overrides": {
