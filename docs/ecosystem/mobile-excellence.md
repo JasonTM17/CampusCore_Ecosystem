@@ -62,7 +62,23 @@ Không thêm: reanimated, gesture-handler, flash-list, expo-image, expo-updates,
 
 ## 5. Bản đồ hệ sinh thái
 
-Bản đồ mặt sản phẩm (native, portal, hub, module API, host/subdomain, quy tắc tách subdomain) được tích hợp vào `mobile-matrix.md` ở M05. Mặc định: route trong portal và module trong API; chỉ tách host khi có chủ sở hữu, ranh giới auth, vận hành và ngân sách riêng.
+Mặc định: **route trong portal và module trong API**; chỉ tách host khi có chủ sở hữu nghiệp vụ riêng, ranh giới auth/CSRF/CORS/deep-link, người vận hành + giám sát + backup, và ngân sách riêng. Không tạo dịch vụ hay subdomain chỉ vì một miền có tên riêng. Host/association hiện tại giữ nguyên (`app.json`, `host-policy.md`).
+
+| Bề mặt | Vai trò chính | Đọc/ghi | Chủ sở hữu | Tầng | Host |
+|---|---|---|---|---|---|
+| Native CampusCore Mobile (Android + iOS) | sinh viên, giảng viên | API hiện hữu; OIDC PKCE | `mobile/` + Java API | MVP | app native |
+| Web portal + `/hub` | mọi vai trò, quản trị | cùng API/contract | `frontend/` + API | MVP | route trong portal |
+| Academic (lịch, điểm, điểm danh, đăng ký) | sinh viên, giảng viên | academic API | module `academic` | MVP | module API |
+| Thesis + trợ lý RAG | sinh viên, giảng viên | thesis/assistant API; RAG riêng tư | module `thesis`, `thesis/assistant` | MVP | module API |
+| News / Docs | công khai + biên tập | announcements/docs API | engagement API | MVP đọc native | route portal |
+| Events | sinh viên, ban tổ chức | events API (lifecycle + sức chứa) | module `events` | MVP | route portal |
+| LMS (Learning) | sinh viên, giảng viên | learning API | module `learning` | MVP | route portal |
+| Admissions (mô phỏng) | thí sinh demo, nhân sự | admissions API | module `admissions` | MVP | route portal |
+| Library | sinh viên, thủ thư | library API | module `library` | MVP | route portal |
+| Careers (mô phỏng) | ứng viên, nhà tuyển dụng | careers API | module `careers` | MVP | route portal |
+| Thông báo hợp nhất + push | mọi vai trò | inbox + outbox/thiết bị (V143) | module `notifications` | inbox MVP; push NEXT sau cổng provider | module API |
+| Operations/Admin | quản trị | API có phân quyền | web `/admin` | web-first (R6) | route portal |
+| Ý tưởng chưa có chủ thể (alumni, workspace nghiên cứu, hội sinh viên riêng, BI) | - | chưa có bằng chứng nghiệp vụ | - | STRETCH hoặc bỏ | không |
 
 ## 6. Kỳ vọng BLOCKED_CAPABILITY trên host này (R12)
 

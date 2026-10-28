@@ -95,3 +95,13 @@ StudentScreens là wrapper tương thích trên cùng hook.
 `src/navigation/MobileNavigator.tsx` giữ lại như compat spec (tests đọc
 nó); sign-out path của nó cũng gọi `sessionStore.signOut()` +
 `clearQueryCache()` — một logout-ordering authority (KM-6).
+
+## 7. Năng lực v2 (mobile excellence)
+
+| Năng lực | Trạng thái | Bằng chứng / cổng |
+|---|---|---|
+| Sáng/tối theo hệ thống, xoay màn hình (`app.json`: `userInterfaceStyle=automatic`, `orientation=default`) | native, đã bật | component test theo scheme; bằng chứng thiết bị: BLOCKED_CAPABILITY |
+| Lớp cửa sổ compact/medium/expanded (600/840 dp), `ResponsiveContent`/`ResponsiveGrid` | native | component test theo chiều rộng 360/700/1000 |
+| Chatbot qua `AssistantTransport` (buffered mặc định, SSE sau cờ `STREAMING_PARITY_VERIFIED`) | native; **không tuyên bố streaming parity** | canary runtime trên dev build: BLOCKED_CAPABILITY (M07) |
+| Push opt-in (cờ `PUSH_OPT_IN_ENABLED=false`), đăng ký thiết bị owner-scoped, outbox phía server | server + client sẵn sàng, tắt | Postgres IT PASS; gửi thật: BLOCKED_CAPABILITY (chưa provider/khóa) |
+| Cache đọc theo tài khoản + locale/role-lane, purge khi hết phiên | native | node test `offline-read` |
