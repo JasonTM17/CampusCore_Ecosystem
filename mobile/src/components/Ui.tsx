@@ -5,44 +5,92 @@ import {
   ScrollView,
   StyleProp,
   StyleSheet,
-  Text,
-  TextInput,
-  TextInputProps,
-  TextProps,
-  TextStyle,
   View,
   ViewStyle,
 } from 'react-native';
 
 import { tokens } from '../design/tokens';
+import { useTheme } from '../design/theme';
+import type { ThemeColors } from '../design/theme';
+import { UiText } from './ui/UiText';
+import type { TextTone } from './ui/UiText';
+import { Button } from './ui/Button';
+import { FormField } from './ui/primitives';
 
-export type TextVariant =
-  | 'display'
-  | 'headlineLarge'
-  | 'headlineMedium'
-  | 'headlineSmall'
-  | 'bodyLarge'
-  | 'bodyMedium'
-  | 'bodySmall'
-  | 'label'
-  | 'meta';
+export { UiText } from './ui/UiText';
+export type { UiTextProps, TextVariant, TextTone } from './ui/UiText';
+export { Button } from './ui/Button';
+export type { ButtonProps } from './ui/Button';
+export * from './ui/index';
 
-export type TextTone = 'default' | 'muted' | 'primary' | 'success' | 'warning' | 'error' | 'onPrimary';
+/* ---------- themed styles ---------- */
 
-export interface UiTextProps extends Omit<TextProps, 'style'> {
-  variant?: TextVariant;
-  tone?: TextTone;
-  style?: StyleProp<TextStyle>;
+const styleCache = new WeakMap<ThemeColors, ReturnType<typeof buildStyles>>();
+function stylesFor(colors: ThemeColors) {
+  let s = styleCache.get(colors);
+  if (!s) {
+    s = buildStyles(colors);
+    styleCache.set(colors, s);
+  }
+  return s;
 }
 
-export function UiText({
-  variant = 'bodyMedium',
-  tone = 'default',
-  style,
-  ...props
-}: UiTextProps) {
-  return <Text {...props} style={[textStyles[variant], toneStyles[tone], style]} />;
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    screen: { flex: 1, backgroundColor: colors.background },
+    scrollContent: {
+      paddingHorizontal: tokens.layout.mobileGutter,
+      paddingTop: tokens.spacing.md,
+      paddingBottom: tokens.spacing.xl + tokens.layout.bottomNavigationHeight,
+    },
+    headerRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: tokens.spacing.lg, paddingBottom: tokens.spacing.md, borderBottomColor: colors.outlineVariant, borderBottomWidth: 1 },
+    headerCopy: { flex: 1, paddingRight: tokens.spacing.sm },
+    eyebrow: { letterSpacing: 0, marginBottom: tokens.spacing.xs, textTransform: 'uppercase' },
+    subtitle: { marginTop: tokens.spacing.xs },
+    card: {
+      backgroundColor: colors.card,
+      borderColor: colors.outlineVariant,
+      borderRadius: tokens.radii.card,
+      borderWidth: 1,
+      padding: tokens.spacing.md,
+    },
+    fieldGroup: { marginBottom: tokens.spacing.md },
+    badge: { alignSelf: 'flex-start', borderRadius: tokens.radii.pill, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
+    metricCard: { flex: 1, minHeight: 108, padding: tokens.spacing.sm + tokens.spacing.xs },
+    metricValue: { marginVertical: tokens.spacing.xs },
+    sectionHeading: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
+    listRow: { alignItems: 'center', flexDirection: 'row', minHeight: tokens.layout.touchTarget, paddingVertical: tokens.spacing.sm },
+    leading: { alignItems: 'center', backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', marginRight: tokens.spacing.sm, width: 36 },
+    leadingUnread: { backgroundColor: colors.primaryFixed },
+    listCopy: { flex: 1, paddingRight: tokens.spacing.sm },
+    listTitle: { flex: 1 },
+    listTitleRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
+    listMeta: { marginLeft: tokens.spacing.sm },
+    unreadTitle: { color: colors.primary, fontWeight: '600' },
+    unreadLabel: { backgroundColor: colors.primaryFixed, borderRadius: tokens.radii.pill, paddingHorizontal: tokens.spacing.xs, paddingVertical: 2 },
+    rowPressed: { backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control },
+    progressGroup: { marginTop: tokens.spacing.sm },
+    progressHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.xs },
+    progressTrack: { backgroundColor: colors.primaryFixed, borderRadius: tokens.radii.pill, height: tokens.spacing.sm, overflow: 'hidden' },
+    progressFill: { borderRadius: tokens.radii.pill, height: '100%' },
+    divider: { backgroundColor: colors.outlineVariant, height: 1, marginVertical: tokens.spacing.sm },
+    avatar: { alignItems: 'center', backgroundColor: colors.primaryFixed, justifyContent: 'center' },
+    scrollSection: { marginBottom: tokens.spacing.lg },
+    statePanel: { alignItems: 'center', backgroundColor: colors.card, borderColor: colors.outlineVariant, borderLeftColor: colors.primary, borderLeftWidth: 3, borderRadius: tokens.radii.card, borderWidth: 1, flexDirection: 'row', padding: tokens.spacing.md },
+    statePanelError: { borderLeftColor: colors.error },
+    dataNotice: { borderLeftColor: colors.warning },
+    stateCopy: { flex: 1, marginHorizontal: tokens.spacing.sm },
+    stateDescription: { marginTop: tokens.spacing.xs },
+  });
 }
+
+type UiStyles = ReturnType<typeof buildStyles>;
+function useUiStyles(): UiStyles {
+  const { colors } = useTheme();
+  return stylesFor(colors);
+}
+
+/* ---------- primitives (exports unchanged) ---------- */
 
 export interface ScreenShellProps {
   title: string;
@@ -53,14 +101,8 @@ export interface ScreenShellProps {
   contentStyle?: StyleProp<ViewStyle>;
 }
 
-export function ScreenShell({
-  title,
-  eyebrow,
-  subtitle,
-  children,
-  headerAction,
-  contentStyle,
-}: ScreenShellProps) {
+export function ScreenShell({ title, eyebrow, subtitle, children, headerAction, contentStyle }: ScreenShellProps) {
+  const styles = useUiStyles();
   return (
     <View style={styles.screen}>
       <ScrollView
@@ -97,85 +139,22 @@ export interface CardProps {
 }
 
 export function Card({ children, style, tone = 'card' }: CardProps) {
-  return <View style={[styles.card, cardTones[tone], style]}>{children}</View>;
+  const styles = useUiStyles();
+  const { colors } = useTheme();
+  const tones = {
+    card: { backgroundColor: colors.card },
+    low: { backgroundColor: colors.surfaceLow },
+    primary: { backgroundColor: colors.primaryFixed, borderColor: colors.primary },
+  } satisfies Record<NonNullable<CardProps['tone']>, ViewStyle>;
+  return <View style={[styles.card, tones[tone], style]}>{children}</View>;
 }
 
-export interface ButtonProps {
-  label: string;
-  onPress: () => void;
-  accessibilityLabel?: string;
-  variant?: 'primary' | 'secondary' | 'text';
-  disabled?: boolean;
-  loading?: boolean;
-  style?: StyleProp<ViewStyle>;
-}
-
-export function Button({
-  label,
-  onPress,
-  accessibilityLabel,
-  variant = 'primary',
-  disabled = false,
-  loading = false,
-  style,
-}: ButtonProps) {
-  const isDisabled = disabled || loading;
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityState={{ busy: loading, disabled: isDisabled }}
-      disabled={isDisabled}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.button,
-        buttonVariants[variant],
-        pressed && !isDisabled ? styles.buttonPressed : undefined,
-        isDisabled ? styles.buttonDisabled : undefined,
-        style,
-      ]}
-    >
-      {loading ? (
-        <View style={styles.buttonContent}>
-          <ActivityIndicator color={variant === 'primary' ? tokens.colors.onPrimary : tokens.colors.primary} size="small" />
-          <UiText variant="label" tone={variant === 'primary' ? 'onPrimary' : 'primary'}>
-            Loading…
-          </UiText>
-        </View>
-      ) : (
-        <UiText variant="label" tone={variant === 'primary' ? 'onPrimary' : 'primary'}>
-          {label}
-        </UiText>
-      )}
-    </Pressable>
-  );
-}
-
-export interface FieldProps extends TextInputProps {
-  label: string;
+export interface FieldProps extends React.ComponentProps<typeof FormField> {
   helperText?: string;
 }
 
 export function Field({ label, helperText, style, ...props }: FieldProps) {
-  return (
-    <View style={styles.fieldGroup}>
-      <UiText variant="label" style={styles.fieldLabel}>
-        {label}
-      </UiText>
-      <TextInput
-        {...props}
-        accessibilityLabel={props.accessibilityLabel ?? label}
-        placeholderTextColor={props.placeholderTextColor ?? tokens.colors.outline}
-        style={[styles.field, style]}
-      />
-      {helperText ? (
-        <UiText variant="bodySmall" tone="muted" style={styles.helperText}>
-          {helperText}
-        </UiText>
-      ) : null}
-    </View>
-  );
+  return <FormField label={label} hint={helperText} style={style} {...props} />;
 }
 
 export interface BadgeProps {
@@ -184,9 +163,20 @@ export interface BadgeProps {
 }
 
 export function Badge({ label, tone = 'neutral' }: BadgeProps) {
+  const styles = useUiStyles();
+  const { colors } = useTheme();
+  const bg = {
+    neutral: colors.surface,
+    primary: colors.primaryFixed,
+    success: colors.successFixed,
+    warning: colors.warningFixed,
+    error: colors.errorFixed,
+  } as const;
+  const textTone: TextTone =
+    tone === 'primary' ? 'primary' : tone === 'neutral' ? 'muted' : tone;
   return (
-    <View style={[styles.badge, badgeTones[tone]]}>
-      <UiText variant="meta" tone={badgeTextTones[tone]}>
+    <View style={[styles.badge, { backgroundColor: bg[tone] }]}>
+      <UiText variant="meta" tone={textTone}>
         {label}
       </UiText>
     </View>
@@ -201,6 +191,7 @@ export interface MetricCardProps {
 }
 
 export function MetricCard({ label, value, detail, style }: MetricCardProps) {
+  const styles = useUiStyles();
   return (
     <Card style={[styles.metricCard, style]}>
       <UiText variant="bodySmall" tone="muted">
@@ -225,6 +216,7 @@ export interface SectionHeadingProps {
 }
 
 export function SectionHeading({ title, actionLabel, onAction }: SectionHeadingProps) {
+  const styles = useUiStyles();
   return (
     <View style={styles.sectionHeading}>
       <UiText accessibilityRole="header" variant="headlineSmall">{title}</UiText>
@@ -245,15 +237,8 @@ export interface ListRowProps {
   unread?: boolean;
 }
 
-export function ListRow({
-  title,
-  subtitle,
-  meta,
-  leading,
-  trailing,
-  onPress,
-  unread = false,
-}: ListRowProps) {
+export function ListRow({ title, subtitle, meta, leading, trailing, onPress, unread = false }: ListRowProps) {
+  const styles = useUiStyles();
   const accessibilityLabel = [
     unread ? 'Unread' : null,
     title,
@@ -322,7 +307,14 @@ export interface ProgressBarProps {
 }
 
 export function ProgressBar({ value, label, tone = 'primary' }: ProgressBarProps) {
+  const styles = useUiStyles();
+  const { colors } = useTheme();
   const boundedValue = Math.max(0, Math.min(100, value));
+  const fill = {
+    primary: colors.primaryContainer,
+    success: colors.success,
+    warning: colors.warning,
+  } as const;
 
   return (
     <View
@@ -343,17 +335,19 @@ export function ProgressBar({ value, label, tone = 'primary' }: ProgressBarProps
         </View>
       ) : null}
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, progressTones[tone], { width: `${boundedValue}%` }]} />
+        <View style={[styles.progressFill, { backgroundColor: fill[tone] }, { width: `${boundedValue}%` }]} />
       </View>
     </View>
   );
 }
 
 export function Divider() {
+  const styles = useUiStyles();
   return <View style={styles.divider} />;
 }
 
 export function Avatar({ label, size = 48 }: { label: string; size?: number }) {
+  const styles = useUiStyles();
   return (
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
       <UiText variant="headlineSmall" tone="primary">
@@ -375,13 +369,9 @@ export interface StatePanelProps {
   onAction?: () => void;
 }
 
-export function StatePanel({
-  kind,
-  title,
-  description,
-  actionLabel,
-  onAction,
-}: StatePanelProps) {
+export function StatePanel({ kind, title, description, actionLabel, onAction }: StatePanelProps) {
+  const styles = useUiStyles();
+  const { colors } = useTheme();
   return (
     <View
       accessibilityLiveRegion={kind === 'error' ? 'assertive' : 'polite'}
@@ -389,7 +379,7 @@ export function StatePanel({
       style={[styles.statePanel, kind === 'error' ? styles.statePanelError : undefined]}
     >
       {kind === 'loading' ? (
-        <ActivityIndicator color={tokens.colors.primary} size="small" />
+        <ActivityIndicator color={colors.primary} size="small" />
       ) : null}
       <View style={styles.stateCopy}>
         <UiText variant="label" tone={kind === 'error' ? 'error' : 'default'}>
@@ -409,6 +399,7 @@ export function StatePanel({
 }
 
 export function ScrollSection({ children }: { children: ReactNode }) {
+  const styles = useUiStyles();
   return <View style={styles.scrollSection}>{children}</View>;
 }
 
@@ -418,6 +409,7 @@ export function ScrollSection({ children }: { children: ReactNode }) {
  * "dữ liệu có thể cũ" warning. Never rendered instead of data.
  */
 export function DataNotice({ message }: { message: string }) {
+  const styles = useUiStyles();
   return (
     <View
       accessibilityLiveRegion="polite"
@@ -429,133 +421,3 @@ export function DataNotice({ message }: { message: string }) {
     </View>
   );
 }
-
-const textStyles = StyleSheet.create<Record<TextVariant, TextStyle>>({
-  display: { ...tokens.typography.display, fontFamily: tokens.typography.family },
-  headlineLarge: { ...tokens.typography.headlineLarge, fontFamily: tokens.typography.family },
-  headlineMedium: { ...tokens.typography.headlineMedium, fontFamily: tokens.typography.family },
-  headlineSmall: { ...tokens.typography.headlineSmall, fontFamily: tokens.typography.family },
-  bodyLarge: { ...tokens.typography.bodyLarge, fontFamily: tokens.typography.family },
-  bodyMedium: { ...tokens.typography.bodyMedium, fontFamily: tokens.typography.family },
-  bodySmall: { ...tokens.typography.bodySmall, fontFamily: tokens.typography.family },
-  label: { ...tokens.typography.label, fontFamily: tokens.typography.family },
-  meta: { ...tokens.typography.meta, fontFamily: tokens.typography.family },
-});
-
-const toneStyles = StyleSheet.create<Record<TextTone, TextStyle>>({
-  default: { color: tokens.colors.text },
-  muted: { color: tokens.colors.textMuted },
-  primary: { color: tokens.colors.primary },
-  success: { color: tokens.colors.success },
-  warning: { color: tokens.colors.warning },
-  error: { color: tokens.colors.error },
-  onPrimary: { color: tokens.colors.onPrimary },
-});
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: tokens.colors.background },
-  scrollContent: {
-    paddingHorizontal: tokens.layout.mobileGutter,
-    paddingTop: tokens.spacing.md,
-    paddingBottom: tokens.spacing.xl + tokens.layout.bottomNavigationHeight,
-  },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: tokens.spacing.lg, paddingBottom: tokens.spacing.md, borderBottomColor: tokens.colors.outlineVariant, borderBottomWidth: 1 },
-  headerCopy: { flex: 1, paddingRight: tokens.spacing.sm },
-  eyebrow: { letterSpacing: 0, marginBottom: tokens.spacing.xs, textTransform: 'uppercase' },
-  subtitle: { marginTop: tokens.spacing.xs },
-  card: {
-    backgroundColor: tokens.colors.card,
-    borderColor: tokens.colors.outlineVariant,
-    borderRadius: tokens.radii.card,
-    borderWidth: 1,
-    padding: tokens.spacing.md,
-  },
-  button: {
-    alignItems: 'center',
-    borderRadius: tokens.radii.control,
-    justifyContent: 'center',
-    minHeight: tokens.layout.touchTarget,
-    paddingHorizontal: tokens.spacing.md,
-  },
-  buttonContent: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm },
-  buttonPressed: { opacity: 0.88 },
-  buttonDisabled: { opacity: 0.48 },
-  buttonPrimary: { backgroundColor: tokens.colors.primary },
-  buttonSecondary: { backgroundColor: tokens.colors.card, borderColor: tokens.colors.outlineVariant, borderWidth: 1 },
-  buttonText: { backgroundColor: 'transparent', minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.xs },
-  fieldGroup: { marginBottom: tokens.spacing.md },
-  fieldLabel: { marginBottom: tokens.spacing.xs },
-  field: {
-    backgroundColor: tokens.colors.card,
-    borderColor: tokens.colors.outlineVariant,
-    borderRadius: tokens.radii.control,
-    borderWidth: 1,
-    color: tokens.colors.text,
-    fontFamily: tokens.typography.family,
-    fontSize: tokens.typography.bodyMedium.fontSize,
-    minHeight: tokens.layout.touchTarget,
-    paddingHorizontal: tokens.spacing.md,
-    paddingVertical: tokens.spacing.sm,
-  },
-  helperText: { marginTop: tokens.spacing.xs },
-  badge: { alignSelf: 'flex-start', borderRadius: tokens.radii.pill, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
-  metricCard: { flex: 1, minHeight: 108, padding: tokens.spacing.sm + tokens.spacing.xs },
-  metricValue: { marginVertical: tokens.spacing.xs },
-  sectionHeading: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
-  listRow: { alignItems: 'center', flexDirection: 'row', minHeight: tokens.layout.touchTarget, paddingVertical: tokens.spacing.sm },
-  leading: { alignItems: 'center', backgroundColor: tokens.colors.surfaceLow, borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', marginRight: tokens.spacing.sm, width: 36 },
-  leadingUnread: { backgroundColor: tokens.colors.primaryFixed },
-  listCopy: { flex: 1, paddingRight: tokens.spacing.sm },
-  listTitle: { flex: 1 },
-  listTitleRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
-  listMeta: { marginLeft: tokens.spacing.sm },
-  unreadTitle: { color: tokens.colors.primary, fontWeight: '600' },
-  unreadLabel: { backgroundColor: tokens.colors.primaryFixed, borderRadius: tokens.radii.pill, paddingHorizontal: tokens.spacing.xs, paddingVertical: 2 },
-  rowPressed: { backgroundColor: tokens.colors.surfaceLow, borderRadius: tokens.radii.control },
-  progressGroup: { marginTop: tokens.spacing.sm },
-  progressHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.xs },
-  progressTrack: { backgroundColor: tokens.colors.primaryFixed, borderRadius: tokens.radii.pill, height: tokens.spacing.sm, overflow: 'hidden' },
-  progressFill: { borderRadius: tokens.radii.pill, height: '100%' },
-  divider: { backgroundColor: tokens.colors.outlineVariant, height: 1, marginVertical: tokens.spacing.sm },
-  avatar: { alignItems: 'center', backgroundColor: tokens.colors.primaryFixed, justifyContent: 'center' },
-  scrollSection: { marginBottom: tokens.spacing.lg },
-  statePanel: { alignItems: 'center', backgroundColor: tokens.colors.card, borderColor: tokens.colors.outlineVariant, borderLeftColor: tokens.colors.primary, borderLeftWidth: 3, borderRadius: tokens.radii.card, borderWidth: 1, flexDirection: 'row', padding: tokens.spacing.md },
-  statePanelError: { borderLeftColor: tokens.colors.error },
-  dataNotice: { borderLeftColor: tokens.colors.warning },
-  stateCopy: { flex: 1, marginHorizontal: tokens.spacing.sm },
-  stateDescription: { marginTop: tokens.spacing.xs },
-});
-
-const cardTones = {
-  card: { backgroundColor: tokens.colors.card },
-  low: { backgroundColor: tokens.colors.surfaceLow },
-  primary: { backgroundColor: tokens.colors.primaryFixed, borderColor: tokens.colors.primary },
-} satisfies Record<NonNullable<CardProps['tone']>, ViewStyle>;
-
-const buttonVariants = {
-  primary: styles.buttonPrimary,
-  secondary: styles.buttonSecondary,
-  text: styles.buttonText,
-} satisfies Record<NonNullable<ButtonProps['variant']>, ViewStyle>;
-
-const badgeTones = {
-  neutral: { backgroundColor: tokens.colors.surface },
-  primary: { backgroundColor: tokens.colors.primaryFixed },
-  success: { backgroundColor: '#D9F2DF' },
-  warning: { backgroundColor: '#FFF0C7' },
-  error: { backgroundColor: '#FBDAD7' },
-} satisfies Record<NonNullable<BadgeProps['tone']>, ViewStyle>;
-
-const badgeTextTones = {
-  neutral: 'muted',
-  primary: 'primary',
-  success: 'success',
-  warning: 'warning',
-  error: 'error',
-} satisfies Record<NonNullable<BadgeProps['tone']>, TextTone>;
-
-const progressTones = {
-  primary: { backgroundColor: tokens.colors.primaryContainer },
-  success: { backgroundColor: tokens.colors.success },
-  warning: { backgroundColor: tokens.colors.warning },
-} satisfies Record<NonNullable<ProgressBarProps['tone']>, ViewStyle>;

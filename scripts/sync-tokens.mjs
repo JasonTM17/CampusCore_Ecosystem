@@ -37,6 +37,11 @@ const contract = ${JSON.stringify(tokens, null, 2)} as const;
 
 export const tokens = {
   colors: contract.colors,
+  colorsDark: contract.colorsDark,
+  roleColors: contract.roleColors,
+  windowClasses: contract.windowClasses,
+  elevation: contract.elevation,
+  motion: contract.motion,
   spacing: contract.spacing,
   radii: contract.radii,
   layout: contract.layout,
