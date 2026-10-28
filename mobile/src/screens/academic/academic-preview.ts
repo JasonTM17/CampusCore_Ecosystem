@@ -7,7 +7,15 @@ import type { BrowseSection } from './registration-browse';
 
 const course = (code: string, name: string, credits: number) => ({ code, name, nameEn: name, nameVi: name, credits });
 
-export const previewSemester: AcademicSemester = { id: 'preview-term', name: 'Preview term', startDate: '2026-01-05', endDate: '2026-05-30', status: 'IN_PROGRESS' };
+// The sample term is centred on today so the week and term views always show sessions.
+const isoDay = (offsetDays: number) => {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+export const previewSemester: AcademicSemester = { id: 'preview-term', name: 'HK1 2026-2027', startDate: isoDay(-56), endDate: isoDay(56), status: 'IN_PROGRESS' };
 
 export const previewEnrollments: AcademicEnrollment[] = [
   {
