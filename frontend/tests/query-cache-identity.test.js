@@ -3214,6 +3214,9 @@ function loadMobileClientModule() {
     if (spec === '../auth/mobile-session-store') {
       return { sessionStore: {} };
     }
+    if (spec === './assistant-stream') {
+      return { createSseTransport: () => ({}) };
+    }
     throw new Error(`unexpected import in mobile client.ts: ${spec}`);
   };
   const mod = { exports: {} };
