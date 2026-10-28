@@ -22,6 +22,8 @@ import {
   UiText,
 } from '../../components/Ui';
 import { tokens } from '../../design/tokens';
+import { useThemedStyles, useTheme } from '../../design/theme';
+import type { ThemeColors } from '../../design/theme';
 import type { MobileScreenProps } from '../../navigation/types';
 
 const NON_REPLAYABLE_TERMINAL_CODES = new Set([
@@ -134,6 +136,8 @@ function historyTitle(conversation: AssistantConversation, locale: AssistantLoca
 }
 
 export function AssistantChatScreen({ navigation }: MobileScreenProps) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const [locale, setLocale] = useState<AssistantLocale>('vi');
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -321,7 +325,7 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   localeRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.md },
   localeActions: { flexDirection: 'row', gap: tokens.spacing.xs },
   localeButton: { minWidth: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.sm },
@@ -339,7 +343,7 @@ const styles = StyleSheet.create({
   messageText: { marginTop: tokens.spacing.xs },
   reasonCode: { marginTop: tokens.spacing.sm },
   sources: { marginTop: tokens.spacing.md },
-  citation: { borderLeftColor: tokens.colors.primary, borderLeftWidth: 2, marginTop: tokens.spacing.sm, paddingLeft: tokens.spacing.sm },
+  citation: { borderLeftColor: colors.primary, borderLeftWidth: 2, marginTop: tokens.spacing.sm, paddingLeft: tokens.spacing.sm },
   citationExcerpt: { marginTop: tokens.spacing.xs },
   feedbackRow: { flexDirection: 'row', gap: tokens.spacing.xs, marginTop: tokens.spacing.sm },
   composer: { padding: tokens.spacing.md },
