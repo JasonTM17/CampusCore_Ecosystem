@@ -1,86 +1,114 @@
+import { useMemo } from 'react';
 import { View } from 'react-native';
 
 import {
   Badge,
   Card,
-  DataNotice,
   Divider,
   ListRow,
   MetricCard,
-  ScreenShell,
   ScreenSpacer,
   SectionHeading,
   StatePanel,
   UiText,
 } from '../../components/Ui';
-import { apiClient, campusApi } from '../../api/client';
-import { useScreenQuery } from '../../hooks/useScreenQuery';
+import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileScreenProps } from '../../navigation/types';
-import { lecturerErrorMessage, scheduleLine } from './shared/helpers';
-import { previewSchedule, previewGrading } from './shared/preview';
+import { LaneEntries } from '../lanes/LaneEntries';
+import { lecturerApi } from './lecturer-api';
+import { courseTitle, dayNumberOf, normalizeDay } from './lecturer-model';
+import { HandoffButton, OpsShell, isOpsPreview, sectionLabel, slotText, useOpsQuery } from './lecturer-ui';
+import { useOpsCopy } from './shared/helpers';
+import { previewGrading, previewSchedule } from './shared/preview';
 import { useOpsStyles } from './shared/styles';
 
 export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
   const styles = useOpsStyles();
-  const isPreview = apiClient.mode === 'preview';
-  const schedule = useScreenQuery('lecturer:schedule', () => campusApi.lecturerSchedule(), {
-    enabled: !isPreview,
-    errorMessage: 'Teaching schedule is unavailable.',
-    mapError: (error) => lecturerErrorMessage(error, 'Teaching schedule is unavailable.'),
-  });
-  const grading = useScreenQuery('lecturer:grading', () => campusApi.lecturerGradingSections(), {
-    enabled: !isPreview,
-    errorMessage: 'Grading queue is unavailable.',
-    mapError: (error) => lecturerErrorMessage(error, 'Grading queue is unavailable.'),
-  });
+  const { copy, locale } = useOpsCopy();
+  const preview = isOpsPreview();
+  const schedule = useOpsQuery('lecturer:schedule', () => lecturerApi.schedule(), copy);
+  const grading = useOpsQuery('lecturer:grading', () => lecturerApi.gradingSections(), copy);
 
-  const sections = isPreview ? previewSchedule : schedule.data ?? [];
-  const gradingSections = isPreview ? previewGrading : grading.data ?? [];
-  const pending = gradingSections.reduce(
-    (total, section) => total + Math.max(section.enrolledCount - section.gradedCount, 0),
-    0,
-  );
-  const isLoading = schedule.isLoading || grading.isLoading;
-  const error = schedule.error ?? grading.error;
+  const sections = useMemo(() => (preview ? previewSchedule : schedule.data ?? []), [preview, schedule.data]);
+  const gradingSections = useMemo(() => (preview ? previewGrading : grading.data ?? []), [preview, grading.data]);
 
-  if (isLoading || error) {
-    return (
-      <ScreenShell title="Lecturer dashboard" eyebrow="Lecturer workspace">
-        <StatePanel
-          kind={isLoading ? 'loading' : 'error'}
-          title={isLoading ? 'Loading teaching day…' : 'Dashboard unavailable'}
-          description={error ?? 'Retrieving your sections.'}
-          actionLabel={error ? 'Try again' : undefined}
-          onAction={error ? () => { void schedule.reload(); void grading.reload(); } : undefined}
-        />
-      </ScreenShell>
-    );
-  }
+  const pending = gradingSections.reduce((total, section) => total + Math.max(section.enrolledCount - section.gradedCount, 0), 0);
+  const students = sections.reduce((total, section) => total + (section.enrolledCount ?? 0), 0);
+
+  const today = dayNumberOf(new Date());
+  const todayClasses = sections
+    .flatMap((section) => (section.schedules ?? []).filter((slot) => normalizeDay(slot.dayOfWeek) === today).map((slot) => ({ section, slot })))
+    .sort((left, right) => left.slot.startTime.localeCompare(right.slot.startTime));
+
+  const loading = !preview && (schedule.isLoading || grading.isLoading);
+  const error = preview ? null : schedule.error ?? grading.error;
+  const warning = preview ? null : schedule.warning ?? grading.warning;
 
   return (
-    <ScreenShell title="Lecturer dashboard" eyebrow="Lecturer workspace" subtitle="Your teaching day, kept readable.">
-      {schedule.warning ?? grading.warning ? <DataNotice message={schedule.warning ?? grading.warning ?? ''} /> : null}
-      <Card tone="primary" style={styles.hero}>
-        <UiText variant="meta" tone="primary">LECTURER WORKSPACE</UiText>
-        <UiText variant="headlineSmall" style={styles.heroTitle}>
-          {sections.length === 0 ? 'No sections assigned yet.' : `${sections.length} section${sections.length === 1 ? '' : 's'} on your roster.`}
-        </UiText>
-        <UiText variant="bodySmall" tone="muted">Attendance and grading actions are one tap away.</UiText>
-      </Card>
-      <ScreenSpacer />
-      <View style={styles.metricGrid}>
-        <MetricCard label="Sections" value={String(sections.length)} detail="Assigned to you" style={styles.metricLeft} />
-        <MetricCard label="To grade" value={String(pending)} detail="Pending scores" />
-      </View>
-      <ScreenSpacer />
-      <SectionHeading title="Teaching shortcuts" />
+    <OpsShell
+      title={copy.dashboardTitle}
+      loading={loading}
+      error={error}
+      warning={warning}
+      onRetry={() => { void schedule.reload(); void grading.reload(); }}
+    >
+      {sections.length === 0 ? (
+        <StatePanel kind="empty" title={copy.emptyDashboard} />
+      ) : (
+        <View>
+          <View style={styles.metrics}>
+            <MetricCard label={copy.metricSections} value={String(sections.length)} style={styles.metric} />
+            <MetricCard label={copy.metricStudents} value={String(students)} style={styles.metric} />
+            <MetricCard label={copy.metricToGrade} value={String(pending)} style={styles.metric} />
+          </View>
+          <SectionHeading title={copy.todayTitle} />
+          {todayClasses.length === 0 ? (
+            <UiText variant="bodySmall" tone="muted">{copy.noClassToday}</UiText>
+          ) : (
+            <Card>
+              {todayClasses.map(({ section, slot }, index) => (
+                <View key={`${section.sectionId}-${slot.id ?? index}`}>
+                  {index > 0 ? <Divider /> : null}
+                  <ListRow
+                    title={courseTitle(section, locale) || sectionLabel(section, copy, locale)}
+                    subtitle={slotText(slot, copy)}
+                    meta={section.courseCode}
+                  />
+                </View>
+              ))}
+            </Card>
+          )}
+          <ScreenSpacer />
+        </View>
+      )}
+      <SectionHeading title={copy.shortcutsTitle} />
       <Card>
-        <ListRow leading="◷" title="Teaching schedule" subtitle={sections[0] ? `Next · ${scheduleLine(sections[0])}` : 'No classes scheduled'} onPress={() => navigation.navigate('lecturer.schedule')} trailing={<UiText variant="bodyMedium" tone="muted">›</UiText>} />
+        <ListRow
+          title={copy.scheduleTitle}
+          subtitle={fillCopy(copy.studentsCount, { n: students })}
+          onPress={() => navigation.navigate('lecturer.schedule')}
+          trailing={<UiText variant="bodyMedium" tone="muted">›</UiText>}
+        />
         <Divider />
-        <ListRow leading="G" title="Gradebook" subtitle={pending > 0 ? `${pending} scores pending` : 'All caught up'} onPress={() => navigation.navigate('lecturer.grading')} trailing={pending > 0 ? <Badge label={String(pending)} tone="warning" /> : <UiText variant="bodyMedium" tone="muted">›</UiText>} />
+        <ListRow
+          title={copy.gradingTitle}
+          subtitle={pending > 0 ? fillCopy(copy.scoresPending, { n: pending }) : copy.allCaughtUp}
+          onPress={() => navigation.navigate('lecturer.grading')}
+          trailing={pending > 0 ? <Badge label={String(pending)} tone="warning" /> : <UiText variant="bodyMedium" tone="muted">›</UiText>}
+        />
         <Divider />
-        <ListRow leading="P" title="Class attendance" subtitle="Mark today’s attendance" onPress={() => navigation.navigate('lecturer.attendance')} trailing={<UiText variant="bodyMedium" tone="muted">›</UiText>} />
+        <ListRow
+          title={copy.attendanceTitle}
+          onPress={() => navigation.navigate('lecturer.attendance')}
+          trailing={<UiText variant="bodyMedium" tone="muted">›</UiText>}
+        />
       </Card>
-    </ScreenShell>
+      <ScreenSpacer />
+      <LaneEntries groups={['dean', 'staff']} navigation={navigation} />
+      <SectionHeading title={copy.handoffTitle} />
+      <HandoffButton label={copy.mailTitle} path="/dashboard/lecturer/mail" />
+      <HandoffButton label={copy.importTitle} path="/dashboard/lecturer/grades" />
+      <HandoffButton label={copy.printTitle} path="/dashboard/lecturer/grades" />
+    </OpsShell>
   );
 }
