@@ -1,4 +1,5 @@
 import { Redirect, Stack, usePathname } from 'expo-router';
+import { StatusBar } from 'react-native';
 import {
   BeVietnamPro_400Regular,
   BeVietnamPro_500Medium,
@@ -7,6 +8,7 @@ import {
   useFonts,
 } from '@expo-google-fonts/be-vietnam-pro';
 
+import { ThemeProvider, useTheme } from '../src/design/theme';
 import { pathFor, resolveGuard } from '../src/navigation/route-map';
 import { SessionProvider, useSession } from '../src/session/SessionContext';
 
@@ -30,9 +32,23 @@ export default function RootLayout() {
   }
 
   return (
-    <SessionProvider>
-      <RootNavigator />
-    </SessionProvider>
+    <ThemeProvider>
+      <ThemedStatusBar />
+      <SessionProvider>
+        <RootNavigator />
+      </SessionProvider>
+    </ThemeProvider>
+  );
+}
+
+/** Status bar follows the active scheme (light content on dark surfaces). */
+function ThemedStatusBar() {
+  const { scheme, colors } = useTheme();
+  return (
+    <StatusBar
+      barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'}
+      backgroundColor={colors.background}
+    />
   );
 }
 
@@ -51,5 +67,10 @@ function RootNavigator() {
   if (decision.action === 'redirect' && decision.to) {
     return <Redirect href={pathFor(decision.to)} />;
   }
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return <ThemedStack />;
+}
+
+function ThemedStack() {
+  const { colors } = useTheme();
+  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }} />;
 }

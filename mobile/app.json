@@ -3,8 +3,8 @@
     "name": "CampusCore Mobile",
     "slug": "campuscore-mobile",
     "version": "0.1.0",
-    "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
     "scheme": "campuscore",
     "ios": {
       "bundleIdentifier": "io.campuscore.mobile",
@@ -19,13 +19,36 @@
           "action": "VIEW",
           "autoVerify": true,
           "data": [
-            { "scheme": "https", "host": "www.campusute.io.vn", "path": "/news" },
-            { "scheme": "https", "host": "www.campusute.io.vn", "path": "/docs" },
-            { "scheme": "https", "host": "www.campusute.io.vn", "path": "/careers" },
-            { "scheme": "https", "host": "www.campusute.io.vn", "path": "/library" },
-            { "scheme": "https", "host": "www.campusute.io.vn", "path": "/apply" }
+            {
+              "scheme": "https",
+              "host": "www.campusute.io.vn",
+              "path": "/news"
+            },
+            {
+              "scheme": "https",
+              "host": "www.campusute.io.vn",
+              "path": "/docs"
+            },
+            {
+              "scheme": "https",
+              "host": "www.campusute.io.vn",
+              "path": "/careers"
+            },
+            {
+              "scheme": "https",
+              "host": "www.campusute.io.vn",
+              "path": "/library"
+            },
+            {
+              "scheme": "https",
+              "host": "www.campusute.io.vn",
+              "path": "/apply"
+            }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },

@@ -1,11 +1,11 @@
 import { Redirect, Slot, usePathname, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StatusBar, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNavigation } from '../../src/components/BottomNavigation';
 import { MenuPanel } from '../../src/components/MenuPanel';
-import { tokens } from '../../src/design/tokens';
+import { useTheme } from '../../src/design/theme';
 import {
   pathFor,
   resolveGuard,
@@ -27,6 +27,7 @@ export default function AppGroupLayout() {
   const session = useSession();
   const pathname = usePathname() ?? '/';
   const [menuOpen, setMenuOpen] = useState(false);
+  const { colors } = useTheme();
 
   const decision = resolveGuard(session.kind, session.role, pathname);
   if (decision.action === 'redirect' && decision.to) {
@@ -40,8 +41,7 @@ export default function AppGroupLayout() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <StatusBar barStyle="dark-content" backgroundColor={tokens.colors.background} />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <View style={styles.container}>
         <View
           importantForAccessibility={menuOpen ? 'no-hide-descendants' : 'auto'}
@@ -75,7 +75,7 @@ export default function AppGroupLayout() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { backgroundColor: tokens.colors.background, flex: 1 },
+  safeArea: { flex: 1 },
   container: { flex: 1 },
   content: { flex: 1 },
 });
