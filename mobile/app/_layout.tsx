@@ -60,14 +60,22 @@ function ThemedStatusBar() {
 function RootNavigator() {
   const session = useSession();
   const pathname = usePathname() ?? '/';
-  if (session.blockedReason && pathname !== '/sign-in-blocked') {
-    return <Redirect href="/sign-in-blocked" />;
-  }
   const decision = resolveGuard(session.kind, session.role, pathname, session.capabilities);
-  if (decision.action === 'redirect' && decision.to) {
-    return <Redirect href={pathFor(decision.to)} />;
+  let redirectHref: string | null = null;
+  if (session.blockedReason && pathname !== '/sign-in-blocked') {
+    redirectHref = '/sign-in-blocked';
+  } else if (decision.action === 'redirect' && decision.to) {
+    redirectHref = pathFor(decision.to);
   }
-  return <ThemedStack />;
+  // The navigator stays mounted while a redirect is pending: swapping it for
+  // a bare <Redirect> makes expo-router remount this layout, which recreates
+  // SessionProvider and drops the session that triggered the redirect.
+  return (
+    <>
+      <ThemedStack />
+      {redirectHref ? <Redirect href={redirectHref} /> : null}
+    </>
+  );
 }
 
 function ThemedStack() {
