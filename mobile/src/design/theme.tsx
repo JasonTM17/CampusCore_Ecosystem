@@ -126,3 +126,8 @@ export function useReducedMotion(): boolean {
   }, []);
   return reduced;
 }
+
+export function useThemedStyles<T>(factory: (colors: ThemeColors) => T): T {
+  const { colors } = useTheme();
+  return useMemo(() => factory(colors), [factory, colors]);
+}

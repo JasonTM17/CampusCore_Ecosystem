@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { readSources } from './helpers/read-sources.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -27,7 +28,7 @@ test('selected thesis topic survives topic, detail, and registration navigation'
 
 test('shared mobile primitives announce headings, progress, and unread state', () => {
   const ui = read('src/components/Ui.tsx');
-  const notifications = read('src/screens/student/StudentScreens.tsx');
+  const notifications = readSources(root,'src/screens/student',/^(StudentDashboard|Schedule|Courses|Grades|Attendance|Registration|Notifications|Profile)Screen\.tsx$|^shared\//);
 
   assert.match(ui, /accessibilityRole="header" variant="headlineLarge"/);
   assert.match(ui, /accessibilityRole="header" variant="headlineSmall"/);
@@ -41,7 +42,7 @@ test('shared mobile primitives announce headings, progress, and unread state', (
 test('student navigation and registration stay usable at a narrow mobile width', () => {
   const routes = read('src/navigation/routes.ts');
   const bottomNavigation = read('src/components/BottomNavigation.tsx');
-  const studentScreens = read('src/screens/student/StudentScreens.tsx');
+  const studentScreens = readSources(root,'src/screens/student',/^(StudentDashboard|Schedule|Courses|Grades|Attendance|Registration|Notifications|Profile)Screen\.tsx$|^shared\//);
 
   assert.match(routes, /student:\s*\[[\s\S]*?route: 'registration', label: 'Register'/);
   assert.match(bottomNavigation, /accessibilityRole="tablist"/);

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { readSources } from './helpers/read-sources.mjs';
 
 const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(mobileRoot, rel), 'utf8');
@@ -33,7 +34,7 @@ test('session teardown wipes the per-account cache', () => {
 });
 
 test('every data screen distinguishes loading/error/empty states', () => {
-  const student = read('src/screens/student/StudentScreens.tsx');
+  const student = readSources(mobileRoot,'src/screens/student',/^(StudentDashboard|Schedule|Courses|Grades|Attendance|Registration|Notifications|Profile)Screen\.tsx$|^shared\//);
   const operations = read('src/screens/operations/OperationsScreens.tsx');
 
   for (const source of [student, operations]) {
