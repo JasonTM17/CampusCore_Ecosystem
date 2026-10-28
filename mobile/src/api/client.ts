@@ -1,6 +1,14 @@
 import { Platform } from 'react-native';
 import { sessionStore } from '../auth/mobile-session-store';
+import {
+  createSseTransport,
+  type AssistantTransport,
+} from './assistant-stream';
 import { recordApiMetric, pathTemplate } from './observability';
+import type {
+  PushDeviceRegistrationBody,
+  PushDeviceRegistrationResponse,
+} from './push-notifications';
 
 export type JsonObject = Record<string, unknown>;
 export type AssistantLocale = 'en' | 'vi';
@@ -909,6 +917,13 @@ export const apiRoutes = {
   attendanceSummary: '/attendance/my/summary',
 } as const;
 
+const assistantSseTransport: AssistantTransport = createSseTransport({
+  fetchImpl: fetch,
+  baseUrl: apiClient.baseUrl,
+  getAccessToken: () => sessionStore.getAccessToken() ?? undefined,
+  cancelRequest: (clientRequestId) => campusApi.cancelAssistantRequest(clientRequestId),
+});
+
 export const campusApi = {
   health: () => apiClient.get<JsonObject>(apiRoutes.health),
   contract: () => apiClient.get<JsonObject>(apiRoutes.contract),
@@ -952,6 +967,18 @@ export const campusApi = {
       apiRoutes.attendanceSummary + (semesterId ? `?semesterId=${encodeURIComponent(semesterId)}` : ''),
     ),
   notifications: () => apiClient.get<{ data: MobileNotification[] }>(apiRoutes.notifications),
+  registerPushDevice: (installationId: string, body: PushDeviceRegistrationBody) =>
+    apiClient.put<PushDeviceRegistrationResponse>(
+      `${apiRoutes.notifications}/devices/${encodeURIComponent(installationId)}`,
+      body,
+    ),
+  unregisterPushDevice: (installationId: string, accessToken?: string) =>
+    apiClient.delete<void>(
+      `${apiRoutes.notifications}/devices/${encodeURIComponent(installationId)}`,
+      accessToken
+        ? { headers: { Authorization: `Bearer ${accessToken}` } }
+        : undefined,
+    ),
   markNotificationRead: (id: string) =>
     apiClient.patch<JsonObject>(`/notifications/my/${id}/read`, {}),
   markAllNotificationsRead: () =>
@@ -1221,6 +1248,7 @@ export const campusApi = {
     ),
   cancelAssistantRequest: (clientRequestId: string) =>
     apiClient.post<void>(`${apiRoutes.assistant.requests}/${encodeURIComponent(clientRequestId)}/cancel`, {}),
+  assistantStream: () => assistantSseTransport,
   putAssistantFeedback: (messageId: string, rating: AssistantFeedbackRating, reason?: AssistantFeedbackReason) =>
     apiClient.put<void>(`${apiRoutes.assistant.messages}/${encodeURIComponent(messageId)}/feedback`, { rating, ...(reason ? { reason } : {}) }),
   deleteAssistantFeedback: (messageId: string) =>

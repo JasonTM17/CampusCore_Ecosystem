@@ -10,11 +10,16 @@ import {
   queryCacheKey,
   readQueryCache,
   writeQueryCache,
+  type QueryCacheScope,
 } from './query-cache';
 
 export interface ScreenQueryOptions<T> {
   /** Defaults to live mode — preview sessions never fetch (KM-9). */
   enabled?: boolean;
+  /** Optional cache dimension for locale- or role-dependent read models. */
+  scope?: QueryCacheScope;
+  /** Expire cached memory data after this many milliseconds. */
+  maxAge?: number;
   /** Friendly fallback for the error state (denied/offline copy is caller's). */
   errorMessage?: string;
   mapError?: (error: unknown) => string;
@@ -67,7 +72,7 @@ export function useScreenQuery<T>(
 ): ScreenQueryResult<T> {
   const session = useSession();
   const enabled = options.enabled ?? apiClient.mode === 'live';
-  const cacheKey = queryCacheKey(session.accountId, queryKey);
+  const cacheKey = queryCacheKey(session.accountId, queryKey, options.scope);
 
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
@@ -80,7 +85,7 @@ export function useScreenQuery<T>(
   const mountedRef = useRef(true);
 
   const [data, setDataState] = useState<T | undefined>(() =>
-    enabled ? readQueryCache<T>(cacheKey) : undefined,
+    enabled ? readQueryCache<T>(cacheKey, options.maxAge) : undefined,
   );
   const [isLoading, setIsLoading] = useState(enabled && data === undefined);
   const [isStale, setIsStale] = useState(false);
@@ -108,7 +113,7 @@ export function useScreenQuery<T>(
     // after a sign-out/sign-in cycle rode a newer session's token — its
     // payload must never be written under the OLD account key.
     const fetchEpoch = sessionStore.sessionEpoch();
-    const cached = readQueryCache<T>(cacheKey);
+    const cached = readQueryCache<T>(cacheKey, optionsRef.current.maxAge);
     if (cached === undefined) {
       setIsLoading(true);
     } else {
@@ -154,7 +159,7 @@ export function useScreenQuery<T>(
       }
       // Denied is always a full state (§5). Other failures degrade to a
       // stale-data banner when the screen already has something to show.
-      if (status === 403 || readQueryCache<T>(cacheKey) === undefined) {
+      if (status === 403 || readQueryCache<T>(cacheKey, optionsRef.current.maxAge) === undefined) {
         setError(message);
         setErrorStatus(status);
       } else {
