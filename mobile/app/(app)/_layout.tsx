@@ -4,9 +4,11 @@ import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNavigation } from '../../src/components/BottomNavigation';
+import { Button } from '../../src/components/Ui';
 import { MenuPanel } from '../../src/components/MenuPanel';
 import { NavigationRail } from '../../src/components/NavigationRail';
 import { useTheme } from '../../src/design/theme';
+import { useShellCopy } from '../../src/i18n/use-shell-copy';
 import {
   pathFor,
   resolveGuard,
@@ -29,11 +31,24 @@ export default function AppGroupLayout() {
   const pathname = usePathname() ?? '/';
   const [menuOpen, setMenuOpen] = useState(false);
   const { colors, window } = useTheme();
+  const { copy } = useShellCopy();
   const expanded = window.class === 'expanded';
 
   const decision = resolveGuard(session.kind, session.role, pathname, session.capabilities);
   if (decision.action === 'redirect' && decision.to) {
     return <Redirect href={pathFor(decision.to)} />;
+  }
+
+  if (session.kind === 'signedOut') {
+    // Guest view of a public page: no account chrome, just a way back to sign-in.
+    return (
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+        <View style={styles.guestBar}>
+          <Button label={copy.guestSignIn} onPress={() => router.replace('/sign-in')} variant="text" />
+        </View>
+        <View testID="app-route-content" style={styles.routeContent}><Slot /></View>
+      </SafeAreaView>
+    );
   }
 
   const activeRoute = (screenForPath(pathname) ?? 'dashboard.student') as ScreenName;
@@ -93,4 +108,5 @@ const styles = StyleSheet.create({
   content: { flex: 1 },
   expanded: { flexDirection: 'row' },
   routeContent: { flex: 1, minWidth: 0 },
+  guestBar: { alignItems: 'flex-end', paddingHorizontal: 8 },
 });

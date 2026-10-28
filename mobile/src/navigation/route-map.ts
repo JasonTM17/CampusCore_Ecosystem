@@ -26,6 +26,12 @@ const SIGNED_OUT_PATHS: ReadonlySet<string> = new Set([
   '/', '/sign-in', '/sign-in-blocked', '/forgot-password', '/reset-password', '/session/logged-out',
 ]);
 
+/**
+ * Read-only campus pages a guest may open without signing in. Careers, library
+ * and admissions stay behind the sign-in: they act on a person's own records.
+ */
+const PUBLIC_PATHS: ReadonlySet<string> = new Set(['/news', '/docs']);
+
 const roleHomeScreen: Record<UserRole, ScreenName> = {
   student: 'dashboard.student',
   lecturer: 'lecturer.dashboard',
@@ -210,7 +216,7 @@ export function resolveGuard(
     return { action: 'redirect', to: 'auth.signIn' };
   }
   if (session === 'signedOut') {
-    return SIGNED_OUT_PATHS.has(clean)
+    return SIGNED_OUT_PATHS.has(clean) || PUBLIC_PATHS.has(clean)
       ? { action: 'allow' }
       : { action: 'redirect', to: 'auth.signIn' };
   }
