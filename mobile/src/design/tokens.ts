@@ -26,7 +26,10 @@ const contract = {
     "error": "#B42318",
     "success": "#247A4A",
     "warning": "#946200",
-    "onPrimary": "#FFFFFF"
+    "onPrimary": "#FFFFFF",
+    "successFixed": "#DFF4E4",
+    "warningFixed": "#FFF0C7",
+    "errorFixed": "#FBDAD7"
   },
   "spacing": {
     "unit": 4,
@@ -94,7 +97,8 @@ const contract = {
       "fontSize": 12,
       "lineHeight": 16,
       "fontWeight": "600"
-    }
+    },
+    "maxFontScale": 1.5
   },
   "messages": {
     "loading": "ui.state.loading",
@@ -105,11 +109,81 @@ const contract = {
     "offlineReadWarning": "ui.state.offlineReadWarning",
     "retry": "ui.action.retry",
     "sessionExpired": "ui.session.expired"
+  },
+  "colorsDark": {
+    "background": "#13161B",
+    "surfaceLow": "#15181E",
+    "surface": "#23272E",
+    "surfaceHigh": "#2B2F36",
+    "card": "#1E2229",
+    "text": "#EDF0F2",
+    "textMuted": "#A9B1BC",
+    "primary": "#98BDD7",
+    "primaryContainer": "#1B5AA7",
+    "primaryFixed": "#1C314A",
+    "secondary": "#282C33",
+    "secondaryContainer": "#363B45",
+    "outline": "#C5C9CE",
+    "outlineVariant": "#33363D",
+    "accent": "#EB955C",
+    "error": "#F49A9A",
+    "success": "#9BD4BA",
+    "warning": "#EED1A0",
+    "onPrimary": "#12151C",
+    "successFixed": "#203C2F",
+    "warningFixed": "#433319",
+    "errorFixed": "#431919"
+  },
+  "roleColors": {
+    "student": {
+      "light": "#1450D2",
+      "dark": "#74B1FB",
+      "solid": "#2463EB",
+      "solidDark": "#2463EB"
+    },
+    "lecturer": {
+      "light": "#186777",
+      "dark": "#6AD2E7",
+      "solid": "#148CA3",
+      "solidDark": "#148CA3"
+    },
+    "admin": {
+      "light": "#7B21CA",
+      "dark": "#D087F7",
+      "solid": "#9024F5",
+      "solidDark": "#9024F5"
+    },
+    "superAdmin": {
+      "light": "#B11B4D",
+      "dark": "#F27DA4",
+      "solid": "#D71D5B",
+      "solidDark": "#D71D5B"
+    }
+  },
+  "windowClasses": {
+    "compactMax": 600,
+    "mediumMax": 840
+  },
+  "elevation": {
+    "none": 0,
+    "low": 1,
+    "medium": 2,
+    "high": 3
+  },
+  "motion": {
+    "durationShort": 150,
+    "durationMedium": 300,
+    "easing": "easeOutCubic"
   }
 } as const;
 
 export const tokens = {
   colors: contract.colors,
+  colorsDark: contract.colorsDark,
+  roleColors: contract.roleColors,
+  windowClasses: contract.windowClasses,
+  elevation: contract.elevation,
+  motion: contract.motion,
   spacing: contract.spacing,
   radii: contract.radii,
   layout: contract.layout,
