@@ -124,6 +124,7 @@ public class SecurityConfig {
                 "Deprecation",
                 "Sunset",
                 "Idempotency-Key",
+                "X-Total-Count",
                 "X-RateLimit-Limit",
                 "X-RateLimit-Remaining",
                 "X-RateLimit-Reset",
