@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.learning.web;
 
+import io.campuscore.restfulapi.admissions.web.MultipartAttachment;
 import io.campuscore.restfulapi.learning.service.LearningService;
 import io.campuscore.restfulapi.learning.web.LearningDtos.AssignmentResponse;
 import io.campuscore.restfulapi.learning.web.LearningDtos.AssignmentUpsertRequest;
@@ -30,8 +31,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /** P09 LMS staff surface. Every route re-checks the caller's lecturerId claim
  * against the section's assigned lecturer inside the service (contract §6 —
@@ -67,6 +71,36 @@ public class LearningStaffController {
             @PathVariable String sectionId,
             @RequestBody MaterialUpsertRequest request) {
         return learning.createMaterial(lecturer(jwt), sectionId, request);
+    }
+
+    @Operation(summary = "Tạo học liệu dạng multipart (cùng quy tắc với bản base64)")
+    @PostMapping(value = "/sections/{sectionId}/materials", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("isAuthenticated()")
+    public MaterialResponse createMaterialMultipart(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String sectionId,
+            @RequestParam(value = "title", required = false) String title,
+            @RequestParam(value = "description", required = false) String description,
+            @RequestParam(value = "checksum", required = false) String checksum,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
+        return learning.createMaterial(lecturer(jwt), sectionId,
+                materialUpsert(title, description, null, checksum, file));
+    }
+
+    @Operation(summary = "Cập nhật học liệu dạng multipart (optimistic version)")
+    @PutMapping(value = "/materials/{materialId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    public MaterialResponse updateMaterialMultipart(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String materialId,
+            @RequestParam(value = "title", required = false) String title,
+            @RequestParam(value = "description", required = false) String description,
+            @RequestParam(value = "version", required = false) Integer version,
+            @RequestParam(value = "checksum", required = false) String checksum,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
+        return learning.updateMaterial(lecturer(jwt), materialId,
+                materialUpsert(title, description, version, checksum, file));
     }
 
     @Operation(summary = "Cập nhật học liệu (optimistic version)")
@@ -251,6 +285,15 @@ public class LearningStaffController {
                         contentType == null ? MediaType.APPLICATION_OCTET_STREAM_VALUE
                                 : String.valueOf(contentType)))
                 .body(bytes);
+    }
+
+    private static MaterialUpsertRequest materialUpsert(String title, String description, Integer version,
+            String checksum, MultipartFile file) {
+        MultipartAttachment.Payload payload = MultipartAttachment.optional(file, MultipartAttachment.COURSEWORK);
+        return payload == null
+                ? new MaterialUpsertRequest(title, description, version, null, null, null, null)
+                : new MaterialUpsertRequest(title, description, version, payload.fileName(),
+                        payload.contentType(), payload.contentBase64(), checksum);
     }
 
     private static String lecturer(Jwt jwt) {

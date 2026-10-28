@@ -178,7 +178,7 @@ export interface paths {
     put: operations["save_1"];
   };
   "/api/v1/admissions/applications/{applicationId}/attachments": {
-    /** Tải tệp đính kèm (checksum-bound) */
+    /** Tải tệp đính kèm dạng multipart (cùng quy tắc với bản base64) */
     post: operations["uploadAttachment_1"];
   };
   "/api/v1/admissions/applications/{applicationId}/attachments/{attachmentId}": {
@@ -621,7 +621,7 @@ export interface paths {
     get: operations["myApplication"];
   };
   "/api/v1/careers/applications/{applicationId}/attachments": {
-    /** Tải hồ sơ đính kèm lên đơn của tôi */
+    /** Tải hồ sơ đính kèm dạng multipart (cùng quy tắc với bản base64) */
     post: operations["uploadAttachment"];
   };
   "/api/v1/careers/applications/{applicationId}/attachments/{attachmentId}/download": {
@@ -1094,7 +1094,7 @@ export interface paths {
     post: operations["openDraft"];
   };
   "/api/v1/learning/assignments/{assignmentId}/resubmit": {
-    /** Nộp lại sau khi bị trả (LMS-T05) — tạo revision mới, không ghi đè */
+    /** Nộp lại dạng multipart (cùng quy tắc với bản base64) */
     post: operations["resubmit"];
   };
   "/api/v1/learning/assignments/{assignmentId}/submit": {
@@ -1148,7 +1148,7 @@ export interface paths {
     get: operations["roster"];
   };
   "/api/v1/learning/staff/materials/{materialId}": {
-    /** Cập nhật học liệu (optimistic version) */
+    /** Cập nhật học liệu dạng multipart (optimistic version) */
     put: operations["updateMaterial"];
     /** Xoá học liệu */
     delete: operations["deleteMaterial"];
@@ -1170,7 +1170,7 @@ export interface paths {
   "/api/v1/learning/staff/sections/{sectionId}/materials": {
     /** Danh sách học liệu của lớp học phần (giảng viên phụ trách) */
     get: operations["listMaterials"];
-    /** Tạo học liệu mới cho lớp học phần */
+    /** Tạo học liệu dạng multipart (cùng quy tắc với bản base64) */
     post: operations["createMaterial"];
   };
   "/api/v1/learning/staff/submissions/{submissionId}": {
@@ -1198,7 +1198,7 @@ export interface paths {
     get: operations["mySubmission"];
   };
   "/api/v1/learning/submissions/{submissionId}/draft": {
-    /** Lưu nội dung nháp (văn bản + tệp đính kèm) */
+    /** Lưu nội dung nháp dạng multipart (cùng quy tắc với bản base64) */
     put: operations["saveDraft"];
   };
   "/api/v1/learning/submissions/{submissionId}/feedback": {
@@ -5384,9 +5384,12 @@ export interface operations {
       };
     };
   };
-  /** Tải tệp đính kèm (checksum-bound) */
+  /** Tải tệp đính kèm dạng multipart (cùng quy tắc với bản base64) */
   uploadAttachment_1: {
     parameters: {
+      query?: {
+        checksum?: string;
+      };
       header?: {
         "Idempotency-Key"?: string;
       };
@@ -5397,6 +5400,10 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["AttachmentUploadRequest"];
+        "multipart/form-data": {
+          /** Format: binary */
+          file?: string;
+        };
       };
     };
     responses: {
@@ -7094,9 +7101,12 @@ export interface operations {
       };
     };
   };
-  /** Tải hồ sơ đính kèm lên đơn của tôi */
+  /** Tải hồ sơ đính kèm dạng multipart (cùng quy tắc với bản base64) */
   uploadAttachment: {
     parameters: {
+      query?: {
+        checksum?: string;
+      };
       header?: {
         "Idempotency-Key"?: string;
       };
@@ -7107,6 +7117,10 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["AttachmentUploadRequest"];
+        "multipart/form-data": {
+          /** Format: binary */
+          file?: string;
+        };
       };
     };
     responses: {
@@ -7164,11 +7178,19 @@ export interface operations {
     parameters: {
       query?: {
         query?: string;
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
       };
     };
     responses: {
-      /** @description OK */
+      /** @description Tin tuyển dụng đang đăng */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["OpportunityResponse"][];
         };
@@ -8491,9 +8513,21 @@ export interface operations {
   };
   /** Danh sách sự kiện đã công bố */
   list_9: {
+    parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
+      };
+    };
     responses: {
-      /** @description OK */
+      /** @description Danh sách sự kiện */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["EventResponse"][];
         };
@@ -8502,9 +8536,21 @@ export interface operations {
   };
   /** Lịch sử đăng ký của tôi */
   myRegistrations: {
+    parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
+      };
+    };
     responses: {
-      /** @description OK */
+      /** @description Lịch sử đăng ký */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["MyRegistrationResponse"][];
         };
@@ -9011,9 +9057,13 @@ export interface operations {
       };
     };
   };
-  /** Nộp lại sau khi bị trả (LMS-T05) — tạo revision mới, không ghi đè */
+  /** Nộp lại dạng multipart (cùng quy tắc với bản base64) */
   resubmit: {
     parameters: {
+      query?: {
+        textBody?: string;
+        checksum?: string;
+      };
       header?: {
         "Idempotency-Key"?: string;
       };
@@ -9024,6 +9074,10 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["SubmissionUpsertRequest"];
+        "multipart/form-data": {
+          /** Format: binary */
+          file?: string;
+        };
       };
     };
     responses: {
@@ -9249,9 +9303,15 @@ export interface operations {
       };
     };
   };
-  /** Cập nhật học liệu (optimistic version) */
+  /** Cập nhật học liệu dạng multipart (optimistic version) */
   updateMaterial: {
     parameters: {
+      query?: {
+        title?: string;
+        description?: string;
+        version?: number;
+        checksum?: string;
+      };
       path: {
         materialId: string;
       };
@@ -9259,6 +9319,10 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["MaterialUpsertRequest"];
+        "multipart/form-data": {
+          /** Format: binary */
+          file?: string;
+        };
       };
     };
     responses: {
@@ -9370,9 +9434,14 @@ export interface operations {
       };
     };
   };
-  /** Tạo học liệu mới cho lớp học phần */
+  /** Tạo học liệu dạng multipart (cùng quy tắc với bản base64) */
   createMaterial: {
     parameters: {
+      query?: {
+        title?: string;
+        description?: string;
+        checksum?: string;
+      };
       path: {
         sectionId: string;
       };
@@ -9380,6 +9449,10 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["MaterialUpsertRequest"];
+        "multipart/form-data": {
+          /** Format: binary */
+          file?: string;
+        };
       };
     };
     responses: {
@@ -9497,9 +9570,13 @@ export interface operations {
       };
     };
   };
-  /** Lưu nội dung nháp (văn bản + tệp đính kèm) */
+  /** Lưu nội dung nháp dạng multipart (cùng quy tắc với bản base64) */
   saveDraft: {
     parameters: {
+      query?: {
+        textBody?: string;
+        checksum?: string;
+      };
       path: {
         submissionId: string;
       };
@@ -9507,6 +9584,10 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["SubmissionUpsertRequest"];
+        "multipart/form-data": {
+          /** Format: binary */
+          file?: string;
+        };
       };
     };
     responses: {
@@ -9674,11 +9755,19 @@ export interface operations {
     parameters: {
       query?: {
         query?: string;
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
       };
     };
     responses: {
-      /** @description OK */
+      /** @description Danh mục sách */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["TitleResponse"][];
         };
@@ -11906,11 +11995,19 @@ export interface operations {
       query: {
         /** @description Mã UUID của đợt khóa luận */
         roundId: string;
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
       };
     };
     responses: {
       /** @description Truy xuất danh sách nhóm thành công */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["GroupResponse"][];
         };
@@ -11949,9 +12046,21 @@ export interface operations {
    * @description Sinh viên thấy nhóm mình là thành viên/nhóm trưởng, giảng viên thấy nhóm thuộc đề tài mình hướng dẫn — dùng để tự chọn đợt chứa nhóm thay vì đợt mới nhất
    */
   mine: {
+    parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
+      };
+    };
     responses: {
       /** @description Truy xuất danh sách nhóm của người gọi thành công */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["GroupResponse"][];
         };
@@ -12335,11 +12444,19 @@ export interface operations {
       query?: {
         /** @description Lọc theo trạng thái đợt (PROPOSAL_OPEN, REGISTRATION_OPEN, RESULTS_PUBLISHED, v.v.) */
         status?: "DRAFT" | "PROPOSAL_OPEN" | "PROPOSALS_PUBLISHED" | "REGISTRATION_OPEN" | "REGISTRATION_CLOSED" | "RESULTS_PUBLISHED" | "CLOSED" | "CANCELLED";
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
       };
     };
     responses: {
       /** @description Truy xuất danh sách đợt thành công */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["RoundResponse"][];
         };
@@ -12611,16 +12728,24 @@ export interface operations {
         roundId: string;
         /** @description Trạng thái đề tài (PUBLISHED, APPROVED, DRAFT...) */
         status?: "DRAFT" | "PUBLISHED" | "APPROVED" | "REJECTED" | "ARCHIVED";
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
       };
     };
     responses: {
       /** @description Truy xuất danh sách đề tài thành công */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["TopicResponse"][];
         };
       };
-      /** @description Tham số roundId không hợp lệ */
+      /** @description Tham số roundId hoặc page/limit không hợp lệ */
       400: {
         content: {
           "*/*": components["schemas"]["TopicResponse"][];

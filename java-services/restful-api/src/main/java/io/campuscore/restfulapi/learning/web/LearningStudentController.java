@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.learning.web;
 
+import io.campuscore.restfulapi.admissions.web.MultipartAttachment;
 import io.campuscore.restfulapi.learning.service.LearningStudentService;
 import io.campuscore.restfulapi.learning.web.LearningDtos.AssignmentResponse;
 import io.campuscore.restfulapi.learning.web.LearningDtos.FeedbackResponse;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,8 +26,11 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /** P09 LMS student surface. Authority is the caller's studentId claim bound to
  * an active enrollment in the assignment's section; another student's
@@ -106,6 +111,18 @@ public class LearningStudentController {
         return learning.saveDraft(student(jwt), submissionId, request);
     }
 
+    @Operation(summary = "Lưu nội dung nháp dạng multipart (cùng quy tắc với bản base64)")
+    @PutMapping(value = "/submissions/{submissionId}/draft", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    public SubmissionResponse saveDraftMultipart(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String submissionId,
+            @RequestParam(value = "textBody", required = false) String textBody,
+            @RequestParam(value = "checksum", required = false) String checksum,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
+        return learning.saveDraft(student(jwt), submissionId, upsert(textBody, checksum, file));
+    }
+
     @Operation(summary = "Nộp bài — deadline theo đồng hồ máy chủ (LMS-X01), revision bất biến (LMS-X02)")
     @PostMapping("/assignments/{assignmentId}/submit")
     @PreAuthorize("isAuthenticated()")
@@ -125,6 +142,20 @@ public class LearningStudentController {
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestBody SubmissionUpsertRequest request) {
         return learning.resubmit(student(jwt), assignmentId, idempotencyKey, request);
+    }
+
+    @Operation(summary = "Nộp lại dạng multipart (cùng quy tắc với bản base64)")
+    @PostMapping(value = "/assignments/{assignmentId}/resubmit", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    public SubmissionResponse resubmitMultipart(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String assignmentId,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestParam(value = "textBody", required = false) String textBody,
+            @RequestParam(value = "checksum", required = false) String checksum,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
+        return learning.resubmit(student(jwt), assignmentId, idempotencyKey,
+                upsert(textBody, checksum, file));
     }
 
     @Operation(summary = "Bài nộp của tôi trong lớp học phần")
@@ -171,6 +202,14 @@ public class LearningStudentController {
             @PathVariable String revisionId) {
         return LearningStaffController.fileResponse(
                 learning.downloadRevision(student(jwt), revisionId));
+    }
+
+    private static SubmissionUpsertRequest upsert(String textBody, String checksum, MultipartFile file) {
+        MultipartAttachment.Payload payload = MultipartAttachment.optional(file, MultipartAttachment.COURSEWORK);
+        return payload == null
+                ? new SubmissionUpsertRequest(textBody, null, null, null, null)
+                : new SubmissionUpsertRequest(textBody, payload.fileName(), payload.contentType(),
+                        payload.contentBase64(), checksum);
     }
 
     private static String student(Jwt jwt) {

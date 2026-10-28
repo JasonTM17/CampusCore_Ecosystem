@@ -1,15 +1,19 @@
 package io.campuscore.restfulapi.thesis.web;
 
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.thesis.service.ThesisGroupReadService;
 import io.campuscore.restfulapi.thesis.web.ThesisGroupReadDtos.GroupResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -33,31 +37,42 @@ public class ThesisGroupReadController {
 
     @Operation(summary = "Lấy danh sách các nhóm sinh viên trong đợt khóa luận", description = "Truy xuất danh sách nhóm sinh viên làm khóa luận theo đợt đăng ký, bao gồm nhóm trưởng và thành viên")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Truy xuất danh sách nhóm thành công"),
+        @ApiResponse(responseCode = "200", description = "Truy xuất danh sách nhóm thành công", headers = @Header(
+                name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+                schema = @Schema(type = "integer"))),
         @ApiResponse(responseCode = "401", description = "Chưa xác thực"),
         @ApiResponse(responseCode = "403", description = "Không có quyền truy cập")
     })
     @GetMapping
     @PreAuthorize("hasAnyRole('STUDENT','LECTURER','ADMIN','SUPER_ADMIN','TRUONG_KHOA','TRUONG_BO_MON')")
-    public List<GroupResponse> list(
+    public ResponseEntity<List<GroupResponse>> list(
             @Parameter(description = "Mã UUID của đợt khóa luận", required = true)
             @RequestParam UUID roundId,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit,
             @AuthenticationPrincipal Jwt actor) {
-        return groups.list(roundId, roles(actor), actor.getClaimAsString("studentId"),
-                actor.getClaimAsString("lecturerId"), actor.getSubject());
+        ListPaging.Window window = ListPaging.Window.of(page, limit);
+        return ListPaging.respond(groups.list(roundId, roles(actor), actor.getClaimAsString("studentId"),
+                actor.getClaimAsString("lecturerId"), actor.getSubject()), window);
     }
 
     @Operation(summary = "Lấy các nhóm của người gọi trên mọi đợt", description = "Sinh viên thấy nhóm mình là thành viên/nhóm trưởng, giảng viên thấy nhóm thuộc đề tài mình hướng dẫn — dùng để tự chọn đợt chứa nhóm thay vì đợt mới nhất")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Truy xuất danh sách nhóm của người gọi thành công"),
+        @ApiResponse(responseCode = "200", description = "Truy xuất danh sách nhóm của người gọi thành công", headers = @Header(
+                name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+                schema = @Schema(type = "integer"))),
         @ApiResponse(responseCode = "401", description = "Chưa xác thực"),
         @ApiResponse(responseCode = "403", description = "Không có hồ sơ sinh viên/giảng viên")
     })
     @GetMapping("/mine")
     @PreAuthorize("hasAnyRole('STUDENT','LECTURER','ADMIN','SUPER_ADMIN','TRUONG_KHOA','TRUONG_BO_MON')")
-    public List<GroupResponse> mine(@AuthenticationPrincipal Jwt actor) {
-        return groups.listMine(roles(actor), actor.getClaimAsString("studentId"),
-                actor.getClaimAsString("lecturerId"));
+    public ResponseEntity<List<GroupResponse>> mine(
+            @AuthenticationPrincipal Jwt actor,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit);
+        return ListPaging.respond(groups.listMine(roles(actor), actor.getClaimAsString("studentId"),
+                actor.getClaimAsString("lecturerId")), window);
     }
 
     @Operation(summary = "Xem chi tiết một nhóm sinh viên theo UUID", description = "Truy xuất thông tin chi tiết một nhóm khóa luận: đề tài đã chọn, trạng thái phê duyệt của GVHD và danh sách thành viên")

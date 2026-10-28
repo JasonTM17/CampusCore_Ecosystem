@@ -27,8 +27,11 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Applicant admissions surface (contract §7). The applicant is the auth user
@@ -119,6 +122,23 @@ public class AdmissionApplicantController {
             @RequestBody AttachmentUploadRequest request,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         return admissions.uploadAttachment(applicant(jwt), applicationId, request, idempotencyKey);
+    }
+
+    @Operation(summary = "Tải tệp đính kèm dạng multipart (cùng quy tắc với bản base64)")
+    @PostMapping(value = "{applicationId}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("isAuthenticated()")
+    public ApplicationResponse uploadAttachmentMultipart(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String applicationId,
+            @RequestPart(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "checksum", required = false) String checksum,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        MultipartAttachment.Payload payload = MultipartAttachment.required(file, MultipartAttachment.DOCUMENTS);
+        return admissions.uploadAttachment(applicant(jwt), applicationId,
+                new AttachmentUploadRequest(payload.fileName(), payload.contentType(),
+                        payload.contentBase64(), checksum),
+                idempotencyKey);
     }
 
     @Operation(summary = "Xóa tệp đính kèm (dọn byte, không để orphan)")

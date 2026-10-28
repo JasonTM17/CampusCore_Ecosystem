@@ -5,10 +5,15 @@ import io.campuscore.restfulapi.events.web.EventDtos.EventResponse;
 import io.campuscore.restfulapi.events.web.EventDtos.MyRegistrationResponse;
 import io.campuscore.restfulapi.events.web.EventDtos.RegistrationResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -18,6 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -39,10 +45,18 @@ public class EventController {
     }
 
     @Operation(summary = "Danh sách sự kiện đã công bố")
+    @ApiResponse(responseCode = "200", description = "Danh sách sự kiện", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public List<EventResponse> list(@AuthenticationPrincipal Jwt jwt) {
-        return students.listPublished(subject(jwt));
+    public ResponseEntity<List<EventResponse>> list(
+            @AuthenticationPrincipal Jwt jwt,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit);
+        return ListPaging.respond(students.listPublished(subject(jwt)), window,
+                EventResponse::startsAt, EventResponse::id);
     }
 
     @Operation(summary = "Chi tiết sự kiện")
@@ -55,10 +69,18 @@ public class EventController {
     }
 
     @Operation(summary = "Lịch sử đăng ký của tôi")
+    @ApiResponse(responseCode = "200", description = "Lịch sử đăng ký", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping("my/registrations")
     @PreAuthorize("isAuthenticated()")
-    public List<MyRegistrationResponse> myRegistrations(@AuthenticationPrincipal Jwt jwt) {
-        return students.myRegistrations(subject(jwt));
+    public ResponseEntity<List<MyRegistrationResponse>> myRegistrations(
+            @AuthenticationPrincipal Jwt jwt,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit);
+        return ListPaging.respond(students.myRegistrations(subject(jwt)), window,
+                MyRegistrationResponse::registeredAt, MyRegistrationResponse::registrationId);
     }
 
     @Operation(summary = "Đăng ký tham gia sự kiện")

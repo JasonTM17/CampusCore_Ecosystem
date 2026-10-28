@@ -1,14 +1,20 @@
 package io.campuscore.restfulapi.library.web;
 
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.library.service.LibraryPatronService;
 import io.campuscore.restfulapi.library.web.LibraryDtos.BorrowRequest;
 import io.campuscore.restfulapi.library.web.LibraryDtos.CancelRequest;
 import io.campuscore.restfulapi.library.web.LibraryDtos.LoanRequestResponse;
 import io.campuscore.restfulapi.library.web.LibraryDtos.TitleResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -41,12 +47,19 @@ public class LibraryPatronController {
     }
 
     @Operation(summary = "Tra cứu danh mục sách")
+    @ApiResponse(responseCode = "200", description = "Danh mục sách", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping("/catalogue")
     @PreAuthorize("isAuthenticated()")
-    public List<TitleResponse> catalogue(
+    public ResponseEntity<List<TitleResponse>> catalogue(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestParam(required = false) String query) {
-        return library.catalogue(patron(jwt), query);
+            @RequestParam(required = false) String query,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit);
+        return ListPaging.respond(library.catalogue(patron(jwt), query), window,
+                TitleResponse::title, TitleResponse::id);
     }
 
     @Operation(summary = "Chi tiết đầu sách + tình trạng các bản sao")

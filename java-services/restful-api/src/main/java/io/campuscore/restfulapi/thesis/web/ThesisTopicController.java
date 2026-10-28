@@ -1,16 +1,20 @@
 package io.campuscore.restfulapi.thesis.web;
 
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.thesis.domain.TopicStatus;
 import io.campuscore.restfulapi.thesis.service.ThesisTopicService;
 import io.campuscore.restfulapi.thesis.web.ThesisTopicDtos.TopicResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,17 +37,23 @@ public class ThesisTopicController {
 
     @Operation(summary = "Lấy danh sách đề tài theo đợt khóa luận", description = "Truy xuất danh sách các đề tài khóa luận trong đợt đã chọn, có quyền bảo mật ẩn đề tài nháp/lưu trữ đối với sinh viên")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Truy xuất danh sách đề tài thành công"),
-        @ApiResponse(responseCode = "400", description = "Tham số roundId không hợp lệ")
+        @ApiResponse(responseCode = "200", description = "Truy xuất danh sách đề tài thành công", headers = @Header(
+                name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+                schema = @Schema(type = "integer"))),
+        @ApiResponse(responseCode = "400", description = "Tham số roundId hoặc page/limit không hợp lệ")
     })
     @GetMapping
-    public List<TopicResponse> list(
+    public ResponseEntity<List<TopicResponse>> list(
             @Parameter(description = "Mã định danh UUID của đợt khóa luận", required = true)
             @RequestParam UUID roundId,
             @Parameter(description = "Trạng thái đề tài (PUBLISHED, APPROVED, DRAFT...)")
             @RequestParam(required = false) TopicStatus status,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit,
             @AuthenticationPrincipal Jwt actor) {
-        return topics.list(roundId, status, actor);
+        ListPaging.Window window = ListPaging.Window.of(page, limit);
+        return ListPaging.respond(topics.list(roundId, status, actor), window,
+                TopicResponse::title, TopicResponse::id);
     }
 
     @Operation(summary = "Xem chi tiết đề tài theo mã định danh (UUID)", description = "Truy xuất thông tin chi tiết một đề tài khóa luận bao gồm mô tả, mục tiêu, GVHD và số nhóm tối đa")

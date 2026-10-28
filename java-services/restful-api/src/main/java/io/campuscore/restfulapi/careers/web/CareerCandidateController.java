@@ -8,7 +8,13 @@ import io.campuscore.restfulapi.careers.web.CareerDtos.AttachmentUploadRequest;
 import io.campuscore.restfulapi.careers.web.CareerDtos.OpportunityResponse;
 import io.campuscore.restfulapi.careers.web.CareerDtos.OrganizationResponse;
 import io.campuscore.restfulapi.careers.web.CareerDtos.TransitionRequest;
+import io.campuscore.restfulapi.admissions.web.MultipartAttachment;
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +33,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Candidate careers surface (contract §9): published-opportunity browse,
@@ -57,11 +65,18 @@ public class CareerCandidateController {
     }
 
     @Operation(summary = "Tin tuyển dụng đang đăng (PUBLISHED)")
+    @ApiResponse(responseCode = "200", description = "Tin tuyển dụng đang đăng", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping("/opportunities")
     @PreAuthorize("isAuthenticated()")
-    public List<OpportunityResponse> opportunities(
-            @RequestParam(required = false) String query) {
-        return candidates.browse(query);
+    public ResponseEntity<List<OpportunityResponse>> opportunities(
+            @RequestParam(required = false) String query,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit);
+        return ListPaging.respond(candidates.browse(query), window,
+                OpportunityResponse::publishedAt, OpportunityResponse::id);
     }
 
     @Operation(summary = "Chi tiết tin đang đăng")
@@ -118,6 +133,23 @@ public class CareerCandidateController {
             @RequestBody AttachmentUploadRequest request,
             @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey) {
         return candidates.uploadAttachment(candidate(jwt), applicationId, request, idempotencyKey);
+    }
+
+    @Operation(summary = "Tải hồ sơ đính kèm dạng multipart (cùng quy tắc với bản base64)")
+    @PostMapping(value = "/applications/{applicationId}/attachments",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    public ApplicationResponse uploadAttachmentMultipart(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String applicationId,
+            @RequestPart(value = "file", required = false) MultipartFile file,
+            @RequestParam(value = "checksum", required = false) String checksum,
+            @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey) {
+        MultipartAttachment.Payload payload = MultipartAttachment.required(file, MultipartAttachment.DOCUMENTS);
+        return candidates.uploadAttachment(candidate(jwt), applicationId,
+                new AttachmentUploadRequest(payload.fileName(), payload.contentType(),
+                        payload.contentBase64(), checksum),
+                idempotencyKey);
     }
 
     @Operation(summary = "Tải xuống tệp đính kèm của tôi")
