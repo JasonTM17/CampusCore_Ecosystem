@@ -262,3 +262,34 @@ feedback, decision). `notification.delivery` retry không nhân đôi
 | INV-06 | Domain grant do admin cấp; không suy diễn quyền chéo domain |
 | INV-07 | Audit ghi `actor, from, to, at, reason?` cho mọi transition ở §4–§9 |
 | INV-08 | Server clock là oracle cho deadline/expiry/capacity window |
+
+## 13. Assistant stream trên mobile (v2, M02)
+
+Nguồn đã đọc: `ThesisAssistantController` (`POST /api/v1/thesis/assistant/chat/stream`, alias `/api/v1/assistant/chat/stream`), `ThesisAssistantService.StreamEvent`, `frontend/src/lib/assistant-stream.ts`, `useAssistantStream.ts`. Oracle chung: `contracts/ecosystem/assistant-stream.fixture.jsonl` (mỗi dòng `{scenario,event,data}`; `event:"comment"` chỉ là marker harness cho SSE comment `:heartbeat`, KHÔNG có trên wire).
+
+| Mục | Hợp đồng |
+|---|---|
+| Request | `POST`, JSON `{message(<=2000, không trắng), locale(en|vi), clientRequestId(UUID), conversationId?, scope?(academic|specialized)}`, `Accept: text/event-stream`, bearer. Không có `Idempotency-Key`: identity = `clientRequestId` |
+| Event | `meta{requestId,clientRequestId,turnId,conversationId,model,locale}`, `delta{sequence,text,sourceIds}`, `replace{text,sourceIds,reasonCode}`, `citation{citation}`, `done{messageId,reasonCode,degraded,terminalStatus,resetAt}`, `error{code,retryable}` |
+| Thứ tự | `meta` trước thân; `citation` sau thân; `done` cần thân; `error` là terminal (được phép trước `meta`); sau `done`/`error` không nhận event nữa; EOF không terminal = lỗi |
+| Heartbeat | comment `:heartbeat` mỗi 15 s; không reset idle timer; web: idle 45 s, tổng 120 s |
+| Lỗi | trước stream: HTTP 400/401/403/429(`Retry-After`)/503(`ASSISTANT_RLS_UNAVAILABLE`); trong stream: event `error`. Quota RAG ngày cạn = câu trả lời suy giảm `reasonCode=QUOTA_EXCEEDED`, không phải 429 |
+| Hủy | `POST .../requests/{clientRequestId}/cancel` -> 200; 409 `TURN_COMPLETED`/`FAILED_AMBIGUOUS`, 410 `TURN_PURGED`; web gọi cancel rồi abort reader |
+| Resume | Không có `id`/`Last-Event-ID`: không resume; mất kết nối = trạng thái chưa xác nhận, người dùng chủ động gửi lại cùng `clientRequestId` |
+| Rate limit | bucket assistant 20 POST/phút/user |
+| Frame cắt | parser phải ghép byte UTF-8 qua `TextDecoder` streaming trước khi parse JSON (tình huống test: cắt giữa ký tự có dấu) |
+
+Lệch hợp đồng phát hiện, chưa sửa trong M02 (ghi nhận để sửa ở lane B/M05): OpenAPI `message.minLength=0` vs Java `@NotBlank`; OpenAPI có `specializedScope` không có trong record Java; OpenAPI SSE chỉ khai báo 200. RN `fetch` readable stream: ASSUMPTION cho tới canary M07; mobile giữ adapter buffered sau cờ, UI không tuyên bố streaming parity trước canary (R17).
+
+## 14. Push delivery (v2, M02 -> M03 lane B)
+
+Trạng thái: PROPOSED (chưa có mã). Inbox `notifications.notification` vẫn là nguồn sự thật; push chỉ là tín hiệu mở app.
+
+- API (owner lấy từ JWT, không nhận `userId`): `PUT /api/v1/notifications/my/devices/{installationId}` body `{provider, platform, token}`, response không echo token, lặp lại idempotent; `DELETE` cùng path, 204, lặp an toàn. Lỗi: 400 `INVALID_REQUEST`/`DEVICE_TOKEN_INVALID`, 401, 403, 404 (thiết bị không thuộc caller), 429. Không dùng `Idempotency-Key` vì thao tác lặp an toàn.
+- Migration: `V143__notification_push_delivery.sql` (Postgres) + mirror H2 cùng tên; Flyway cao nhất hiện tại V142. Bảng `notifications.device_registration` (`id, user_id FK campuscore_auth."User", installation_id, provider, platform, token_ciphertext, token_fingerprint, credential_version, status ACTIVE|REVOKED, created_at, updated_at, revoked_at`; UNIQUE `(provider, token_fingerprint)`, UNIQUE `(user_id, installation_id)`) và `notifications.delivery_outbox` (`id, notification_id, device_id, recipient_user_id, status, attempt_count, next_attempt_at, last_error_code, lease_owner, lease_generation, lease_until, created_at, updated_at, sent_at`; UNIQUE `(notification_id, device_id)`). Token ciphertext + fingerprint cần khóa do security owner duyệt; chưa có khóa = giữ push BLOCKED_CAPABILITY.
+- Rebind (R23): đăng ký token đã thuộc tài khoản khác = chuyển quyền sở hữu cho tài khoản vừa xác thực, vô hiệu hàng cũ; outbox cũ vẫn mang `recipient_user_id` snapshot.
+- Dispatch (R23): ngay trước khi gửi phải khớp `notification.user_id == outbox.recipient_user_id == device.user_id`, registration ACTIVE, `User.status='ACTIVE'`, `User.credentialVersion == device.credential_version`; không dựa vào `AccountStateFilter`.
+- Claim: Postgres `FOR UPDATE SKIP LOCKED` + `lease_generation` (ack chỉ khi owner+generation+lease khớp); H2 chỉ kiểm chuyển trạng thái tuần tự, không là oracle đồng thời; test song song bắt buộc trên Postgres disposable.
+- Trạng thái: `PENDING -> CLAIMED -> SENT`; lỗi tạm `RETRY_WAIT` (tối đa 5 lần, backoff cap + jitter, PROPOSED); lỗi vĩnh viễn `FAILED`; mismatch/revoke `SUPPRESSED`; chưa có provider `BLOCKED`. Cờ `app.notifications.push.enabled=false` mặc định; không provider thì không bao giờ `SENT`.
+- Ngữ nghĩa: at-least-once; sau timeout provider có thể đã nhận, KHÔNG tuyên bố exactly-once; push đã rời hệ thống không thu hồi nguyên tử (điểm tuyến tính hóa = kiểm tra send-time). Audit chỉ ghi action/actor/device id/owner cũ-mới; không ghi token, fingerprint, title/message.
+- Test âm tính bắt buộc: cross-user token rebind, revoke giữa enqueue và send, duplicate event, crash sau provider timeout, claim song song (Postgres), tài khoản INACTIVE/đổi credentialVersion, no-provider.
