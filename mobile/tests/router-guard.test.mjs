@@ -167,3 +167,13 @@ test('lane paths stay out of the screen registry and the guard fails closed by d
     to: 'dashboard.student',
   });
 });
+
+test('root layout keeps the navigator mounted while a guard redirect is pending', () => {
+  // Replacing the Stack with a bare <Redirect> makes expo-router remount the
+  // root layout, which recreates SessionProvider and drops the session that
+  // triggered the redirect (preview and sign-in both bounced back to /sign-in).
+  const src = fs.readFileSync(path.join(mobileRoot, 'app/_layout.tsx'), 'utf8');
+  const body = src.slice(src.indexOf('function RootNavigator'), src.indexOf('function ThemedStack'));
+  assert.match(body, /<ThemedStack \/>/);
+  assert.doesNotMatch(body, /return\s*<Redirect/);
+});
