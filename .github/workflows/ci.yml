@@ -111,6 +111,9 @@ jobs:
       - name: Typecheck mobile
         working-directory: mobile
         run: npm run typecheck
+      - name: Component, accessibility and structural visual tests
+        working-directory: mobile
+        run: npm run test:component
 
   e2e:
     name: Official Playwright e2e
