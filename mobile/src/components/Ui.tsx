@@ -16,6 +16,7 @@ import { UiText } from './ui/UiText';
 import type { TextTone } from './ui/UiText';
 import { Button } from './ui/Button';
 import { FormField } from './ui/primitives';
+import { ResponsiveContent } from './ui/ResponsiveContent';
 
 export { UiText } from './ui/UiText';
 export type { UiTextProps, TextVariant, TextTone } from './ui/UiText';
@@ -126,7 +127,7 @@ export function ScreenShell({ title, eyebrow, subtitle, children, headerAction, 
           </View>
           {headerAction}
         </View>
-        {children}
+        <ResponsiveContent>{children}</ResponsiveContent>
       </ScrollView>
     </View>
   );
