@@ -15,6 +15,9 @@ export type ScreenName =
   | 'schedule'
   | 'courses'
   | 'grades'
+  | 'transcript'
+  | 'curriculum'
+  | 'enrollments'
   | 'attendance'
   | 'registration'
   | 'events'
@@ -106,6 +109,9 @@ export const screenRegistry: readonly ScreenDefinition[] = [
   { name: 'schedule', title: 'Schedule', family: 'student', roles: studentRoles, icon: 'calendar-week' },
   { name: 'courses', title: 'Courses', family: 'student', roles: studentRoles, icon: 'book-open-page-variant' },
   { name: 'grades', title: 'Grades', family: 'student', roles: studentRoles, icon: 'chart-box-outline' },
+  { name: 'transcript', title: 'Transcript', family: 'student', roles: studentRoles, icon: 'file-document-outline' },
+  { name: 'curriculum', title: 'Curriculum', family: 'student', roles: studentRoles, icon: 'book-education-outline' },
+  { name: 'enrollments', title: 'Enrollments', family: 'student', roles: studentRoles, icon: 'clipboard-list-outline' },
   { name: 'attendance', title: 'Attendance', family: 'student', roles: studentRoles, icon: 'clipboard-check-outline' },
   { name: 'registration', title: 'Registration', family: 'student', roles: studentRoles, icon: 'book-plus-outline' },
   { name: 'events', title: 'Events', family: 'student', roles: studentRoles, icon: 'calendar-star' },

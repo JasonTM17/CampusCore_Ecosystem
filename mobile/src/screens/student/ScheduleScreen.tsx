@@ -1,118 +1,141 @@
-import { useState } from 'react';
-import { View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, View } from 'react-native';
 
-import {
-  Badge,
-  Button,
-  Card,
-  DataNotice,
-  ScreenShell,
-  ScreenSpacer,
-  SectionHeading,
-  StatePanel,
-  UiText,
-} from '../../components/Ui';
-import { apiClient, campusApi, type MobileEnrollment } from '../../api/client';
+import { Button, Card, ScreenSpacer, StatePanel, UiText } from '../../components/Ui';
+import { tokens } from '../../design/tokens';
+import { useLocale } from '../../i18n/locale-provider';
+import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileScreenProps } from '../../navigation/types';
-import { useLiveResource } from './shared/useLiveResource';
-import { upcomingClasses } from './shared/preview';
-import { useStudentStyles } from './shared/styles';
+import { academicApi } from '../academic/academic-api';
+import {
+  DAY_ORDER,
+  agendaForDate,
+  buildAgenda,
+  civilKey,
+  defaultTermId,
+  termOptions,
+  weekDates,
+  weekStartOf,
+  type AgendaItem,
+} from '../academic/academic-model';
+import { previewEnrollments, previewSemester } from '../academic/academic-preview';
+import { ScheduleExport } from '../academic/ScheduleExport';
+import { AcademicShell, SegmentTabs, TermField, academicStyles, isPreviewMode, useAcademicCopy, useAcademicQuery } from '../academic/academic-ui';
 
-export function ScheduleScreen({ navigation }: MobileScreenProps) {
-  const styles = useStudentStyles();
-  const [weekOffset, setWeekOffset] = useState(0);
-  const {
-    data: liveEnrollments,
-    error,
-    warning,
-    isLoading,
-    reload,
-  } = useLiveResource<MobileEnrollment[]>(
-    'enrollments',
-    [],
-    () => campusApi.enrollments(),
-    'Schedule is unavailable.',
+type View_ = 'week' | 'term';
+
+function SessionCard({ item, expanded, onToggle }: { item: AgendaItem; expanded: boolean; onToggle: () => void }) {
+  const { copy } = useAcademicCopy();
+  const summary = `${item.startTime} – ${item.endTime}`;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${item.courseCode} ${item.courseName}, ${summary}${item.room ? `, ${item.room}` : ''}`}
+      accessibilityState={{ expanded }}
+      onPress={onToggle}
+      style={{ minHeight: tokens.layout.touchTarget }}
+    >
+      <Card style={academicStyles.card}>
+        <View style={academicStyles.row}>
+          <View style={academicStyles.rowCopy}>
+            <UiText variant="label" tone="primary">{summary}</UiText>
+            <UiText variant="bodyMedium">{item.courseCode} · {item.courseName}</UiText>
+            {item.room ? <UiText variant="bodySmall" tone="muted">{copy.room} {item.room}</UiText> : null}
+          </View>
+        </View>
+        {expanded ? (
+          <View style={academicStyles.actions}>
+            {item.sectionNumber ? <UiText variant="bodySmall">{copy.sectionLabel}: {item.sectionNumber}</UiText> : null}
+            {item.lecturer ? <UiText variant="bodySmall">{copy.lecturer}: {item.lecturer}</UiText> : null}
+            {item.credits > 0 ? <UiText variant="bodySmall">{fillCopy(copy.credits, { n: item.credits })}</UiText> : null}
+          </View>
+        ) : null}
+      </Card>
+    </Pressable>
   );
-  const liveSchedule = liveEnrollments.flatMap((item) => (item.section?.schedules ?? []).map((slot) => ({
-    code: item.section?.course?.code ?? item.section?.sectionNumber ?? item.sectionId,
-    name: item.section?.course?.nameVi ?? item.section?.course?.name ?? 'Course',
-    time: `${slot.startTime} – ${slot.endTime}`,
-    room: slot.classroom ? `${slot.classroom.building ?? ''} ${slot.classroom.roomNumber ?? ''}`.trim() : 'TBA',
-    day: slot.dayOfWeek,
-  })));
-  const visibleSchedule = apiClient.mode === 'preview'
-    ? upcomingClasses.map((item) => ({ ...item, day: 2 }))
-    : liveSchedule;
-  const today = new Date();
-  const mondayOffset = (today.getDay() + 6) % 7;
-  const weekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - mondayOffset + weekOffset * 7);
-  const weekDays = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(weekStart);
-    date.setDate(weekStart.getDate() + index);
-    return date;
-  });
-  const weekEnd = weekDays[6];
-  const dateFormatter = new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short' });
-  const weekLabel = `${dateFormatter.format(weekStart)} - ${dateFormatter.format(weekEnd)}`;
+}
 
-  if (isLoading || error) {
-    return (
-      <ScreenShell title="Schedule" eyebrow="Current semester" subtitle="Your published class sessions.">
-        <StatePanel
-          kind={isLoading ? 'loading' : 'error'}
-          title={isLoading ? 'Loading schedule…' : 'Schedule unavailable'}
-          description={error ?? 'Retrieving your published class sessions.'}
-          actionLabel={error ? 'Try again' : undefined}
-          onAction={error ? () => void reload() : undefined}
-        />
-      </ScreenShell>
-    );
-  }
+export function ScheduleScreen(_props: MobileScreenProps) {
+  const { copy, locale } = useAcademicCopy();
+  const { formatDate } = useLocale();
+  const preview = isPreviewMode();
+  const enrollmentsQuery = useAcademicQuery('academic.enrollments', () => academicApi.enrollments(), copy);
+  const semestersQuery = useAcademicQuery('academic.semesters', () => academicApi.semesters(), copy);
+  const [view, setView] = useState<View_>('week');
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [termChoice, setTermChoice] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const enrollments = useMemo(() => (preview ? previewEnrollments : enrollmentsQuery.data ?? []), [preview, enrollmentsQuery.data]);
+  const semesters = useMemo(() => (preview ? [previewSemester] : semestersQuery.data ?? []), [preview, semestersQuery.data]);
+  const options = useMemo(() => termOptions(enrollments, semesters, locale), [enrollments, semesters, locale]);
+  const termId = termChoice ?? defaultTermId(semesters, enrollments) ?? '';
+  const semester = semesters.find((entry) => entry.id === termId);
+  const termEnrollments = useMemo(
+    () => enrollments.filter((item) => item.semesterId === termId),
+    [enrollments, termId],
+  );
+  const agenda = useMemo(() => buildAgenda(termEnrollments, locale), [termEnrollments, locale]);
+
+  const today = new Date();
+  const start = weekStartOf(today, weekOffset);
+  const days = weekDates(start);
+  const weekLabel = `${formatDate(civilKey(days[0]))} – ${formatDate(civilKey(days[6]))}`;
+  const toggle = (id: string) => setOpenId((current) => (current === id ? null : id));
 
   return (
-    <ScreenShell title="Schedule" eyebrow="Current semester" subtitle="Your published class sessions.">
-      {warning ? <DataNotice message={warning} /> : null}
-      <Card tone="low" style={styles.weekCard}>
-        <View style={styles.weekHeader}>
-          <Button accessibilityLabel="Previous week" label="‹" onPress={() => setWeekOffset((current) => current - 1)} variant="text" />
-          <View style={styles.weekTitle}>
-            <UiText variant="label">{weekLabel}</UiText>
-            <UiText variant="bodySmall" tone="muted">{weekOffset === 0 ? 'Current week' : weekOffset > 0 ? `${weekOffset} week ahead` : `${Math.abs(weekOffset)} week back`}</UiText>
+    <AcademicShell
+      title={copy.scheduleTitle}
+      loading={!preview && enrollmentsQuery.isLoading}
+      error={preview ? null : enrollmentsQuery.error}
+      warning={preview ? null : enrollmentsQuery.warning}
+      onRetry={() => void enrollmentsQuery.reload()}
+    >
+      <TermField options={options} value={termId} onChange={(value) => { setTermChoice(value); setOpenId(null); }} allowAll={false} />
+      <SegmentTabs
+        label={copy.viewLabel}
+        value={view}
+        onChange={(value) => setView(value as View_)}
+        options={[{ value: 'week', label: copy.viewWeek }, { value: 'term', label: copy.viewTerm }]}
+      />
+      <ScreenSpacer />
+      {agenda.length === 0 ? <StatePanel kind="empty" title={copy.emptySchedule} /> : null}
+      {view === 'week' ? (
+        <View>
+          <View style={academicStyles.row}>
+            <Button accessibilityLabel={copy.prevWeek} label="‹" onPress={() => setWeekOffset((value) => value - 1)} variant="text" />
+            <UiText variant="label" accessibilityLiveRegion="polite">{weekLabel}</UiText>
+            <Button accessibilityLabel={copy.nextWeek} label="›" onPress={() => setWeekOffset((value) => value + 1)} variant="text" />
           </View>
-          <Button accessibilityLabel="Next week" label="›" onPress={() => setWeekOffset((current) => current + 1)} variant="text" />
-        </View>
-        <View style={styles.dayRow}>
-          {weekDays.map((date, index) => {
-            const active = weekOffset === 0 && date.toDateString() === today.toDateString();
+          {days.map((date, index) => {
+            const items = agendaForDate(agenda, date, semester);
             return (
-            <View key={date.toISOString()} style={[styles.dayCell, active ? styles.dayCellActive : undefined]}>
-              <UiText variant="meta" tone={active ? 'onPrimary' : 'muted'}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'][index]}</UiText>
-              <UiText variant="label" tone={active ? 'onPrimary' : 'default'}>{date.getDate()}</UiText>
-            </View>
+              <View key={civilKey(date)} testID={`day-${civilKey(date)}`}>
+                <UiText accessibilityRole="header" variant="label" tone={civilKey(date) === civilKey(today) ? 'primary' : 'muted'}>
+                  {copy.dayShort[index]} · {formatDate(civilKey(date))}
+                </UiText>
+                {items.length === 0 ? <UiText variant="bodySmall" tone="muted">{copy.noSessions}</UiText> : null}
+                {items.map((item) => <SessionCard key={item.id} item={item} expanded={openId === item.id} onToggle={() => toggle(item.id)} />)}
+              </View>
             );
           })}
         </View>
-      </Card>
-
+      ) : (
+        <View>
+          {DAY_ORDER.map((dow, index) => {
+            const items = agenda.filter((item) => item.dayOfWeek === dow);
+            if (items.length === 0) return null;
+            return (
+              <View key={dow}>
+                <UiText accessibilityRole="header" variant="label" tone="muted">{copy.dayLong[dow] ?? copy.dayShort[index]}</UiText>
+                {items.map((item) => <SessionCard key={item.id} item={item} expanded={openId === item.id} onToggle={() => toggle(item.id)} />)}
+              </View>
+            );
+          })}
+        </View>
+      )}
       <ScreenSpacer />
-      <SectionHeading title="Weekly sessions" actionLabel="Courses" onAction={() => navigation.navigate('courses')} />
-      {visibleSchedule.map((item, index) => (
-        <Card key={`${item.code}-${item.time}-${index}`} style={styles.scheduleCard}>
-          <View style={styles.scheduleTime}>
-            <UiText variant="label" tone="primary">{item.time.split(' – ')[0]}</UiText>
-            <UiText variant="meta" tone="muted">90 min</UiText>
-          </View>
-          <View style={styles.scheduleInfo}>
-            <UiText variant="label">{item.code} · {item.name}</UiText>
-            <UiText variant="bodySmall" tone="muted">Day {item.day} · Room {item.room}</UiText>
-          </View>
-          <Badge label="On campus" tone="primary" />
-        </Card>
-      ))}
-      {visibleSchedule.length === 0 ? <StatePanel kind="empty" title="No published sessions" description="Your timetable will appear after sections publish their schedules." /> : null}
-      <Card tone="low" style={styles.noteCard}>
-        <UiText variant="bodySmall" tone="muted">No classes after 15:00. Use the quiet afternoon for your thesis milestone.</UiText>
-      </Card>
-    </ScreenShell>
+      <ScheduleExport enrollments={termEnrollments} semester={semester} />
+    </AcademicShell>
   );
 }

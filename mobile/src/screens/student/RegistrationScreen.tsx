@@ -1,184 +1,169 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
-import {
-  Badge,
-  Button,
-  Card,
-  DataNotice,
-  ScreenShell,
-  ScreenSpacer,
-  SectionHeading,
-  StatePanel,
-  UiText,
-} from '../../components/Ui';
-import { apiClient, campusApi, ApiClientError, type MobileEnrollment, type RegistrationCatalogSection } from '../../api/client';
+import { Badge, Button, Card, ScreenSpacer, StatePanel, UiText } from '../../components/Ui';
+import { Dialog, Notice } from '../../components/ui/primitives';
+import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileScreenProps } from '../../navigation/types';
-import { useLiveResource } from './shared/useLiveResource';
-import { studentFriendlyErrorMessage } from './shared/errors';
-import { useStudentStyles } from './shared/styles';
+import { academicApi, type RegistrationWorkspace } from '../academic/academic-api';
+import { isActiveEnrollment, isDroppableEnrollment } from '../academic/academic-model';
+import { previewEnrollments, previewSections } from '../academic/academic-preview';
+import {
+  browseSections,
+  canSelect,
+  seatTier,
+  sectionAvailability,
+  type BrowseQuery,
+  type BrowseSection,
+  type SectionAvailability,
+  type SectionMeeting,
+} from '../academic/registration-browse';
+import { RegistrationControls } from '../academic/RegistrationControls';
+import { AcademicShell, academicStyles, isPreviewMode, openRoute, useAcademicCopy, useAcademicQuery } from '../academic/academic-ui';
+import { useRegistrationActions } from '../academic/useRegistrationActions';
+
+const PAGE_SIZE = 20;
+
+interface SectionView {
+  id: string;
+  code: string;
+  name: string;
+  number: string;
+  credits: number;
+  seats: string;
+  availability: SectionAvailability;
+  meetings: string;
+  failure?: string;
+  selected: boolean;
+  enrollmentId: string | null;
+}
+
+const previewWorkspace: RegistrationWorkspace = { sections: previewSections, enrollments: previewEnrollments, roundOpen: true, eligibility: null, closedReason: null };
+
+const availabilityTone = (value: SectionAvailability) => (value === 'open' ? 'success' : value === 'enrolled' ? 'primary' : 'warning');
 
 export function RegistrationScreen({ navigation }: MobileScreenProps) {
-  const styles = useStudentStyles();
-  const [pending, setPending] = useState<string | null>(null);
-  const [mutationError, setMutationError] = useState<string | null>(null);
-  const {
-    data: registrationData,
-    error,
-    warning,
-    isLoading,
-    reload,
-    setData: setRegistrationData,
-  } = useLiveResource<{
-    sections: RegistrationCatalogSection[];
-    enrollments: MobileEnrollment[];
-    roundOpen: boolean;
-  }>(
-    'registration',
-    { sections: [], enrollments: [], roundOpen: true },
-    async () => {
-      const enrollmentResponse = await campusApi.enrollments();
-      try {
-        const [rounds, catalog] = await Promise.all([
-          campusApi.registrationRounds(),
-          campusApi.registrationSections(),
-        ]);
-        return {
-          sections: catalog,
-          enrollments: enrollmentResponse,
-          roundOpen: rounds.some((round) => round.status === 'OPEN'),
-        };
-      } catch (catalogError) {
-        if (
-          catalogError instanceof ApiClientError
-          && (catalogError.code === 'WINDOW_CLOSED' || catalogError.code === 'COHORT_INELIGIBLE' || catalogError.code === 'ROUND_NOT_FOUND')
-        ) {
-          return { sections: [], enrollments: enrollmentResponse, roundOpen: false };
-        }
-        throw catalogError;
-      }
-    },
-    'Registration data is unavailable.',
+  const { copy, locale } = useAcademicCopy();
+  const preview = isPreviewMode();
+  const query = useAcademicQuery('academic.registration', () => academicApi.registrationWorkspace(), copy);
+  const workspace = preview ? previewWorkspace : query.data;
+  const [browse, setBrowse] = useState<BrowseQuery>({ search: '', curriculum: 'ALL', hideFull: false, sort: 'code' });
+  const [visibleGroups, setVisibleGroups] = useState(PAGE_SIZE);
+  const [dropTarget, setDropTarget] = useState<SectionView | null>(null);
+
+  const sections = useMemo(() => workspace?.sections ?? [], [workspace]);
+  const catalogIds = useMemo(() => sections.map((section) => section.id), [sections]);
+  const actions = useRegistrationActions({
+    copy, locale, preview, knownOffline: query.errorStatus === 0, reload: query.reload, catalogIds,
+  });
+
+  const enrolledMeetings = useMemo<SectionMeeting[]>(
+    () => (workspace?.enrollments ?? [])
+      .filter((item) => isActiveEnrollment(item.status))
+      .flatMap((item) => item.section?.schedules ?? []),
+    [workspace],
   );
-  const liveSections = registrationData.sections;
-  const enrollments = registrationData.enrollments;
-  const roundOpen = registrationData.roundOpen;
-  const activeEnrollmentCount = enrollments.filter((item) => item.status !== 'DROPPED').length;
+  const groups = useMemo(() => browseSections(sections, browse), [sections, browse]);
+  const roundOpen = workspace?.roundOpen ?? false;
 
-  const availableSections = apiClient.mode === 'preview'
-    ? [
-        { id: 'preview-cs401', code: 'CS401', name: 'Distributed Systems', slot: 'Tue · 10:00 · A3.201', seats: '12 seats left' },
-        { id: 'preview-ux305', code: 'UX305', name: 'Service Design', slot: 'Thu · 13:30 · C2.105', seats: '5 seats left' },
-        { id: 'preview-ma210', code: 'MA210', name: 'Applied Statistics', slot: 'Fri · 08:00 · B1.101', seats: '8 seats left',
-        },
-      ]
-    : liveSections.map((section) => ({
-        id: section.id,
-        code: section.courseCode,
-        name: section.courseName,
-        slot: 'Schedule pending',
-        seats: section.remainingSeats > 0 ? `${section.remainingSeats} seats left` : 'Full',
-      }));
-
-  const toggleEnrollment = async (sectionId: string) => {
-    if (apiClient.mode === 'preview') return;
-    setPending(sectionId);
-    setMutationError(null);
-    try {
-      const existing = enrollments.find((item) => item.sectionId === sectionId && item.status !== 'DROPPED');
-      if (existing) {
-        await campusApi.dropEnrollment(existing.id);
-        setRegistrationData((current) => ({
-          ...current,
-          enrollments: current.enrollments.filter((item) => item.id !== existing.id),
-        }));
-      } else {
-        const next = await campusApi.enroll(sectionId);
-        setRegistrationData((current) => ({
-          ...current,
-          enrollments: [...current.enrollments, next],
-        }));
-      }
-    } catch (nextError) {
-      setMutationError(studentFriendlyErrorMessage(nextError, 'Enrollment could not be updated.'));
-    } finally {
-      setPending(null);
-    }
+  const toView = (section: BrowseSection): SectionView => {
+    const availability = sectionAvailability(section, { roundOpen, enrolledMeetings, creditsRemaining: workspace?.eligibility?.creditsRemaining });
+    const failure = actions.basket.failures[section.id];
+    const enrollment = (workspace?.enrollments ?? []).find((item) => item.sectionId === section.id && isDroppableEnrollment(item.status));
+    return {
+      id: section.id,
+      code: section.courseCode,
+      name: section.courseName,
+      number: section.sectionNumber,
+      credits: section.credits ?? 0,
+      seats: seatTier(section) === 'full' ? copy.seatsFull : fillCopy(copy.seatsLeft, { n: section.remainingSeats }),
+      availability,
+      meetings: (section.schedules ?? []).map((slot) => `${copy.dayLong[slot.dayOfWeek === 0 ? 1 : slot.dayOfWeek] ?? ''} ${slot.startTime}–${slot.endTime}${slot.room ? ` · ${slot.room}` : ''}`).join('; '),
+      failure: failure ? copy.errors[failure.messageKey] ?? copy.errors.generic : undefined,
+      selected: actions.basket.selected.includes(section.id),
+      enrollmentId: enrollment?.id ?? null,
+    };
   };
 
-  if (isLoading || error) {
-    return (
-      <ScreenShell title="Registration" eyebrow="Course planning" subtitle="Review sections in the current registration round.">
-        <StatePanel
-          kind={isLoading ? 'loading' : 'error'}
-          title={isLoading ? 'Loading registration…' : 'Registration unavailable'}
-          description={error ?? 'Retrieving sections and current enrollments.'}
-          actionLabel={error ? 'Try again' : undefined}
-          onAction={error ? () => void reload() : undefined}
-        />
-      </ScreenShell>
-    );
-  }
+  const eligibility = workspace?.eligibility;
+  const selectedCount = actions.basket.selected.length;
 
   return (
-    <ScreenShell title="Registration" eyebrow="Course planning" subtitle="Compare available sections and review your current choices.">
-      {warning ? <DataNotice message={warning} /> : null}
-      <Card tone="primary" style={styles.registrationHero}>
-        <UiText variant="meta" tone="primary">COURSE REGISTRATION</UiText>
-        <View style={styles.registrationHeroHeader}>
-          <View style={styles.registrationHeroCopy}>
-            <UiText variant="headlineSmall">Current selections</UiText>
-            <UiText variant="bodySmall" tone="muted">
-              {apiClient.mode === 'preview'
-                ? 'Preview data stays on this device.'
-                : `${activeEnrollmentCount} active section${activeEnrollmentCount === 1 ? '' : 's'} selected.`}
-            </UiText>
-          </View>
-          <Badge
-            label={apiClient.mode === 'preview' ? 'Preview' : `${activeEnrollmentCount} selected`}
-            tone={activeEnrollmentCount > 0 ? 'success' : 'primary'}
-          />
-        </View>
-        <Button label="View selected courses" onPress={() => navigation.navigate('courses')} variant="secondary" />
-      </Card>
-      <ScreenSpacer />
-      <SectionHeading title="Recommended sections" />
-      {mutationError ? (
-        <StatePanel kind="error" title="Could not update registration" description={mutationError} />
+    <AcademicShell
+      title={copy.registrationTitle}
+      loading={!preview && query.isLoading}
+      error={preview ? null : query.error}
+      warning={preview ? null : query.warning}
+      onRetry={() => void query.reload()}
+    >
+      {actions.notice ? <Notice message={actions.notice.text} tone={actions.notice.tone} /> : null}
+      {!roundOpen ? <StatePanel kind="empty" title={copy.roundClosed} /> : null}
+      {eligibility?.creditLimit != null ? (
+        <UiText variant="bodySmall" tone="muted">{fillCopy(copy.creditsUsed, { used: eligibility.creditsUsed ?? 0, limit: eligibility.creditLimit })}</UiText>
       ) : null}
-      {availableSections.map((section) => {
-        const enrolled = enrollments.some((item) => item.sectionId === section.id && item.status !== 'DROPPED');
-        const isPreview = apiClient.mode === 'preview';
-        return (
-        <Card key={section.id} style={styles.registrationCard}>
-          <UiText variant="meta" tone="primary">{section.code}</UiText>
-          <UiText variant="headlineSmall" style={styles.registrationCourseTitle}>
-            {section.name}
-          </UiText>
-          <View style={styles.registrationMeta}>
-            <UiText variant="bodySmall" tone="muted" style={styles.registrationSlot}>
-              {section.slot}
-            </UiText>
-            <Badge
-              label={section.seats}
-              tone={section.seats === 'Full' ? 'warning' : 'success'}
-            />
-          </View>
-          <Button
-            label={isPreview ? 'Preview only' : enrolled ? 'Drop section' : 'Add section'}
-            disabled={isPreview || !roundOpen || pending === section.id || section.seats === 'Full'}
-            loading={pending === section.id}
-            onPress={() => void toggleEnrollment(section.id)}
-            variant="secondary"
-          />
+      {selectedCount > 0 ? (
+        <Card tone="primary" style={academicStyles.card}>
+          <UiText accessibilityRole="header" variant="headlineSmall">{fillCopy(copy.basketTitle, { n: selectedCount })}</UiText>
+          {Object.keys(actions.basket.failures).length > 0 ? <UiText variant="bodySmall" tone="muted">{copy.selectionKept}</UiText> : null}
+          <Button label={copy.registerSelected} onPress={() => void actions.registerSelected()} loading={actions.busy} disabled={preview} />
         </Card>
-        );
-      })}
-      {!roundOpen ? (
-        <StatePanel kind="empty" title="No registration round is open" description="Course registration is unavailable until an academic round opens." />
-      ) : availableSections.length === 0 ? (
-        <StatePanel kind="empty" title="No sections available" description="New sections will appear when the academic office publishes them." />
       ) : null}
-    </ScreenShell>
+      <RegistrationControls query={browse} onChange={(next) => { setBrowse(next); setVisibleGroups(PAGE_SIZE); }} />
+      <ScreenSpacer />
+      {roundOpen && groups.length === 0 ? <StatePanel kind="empty" title={copy.noSections} /> : null}
+      {groups.slice(0, visibleGroups).map((group) => (
+        <View key={group.courseKey}>
+          <UiText accessibilityRole="header" variant="label" tone="primary">
+            {group.courseCode} · {group.courseName} · {fillCopy(copy.credits, { n: group.credits })}
+          </UiText>
+          {group.sections.map((raw) => {
+            const section = toView(raw);
+            return (
+              <Card key={section.id} style={academicStyles.card}>
+                <View style={academicStyles.row}>
+                  <View style={academicStyles.rowCopy}>
+                    <UiText variant="bodyMedium">{fillCopy(copy.section, { n: section.number })}</UiText>
+                    {section.meetings ? <UiText variant="bodySmall" tone="muted">{section.meetings}</UiText> : null}
+                  </View>
+                  <Badge label={section.seats} tone={section.seats === copy.seatsFull ? 'warning' : 'success'} />
+                </View>
+                <View style={academicStyles.actions}>
+                  <Badge label={copy.availability[section.availability]} tone={availabilityTone(section.availability)} />
+                  {section.failure ? <UiText accessibilityRole="alert" variant="bodySmall" tone="error">{section.failure}</UiText> : null}
+                  {section.enrollmentId ? (
+                    <Button label={copy.dropSection} accessibilityLabel={`${copy.dropSection}: ${section.code}`} onPress={() => setDropTarget(section)} variant="secondary" disabled={preview || actions.busy} />
+                  ) : canSelect(section.availability) || section.selected ? (
+                    <Button
+                      label={section.selected ? copy.unselect : copy.select}
+                      accessibilityLabel={`${section.selected ? copy.unselect : copy.select}: ${section.code} ${fillCopy(copy.section, { n: section.number })}`}
+                      onPress={() => actions.dispatch({ type: 'toggle', sectionId: section.id })}
+                      variant={section.selected ? 'primary' : 'secondary'}
+                      disabled={preview || actions.busy}
+                    />
+                  ) : null}
+                </View>
+              </Card>
+            );
+          })}
+        </View>
+      ))}
+      {groups.length > visibleGroups ? <Button label={copy.loadMore} onPress={() => setVisibleGroups((count) => count + PAGE_SIZE)} variant="secondary" /> : null}
+      <ScreenSpacer />
+      <Button label={copy.viewEnrollments} onPress={() => openRoute(navigation, 'enrollments')} variant="secondary" />
+      <Dialog
+        visible={dropTarget !== null}
+        title={copy.dropTitle}
+        description={dropTarget ? fillCopy(copy.dropBody, { name: `${dropTarget.code} ${dropTarget.name}` }) : undefined}
+        confirmLabel={copy.dropSection}
+        cancelLabel={copy.cancel}
+        destructive
+        onCancel={() => setDropTarget(null)}
+        onConfirm={() => {
+          const target = dropTarget;
+          setDropTarget(null);
+          if (target?.enrollmentId) void actions.drop(target.enrollmentId);
+        }}
+      />
+    </AcademicShell>
   );
 }

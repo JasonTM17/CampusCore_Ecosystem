@@ -2,6 +2,9 @@ import type { ComponentType } from 'react';
 
 import { SignInScreen } from './auth/SignInScreen';
 import { ForgotPasswordScreen, LoggedOutScreen } from './account';
+import { CurriculumScreen } from './academic/CurriculumScreen';
+import { EnrollmentsScreen } from './academic/EnrollmentsScreen';
+import { TranscriptScreen } from './academic/TranscriptScreen';
 import ResetPasswordRoute from './account/ResetPasswordRoute';
 import { AssistantChatScreen } from './assistant/AssistantScreen';
 import {
@@ -48,6 +51,9 @@ export const screenComponents: Record<ScreenName, ComponentType<MobileScreenProp
   schedule: ScheduleScreen,
   courses: CoursesScreen,
   grades: GradesScreen,
+  transcript: TranscriptScreen,
+  curriculum: CurriculumScreen,
+  enrollments: EnrollmentsScreen,
   attendance: AttendanceScreen,
   registration: RegistrationScreen,
   events: EventsScreen,

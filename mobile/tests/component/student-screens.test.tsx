@@ -83,7 +83,7 @@ describe('student screens (preview mode)', () => {
   test('courses renders list; grid turns two-column on medium width', async () => {
     setWidth(360);
     await renderThemed(<CoursesScreen {...props} />);
-    expect(screen.getByRole('header', { name: 'Courses' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Học phần' })).toBeOnTheScreen();
     expect(screen.getByText('Software Architecture')).toBeOnTheScreen();
     const compact = screen.getByTestId('course-grid');
     expect(StyleSheet.flatten(compact.props.style)?.flexDirection).not.toBe('row');
@@ -97,8 +97,8 @@ describe('student screens (preview mode)', () => {
   test('grades renders metrics and rows', async () => {
     setWidth(360);
     await renderThemed(<GradesScreen {...props} />);
-    expect(screen.getByRole('header', { name: 'Grades' })).toBeOnTheScreen();
-    expect(screen.getByText('Average grade')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Điểm học kỳ' })).toBeOnTheScreen();
+    expect(screen.getByText('Điểm trung bình (hệ 10)')).toBeOnTheScreen();
     expect(screen.getByText('CS204')).toBeOnTheScreen();
   });
 
