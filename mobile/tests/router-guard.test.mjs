@@ -14,18 +14,23 @@ const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
  * the assertions cover runtime behavior, not text.
  */
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cu-router-'));
-for (const name of ['routes', 'route-map']) {
-  const src = fs.readFileSync(
-    path.join(mobileRoot, 'src/navigation', `${name}.ts`),
-    'utf8',
-  );
+const modules = [
+  ['routes', 'src/navigation/routes.ts'],
+  ['route-map', 'src/navigation/route-map.ts'],
+  ['capabilities', 'src/auth/capabilities.ts'],
+];
+for (const [name, file] of modules) {
+  const src = fs.readFileSync(path.join(mobileRoot, file), 'utf8');
   const { outputText } = ts.transpileModule(src, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
     fileName: `${name}.ts`,
   });
   fs.writeFileSync(
     path.join(tmp, `${name}.mjs`),
-    outputText.replaceAll(/from '\.\/(routes|route-map)'/g, "from './$1.mjs'"),
+    outputText.replaceAll(
+      /from '\.{1,2}\/(?:[a-z-]+\/)?(routes|route-map|capabilities)'/g,
+      "from './$1.mjs'",
+    ),
   );
 }
 const routeMap = await import(
@@ -145,4 +150,20 @@ test('roleHomePath agrees with the guard redirect target', () => {
   assert.equal(roleHomePath('student'), '/dashboard');
   assert.equal(roleHomePath('lecturer'), '/lecturer/dashboard');
   assert.equal(roleHomePath('admin'), '/admin/dashboard');
+});
+
+test('lane paths stay out of the screen registry and the guard fails closed by default', () => {
+  for (const p of ['/dashboard/dean', '/apply/review', '/careers/desk', '/library/desk', '/admin']) {
+    assert.equal(screenForPath(p), null, p);
+    assert.equal(
+      resolveGuard('authenticated', 'admin', p).reason,
+      'lane-unavailable',
+      `${p} needs an explicit capability`,
+    );
+  }
+  // Non-lane decisions carry no reason field.
+  assert.deepEqual(resolveGuard('authenticated', 'student', '/wat'), {
+    action: 'redirect',
+    to: 'dashboard.student',
+  });
 });

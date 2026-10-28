@@ -1,4 +1,11 @@
-import { canAccessScreen, type ScreenName, type UserRole } from './routes';
+import { NO_CAPABILITIES, normalizeDeepLink, type CapabilitySet } from '../auth/capabilities';
+import {
+  canAccessLaneScreen,
+  canAccessScreen,
+  type LaneScreenId,
+  type ScreenName,
+  type UserRole,
+} from './routes';
 
 /**
  * ScreenName → expo-router pathname compatibility map
@@ -52,6 +59,40 @@ const pathByScreen: Record<ScreenName, string> = {
   'lecturer.grading': '/lecturer/grading',
   'lecturer.attendance': '/lecturer/attendance',
 };
+
+/**
+ * Lane screens mirror the portal path they replace, so a claimed universal
+ * link and the manifest row (`contracts/ecosystem/mobile-parity.json`,
+ * `laneGated: true`) name the same route. They never enter `pathByScreen`: a
+ * lane path resolves only through the capability check in `resolveGuard`.
+ */
+const lanePathById: Record<LaneScreenId, string> = {
+  'dean.overview': '/dashboard/dean',
+  'staff.applyReview': '/apply/review',
+  'staff.careersDesk': '/careers/desk',
+  'staff.libraryDesk': '/library/desk',
+  'admin.overview': '/admin',
+  'admin.attendance': '/admin/attendance',
+  'admin.audit': '/admin/audit',
+  'admin.creditLimits': '/admin/credit-limit-applications',
+  'admin.enrollments': '/admin/enrollments',
+  'admin.events': '/admin/events',
+  'admin.notifications': '/admin/notifications',
+};
+
+const laneByPath = new Map<string, LaneScreenId>(
+  Object.entries(lanePathById).map(([id, path]) => [path, id as LaneScreenId]),
+);
+
+export function lanePathFor(id: LaneScreenId): string {
+  return lanePathById[id];
+}
+
+/** Deep-link path → lane screen, or null when it is not a lane route. */
+export function laneScreenForPath(pathname: string): LaneScreenId | null {
+  const clean = pathname.split('?')[0].replace(/\/+$/, '') || '/';
+  return laneByPath.get(clean) ?? null;
+}
 
 // Dynamic templates (`[topicId]`) never enter the exact-match table — the
 // segment form is resolved by pattern in `screenForPath`.
@@ -121,6 +162,12 @@ export interface GuardDecision {
   action: 'allow' | 'redirect';
   /** Present when action === 'redirect' — a ScreenName, never a raw path. */
   to?: ScreenName;
+  /**
+   * Set when a lane route was refused because its flag is off or the session
+   * holds no grant: the redirect target is the role home, which carries the
+   * web hand-off for lanes that stay on the portal.
+   */
+  reason?: 'lane-unavailable';
 }
 
 /**
@@ -129,6 +176,9 @@ export interface GuardDecision {
  * - signedOut: only the sign-in family renders; anything else → /sign-in.
  * - preview/authenticated: sign-in paths bounce to role home; registry paths
  *   need role access (else role home); unknown paths → role home.
+ * - lane routes (flag-gated) are allowed only for an authenticated session
+ *   whose capability set grants them; the default empty set refuses every one
+ *   (preview is never an authorization substitute, so it gets no lane).
  * - preview role switching mutates `role` inside the pseudo-session — the
  *   guard then treats the fake role as the surface selector exactly like a
  *   live one (KM-9: preview is never an authorization substitute).
@@ -137,6 +187,7 @@ export function resolveGuard(
   session: SessionKind,
   role: UserRole,
   pathname: string,
+  capabilities: CapabilitySet = NO_CAPABILITIES,
 ): GuardDecision {
   const clean = pathname.split('?')[0].replace(/\/+$/, '') || '/';
   if (clean === '/auth/callback') {
@@ -148,6 +199,12 @@ export function resolveGuard(
     return clean === '/sign-in' || clean === '/sign-in-blocked' || clean === '/'
       ? { action: 'allow' }
       : { action: 'redirect', to: 'auth.signIn' };
+  }
+  const lane = laneScreenForPath(clean);
+  if (lane !== null) {
+    return session === 'authenticated' && canAccessLaneScreen(role, capabilities, lane)
+      ? { action: 'allow' }
+      : { action: 'redirect', to: roleHomeScreen[role], reason: 'lane-unavailable' };
   }
   const screen = screenForPath(clean);
   if (clean === '/') {
@@ -162,4 +219,27 @@ export function resolveGuard(
   return canAccessScreen(role, screen)
     ? { action: 'allow' }
     : { action: 'redirect', to: roleHomeScreen[role] };
+}
+
+/**
+ * Incoming link → href to open. Anything that is not an app-owned link, an
+ * unknown path, the OIDC callback, or a lane route the session is not granted
+ * resolves to the sign-in / role-home screen instead of being opened.
+ */
+export function resolveDeepLink(
+  url: string,
+  session: SessionKind,
+  role: UserRole,
+  capabilities: CapabilitySet = NO_CAPABILITIES,
+): { action: 'open' | 'redirect'; href: string } {
+  const fallback = session === 'signedOut' ? '/sign-in' : roleHomePath(role);
+  const path = normalizeDeepLink(url);
+  if (path === null) {
+    return { action: 'redirect', href: fallback };
+  }
+  const decision = resolveGuard(session, role, path, capabilities);
+  if (decision.action === 'allow') {
+    return { action: 'open', href: path };
+  }
+  return { action: 'redirect', href: decision.to ? pathFor(decision.to) : fallback };
 }

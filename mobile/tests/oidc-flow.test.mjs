@@ -135,3 +135,11 @@ test('role precedence is LECTURER → STUDENT → ADMIN-web-only (KM-8)', () => 
   assert.equal(roleFromClaims(['PARENT']), null);
   assert.equal(roleFromClaims([]), null);
 });
+
+test('dean and department-head claims never select a lane on their own', () => {
+  assert.equal(roleFromClaims(['TRUONG_KHOA']), null);
+  assert.equal(roleFromClaims(['TRUONG_BO_MON']), null);
+  assert.equal(roleFromClaims(['LECTURER', 'TRUONG_BO_MON']), 'lecturer');
+  assert.equal(roleFromClaims(['STUDENT', 'TRUONG_KHOA']), 'student');
+  assert.equal(roleFromClaims(['truong_khoa', 'admin']), 'admin');
+});

@@ -31,7 +31,7 @@ export default function AppGroupLayout() {
   const { colors, window } = useTheme();
   const expanded = window.class === 'expanded';
 
-  const decision = resolveGuard(session.kind, session.role, pathname);
+  const decision = resolveGuard(session.kind, session.role, pathname, session.capabilities);
   if (decision.action === 'redirect' && decision.to) {
     return <Redirect href={pathFor(decision.to)} />;
   }

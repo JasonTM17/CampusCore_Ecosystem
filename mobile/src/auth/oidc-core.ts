@@ -72,9 +72,13 @@ export function decodeJwtPayload(token: string): Record<string, unknown> | null 
 }
 
 /**
- * Role precedence [LECTURER → STUDENT → ADMIN-web-only] (KM-8): ADMIN and
- * SUPER_ADMIN have no native lane of their own — an admin-only account gets
- * the web-only state, while ADMIN+LECTURER selects the lecturer lane.
+ * Role precedence [LECTURER → STUDENT → ADMIN] (KM-8) picks the UI surface
+ * only: ADMIN+LECTURER selects the lecturer lane, ADMIN+STUDENT the student
+ * lane, and an admin-only account maps to `'admin'`, whose home is the
+ * web-only hand-off panel. Native admin, dean and staff lanes are never
+ * derived here — they come from `resolveCapabilities` (capabilities.ts) behind
+ * the lane flags. Dean/department-head claims (`TRUONG_KHOA`, `TRUONG_BO_MON`)
+ * do not select a lane: they sign in only through a lecturer claim.
  */
 export function roleFromClaims(claims: readonly string[]): UserRole | null {
   const normalized = new Set(claims.map((role) => role.toUpperCase()));

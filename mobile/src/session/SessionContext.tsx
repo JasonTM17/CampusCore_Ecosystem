@@ -11,9 +11,15 @@ import {
 
 import { apiClient, campusApi } from '../api/client';
 import { unregisterPushBestEffort } from '../api/push-notifications';
+import {
+  NO_CAPABILITIES,
+  resolveCapabilities,
+  type CapabilitySet,
+} from '../auth/capabilities';
 import { decodeJwtPayload, roleFromClaims } from '../auth/oidc-session';
 import { sessionStore } from '../auth/mobile-session-store';
 import { PUSH_OPT_IN_ENABLED } from '../config/features';
+import { LANE_FLAGS } from '../config/lane-flags';
 import { clearQueryCache } from '../hooks/query-cache';
 import type { SessionKind } from '../navigation/route-map';
 import type { UserRole } from '../navigation/routes';
@@ -34,6 +40,12 @@ export interface SessionState {
   accountId: string | null;
   /** Reason a sign-in attempt terminated without a session (KM-12 UX). */
   blockedReason: string | null;
+  /**
+   * Flag-gated lane grants resolved from the access-token claims. Empty while
+   * signed out/preview: preview is never an authorization substitute. Absent
+   * means none (fail closed) so a bare session value stays valid.
+   */
+  capabilities?: CapabilitySet;
 }
 
 interface SessionActions {
@@ -59,7 +71,19 @@ const initialState: SessionState = {
   role: 'student',
   accountId: null,
   blockedReason: null,
+  capabilities: NO_CAPABILITIES,
 };
+
+function claimsOf(accessToken: string | null): string[] {
+  const claims = accessToken ? decodeJwtPayload(accessToken) : null;
+  return Array.isArray(claims?.roles)
+    ? claims.roles.filter((r): r is string => typeof r === 'string')
+    : [];
+}
+
+function capabilitiesOf(accessToken: string | null): CapabilitySet {
+  return resolveCapabilities({ claims: claimsOf(accessToken), lanes: LANE_FLAGS });
+}
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SessionState>(initialState);
@@ -88,15 +112,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           const claims = result.accessToken
             ? decodeJwtPayload(result.accessToken)
             : null;
-          const role = roleFromClaims(
-            Array.isArray(claims?.roles)
-              ? claims.roles.filter((r): r is string => typeof r === 'string')
-              : [],
-          );
+          const role = roleFromClaims(claimsOf(result.accessToken));
           const accountId = typeof claims?.sub === 'string' ? claims.sub : null;
           if (role && accountId && !cancelled) {
             setEpoch((e) => e + 1);
-            setState({ kind: 'authenticated', role, accountId, blockedReason: null });
+            setState({
+              kind: 'authenticated',
+              role,
+              accountId,
+              blockedReason: null,
+              capabilities: capabilitiesOf(result.accessToken),
+            });
           }
         }
       } finally {
@@ -137,7 +163,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       return;
     }
     setEpoch((e) => e + 1);
-    setState({ kind: 'authenticated', role, accountId, blockedReason: null });
+    setState({
+      kind: 'authenticated',
+      role,
+      accountId,
+      blockedReason: null,
+      capabilities: capabilitiesOf(sessionStore.getAccessToken()),
+    });
   }, []);
 
   const switchRole = useCallback((role: UserRole) => {
@@ -176,10 +208,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         .then((installationId) => unregisterPushBestEffort(campusApi, installationId, accessTokenSnapshot))
         .catch(() => undefined);
     }
-    await sessionStore.signOut();
-    clearQueryCache();
-    setEpoch((e) => e + 1);
-    setState(initialState);
+    try {
+      await sessionStore.signOut();
+    } finally {
+      // The wipe must not depend on the store call succeeding: a throwing
+      // revoke/storage error would otherwise leave this account's cached data
+      // and authenticated state behind.
+      clearQueryCache();
+      setEpoch((e) => e + 1);
+      setState(initialState);
+    }
   }, []);
 
   const value = useMemo<SessionValue>(() => ({
