@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BottomNavigation } from '../../src/components/BottomNavigation';
 import { MenuPanel } from '../../src/components/MenuPanel';
+import { NavigationRail } from '../../src/components/NavigationRail';
 import { useTheme } from '../../src/design/theme';
 import {
   pathFor,
@@ -19,7 +20,7 @@ import { useSession } from '../../src/session/SessionContext';
  * (app) group layout — owns the protected-route guard and the chrome
  * (mobile-policy §1/§2, KM-13a, KM-14). Every child render first passes
  * `resolveGuard`; a redirect decision renders `<Redirect>` so deep links and
- * back navigation cannot bypass session or role gates. Bottom navigation and
+ * back navigation cannot bypass session or role gates. Adaptive navigation and
  * the menu panel live here, not inside screens.
  */
 export default function AppGroupLayout() {
@@ -27,7 +28,8 @@ export default function AppGroupLayout() {
   const session = useSession();
   const pathname = usePathname() ?? '/';
   const [menuOpen, setMenuOpen] = useState(false);
-  const { colors } = useTheme();
+  const { colors, window } = useTheme();
+  const expanded = window.class === 'expanded';
 
   const decision = resolveGuard(session.kind, session.role, pathname);
   if (decision.action === 'redirect' && decision.to) {
@@ -44,16 +46,27 @@ export default function AppGroupLayout() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <View style={styles.container}>
         <View
+          testID="app-chrome"
           importantForAccessibility={menuOpen ? 'no-hide-descendants' : 'auto'}
-          style={styles.content}
+          style={[styles.content, expanded ? styles.expanded : undefined]}
         >
-          <Slot />
-          <BottomNavigation
-            activeRoute={activeRoute}
-            role={session.role}
-            onNavigate={navigate}
-            onMenu={() => setMenuOpen(true)}
-          />
+          {expanded ? (
+            <NavigationRail
+              activeRoute={activeRoute}
+              role={session.role}
+              onNavigate={navigate}
+              onMenu={() => setMenuOpen(true)}
+            />
+          ) : null}
+          <View testID="app-route-content" style={styles.routeContent}><Slot /></View>
+          {!expanded ? (
+            <BottomNavigation
+              activeRoute={activeRoute}
+              role={session.role}
+              onNavigate={navigate}
+              onMenu={() => setMenuOpen(true)}
+            />
+          ) : null}
         </View>
         {menuOpen ? (
           <MenuPanel
@@ -78,4 +91,6 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   container: { flex: 1 },
   content: { flex: 1 },
+  expanded: { flexDirection: 'row' },
+  routeContent: { flex: 1, minWidth: 0 },
 });

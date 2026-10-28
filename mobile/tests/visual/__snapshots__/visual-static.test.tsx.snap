@@ -1,5 +1,1155 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
+exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout dark w360 1`] = `
+{
+  "c": [
+    {
+      "c": [
+        {
+          "c": [
+            {
+              "c": [],
+              "s": {
+                "flex": 1,
+              },
+              "t": "View",
+            },
+            {
+              "c": [
+                {
+                  "c": [
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󰋞",
+                                  ],
+                                  "s": {
+                                    "color": "#98BDD7",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "#1C314A",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "marginBottom": 2,
+                                "width": 40,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Home",
+                              ],
+                              "s": {
+                                "color": "#98BDD7",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Home",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "flex": 1,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 2,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󰨳",
+                                  ],
+                                  "s": {
+                                    "color": "#A9B1BC",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "marginBottom": 2,
+                                "width": 40,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Schedule",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Schedule",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "flex": 1,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 2,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󱚖",
+                                  ],
+                                  "s": {
+                                    "color": "#A9B1BC",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "marginBottom": 2,
+                                "width": 40,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Register",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Register",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "flex": 1,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 2,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󰂜",
+                                  ],
+                                  "s": {
+                                    "color": "#A9B1BC",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "marginBottom": 2,
+                                "width": 40,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Alerts",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Alerts",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "flex": 1,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 2,
+                          },
+                          "t": "View",
+                        },
+                      ],
+                      "role": "tablist",
+                      "s": {
+                        "alignItems": "center",
+                        "flex": 4,
+                        "flexDirection": "row",
+                      },
+                      "t": "View",
+                    },
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "󰍜",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 20,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "s": {
+                            "alignItems": "center",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                            "marginBottom": 2,
+                            "width": 40,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            "Menu",
+                          ],
+                          "s": {
+                            "color": "#A9B1BC",
+                            "fontSize": 12,
+                          },
+                          "t": "Text",
+                        },
+                      ],
+                      "label": "Open menu",
+                      "role": "button",
+                      "s": {
+                        "alignItems": "center",
+                        "flex": 1,
+                        "justifyContent": "center",
+                        "paddingHorizontal": 2,
+                      },
+                      "t": "View",
+                    },
+                  ],
+                  "s": {
+                    "alignItems": "center",
+                    "flexDirection": "row",
+                  },
+                  "t": "View",
+                },
+              ],
+              "s": {
+                "backgroundColor": "#1E2229",
+                "paddingHorizontal": 4,
+              },
+              "t": "View",
+            },
+          ],
+          "s": {
+            "flex": 1,
+          },
+          "t": "View",
+        },
+      ],
+      "s": {
+        "flex": 1,
+      },
+      "t": "View",
+    },
+  ],
+  "s": {
+    "backgroundColor": "#13161B",
+    "flex": 1,
+  },
+  "t": "View",
+}
+`;
+
+exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout dark w1000 1`] = `
+{
+  "c": [
+    {
+      "c": [
+        {
+          "c": [
+            {
+              "c": [
+                {
+                  "c": [
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󰋞",
+                                  ],
+                                  "s": {
+                                    "color": "#98BDD7",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "#1C314A",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "marginBottom": 4,
+                                "width": 40,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Home",
+                              ],
+                              "s": {
+                                "color": "#98BDD7",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Home",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "justifyContent": "center",
+                            "paddingHorizontal": 4,
+                            "paddingVertical": 8,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󰨳",
+                                  ],
+                                  "s": {
+                                    "color": "#A9B1BC",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "marginBottom": 4,
+                                "width": 40,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Schedule",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Schedule",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "justifyContent": "center",
+                            "paddingHorizontal": 4,
+                            "paddingVertical": 8,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󱚖",
+                                  ],
+                                  "s": {
+                                    "color": "#A9B1BC",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "marginBottom": 4,
+                                "width": 40,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Register",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Register",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "justifyContent": "center",
+                            "paddingHorizontal": 4,
+                            "paddingVertical": 8,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󰂜",
+                                  ],
+                                  "s": {
+                                    "color": "#A9B1BC",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "marginBottom": 4,
+                                "width": 40,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Alerts",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Alerts",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "justifyContent": "center",
+                            "paddingHorizontal": 4,
+                            "paddingVertical": 8,
+                          },
+                          "t": "View",
+                        },
+                      ],
+                      "role": "tablist",
+                      "s": {
+                        "gap": 8,
+                      },
+                      "t": "View",
+                    },
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "󰍜",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 20,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "s": {
+                            "alignItems": "center",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                            "marginBottom": 4,
+                            "width": 40,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            "Menu",
+                          ],
+                          "s": {
+                            "color": "#A9B1BC",
+                            "fontSize": 12,
+                          },
+                          "t": "Text",
+                        },
+                      ],
+                      "label": "Open menu",
+                      "role": "button",
+                      "s": {
+                        "alignItems": "center",
+                        "justifyContent": "center",
+                        "paddingHorizontal": 4,
+                        "paddingVertical": 8,
+                      },
+                      "t": "View",
+                    },
+                  ],
+                  "t": "View",
+                },
+              ],
+              "s": {
+                "backgroundColor": "#1E2229",
+                "width": 112,
+              },
+              "t": "RCTScrollView",
+            },
+            {
+              "c": [],
+              "s": {
+                "flex": 1,
+              },
+              "t": "View",
+            },
+          ],
+          "s": {
+            "flex": 1,
+            "flexDirection": "row",
+          },
+          "t": "View",
+        },
+      ],
+      "s": {
+        "flex": 1,
+      },
+      "t": "View",
+    },
+  ],
+  "s": {
+    "backgroundColor": "#13161B",
+    "flex": 1,
+  },
+  "t": "View",
+}
+`;
+
+exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout light w360 1`] = `
+{
+  "c": [
+    {
+      "c": [
+        {
+          "c": [
+            {
+              "c": [],
+              "s": {
+                "flex": 1,
+              },
+              "t": "View",
+            },
+            {
+              "c": [
+                {
+                  "c": [
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󰋞",
+                                  ],
+                                  "s": {
+                                    "color": "#003F87",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "#E6F0FF",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "marginBottom": 2,
+                                "width": 40,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Home",
+                              ],
+                              "s": {
+                                "color": "#003F87",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Home",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "flex": 1,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 2,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󰨳",
+                                  ],
+                                  "s": {
+                                    "color": "#526174",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "marginBottom": 2,
+                                "width": 40,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Schedule",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Schedule",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "flex": 1,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 2,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󱚖",
+                                  ],
+                                  "s": {
+                                    "color": "#526174",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "marginBottom": 2,
+                                "width": 40,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Register",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Register",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "flex": 1,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 2,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󰂜",
+                                  ],
+                                  "s": {
+                                    "color": "#526174",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "marginBottom": 2,
+                                "width": 40,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Alerts",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Alerts",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "flex": 1,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 2,
+                          },
+                          "t": "View",
+                        },
+                      ],
+                      "role": "tablist",
+                      "s": {
+                        "alignItems": "center",
+                        "flex": 4,
+                        "flexDirection": "row",
+                      },
+                      "t": "View",
+                    },
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "󰍜",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 20,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "s": {
+                            "alignItems": "center",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                            "marginBottom": 2,
+                            "width": 40,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            "Menu",
+                          ],
+                          "s": {
+                            "color": "#526174",
+                            "fontSize": 12,
+                          },
+                          "t": "Text",
+                        },
+                      ],
+                      "label": "Open menu",
+                      "role": "button",
+                      "s": {
+                        "alignItems": "center",
+                        "flex": 1,
+                        "justifyContent": "center",
+                        "paddingHorizontal": 2,
+                      },
+                      "t": "View",
+                    },
+                  ],
+                  "s": {
+                    "alignItems": "center",
+                    "flexDirection": "row",
+                  },
+                  "t": "View",
+                },
+              ],
+              "s": {
+                "backgroundColor": "#FFFFFF",
+                "paddingHorizontal": 4,
+              },
+              "t": "View",
+            },
+          ],
+          "s": {
+            "flex": 1,
+          },
+          "t": "View",
+        },
+      ],
+      "s": {
+        "flex": 1,
+      },
+      "t": "View",
+    },
+  ],
+  "s": {
+    "backgroundColor": "#F9F9FF",
+    "flex": 1,
+  },
+  "t": "View",
+}
+`;
+
+exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout light w1000 1`] = `
+{
+  "c": [
+    {
+      "c": [
+        {
+          "c": [
+            {
+              "c": [
+                {
+                  "c": [
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󰋞",
+                                  ],
+                                  "s": {
+                                    "color": "#003F87",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "backgroundColor": "#E6F0FF",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "marginBottom": 4,
+                                "width": 40,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Home",
+                              ],
+                              "s": {
+                                "color": "#003F87",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Home",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "justifyContent": "center",
+                            "paddingHorizontal": 4,
+                            "paddingVertical": 8,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󰨳",
+                                  ],
+                                  "s": {
+                                    "color": "#526174",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "marginBottom": 4,
+                                "width": 40,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Schedule",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Schedule",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "justifyContent": "center",
+                            "paddingHorizontal": 4,
+                            "paddingVertical": 8,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󱚖",
+                                  ],
+                                  "s": {
+                                    "color": "#526174",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "marginBottom": 4,
+                                "width": 40,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Register",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Register",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "justifyContent": "center",
+                            "paddingHorizontal": 4,
+                            "paddingVertical": 8,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    "󰂜",
+                                  ],
+                                  "s": {
+                                    "color": "#526174",
+                                    "fontSize": 20,
+                                  },
+                                  "t": "Text",
+                                },
+                              ],
+                              "s": {
+                                "alignItems": "center",
+                                "borderRadius": 8,
+                                "justifyContent": "center",
+                                "marginBottom": 4,
+                                "width": 40,
+                              },
+                              "t": "View",
+                            },
+                            {
+                              "c": [
+                                "Alerts",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 12,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Alerts",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "justifyContent": "center",
+                            "paddingHorizontal": 4,
+                            "paddingVertical": 8,
+                          },
+                          "t": "View",
+                        },
+                      ],
+                      "role": "tablist",
+                      "s": {
+                        "gap": 8,
+                      },
+                      "t": "View",
+                    },
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "󰍜",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 20,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "s": {
+                            "alignItems": "center",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                            "marginBottom": 4,
+                            "width": 40,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            "Menu",
+                          ],
+                          "s": {
+                            "color": "#526174",
+                            "fontSize": 12,
+                          },
+                          "t": "Text",
+                        },
+                      ],
+                      "label": "Open menu",
+                      "role": "button",
+                      "s": {
+                        "alignItems": "center",
+                        "justifyContent": "center",
+                        "paddingHorizontal": 4,
+                        "paddingVertical": 8,
+                      },
+                      "t": "View",
+                    },
+                  ],
+                  "t": "View",
+                },
+              ],
+              "s": {
+                "backgroundColor": "#FFFFFF",
+                "width": 112,
+              },
+              "t": "RCTScrollView",
+            },
+            {
+              "c": [],
+              "s": {
+                "flex": 1,
+              },
+              "t": "View",
+            },
+          ],
+          "s": {
+            "flex": 1,
+            "flexDirection": "row",
+          },
+          "t": "View",
+        },
+      ],
+      "s": {
+        "flex": 1,
+      },
+      "t": "View",
+    },
+  ],
+  "s": {
+    "backgroundColor": "#F9F9FF",
+    "flex": 1,
+  },
+  "t": "View",
+}
+`;
+
 exports[`static visual snapshots (structure/token, not pixels) Assistant-initial dark w360 1`] = `
 {
   "c": [
@@ -6163,6 +7313,8 @@ exports[`static visual snapshots (structure/token, not pixels) Events dark w1000
                       "s": {
                         "flexDirection": "row",
                         "justifyContent": "space-between",
+                        "maxWidth": 960,
+                        "width": "100%",
                       },
                       "t": "View",
                     },
@@ -7114,6 +8266,8 @@ exports[`static visual snapshots (structure/token, not pixels) Events light w100
                       "s": {
                         "flexDirection": "row",
                         "justifyContent": "space-between",
+                        "maxWidth": 960,
+                        "width": "100%",
                       },
                       "t": "View",
                     },

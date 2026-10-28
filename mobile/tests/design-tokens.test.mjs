@@ -86,6 +86,10 @@ describe('design tokens contract', () => {
     assert.ok(tokens.typography.maxFontScale >= 1);
   });
 
+  it('window classes expose semantic content width caps', () => {
+    assert.deepEqual(tokens.windowClasses.contentMaxWidth, { medium: 720, expanded: 960 });
+  });
+
   it('generated adapters embed the same contract digest as tokens.json', () => {
     for (const f of ['mobile/src/design/tokens.ts', 'frontend/src/lib/design-tokens.ts']) {
       assert.deepEqual(contractFromAdapter(f), tokens, `${f} drifted from tokens.json`);
