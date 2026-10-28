@@ -616,9 +616,43 @@ export interface ApiClientOptions {
    * NEW session out — its 401 belongs to a dead lane (review F4).
    */
   sessionEpoch?: () => number;
+  /**
+   * How often a pending download/upload compares the session epoch with the
+   * one it started under; a sign-out or account switch aborts the transfer.
+   */
+  epochPollMs?: number;
 }
 
 export type ApiMode = 'preview' | 'live';
+
+/**
+ * `protected` (default) sends the Bearer token and joins the single-flight
+ * refresh on 401. `public` is anonymous: no Authorization header is ever sent
+ * and a 401 never triggers a refresh or a session-expired bridge.
+ */
+export type ApiAuthPolicy = 'protected' | 'public';
+
+export interface ApiRequestInit extends RequestInit {
+  auth?: ApiAuthPolicy;
+}
+
+export interface ApiTransferInit extends Omit<ApiRequestInit, 'body' | 'method'> {
+  /** Sent as `Idempotency-Key`; replays of the same call (refresh or caller retry) must reuse it. */
+  idempotencyKey?: string;
+}
+
+export interface ApiUploadInit extends ApiTransferInit {
+  method?: 'POST' | 'PUT' | 'PATCH';
+}
+
+export interface ApiDownload {
+  data: ArrayBuffer;
+  contentType: string | null;
+  /** Server-suggested name reduced to a safe single path segment. */
+  fileName: string | null;
+  headers: Headers;
+  requestId: string;
+}
 
 export interface ApiClient {
   readonly baseUrl: string;
@@ -626,19 +660,51 @@ export interface ApiClient {
   setAccessToken(token: string | undefined): void;
   setOnSessionExpired(handler: (() => void) | undefined): void;
   clearAccessToken(): void;
-  request<TResponse>(path: string, init?: RequestInit): Promise<TResponse>;
-  requestWithMeta<TResponse>(path: string, init?: RequestInit): Promise<{ data: TResponse; headers: Headers; requestId: string }>;
-  get<TResponse>(path: string, init?: RequestInit): Promise<TResponse>;
-  post<TResponse>(path: string, body?: unknown, init?: RequestInit): Promise<TResponse>;
-  put<TResponse>(path: string, body?: unknown, init?: RequestInit): Promise<TResponse>;
-  patch<TResponse>(path: string, body?: unknown, init?: RequestInit): Promise<TResponse>;
-  delete<TResponse>(path: string, init?: RequestInit): Promise<TResponse>;
+  request<TResponse>(path: string, init?: ApiRequestInit): Promise<TResponse>;
+  requestWithMeta<TResponse>(path: string, init?: ApiRequestInit): Promise<{ data: TResponse; headers: Headers; requestId: string }>;
+  get<TResponse>(path: string, init?: ApiRequestInit): Promise<TResponse>;
+  post<TResponse>(path: string, body?: unknown, init?: ApiRequestInit): Promise<TResponse>;
+  put<TResponse>(path: string, body?: unknown, init?: ApiRequestInit): Promise<TResponse>;
+  patch<TResponse>(path: string, body?: unknown, init?: ApiRequestInit): Promise<TResponse>;
+  delete<TResponse>(path: string, init?: ApiRequestInit): Promise<TResponse>;
+  /** Binary GET through the same refresh, epoch and abort authority as JSON calls. */
+  download(path: string, init?: ApiTransferInit): Promise<ApiDownload>;
+  /** Multipart upload through the same refresh, epoch and abort authority as JSON calls. */
+  upload<TResponse>(path: string, form: FormData, init?: ApiUploadInit): Promise<TResponse>;
+}
+
+export type ApiErrorKind =
+  | 'unauthorized'
+  | 'denied'
+  | 'not_found'
+  | 'conflict'
+  | 'invalid'
+  | 'rate_limited'
+  | 'server'
+  | 'network'
+  | 'aborted'
+  | 'unknown';
+
+const ABORT_CODES = new Set(['REQUEST_ABORTED', 'SESSION_CHANGED']);
+
+export function classifyApiError(status: number, code?: string): ApiErrorKind {
+  if (code !== undefined && ABORT_CODES.has(code)) return 'aborted';
+  if (code === 'NETWORK_ERROR') return 'network';
+  if (status === 401) return 'unauthorized';
+  if (status === 403) return 'denied';
+  if (status === 404) return 'not_found';
+  if (status === 409 || status === 412) return 'conflict';
+  if (status === 400 || status === 413 || status === 415 || status === 422) return 'invalid';
+  if (status === 429) return 'rate_limited';
+  if (status >= 500) return 'server';
+  return 'unknown';
 }
 
 export class ApiClientError extends Error {
   readonly status: number;
   readonly code?: string;
   readonly requestId: string;
+  readonly kind: ApiErrorKind;
 
   constructor(message: string, status: number, requestId: string, code?: string) {
     super(message);
@@ -646,7 +712,42 @@ export class ApiClientError extends Error {
     this.status = status;
     this.requestId = requestId;
     this.code = code;
+    this.kind = classifyApiError(status, code);
   }
+
+  /** A retry of the same intent may succeed; callers must still reuse the idempotency key. */
+  get retryable() {
+    return this.kind === 'network' || this.kind === 'server' || this.kind === 'rate_limited';
+  }
+}
+
+export interface NormalizedApiError {
+  kind: ApiErrorKind;
+  status: number;
+  code?: string;
+  message: string;
+  requestId?: string;
+  retryable: boolean;
+}
+
+/** One UI-facing shape for any failure a facade call can raise. */
+export function normalizeApiError(error: unknown): NormalizedApiError {
+  if (error instanceof ApiClientError) {
+    return {
+      kind: error.kind,
+      status: error.status,
+      code: error.code,
+      message: error.message,
+      requestId: error.requestId,
+      retryable: error.retryable,
+    };
+  }
+  const name = (error as { name?: string } | null)?.name;
+  const message = error instanceof Error ? error.message : 'The API request failed';
+  if (name === 'AbortError') {
+    return { kind: 'aborted', status: 0, code: 'REQUEST_ABORTED', message, retryable: false };
+  }
+  return { kind: 'network', status: 0, code: 'NETWORK_ERROR', message, retryable: true };
 }
 
 export const DEFAULT_API_BASE_URL = Platform.OS === 'android'
@@ -708,6 +809,56 @@ function getErrorDetails(body: unknown) {
   };
 }
 
+const DEFAULT_EPOCH_POLL_MS = 250;
+
+function withIdempotencyKey(headers: HeadersInit | undefined, idempotencyKey: string | undefined) {
+  if (!idempotencyKey) return headers;
+  const merged = new Headers(headers);
+  merged.set('Idempotency-Key', idempotencyKey);
+  return merged;
+}
+const MAX_TRANSFER_REDIRECTS = 3;
+
+function originOf(url: string) {
+  const match = /^([a-z][a-z0-9+.-]*:\/\/[^/?#]+)/i.exec(url);
+  return match ? match[1].toLowerCase() : '';
+}
+
+function resolveLocation(current: string, location: string) {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(location)) return location;
+  const origin = originOf(current);
+  if (location.startsWith('//')) return `${origin.slice(0, origin.indexOf(':') + 1)}${location}`;
+  if (location.startsWith('/')) return `${origin}${location}`;
+  const directory = current.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
+  return `${directory}${location}`;
+}
+
+function isFormData(body: unknown): boolean {
+  return typeof FormData !== 'undefined' && body instanceof FormData;
+}
+
+/** Single safe path segment from a Content-Disposition header, or null. */
+export function safeDownloadFileName(disposition: string | null | undefined): string | null {
+  if (!disposition) return null;
+  let raw: string | undefined;
+  const extended = /filename\*\s*=\s*(?:[^']*)'[^']*'([^;]+)/i.exec(disposition);
+  if (extended) {
+    try {
+      raw = decodeURIComponent(extended[1].trim());
+    } catch {
+      raw = undefined;
+    }
+  }
+  if (raw === undefined) {
+    const plain = /filename\s*=\s*(?:"((?:[^"\\]|\\.)*)"|([^;]+))/i.exec(disposition);
+    raw = (plain?.[1] ?? plain?.[2] ?? '').trim();
+  }
+  // eslint-disable-next-line no-control-regex
+  const segment = (raw.split(/[\\/]/).pop() ?? '').replace(/[\u0000-\u001f\u007f<>:"|?*]/g, '').trim();
+  if (!segment || /^\.+$/.test(segment)) return null;
+  return segment.slice(0, 200);
+}
+
 function shouldRefreshAfterUnauthorized(_path: string, status: number) {
   // Legacy /auth/login|refresh|logout excludes are gone with the OIDC lane —
   // any 401 on the API host is a refresh candidate (issuer calls never
@@ -719,7 +870,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   const baseUrl = normalizeBaseUrl(
     options.baseUrl ?? configuredApiBaseUrl ?? DEFAULT_API_BASE_URL,
   );
-  const mode = options.mode ?? configuredApiMode;
+  const apiMode = options.mode ?? configuredApiMode;
   let accessToken: string | undefined;
   const getAccessToken = options.getAccessToken ?? (() => accessToken);
   const setAccessTokenExternal = options.setAccessToken;
@@ -740,84 +891,157 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     return sessionRefreshPromise;
   }
 
-  const client: ApiClient = {
-    baseUrl,
-    mode,
+  type TransferMode = 'json' | 'download' | 'upload';
 
-    setAccessToken(token) {
-      if (setAccessTokenExternal) {
-        setAccessTokenExternal(token);
+  function epochChanged(requestEpoch: number | undefined) {
+    return requestEpoch !== undefined
+      && options.sessionEpoch !== undefined
+      && options.sessionEpoch() !== requestEpoch;
+  }
+
+  /**
+   * One lane for JSON, download and upload. Transfers follow redirects by hand
+   * so a hop to another origin is re-sent without Authorization and never
+   * joins the refresh path.
+   */
+  async function send(
+    url: string,
+    fetchInit: RequestInit,
+    headers: Headers,
+    transfer: boolean,
+  ): Promise<{ response: Response; sameOrigin: boolean }> {
+    if (!transfer) {
+      return { response: await fetch(url, { ...fetchInit, headers }), sameOrigin: true };
+    }
+    const apiOrigin = originOf(baseUrl);
+    const requestId = headers.get('X-Request-Id') ?? '';
+    let currentUrl = url;
+    let currentInit: RequestInit = { ...fetchInit, redirect: 'manual' };
+    let currentHeaders = headers;
+    let sameOrigin = true;
+    for (let hop = 0; ; hop += 1) {
+      const response = await fetch(currentUrl, { ...currentInit, headers: currentHeaders });
+      if (response.type === 'opaqueredirect') {
+        throw new ApiClientError('The server redirect could not be followed', 0, requestId, 'REDIRECT_UNSUPPORTED');
+      }
+      const location = response.headers.get('location');
+      if (![301, 302, 303, 307, 308].includes(response.status) || !location) {
+        return { response, sameOrigin };
+      }
+      if (hop >= MAX_TRANSFER_REDIRECTS) {
+        throw new ApiClientError('Too many redirects', 0, requestId, 'REDIRECT_LIMIT');
+      }
+      currentUrl = resolveLocation(currentUrl, location);
+      if (originOf(currentUrl) !== apiOrigin) {
+        sameOrigin = false;
+        currentHeaders = new Headers(currentHeaders);
+        currentHeaders.delete('Authorization');
+      }
+      if (response.status !== 307 && response.status !== 308) {
+        const { body: _body, ...rest } = currentInit;
+        currentInit = { ...rest, method: 'GET' };
+        currentHeaders = new Headers(currentHeaders);
+        currentHeaders.delete('Content-Type');
+        currentHeaders.delete('Idempotency-Key');
+      }
+    }
+  }
+
+  async function dispatch(path: string, init: ApiRequestInit, mode: TransferMode) {
+    const requestId = createRequestId();
+    const startedAt = Date.now();
+    const { auth = 'protected', ...fetchInit } = init;
+    const method = (init.method ?? 'GET').toUpperCase();
+    const requestEpoch = options.sessionEpoch?.();
+    if (apiMode !== 'live') {
+      throw new ApiClientError(
+        'Live mobile API mode is disabled for this preview build',
+        0,
+        requestId,
+        'MOBILE_API_PREVIEW',
+      );
+    }
+    const transfer = mode !== 'json';
+    const isPublic = auth === 'public';
+    const headers = new Headers(init.headers);
+    const token = isPublic ? undefined : getAccessToken();
+
+    headers.set('Accept', mode === 'download' ? '*/*' : 'application/json');
+    headers.set('X-Request-Id', requestId);
+    if (init.body && !headers.has('Content-Type') && !isFormData(init.body)) {
+      headers.set('Content-Type', 'application/json');
+    }
+    if (isPublic) {
+      headers.delete('Authorization');
+    } else if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    const url = `${baseUrl}${normalizePath(path)}`;
+    const readBody = mode === 'download'
+      ? (response: Response): Promise<unknown> =>
+        (response.ok ? response.arrayBuffer() : readResponseBody(response))
+      : readResponseBody;
+
+    // Transfers run under their own controller: the caller's signal and a
+    // session-epoch change (sign-out or account switch) both abort it.
+    const controller = transfer ? new AbortController() : undefined;
+    const callerSignal = fetchInit.signal ?? undefined;
+    let sessionChanged = false;
+    let stopWatching = () => {};
+    if (controller) {
+      const abortFromCaller = () => controller.abort();
+      if (callerSignal?.aborted) {
+        controller.abort();
       } else {
-        accessToken = token;
+        callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
       }
-    },
+      const timer = options.sessionEpoch
+        ? setInterval(() => {
+          if (epochChanged(requestEpoch)) {
+            sessionChanged = true;
+            controller.abort();
+          }
+        }, options.epochPollMs ?? DEFAULT_EPOCH_POLL_MS)
+        : undefined;
+      stopWatching = () => {
+        if (timer !== undefined) clearInterval(timer);
+        callerSignal?.removeEventListener('abort', abortFromCaller);
+      };
+      fetchInit.signal = controller.signal;
+    }
 
-    setOnSessionExpired(handler) {
-      onSessionExpired = handler;
-    },
+    try {
+      let { response, sameOrigin } = await send(url, fetchInit, headers, transfer);
+      let body = await readBody(response);
 
-    clearAccessToken() {
-      if (setAccessTokenExternal) {
-        setAccessTokenExternal(undefined);
-      } else {
-        accessToken = undefined;
-      }
-    },
-
-    async requestWithMeta<TResponse>(path: string, init: RequestInit = {}) {
-      const requestId = createRequestId();
-      const startedAt = Date.now();
-      const method = (init.method ?? 'GET').toUpperCase();
-      const requestEpoch = options.sessionEpoch?.();
-      if (mode !== 'live') {
-        throw new ApiClientError(
-          'Live mobile API mode is disabled for this preview build',
-          0,
-          requestId,
-          'MOBILE_API_PREVIEW',
-        );
-      }
-      const headers = new Headers(init.headers);
-      const token = getAccessToken();
-
-      headers.set('Accept', 'application/json');
-      headers.set('X-Request-Id', requestId);
-      if (init.body && !headers.has('Content-Type')) {
-        headers.set('Content-Type', 'application/json');
-      }
-      if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
-      }
-
-      let response = await fetch(`${baseUrl}${normalizePath(path)}`, {
-        ...init,
-        headers,
-      });
-      let body = await readResponseBody(response);
-
-      if (shouldRefreshAfterUnauthorized(path, response.status) && options.refreshSession) {
+      if (!isPublic && sameOrigin && shouldRefreshAfterUnauthorized(path, response.status) && options.refreshSession) {
         const refreshed = await refreshSessionOnce();
         const rotated = getAccessToken();
+        // A stale lane (request predates the current epoch) is skipped so a
+        // previous account's dying request can never evict the session that
+        // replaced it.
+        const staleLane = epochChanged(requestEpoch);
+        if (transfer && staleLane) {
+          sessionChanged = true;
+          throw new ApiClientError('The session changed during the transfer', 0, requestId, 'SESSION_CHANGED');
+        }
         if (!refreshed || !rotated) {
           // Failed refresh = dead session: the store already wiped; bridge
-          // back to sign-in instead of leaving screens in a dead end. A
-          // stale lane (request predates the current epoch) is skipped so a
-          // previous account's dying request can never evict the session
-          // that replaced it.
-          const staleLane = requestEpoch !== undefined
-            && options.sessionEpoch !== undefined
-            && options.sessionEpoch() !== requestEpoch;
+          // back to sign-in instead of leaving screens in a dead end.
           if (!staleLane) {
             onSessionExpired?.();
           }
         } else {
           headers.set('Authorization', `Bearer ${rotated}`);
-          response = await fetch(`${baseUrl}${normalizePath(path)}`, {
-            ...init,
-            headers,
-          });
-          body = await readResponseBody(response);
+          ({ response, sameOrigin } = await send(url, fetchInit, headers, transfer));
+          body = await readBody(response);
         }
+      }
+
+      if (transfer && epochChanged(requestEpoch)) {
+        sessionChanged = true;
+        throw new ApiClientError('The session changed during the transfer', 0, requestId, 'SESSION_CHANGED');
       }
 
       recordApiMetric({
@@ -843,19 +1067,92 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         );
       }
 
-      return { data: body as TResponse, headers: response.headers, requestId };
+      return { body, headers: response.headers, requestId };
+    } catch (error) {
+      if (!transfer || error instanceof ApiClientError) throw error;
+      if (sessionChanged) {
+        throw new ApiClientError('The session changed during the transfer', 0, requestId, 'SESSION_CHANGED');
+      }
+      if (controller?.signal.aborted) {
+        throw new ApiClientError('The transfer was aborted', 0, requestId, 'REQUEST_ABORTED');
+      }
+      throw new ApiClientError(
+        error instanceof Error ? error.message : 'The network request failed',
+        0,
+        requestId,
+        'NETWORK_ERROR',
+      );
+    } finally {
+      stopWatching();
+    }
+  }
+
+  const client: ApiClient = {
+    baseUrl,
+    mode: apiMode,
+
+    setAccessToken(token) {
+      if (setAccessTokenExternal) {
+        setAccessTokenExternal(token);
+      } else {
+        accessToken = token;
+      }
     },
 
-    async request<TResponse>(path: string, init: RequestInit = {}) {
+    setOnSessionExpired(handler) {
+      onSessionExpired = handler;
+    },
+
+    clearAccessToken() {
+      if (setAccessTokenExternal) {
+        setAccessTokenExternal(undefined);
+      } else {
+        accessToken = undefined;
+      }
+    },
+
+    async requestWithMeta<TResponse>(path: string, init: ApiRequestInit = {}) {
+      const result = await dispatch(path, init, 'json');
+      return { data: result.body as TResponse, headers: result.headers, requestId: result.requestId };
+    },
+
+    async download(path: string, init: ApiTransferInit = {}) {
+      const { idempotencyKey, ...rest } = init;
+      const result = await dispatch(
+        path,
+        { ...rest, method: 'GET', headers: withIdempotencyKey(rest.headers, idempotencyKey) },
+        'download',
+      );
+      const data = result.body instanceof ArrayBuffer ? result.body : new ArrayBuffer(0);
+      return {
+        data,
+        contentType: result.headers.get('content-type'),
+        fileName: safeDownloadFileName(result.headers.get('content-disposition')),
+        headers: result.headers,
+        requestId: result.requestId,
+      };
+    },
+
+    async upload<TResponse>(path: string, form: FormData, init: ApiUploadInit = {}) {
+      const { idempotencyKey, method = 'POST', ...rest } = init;
+      const result = await dispatch(
+        path,
+        { ...rest, method, body: form, headers: withIdempotencyKey(rest.headers, idempotencyKey) },
+        'upload',
+      );
+      return result.body as TResponse;
+    },
+
+    async request<TResponse>(path: string, init: ApiRequestInit = {}) {
       const result = await client.requestWithMeta<TResponse>(path, init);
       return result.data;
     },
 
-    get<TResponse>(path: string, init: RequestInit = {}) {
+    get<TResponse>(path: string, init: ApiRequestInit = {}) {
       return client.request<TResponse>(path, { ...init, method: 'GET' });
     },
 
-    post<TResponse>(path: string, body: unknown = undefined, init: RequestInit = {}) {
+    post<TResponse>(path: string, body: unknown = undefined, init: ApiRequestInit = {}) {
       return client.request<TResponse>(path, {
         ...init,
         method: 'POST',
@@ -863,7 +1160,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       });
     },
 
-    put<TResponse>(path: string, body: unknown = undefined, init: RequestInit = {}) {
+    put<TResponse>(path: string, body: unknown = undefined, init: ApiRequestInit = {}) {
       return client.request<TResponse>(path, {
         ...init,
         method: 'PUT',
@@ -871,7 +1168,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       });
     },
 
-    patch<TResponse>(path: string, body: unknown = undefined, init: RequestInit = {}) {
+    patch<TResponse>(path: string, body: unknown = undefined, init: ApiRequestInit = {}) {
       return client.request<TResponse>(path, {
         ...init,
         method: 'PATCH',
@@ -879,7 +1176,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       });
     },
 
-    delete<TResponse>(path: string, init: RequestInit = {}) {
+    delete<TResponse>(path: string, init: ApiRequestInit = {}) {
       return client.request<TResponse>(path, { ...init, method: 'DELETE' });
     },
   };
