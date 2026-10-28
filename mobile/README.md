@@ -72,8 +72,9 @@ notifications, thesis topics, and the CampusCore assistant route. The assistant 
 `{ message, locale, conversationId? }` to the buffered JSON contract and expects
 `{ answer, model, degraded, reasonCode, locale, citations, conversationId?, messageId? }`.
 Owner-scoped conversation list, message history, and delete helpers are available
-for live sessions. Native intentionally uses this buffered JSON fallback instead
-of SSE; the web client owns streaming. The assistant screen renders provenance,
+for live sessions. Native talks to the assistant through an `AssistantTransport` seam: the
+buffered JSON contract is the default, and the SSE transport stays behind
+`STREAMING_PARITY_VERIFIED` until the dev-build canary passes on both platforms. The assistant screen renders provenance,
 quota/error/retry states, and localised Vietnamese/English copy in live
 mode, and only uses local responses in the explicit preview state. Retained role
 routes must show an explicit not-available state when their Java contract is not
