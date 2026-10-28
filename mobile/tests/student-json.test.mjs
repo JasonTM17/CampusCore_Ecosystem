@@ -10,7 +10,7 @@ const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 test('student live JSON uses new registration contract and profile APIs', () => {
   const client = fs.readFileSync(path.join(mobileRoot, 'src/api/client.ts'), 'utf8');
   const screens = readSources(mobileRoot,'src/screens/student',/^(StudentDashboard|Schedule|Courses|Grades|Attendance|Registration|Notifications|Profile)Screen\.tsx$|^shared\//);
-  const operations = fs.readFileSync(path.join(mobileRoot, 'src/screens/operations/OperationsScreens.tsx'), 'utf8');
+  const operations = readSources(mobileRoot,'src/screens/operations',/^(AdminScreens|Lecturer(Dashboard|Schedule|Attendance|Grading)Screen)\.tsx$|^shared\//);
 
   assert.match(client, /Idempotency-Key/);
   assert.match(client, /\/me\/enrollments/);

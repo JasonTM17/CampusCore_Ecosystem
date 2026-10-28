@@ -13,6 +13,7 @@ import {
   StatePanel,
   UiText,
 } from '../../components/Ui';
+import { ResponsiveGrid } from '../../components/ui/ResponsiveGrid';
 import {
   ApiClientError,
   apiClient,
@@ -206,7 +207,7 @@ export function EventsScreen(_props: MobileScreenProps) {
         />
       ) : (
         <Card>
-          {events.map((event, index) => {
+          <ResponsiveGrid>{events.map((event, index) => {
             const registered = event.myRegistrationStatus === 'REGISTERED';
             return (
               <View key={event.id}>
@@ -244,7 +245,7 @@ export function EventsScreen(_props: MobileScreenProps) {
                 {index < events.length - 1 ? <Divider /> : null}
               </View>
             );
-          })}
+          })}</ResponsiveGrid>
         </Card>
       )}
 
@@ -258,7 +259,7 @@ export function EventsScreen(_props: MobileScreenProps) {
         />
       ) : (
         <Card>
-          {registrations.map((entry, index) => (
+          <ResponsiveGrid>{registrations.map((entry, index) => (
             <View key={entry.registrationId}>
               <ListRow
                 title={entry.event.title}
@@ -267,7 +268,7 @@ export function EventsScreen(_props: MobileScreenProps) {
               />
               {index < registrations.length - 1 ? <Divider /> : null}
             </View>
-          ))}
+          ))}</ResponsiveGrid>
         </Card>
       )}
       <ScreenSpacer />

@@ -7,6 +7,8 @@ import { apiClient } from '../../api/client';
 import { signInWithOidc } from '../../auth/oidc-session';
 import { sessionStore } from '../../auth/mobile-session-store';
 import { tokens } from '../../design/tokens';
+import { useThemedStyles, useTheme } from '../../design/theme';
+import type { ThemeColors } from '../../design/theme';
 import { useSession } from '../../session/SessionContext';
 import type { MobileScreenProps } from '../../navigation/types';
 
@@ -16,6 +18,8 @@ import type { MobileScreenProps } from '../../navigation/types';
  * pseudo-session entry (KM-9: memory-only, never SecureStore).
  */
 export function SignInScreen({ navigation }: MobileScreenProps) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const session = useSession();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,7 +57,7 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
     >
       <View style={styles.brandRow}>
         <View style={styles.brandMark}>
-          <MaterialCommunityIcons color={tokens.colors.text} name="school-outline" size={22} />
+          <MaterialCommunityIcons color={colors.text} name="school-outline" size={22} />
         </View>
         <View style={styles.brandCopy}>
           <UiText variant="headlineSmall">CampusCore</UiText>
@@ -96,13 +100,13 @@ function sessionStoreIssuer(): string {
   return sessionStore.issuer;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   content: { paddingTop: tokens.spacing.sm },
-  brandRow: { alignItems: 'center', borderBottomColor: tokens.colors.outlineVariant, borderBottomWidth: 1, flexDirection: 'row', marginBottom: tokens.spacing.lg, paddingBottom: tokens.spacing.md },
-  brandMark: { alignItems: 'center', backgroundColor: tokens.colors.accent, borderRadius: tokens.radii.control, height: 44, justifyContent: 'center', width: 44 },
+  brandRow: { alignItems: 'center', borderBottomColor: colors.outlineVariant, borderBottomWidth: 1, flexDirection: 'row', marginBottom: tokens.spacing.lg, paddingBottom: tokens.spacing.md },
+  brandMark: { alignItems: 'center', backgroundColor: colors.accent, borderRadius: tokens.radii.control, height: 44, justifyContent: 'center', width: 44 },
   brandCopy: { flex: 1, marginLeft: tokens.spacing.sm },
   formCard: { padding: tokens.spacing.lg },
   formIntro: { marginBottom: tokens.spacing.lg, marginTop: tokens.spacing.xs },
   submit: { marginTop: tokens.spacing.sm },
-  errorPanel: { backgroundColor: '#FFF1F0', borderColor: '#F3C7C3', borderLeftColor: tokens.colors.error, borderLeftWidth: 3, borderRadius: tokens.radii.control, borderWidth: 1, marginTop: tokens.spacing.md, padding: tokens.spacing.sm },
+  errorPanel: { backgroundColor: colors.errorFixed, borderColor: colors.error, borderLeftColor: colors.error, borderLeftWidth: 3, borderRadius: tokens.radii.control, borderWidth: 1, marginTop: tokens.spacing.md, padding: tokens.spacing.sm },
 });

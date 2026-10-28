@@ -2,6 +2,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { tokens } from '../design/tokens';
+import { useThemedStyles, useTheme } from '../design/theme';
+import type { ThemeColors } from '../design/theme';
 import {
   getBottomNavigation,
   type ScreenName,
@@ -17,6 +19,8 @@ interface BottomNavigationProps {
 }
 
 export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: BottomNavigationProps) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors } = useTheme();
   const items = getBottomNavigation(role);
 
   return (
@@ -37,7 +41,7 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: Bott
               >
                 <View style={[styles.icon, active ? styles.activeIcon : undefined]}>
                   <MaterialCommunityIcons
-                    color={active ? tokens.colors.primary : tokens.colors.textMuted}
+                    color={active ? colors.primary : colors.textMuted}
                     name={item.icon}
                     size={20}
                   />
@@ -62,7 +66,7 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: Bott
           style={({ pressed }) => [styles.item, pressed ? styles.pressed : undefined]}
         >
           <View style={styles.icon}>
-            <MaterialCommunityIcons color={tokens.colors.textMuted} name="menu" size={20} />
+            <MaterialCommunityIcons color={colors.textMuted} name="menu" size={20} />
           </View>
           <UiText variant="meta" tone="muted">
             Menu
@@ -73,10 +77,10 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: Bott
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   navigation: {
-    backgroundColor: tokens.colors.card,
-    borderTopColor: tokens.colors.outlineVariant,
+    backgroundColor: colors.card,
+    borderTopColor: colors.outlineVariant,
     borderTopWidth: 1,
     minHeight: tokens.layout.bottomNavigationHeight,
     paddingHorizontal: tokens.spacing.xs,
@@ -85,6 +89,6 @@ const styles = StyleSheet.create({
   tabList: { alignItems: 'center', flexDirection: 'row', minWidth: 0 },
   item: { alignItems: 'center', flex: 1, justifyContent: 'center', minHeight: tokens.layout.touchTarget, minWidth: 0, paddingHorizontal: 2 },
   icon: { alignItems: 'center', borderRadius: tokens.radii.control, height: 30, justifyContent: 'center', marginBottom: 2, width: 40 },
-  activeIcon: { backgroundColor: tokens.colors.primaryFixed },
-  pressed: { backgroundColor: tokens.colors.surfaceLow, borderRadius: tokens.radii.control },
+  activeIcon: { backgroundColor: colors.primaryFixed },
+  pressed: { backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control },
 });
