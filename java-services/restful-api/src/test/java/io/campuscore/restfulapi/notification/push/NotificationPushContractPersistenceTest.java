@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.campuscore.restfulapi.notification.push.DeliveryOutboxRepository.OutboxState;
-import io.campuscore.restfulapi.notification.push.PushDeviceDtos.RegistrationRequest;
+import io.campuscore.restfulapi.notification.push.PushDeviceDtos.PushDeviceRegistrationRequest;
 import io.campuscore.restfulapi.notification.push.PushProvider.DeliveryReceipt;
 import io.campuscore.restfulapi.notification.push.PushProvider.PushPayload;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository;
@@ -294,7 +294,7 @@ class NotificationPushContractPersistenceTest {
 
         createDelivery("rebind-notice", OWNER, "rebind-install", "token-rebind", clock.instant());
         devices.register(OTHER, "new-owner-install",
-                new RegistrationRequest("FCM", "ANDROID", "token-rebind"));
+                new PushDeviceRegistrationRequest("FCM", "ANDROID", "token-rebind"));
         assertSuppressed(provider, clock, "rebind-notice");
 
         createDelivery("revoked-notice", OWNER, "revoked-install", "token-revoked", clock.instant());

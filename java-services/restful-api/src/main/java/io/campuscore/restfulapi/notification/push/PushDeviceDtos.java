@@ -14,8 +14,8 @@ public final class PushDeviceDtos {
 
     private PushDeviceDtos() { }
 
-    public record RegistrationRequest(String provider, String platform, String token) {
-        public static RegistrationRequest from(JsonNode body) {
+    public record PushDeviceRegistrationRequest(String provider, String platform, String token) {
+        public static PushDeviceRegistrationRequest from(JsonNode body) {
             if (!(body instanceof ObjectNode object)) {
                 throw invalidRequest();
             }
@@ -30,7 +30,7 @@ public final class PushDeviceDtos {
             if (provider == null || platform == null || token == null) {
                 throw invalidRequest();
             }
-            return new RegistrationRequest(provider, platform, token);
+            return new PushDeviceRegistrationRequest(provider, platform, token);
         }
 
         private static String stringField(ObjectNode body, String field) {
@@ -39,7 +39,7 @@ public final class PushDeviceDtos {
         }
     }
 
-    public record RegistrationResponse(
+    public record PushDeviceRegistrationResponse(
             String installationId,
             String provider,
             String platform,
