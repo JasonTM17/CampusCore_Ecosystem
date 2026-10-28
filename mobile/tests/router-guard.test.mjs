@@ -92,6 +92,18 @@ test('signedOut can only reach the sign-in family', () => {
   }
 });
 
+test('guests can read the public news and docs pages but nothing account-bound', () => {
+  for (const p of ['/news', '/docs', '/news/']) {
+    assert.deepEqual(resolveGuard('signedOut', 'student', p), { action: 'allow' });
+  }
+  for (const p of ['/careers', '/library', '/apply', '/events', '/notifications', '/news/x']) {
+    assert.deepEqual(resolveGuard('signedOut', 'student', p), {
+      action: 'redirect',
+      to: 'auth.signIn',
+    });
+  }
+});
+
 test('signed-in sessions bounce off sign-in and unknown paths to role home', () => {
   for (const session of ['preview', 'authenticated']) {
     assert.deepEqual(resolveGuard(session, 'student', '/sign-in'), {
