@@ -47,7 +47,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                             },
                             {
                               "c": [
-                                "Home",
+                                "Trang chủ",
                               ],
                               "s": {
                                 "color": "#98BDD7",
@@ -56,7 +56,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                               "t": "Text",
                             },
                           ],
-                          "label": "Home",
+                          "label": "Trang chủ",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -92,7 +92,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                             },
                             {
                               "c": [
-                                "Schedule",
+                                "Lịch học",
                               ],
                               "s": {
                                 "color": "#A9B1BC",
@@ -101,7 +101,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                               "t": "Text",
                             },
                           ],
-                          "label": "Schedule",
+                          "label": "Lịch học",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -137,7 +137,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                             },
                             {
                               "c": [
-                                "Register",
+                                "Đăng ký",
                               ],
                               "s": {
                                 "color": "#A9B1BC",
@@ -146,7 +146,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                               "t": "Text",
                             },
                           ],
-                          "label": "Register",
+                          "label": "Đăng ký",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -182,7 +182,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                             },
                             {
                               "c": [
-                                "Alerts",
+                                "Thông báo",
                               ],
                               "s": {
                                 "color": "#A9B1BC",
@@ -191,7 +191,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                               "t": "Text",
                             },
                           ],
-                          "label": "Alerts",
+                          "label": "Thông báo",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -245,7 +245,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                           "t": "Text",
                         },
                       ],
-                      "label": "Open menu",
+                      "label": "Mở menu",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -330,7 +330,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                             },
                             {
                               "c": [
-                                "Home",
+                                "Trang chủ",
                               ],
                               "s": {
                                 "color": "#98BDD7",
@@ -339,7 +339,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                               "t": "Text",
                             },
                           ],
-                          "label": "Home",
+                          "label": "Trang chủ",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -375,7 +375,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                             },
                             {
                               "c": [
-                                "Schedule",
+                                "Lịch học",
                               ],
                               "s": {
                                 "color": "#A9B1BC",
@@ -384,7 +384,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                               "t": "Text",
                             },
                           ],
-                          "label": "Schedule",
+                          "label": "Lịch học",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -420,7 +420,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                             },
                             {
                               "c": [
-                                "Register",
+                                "Đăng ký",
                               ],
                               "s": {
                                 "color": "#A9B1BC",
@@ -429,7 +429,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                               "t": "Text",
                             },
                           ],
-                          "label": "Register",
+                          "label": "Đăng ký",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -465,7 +465,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                             },
                             {
                               "c": [
-                                "Alerts",
+                                "Thông báo",
                               ],
                               "s": {
                                 "color": "#A9B1BC",
@@ -474,7 +474,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                               "t": "Text",
                             },
                           ],
-                          "label": "Alerts",
+                          "label": "Thông báo",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -526,7 +526,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
                           "t": "Text",
                         },
                       ],
-                      "label": "Open menu",
+                      "label": "Mở menu",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -622,7 +622,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                             },
                             {
                               "c": [
-                                "Home",
+                                "Trang chủ",
                               ],
                               "s": {
                                 "color": "#003F87",
@@ -631,7 +631,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                               "t": "Text",
                             },
                           ],
-                          "label": "Home",
+                          "label": "Trang chủ",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -667,7 +667,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                             },
                             {
                               "c": [
-                                "Schedule",
+                                "Lịch học",
                               ],
                               "s": {
                                 "color": "#526174",
@@ -676,7 +676,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                               "t": "Text",
                             },
                           ],
-                          "label": "Schedule",
+                          "label": "Lịch học",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -712,7 +712,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                             },
                             {
                               "c": [
-                                "Register",
+                                "Đăng ký",
                               ],
                               "s": {
                                 "color": "#526174",
@@ -721,7 +721,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                               "t": "Text",
                             },
                           ],
-                          "label": "Register",
+                          "label": "Đăng ký",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -757,7 +757,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                             },
                             {
                               "c": [
-                                "Alerts",
+                                "Thông báo",
                               ],
                               "s": {
                                 "color": "#526174",
@@ -766,7 +766,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                               "t": "Text",
                             },
                           ],
-                          "label": "Alerts",
+                          "label": "Thông báo",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -820,7 +820,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                           "t": "Text",
                         },
                       ],
-                      "label": "Open menu",
+                      "label": "Mở menu",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -905,7 +905,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                             },
                             {
                               "c": [
-                                "Home",
+                                "Trang chủ",
                               ],
                               "s": {
                                 "color": "#003F87",
@@ -914,7 +914,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                               "t": "Text",
                             },
                           ],
-                          "label": "Home",
+                          "label": "Trang chủ",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -950,7 +950,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                             },
                             {
                               "c": [
-                                "Schedule",
+                                "Lịch học",
                               ],
                               "s": {
                                 "color": "#526174",
@@ -959,7 +959,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                               "t": "Text",
                             },
                           ],
-                          "label": "Schedule",
+                          "label": "Lịch học",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -995,7 +995,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                             },
                             {
                               "c": [
-                                "Register",
+                                "Đăng ký",
                               ],
                               "s": {
                                 "color": "#526174",
@@ -1004,7 +1004,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                               "t": "Text",
                             },
                           ],
-                          "label": "Register",
+                          "label": "Đăng ký",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -1040,7 +1040,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                             },
                             {
                               "c": [
-                                "Alerts",
+                                "Thông báo",
                               ],
                               "s": {
                                 "color": "#526174",
@@ -1049,7 +1049,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                               "t": "Text",
                             },
                           ],
-                          "label": "Alerts",
+                          "label": "Thông báo",
                           "role": "tab",
                           "s": {
                             "alignItems": "center",
@@ -1101,7 +1101,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
                           "t": "Text",
                         },
                       ],
-                      "label": "Open menu",
+                      "label": "Mở menu",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -2756,7 +2756,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Home",
+                    "Trang chủ",
                   ],
                   "s": {
                     "color": "#98BDD7",
@@ -2765,7 +2765,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Home",
+              "label": "Trang chủ",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -2801,7 +2801,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Schedule",
+                    "Lịch học",
                   ],
                   "s": {
                     "color": "#A9B1BC",
@@ -2810,7 +2810,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Schedule",
+              "label": "Lịch học",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -2846,7 +2846,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Register",
+                    "Đăng ký",
                   ],
                   "s": {
                     "color": "#A9B1BC",
@@ -2855,7 +2855,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Register",
+              "label": "Đăng ký",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -2891,7 +2891,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Alerts",
+                    "Thông báo",
                   ],
                   "s": {
                     "color": "#A9B1BC",
@@ -2900,7 +2900,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Alerts",
+              "label": "Thông báo",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -2954,7 +2954,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
               "t": "Text",
             },
           ],
-          "label": "Open menu",
+          "label": "Mở menu",
           "role": "button",
           "s": {
             "alignItems": "center",
@@ -3014,7 +3014,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Home",
+                    "Trang chủ",
                   ],
                   "s": {
                     "color": "#98BDD7",
@@ -3023,7 +3023,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Home",
+              "label": "Trang chủ",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -3059,7 +3059,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Schedule",
+                    "Lịch học",
                   ],
                   "s": {
                     "color": "#A9B1BC",
@@ -3068,7 +3068,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Schedule",
+              "label": "Lịch học",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -3104,7 +3104,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Register",
+                    "Đăng ký",
                   ],
                   "s": {
                     "color": "#A9B1BC",
@@ -3113,7 +3113,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Register",
+              "label": "Đăng ký",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -3149,7 +3149,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Alerts",
+                    "Thông báo",
                   ],
                   "s": {
                     "color": "#A9B1BC",
@@ -3158,7 +3158,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Alerts",
+              "label": "Thông báo",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -3212,7 +3212,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
               "t": "Text",
             },
           ],
-          "label": "Open menu",
+          "label": "Mở menu",
           "role": "button",
           "s": {
             "alignItems": "center",
@@ -3272,7 +3272,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Home",
+                    "Trang chủ",
                   ],
                   "s": {
                     "color": "#003F87",
@@ -3281,7 +3281,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Home",
+              "label": "Trang chủ",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -3317,7 +3317,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Schedule",
+                    "Lịch học",
                   ],
                   "s": {
                     "color": "#526174",
@@ -3326,7 +3326,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Schedule",
+              "label": "Lịch học",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -3362,7 +3362,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Register",
+                    "Đăng ký",
                   ],
                   "s": {
                     "color": "#526174",
@@ -3371,7 +3371,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Register",
+              "label": "Đăng ký",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -3407,7 +3407,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Alerts",
+                    "Thông báo",
                   ],
                   "s": {
                     "color": "#526174",
@@ -3416,7 +3416,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Alerts",
+              "label": "Thông báo",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -3470,7 +3470,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
               "t": "Text",
             },
           ],
-          "label": "Open menu",
+          "label": "Mở menu",
           "role": "button",
           "s": {
             "alignItems": "center",
@@ -3530,7 +3530,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Home",
+                    "Trang chủ",
                   ],
                   "s": {
                     "color": "#003F87",
@@ -3539,7 +3539,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Home",
+              "label": "Trang chủ",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -3575,7 +3575,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Schedule",
+                    "Lịch học",
                   ],
                   "s": {
                     "color": "#526174",
@@ -3584,7 +3584,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Schedule",
+              "label": "Lịch học",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -3620,7 +3620,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Register",
+                    "Đăng ký",
                   ],
                   "s": {
                     "color": "#526174",
@@ -3629,7 +3629,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Register",
+              "label": "Đăng ký",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -3665,7 +3665,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                 },
                 {
                   "c": [
-                    "Alerts",
+                    "Thông báo",
                   ],
                   "s": {
                     "color": "#526174",
@@ -3674,7 +3674,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
                   "t": "Text",
                 },
               ],
-              "label": "Alerts",
+              "label": "Thông báo",
               "role": "tab",
               "s": {
                 "alignItems": "center",
@@ -3728,7 +3728,7 @@ exports[`static visual snapshots (structure/token, not pixels) BottomNavigation 
               "t": "Text",
             },
           ],
-          "label": "Open menu",
+          "label": "Mở menu",
           "role": "button",
           "s": {
             "alignItems": "center",
@@ -9333,7 +9333,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "PREVIEW WORKSPACE",
+                        "XEM THỬ",
                       ],
                       "s": {
                         "color": "#98BDD7",
@@ -9344,23 +9344,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                     },
                     {
                       "c": [
-                        "Academic dashboard",
+                        "Tổng quan học tập",
                       ],
                       "role": "header",
                       "s": {
                         "color": "#EDF0F2",
                         "fontSize": 26,
-                      },
-                      "t": "Text",
-                    },
-                    {
-                      "c": [
-                        "Your current sections and next academic actions.",
-                      ],
-                      "s": {
-                        "color": "#A9B1BC",
-                        "fontSize": 14,
-                        "marginTop": 4,
                       },
                       "t": "Text",
                     },
@@ -9387,7 +9376,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "CURRENT SEMESTER",
+                            "HỌC KỲ HIỆN TẠI",
                           ],
                           "s": {
                             "color": "#98BDD7",
@@ -9397,7 +9386,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                         },
                         {
                           "c": [
-                            "Preview semester overview",
+                            "Học kỳ xem thử",
                           ],
                           "s": {
                             "color": "#EDF0F2",
@@ -9409,7 +9398,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                         },
                         {
                           "c": [
-                            "Preview data is local.",
+                            "Dữ liệu xem thử, không phải hồ sơ thật.",
                           ],
                           "s": {
                             "color": "#A9B1BC",
@@ -9427,7 +9416,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Open schedule",
+                            "Xem lịch học",
                           ],
                           "s": {
                             "color": "#98BDD7",
@@ -9436,7 +9425,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "Open schedule",
+                      "label": "Xem lịch học",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -9464,7 +9453,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Active sections",
+                            "Lớp đang học",
                           ],
                           "s": {
                             "color": "#A9B1BC",
@@ -9482,16 +9471,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           },
                           "t": "Text",
                         },
-                        {
-                          "c": [
-                            "Current semester",
-                          ],
-                          "s": {
-                            "color": "#A9B1BC",
-                            "fontSize": 12,
-                          },
-                          "t": "Text",
-                        },
                       ],
                       "s": {
                         "backgroundColor": "#1E2229",
@@ -9506,7 +9485,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Weekly sessions",
+                            "Buổi học mỗi tuần",
                           ],
                           "s": {
                             "color": "#A9B1BC",
@@ -9521,16 +9500,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "s": {
                             "color": "#98BDD7",
                             "fontSize": 22,
-                          },
-                          "t": "Text",
-                        },
-                        {
-                          "c": [
-                            "Published schedule",
-                          ],
-                          "s": {
-                            "color": "#A9B1BC",
-                            "fontSize": 12,
                           },
                           "t": "Text",
                         },
@@ -9558,7 +9527,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "Next on your schedule",
+                        "Lịch sắp tới",
                       ],
                       "role": "header",
                       "s": {
@@ -9571,7 +9540,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "See all",
+                            "Xem tất cả",
                           ],
                           "s": {
                             "color": "#98BDD7",
@@ -9580,7 +9549,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "See all",
+                      "label": "Xem tất cả",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -9653,7 +9622,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                 },
                                 {
                                   "c": [
-                                    "Software Architecture · Room A2.204",
+                                    "Software Architecture · Phòng A2.204",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -9678,7 +9647,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                               "t": "Text",
                             },
                           ],
-                          "label": "CS204. Software Architecture · Room A2.204. 08:00 – 09:30",
+                          "label": "CS204. Software Architecture · Phòng A2.204. 08:00 – 09:30",
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
@@ -9747,7 +9716,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                 },
                                 {
                                   "c": [
-                                    "Business Analytics · Room B1.108",
+                                    "Business Analytics · Phòng B1.108",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -9772,7 +9741,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                               "t": "Text",
                             },
                           ],
-                          "label": "BA312. Business Analytics · Room B1.108. 13:30 – 15:00",
+                          "label": "BA312. Business Analytics · Phòng B1.108. 13:30 – 15:00",
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
@@ -9800,7 +9769,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "Quick actions",
+                        "Thao tác nhanh",
                       ],
                       "role": "header",
                       "s": {
@@ -9824,7 +9793,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Register courses",
+                            "Đăng ký học phần",
                           ],
                           "s": {
                             "color": "#98BDD7",
@@ -9833,7 +9802,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "Register courses",
+                      "label": "Đăng ký học phần",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -9851,7 +9820,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "View thesis",
+                            "Luận văn",
                           ],
                           "s": {
                             "color": "#98BDD7",
@@ -9860,7 +9829,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "View thesis",
+                      "label": "Luận văn",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -9878,7 +9847,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Ask assistant",
+                            "Hỏi trợ lý",
                           ],
                           "s": {
                             "color": "#98BDD7",
@@ -9887,7 +9856,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "Ask assistant",
+                      "label": "Hỏi trợ lý",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -9939,7 +9908,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "PREVIEW WORKSPACE",
+                        "XEM THỬ",
                       ],
                       "s": {
                         "color": "#98BDD7",
@@ -9950,23 +9919,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                     },
                     {
                       "c": [
-                        "Academic dashboard",
+                        "Tổng quan học tập",
                       ],
                       "role": "header",
                       "s": {
                         "color": "#EDF0F2",
                         "fontSize": 26,
-                      },
-                      "t": "Text",
-                    },
-                    {
-                      "c": [
-                        "Your current sections and next academic actions.",
-                      ],
-                      "s": {
-                        "color": "#A9B1BC",
-                        "fontSize": 14,
-                        "marginTop": 4,
                       },
                       "t": "Text",
                     },
@@ -9993,7 +9951,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "CURRENT SEMESTER",
+                            "HỌC KỲ HIỆN TẠI",
                           ],
                           "s": {
                             "color": "#98BDD7",
@@ -10003,7 +9961,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                         },
                         {
                           "c": [
-                            "Preview semester overview",
+                            "Học kỳ xem thử",
                           ],
                           "s": {
                             "color": "#EDF0F2",
@@ -10015,7 +9973,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                         },
                         {
                           "c": [
-                            "Preview data is local.",
+                            "Dữ liệu xem thử, không phải hồ sơ thật.",
                           ],
                           "s": {
                             "color": "#A9B1BC",
@@ -10033,7 +9991,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Open schedule",
+                            "Xem lịch học",
                           ],
                           "s": {
                             "color": "#98BDD7",
@@ -10042,7 +10000,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "Open schedule",
+                      "label": "Xem lịch học",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -10070,7 +10028,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Active sections",
+                            "Lớp đang học",
                           ],
                           "s": {
                             "color": "#A9B1BC",
@@ -10088,16 +10046,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           },
                           "t": "Text",
                         },
-                        {
-                          "c": [
-                            "Current semester",
-                          ],
-                          "s": {
-                            "color": "#A9B1BC",
-                            "fontSize": 12,
-                          },
-                          "t": "Text",
-                        },
                       ],
                       "s": {
                         "backgroundColor": "#1E2229",
@@ -10112,7 +10060,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Weekly sessions",
+                            "Buổi học mỗi tuần",
                           ],
                           "s": {
                             "color": "#A9B1BC",
@@ -10127,16 +10075,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "s": {
                             "color": "#98BDD7",
                             "fontSize": 22,
-                          },
-                          "t": "Text",
-                        },
-                        {
-                          "c": [
-                            "Published schedule",
-                          ],
-                          "s": {
-                            "color": "#A9B1BC",
-                            "fontSize": 12,
                           },
                           "t": "Text",
                         },
@@ -10164,7 +10102,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "Next on your schedule",
+                        "Lịch sắp tới",
                       ],
                       "role": "header",
                       "s": {
@@ -10177,7 +10115,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "See all",
+                            "Xem tất cả",
                           ],
                           "s": {
                             "color": "#98BDD7",
@@ -10186,7 +10124,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "See all",
+                      "label": "Xem tất cả",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -10259,7 +10197,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                 },
                                 {
                                   "c": [
-                                    "Software Architecture · Room A2.204",
+                                    "Software Architecture · Phòng A2.204",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -10284,7 +10222,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                               "t": "Text",
                             },
                           ],
-                          "label": "CS204. Software Architecture · Room A2.204. 08:00 – 09:30",
+                          "label": "CS204. Software Architecture · Phòng A2.204. 08:00 – 09:30",
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
@@ -10353,7 +10291,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                 },
                                 {
                                   "c": [
-                                    "Business Analytics · Room B1.108",
+                                    "Business Analytics · Phòng B1.108",
                                   ],
                                   "s": {
                                     "color": "#A9B1BC",
@@ -10378,7 +10316,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                               "t": "Text",
                             },
                           ],
-                          "label": "BA312. Business Analytics · Room B1.108. 13:30 – 15:00",
+                          "label": "BA312. Business Analytics · Phòng B1.108. 13:30 – 15:00",
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
@@ -10406,7 +10344,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "Quick actions",
+                        "Thao tác nhanh",
                       ],
                       "role": "header",
                       "s": {
@@ -10430,7 +10368,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Register courses",
+                            "Đăng ký học phần",
                           ],
                           "s": {
                             "color": "#98BDD7",
@@ -10439,7 +10377,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "Register courses",
+                      "label": "Đăng ký học phần",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -10457,7 +10395,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "View thesis",
+                            "Luận văn",
                           ],
                           "s": {
                             "color": "#98BDD7",
@@ -10466,7 +10404,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "View thesis",
+                      "label": "Luận văn",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -10484,7 +10422,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Ask assistant",
+                            "Hỏi trợ lý",
                           ],
                           "s": {
                             "color": "#98BDD7",
@@ -10493,7 +10431,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "Ask assistant",
+                      "label": "Hỏi trợ lý",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -10549,7 +10487,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "PREVIEW WORKSPACE",
+                        "XEM THỬ",
                       ],
                       "s": {
                         "color": "#003F87",
@@ -10560,23 +10498,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                     },
                     {
                       "c": [
-                        "Academic dashboard",
+                        "Tổng quan học tập",
                       ],
                       "role": "header",
                       "s": {
                         "color": "#17243A",
                         "fontSize": 26,
-                      },
-                      "t": "Text",
-                    },
-                    {
-                      "c": [
-                        "Your current sections and next academic actions.",
-                      ],
-                      "s": {
-                        "color": "#526174",
-                        "fontSize": 14,
-                        "marginTop": 4,
                       },
                       "t": "Text",
                     },
@@ -10603,7 +10530,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "CURRENT SEMESTER",
+                            "HỌC KỲ HIỆN TẠI",
                           ],
                           "s": {
                             "color": "#003F87",
@@ -10613,7 +10540,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                         },
                         {
                           "c": [
-                            "Preview semester overview",
+                            "Học kỳ xem thử",
                           ],
                           "s": {
                             "color": "#17243A",
@@ -10625,7 +10552,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                         },
                         {
                           "c": [
-                            "Preview data is local.",
+                            "Dữ liệu xem thử, không phải hồ sơ thật.",
                           ],
                           "s": {
                             "color": "#526174",
@@ -10643,7 +10570,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Open schedule",
+                            "Xem lịch học",
                           ],
                           "s": {
                             "color": "#003F87",
@@ -10652,7 +10579,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "Open schedule",
+                      "label": "Xem lịch học",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -10680,7 +10607,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Active sections",
+                            "Lớp đang học",
                           ],
                           "s": {
                             "color": "#526174",
@@ -10698,16 +10625,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           },
                           "t": "Text",
                         },
-                        {
-                          "c": [
-                            "Current semester",
-                          ],
-                          "s": {
-                            "color": "#526174",
-                            "fontSize": 12,
-                          },
-                          "t": "Text",
-                        },
                       ],
                       "s": {
                         "backgroundColor": "#FFFFFF",
@@ -10722,7 +10639,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Weekly sessions",
+                            "Buổi học mỗi tuần",
                           ],
                           "s": {
                             "color": "#526174",
@@ -10737,16 +10654,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "s": {
                             "color": "#003F87",
                             "fontSize": 22,
-                          },
-                          "t": "Text",
-                        },
-                        {
-                          "c": [
-                            "Published schedule",
-                          ],
-                          "s": {
-                            "color": "#526174",
-                            "fontSize": 12,
                           },
                           "t": "Text",
                         },
@@ -10774,7 +10681,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "Next on your schedule",
+                        "Lịch sắp tới",
                       ],
                       "role": "header",
                       "s": {
@@ -10787,7 +10694,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "See all",
+                            "Xem tất cả",
                           ],
                           "s": {
                             "color": "#003F87",
@@ -10796,7 +10703,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "See all",
+                      "label": "Xem tất cả",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -10869,7 +10776,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                 },
                                 {
                                   "c": [
-                                    "Software Architecture · Room A2.204",
+                                    "Software Architecture · Phòng A2.204",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -10894,7 +10801,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                               "t": "Text",
                             },
                           ],
-                          "label": "CS204. Software Architecture · Room A2.204. 08:00 – 09:30",
+                          "label": "CS204. Software Architecture · Phòng A2.204. 08:00 – 09:30",
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
@@ -10963,7 +10870,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                 },
                                 {
                                   "c": [
-                                    "Business Analytics · Room B1.108",
+                                    "Business Analytics · Phòng B1.108",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -10988,7 +10895,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                               "t": "Text",
                             },
                           ],
-                          "label": "BA312. Business Analytics · Room B1.108. 13:30 – 15:00",
+                          "label": "BA312. Business Analytics · Phòng B1.108. 13:30 – 15:00",
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
@@ -11016,7 +10923,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "Quick actions",
+                        "Thao tác nhanh",
                       ],
                       "role": "header",
                       "s": {
@@ -11040,7 +10947,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Register courses",
+                            "Đăng ký học phần",
                           ],
                           "s": {
                             "color": "#003F87",
@@ -11049,7 +10956,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "Register courses",
+                      "label": "Đăng ký học phần",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -11067,7 +10974,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "View thesis",
+                            "Luận văn",
                           ],
                           "s": {
                             "color": "#003F87",
@@ -11076,7 +10983,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "View thesis",
+                      "label": "Luận văn",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -11094,7 +11001,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Ask assistant",
+                            "Hỏi trợ lý",
                           ],
                           "s": {
                             "color": "#003F87",
@@ -11103,7 +11010,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "Ask assistant",
+                      "label": "Hỏi trợ lý",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -11155,7 +11062,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "PREVIEW WORKSPACE",
+                        "XEM THỬ",
                       ],
                       "s": {
                         "color": "#003F87",
@@ -11166,23 +11073,12 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                     },
                     {
                       "c": [
-                        "Academic dashboard",
+                        "Tổng quan học tập",
                       ],
                       "role": "header",
                       "s": {
                         "color": "#17243A",
                         "fontSize": 26,
-                      },
-                      "t": "Text",
-                    },
-                    {
-                      "c": [
-                        "Your current sections and next academic actions.",
-                      ],
-                      "s": {
-                        "color": "#526174",
-                        "fontSize": 14,
-                        "marginTop": 4,
                       },
                       "t": "Text",
                     },
@@ -11209,7 +11105,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "CURRENT SEMESTER",
+                            "HỌC KỲ HIỆN TẠI",
                           ],
                           "s": {
                             "color": "#003F87",
@@ -11219,7 +11115,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                         },
                         {
                           "c": [
-                            "Preview semester overview",
+                            "Học kỳ xem thử",
                           ],
                           "s": {
                             "color": "#17243A",
@@ -11231,7 +11127,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                         },
                         {
                           "c": [
-                            "Preview data is local.",
+                            "Dữ liệu xem thử, không phải hồ sơ thật.",
                           ],
                           "s": {
                             "color": "#526174",
@@ -11249,7 +11145,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Open schedule",
+                            "Xem lịch học",
                           ],
                           "s": {
                             "color": "#003F87",
@@ -11258,7 +11154,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "Open schedule",
+                      "label": "Xem lịch học",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -11286,7 +11182,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Active sections",
+                            "Lớp đang học",
                           ],
                           "s": {
                             "color": "#526174",
@@ -11304,16 +11200,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           },
                           "t": "Text",
                         },
-                        {
-                          "c": [
-                            "Current semester",
-                          ],
-                          "s": {
-                            "color": "#526174",
-                            "fontSize": 12,
-                          },
-                          "t": "Text",
-                        },
                       ],
                       "s": {
                         "backgroundColor": "#FFFFFF",
@@ -11328,7 +11214,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Weekly sessions",
+                            "Buổi học mỗi tuần",
                           ],
                           "s": {
                             "color": "#526174",
@@ -11343,16 +11229,6 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "s": {
                             "color": "#003F87",
                             "fontSize": 22,
-                          },
-                          "t": "Text",
-                        },
-                        {
-                          "c": [
-                            "Published schedule",
-                          ],
-                          "s": {
-                            "color": "#526174",
-                            "fontSize": 12,
                           },
                           "t": "Text",
                         },
@@ -11380,7 +11256,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "Next on your schedule",
+                        "Lịch sắp tới",
                       ],
                       "role": "header",
                       "s": {
@@ -11393,7 +11269,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "See all",
+                            "Xem tất cả",
                           ],
                           "s": {
                             "color": "#003F87",
@@ -11402,7 +11278,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "See all",
+                      "label": "Xem tất cả",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -11475,7 +11351,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                 },
                                 {
                                   "c": [
-                                    "Software Architecture · Room A2.204",
+                                    "Software Architecture · Phòng A2.204",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -11500,7 +11376,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                               "t": "Text",
                             },
                           ],
-                          "label": "CS204. Software Architecture · Room A2.204. 08:00 – 09:30",
+                          "label": "CS204. Software Architecture · Phòng A2.204. 08:00 – 09:30",
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
@@ -11569,7 +11445,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                                 },
                                 {
                                   "c": [
-                                    "Business Analytics · Room B1.108",
+                                    "Business Analytics · Phòng B1.108",
                                   ],
                                   "s": {
                                     "color": "#526174",
@@ -11594,7 +11470,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                               "t": "Text",
                             },
                           ],
-                          "label": "BA312. Business Analytics · Room B1.108. 13:30 – 15:00",
+                          "label": "BA312. Business Analytics · Phòng B1.108. 13:30 – 15:00",
                           "s": {
                             "alignItems": "center",
                             "flexDirection": "row",
@@ -11622,7 +11498,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "Quick actions",
+                        "Thao tác nhanh",
                       ],
                       "role": "header",
                       "s": {
@@ -11646,7 +11522,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Register courses",
+                            "Đăng ký học phần",
                           ],
                           "s": {
                             "color": "#003F87",
@@ -11655,7 +11531,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "Register courses",
+                      "label": "Đăng ký học phần",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -11673,7 +11549,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "View thesis",
+                            "Luận văn",
                           ],
                           "s": {
                             "color": "#003F87",
@@ -11682,7 +11558,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "View thesis",
+                      "label": "Luận văn",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
@@ -11700,7 +11576,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                       "c": [
                         {
                           "c": [
-                            "Ask assistant",
+                            "Hỏi trợ lý",
                           ],
                           "s": {
                             "color": "#003F87",
@@ -11709,7 +11585,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                           "t": "Text",
                         },
                       ],
-                      "label": "Ask assistant",
+                      "label": "Hỏi trợ lý",
                       "role": "button",
                       "s": {
                         "alignItems": "center",

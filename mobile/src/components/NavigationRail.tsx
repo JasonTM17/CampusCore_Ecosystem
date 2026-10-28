@@ -6,6 +6,7 @@ import { useThemedStyles, useTheme } from '../design/theme';
 import type { ThemeColors } from '../design/theme';
 import { getBottomNavigation } from '../navigation/routes';
 import type { BottomNavigationProps } from './BottomNavigation';
+import { useShellCopy } from '../i18n/use-shell-copy';
 import { UiText } from './Ui';
 
 /** Expanded-window presentation of the same role-aware primary navigation. */
@@ -13,6 +14,7 @@ export function NavigationRail({ activeRoute, role, onNavigate, onMenu }: Bottom
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const items = getBottomNavigation(role);
+  const { copy, navLabel } = useShellCopy();
 
   return (
     <ScrollView
@@ -27,7 +29,7 @@ export function NavigationRail({ activeRoute, role, onNavigate, onMenu }: Bottom
           return (
             <Pressable
               key={item.route}
-              accessibilityLabel={item.label}
+              accessibilityLabel={navLabel(item.label)}
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
               onPress={() => onNavigate(item.route)}
@@ -37,14 +39,14 @@ export function NavigationRail({ activeRoute, role, onNavigate, onMenu }: Bottom
                 <MaterialCommunityIcons color={active ? colors.primary : colors.textMuted} name={item.icon} size={20} />
               </View>
               <UiText variant="meta" tone={active ? 'primary' : 'muted'} style={styles.label}>
-                {item.label}
+                {navLabel(item.label)}
               </UiText>
             </Pressable>
           );
         })}
       </View>
       <Pressable
-        accessibilityLabel="Open menu"
+        accessibilityLabel={copy.openMenu}
         accessibilityRole="button"
         onPress={onMenu}
         style={({ pressed }) => [styles.item, pressed ? styles.pressed : undefined]}
@@ -52,7 +54,7 @@ export function NavigationRail({ activeRoute, role, onNavigate, onMenu }: Bottom
         <View style={styles.icon}>
           <MaterialCommunityIcons color={colors.textMuted} name="menu" size={20} />
         </View>
-        <UiText variant="meta" tone="muted" style={styles.label}>Menu</UiText>
+        <UiText variant="meta" tone="muted" style={styles.label}>{copy.menu}</UiText>
       </Pressable>
     </ScrollView>
   );

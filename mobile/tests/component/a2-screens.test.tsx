@@ -89,7 +89,7 @@ describe('assistant + chrome', () => {
     const tabs = screen.getAllByRole('tab');
     expect(tabs.length).toBeGreaterThan(1);
     expect(tabs.some((t) => t.props.accessibilityState?.selected)).toBe(true);
-    expect(screen.getByRole('button', { name: 'Open menu' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Mở menu' })).toBeOnTheScreen();
   });
   test('menu panel lists navigation and close', async () => {
     setWidth(360);
@@ -97,7 +97,7 @@ describe('assistant + chrome', () => {
     await renderThemed(
       <MenuPanel activeRoute="dashboard.student" role="student" onClose={onClose} onNavigate={() => {}} onSwitchRole={() => {}} allowRoleSwitch={false} />,
     );
-    expect(screen.getByRole('button', { name: 'Close' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Đóng' })).toBeOnTheScreen();
     expect(screen.getAllByRole('header').length).toBeGreaterThan(0);
   });
 });

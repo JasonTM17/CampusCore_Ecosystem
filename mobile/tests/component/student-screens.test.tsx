@@ -67,9 +67,9 @@ describe('student screens (preview mode)', () => {
   test('dashboard renders header and actions at 360 width', async () => {
     setWidth(360);
     await renderThemed(<StudentDashboardScreen {...props} />);
-    expect(screen.getByRole('header', { name: 'Academic dashboard' })).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Open schedule' })).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Ask assistant' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Tổng quan học tập' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Xem lịch học' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Hỏi trợ lý' })).toBeOnTheScreen();
   });
 
   test('dashboard background follows scheme', async () => {
