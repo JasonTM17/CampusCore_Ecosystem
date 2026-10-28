@@ -12,11 +12,15 @@ import {
   StatePanel,
   UiText,
 } from '../../components/Ui';
-import { apiClient, campusApi, type MobileNotification } from '../../api/client';
 import type { MobileScreenProps } from '../../navigation/types';
 import { useLiveResource } from './shared/useLiveResource';
 import { studentFriendlyErrorMessage } from './shared/errors';
 import { previewNotifications } from './shared/preview';
+import { ApiClientError, apiClient, campusApi } from '../../api/client';
+import type { MobileNotification } from '../../api/client';
+import type { PushApi } from '../../api/push-notifications';
+import { PUSH_OPT_IN_ENABLED } from '../../config/features';
+import { notificationsMessages } from '../../i18n/notifications-messages';
 import { useStudentStyles } from './shared/styles';
 
 export function NotificationsScreen({ navigation }: MobileScreenProps) {
@@ -118,6 +122,8 @@ export function NotificationsScreen({ navigation }: MobileScreenProps) {
         <StatePanel kind="empty" title="No notifications" description="New account and academic updates will appear here." />
       )}
       <ScreenSpacer />
+      {PUSH_OPT_IN_ENABLED ? <PushOptInCard /> : null}
+      <ScreenSpacer />
       <Button
         label="Mark all as read"
         loading={isMarkingAll}
@@ -127,4 +133,55 @@ export function NotificationsScreen({ navigation }: MobileScreenProps) {
       />
     </ScreenShell>
   );
+}
+
+const pushMsg = notificationsMessages.en;
+
+type PushOptInStatus = 'idle' | 'registered' | 'denied' | 'unavailable' | 'failed';
+
+function PushOptInCard() {
+  const [status, setStatus] = useState<PushOptInStatus>('idle');
+  if (!PUSH_OPT_IN_ENABLED) return null;
+
+  const onEnable = async () => {
+    let lastError: unknown = null;
+    const api: PushApi = {
+      registerPushDevice: async (installationId, body) => {
+        try {
+          return await campusApi.registerPushDevice(installationId, body);
+        } catch (error) {
+          lastError = error;
+          throw error;
+        }
+      },
+      unregisterPushDevice: (installationId) => campusApi.unregisterPushDevice(installationId),
+    };
+    // Dynamic imports keep the expo-notifications adapter out of app startup
+    // while the opt-in flag is off.
+    const [{ createPushNotificationClient }, { expoPushPlatform }] = await Promise.all([
+      import('../../api/push-notifications'),
+      import('../../api/expo-push-platform'),
+    ]);
+    const result = await createPushNotificationClient(expoPushPlatform, api).register(true);
+    if (result.status === 'registered') setStatus('registered');
+    else if (result.status === 'permission-denied') setStatus('denied');
+    else if (result.status === 'unavailable') setStatus('unavailable');
+    else if (lastError instanceof ApiClientError && lastError.status === 503) setStatus('unavailable');
+    else setStatus('failed');
+  };
+
+  if (status === 'idle') {
+    return (
+      <Card tone="low">
+        <UiText variant="label">{pushMsg.permissionTitle}</UiText>
+        <UiText variant="bodySmall" tone="muted">{pushMsg.permissionRationale}</UiText>
+        <Button label={pushMsg.enableAction} onPress={() => void onEnable()} variant="secondary" />
+      </Card>
+    );
+  }
+  const message = status === 'registered' ? pushMsg.permissionTitle
+    : status === 'denied' ? pushMsg.permissionDenied
+    : status === 'unavailable' ? pushMsg.unavailable
+    : pushMsg.registrationFailed;
+  return <StatePanel kind={status === 'registered' ? 'empty' : 'error'} title={message} />;
 }
