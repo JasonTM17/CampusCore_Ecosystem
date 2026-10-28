@@ -1,7 +1,7 @@
 package io.campuscore.restfulapi.notification.push;
 
-import io.campuscore.restfulapi.notification.push.PushDeviceDtos.RegistrationRequest;
-import io.campuscore.restfulapi.notification.push.PushDeviceDtos.RegistrationResponse;
+import io.campuscore.restfulapi.notification.push.PushDeviceDtos.PushDeviceRegistrationRequest;
+import io.campuscore.restfulapi.notification.push.PushDeviceDtos.PushDeviceRegistrationResponse;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,11 +28,11 @@ public class PushDeviceController {
 
     @PutMapping("/{installationId}")
     @ResponseStatus(HttpStatus.OK)
-    public RegistrationResponse register(
+    public PushDeviceRegistrationResponse register(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String installationId,
             @RequestBody(required = false) tools.jackson.databind.JsonNode body) {
-        return devices.register(subject(jwt), installationId, RegistrationRequest.from(body));
+        return devices.register(subject(jwt), installationId, PushDeviceRegistrationRequest.from(body));
     }
 
     @DeleteMapping("/{installationId}")

@@ -2,8 +2,8 @@ package io.campuscore.restfulapi.notification.push;
 
 import io.campuscore.restfulapi.audit.AdminAuditRecorder;
 import io.campuscore.restfulapi.exception.AppException;
-import io.campuscore.restfulapi.notification.push.PushDeviceDtos.RegistrationRequest;
-import io.campuscore.restfulapi.notification.push.PushDeviceDtos.RegistrationResponse;
+import io.campuscore.restfulapi.notification.push.PushDeviceDtos.PushDeviceRegistrationRequest;
+import io.campuscore.restfulapi.notification.push.PushDeviceDtos.PushDeviceRegistrationResponse;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Locale;
@@ -49,8 +49,8 @@ public class PushDeviceService {
     }
 
     @Transactional
-    public RegistrationResponse register(
-            String actorId, String installationId, RegistrationRequest request) {
+    public PushDeviceRegistrationResponse register(
+            String actorId, String installationId, PushDeviceRegistrationRequest request) {
         String owner = requireSubject(actorId);
         String installation = requireInstallation(installationId);
         String provider = requireLabel(request.provider(), "provider");
@@ -68,7 +68,7 @@ public class PushDeviceService {
                     result.deviceId(), null,
                     Map.of("ownerId", result.previousOwnerId()), Map.of("ownerId", owner));
         }
-        return new RegistrationResponse(
+        return new PushDeviceRegistrationResponse(
                 installation, result.provider(), result.platform(), result.status(), result.updatedAt());
     }
 
