@@ -2,6 +2,7 @@ import { Linking, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { Button, UiText } from '../src/components/Ui';
+import { useTheme } from '../src/design/theme';
 import { tokens } from '../src/design/tokens';
 import { useSession } from '../src/session/SessionContext';
 
@@ -14,11 +15,12 @@ import { useSession } from '../src/session/SessionContext';
 export default function SignInBlocked() {
   const router = useRouter();
   const session = useSession();
+  const { colors } = useTheme();
   const reason = session.blockedReason
     ?? 'Sign-in could not finish. Use the web portal if this keeps happening.';
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <UiText variant="headlineMedium">Sign-in blocked</UiText>
       <UiText style={styles.reason}>{reason}</UiText>
       <Button
@@ -48,7 +50,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: tokens.spacing.md,
     padding: tokens.spacing.lg,
-    backgroundColor: tokens.colors.background,
   },
   reason: { textAlign: 'center' },
 });
