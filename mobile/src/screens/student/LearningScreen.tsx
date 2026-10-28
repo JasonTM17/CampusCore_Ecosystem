@@ -1,463 +1,143 @@
-import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import {
-  Button,
-  Card,
-  DataNotice,
-  Divider,
-  Field,
-  ListRow,
-  ScreenShell,
-  ScreenSpacer,
-  SectionHeading,
-  StatePanel,
-  UiText,
-} from '../../components/Ui';
-import { ResponsiveGrid } from '../../components/ui/ResponsiveGrid';
-import {
-  ApiClientError,
-  apiClient,
-  campusApi,
-  type MobileLearningAssignment,
-  type MobileLearningFeedback,
-  type MobileLearningMaterial,
-  type MobileLearningRevision,
-  type MobileLearningSection,
-  type MobileLearningSubmission,
-} from '../../api/client';
-import { useScreenQuery } from '../../hooks/useScreenQuery';
-import { learningMessages, type LearningLocale } from '../../i18n/learning-messages';
+import { Card, StatePanel, UiText } from '../../components/Ui';
+import { ChoiceField, SegmentedControl } from '../../components/ui/index';
+import { apiClient } from '../../api/client';
+import type { MobileLearningAssignment, MobileLearningMaterial, MobileLearningSection } from '../../api/client';
+import { tokens } from '../../design/tokens';
+import { learningMessages } from '../../i18n/learning-messages';
 import type { MobileScreenProps } from '../../navigation/types';
+import { AssignmentDetail } from '../content/AssignmentDetail';
+import { contentApi } from '../content/content-api';
+import { joinMeta } from '../content/content-rules';
+import { AttachmentRow, ListFrame, StatusChip, useContentCopy } from '../content/content-ui';
+import {
+  previewAssignments,
+  previewLearningSections,
+  previewMaterials,
+} from '../content/preview-data';
+import { useContentQuery } from '../content/use-content-query';
+import { useListQuery } from '../content/use-list-query';
 
-/**
- * D5 student learning surface (P09): enrolled-section roster read-through,
- * materials, assignments and the draft→submit→resubmit lifecycle. Native is
- * the text lane — file picking is the P13 device-matrix scope; deadline and
- * revision immutability stay server-enforced (LMS-X01/X02).
- */
-const previewSections: MobileLearningSection[] = [
-  {
-    sectionId: 'preview-sec-1',
-    sectionNumber: '01',
-    courseCode: 'CS101',
-    courseName: 'Introduction to Programming',
-    enrollmentStatus: 'ENROLLED',
-    materialCount: 2,
-    assignmentCount: 1,
-  },
-];
+type Tab = 'materials' | 'assignments';
 
-const previewMaterials: MobileLearningMaterial[] = [
-  {
-    id: 'preview-mat-1',
-    sectionId: 'preview-sec-1',
-    title: 'Week 1 — syllabus & toolchain',
-    fileName: 'week1-syllabus.pdf',
-    version: 1,
-  },
-];
-
-const previewAssignments: MobileLearningAssignment[] = [
-  {
-    id: 'preview-asg-1',
-    sectionId: 'preview-sec-1',
-    title: 'Lab 1 — first program',
-    deadlineAt: '2026-11-15T23:59:00Z',
-    maxScore: 10,
-    status: 'PUBLISHED',
-    version: 1,
-    mySubmissionId: null,
-    mySubmissionStatus: null,
-  },
-];
-
-function deadlineLabel(assignment: MobileLearningAssignment, copy: typeof learningMessages['vi'], locale: LearningLocale): string {
-  if (!assignment.deadlineAt) return copy.noDeadline;
-  const when = new Date(assignment.deadlineAt);
-  const text = Number.isNaN(when.getTime())
-    ? assignment.deadlineAt
-    : when.toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US');
-  return `${copy.deadline}: ${text}`;
-}
-
+/** Student learning: pick a section, read its materials, work on assignments. Enrollment and deadlines are server-owned. */
 export function LearningScreen(_props: MobileScreenProps) {
-  const [locale, setLocale] = useState<LearningLocale>('vi');
+  const { locale, formatDateTime } = useContentCopy();
   const copy = learningMessages[locale];
-  const statusLabel = (status: string) => copy.statusLabels[status] ?? status;
-  const languageSelector = (
-    <View style={styles.actionRow}>
-      <UiText>{copy.language}</UiText>
-      {(['vi', 'en'] as const).map((option) => (
-        <Button
-          key={option}
-          label={option.toUpperCase()}
-          accessibilityLabel={option === 'vi' ? 'Tiếng Việt' : 'English'}
-          variant={locale === option ? 'primary' : 'secondary'}
-          onPress={() => setLocale(option)}
-        />
-      ))}
-    </View>
-  );
+  const live = apiClient.mode === 'live';
+  const [tab, setTab] = useState<Tab>('assignments');
+  const [picked, setPicked] = useState<string | null>(null);
+  const [assignmentId, setAssignmentId] = useState<string | null>(null);
 
-  const [sectionId, setSectionId] = useState<string | null>(null);
-  const [workAssignment, setWorkAssignment] = useState<MobileLearningAssignment | null>(null);
-  const [mutating, setMutating] = useState(false);
-  const [mutationError, setMutationError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const sectionsQuery = useContentQuery<MobileLearningSection[]>('content.learning.sections', () => contentApi.learningSections());
+  const sections = live ? sectionsQuery.data ?? [] : previewLearningSections;
+  const sectionId = picked && sections.some((entry) => entry.sectionId === picked) ? picked : sections[0]?.sectionId ?? null;
 
-  const isPreview = apiClient.mode === 'preview';
+  const previewMats = useMemo(() => previewMaterials(locale), [locale]);
+  const previewAsgs = useMemo(() => previewAssignments(locale), [locale]);
+  const materials = useListQuery<MobileLearningMaterial>({
+    key: `content.learning.materials.${sectionId}`,
+    fetchAll: () => contentApi.learningMaterials(sectionId as string),
+    enabled: sectionId !== null,
+    preview: previewMats,
+  });
+  const assignments = useListQuery<MobileLearningAssignment>({
+    key: `content.learning.assignments.${sectionId}`,
+    fetchAll: () => contentApi.learningAssignments(sectionId as string),
+    enabled: sectionId !== null,
+    preview: previewAsgs,
+  });
 
-  const sectionsQuery = useScreenQuery<MobileLearningSection[]>(
-    'learning.sections',
-    () => campusApi.learningSections(),
-    {
-      enabled: apiClient.mode === 'live',
-      errorMessage: copy.sectionsUnavailable,
-      mapError: () => copy.sectionsUnavailable,
-    },
-  );
-
-  const sections = isPreview ? previewSections : sectionsQuery.data ?? [];
-  const activeSectionId = sectionId ?? sections[0]?.sectionId ?? null;
-
-  const materialsQuery = useScreenQuery<MobileLearningMaterial[]>(
-    `learning.materials.${activeSectionId ?? 'none'}`,
-    () => campusApi.learningMaterials(activeSectionId as string),
-    {
-      enabled: apiClient.mode === 'live' && activeSectionId != null,
-      errorMessage: copy.unavailable,
-      mapError: () => copy.unavailable,
-    },
-  );
-  const assignmentsQuery = useScreenQuery<MobileLearningAssignment[]>(
-    `learning.assignments.${activeSectionId ?? 'none'}`,
-    () => campusApi.learningAssignments(activeSectionId as string),
-    {
-      enabled: apiClient.mode === 'live' && activeSectionId != null,
-      errorMessage: copy.unavailable,
-      mapError: () => copy.unavailable,
-    },
-  );
-
-  const materials = isPreview ? previewMaterials : materialsQuery.data ?? [];
-  const assignments = isPreview ? previewAssignments : assignmentsQuery.data ?? [];
-
-  const reloadAll = useCallback(() => {
-    void sectionsQuery.reload();
-    void materialsQuery.reload();
-    void assignmentsQuery.reload();
-  }, [sectionsQuery, materialsQuery, assignmentsQuery]);
-
-  const friendlyMutation = useCallback(
-    (error: unknown): string => {
-      const code = error instanceof ApiClientError ? error.code : '';
-      if (code === 'NOT_ENROLLED' || code === 'ENROLLMENT_NOT_ACTIVE') return copy.notEnrolled;
-      if (code === 'ASSIGNMENT_NOT_OPEN' || code === 'DEADLINE_PASSED') return copy.pastDeadline;
-      return copy.submitFailed;
-    },
-    [copy],
-  );
-
-  const run = useCallback(
-    async (action: () => Promise<MobileLearningSubmission>, ok: string) => {
-      if (isPreview || mutating) return;
-      setMutating(true);
-      setMutationError(null);
-      setNotice(null);
-      try {
-        await action();
-        setNotice(ok);
-        reloadAll();
-      } catch (error) {
-        setMutationError(friendlyMutation(error));
-      } finally {
-        setMutating(false);
-      }
-    },
-    [friendlyMutation, isPreview, mutating, reloadAll],
-  );
-
-  const isLoading =
-    !isPreview &&
-    (sectionsQuery.isLoading ||
-      (activeSectionId != null && (materialsQuery.isLoading || assignmentsQuery.isLoading)));
-  const error = !isPreview
-    ? sectionsQuery.error ?? materialsQuery.error ?? assignmentsQuery.error
-    : null;
-  const warning = !isPreview
-    ? sectionsQuery.warning ?? materialsQuery.warning ?? assignmentsQuery.warning
-    : null;
-
-  if (isLoading || error) {
+  const selected = assignmentId ? assignments.items.find((item) => item.id === assignmentId) ?? null : null;
+  if (selected) {
     return (
-      <ScreenShell title={copy.title} eyebrow={copy.eyebrow} subtitle={copy.subtitle}>
-        {languageSelector}
-        <StatePanel
-          kind={isLoading ? 'loading' : 'error'}
-          title={isLoading ? copy.loading : copy.errorTitle}
-          description={error ?? copy.retrieving}
-          actionLabel={error ? copy.retry : undefined}
-          onAction={error ? reloadAll : undefined}
-        />
-      </ScreenShell>
+      <AssignmentDetail
+        assignment={selected}
+        onBack={() => setAssignmentId(null)}
+        onChanged={() => void assignments.reload()}
+      />
     );
   }
 
-  return (
-    <ScreenShell title={copy.title} eyebrow={copy.eyebrow} subtitle={copy.subtitle}>
-      {languageSelector}
-      {warning ? <DataNotice message={warning} /> : null}
-      {mutationError ? <StatePanel kind="error" title={mutationError} /> : null}
-      {notice ? <DataNotice message={notice} /> : null}
+  if (live && sectionsQuery.isLoading && !sectionsQuery.data) {
+    return <StatePanel kind="loading" title={copy.loading} />;
+  }
+  if (live && sectionsQuery.error && !sectionsQuery.data) {
+    return <StatePanel kind="error" title={copy.errorTitle} description={sectionsQuery.error} actionLabel={copy.retry} onAction={() => void sectionsQuery.reload()} />;
+  }
+  if (sections.length === 0) {
+    return <StatePanel kind="empty" title={copy.emptySections} />;
+  }
 
-      <SectionHeading title={copy.sections} />
-      {sections.length === 0 ? (
-        <StatePanel kind="empty" title={copy.emptySections} description={copy.emptySectionsDescription} />
-      ) : (
-        <Card>
-          <ResponsiveGrid>{sections.map((section, index) => (
-            <View key={section.sectionId}>
-              <ListRow
-                title={`${section.courseCode} · ${section.sectionNumber}`}
-                subtitle={section.courseName}
-                meta={`${section.assignmentCount}`}
-                onPress={() => setSectionId(section.sectionId)}
-              />
-              {index < sections.length - 1 ? <Divider /> : null}
-            </View>
-          ))}</ResponsiveGrid>
-        </Card>
-      )}
-
-      <ScreenSpacer />
-      <SectionHeading title={copy.materials} />
-      {materials.length === 0 ? (
-        <StatePanel kind="empty" title={copy.emptyMaterials} description={copy.emptyMaterialsDescription} />
-      ) : (
-        <Card>
-          <ResponsiveGrid>{materials.map((material, index) => (
-            <View key={material.id}>
-              <ListRow
-                title={material.title}
-                subtitle={material.fileName ?? material.description ?? ''}
-              />
-              {index < materials.length - 1 ? <Divider /> : null}
-            </View>
-          ))}</ResponsiveGrid>
-        </Card>
-      )}
-
-      <ScreenSpacer />
-      <SectionHeading title={copy.assignments} />
-      {assignments.length === 0 ? (
-        <StatePanel kind="empty" title={copy.emptyAssignments} description={copy.emptyAssignmentsDescription} />
-      ) : (
-        <Card>
-          <ResponsiveGrid>{assignments.map((assignment, index) => (
-            <View key={assignment.id}>
-              <ListRow
-                title={assignment.title}
-                subtitle={deadlineLabel(assignment, copy, locale)}
-                meta={statusLabel(assignment.status)}
-              />
-              <View style={styles.actionRow}>
-                <UiText variant="meta" tone="muted">
-                  {assignment.mySubmissionStatus ? statusLabel(assignment.mySubmissionStatus) : ''}
-                </UiText>
-                <Button
-                  label={copy.openWork}
-                  variant="secondary"
-                  disabled={isPreview}
-                  onPress={() => setWorkAssignment(assignment)}
-                />
-              </View>
-              {index < assignments.length - 1 ? <Divider /> : null}
-            </View>
-          ))}</ResponsiveGrid>
-        </Card>
-      )}
-
-      <ScreenSpacer />
-
-      {workAssignment ? (
-        <Card>
-          <UiText variant="bodyMedium">{workAssignment.title}</UiText>
-          <UiText variant="meta" tone="muted">
-            {deadlineLabel(workAssignment, copy, locale)}
-          </UiText>
-          <SubmissionWork
-            assignment={workAssignment}
-            mutating={mutating}
-            disabled={isPreview}
-            copy={copy}
-            onRun={run}
-            onClose={() => setWorkAssignment(null)}
-          />
-        </Card>
-      ) : null}
-      <ScreenSpacer />
-    </ScreenShell>
-  );
-}
-
-function SubmissionWork({
-  assignment,
-  mutating,
-  disabled,
-  copy,
-  onRun,
-  onClose,
-}: {
-  assignment: MobileLearningAssignment;
-  mutating: boolean;
-  disabled: boolean;
-  copy: typeof learningMessages['vi'];
-  onRun: (action: () => Promise<MobileLearningSubmission>, ok: string) => Promise<void>;
-  onClose: () => void;
-}) {
-  const [submission, setSubmission] = useState<MobileLearningSubmission | null>(null);
-  const [revisions, setRevisions] = useState<MobileLearningRevision[]>([]);
-  const [feedback, setFeedback] = useState<MobileLearningFeedback[]>([]);
-  const [text, setText] = useState('');
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  const submissionId = submission?.id ?? assignment.mySubmissionId ?? null;
-
-  const refresh = useCallback(async () => {
-    if (!submissionId) return;
-    try {
-      const [revisionRows, feedbackRows] = await Promise.all([
-        campusApi.learningRevisions(submissionId),
-        campusApi.learningFeedback(submissionId),
-      ]);
-      setRevisions(revisionRows);
-      setFeedback(feedbackRows);
-    } catch {
-      setLoadError(copy.unavailable);
-    }
-  }, [copy, submissionId]);
-
-  useEffect(() => {
-    if (submissionId && !disabled) {
-      void refresh();
-    }
-  }, [disabled, refresh, submissionId]);
-
-  const openDraft = () => onRun(async () => {
-    const created = await campusApi.learningOpenDraft(assignment.id);
-    setSubmission(created);
-    return created;
-  }, copy.saved);
-
-  const saveDraft = () => onRun(async () => {
-    if (!submissionId) throw new Error('no-draft');
-    const saved = await campusApi.learningSaveDraft(submissionId, text);
-    setSubmission(saved);
-    return saved;
-  }, copy.saved);
-
-  const submit = () => onRun(async () => {
-    const done = await campusApi.learningSubmit(assignment.id);
-    setSubmission(done);
-    return done;
-  }, copy.submitted);
-
-  const resubmit = () => onRun(async () => {
-    const done = await campusApi.learningResubmit(assignment.id, text);
-    setSubmission(done);
-    return done;
-  }, copy.submitted);
-
-  const status = submission?.status ?? assignment.mySubmissionStatus ?? null;
-  const editable = status == null || status === 'DRAFT' || status === 'RETURNED';
-  const published = assignment.status === 'PUBLISHED';
-
-  return (
-    <View style={styles.work}>
-      {loadError ? <StatePanel kind="error" title={loadError} /> : null}
-      {status ? (
-        <UiText variant="meta" tone="muted">{copy.statusLabels[status] ?? status}</UiText>
-      ) : null}
-
-      {submissionId == null && published ? (
-        <Button label={copy.draftWork} variant="secondary" loading={mutating} disabled={disabled} onPress={() => void openDraft()} />
-      ) : null}
-
-      {editable && submissionId ? (
-        <View style={styles.workForm}>
-          <Field
-            label={copy.yourAnswer}
-            placeholder={copy.answerPlaceholder}
-            value={text}
-            onChangeText={setText}
-            multiline
-            numberOfLines={4}
-            helperText={copy.filePickingLater}
-          />
-          {status === 'DRAFT' ? (
-            <View style={styles.workActions}>
-              <Button label={copy.saveDraft} variant="secondary" loading={mutating} disabled={disabled} onPress={() => void saveDraft()} />
-              <Button label={copy.submit} loading={mutating} disabled={disabled} onPress={() => void submit()} />
-            </View>
-          ) : null}
-          {status === 'RETURNED' ? (
-            <Button label={copy.resubmit} loading={mutating} disabled={disabled} onPress={() => void resubmit()} />
-          ) : null}
-        </View>
-      ) : null}
-
-      {revisions.length > 0 ? (
-        <View style={styles.workBlock}>
-          <UiText variant="label" tone="muted">{copy.revisions}</UiText>
-          {revisions.map((revision) => (
-            <UiText key={revision.id} variant="meta" tone="muted">
-              {`#${revision.revisionNo} · ${revision.fileName ?? revision.textBody?.slice(0, 40) ?? ''}`}
-            </UiText>
-          ))}
-        </View>
-      ) : null}
-
-      <View style={styles.workBlock}>
-        <UiText variant="label" tone="muted">{copy.feedback}</UiText>
-        {feedback.length === 0 ? (
-          <UiText variant="meta" tone="muted">{copy.emptyFeedback}</UiText>
-        ) : (
-          feedback.map((row) => (
-            <UiText key={row.id} variant="meta">
-              {row.score != null ? `${row.score} · ` : ''}{row.comment ?? ''}
-            </UiText>
-          ))
-        )}
-      </View>
-
-      <Button label="×" accessibilityLabel={copy.retry} variant="text" onPress={onClose} />
+  const header = (
+    <View style={styles.header}>
+      <ChoiceField
+        label={copy.section}
+        value={sectionId}
+        onChange={(value) => { setPicked(value); setAssignmentId(null); }}
+        options={sections.map((entry) => ({ value: entry.sectionId, label: `${entry.courseCode} · ${entry.courseName}` }))}
+      />
+      <SegmentedControl
+        accessibilityLabel={copy.title}
+        value={tab}
+        onChange={(value) => setTab(value as Tab)}
+        options={[{ value: 'assignments', label: copy.assignments }, { value: 'materials', label: copy.materials }]}
+      />
     </View>
+  );
+
+  return tab === 'assignments' ? (
+    <ListFrame
+      title={copy.title}
+      list={assignments}
+      keyOf={(item) => item.id}
+      emptyTitle={copy.emptyAssignments}
+      header={header}
+      renderItem={(item) => (
+        <Card>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={joinMeta([item.title, copy.statusLabels[item.mySubmissionStatus ?? item.status] ?? item.status, item.deadlineAt ? formatDateTime(item.deadlineAt) : copy.noDeadline])}
+            onPress={() => setAssignmentId(item.id)}
+            style={styles.rowMain}
+          >
+            <UiText variant="label">{item.title}</UiText>
+            <UiText variant="bodySmall" tone="muted">
+              {`${copy.deadline}: ${item.deadlineAt ? formatDateTime(item.deadlineAt) : copy.noDeadline}`}
+            </UiText>
+            <View style={styles.chips}>
+              <StatusChip code={item.mySubmissionStatus ?? item.status} labels={copy.statusLabels} />
+            </View>
+          </Pressable>
+        </Card>
+      )}
+    />
+  ) : (
+    <ListFrame
+      title={copy.title}
+      list={materials}
+      keyOf={(item) => item.id}
+      emptyTitle={copy.emptyMaterials}
+      header={header}
+      renderItem={(item) => (
+        <Card>
+          <View style={styles.rowMain}>
+            <UiText variant="label">{item.title}</UiText>
+            {item.description ? <UiText variant="bodySmall" tone="muted">{item.description}</UiText> : null}
+            {item.fileName ? (
+              <AttachmentRow name={item.fileName} sizeBytes={item.sizeBytes} fetchBytes={() => contentApi.learningDownloadMaterial(item.id)} />
+            ) : null}
+          </View>
+        </Card>
+      )}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  actionRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  work: {
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  workForm: {
-    gap: 8,
-  },
-  workActions: {
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'flex-end',
-  },
-  workBlock: {
-    gap: 4,
-  },
+  header: { gap: tokens.spacing.sm },
+  rowMain: { gap: tokens.spacing.xs, minHeight: tokens.layout.touchTarget },
+  chips: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
 });

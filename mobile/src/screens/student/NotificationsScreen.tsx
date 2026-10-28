@@ -1,145 +1,166 @@
-import { useState } from 'react';
-import { View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import {
-  Button,
-  Card,
-  DataNotice,
-  Divider,
-  ListRow,
-  ScreenShell,
-  ScreenSpacer,
-  StatePanel,
-  UiText,
-} from '../../components/Ui';
-import type { MobileScreenProps } from '../../navigation/types';
-import { useLiveResource } from './shared/useLiveResource';
-import { studentFriendlyErrorMessage } from './shared/errors';
-import { previewNotifications } from './shared/preview';
+import { Button, Card, StatePanel, UiText } from '../../components/Ui';
+import { SegmentedControl } from '../../components/ui/index';
 import { ApiClientError, apiClient, campusApi } from '../../api/client';
 import type { MobileNotification } from '../../api/client';
 import type { PushApi } from '../../api/push-notifications';
 import { PUSH_OPT_IN_ENABLED } from '../../config/features';
+import { tokens } from '../../design/tokens';
+import { fillCopy } from '../../i18n/academic-messages';
 import { notificationsMessages } from '../../i18n/notifications-messages';
-import { useStudentStyles } from './shared/styles';
+import { recordsMessages } from '../../i18n/records-messages';
+import type { MobileScreenProps } from '../../navigation/types';
+import { contentApi } from '../content/content-api';
+import { contentErrorMessage } from '../content/content-errors';
+import { countUnread, joinMeta, notificationReadParam, type NotificationTab } from '../content/content-rules';
+import { ListFrame, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
+import { previewNotifications } from '../content/preview-data';
+import { useContentQuery } from '../content/use-content-query';
+import { usePagedList } from '../content/use-paged-list';
 
-export function NotificationsScreen({ navigation }: MobileScreenProps) {
-  const styles = useStudentStyles();
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [isMarkingAll, setIsMarkingAll] = useState(false);
-  const [mutationError, setMutationError] = useState<string | null>(null);
-  const {
-    data: liveNotifications,
-    error,
-    warning,
-    isLoading,
-    reload,
-    setData: setLiveNotifications,
-  } = useLiveResource<MobileNotification[]>(
-    'notifications',
-    [],
-    async () => (await campusApi.notifications()).data,
-    'Notifications are unavailable.',
-  );
-  const visibleNotifications = apiClient.mode === 'preview'
-    ? previewNotifications.map((item, index) => ({ id: String(index), title: item.title, message: item.subtitle, createdAt: item.meta, isRead: !item.unread }))
-    : liveNotifications;
+/** Notification centre: paged, unread filter, mark read, mark all and delete with confirmation. */
+export function NotificationsScreen(_props: MobileScreenProps) {
+  const { locale, copy: shared, formatDateTime, t } = useContentCopy();
+  const copy = recordsMessages[locale];
+  const [tab, setTab] = useState<NotificationTab>('all');
+  const [busy, setBusy] = useState(false);
+  const { flash, success, fail } = useFlash();
+  const { ask, dialog } = useConfirm();
 
-  const markRead = async (id: string) => {
-    if (apiClient.mode === 'preview') return;
-    setBusyId(id);
-    setMutationError(null);
+  const preview = useMemo(() => previewNotifications(locale), [locale]);
+  const list = usePagedList<MobileNotification>({
+    key: `content.notifications.${tab}`,
+    fetchPage: (page, limit, signal) => contentApi.notifications({ page, limit, signal, isRead: notificationReadParam(tab) }),
+    keyOf: (item) => item.id,
+    preview: tab === 'unread' ? preview.filter((item) => !item.isRead) : preview,
+  });
+  const unread = useContentQuery<number>('content.notifications.unread', () => contentApi.unreadCount());
+  const unreadTotal = apiClient.mode === 'live' ? unread.data ?? countUnread(list.items) : countUnread(preview);
+
+  const run = useCallback(async (action: () => Promise<unknown>, apply: () => void, ok: string) => {
+    if (busy || apiClient.mode !== 'live') return;
+    setBusy(true);
     try {
-      await campusApi.markNotificationRead(id);
-      setLiveNotifications((current) => current.map((item) => (
-        item.id === id ? { ...item, isRead: true } : item
-      )));
-    } catch (nextError) {
-      setMutationError(studentFriendlyErrorMessage(nextError, 'Notification could not be updated.'));
+      await action();
+      apply();
+      success(ok);
+      void unread.reload();
+    } catch (error) {
+      fail(contentErrorMessage(shared, error, copy.updateFailed));
     } finally {
-      setBusyId(null);
+      setBusy(false);
     }
-  };
+  }, [busy, copy.updateFailed, fail, shared, success, unread]);
 
-  const markAllRead = async () => {
-    if (apiClient.mode === 'preview') return;
-    setIsMarkingAll(true);
-    setMutationError(null);
-    try {
-      await campusApi.markAllNotificationsRead();
-      setLiveNotifications((current) => current.map((item) => ({ ...item, isRead: true })));
-    } catch (nextError) {
-      setMutationError(studentFriendlyErrorMessage(nextError, 'Notifications could not be updated.'));
-    } finally {
-      setIsMarkingAll(false);
-    }
-  };
-
-  if (isLoading || error) {
-    return (
-      <ScreenShell title="Notifications" eyebrow="Stay informed" subtitle="Account alerts and academic updates.">
-        <StatePanel
-          kind={isLoading ? 'loading' : 'error'}
-          title={isLoading ? 'Loading notifications…' : 'Notifications unavailable'}
-          description={error ?? 'Retrieving your latest updates.'}
-          actionLabel={error ? 'Try again' : undefined}
-          onAction={error ? () => void reload() : undefined}
-        />
-      </ScreenShell>
+  const markRead = (item: MobileNotification) => {
+    if (item.isRead) return;
+    void run(
+      () => contentApi.markNotificationRead(item.id),
+      () => list.patch((row) => (row.id !== item.id ? row : tab === 'unread' ? null : { ...row, isRead: true })),
+      copy.markRead,
     );
-  }
+  };
+
+  const remove = (item: MobileNotification) => ask({
+    title: copy.deleteTitle,
+    description: item.title,
+    confirmLabel: copy.deleteNotification,
+    cancelLabel: copy.keep,
+    destructive: true,
+    onConfirm: () => void run(
+      () => contentApi.deleteNotification(item.id),
+      () => list.patch((row) => (row.id === item.id ? null : row)),
+      copy.deleted,
+    ),
+  });
+
+  const markAll = () => ask({
+    title: copy.markAllTitle,
+    confirmLabel: copy.markAllRead,
+    cancelLabel: t('cancel'),
+    onConfirm: () => void run(
+      () => contentApi.markAllNotificationsRead(),
+      () => list.patch((row) => (tab === 'unread' ? null : { ...row, isRead: true })),
+      copy.markedAll,
+    ),
+  });
 
   return (
-    <ScreenShell title="Notifications" eyebrow="Stay informed" subtitle="Unread items are marked clearly for continuity.">
-      {warning ? <DataNotice message={warning} /> : null}
-      <Card tone="low" style={styles.notificationSummary}>
-        <View accessibilityLiveRegion="polite">
-          <UiText variant="label" tone="primary">{visibleNotifications.filter((item) => !item.isRead).length} unread updates</UiText>
-          <UiText variant="bodySmall" tone="muted">Your next action is thesis registration.</UiText>
-        </View>
-      </Card>
-      <ScreenSpacer />
-      {mutationError ? (
-        <StatePanel kind="error" title="Could not update notifications" description={mutationError} />
-      ) : null}
-      {visibleNotifications.length > 0 ? <Card>
-        {visibleNotifications.map((notification, index) => (
-          <View key={notification.id}>
-            <ListRow
-              leading={notification.isRead ? '·' : '•'}
-              meta={notification.createdAt}
-              onPress={apiClient.mode === 'live' && !notification.isRead && busyId !== notification.id
-                ? () => void markRead(notification.id)
-                : undefined}
-              subtitle={notification.message}
-              title={notification.title}
-              unread={!notification.isRead}
+    <>
+      <ListFrame
+        title={copy.notificationsTitle}
+        list={list}
+        keyOf={(item) => item.id}
+        emptyTitle={tab === 'unread' ? copy.notificationsUnreadEmpty : copy.notificationsEmpty}
+        flash={flash}
+        header={(
+          <View style={styles.header}>
+            <SegmentedControl
+              accessibilityLabel={copy.notificationsTitle}
+              value={tab}
+              onChange={(value) => setTab(value as NotificationTab)}
+              options={[{ value: 'all', label: copy.tabAll }, { value: 'unread', label: copy.tabUnread }]}
             />
-            {index < visibleNotifications.length - 1 ? <Divider /> : null}
+            <View style={styles.summary}>
+              <UiText variant="label" tone="primary" accessibilityLiveRegion="polite">{fillCopy(copy.unreadCount, { n: unreadTotal })}</UiText>
+              <Button
+                label={copy.markAllRead}
+                variant="secondary"
+                loading={busy}
+                disabled={busy || list.preview || unreadTotal === 0}
+                onPress={markAll}
+              />
+            </View>
+            {PUSH_OPT_IN_ENABLED ? <PushOptInCard /> : null}
           </View>
-        ))}
-      </Card> : (
-        <StatePanel kind="empty" title="No notifications" description="New account and academic updates will appear here." />
-      )}
-      <ScreenSpacer />
-      {PUSH_OPT_IN_ENABLED ? <PushOptInCard /> : null}
-      <ScreenSpacer />
-      <Button
-        label="Mark all as read"
-        loading={isMarkingAll}
-        onPress={() => void markAllRead()}
-        variant="secondary"
-        disabled={apiClient.mode === 'preview' || visibleNotifications.every((item) => item.isRead)}
+        )}
+        renderItem={(item) => (
+          <Card tone={item.isRead ? 'card' : 'low'}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={joinMeta([item.isRead ? null : copy.unread, item.title, item.message, formatDateTime(item.createdAt)])}
+              accessibilityHint={item.isRead ? undefined : copy.markRead}
+              disabled={item.isRead || busy || list.preview}
+              onPress={() => markRead(item)}
+              style={styles.rowMain}
+            >
+              <View style={styles.titleRow}>
+                <UiText variant="label" tone={item.isRead ? 'default' : 'primary'} style={styles.title}>{item.title}</UiText>
+                {item.isRead ? null : <UiText variant="meta" tone="primary">{copy.unread}</UiText>}
+              </View>
+              {item.message ? <UiText variant="bodySmall" tone="muted">{item.message}</UiText> : null}
+              <UiText variant="meta" tone="muted">{formatDateTime(item.createdAt)}</UiText>
+            </Pressable>
+            <Button
+              label={copy.deleteNotification}
+              accessibilityLabel={`${copy.deleteNotification}: ${item.title}`}
+              variant="text"
+              disabled={busy || list.preview}
+              onPress={() => remove(item)}
+            />
+          </Card>
+        )}
       />
-    </ScreenShell>
+      {dialog}
+    </>
   );
 }
 
-const pushMsg = notificationsMessages.en;
+const styles = StyleSheet.create({
+  header: { gap: tokens.spacing.sm },
+  summary: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'space-between' },
+  rowMain: { gap: tokens.spacing.xs, minHeight: tokens.layout.touchTarget },
+  titleRow: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm },
+  title: { flex: 1 },
+});
 
 type PushOptInStatus = 'idle' | 'registered' | 'denied' | 'unavailable' | 'failed';
 
 function PushOptInCard() {
+  const { locale } = useContentCopy();
+  const pushMsg = notificationsMessages[locale];
   const [status, setStatus] = useState<PushOptInStatus>('idle');
   if (!PUSH_OPT_IN_ENABLED) return null;
 

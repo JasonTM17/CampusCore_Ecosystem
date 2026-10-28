@@ -1,352 +1,201 @@
-import { useCallback, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import {
-  Button,
-  Card,
-  DataNotice,
-  Divider,
-  Field,
-  ListRow,
-  ScreenShell,
-  ScreenSpacer,
-  SectionHeading,
-  StatePanel,
-  UiText,
-} from '../../components/Ui';
-import { ResponsiveGrid } from '../../components/ui/ResponsiveGrid';
-import {
-  ApiClientError,
-  apiClient,
-  campusApi,
-  type MobileAdmissionApplication,
-} from '../../api/client';
-import { useScreenQuery } from '../../hooks/useScreenQuery';
-import { admissionsMessages, type AdmissionsLocale } from '../../i18n/admissions-messages';
+import { Button, Card, DataNotice, Field, UiText } from '../../components/Ui';
+import { apiClient } from '../../api/client';
+import type { MobileAdmissionForm } from '../../api/client';
+import { tokens } from '../../design/tokens';
+import { admissionsMessages } from '../../i18n/admissions-messages';
 import type { MobileScreenProps } from '../../navigation/types';
+import { AdmissionDetail } from '../content/AdmissionDetail';
+import { contentApi, type AdmissionApplicationView, type AttachmentInfo } from '../content/content-api';
+import { contentErrorMessage, errorCode } from '../content/content-errors';
+import { joinMeta } from '../content/content-rules';
+import { DetailFrame, FlashNotice, ListFrame, StatusChip, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
+import { previewAdmissions } from '../content/preview-data';
+import { useListQuery } from '../content/use-list-query';
 
-/**
- * §7 applicant admissions surface (P10): per-cycle draft, field save,
- * submit/resubmit and withdraw with optimistic version + retry keys.
- * Attachments and the staff queue stay web lanes; the SIMULATED banner is
- * always visible and an ACCEPTED decision never creates a Student record.
- */
-const previewApplications: MobileAdmissionApplication[] = [
-  {
-    id: 'preview-app-1',
-    applicantUserId: 'preview-user',
-    cycle: '2026-Q1-DEMO',
-    status: 'RETURNED',
-    fullName: 'Nguyen Van A',
-    schoolName: 'THPT Demo',
-    intendedMajor: 'CNTT',
-    version: 5,
-    createdAt: '2026-10-01T00:00:00Z',
-    reviews: [
-      { id: 'rev-1', action: 'CLAIM', createdAt: '2026-10-02T00:00:00Z' },
-      { id: 'rev-2', action: 'RETURN', note: 'Bo sung bang diem', createdAt: '2026-10-03T00:00:00Z' },
-    ],
-  },
-];
+type View_ = { kind: 'list' } | { kind: 'new' } | { kind: 'detail'; id: string };
 
-function errorCode(error: unknown): string {
-  return error instanceof ApiClientError ? String(error.code ?? '') : '';
-}
-
+/** Admissions applicant: own applications, draft, submit, withdraw and files. The decision is always labelled simulated. */
 export function AdmissionsScreen(_props: MobileScreenProps) {
-  const [locale, setLocale] = useState<AdmissionsLocale>('vi');
+  const { locale, formatDate, copy: common } = useContentCopy();
   const copy = admissionsMessages[locale];
-  const statusLabel = (status: string) => copy.statusLabels[status] ?? status;
-  const actionLabel = (action: string) => copy.reviewActions[action] ?? action;
-  const languageSelector = (
-    <View style={styles.actionRow}>
-      <UiText>{copy.language}</UiText>
-      {(['vi', 'en'] as const).map((option) => (
-        <Button
-          key={option}
-          label={option.toUpperCase()}
-          accessibilityLabel={option === 'vi' ? 'Tiếng Việt' : 'English'}
-          variant={locale === option ? 'primary' : 'secondary'}
-          onPress={() => setLocale(option)}
-        />
-      ))}
-    </View>
-  );
-
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [view, setView] = useState<View_>({ kind: 'list' });
   const [cycle, setCycle] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [dateOfBirth, setDateOfBirth] = useState('');
-  const [schoolName, setSchoolName] = useState('');
-  const [intendedMajor, setIntendedMajor] = useState('');
-  const [essay, setEssay] = useState('');
-  const [mutating, setMutating] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [mutationError, setMutationError] = useState<string | null>(null);
+  const [cycleError, setCycleError] = useState<string | undefined>();
+  const [busy, setBusy] = useState(false);
+  const { flash, success, fail, clear } = useFlash();
+  const { ask, dialog } = useConfirm();
+  const live = apiClient.mode === 'live';
 
-  const isPreview = apiClient.mode === 'preview';
+  const previewList = useMemo(() => previewAdmissions(locale), [locale]);
+  const apps = useListQuery<AdmissionApplicationView>({
+    key: 'content.admissions.mine',
+    fetchAll: () => contentApi.admissionsApplications(),
+    preview: previewList,
+  });
 
-  const applicationsQuery = useScreenQuery<MobileAdmissionApplication[]>(
-    'admissions.my',
-    () => campusApi.admissionsMy(),
-    {
-      enabled: apiClient.mode === 'live',
-      errorMessage: copy.unavailable,
-      mapError: () => copy.unavailable,
-    },
-  );
-
-  const applications = isPreview ? previewApplications : applicationsQuery.data ?? [];
-  const selected = applications.find((application) => application.id === selectedId)
-    ?? applications[0]
-    ?? null;
-  const editable = selected != null && (selected.status === 'DRAFT' || selected.status === 'RETURNED');
-  const terminal = selected != null
-    && (selected.status === 'ACCEPTED' || selected.status === 'REJECTED' || selected.status === 'WITHDRAWN');
-
-  const friendlyError = (error: unknown): string => {
-    const code = errorCode(error);
-    if (code === 'APPLICATION_CYCLE_ACTIVE') return copy.cycleActive;
-    if (code === 'APPLICATION_INCOMPLETE') return copy.incomplete;
-    if (code === 'STALE_VERSION') return copy.stale;
-    return copy.failed;
-  };
-
-  const hydrate = (application: MobileAdmissionApplication | null) => {
-    setFullName(application?.fullName ?? '');
-    setDateOfBirth(application?.dateOfBirth ?? '');
-    setSchoolName(application?.schoolName ?? '');
-    setIntendedMajor(application?.intendedMajor ?? '');
-    setEssay(application?.essay ?? '');
-  };
-
-  const select = (application: MobileAdmissionApplication) => {
-    setSelectedId(application.id);
-    hydrate(application);
-  };
-
-  const refresh = useCallback(async () => {
-    await applicationsQuery.reload();
-  }, [applicationsQuery]);
-
-  const run = async (action: () => Promise<unknown>, okMessage: string) => {
-    setMutating(true);
-    setMutationError(null);
-    setNotice(null);
+  const run = useCallback(async <T,>(action: () => Promise<T>, ok: string): Promise<T | undefined> => {
+    if (busy || !live) return undefined;
+    setBusy(true);
+    clear();
     try {
-      await action();
-      setNotice(okMessage);
-      await refresh();
+      const result = await action();
+      success(ok);
+      void apps.reload();
+      return result;
     } catch (error) {
-      setMutationError(friendlyError(error));
+      const code = errorCode(error);
+      fail(
+        code === 'APPLICATION_CYCLE_ACTIVE' ? copy.cycleActive
+        : code === 'APPLICATION_INCOMPLETE' ? copy.incomplete
+        : code === 'STALE_VERSION' ? copy.stale
+        : contentErrorMessage(common, error, copy.failed),
+      );
+      if (code === 'STALE_VERSION') void apps.reload();
+      return undefined;
     } finally {
-      setMutating(false);
+      setBusy(false);
     }
-  };
+  }, [apps, busy, clear, common, copy, fail, live, success]);
 
-  const createDraft = () => {
-    if (!cycle.trim()) {
-      setMutationError(copy.failed);
-      return;
-    }
-    void run(async () => {
-      const created = await campusApi.admissionsCreate(cycle.trim());
+  const selected = view.kind === 'detail' ? apps.items.find((item) => item.id === view.id) ?? null : null;
+
+  const create = async () => {
+    const value = cycle.trim();
+    if (!value) return setCycleError(copy.required);
+    setCycleError(undefined);
+    const created = await run(() => contentApi.admissionsCreate(value), copy.created);
+    if (created) {
       setCycle('');
-      setSelectedId(created.id);
-      hydrate(created);
-    }, copy.created);
+      setView({ kind: 'detail', id: created.id });
+    }
   };
 
-  const save = () => {
-    if (!selected) {
-      return;
-    }
-    void run(() => campusApi.admissionsSave(selected.id, {
-      fullName,
-      dateOfBirth,
-      schoolName,
-      intendedMajor,
-      essay,
-    }, selected.version), copy.saved);
-  };
+  const save = (application: AdmissionApplicationView, form: MobileAdmissionForm) =>
+    void run(() => contentApi.admissionsSave(application.id, form, application.version), copy.saved);
 
-  const submit = () => {
-    if (!selected) {
-      return;
-    }
-    void run(() => campusApi.admissionsSubmit(selected.id, selected.version), copy.submitted);
-  };
+  const submit = (application: AdmissionApplicationView, form: MobileAdmissionForm) => ask({
+    title: copy.submitTitle,
+    description: copy.submitBody,
+    confirmLabel: copy.submit,
+    cancelLabel: common.back,
+    onConfirm: () => void run(async () => {
+      // The server submits what it stored: save first, then submit the version that save returned.
+      const saved = await contentApi.admissionsSave(application.id, form, application.version);
+      return contentApi.admissionsSubmit(application.id, saved.version);
+    }, copy.submitted),
+  });
 
-  const withdraw = () => {
-    if (!selected) {
-      return;
-    }
-    void run(() => campusApi.admissionsWithdraw(selected.id, selected.version), copy.withdrawn);
-  };
+  const withdraw = (application: AdmissionApplicationView) => ask({
+    title: copy.withdrawTitle,
+    confirmLabel: copy.withdraw,
+    cancelLabel: copy.keep,
+    destructive: true,
+    onConfirm: () => void run(() => contentApi.admissionsWithdraw(application.id, application.version), copy.withdrawn),
+  });
+
+  const deleteFile = (application: AdmissionApplicationView, file: AttachmentInfo) => ask({
+    title: copy.deleteFileTitle,
+    description: file.fileName ?? undefined,
+    confirmLabel: copy.deleteFile,
+    cancelLabel: copy.keep,
+    destructive: true,
+    onConfirm: () => void run(() => contentApi.admissionsDeleteAttachment(application.id, file.id), copy.fileDeleted),
+  });
+
+  if (selected) {
+    return (
+      <>
+        <AdmissionDetail
+          application={selected}
+          busy={busy}
+          preview={!live}
+          flash={flash}
+          onBack={() => { setView({ kind: 'list' }); clear(); }}
+          onSave={(form) => save(selected, form)}
+          onSubmit={(form) => submit(selected, form)}
+          onWithdraw={() => withdraw(selected)}
+          onUploaded={() => { success(common.uploaded); void apps.reload(); }}
+          onDeleteFile={(file) => deleteFile(selected, file)}
+        />
+        {dialog}
+      </>
+    );
+  }
+
+  const banner = <DataNotice message={copy.simulatedBanner} />;
+
+  if (view.kind === 'new') {
+    return (
+      <>
+        <DetailFrame title={copy.newApplication} onBack={() => { setView({ kind: 'list' }); clear(); }}>
+          <View style={styles.header}>
+            {banner}
+            <FlashNotice flash={flash} />
+            <Card>
+              <Field
+                label={copy.cycle}
+                placeholder={copy.cyclePlaceholder}
+                value={cycle}
+                onChangeText={(value) => { setCycle(value); setCycleError(undefined); }}
+                error={cycleError}
+                editable={!busy}
+                autoCapitalize="characters"
+              />
+              <Button label={copy.createDraft} loading={busy} disabled={busy || !live} onPress={() => void create()} />
+            </Card>
+          </View>
+        </DetailFrame>
+        {dialog}
+      </>
+    );
+  }
 
   return (
-    <ScreenShell
-      title={copy.title}
-      eyebrow={copy.eyebrow}
-      subtitle={copy.subtitle}
-      headerAction={languageSelector}
-    >
-      <DataNotice message={copy.simulatedBanner} />
-      {notice ? <DataNotice message={notice} /> : null}
-      {mutationError ? <StatePanel kind="error" title={copy.errorTitle} description={mutationError} /> : null}
-      {applicationsQuery.error != null && !isPreview ? (
-        <StatePanel
-          kind="error"
-          title={copy.errorTitle}
-          description={copy.unavailable}
-          actionLabel={copy.retry}
-          onAction={() => void refresh()}
-        />
-      ) : null}
-
-      <SectionHeading title={copy.myApplications} />
-      {applicationsQuery.isLoading && !isPreview ? (
-        <StatePanel kind="loading" title={copy.loading} />
-      ) : null}
-      {applications.length === 0 && !applicationsQuery.isLoading ? (
-        <Card>
-          <UiText variant="label">{copy.emptyApplications}</UiText>
-          <UiText variant="bodySmall" tone="muted">{copy.emptyApplicationsDescription}</UiText>
-        </Card>
-      ) : null}
-      <ResponsiveGrid>{applications.map((application) => (
-        <ListRow
-          key={application.id}
-          title={application.fullName || application.cycle}
-          subtitle={`${copy.cycle}: ${application.cycle}`}
-          meta={statusLabel(application.status)}
-          onPress={() => select(application)}
-        />
-      ))}</ResponsiveGrid>
-
-      <SectionHeading title={copy.newApplication} />
-      <Card>
-        <Field
-          label={copy.cycle}
-          placeholder={copy.cyclePlaceholder}
-          value={cycle}
-          onChangeText={setCycle}
-        />
-        <View style={styles.actionRow}>
-          <Button
-            label={copy.createDraft}
-            loading={mutating}
-            disabled={mutating || !cycle.trim()}
-            onPress={createDraft}
-          />
-        </View>
-      </Card>
-
-      {selected ? (
-        <>
-          <SectionHeading title={copy.form} />
+    <>
+      <ListFrame
+        title={copy.title}
+        list={apps}
+        keyOf={(item) => item.id}
+        emptyTitle={copy.emptyApplications}
+        flash={flash}
+        header={(
+          <View style={styles.header}>
+            {banner}
+            <View style={styles.actions}>
+              <Button label={copy.newApplication} variant="secondary" disabled={!live} onPress={() => { setView({ kind: 'new' }); clear(); }} />
+            </View>
+          </View>
+        )}
+        renderItem={(item) => (
           <Card>
-            <UiText variant="meta" tone="muted">
-              {editable ? (selected.status === 'RETURNED' ? copy.returnedHint : copy.editable)
-                : terminal ? copy.terminal : copy.locked}
-            </UiText>
-            <UiText variant="label">{`${copy.cycle}: ${selected.cycle} · v${selected.version}`}</UiText>
-            {selected.decision ? (
-              <UiText variant="label" tone="primary">
-                {`${copy.decision}: ${statusLabel(selected.decision)} (${selected.decisionLabel ?? 'SIMULATED'})`}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={joinMeta([item.cycle, copy.statusLabels[item.status] ?? item.status, item.fullName])}
+              onPress={() => { setView({ kind: 'detail', id: item.id }); clear(); }}
+              style={styles.rowMain}
+            >
+              <UiText variant="label">{item.cycle}</UiText>
+              <UiText variant="bodySmall" tone="muted">
+                {joinMeta([item.fullName, item.submittedAt ? formatDate(item.submittedAt) : null])}
               </UiText>
-            ) : null}
-            <Divider />
-            <Field
-              label={copy.fullName}
-              placeholder={copy.fullNamePlaceholder}
-              value={fullName}
-              onChangeText={setFullName}
-              editable={editable}
-            />
-            <Field
-              label={copy.dateOfBirth}
-              placeholder={copy.dateOfBirthPlaceholder}
-              value={dateOfBirth}
-              onChangeText={setDateOfBirth}
-              editable={editable}
-            />
-            <Field
-              label={copy.schoolName}
-              placeholder={copy.schoolNamePlaceholder}
-              value={schoolName}
-              onChangeText={setSchoolName}
-              editable={editable}
-            />
-            <Field
-              label={copy.intendedMajor}
-              placeholder={copy.intendedMajorPlaceholder}
-              value={intendedMajor}
-              onChangeText={setIntendedMajor}
-              editable={editable}
-            />
-            <Field
-              label={copy.essay}
-              placeholder={copy.essayPlaceholder}
-              value={essay}
-              onChangeText={setEssay}
-              editable={editable}
-              multiline
-              numberOfLines={4}
-            />
-            {editable ? (
-              <View style={styles.actionRow}>
-                <Button label={copy.save} variant="secondary" loading={mutating} disabled={mutating} onPress={save} />
-                <Button
-                  label={selected.status === 'RETURNED' ? copy.resubmit : copy.submit}
-                  loading={mutating}
-                  disabled={mutating}
-                  onPress={submit}
-                />
+              <View style={styles.chips}>
+                <StatusChip code={item.status} labels={copy.statusLabels} />
               </View>
-            ) : null}
-            {!terminal ? (
-              <Button label={copy.withdraw} variant="secondary" loading={mutating} disabled={mutating} onPress={withdraw} />
-            ) : null}
-            <UiText variant="bodySmall" tone="muted">{copy.attachmentsNote}</UiText>
+            </Pressable>
           </Card>
-
-          <SectionHeading title={copy.reviews} />
-          {selected.reviews.length === 0 ? (
-            <Card>
-              <UiText variant="bodySmall" tone="muted">{copy.emptyReviews}</UiText>
-            </Card>
-          ) : (
-            <Card>
-              {selected.reviews.map((review) => (
-                <View key={review.id} style={styles.reviewRow}>
-                  <UiText variant="label">{actionLabel(review.action)}</UiText>
-                  {review.note ? (
-                    <UiText variant="bodySmall" tone="muted">{review.note}</UiText>
-                  ) : null}
-                  {review.decision ? (
-                    <UiText variant="label" tone="primary">{statusLabel(review.decision)}</UiText>
-                  ) : null}
-                  <UiText variant="meta" tone="muted">{review.createdAt}</UiText>
-                </View>
-              ))}
-            </Card>
-          )}
-        </>
-      ) : null}
-      <ScreenSpacer />
-    </ScreenShell>
+        )}
+      />
+      {dialog}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  actionRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
-  },
-  reviewRow: {
-    gap: 2,
-    paddingVertical: 6,
-  },
+  header: { gap: tokens.spacing.sm },
+  actions: { alignItems: 'flex-start', gap: tokens.spacing.sm },
+  rowMain: { gap: tokens.spacing.xs, minHeight: tokens.layout.touchTarget },
+  chips: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
 });

@@ -1,267 +1,236 @@
-import { useCallback, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import {
-  Button,
-  Card,
-  DataNotice,
-  Divider,
-  Field,
-  ListRow,
-  ScreenShell,
-  ScreenSpacer,
-  SectionHeading,
-  StatePanel,
-  UiText,
-} from '../../components/Ui';
-import { ResponsiveGrid } from '../../components/ui/ResponsiveGrid';
-import {
-  ApiClientError,
-  apiClient,
-  campusApi,
-  type MobileLibraryLoan,
-  type MobileLibraryTitle,
-} from '../../api/client';
-import { useScreenQuery } from '../../hooks/useScreenQuery';
-import { libraryMessages, type LibraryLocale } from '../../i18n/library-messages';
+import { Button, Card, DataNotice, UiText } from '../../components/Ui';
+import { FilterSheet, SearchBar, SegmentedControl } from '../../components/ui/index';
+import type { FilterValue } from '../../components/ui/index';
+import { apiClient } from '../../api/client';
+import type { MobileLibraryLoan, MobileLibraryTitle } from '../../api/client';
+import { tokens } from '../../design/tokens';
+import { fillCopy } from '../../i18n/academic-messages';
+import { libraryMessages } from '../../i18n/library-messages';
 import type { MobileScreenProps } from '../../navigation/types';
+import { contentApi } from '../content/content-api';
+import { contentErrorMessage, errorCode } from '../content/content-errors';
+import { filterLoans, firstAvailableCopy, isLoanCancellable, joinMeta, type LoanTab } from '../content/content-rules';
+import { ListFrame, StatusChip, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
+import { LibraryTitleDetail } from '../content/LibraryTitleDetail';
+import { previewLibraryLoans, previewLibraryTitles } from '../content/preview-data';
+import { useListQuery } from '../content/use-list-query';
+import { usePagedList } from '../content/use-paged-list';
 
-/**
- * §8 patron library surface (P11): catalogue search, copy holds and own
- * loan history. Staff issue/return stays the web lane; availability is
- * read from the server and every mutation carries Idempotency-Key.
- */
-const previewTitles: MobileLibraryTitle[] = [
-  {
-    id: 'preview-title-1',
-    title: 'Nhập môn Cấu trúc dữ liệu',
-    author: 'Demo Author',
-    category: 'CNTT',
-    totalCopies: 3,
-    availableCopies: 2,
-    version: 1,
-  },
-  {
-    id: 'preview-title-2',
-    title: 'Cơ sở dữ liệu nâng cao',
-    author: 'Demo Author',
-    category: 'CNTT',
-    totalCopies: 1,
-    availableCopies: 0,
-    version: 1,
-  },
-];
+type Tab = 'catalogue' | 'loans';
 
-const previewLoans: MobileLibraryLoan[] = [
-  {
-    id: 'preview-loan-1',
-    copyId: 'preview-copy-1',
-    barcode: 'BAR-0001',
-    title: 'Nhập môn Cấu trúc dữ liệu',
-    borrowerUserId: 'preview-user',
-    status: 'ISSUED',
-    requestedAt: '2026-10-01T00:00:00Z',
-    issuedAt: '2026-10-03T00:00:00Z',
-    dueAt: '2026-10-17T00:00:00Z',
-    version: 3,
-    createdAt: '2026-10-01T00:00:00Z',
-  },
-];
-
-function errorCode(error: unknown): string {
-  return error instanceof ApiClientError ? String(error.code ?? '') : '';
-}
-
+/** Patron library: catalogue search and holds, own loans with cancel. Availability is always read from the server. */
 export function LibraryScreen(_props: MobileScreenProps) {
-  const [locale, setLocale] = useState<LibraryLocale>('vi');
+  const { locale, formatDate, copy: common, t } = useContentCopy();
   const copy = libraryMessages[locale];
-  const statusLabel = (status: string) => copy.statusLabels[status] ?? status;
-  const languageSelector = (
-    <View style={styles.actionRow}>
-      <UiText>{copy.language}</UiText>
-      {(['vi', 'en'] as const).map((option) => (
-        <Button
-          key={option}
-          label={option.toUpperCase()}
-          accessibilityLabel={option === 'vi' ? 'Tiếng Việt' : 'English'}
-          variant={locale === option ? 'primary' : 'secondary'}
-          onPress={() => setLocale(option)}
-        />
-      ))}
-    </View>
-  );
-
-  const [query, setQuery] = useState('');
+  const [tab, setTab] = useState<Tab>('catalogue');
+  const [loanTab, setLoanTab] = useState<LoanTab>('active');
+  const [input, setInput] = useState('');
   const [search, setSearch] = useState('');
-  const [mutating, setMutating] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [mutationError, setMutationError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filter, setFilter] = useState<FilterValue>({});
+  const [busy, setBusy] = useState(false);
+  const { flash, success, fail, clear } = useFlash();
+  const { ask, dialog } = useConfirm();
+  const availableOnly = (filter.availability ?? []).includes('available');
 
-  const isPreview = apiClient.mode === 'preview';
+  const previewTitles = useMemo(() => previewLibraryTitles(locale), [locale]);
+  const previewLoans = useMemo(() => previewLibraryLoans(locale), [locale]);
+  const catalogue = usePagedList<MobileLibraryTitle>({
+    key: `content.library.catalogue.${search}`,
+    fetchPage: (page, limit, signal) => contentApi.libraryCatalogue({ page, limit, signal, query: search || undefined }),
+    keyOf: (item) => item.id,
+    eager: availableOnly,
+    preview: previewTitles,
+  });
+  const loans = useListQuery<MobileLibraryLoan>({
+    key: 'content.library.loans',
+    fetchAll: () => contentApi.libraryLoans(),
+    preview: previewLoans,
+  });
 
-  const catalogueQuery = useScreenQuery<MobileLibraryTitle[]>(
-    `library.catalogue.${search}`,
-    () => campusApi.libraryCatalogue(search || undefined),
-    {
-      enabled: apiClient.mode === 'live',
-      errorMessage: copy.unavailable,
-      mapError: () => copy.unavailable,
-    },
-  );
-  const loansQuery = useScreenQuery<MobileLibraryLoan[]>(
-    'library.myLoans',
-    () => campusApi.libraryMyLoans(),
-    {
-      enabled: apiClient.mode === 'live',
-      errorMessage: copy.unavailable,
-      mapError: () => copy.unavailable,
-    },
-  );
-
-  const titles = isPreview ? previewTitles : catalogueQuery.data ?? [];
-  const loans = isPreview ? previewLoans : loansQuery.data ?? [];
-
-  const friendlyError = (error: unknown): string =>
-    errorCode(error) === 'NO_COPY' ? copy.noCopiesAvailable : copy.failed;
-
-  const refresh = useCallback(async () => {
-    await Promise.all([catalogueQuery.reload(), loansQuery.reload()]);
-  }, [catalogueQuery, loansQuery]);
-
-  const run = async (action: () => Promise<unknown>, okMessage: string) => {
-    setMutating(true);
-    setMutationError(null);
-    setNotice(null);
+  const run = useCallback(async (action: () => Promise<unknown>, ok: string) => {
+    if (busy || apiClient.mode !== 'live') return;
+    setBusy(true);
+    clear();
     try {
       await action();
-      setNotice(okMessage);
-      await refresh();
+      success(ok);
+      setReloadToken((value) => value + 1);
+      void catalogue.reload();
+      void loans.reload();
     } catch (error) {
-      setMutationError(friendlyError(error));
+      fail(errorCode(error) === 'NO_COPY' ? copy.noCopiesAvailable : contentErrorMessage(common, error, copy.failed));
     } finally {
-      setMutating(false);
+      setBusy(false);
     }
-  };
+  }, [busy, catalogue, clear, common, copy.failed, copy.noCopiesAvailable, fail, loans, success]);
 
-  const hold = (title: MobileLibraryTitle) => {
-    void run(async () => {
-      const detail = await campusApi.libraryTitle(title.id);
-      const copyToHold = (detail.copies ?? []).find((item) => item.status === 'AVAILABLE');
-      if (!copyToHold) {
-        throw new ApiClientError(copy.noCopiesAvailable, 409, '', 'NO_COPY');
-      }
-      await campusApi.libraryRequest(copyToHold.id);
-    }, copy.held);
-  };
+  const hold = (title: MobileLibraryTitle) => ask({
+    title: copy.holdTitle,
+    description: title.title,
+    confirmLabel: copy.hold,
+    cancelLabel: t('cancel'),
+    onConfirm: () => void run(async () => {
+      // The detail read carries the copies; availability can change between list and hold.
+      const detail = await contentApi.libraryTitle(title.id);
+      const target = firstAvailableCopy(detail.copies);
+      if (!target) throw Object.assign(new Error('no copy'), { code: 'NO_COPY' });
+      await contentApi.libraryRequest(target.id);
+    }, copy.held),
+  });
 
-  const cancel = (loan: MobileLibraryLoan) => {
-    void run(() => campusApi.libraryCancel(loan.id, loan.version), copy.cancelled);
-  };
+  const cancelLoan = (loan: MobileLibraryLoan) => ask({
+    title: copy.cancelTitle,
+    description: loan.title ?? loan.barcode ?? undefined,
+    confirmLabel: copy.cancel,
+    cancelLabel: copy.keep,
+    destructive: true,
+    onConfirm: () => void run(() => contentApi.libraryCancel(loan.id, loan.version), copy.cancelled),
+  });
+
+  if (selected) {
+    return (
+      <>
+        <LibraryTitleDetail
+          titleId={selected}
+          busy={busy}
+          flash={flash}
+          reloadToken={reloadToken}
+          onBack={() => { setSelected(null); clear(); }}
+          onHold={hold}
+        />
+        {dialog}
+      </>
+    );
+  }
+
+  const tabs = (
+    <SegmentedControl
+      accessibilityLabel={copy.title}
+      value={tab}
+      onChange={(value) => setTab(value as Tab)}
+      options={[{ value: 'catalogue', label: copy.catalogue }, { value: 'loans', label: copy.myLoans }]}
+    />
+  );
+  const banner = <DataNotice message={copy.simulatedBanner} />;
+  const rows = availableOnly ? catalogue.items.filter((item) => item.availableCopies > 0) : catalogue.items;
 
   return (
-    <ScreenShell
-      title={copy.title}
-      eyebrow={copy.eyebrow}
-      subtitle={copy.subtitle}
-      headerAction={languageSelector}
-    >
-      <DataNotice message={copy.simulatedBanner} />
-      {notice ? <DataNotice message={notice} /> : null}
-      {mutationError ? <StatePanel kind="error" title={copy.errorTitle} description={mutationError} /> : null}
-
-      <SectionHeading title={copy.catalogue} />
-      <Card>
-        <Field
-          label={copy.search}
-          placeholder={copy.searchPlaceholder}
-          value={query}
-          onChangeText={setQuery}
-        />
-        <View style={styles.actionRow}>
-          <Button
-            label={copy.search}
-            variant="secondary"
-            onPress={() => setSearch(query.trim())}
-          />
-        </View>
-      </Card>
-      {catalogueQuery.isLoading && !isPreview ? (
-        <StatePanel kind="loading" title={copy.loading} />
-      ) : null}
-      {catalogueQuery.error != null && !isPreview ? (
-        <StatePanel
-          kind="error"
-          title={copy.errorTitle}
-          description={copy.unavailable}
-          actionLabel={copy.retry}
-          onAction={() => void refresh()}
-        />
-      ) : null}
-      {titles.length === 0 && !catalogueQuery.isLoading ? (
-        <Card>
-          <UiText variant="label">{copy.emptyCatalogue}</UiText>
-        </Card>
-      ) : null}
-      <ResponsiveGrid>{titles.map((title) => (
-        <ListRow
-          key={title.id}
-          title={title.title}
-          subtitle={[title.author, title.category].filter(Boolean).join(' · ')}
-          meta={`${title.availableCopies}/${title.totalCopies} ${copy.copiesAvailable}`}
-          trailing={(
-            <Button
-              label={copy.hold}
-              variant="secondary"
-              loading={mutating}
-              disabled={mutating || title.availableCopies <= 0}
-              onPress={() => hold(title)}
-            />
+    <>
+      {tab === 'catalogue' ? (
+        <ListFrame
+          title={copy.title}
+          list={catalogue}
+          items={rows}
+          filtered={availableOnly || search.length > 0}
+          keyOf={(item) => item.id}
+          emptyTitle={copy.emptyCatalogue}
+          flash={flash}
+          header={(
+            <View style={styles.header}>
+              {banner}
+              {tabs}
+              <SearchBar
+                value={input}
+                onChangeText={setInput}
+                onClear={() => { setInput(''); setSearch(''); }}
+                placeholder={copy.searchPlaceholder}
+                accessibilityLabel={copy.search}
+                returnKeyType="search"
+                onSubmitEditing={() => setSearch(input.trim())}
+              />
+              <View style={styles.filterRow}>
+                <Button
+                  label={availableOnly ? `${t('filters')} (1)` : t('filters')}
+                  accessibilityLabel={t('filters')}
+                  variant="secondary"
+                  onPress={() => setFilterOpen(true)}
+                />
+              </View>
+            </View>
+          )}
+          renderItem={(item) => (
+            <Card>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={joinMeta([item.title, item.author, fillCopy(copy.copiesAvailable, { available: item.availableCopies, total: item.totalCopies })])}
+                onPress={() => setSelected(item.id)}
+                style={styles.rowMain}
+              >
+                <UiText variant="label">{item.title}</UiText>
+                <UiText variant="bodySmall" tone="muted">{joinMeta([item.author, item.category])}</UiText>
+                <UiText variant="meta" tone={item.availableCopies > 0 ? 'success' : 'warning'}>
+                  {item.availableCopies > 0
+                    ? fillCopy(copy.copiesAvailable, { available: item.availableCopies, total: item.totalCopies })
+                    : copy.noCopiesAvailable}
+                </UiText>
+              </Pressable>
+            </Card>
           )}
         />
-      ))}</ResponsiveGrid>
-
-      <SectionHeading title={copy.myLoans} />
-      {loansQuery.isLoading && !isPreview ? (
-        <StatePanel kind="loading" title={copy.loading} />
-      ) : null}
-      {loans.length === 0 && !loansQuery.isLoading ? (
-        <Card>
-          <UiText variant="label">{copy.emptyLoans}</UiText>
-        </Card>
-      ) : null}
-      <ResponsiveGrid>{loans.map((loan) => (
-        <Card key={loan.id}>
-          <UiText variant="label">{loan.title ?? loan.barcode ?? loan.copyId}</UiText>
-          <UiText variant="bodySmall" tone="muted">
-            {statusLabel(loan.status)}
-            {loan.expiresAt ? ` · ${copy.expiresAt}: ${loan.expiresAt}` : ''}
-            {loan.dueAt ? ` · ${copy.dueAt}: ${loan.dueAt}` : ''}
-          </UiText>
-          {loan.status === 'REQUESTED' || loan.status === 'APPROVED' ? (
-            <>
-              <Divider />
-              <Button
-                label={copy.cancel}
-                variant="secondary"
-                loading={mutating}
-                disabled={mutating}
-                onPress={() => cancel(loan)}
+      ) : (
+        <ListFrame
+          title={copy.title}
+          list={loans}
+          items={filterLoans(loans.items, loanTab)}
+          filtered
+          keyOf={(item) => item.id}
+          emptyTitle={loanTab === 'active' ? copy.emptyLoans : copy.emptyHistory}
+          flash={flash}
+          header={(
+            <View style={styles.header}>
+              {banner}
+              {tabs}
+              <SegmentedControl
+                accessibilityLabel={copy.myLoans}
+                value={loanTab}
+                onChange={(value) => setLoanTab(value as LoanTab)}
+                options={[{ value: 'active', label: copy.loansActive }, { value: 'history', label: copy.loansHistory }]}
               />
-            </>
-          ) : null}
-        </Card>
-      ))}</ResponsiveGrid>
-
-      <UiText variant="bodySmall" tone="muted">{copy.staffLaneNote}</UiText>
-      <ScreenSpacer />
-    </ScreenShell>
+            </View>
+          )}
+          renderItem={(loan) => (
+            <Card>
+              <View accessible accessibilityLabel={joinMeta([loan.title ?? loan.barcode, copy.statusLabels[loan.status] ?? loan.status])} style={styles.rowMain}>
+                <UiText variant="label">{loan.title ?? loan.barcode ?? loan.copyId}</UiText>
+                <View style={styles.chips}>
+                  <StatusChip code={loan.status} labels={copy.statusLabels} />
+                </View>
+                <UiText variant="bodySmall" tone="muted">
+                  {joinMeta([
+                    `${copy.requestedAt}: ${formatDate(loan.requestedAt)}`,
+                    loan.expiresAt ? `${copy.expiresAt}: ${formatDate(loan.expiresAt)}` : null,
+                    loan.dueAt ? `${copy.dueAt}: ${formatDate(loan.dueAt)}` : null,
+                  ])}
+                </UiText>
+              </View>
+              {isLoanCancellable(loan) ? (
+                <Button label={copy.cancel} accessibilityLabel={`${copy.cancel}: ${loan.title ?? loan.barcode ?? ''}`} variant="text" disabled={busy || loans.preview} onPress={() => cancelLoan(loan)} />
+              ) : null}
+            </Card>
+          )}
+        />
+      )}
+      <FilterSheet
+        visible={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        groups={[{ id: 'availability', label: copy.availability, options: [{ value: 'available', label: copy.availableOnly }] }]}
+        value={filter}
+        onApply={setFilter}
+      />
+      {dialog}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  actionRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
-  },
+  header: { gap: tokens.spacing.sm },
+  filterRow: { alignItems: 'flex-start' },
+  rowMain: { gap: tokens.spacing.xs, minHeight: tokens.layout.touchTarget },
+  chips: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
 });

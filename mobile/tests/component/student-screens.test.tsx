@@ -105,8 +105,8 @@ describe('student screens (preview mode)', () => {
   test('notifications renders rows and mark-all action', async () => {
     setWidth(360);
     await renderThemed(<NotificationsScreen {...props} />);
-    expect(screen.getByRole('header', { name: 'Notifications' })).toBeOnTheScreen();
-    expect(screen.getByText('Thesis registration opens Monday')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Mark all as read' })).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: 'Thông báo' })).toBeOnTheScreen();
+    expect(screen.getByText('Mở đăng ký đề tài luận văn')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Đánh dấu đã đọc tất cả' })).toBeOnTheScreen();
   });
 });

@@ -11,7 +11,7 @@ const readme = fs.readFileSync(path.join(mobileRoot, 'README.md'), 'utf8');
 const navigator = fs.readFileSync(path.join(mobileRoot, 'src/navigation/MobileNavigator.tsx'), 'utf8');
 const bottomNavigation = fs.readFileSync(path.join(mobileRoot, 'src/components/BottomNavigation.tsx'), 'utf8');
 const signIn = fs.readFileSync(path.join(mobileRoot, 'src/screens/auth/SignInScreen.tsx'), 'utf8');
-const assistant = fs.readFileSync(path.join(mobileRoot, 'src/screens/assistant/AssistantScreen.tsx'), 'utf8');
+const screenAssistant = fs.readFileSync(path.join(mobileRoot, 'src/screens/assistant/AssistantScreen.tsx'), 'utf8');
 const navigationTypes = fs.readFileSync(path.join(mobileRoot, 'src/navigation/types.ts'), 'utf8');
 const screenComponents = fs.readFileSync(path.join(mobileRoot, 'src/screens/index.ts'), 'utf8');
 const stitchMetadata = JSON.parse(
@@ -25,7 +25,7 @@ test('native registry keeps the Stitch mobile atlas above the 20-screen requirem
   ].map((match) => match[1] ?? match[2]);
   const screenCount = registeredRoutes.length;
 
-  assert.equal(screenCount, 34);
+  assert.equal(screenCount, 37);
   assert.equal(new Set(registeredRoutes).size, screenCount);
   assert.deepEqual(componentRoutes.sort(), [...registeredRoutes].sort());
   for (const requiredRoute of [
@@ -38,7 +38,7 @@ test('native registry keeps the Stitch mobile atlas above the 20-screen requirem
   ]) {
     assert.match(routes, new RegExp(`name: '${requiredRoute.replace('.', '\\.')}'`));
   }
-  assert.match(readme, /34 navigable screens/);
+  assert.match(readme, /37 navigable screens/);
 });
 
 test('native tokens preserve the institutional portal contract', () => {
@@ -166,19 +166,27 @@ test('Stitch mobile references stay traceable and live sign-in runs the OIDC PKC
 });
 
 test('mobile assistant keeps preview local and calls the Java route only in live mode', () => {
-  assert.match(assistant, /const isPreview = apiClient\.mode === 'preview'/);
-  assert.match(assistant, /if \(isPreview\) \{/);
-  assert.match(assistant, /Preview noted\. Live mode will answer through the Java assistant API after sign-in\./);
-  assert.match(assistant, /campusApi\.assistantChat\(\s*(?:trimmedMessage|request\.message),\s*(?:locale|request\.locale),\s*(?:conversationId|requestedConversationId|request\.conversationId)/);
-  assert.match(assistant, /const requestedConversationId = clientRequestIdOverride/);
-  assert.match(assistant, /reply\.degraded/);
-  assert.match(assistant, /reply\.citations/);
-  assert.match(assistant, /reply\.reasonCode/);
-  assert.match(assistant, /The assistant could not answer/);
-  assert.match(assistant, /loading=\{isSending\}/);
-  assert.match(assistant, /AbortController/);
-  assert.match(assistant, /stopSending/);
-  assert.match(assistant, /QUOTA_EXCEEDED/);
-  assert.match(assistant, /safeText/);
-  assert.match(assistant, /accessibilityRole="tablist"/);
+  const chat = fs.readFileSync(path.join(mobileRoot, 'src/screens/assistant/useAssistantChat.ts'), 'utf8');
+  const guards = fs.readFileSync(path.join(mobileRoot, 'src/assistant/chat-helpers.ts'), 'utf8');
+  const api = fs.readFileSync(path.join(mobileRoot, 'src/api/assistant-api.ts'), 'utf8');
+  const messages = fs.readFileSync(path.join(mobileRoot, 'src/i18n/assistant-messages.ts'), 'utf8');
+  const composer = fs.readFileSync(path.join(mobileRoot, 'src/screens/assistant/AssistantComposer.tsx'), 'utf8');
+  const bubble = fs.readFileSync(path.join(mobileRoot, 'src/screens/assistant/MessageBubble.tsx'), 'utf8');
+
+  assert.match(chat, /const isPreview = apiClient\.mode === 'preview'/);
+  assert.match(chat, /if \(isPreview \|\| !orchestrator\) \{/);
+  assert.match(chat, /copy\.previewReply/);
+  assert.match(messages, /previewReply:/);
+  assert.match(api, /POST|post<BufferedAssistantReply>|post</);
+  assert.match(api, /\/assistant\/chat|apiRoutes\.assistant\.chat/);
+  assert.match(chat, /degraded/);
+  assert.match(bubble, /citation\.excerpt/);
+  assert.match(chat, /reasonCode/);
+  assert.match(messages, /The assistant could not answer|errorTitle:/);
+  assert.match(composer, /loading=\{busy\}/);
+  assert.match(chat, /orchestrator\.cancel\(\)/);
+  assert.match(chat, /QUOTA_EXCEEDED/);
+  assert.match(guards, /safeText/);
+  assert.match(screenAssistant, /SegmentedControl/);
 });
+

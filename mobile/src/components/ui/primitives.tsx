@@ -276,7 +276,7 @@ export function SegmentedControl({ options, value, onChange, accessibilityLabel,
             disabled={disabled}
             onPress={() => onChange(opt.value)}
             style={({ pressed }) => [
-              { alignItems: 'center', borderRadius: radii.control - 2, flex: 1, justifyContent: 'center', minHeight: layout.touchTarget - 4, paddingHorizontal: spacing.sm },
+              { alignItems: 'center', borderRadius: radii.control - 2, flex: 1, justifyContent: 'center', minHeight: layout.touchTarget, paddingHorizontal: spacing.sm },
               selected ? { backgroundColor: colors.card, borderColor: colors.primary, borderWidth: 1 } : undefined,
               pressed && !disabled ? { opacity: 0.85 } : undefined,
               disabled ? { opacity: 0.5 } : undefined,

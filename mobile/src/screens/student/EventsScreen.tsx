@@ -1,287 +1,215 @@
-import { useCallback, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import {
-  Button,
-  Card,
-  DataNotice,
-  Divider,
-  ListRow,
-  ScreenShell,
-  ScreenSpacer,
-  SectionHeading,
-  StatePanel,
-  UiText,
-} from '../../components/Ui';
-import { ResponsiveGrid } from '../../components/ui/ResponsiveGrid';
-import {
-  ApiClientError,
-  apiClient,
-  campusApi,
-  type MobileEvent,
-  type MobileEventRegistration,
-} from '../../api/client';
-import { useScreenQuery } from '../../hooks/useScreenQuery';
-import { eventsMessages, type EventsLocale } from '../../i18n/events-messages';
+import { Button, Card, UiText } from '../../components/Ui';
+import { FilterSheet, SegmentedControl } from '../../components/ui/index';
+import type { FilterValue } from '../../components/ui/index';
+import { apiClient } from '../../api/client';
+import type { MobileEvent, MobileEventRegistration } from '../../api/client';
+import { tokens } from '../../design/tokens';
+import { fillCopy } from '../../i18n/academic-messages';
+import { eventsMessages } from '../../i18n/events-messages';
 import type { MobileScreenProps } from '../../navigation/types';
+import { contentApi } from '../content/content-api';
+import { contentErrorMessage, errorCode } from '../content/content-errors';
+import { EVENT_FILTER_STATUSES, eventAction, filterByStatus, joinMeta } from '../content/content-rules';
+import { ListFrame, StatusChip, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
+import { EventDetail } from '../content/EventDetail';
+import { previewEvents, previewRegistrations } from '../content/preview-data';
+import { usePagedList } from '../content/use-paged-list';
 
-/**
- * D4 student events surface (P08): published catalog + self register/cancel
- * + registration history. The server owns every transition; mutations carry
- * client Idempotency-Key headers (created inside campusApi) and the visible
- * state always comes from the refreshed read, never from optimistic writes.
- */
-const previewEvents: MobileEvent[] = [
-  {
-    id: 'preview-event-1',
-    title: 'Union birthday volunteer fair',
-    organizer: 'Đoàn Thanh niên',
-    location: 'Hall A — main campus',
-    status: 'REGISTRATION_OPEN',
-    capacity: 120,
-    registeredCount: 84,
-    seatsRemaining: 36,
-    startsAt: '2026-11-05T07:30:00Z',
-    endsAt: '2026-11-05T10:30:00Z',
-    myRegistrationId: null,
-    myRegistrationStatus: null,
-    myAttendanceStatus: null,
-  },
-  {
-    id: 'preview-event-2',
-    title: 'Soft-skills workshop: communication',
-    organizer: 'Hội Sinh viên',
-    location: 'Room B2.04',
-    status: 'PUBLISHED',
-    capacity: 40,
-    registeredCount: 0,
-    seatsRemaining: 40,
-    startsAt: '2026-11-21T08:00:00Z',
-    endsAt: '2026-11-21T10:00:00Z',
-    myRegistrationId: null,
-    myRegistrationStatus: null,
-    myAttendanceStatus: null,
-  },
-];
+type Tab = 'catalog' | 'mine';
 
-const previewRegistrations: MobileEventRegistration[] = [];
-
-function eventSubtitle(event: MobileEvent, locale: EventsLocale): string {
-  const when = new Date(event.startsAt);
-  const whenText = Number.isNaN(when.getTime())
-    ? event.startsAt
-    : when.toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US');
-  return [event.organizer, event.location, whenText].filter(Boolean).join(' · ');
-}
-
+/** Student events: published catalogue, own registrations, register and cancel. The server owns every transition. */
 export function EventsScreen(_props: MobileScreenProps) {
-  // Follow the existing AssistantScreen locale selector; session has no locale field.
-  const [locale, setLocale] = useState<EventsLocale>('vi');
+  const { locale, formatDateTime, copy: common, t } = useContentCopy();
   const copy = eventsMessages[locale];
-  const statusLabel = (status: string) => copy.statusLabels[status as keyof typeof copy.statusLabels] ?? status;
-  const languageSelector = <View style={styles.actionRow}>
-    <UiText>{copy.language}</UiText>
-    {(['vi', 'en'] as const).map((option) => <Button key={option} label={option.toUpperCase()} accessibilityLabel={option === 'vi' ? 'Tiếng Việt' : 'English'} variant={locale === option ? 'primary' : 'secondary'} onPress={() => setLocale(option)} />)}
-  </View>;
-  const [mutating, setMutating] = useState(false);
-  const [mutationError, setMutationError] = useState<string | null>(null);
+  const labels = copy.statusLabels as Record<string, string>;
+  const [tab, setTab] = useState<Tab>('catalog');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filter, setFilter] = useState<FilterValue>({});
+  const [busy, setBusy] = useState(false);
+  const { flash, success, fail, clear } = useFlash();
+  const { ask, dialog } = useConfirm();
+  const statuses = filter.status ?? [];
 
-  const eventsQuery = useScreenQuery<MobileEvent[]>(
-    'events',
-    () => campusApi.events(),
-    {
-      enabled: apiClient.mode === 'live',
-      errorMessage: copy.unavailable,
-      mapError: () => copy.unavailable,
-    },
-  );
-  const registrationsQuery = useScreenQuery<MobileEventRegistration[]>(
-    'events.mine',
-    () => campusApi.myEventRegistrations(),
-    {
-      enabled: apiClient.mode === 'live',
-      errorMessage: copy.mineUnavailable,
-      mapError: () => copy.mineUnavailable,
-    },
-  );
+  const previewList = useMemo(() => previewEvents(locale), [locale]);
+  const catalog = usePagedList<MobileEvent>({
+    key: 'content.events',
+    fetchPage: (page, limit, signal) => contentApi.events({ page, limit, signal }),
+    keyOf: (item) => item.id,
+    eager: statuses.length > 0,
+    preview: previewList,
+  });
+  const mine = usePagedList<MobileEventRegistration>({
+    key: 'content.events.mine',
+    fetchPage: (page, limit, signal) => contentApi.myEventRegistrations({ page, limit, signal }),
+    keyOf: (item) => item.registrationId,
+    preview: previewRegistrations,
+  });
 
-  const isPreview = apiClient.mode === 'preview';
-  const events = isPreview ? previewEvents : eventsQuery.data ?? [];
-  const registrations = isPreview
-    ? previewRegistrations
-    : registrationsQuery.data ?? [];
+  const refreshAll = useCallback(() => {
+    void catalog.reload();
+    void mine.reload();
+  }, [catalog, mine]);
 
-  const reloadAll = useCallback(() => {
-    void eventsQuery.reload();
-    void registrationsQuery.reload();
-  }, [eventsQuery, registrationsQuery]);
+  const run = useCallback(async (action: () => Promise<unknown>, ok: string, failed: string) => {
+    if (busy || apiClient.mode !== 'live') return;
+    setBusy(true);
+    clear();
+    try {
+      await action();
+      success(ok);
+      refreshAll();
+    } catch (error) {
+      fail(errorCode(error) === 'EVENT_FULL' ? copy.full : contentErrorMessage(common, error, failed));
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, clear, common, copy.full, fail, refreshAll, success]);
 
-  const register = useCallback(
-    async (eventId: string) => {
-      if (isPreview || mutating) {
-        return;
-      }
-      setMutating(true);
-      setMutationError(null);
-      try {
-        await campusApi.registerEvent(eventId);
-        reloadAll();
-      } catch (error) {
-        setMutationError(
-          error instanceof ApiClientError && error.code === 'EVENT_FULL'
-            ? copy.full
-            : copy.registerFailed,
-        );
-      } finally {
-        setMutating(false);
-      }
-    },
-    [copy, isPreview, mutating, reloadAll],
-  );
+  const register = (event: MobileEvent) => void run(() => contentApi.registerEvent(event.id), copy.registered, copy.registerFailed);
+  const cancel = (event: MobileEvent, registrationId: string) => ask({
+    title: copy.cancelTitle,
+    description: event.title,
+    confirmLabel: copy.cancel,
+    cancelLabel: copy.keep,
+    destructive: true,
+    onConfirm: () => void run(() => contentApi.cancelEventRegistration(registrationId), copy.cancelled, copy.cancelFailed),
+  });
 
-  const cancel = useCallback(
-    async (registrationId: string) => {
-      if (isPreview || mutating) {
-        return;
-      }
-      setMutating(true);
-      setMutationError(null);
-      try {
-        await campusApi.cancelEventRegistration(registrationId);
-        reloadAll();
-      } catch {
-        setMutationError(copy.cancelFailed);
-      } finally {
-        setMutating(false);
-      }
-    },
-    [copy, isPreview, mutating, reloadAll],
-  );
-
-  const isLoading =
-    !isPreview && (eventsQuery.isLoading || registrationsQuery.isLoading);
-  const error = !isPreview
-    ? eventsQuery.error ?? registrationsQuery.error
-    : null;
-  const warning = !isPreview
-    ? eventsQuery.warning ?? registrationsQuery.warning
-    : null;
-
-  if (isLoading || error) {
+  const selected = selectedId ? catalog.items.find((item) => item.id === selectedId)
+    ?? mine.items.find((item) => item.event.id === selectedId)?.event ?? null : null;
+  if (selected) {
     return (
-      <ScreenShell
-        title={copy.title}
-        eyebrow={copy.eyebrow}
-        subtitle={copy.subtitle}
-      >
-        {languageSelector}
-        <StatePanel
-          kind={isLoading ? 'loading' : 'error'}
-          title={isLoading ? copy.loading : copy.errorTitle}
-          description={error ?? copy.retrieving}
-          actionLabel={error ? copy.retry : undefined}
-          onAction={error ? reloadAll : undefined}
+      <>
+        <EventDetail
+          event={selected}
+          busy={busy}
+          flash={flash}
+          onBack={() => { setSelectedId(null); clear(); }}
+          onRegister={register}
+          onCancel={(event) => event.myRegistrationId && cancel(event, event.myRegistrationId)}
         />
-      </ScreenShell>
+        {dialog}
+      </>
     );
   }
 
-  return (
-    <ScreenShell
-      title={copy.title}
-      eyebrow={copy.eyebrow}
-      subtitle={copy.subtitle}
-    >
-      {languageSelector}
-      {warning ? <DataNotice message={warning} /> : null}
-      {mutationError ? (
-        <StatePanel kind="error" title={mutationError} />
+  const rows = filterByStatus(catalog.items, statuses);
+  const actionButton = (event: MobileEvent, registrationId?: string | null) => {
+    const action = eventAction(event);
+    if (action === 'register') return <Button label={copy.register} accessibilityLabel={`${copy.register}: ${event.title}`} variant="secondary" disabled={busy || catalog.preview} onPress={() => register(event)} />;
+    const id = registrationId ?? event.myRegistrationId;
+    if (action === 'cancel' && id) return <Button label={copy.cancel} accessibilityLabel={`${copy.cancel}: ${event.title}`} variant="text" disabled={busy || catalog.preview} onPress={() => cancel(event, id)} />;
+    if (action === 'full') return <UiText variant="meta" tone="warning">{copy.full}</UiText>;
+    return null;
+  };
+  const eventMeta = (event: MobileEvent) => joinMeta([event.organizer, event.location, formatDateTime(event.startsAt)]);
+
+  const tabs = (
+    <View style={styles.header}>
+      <SegmentedControl
+        accessibilityLabel={copy.title}
+        value={tab}
+        onChange={(value) => setTab(value as Tab)}
+        options={[{ value: 'catalog', label: copy.published }, { value: 'mine', label: copy.mine }]}
+      />
+      {tab === 'catalog' ? (
+        <View style={styles.filterRow}>
+          <Button
+            label={statuses.length > 0 ? `${t('filters')} (${statuses.length})` : t('filters')}
+            accessibilityLabel={t('filters')}
+            variant="secondary"
+            onPress={() => setFilterOpen(true)}
+          />
+        </View>
       ) : null}
+    </View>
+  );
 
-      <SectionHeading title={copy.published} />
-      {events.length === 0 ? (
-        <StatePanel
-          kind="empty"
-          title={copy.empty}
-          description={copy.emptyDescription}
-        />
-      ) : (
-        <Card>
-          <ResponsiveGrid>{events.map((event, index) => {
-            const registered = event.myRegistrationStatus === 'REGISTERED';
-            return (
-              <View key={event.id}>
-                <ListRow
-                  title={event.title}
-                  subtitle={eventSubtitle(event, locale)}
-                  meta={`${event.seatsRemaining}/${event.capacity}`}
-                />
-                <View style={styles.actionRow}>
-                  <UiText variant="meta" tone="muted">
-                    {statusLabel(event.status)}
-                  </UiText>
-                  {event.status === 'REGISTRATION_OPEN' && !registered ? (
-                    <Button
-                      label={copy.register}
-                      variant="secondary"
-                      loading={mutating}
-                      disabled={event.seatsRemaining <= 0 || isPreview}
-                      onPress={() => void register(event.id)}
-                    />
-                  ) : null}
-                  {registered &&
-                  event.status !== 'CANCELLED' &&
-                  event.status !== 'COMPLETED' &&
-                  event.myRegistrationId ? (
-                    <Button
-                      label={copy.cancel}
-                      variant="text"
-                      loading={mutating}
-                      disabled={isPreview}
-                      onPress={() => void cancel(event.myRegistrationId as string)}
-                    />
-                  ) : null}
+  return (
+    <>
+      {tab === 'catalog' ? (
+        <ListFrame
+          title={copy.title}
+          list={catalog}
+          items={rows}
+          filtered={statuses.length > 0}
+          keyOf={(item) => item.id}
+          emptyTitle={copy.empty}
+          emptyFilteredTitle={copy.emptyFiltered}
+          flash={flash}
+          header={tabs}
+          renderItem={(event) => (
+            <Card>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={joinMeta([event.title, labels[event.status] ?? event.status, eventMeta(event), fillCopy(copy.seats, { n: Math.max(0, event.seatsRemaining) })])}
+                onPress={() => setSelectedId(event.id)}
+                style={styles.rowMain}
+              >
+                <UiText variant="label">{event.title}</UiText>
+                <UiText variant="bodySmall" tone="muted">{eventMeta(event)}</UiText>
+                <View style={styles.chips}>
+                  <StatusChip code={event.myRegistrationStatus === 'REGISTERED' ? 'REGISTERED' : event.status} labels={labels} />
+                  <UiText variant="meta" tone="muted">{fillCopy(copy.seats, { n: Math.max(0, event.seatsRemaining) })}</UiText>
                 </View>
-                {index < events.length - 1 ? <Divider /> : null}
-              </View>
-            );
-          })}</ResponsiveGrid>
-        </Card>
-      )}
-
-      <ScreenSpacer />
-      <SectionHeading title={copy.mine} />
-      {registrations.length === 0 ? (
-        <StatePanel
-          kind="empty"
-          title={copy.noRegistrations}
-          description={copy.historyHint}
+              </Pressable>
+              {actionButton(event)}
+            </Card>
+          )}
         />
       ) : (
-        <Card>
-          <ResponsiveGrid>{registrations.map((entry, index) => (
-            <View key={entry.registrationId}>
-              <ListRow
-                title={entry.event.title}
-                subtitle={eventSubtitle(entry.event, locale)}
-                meta={entry.attendanceStatus === 'ATTENDED' ? copy.attended : statusLabel(entry.registrationStatus)}
-              />
-              {index < registrations.length - 1 ? <Divider /> : null}
-            </View>
-          ))}</ResponsiveGrid>
-        </Card>
+        <ListFrame
+          title={copy.title}
+          list={mine}
+          keyOf={(item) => item.registrationId}
+          emptyTitle={copy.noRegistrations}
+          flash={flash}
+          header={tabs}
+          renderItem={(entry) => (
+            <Card>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={joinMeta([entry.event.title, entry.attendanceStatus === 'ATTENDED' ? copy.attended : labels[entry.registrationStatus] ?? entry.registrationStatus, eventMeta(entry.event)])}
+                onPress={() => setSelectedId(entry.event.id)}
+                style={styles.rowMain}
+              >
+                <UiText variant="label">{entry.event.title}</UiText>
+                <UiText variant="bodySmall" tone="muted">{eventMeta(entry.event)}</UiText>
+                <View style={styles.chips}>
+                  <StatusChip code={entry.attendanceStatus === 'ATTENDED' ? 'ATTENDED' : entry.registrationStatus} labels={labels} />
+                </View>
+              </Pressable>
+              {entry.registrationStatus === 'REGISTERED'
+                ? actionButton({ ...entry.event, myRegistrationStatus: 'REGISTERED', myRegistrationId: entry.registrationId }, entry.registrationId)
+                : null}
+            </Card>
+          )}
+        />
       )}
-      <ScreenSpacer />
-    </ScreenShell>
+      <FilterSheet
+        visible={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        groups={[{
+          id: 'status',
+          label: copy.statusFilter,
+          multiple: true,
+          options: EVENT_FILTER_STATUSES.map((value) => ({ value, label: labels[value] ?? value })),
+        }]}
+        value={filter}
+        onApply={setFilter}
+      />
+      {dialog}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  actionRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
+  header: { gap: tokens.spacing.sm },
+  filterRow: { alignItems: 'flex-start' },
+  rowMain: { gap: tokens.spacing.xs, minHeight: tokens.layout.touchTarget },
+  chips: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
 });

@@ -28,6 +28,9 @@ export type ScreenName =
   | 'news'
   | 'docs'
   | 'notifications'
+  | 'announcements'
+  | 'conduct'
+  | 'certificates'
   | 'profile'
   | 'thesis.topics'
   | 'thesis.detail'
@@ -122,6 +125,9 @@ export const screenRegistry: readonly ScreenDefinition[] = [
   { name: 'news', title: 'Campus news', family: 'student', roles: studentRoles, icon: 'newspaper-variant-outline' },
   { name: 'docs', title: 'Public documents', family: 'student', roles: studentRoles, icon: 'file-document-outline' },
   { name: 'notifications', title: 'Notifications', family: 'student', roles: allRoles, icon: 'bell-outline' },
+  { name: 'announcements', title: 'Academic announcements', family: 'student', roles: studentRoles, icon: 'bullhorn-outline' },
+  { name: 'conduct', title: 'Conduct score', family: 'student', roles: studentRoles, icon: 'medal-outline' },
+  { name: 'certificates', title: 'Certificates', family: 'student', roles: studentRoles, icon: 'certificate-outline' },
   { name: 'profile', title: 'Profile', family: 'student', roles: allRoles, icon: 'account-circle-outline' },
   { name: 'thesis.topics', title: 'Thesis topics', family: 'thesis', roles: studentRoles, icon: 'lightbulb-on-outline' },
   { name: 'thesis.detail', title: 'Topic detail', family: 'thesis', roles: studentRoles, icon: 'text-box-search-outline' },
