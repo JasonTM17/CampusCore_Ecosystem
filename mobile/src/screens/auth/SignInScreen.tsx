@@ -12,6 +12,7 @@ import { useThemedStyles, useTheme } from '../../design/theme';
 import type { ThemeColors } from '../../design/theme';
 import { accountMessages } from '../../i18n/account-messages';
 import { useLocale } from '../../i18n/locale-provider';
+import { shellMessages } from '../../i18n/shell-messages';
 import { useSession } from '../../session/SessionContext';
 import { accountScreen } from '../account/account-routes';
 import type { MobileScreenProps } from '../../navigation/types';
@@ -129,6 +130,10 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
           </View>
         ) : null}
       </Card>
+      <View style={styles.guestRow}>
+        <Button label={shellMessages[locale].screens.news} onPress={() => navigation.navigate('news')} variant="text" />
+        <Button label={shellMessages[locale].screens.docs} onPress={() => navigation.navigate('docs')} variant="text" />
+      </View>
     </ScreenShell>
   );
 }
@@ -146,6 +151,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   brandCopy: { flex: 1, marginLeft: tokens.spacing.sm },
   formCard: { padding: tokens.spacing.lg },
   formIntro: { marginBottom: tokens.spacing.lg, marginTop: tokens.spacing.xs },
+  guestRow: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, marginTop: tokens.spacing.md },
   submit: { marginTop: tokens.spacing.sm },
   errorPanel: { backgroundColor: colors.errorFixed, borderColor: colors.error, borderLeftColor: colors.error, borderLeftWidth: 3, borderRadius: tokens.radii.control, borderWidth: 1, marginTop: tokens.spacing.md, padding: tokens.spacing.sm },
 });
