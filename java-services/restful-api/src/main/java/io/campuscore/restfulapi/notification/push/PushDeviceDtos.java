@@ -1,6 +1,7 @@
 package io.campuscore.restfulapi.notification.push;
 
 import io.campuscore.restfulapi.exception.AppException;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.Set;
 import tools.jackson.databind.JsonNode;
@@ -14,7 +15,12 @@ public final class PushDeviceDtos {
 
     private PushDeviceDtos() { }
 
-    public record PushDeviceRegistrationRequest(String provider, String platform, String token) {
+    @Schema(name = "PushDeviceRegistrationRequest")
+    public record PushDeviceRegistrationRequest(
+            @Schema(type = "string", requiredMode = Schema.RequiredMode.REQUIRED) String provider,
+            @Schema(type = "string", requiredMode = Schema.RequiredMode.REQUIRED) String platform,
+            @Schema(type = "string", requiredMode = Schema.RequiredMode.REQUIRED,
+                    accessMode = Schema.AccessMode.WRITE_ONLY) String token) {
         public static PushDeviceRegistrationRequest from(JsonNode body) {
             if (!(body instanceof ObjectNode object)) {
                 throw invalidRequest();

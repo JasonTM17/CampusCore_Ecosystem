@@ -17,7 +17,7 @@ public class UnconfiguredPushProvider implements PushProvider {
     }
 
     @Override
-    public DeliveryReceipt send(String provider, String token, PushPayload payload) {
+    public DeliveryReceipt send(String provider, String token, PushPayload payload, String deliveryKey) {
         throw new IllegalStateException("Push provider is not configured");
     }
 }
