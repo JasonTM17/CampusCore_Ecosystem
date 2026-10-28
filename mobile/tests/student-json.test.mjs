@@ -3,12 +3,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { readSources } from './helpers/read-sources.mjs';
 
 const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 test('student live JSON uses new registration contract and profile APIs', () => {
   const client = fs.readFileSync(path.join(mobileRoot, 'src/api/client.ts'), 'utf8');
-  const screens = fs.readFileSync(path.join(mobileRoot, 'src/screens/student/StudentScreens.tsx'), 'utf8');
+  const screens = readSources(mobileRoot,'src/screens/student',/^(StudentDashboard|Schedule|Courses|Grades|Attendance|Registration|Notifications|Profile)Screen\.tsx$|^shared\//);
   const operations = fs.readFileSync(path.join(mobileRoot, 'src/screens/operations/OperationsScreens.tsx'), 'utf8');
 
   assert.match(client, /Idempotency-Key/);
@@ -47,7 +48,7 @@ test('student live JSON uses new registration contract and profile APIs', () => 
 });
 
 test('student screens key enrollment lists by semester and guard profile saves', () => {
-  const screens = fs.readFileSync(path.join(mobileRoot, 'src/screens/student/StudentScreens.tsx'), 'utf8');
+  const screens = readSources(mobileRoot,'src/screens/student',/^(StudentDashboard|Schedule|Courses|Grades|Attendance|Registration|Notifications|Profile)Screen\.tsx$|^shared\//);
 
   const screenSlice = (name) => {
     const start = screens.indexOf(`export function ${name}`);
@@ -83,7 +84,7 @@ test('student screens key enrollment lists by semester and guard profile saves',
 });
 
 test('student screens translate service errors into student-friendly copy', () => {
-  const screens = fs.readFileSync(path.join(mobileRoot, 'src/screens/student/StudentScreens.tsx'), 'utf8');
+  const screens = readSources(mobileRoot,'src/screens/student',/^(StudentDashboard|Schedule|Courses|Grades|Attendance|Registration|Notifications|Profile)Screen\.tsx$|^shared\//);
 
   assert.match(screens, /studentFriendlyErrorMessage/);
   assert.match(screens, /friendlyErrorMessageByCode/);
