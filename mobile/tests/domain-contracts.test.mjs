@@ -17,13 +17,21 @@ const routeMap = read('src/navigation/route-map.ts');
 const screenComponents = read('src/screens/index.ts');
 const client = read('src/api/client.ts');
 
+// Content and service screens go through the contentApi facade (src/screens/content/content-api.ts),
+// which wraps the shared client; `methods` are the facade entries each lane must expose.
+const contentApiSource = read('src/screens/content/content-api.ts');
+const contentSources = () => fs.readdirSync(path.join(mobileRoot, 'src/screens/content'))
+  .filter((name) => /\.tsx?$/.test(name))
+  .map((name) => read(`src/screens/content/${name}`))
+  .join('\n');
+
 const DOMAIN_SCREENS = {
-  news: { file: 'src/screens/student/NewsScreen.tsx', methods: ['publicAnnouncements', 'publicAnnouncement'] },
-  docs: { file: 'src/screens/student/DocsScreen.tsx', methods: ['publicDocs', 'publicDoc'] },
+  news: { file: 'src/screens/student/NewsScreen.tsx', methods: ['news', 'newsDetail'] },
+  docs: { file: 'src/screens/student/DocsScreen.tsx', methods: ['docs', 'docDetail'] },
   events: { file: 'src/screens/student/EventsScreen.tsx', methods: ['events', 'registerEvent', 'cancelEventRegistration'] },
   learning: { file: 'src/screens/student/LearningScreen.tsx', methods: ['learningSections', 'learningAssignments', 'learningSubmit'] },
-  admissions: { file: 'src/screens/student/AdmissionsScreen.tsx', methods: ['admissionsMy', 'admissionsCreate', 'admissionsSubmit'] },
-  library: { file: 'src/screens/student/LibraryScreen.tsx', methods: ['libraryCatalogue', 'libraryRequest', 'libraryMyLoans'] },
+  admissions: { file: 'src/screens/student/AdmissionsScreen.tsx', methods: ['admissionsApplications', 'admissionsCreate', 'admissionsSubmit'] },
+  library: { file: 'src/screens/student/LibraryScreen.tsx', methods: ['libraryCatalogue', 'libraryRequest', 'libraryLoans'] },
   careers: { file: 'src/screens/student/CareersScreen.tsx', methods: ['careersOpportunities', 'careersApply', 'careersWithdraw'] },
 };
 
@@ -37,15 +45,15 @@ test('every domain lane registers a native screen + path + component', () => {
 
 test('domain screens call the API client — no web-handoff shortcuts', () => {
   for (const [name, spec] of Object.entries(DOMAIN_SCREENS)) {
-    const source = read(spec.file);
-    assert.match(source, /campusApi\./, `${name} screen never calls campusApi`);
+    const source = `${read(spec.file)}\n${contentSources()}`;
+    assert.match(read(spec.file), /contentApi\.|content-api/, `${name} screen never reaches the API through contentApi`);
     assert.doesNotMatch(
       source,
       /Linking\.openURL|WebBrowser\.openBrowserAsync|openAuthSessionAsync/,
       `${name} screen must not hand off to the website`,
     );
     for (const method of spec.methods) {
-      assert.match(client, new RegExp(`${method}: `), `campusApi.${method} missing`);
+      assert.match(contentApiSource, new RegExp(`${method}: `), `contentApi.${method} missing`);
     }
   }
 });

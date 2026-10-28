@@ -43,7 +43,9 @@ beforeEach(() => {
   mockSession.capabilities = [];
   for (const fn of Object.values(api)) fn.mockReset();
 });
-afterEach(() => jest.clearAllMocks());
+afterEach(() => {
+  jest.clearAllMocks();
+});
 
 describe('lane host fails closed', () => {
   test('flag off: shows the denied state and never calls the lane api', async () => {
