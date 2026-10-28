@@ -22,6 +22,7 @@ import { useScreenQuery } from '../../hooks/useScreenQuery';
 import type { MobileScreenProps } from '../../navigation/types';
 import { SecureField } from '../account/SecureField';
 import { SignOutDialog } from '../account/SignOutDialog';
+import { LanguageSetting } from '../account/LanguageSetting';
 import { TwoFactorCard } from '../account/TwoFactorCard';
 import { classifyError, errorMessage } from '../account/account-errors';
 import { setExitNotice, type ExitNotice } from '../account/exit-notice';
@@ -247,6 +248,8 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
           <TwoFactorCard email={account?.email} onCompleted={handleTwoFactorDone} />
         </>
       ) : null}
+      <ScreenSpacer />
+      <LanguageSetting />
       <ScreenSpacer />
       <Button label={copy.profile.openAssistant} onPress={() => navigation.navigate('assistant.chat')} variant="secondary" />
       <Button label={copy.signOut.button} onPress={() => setConfirmSignOut(true)} variant="text" style={styles.signOut} />
