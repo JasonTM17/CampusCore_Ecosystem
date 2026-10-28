@@ -6,7 +6,10 @@ project.
 ## Design contract
 
 The UI follows the canonical `Academic Continuity` evidence in
-`frontend/.stitch/DESIGN.md`:
+`frontend/.stitch/DESIGN.md`. The seven ecosystem domain lanes (news, docs,
+events, learning, admissions, library, careers) resolve to generated screens
+in the live Stitch project `8459672847959457355` via `stitchMobileReferences`
+in `src/navigation/routes.ts`; the atlas regression pins that traceability:
 
 - Be Vietnam Pro is bundled with Expo and loaded before the navigator renders;
   the platform system font remains the runtime fallback for native text that
