@@ -1,182 +1,225 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
-import {
-  Button,
-  Card,
-  DataNotice,
-  Divider,
-  ListRow,
-  ScreenShell,
-  ScreenSpacer,
-  StatePanel,
-  UiText,
-} from '../../components/Ui';
-import { apiClient, campusApi } from '../../api/client';
-import type { AttendanceRecord, AttendanceRosterEntry, AttendanceStatus } from '../../api/client';
-import { useScreenQuery } from '../../hooks/useScreenQuery';
+import { Button, MetricCard, Notice, StatePanel, UiText } from '../../components/Ui';
+import { DateField } from '../../components/ui/date-field';
+import { SearchBar } from '../../components/ui/primitives';
+import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileScreenProps } from '../../navigation/types';
-import { lecturerErrorMessage, todayIso, scheduleLine, lecturerName, ATTENDANCE_STATUSES } from './shared/helpers';
-import { previewSchedule, previewRoster } from './shared/preview';
+import { AttendanceRosterRow } from './AttendanceRosterRow';
+import { StaleAttendanceError, lecturerApi, type AttendanceSheet } from './lecturer-api';
+import { attendanceCsvFilename, generateAttendanceCsv } from './lecturer-csv';
+import {
+  attendanceChangeCount,
+  attendanceMetrics,
+  baselineOf,
+  buildAttendanceRecords,
+  buildRosterRows,
+  commitRows,
+  courseTitle,
+  filterRoster,
+  isStaleAttendance,
+  localIsoDate,
+  savedBaseline,
+  setAllStatus,
+  setRowStatus,
+  windowOf,
+  type AttendanceBaseline,
+  type MarkStatus,
+  type RosterRow,
+} from './lecturer-model';
+import { CsvExport, OpsShell, SectionPicker, isOpsPreview, useOpsQuery } from './lecturer-ui';
+import { opsErrorMessage, useOpsCopy } from './shared/helpers';
+import { previewRoster, previewSchedule } from './shared/preview';
 import { useOpsStyles } from './shared/styles';
 
-export function LecturerAttendanceScreen({ navigation }: MobileScreenProps) {
+const PAGE_SIZE = 30;
+const EMPTY_BASELINE: AttendanceBaseline = { roster: [], marks: {} };
+
+type SaveState = { kind: 'idle' } | { kind: 'saving' } | { kind: 'saved'; count: number } | { kind: 'error'; message: string };
+
+export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   const styles = useOpsStyles();
-  const isPreview = apiClient.mode === 'preview';
+  const { copy, locale } = useOpsCopy();
+  const preview = isOpsPreview();
   const params = useLocalSearchParams<{ sectionId?: string }>();
-  const sectionsQuery = useScreenQuery('lecturer:schedule', () => campusApi.lecturerSchedule(), {
-    enabled: !isPreview,
-    errorMessage: 'Sections are unavailable.',
-    mapError: (error) => lecturerErrorMessage(error, 'Sections are unavailable.'),
-  });
-  const sections = isPreview ? previewSchedule : sectionsQuery.data ?? [];
-  const sectionId = (typeof params.sectionId === 'string' && params.sectionId) || sections[0]?.sectionId;
+  const sectionsQuery = useOpsQuery('lecturer:schedule', () => lecturerApi.schedule(), copy);
+  const sections = useMemo(() => (preview ? previewSchedule : sectionsQuery.data ?? []), [preview, sectionsQuery.data]);
+
+  const [picked, setPicked] = useState(typeof params.sectionId === 'string' ? params.sectionId : '');
+  const sectionId = sections.some((section) => section.sectionId === picked) ? picked : sections[0]?.sectionId ?? '';
   const section = sections.find((item) => item.sectionId === sectionId);
+  const today = localIsoDate();
+  const [date, setDate] = useState(today);
+  const sheetKey = `${sectionId}:${date}`;
 
-  const rosterQuery = useScreenQuery(
-    `lecturer:roster:${sectionId ?? 'none'}`,
-    async () => {
-      if (!sectionId) {
-        return [] as AttendanceRosterEntry[];
-      }
-      const [roster, marks] = await Promise.all([
-        campusApi.attendanceRoster(sectionId),
-        // 404 = no sheet for today yet (legitimately empty). Any other
-        // failure must surface — silently defaulting every mark to PRESENT
-        // would let a save overwrite real data (review F5).
-        campusApi.sectionAttendance(sectionId, todayIso()).catch((error: unknown) => {
-          if ((error as { status?: number })?.status === 404) {
-            return [] as AttendanceRecord[];
-          }
-          throw error;
-        }),
-      ]);
-      const markByStudent = new Map(marks.map((mark) => [mark.studentId, mark.status]));
-      return roster.map((entry) => ({
-        ...entry,
-        _status: (markByStudent.get(entry.studentId) as AttendanceStatus | undefined) ?? 'PRESENT',
-      }));
-    },
-    {
-      enabled: !isPreview && Boolean(sectionId),
-      errorMessage: 'The class roster is unavailable.',
-      mapError: (error) => lecturerErrorMessage(error, 'The class roster is unavailable.'),
-    },
+  const sheetQuery = useOpsQuery(
+    `lecturer:sheet:${sheetKey}`,
+    () => lecturerApi.attendanceSheet(sectionId, date),
+    copy,
+    Boolean(sectionId),
   );
+  // The hook keeps the previous key's data until the next fetch lands; only a sheet that carries this key is used.
+  const sheet: AttendanceSheet | undefined = useMemo(() => {
+    if (preview) return { sectionId, date, roster: previewRoster, marks: [] };
+    const data = sheetQuery.data;
+    return data && data.sectionId === sectionId && data.date === date ? data : undefined;
+  }, [preview, sheetQuery.data, sectionId, date]);
 
-  const [marks, setMarks] = useState<Record<string, AttendanceStatus>>({});
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [rows, setRows] = useState<RosterRow[]>([]);
+  const [baseline, setBaseline] = useState<AttendanceBaseline>(EMPTY_BASELINE);
+  const [loadedKey, setLoadedKey] = useState('');
+  const [remoteChanged, setRemoteChanged] = useState(false);
+  const [save, setSave] = useState<SaveState>({ kind: 'idle' });
+  const [search, setSearch] = useState('');
+  const [pages, setPages] = useState(1);
 
-  const roster = isPreview ? previewRoster : rosterQuery.data ?? [];
-  const statusFor = (studentId: string): AttendanceStatus =>
-    marks[studentId]
-      ?? (roster.find((entry) => entry.studentId === studentId) as { _status?: AttendanceStatus } | undefined)?._status
-      ?? 'PRESENT';
-
-  const cycleStatus = (studentId: string) => {
-    const current = statusFor(studentId);
-    const next = ATTENDANCE_STATUSES[(ATTENDANCE_STATUSES.indexOf(current) + 1) % ATTENDANCE_STATUSES.length];
-    setMarks((currentMarks) => ({ ...currentMarks, [studentId]: next }));
-    setSaveState('idle');
+  const applySheet = (next: AttendanceSheet) => {
+    setRows(buildRosterRows(next.roster, next.marks));
+    setBaseline(baselineOf(next.roster, next.marks));
+    setLoadedKey(`${next.sectionId}:${next.date}`);
+    setRemoteChanged(false);
   };
 
-  const save = async () => {
-    if (!sectionId || isPreview) {
-      setSaveState('saved');
+  // A new key loads fresh rows. A refetch of the same key replaces them only when nothing is unsaved;
+  // otherwise the lecturer keeps their marks and is told the server moved.
+  useEffect(() => {
+    if (!sheet) return;
+    if (loadedKey !== sheetKey) {
+      applySheet(sheet);
+      setSave({ kind: 'idle' });
+      setPages(1);
       return;
     }
-    setSaveState('saving');
-    setSaveError(null);
+    if (isStaleAttendance(baseline, sheet.roster, sheet.marks)) {
+      if (attendanceChangeCount(rows, baseline) === 0) applySheet(sheet);
+      else setRemoteChanged(true);
+    }
+    // rows/baseline are read, not triggers: only a new server payload or key re-runs this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheet, sheetKey]);
+
+  const changes = attendanceChangeCount(rows, baseline);
+  const metrics = attendanceMetrics(rows);
+  const visible = useMemo(() => filterRoster(rows, search), [rows, search]);
+  const { rows: shown, hasMore } = windowOf(visible, pages, PAGE_SIZE);
+  const ready = loadedKey === sheetKey;
+  const busy = save.kind === 'saving';
+
+  const change = (studentId: string, status: MarkStatus | null) => {
+    setRows((current) => setRowStatus(current, studentId, status));
+    setSave({ kind: 'idle' });
+  };
+
+  const markAll = () => {
+    setRows((current) => setAllStatus(current, 'PRESENT', new Set(visible.map((row) => row.studentId))));
+    setSave({ kind: 'idle' });
+  };
+
+  // Discards the local marks for the latest server sheet; a fresher payload still in flight lands through the effect.
+  const reloadSheet = () => {
+    setSave({ kind: 'idle' });
+    if (sheet) applySheet(sheet);
+    void sheetQuery.reload();
+  };
+
+  const saveAttendance = async () => {
+    const records = buildAttendanceRecords(rows);
+    if (records.length === 0) {
+      setSave({ kind: 'error', message: copy.nothingToSave });
+      return;
+    }
+    setSave({ kind: 'saving' });
     try {
-      await campusApi.saveSectionAttendance(
-        sectionId,
-        todayIso(),
-        roster.map((entry) => ({ studentId: entry.studentId, status: statusFor(entry.studentId) })),
-      );
-      setSaveState('saved');
-      void rosterQuery.reload();
-    } catch (nextError) {
-      setSaveState('error');
-      setSaveError(lecturerErrorMessage(nextError, 'Attendance could not be saved.'));
+      const count = await lecturerApi.saveAttendance(sectionId, date, records, baseline);
+      setSave({ kind: 'saved', count });
+      setRows((current) => commitRows(current));
+      setBaseline(savedBaseline(rows));
+      setRemoteChanged(false);
+      void sheetQuery.reload();
+    } catch (error) {
+      if (error instanceof StaleAttendanceError) {
+        setRemoteChanged(true);
+        setSave({ kind: 'idle' });
+      } else {
+        setSave({ kind: 'error', message: opsErrorMessage(copy, error, copy.saveFailed) });
+      }
     }
   };
 
-  if (!isPreview && (sectionsQuery.isLoading || (sectionId && rosterQuery.isLoading))) {
-    return (
-      <ScreenShell title="Class attendance" eyebrow="Lecturer workspace">
-        <StatePanel kind="loading" title="Loading roster…" description="Retrieving enrolled students." />
-      </ScreenShell>
-    );
-  }
-  const queryError = sectionsQuery.error ?? rosterQuery.error;
-  if (!isPreview && queryError) {
-    return (
-      <ScreenShell title="Class attendance" eyebrow="Lecturer workspace">
-        <StatePanel kind="error" title="Attendance unavailable" description={queryError} actionLabel="Try again" onAction={() => { void sectionsQuery.reload(); void rosterQuery.reload(); }} />
-      </ScreenShell>
-    );
-  }
+  const buildCsv = () =>
+    generateAttendanceCsv({
+      sectionNumber: section?.sectionNumber ?? sectionId,
+      courseCode: section?.courseCode,
+      courseName: section ? courseTitle(section, locale) : undefined,
+      date,
+      semesterName: section?.semesterName,
+      metrics: { total: metrics.total, present: metrics.present, absent: metrics.absent, late: metrics.late, excused: metrics.excused, rate: metrics.rate },
+      students: rows.map((row) => ({ studentId: row.studentId, studentCode: row.studentCode, studentName: row.name, status: row.status, notes: row.notes })),
+      locale,
+    });
+
+  const queryError = preview ? null : sectionsQuery.error ?? sheetQuery.error;
+  const loading = !preview && (sectionsQuery.isLoading || (Boolean(sectionId) && !ready && !queryError));
 
   return (
-    <ScreenShell
-      title="Class attendance"
-      eyebrow={section ? `${section.courseCode ?? 'Section'} · Today` : 'Lecturer workspace'}
-      subtitle={section ? `${lecturerName(section)} · ${scheduleLine(section)}` : 'Mark attendance with a readable, focused list.'}
+    <OpsShell
+      title={copy.attendanceTitle}
+      eyebrow={section ? `${section.courseCode ?? ''} · ${date}` : undefined}
+      subtitle={section ? courseTitle(section, locale) : undefined}
+      loading={loading}
+      error={queryError}
+      warning={preview ? null : sectionsQuery.warning ?? sheetQuery.warning}
+      onRetry={() => { void sectionsQuery.reload(); void sheetQuery.reload(); }}
     >
-      {sectionsQuery.warning ?? rosterQuery.warning ? <DataNotice message={sectionsQuery.warning ?? rosterQuery.warning ?? ''} /> : null}
-      {roster.length === 0 ? (
-        <StatePanel kind="empty" title="No enrolled students" description="The roster appears once enrollments are confirmed for this section." />
+      {sections.length === 0 ? (
+        <StatePanel kind="empty" title={copy.emptySchedule} />
       ) : (
-        <Card>
-          {roster.map((student, index, list) => (
-            <View key={student.studentId}>
-              <ListRow
-                leading={(student.firstName ?? student.studentCode ?? '?').slice(0, 1)}
-                title={`${student.lastName ?? ''} ${student.firstName ?? ''}`.trim() || student.studentCode || student.studentId}
-                subtitle={student.studentCode ?? student.studentId}
-                trailing={
-                  <Button
-                    label={statusFor(student.studentId)}
-                    variant={statusFor(student.studentId) === 'PRESENT' ? 'secondary' : 'text'}
-                    onPress={() => cycleStatus(student.studentId)}
-                  />
-                }
+        <View>
+          <SectionPicker sections={sections} value={sectionId} onChange={(next) => { setPicked(next); setSearch(''); }} />
+          <DateField label={copy.date} value={date} max={today} required onChange={(next) => next && setDate(next)} />
+          {rows.length === 0 ? (
+            <StatePanel kind="empty" title={copy.rosterEmpty} />
+          ) : (
+            <View>
+              <View style={styles.metrics}>
+                <MetricCard label={copy.statusPresent} value={String(metrics.present)} style={styles.metric} />
+                <MetricCard label={copy.statusAbsent} value={String(metrics.absent)} style={styles.metric} />
+                <MetricCard label={copy.statusLate} value={String(metrics.late)} style={styles.metric} />
+                <MetricCard label={copy.rateLabel} value={`${metrics.rate.toFixed(0)}%`} style={styles.metric} />
+              </View>
+              {remoteChanged ? <Notice tone="warning" message={copy.stale} actionLabel={copy.reload} onAction={reloadSheet} /> : null}
+              {changes > 0 ? <UiText variant="bodySmall" tone="muted">{fillCopy(copy.unsaved, { n: changes })}</UiText> : null}
+              <SearchBar
+                value={search}
+                onChangeText={(value) => { setSearch(value); setPages(1); }}
+                placeholder={copy.searchStudents}
+                accessibilityLabel={copy.searchStudents}
+                style={styles.searchBar}
               />
-              {index < list.length - 1 ? <Divider /> : null}
+              <Button label={copy.markAllPresent} variant="secondary" onPress={markAll} disabled={busy || visible.length === 0} />
+              <View style={styles.stack}>
+                {visible.length === 0 ? <StatePanel kind="empty" title={copy.noMatch} /> : null}
+                {shown.map((row) => (
+                  <AttendanceRosterRow key={row.studentId} row={row} copy={copy} onChange={change} disabled={busy} />
+                ))}
+                {hasMore ? <Button label={copy.loadMore} variant="secondary" onPress={() => setPages((current) => current + 1)} /> : null}
+              </View>
+              {save.kind === 'error' ? <Notice tone="error" message={save.message} /> : null}
+              {save.kind === 'saved' ? <Notice tone="success" message={fillCopy(copy.saved, { n: save.count })} /> : null}
+              <Button
+                label={copy.save}
+                loading={busy}
+                disabled={preview || changes === 0 || remoteChanged}
+                onPress={() => void saveAttendance()}
+                style={styles.topButton}
+              />
+              <CsvExport name={attendanceCsvFilename(section?.sectionNumber || sectionId, date)} build={buildCsv} rows={rows.length} />
             </View>
-          ))}
-        </Card>
+          )}
+        </View>
       )}
-      <ScreenSpacer />
-      {saveError ? (
-        <View accessibilityLiveRegion="assertive" style={styles.actionStatusError}>
-          <UiText variant="bodySmall" tone="error">{saveError}</UiText>
-        </View>
-      ) : null}
-      {saveState === 'saved' ? (
-        <View accessibilityLiveRegion="polite" style={styles.actionStatus}>
-          <UiText variant="bodySmall" tone="success">Attendance saved.</UiText>
-        </View>
-      ) : null}
-      <Button
-        label={isPreview ? 'Save attendance (preview)' : 'Save attendance'}
-        loading={saveState === 'saving'}
-        disabled={roster.length === 0}
-        onPress={() => void save()}
-      />
-      {sections.length > 1 ? (
-        <Button
-          label="Switch section"
-          variant="secondary"
-          style={styles.secondaryButton}
-          onPress={() => {
-            const nextIndex = (sections.findIndex((item) => item.sectionId === sectionId) + 1) % sections.length;
-            navigation.navigate('lecturer.attendance', { sectionId: sections[nextIndex].sectionId });
-          }}
-        />
-      ) : null}
-    </ScreenShell>
+    </OpsShell>
   );
 }

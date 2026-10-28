@@ -1,70 +1,100 @@
+import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
-import {
-  Badge,
-  Button,
-  Card,
-  DataNotice,
-  ScreenShell,
-  StatePanel,
-  UiText,
-} from '../../components/Ui';
-import { apiClient, campusApi } from '../../api/client';
-import { useScreenQuery } from '../../hooks/useScreenQuery';
+import { Badge, Button, Card, StatePanel, UiText } from '../../components/Ui';
+import { ChoiceField } from '../../components/ui/choice-field';
+import { SearchBar } from '../../components/ui/primitives';
+import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileScreenProps } from '../../navigation/types';
-import { lecturerErrorMessage, scheduleLine, lecturerName } from './shared/helpers';
+import { lecturerApi } from './lecturer-api';
+import { courseTitle, filterSections, termOptions, windowOf } from './lecturer-model';
+import { OpsShell, isOpsPreview, slotText, useOpsQuery } from './lecturer-ui';
+import { useOpsCopy } from './shared/helpers';
 import { previewSchedule } from './shared/preview';
 import { useOpsStyles } from './shared/styles';
 
+const PAGE_SIZE = 10;
+
+/** Sections by term with search; the endpoint returns the whole teaching load, so rows are windowed on the device. */
 export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
   const styles = useOpsStyles();
-  const isPreview = apiClient.mode === 'preview';
-  const query = useScreenQuery('lecturer:schedule', () => campusApi.lecturerSchedule(), {
-    enabled: !isPreview,
-    errorMessage: 'Teaching schedule is unavailable.',
-    mapError: (error) => lecturerErrorMessage(error, 'Teaching schedule is unavailable.'),
-  });
-  const sections = isPreview ? previewSchedule : query.data ?? [];
+  const { copy, locale } = useOpsCopy();
+  const preview = isOpsPreview();
+  const query = useOpsQuery('lecturer:schedule', () => lecturerApi.schedule(), copy);
+  const [term, setTerm] = useState('');
+  const [search, setSearch] = useState('');
+  const [pages, setPages] = useState(1);
 
-  if (query.isLoading || query.error) {
-    return (
-      <ScreenShell title="Teaching schedule" eyebrow="Lecturer workspace">
-        <StatePanel
-          kind={query.isLoading ? 'loading' : 'error'}
-          title={query.isLoading ? 'Loading schedule…' : 'Schedule unavailable'}
-          description={query.error ?? 'Retrieving your sections.'}
-          actionLabel={query.error ? 'Try again' : undefined}
-          onAction={query.error ? () => void query.reload() : undefined}
-        />
-      </ScreenShell>
-    );
-  }
+  const sections = useMemo(() => (preview ? previewSchedule : query.data ?? []), [preview, query.data]);
+  const terms = useMemo(() => termOptions(sections), [sections]);
+  const matches = useMemo(() => filterSections(sections, search, term, locale), [sections, search, term, locale]);
+  const { rows, hasMore } = windowOf(matches, pages, PAGE_SIZE);
 
   return (
-    <ScreenShell title="Teaching schedule" eyebrow="Lecturer workspace" subtitle="Your sections and the next handoff.">
-      {query.warning ? <DataNotice message={query.warning} /> : null}
+    <OpsShell
+      title={copy.scheduleTitle}
+      loading={!preview && query.isLoading}
+      error={preview ? null : query.error}
+      warning={preview ? null : query.warning}
+      onRetry={() => void query.reload()}
+    >
       {sections.length === 0 ? (
-        <StatePanel kind="empty" title="No sections" description="Sections appear after the academic office assigns your teaching load." />
-      ) : null}
-      {sections.map((item) => (
-        <Card key={item.sectionId} style={styles.scheduleCard}>
-          <View style={styles.scheduleHeader}>
-            <View style={styles.topicCopy}>
-              <UiText variant="meta" tone="primary">{item.courseCode ?? item.sectionNumber ?? item.sectionId}</UiText>
-              <UiText variant="headlineSmall">{lecturerName(item)}</UiText>
-              <UiText variant="bodySmall" tone="muted">{scheduleLine(item)}</UiText>
-            </View>
-            <Badge label={`${item.enrolledCount ?? 0} students`} tone="neutral" />
-          </View>
-          <Button
-            label="Take attendance"
-            onPress={() => navigation.navigate('lecturer.attendance', { sectionId: item.sectionId })}
-            variant="secondary"
-            style={styles.topButton}
+        <StatePanel kind="empty" title={copy.emptySchedule} />
+      ) : (
+        <View>
+          {terms.length > 1 ? (
+            <ChoiceField
+              label={copy.semester}
+              display="sheet"
+              options={[{ value: '', label: copy.allTerms }, ...terms]}
+              value={term}
+              onChange={(value) => { setTerm(value); setPages(1); }}
+            />
+          ) : null}
+          <SearchBar
+            value={search}
+            onChangeText={(value) => { setSearch(value); setPages(1); }}
+            placeholder={copy.searchSections}
+            accessibilityLabel={copy.searchSections}
+            style={styles.searchBar}
           />
-        </Card>
-      ))}
-      <Button label="Open gradebook" onPress={() => navigation.navigate('lecturer.grading')} variant="secondary" />
-    </ScreenShell>
+          {matches.length === 0 ? <StatePanel kind="empty" title={copy.noMatch} /> : null}
+          {rows.map((section) => (
+            <Card key={section.sectionId} style={styles.scheduleCard}>
+              <View style={styles.scheduleHeader}>
+                <View style={styles.topicCopy}>
+                  <UiText variant="meta" tone="primary">{section.courseCode ?? section.sectionId}</UiText>
+                  <UiText accessibilityRole="header" variant="headlineSmall">{courseTitle(section, locale) || copy.untitled}</UiText>
+                  {section.sectionNumber ? <UiText variant="bodySmall" tone="muted">{fillCopy(copy.sectionLine, { n: section.sectionNumber })}</UiText> : null}
+                </View>
+                <Badge label={fillCopy(copy.studentsCount, { n: section.enrolledCount ?? 0 })} tone="neutral" />
+              </View>
+              {(section.schedules ?? []).length === 0 ? (
+                <UiText variant="bodySmall" tone="muted">{copy.schedulePending}</UiText>
+              ) : (
+                (section.schedules ?? []).map((slot, index) => (
+                  <UiText key={slot.id ?? index} variant="bodySmall" tone="muted">{slotText(slot, copy)}</UiText>
+                ))
+              )}
+              <View style={styles.rowBetween}>
+                <Button
+                  label={copy.takeAttendance}
+                  variant="secondary"
+                  onPress={() => navigation.navigate('lecturer.attendance', { sectionId: section.sectionId })}
+                  style={styles.topButton}
+                />
+                <Button
+                  label={copy.openGrades}
+                  variant="secondary"
+                  onPress={() => navigation.navigate('lecturer.grading', { sectionId: section.sectionId })}
+                  style={styles.topButton}
+                />
+              </View>
+            </Card>
+          ))}
+          {hasMore ? <Button label={copy.loadMore} variant="secondary" onPress={() => setPages((current) => current + 1)} /> : null}
+        </View>
+      )}
+    </OpsShell>
   );
 }

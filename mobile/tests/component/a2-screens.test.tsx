@@ -14,6 +14,10 @@ jest.mock('../../src/api/client', () => ({
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({}),
 }));
+// Preview session: lane entries need the session, and preview is never a lane grant.
+jest.mock('../../src/session/SessionContext', () => ({
+  useSession: () => ({ kind: 'preview', role: 'student', capabilities: [] }),
+}));
 jest.mock('../../src/hooks/useScreenQuery', () => ({
   useScreenQuery: () => ({
     data: undefined, error: null, warning: null,

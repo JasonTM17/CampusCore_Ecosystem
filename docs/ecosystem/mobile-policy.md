@@ -202,15 +202,51 @@ theo contract gốc. Companion doc: `docs/ecosystem/mobile-matrix.md`
   read, attendance summary, registration (enroll/withdraw), notifications,
   thesis (topics/group/progress/report upload nếu API cho phép),
   assistant, profile, announcements feed (`/announcements/my`).
-- `lecturer`: dashboard, schedule, **attendance marking** (entry —
-  phải nối API thật, không còn static), grading/feedback entry theo API
-  hiện có, announcements.
-- `admin`/`super_admin`: **không có native lane trong phase này** —
-  route nhóm admin render trạng thái "dùng web portal" (matrix ghi rõ);
-  admin screens static hiện hữu được thay bằng unavailable-state trung
-  thực thay vì fake data. Đây là quyết định matrix, không phải thiếu
-  sót ngầm. Quy ước `lecturerRoles` chứa `admin` trong `routes.ts`
-  được gỡ khỏi native lanes (KM-8).
+- `lecturer`: dashboard, lịch dạy, **điểm danh** và **nhập điểm** trên API
+  thật (`src/screens/operations`), không còn dữ liệu tĩnh. Điểm danh: chọn
+  lớp + ngày, đánh dấu từng sinh viên (chưa đánh dấu giữ nguyên là chưa
+  đánh dấu), lưu bằng PUT toàn trạng thái; trước khi lưu app đọc lại
+  server và dừng nếu danh sách lớp hoặc dấu điểm danh đã đổi. Nhập điểm:
+  chỉ gửi các dòng đã sửa, công bố điểm qua hộp xác nhận, xuất CSV
+  (BOM + CRLF, khớp byte với web) qua share sheet. Hand-off
+  `web-same-path` cho thư (`/dashboard/lecturer/mail`), nhập điểm hàng
+  loạt và in bảng điểm (`/dashboard/lecturer/grades`).
+- `admin`/`super_admin`: route registry (`admin.dashboard`, `admin.students`,
+  `admin.lecturers`) luôn là màn hand-off trung thực tới portal
+  (`/admin`, `/admin/users`, `/admin/lecturers`), không có dữ liệu giả.
+  Việc admin còn lại nằm ở các **lane** bên dưới, mặc định tắt.
+- **Lane có cờ (P13)** — màn thật trong `src/screens/lanes`, đăng ký ở
+  `laneComponents` (tách khỏi `screenComponents`), mỗi lane có file route
+  `app/(app)/...` đúng đường dẫn `lanePathById` và chỉ là host
+  `<LaneRoute id="…" />`. Một lane mở khi **đồng thời**: cờ build
+  `EXPO_PUBLIC_LANE_DEAN|STAFF|ADMIN` bằng đúng chuỗi `true` (mặc định
+  tắt), capability từ claim/grant, và session `authenticated`. Kiểm hai
+  lần: `resolveGuard` khi vào route và `laneAllowed` lúc render trong
+  `LaneRoute`; thiếu một điều kiện thì redirect về trang chính của role
+  (`reason: 'lane-unavailable'`) hoặc màn "không có quyền", không bao giờ
+  mount nội dung lane. Preview và signed-out không bao giờ có lane. Dữ
+  liệu lane không cache (không SWR/offline): mất grant thì danh sách biến
+  mất, audit không nằm trong cache đĩa; 401/403 hiện trạng thái từ chối.
+  Mọi ghi đều qua hộp xác nhận, chỉ một yêu cầu tại một thời điểm, kèm
+  `expectedVersion` của dòng đã xem (409/412 → tải lại danh sách).
+
+  | Lane | Cờ + capability | Việc trên app | Hand-off web (`web-same-path`) |
+  | --- | --- | --- | --- |
+  | `dean.overview` | `DEAN` + `dean.overview`; chỉ claim `TRUONG_KHOA` (không phải `TRUONG_BO_MON`) | Tổng quan khóa luận toàn khoa theo đợt: số liệu, theo bộ môn, giảng viên hướng dẫn, nhóm (đọc) | `/dashboard/dean` |
+  | `staff.applyReview` | `STAFF` + `staff.applyReview` (grant theo bàn) | Hàng đợi hồ sơ tuyển sinh: nhận duyệt, trả hồ sơ (ghi chú bắt buộc), trúng tuyển/từ chối | `/apply/review` (tệp đính kèm, quyền) |
+  | `staff.careersDesk` | `STAFF` + `staff.careersDesk` | Đơn ứng tuyển: chuyển bước, từ chối (lý do bắt buộc) | `/careers/desk` |
+  | `staff.libraryDesk` | `STAFF` + `staff.libraryDesk` | Yêu cầu mượn: duyệt, phát, nhận trả, hủy (lý do bắt buộc) | `/library/desk` |
+  | `admin.overview` | `ADMIN` + `admin.oversight`; role admin | Số liệu và biểu đồ giám sát (có bản tóm tắt chữ), lối tắt tới các lane admin | `/admin` |
+  | `admin.attendance` | như trên | Điểm danh toàn trường: lọc lớp/sinh viên/ngày, phân trang server (đọc) | `/admin/attendance` |
+  | `admin.enrollments` | như trên | Đăng ký học phần: lọc, phân trang server (đọc) | `/admin/enrollments` (xuất hàng loạt) |
+  | `admin.audit` | như trên | Nhật ký kiểm toán tối thiểu (hành động, đối tượng, người thực hiện rút gọn, thời gian), lọc, phân trang, không cache | `/admin/audit` |
+  | `admin.creditLimits` | như trên | Đơn nâng hạn mức: duyệt/từ chối (từ chối cần ghi chú) | `/admin/credit-limit-applications` |
+  | `admin.events` | như trên | Sự kiện: đăng, đóng đăng ký, hoàn tất, hủy; điểm danh thủ công khi đã đóng đăng ký/hoàn tất | `/admin/events` (tạo, mở đăng ký cần ngày) |
+  | `admin.notifications` | như trên | Soạn, xem trước, xác nhận và gửi thông báo cho một người nhận; lịch sử. Server không có idempotency nên không tự thử lại: lỗi mạng hiện "chưa rõ đã gửi", kiểm tra lịch sử trước khi gửi lại | `/admin/notifications` (gửi hàng loạt, đặt lịch) |
+
+  Quyền thật luôn do server quyết định: lane bàn việc và sự kiện cần grant
+  phía server (và quyền sở hữu với sự kiện), nên admin chưa có grant sẽ
+  thấy trạng thái từ chối thay vì dữ liệu.
 - **Preview pseudo-session (KM-9)**: `preview` là session-state trong
   memory, **không bao giờ** đụng SecureStore/refresh/token; `switchRole`
   chỉ tồn tại trong preview và chỉ đổi role-claim pseudo (guard coi
@@ -339,7 +375,10 @@ Runner local, evidence `artifacts/verification/mobile-core`. Cases:
 - Không store publication, không EAS submit, không push notification
   registration (notifications = in-app list đọc API), không OTA.
 - Không biometric/PIN unlock, không multi-account switcher.
-- Không lecturer grading write nếu backend chưa có endpoint — matrix
-  ghi `web-only` trung thực thay vì stub.
-- Admin native lane (§4) — fake-data admin screens bị thay unavailable,
-  không được "đầy đủ" giả.
+- Lane có cờ (§4) không bật mặc định; app không thay trang quản trị web:
+  tạo/sửa danh mục, gửi thông báo hàng loạt, xuất enrollments hàng loạt,
+  nhập điểm hàng loạt, in bảng điểm, tệp đính kèm hồ sơ và quản lý grant
+  bàn việc vẫn là hand-off `web-same-path`.
+- Điểm danh và điểm của giảng viên không có khóa idempotency/version phía
+  server; app chỉ giảm rủi ro (đọc lại trước khi lưu, chỉ gửi dòng đã
+  sửa, xác nhận khi công bố), không tuyên bố ghi độc quyền.
