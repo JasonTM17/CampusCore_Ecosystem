@@ -14,7 +14,7 @@ function read(relativePath) {
 test('selected thesis topic survives topic, detail, and registration navigation', () => {
   const types = read('src/navigation/types.ts');
   const navigator = read('src/navigation/MobileNavigator.tsx');
-  const thesis = read('src/screens/thesis/ThesisScreens.tsx');
+  const thesis = readSources(root, 'src/screens/thesis');
 
   assert.match(types, /thesisTopicId\?: string/);
   assert.match(types, /selectedThesisTopicId: string \| null/);
@@ -22,7 +22,8 @@ test('selected thesis topic survives topic, detail, and registration navigation'
   assert.match(navigator, /selectedThesisTopicId=\{selectedThesisTopicId\}/);
   assert.match(thesis, /navigate\('thesis\.detail', \{ thesisTopicId: topic\.id \}\)/);
   assert.match(thesis, /navigate\('thesis\.registration', \{ thesisTopicId: topic\.id \}\)/);
-  assert.match(thesis, /item\.id === \(selectedThesisTopicId \?\? group\?\.topicId\)/);
+  assert.match(thesis, /useThesisTopic\(selectedThesisTopicId \?\? undefined\)/);
+  assert.match(thesis, /const topicId = selectedThesisTopicId \?\? undefined/);
   assert.doesNotMatch(thesis, /const topic = workspace\.topics\[0\]/);
 });
 
@@ -79,7 +80,11 @@ test('npm test runs the atlas and Phase 6 regressions explicitly', () => {
 
 test('mobile assistant keeps native transport buffered and owner-history operations explicit', () => {
   const client = read('src/api/client.ts');
-  const assistant = read('src/screens/assistant/AssistantScreen.tsx');
+  const assistant = [
+    readSources(root, 'src/screens/assistant'),
+    readSources(root, 'src/assistant'),
+    read('src/api/assistant-api.ts'),
+  ].join('\n');
 
   assert.match(client, /conversations: '\/assistant\/conversations'/);
   assert.match(client, /\/messages/);
@@ -87,7 +92,7 @@ test('mobile assistant keeps native transport buffered and owner-history operati
   assert.match(client, /signal\?: AbortSignal|RequestInit/);
   assert.match(assistant, /conversationId/);
   assert.match(assistant, /deleteConversation/);
-  assert.match(assistant, /lastFailedPrompt/);
+  assert.match(assistant, /canRetry/);
   assert.match(assistant, /citation\.excerpt/);
   assert.doesNotMatch(assistant, /EventSource|text\/event-stream/);
   assert.doesNotMatch(client, /DEEPSEEK_API_KEY|sk-[A-Za-z0-9]/);
@@ -95,7 +100,8 @@ test('mobile assistant keeps native transport buffered and owner-history operati
 
 test('mobile assistant preserves idempotency, server cancellation, pagination, and fixed feedback reasons', () => {
   const client = read('src/api/client.ts');
-  const assistant = read('src/screens/assistant/AssistantScreen.tsx');
+  const screens = readSources(root, 'src/screens/assistant');
+  const assistant = [screens, readSources(root, 'src/assistant'), read('src/api/assistant-api.ts'), read('src/i18n/assistant-messages.ts')].join('\n');
 
   assert.match(client, /createAssistantClientRequestId/);
   assert.match(client, /clientRequestId:/);
@@ -104,21 +110,25 @@ test('mobile assistant preserves idempotency, server cancellation, pagination, a
   assert.match(client, /cancelAssistantRequest/);
   assert.match(client, /AssistantFeedbackReason/);
   assert.match(client, /putAssistantFeedback/);
-  assert.match(assistant, /lastFailedClientRequestId/);
-  assert.match(assistant, /cancelAssistantRequest\(clientRequestId\)/);
-  assert.match(assistant, /finally \{ abortRef\.current\?\.abort\(\)/);
-  assert.match(assistant, /pendingDeleteId/);
+  // The turn orchestrator owns the same-key resubmit and the server cancel.
+  assert.match(assistant, /createClientRequestId: createAssistantClientRequestId/);
+  assert.match(assistant, /cancelRequest: \(clientRequestId\) => assistantApi\.cancel\(clientRequestId\)/);
+  assert.match(assistant, /orchestrator\?\.dispose\(\)/);
+  assert.match(assistant, /pendingDelete/);
   assert.match(assistant, /sessionExpired/);
   assert.match(assistant, /offline/);
 });
 
 test('mobile never replays a terminal or fenced request key', () => {
-  const assistant = read('src/screens/assistant/AssistantScreen.tsx');
+  const orchestrator = read('src/assistant/turn-orchestrator.ts');
 
-  assert.match(assistant, /const NON_REPLAYABLE_TERMINAL_CODES = new Set\(\[[\s\S]*'FAILED_AMBIGUOUS'[\s\S]*'TURN_TERMINAL_RACE'[\s\S]*'TURN_NOT_ACTIVE'/);
-  assert.match(assistant, /!NON_REPLAYABLE_TERMINAL_CODES\.has\(requestError\?\.code \?\? ''\)/);
-  assert.match(assistant, /'TURN_CANCELLED'/);
-  assert.match(assistant, /'TURN_PURGED'/);
+  assert.match(orchestrator, /const FENCED_CODES = new Set\(\[/);
+  for (const code of ['FAILED_AMBIGUOUS', 'TURN_TERMINAL_RACE', 'TURN_NOT_ACTIVE']) {
+    assert.ok(orchestrator.includes(`'${code}'`), code);
+  }
+  assert.match(orchestrator, /FENCED_CODES\.has\(/);
+  assert.match(orchestrator, /'TURN_CANCELLED'/);
+  assert.match(orchestrator, /'TURN_PURGED'/);
 });
 
 test('mobile refreshes the session single-flight and exits to sign-in on expiry', () => {

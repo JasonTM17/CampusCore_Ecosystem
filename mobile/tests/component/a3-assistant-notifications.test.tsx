@@ -8,29 +8,15 @@ import { ThemeProvider } from '../../src/design/theme';
 const mockAssistantChat = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mockCancelAssistantRequest = jest.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
 jest.mock('../../src/api/client', () => ({
-  apiClient: { mode: 'live' },
+  apiClient: { mode: 'live', baseUrl: 'http://localhost' },
   createAssistantClientRequestId: () => 'req-fixed-1',
   campusApi: {
-    // Resolved lazily: the factory runs before the hoisted const bindings are initialised.
-    assistantChat: (...args: unknown[]) => mockAssistantChat(...args),
-    cancelAssistantRequest: (...args: unknown[]) => mockCancelAssistantRequest(...args),
-    assistantConversationsPage: jest.fn(async () => ({ data: [] })),
-    assistantConversationMessagesPage: jest.fn(async () => ({ data: [] })),
-    deleteAssistantConversation: jest.fn(),
     enrollments: jest.fn(async () => []),
     notifications: jest.fn(async () => ({ data: [] })),
     markNotificationRead: jest.fn(),
     markAllNotificationsRead: jest.fn(),
     registerPushDevice: jest.fn(),
     unregisterPushDevice: jest.fn(),
-    assistantStream: jest.fn(() => ({
-      stream: () => ({
-        [Symbol.asyncIterator]() {
-          return { next: () => Promise.resolve({ done: true, value: undefined }) };
-        },
-      }),
-      cancel: jest.fn(async () => undefined),
-    })),
   },
   ApiClientError: class ApiClientError extends Error {
     status: number;
@@ -38,11 +24,28 @@ jest.mock('../../src/api/client', () => ({
     constructor(msg: string, status = 0, code?: string) { super(msg); this.status = status; this.code = code; }
   },
 }));
+// The real runtime (buffered transport + turn orchestrator) runs; only the wire calls are replaced.
+jest.mock('../../src/api/assistant-api', () => {
+  const actual = jest.requireActual('../../src/api/assistant-api') as Record<string, unknown>;
+  return {
+    ...actual,
+    assistantApi: {
+      chat: (...args: unknown[]) => mockAssistantChat(...args),
+      cancel: (...args: unknown[]) => mockCancelAssistantRequest(...args),
+      conversationsPage: jest.fn(async () => ({ data: [], nextCursor: null })),
+      messagesPage: jest.fn(async () => ({ data: [], nextCursor: null })),
+      deleteConversation: jest.fn(),
+      putFeedback: jest.fn(),
+      deleteFeedback: jest.fn(),
+    },
+  };
+});
 jest.mock('../../src/hooks/useScreenQuery', () => ({
   useScreenQuery: () => ({ data: undefined, error: null, warning: null, isLoading: false, reload: jest.fn(), setData: jest.fn() }),
 }));
 
 import { AssistantChatScreen } from '../../src/screens/assistant/AssistantScreen';
+import { assistantMessages } from '../../src/i18n/assistant-messages';
 import { NotificationsScreen } from '../../src/screens/student/NotificationsScreen';
 import type { MobileScreenProps } from '../../src/navigation/types';
 
@@ -72,19 +75,34 @@ describe('assistant stream wiring (buffered, PARITY=false)', () => {
     await waitFor(() => expect(screen.getByText('Trả lời mẫu.')).toBeOnTheScreen());
   });
 
-  test('connection lost -> interrupted status + manual retry reuses clientRequestId', async () => {
+  test('connection lost -> the orchestrator reconciles with the same clientRequestId, no second turn is created', async () => {
     setWidth(360);
     mockAssistantChat.mockRejectedValueOnce(new TypeError('network')).mockResolvedValueOnce(REPLY);
     await renderThemed(<AssistantChatScreen {...props} />);
     await fireEvent.changeText(screen.getByLabelText('Câu hỏi của bạn'), 'Học phí?');
     await fireEvent.press(screen.getByRole('button', { name: 'Gửi câu hỏi' }));
-    await waitFor(() => expect(screen.getByText('Kết nối bị gián đoạn. Câu trả lời chưa được xác nhận.')).toBeOnTheScreen());
-    expect(mockAssistantChat).toHaveBeenCalledTimes(1); // no auto resend
-    await fireEvent.press(screen.getByRole('button', { name: 'Thử lại yêu cầu này' }));
     await waitFor(() => expect(screen.getByText('Trả lời mẫu.')).toBeOnTheScreen());
     expect(mockAssistantChat).toHaveBeenCalledTimes(2);
-    const second = mockAssistantChat.mock.calls[1];
-    expect(second[3]).toBe('req-fixed-1'); // same clientRequestId reused
+    const first = mockAssistantChat.mock.calls[0][0] as { clientRequestId: string };
+    const second = mockAssistantChat.mock.calls[1][0] as { clientRequestId: string };
+    expect(second.clientRequestId).toBe(first.clientRequestId);
+    expect(screen.queryByText('Kết nối bị gián đoạn. Câu trả lời chưa được xác nhận.')).toBeNull();
+  });
+
+  test('connection stays lost -> interrupted status and a manual retry reuses the clientRequestId', async () => {
+    setWidth(360);
+    mockAssistantChat.mockRejectedValueOnce(new TypeError('network')).mockRejectedValueOnce(new TypeError('network'));
+    mockAssistantChat.mockResolvedValue(REPLY);
+    await renderThemed(<AssistantChatScreen {...props} />);
+    await fireEvent.changeText(screen.getByLabelText('Câu hỏi của bạn'), 'Học phí?');
+    await fireEvent.press(screen.getByRole('button', { name: 'Gửi câu hỏi' }));
+    await waitFor(() => expect(screen.getByText('Kết nối bị gián đoạn. Câu trả lời chưa được xác nhận.')).toBeOnTheScreen());
+    const before = mockAssistantChat.mock.calls.length;
+    await fireEvent.press(screen.getByRole('button', { name: 'Thử lại yêu cầu này' }));
+    await waitFor(() => expect(screen.getByText('Trả lời mẫu.')).toBeOnTheScreen());
+    expect(mockAssistantChat.mock.calls.length).toBeGreaterThan(before);
+    const ids = new Set(mockAssistantChat.mock.calls.map((call) => (call[0] as { clientRequestId: string }).clientRequestId));
+    expect(ids.size).toBe(1);
   });
 
   test('stop calls cancel with the same clientRequestId', async () => {
@@ -98,13 +116,13 @@ describe('assistant stream wiring (buffered, PARITY=false)', () => {
     await waitFor(() => expect(mockCancelAssistantRequest).toHaveBeenCalledWith('req-fixed-1'));
   });
 
-  test('STREAMING_UNSUPPORTED -> unavailable message, no silent parity claim', async () => {
+  test('STREAMING_UNSUPPORTED with no status -> interrupted message and retry, no silent parity claim', async () => {
     setWidth(360);
     mockAssistantChat.mockRejectedValue(Object.assign(new Error('u'), { code: 'STREAMING_UNSUPPORTED', status: 0 }));
     await renderThemed(<AssistantChatScreen {...props} />);
     await fireEvent.changeText(screen.getByLabelText('Câu hỏi của bạn'), 'X?');
     await fireEvent.press(screen.getByRole('button', { name: 'Gửi câu hỏi' }));
-    await waitFor(() => expect(screen.getByText(/không thể đọc|unavailable|chưa sẵn sàng|gián đoạn/i)).toBeOnTheScreen());
+    await waitFor(() => expect(screen.getByText(assistantMessages.vi.interruptedStatus)).toBeOnTheScreen());
   });
 });
 

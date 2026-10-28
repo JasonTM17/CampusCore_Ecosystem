@@ -1,456 +1,160 @@
-import { useCallback, useEffect, useRef, useState , useMemo, useReducer } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
-import {
-  ApiClientError,
-  apiClient,
-  campusApi,
-  createAssistantClientRequestId,
-  type AssistantCitation,
-  type AssistantConversation,
-  type AssistantHistoryMessage,
-  type AssistantLocale,
-} from '../../api/client';
-import {
-  Badge,
-  Button,
-  Card,
-  Field,
-  ScreenShell,
-  ScreenSpacer,
-  StatePanel,
-  UiText,
-} from '../../components/Ui';
+import { Badge, Button, Card, SegmentedControl, StatePanel, UiText } from '../../components/Ui';
 import { tokens } from '../../design/tokens';
-import { useThemedStyles, useTheme } from '../../design/theme';
-import type { ThemeColors } from '../../design/theme';
+import { useTheme } from '../../design/theme';
 import type { MobileScreenProps } from '../../navigation/types';
-import {
-  AssistantStreamError,
-  STREAMING_PARITY_VERIFIED,
-  createBufferedTransport,
-} from '../../api/assistant-stream';
-import type { AssistantChatRequest, AssistantCitationEvent, AssistantDoneEvent, AssistantErrorEvent, AssistantMetaEvent } from '../../api/assistant-stream';
-import {
-  assistantStreamReducer,
-  initialAssistantStreamState,
-  selectAssistantStreamView,
-} from '../../api/assistant-stream-state';
-import { assistantMessages } from '../../i18n/assistant-messages';
+import { fillAssistantCopy, assistantMessages } from '../../i18n/assistant-messages';
+import { MarkdownText } from './MarkdownText';
+import { AssistantComposer } from './AssistantComposer';
+import { AssistantHistorySheet } from './AssistantHistorySheet';
+import { KeyboardSafeView } from './KeyboardSafeView';
+import { MessageBubble } from './MessageBubble';
+import { useAssistantChat, type AssistantChat } from './useAssistantChat';
 
-const NON_REPLAYABLE_TERMINAL_CODES = new Set([
-  'TURN_CANCELLED',
-  'TURN_PURGED',
-  'FAILED_AMBIGUOUS',
-  'TURN_TERMINAL_RACE',
-  'TURN_NOT_ACTIVE',
-]);
-
-type ChatMessage = {
-  id: string;
-  from: 'assistant' | 'student';
-  text: string;
-  citations?: AssistantCitation[];
-  model?: string | null;
-  degraded?: boolean;
-  reasonCode?: string | null;
-  feedback?: 'UP' | 'DOWN' | null;
-};
-
-type Copy = {
-  title: string;
-  eyebrow: string;
-  subtitle: string;
-  trustTitle: string;
-  preview: string;
-  live: string;
-  history: string;
-  newChat: string;
-  noHistory: string;
-  noHistoryDescription: string;
-  loadingHistory: string;
-  historyError: string;
-  retry: string;
-  delete: string;
-  confirmDelete: string;
-  cancelDelete: string;
-  ask: string;
-  placeholder: string;
-  send: string;
-  stop: string;
-  you: string;
-  assistant: string;
-  sources: string;
-  fallback: string;
-  model: string;
-  emptyTitle: string;
-  emptyDescription: string;
-  errorTitle: string;
-  errorDescription: string;
-  quotaTitle: string;
-  quotaDescription: string;
-  sessionExpired: string;
-  forbidden: string;
-  offline: string;
-  unavailable: string;
-  progress: string;
-  characterCount: (count: number) => string;
-  helpful: string;
-  notHelpful: string;
-};
-
-const copy: Record<AssistantLocale, Copy> = {
-  vi: {
-    title: 'Trợ lý CampusCore', eyebrow: 'Hỗ trợ có dẫn nguồn',
-    subtitle: 'Hỏi về đăng ký học phần, lịch học, thông báo, chương trình đào tạo hoặc luận văn và nhận câu trả lời bám sát tri thức đã công bố.',
-    trustTitle: 'Trợ lý thông tin nhà trường',
-    preview: 'Bản xem trước chỉ ghi nhận câu hỏi cục bộ. Chuyển sang live để gọi API Java sau khi đăng nhập.',
-    live: 'Câu trả lời dùng ngữ cảnh nhà trường được chọn ở máy chủ; không gửi lịch sử hay thông tin hồ sơ lên nhà cung cấp.',
-    history: 'Lịch sử trò chuyện', newChat: 'Cuộc trò chuyện mới', noHistory: 'Chưa có lịch sử',
-    noHistoryDescription: 'Các cuộc trò chuyện của bạn sẽ xuất hiện ở đây và có thể xoá riêng từng cuộc.',
-    loadingHistory: 'Đang tải lịch sử…', historyError: 'Không thể tải lịch sử trò chuyện.', retry: 'Thử lại', delete: 'Xoá', confirmDelete: 'Xác nhận xoá', cancelDelete: 'Huỷ',
-    ask: 'Câu hỏi của bạn', placeholder: 'Ví dụ: Khi nào mở đăng ký học phần học kỳ tới?', send: 'Gửi câu hỏi', stop: 'Dừng trả lời',
-    you: 'BẠN', assistant: 'TRỢ LÝ', sources: 'Nguồn tham khảo', fallback: 'Đang dùng câu trả lời dự phòng', model: 'Mô hình',
-    emptyTitle: 'Sẵn sàng hỗ trợ', emptyDescription: 'Bắt đầu bằng một câu hỏi cụ thể về học tập, đăng ký, thông báo, chương trình hoặc luận văn.',
-    errorTitle: 'Trợ lý chưa trả lời được', errorDescription: 'Kiểm tra kết nối rồi thử lại. Câu hỏi của bạn vẫn được giữ để gửi lại.', sessionExpired: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', forbidden: 'Tài khoản hiện không được phép dùng trợ lý.', offline: 'Không có kết nối mạng. Hãy kiểm tra mạng rồi thử lại.',
-    quotaTitle: 'Bạn đã đạt giới hạn hôm nay', quotaDescription: 'Hạn mức RAG theo ngày đã được sử dụng. Hãy thử lại vào ngày mai.',
-    unavailable: 'Kho tri thức hiện chưa sẵn sàng.', progress: 'Mở tiến độ luận văn', characterCount: (count) => `${count}/2000 ký tự`, helpful: 'Hữu ích', notHelpful: 'Chưa đúng',
-  },
-  en: {
-    title: 'CampusCore assistant', eyebrow: 'Grounded support',
-    subtitle: 'Ask about registration, schedules, announcements, the academic catalog, or your thesis and receive an answer grounded in the university knowledge base.',
-    trustTitle: 'Campus helpdesk knowledge',
-    preview: 'Preview records questions locally. Switch to live mode to call the Java API after sign-in.',
-    live: 'Answers use server-selected campus context; conversation history and profile data stay out of provider requests.',
-    history: 'Conversation history', newChat: 'New conversation', noHistory: 'No history yet',
-    noHistoryDescription: 'Your conversations will appear here and can be deleted one at a time.',
-    loadingHistory: 'Loading history…', historyError: 'Conversation history could not be loaded.', retry: 'Retry', delete: 'Delete', confirmDelete: 'Confirm delete', cancelDelete: 'Cancel',
-    ask: 'Your question', placeholder: 'For example: When does registration open next semester?', send: 'Send question', stop: 'Stop answer',
-    you: 'YOU', assistant: 'ASSISTANT', sources: 'Sources', fallback: 'Using a fallback answer', model: 'Model',
-    emptyTitle: 'Ready when you are', emptyDescription: 'Start with a focused question about courses, registration, announcements, the catalog, or your thesis journey.',
-    errorTitle: 'The assistant could not answer', errorDescription: 'Check your connection and try again. Your question is kept for retry.', sessionExpired: 'Your session expired. Please sign in again.', forbidden: 'This account is not allowed to use the assistant.', offline: 'No network connection. Check your connection and retry.',
-    quotaTitle: 'Daily limit reached', quotaDescription: 'Your daily RAG allowance has been used. Please try again tomorrow.',
-    unavailable: 'The knowledge base is not available right now.', progress: 'Open thesis progress', characterCount: (count) => `${count}/2000 characters`, helpful: 'Helpful', notHelpful: 'Not helpful',
-  },
-};
-
-function safeText(value: string | null | undefined, maxLength = 12_000) {
-  return (value ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').slice(0, maxLength).trim();
+function failureTitle(chat: AssistantChat): string {
+  const msg = assistantMessages[chat.locale];
+  switch (chat.failure?.kind) {
+    case 'session': return msg.sessionExpired;
+    case 'forbidden': return msg.forbidden;
+    case 'rate': return msg.rateLimited.replace('{seconds}', '30');
+    case 'quota': return msg.quotaExceeded;
+    case 'interrupted': return msg.interruptedStatus;
+    case 'invalid': return msg.streamInvalid;
+    case 'unavailable': return msg.unavailable;
+    default: return chat.copy.errorTitle;
+  }
 }
 
-function toChatMessage(message: AssistantHistoryMessage): ChatMessage {
-  return { id: message.id, from: message.role.toLowerCase() === 'user' ? 'student' : 'assistant', text: safeText(message.content), citations: message.citations, model: message.model, degraded: message.degraded, reasonCode: message.reasonCode, feedback: message.feedback ?? null };
-}
-
-function historyTitle(conversation: AssistantConversation, locale: AssistantLocale) {
-  const title = safeText(conversation.title, 80);
-  return title || (locale === 'vi' ? 'Cuộc trò chuyện CampusCore' : 'CampusCore conversation');
-}
-
+/** Assistant chat: scope switch, history, guarded composer, citations, feedback, cancel and retry. */
 export function AssistantChatScreen({ navigation }: MobileScreenProps) {
-  const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
-  const [locale, setLocale] = useState<AssistantLocale>('vi');
-  const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [conversations, setConversations] = useState<AssistantConversation[]>([]);
-  const [conversationId, setConversationId] = useState<string | undefined>();
-  const [isSending, setIsSending] = useState(false);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [historyError, setHistoryError] = useState<string | null>(null);
-  const [requestError, setRequestError] = useState<{ code?: string; message: string } | null>(null);
-  const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
-  const [lastFailedClientRequestId, setLastFailedClientRequestId] = useState<string | null>(null);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
-  const [feedbackBusyId, setFeedbackBusyId] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const activeClientRequestIdRef = useRef<string | null>(null);
-  const activePromptRef = useRef<string | null>(null);
-  // Keep the exact conversation value used by the request key. A retry may
-  // happen after the visible selection has changed, but it must replay the
-  // original canonical payload rather than creating an idempotency conflict.
-  const activeConversationIdRef = useRef<string | undefined>(undefined);
-  const lastFailedConversationIdRef = useRef<string | undefined>(undefined);
-  const isPreview = apiClient.mode === 'preview';
-  const t = copy[locale];
+  const chat = useAssistantChat();
+  const { copy, locale, stream, messages, failure } = chat;
   const msg = assistantMessages[locale];
-  const [streamState, dispatch] = useReducer(assistantStreamReducer, initialAssistantStreamState);
-  const stream = selectAssistantStreamView(streamState);
-  /**
-   * Streaming parity is NOT verified on this build (STREAMING_PARITY_VERIFIED
-   * = false until the M07 dev-build canary): the buffered transport is used and
-   * the UI never labels the turn "streaming" — partial content is only shown
-   * when real SSE parity is proven.
-   */
-  const transport = useMemo(
-    () => (STREAMING_PARITY_VERIFIED
-      ? campusApi.assistantStream()
-      : createBufferedTransport(
-          (request, init) => campusApi.assistantChat(
-            request.message,
-            request.locale,
-            request.conversationId,
-            request.clientRequestId,
-            init,
-          ) as unknown as Promise<import('../../api/assistant-stream').BufferedAssistantReply>,
-          (clientRequestId) => campusApi.cancelAssistantRequest(clientRequestId),
-        )),
-    [],
-  );
+  const scroll = useRef<ScrollView>(null);
+  const stickToBottom = useRef(true);
+  const lastId = messages[messages.length - 1]?.id;
 
-  const loadConversations = useCallback(async () => {
-    if (isPreview) return;
-    setIsLoadingHistory(true); setHistoryError(null);
-    try { setConversations((await campusApi.assistantConversationsPage(20)).data); }
-    catch (error) { setHistoryError(error instanceof Error ? error.message : t.historyError); }
-    finally { setIsLoadingHistory(false); }
-  }, [isPreview, t.historyError]);
+  // New turns follow the end of the thread; loading older history keeps the reading position.
+  useEffect(() => { stickToBottom.current = true; }, [lastId, chat.busy]);
 
-  useEffect(() => {
-    void loadConversations();
-  }, [loadConversations]);
-
-  useEffect(() => {
-    return () => {
-      const clientRequestId = activeClientRequestIdRef.current;
-      if (clientRequestId && !isPreview) {
-        void campusApi.cancelAssistantRequest(clientRequestId).catch(() => undefined);
-      }
-      abortRef.current?.abort();
-    };
-  }, [isPreview]);
-
-  const selectConversation = async (selectedId: string) => {
-    if (isSending || selectedId === conversationId) return;
-    setIsLoadingHistory(true); setHistoryError(null);
-    try {
-      const history = await campusApi.assistantConversationMessagesPage(selectedId, 50);
-      setConversationId(selectedId); setMessages(history.data.map(toChatMessage)); setRequestError(null); setLastFailedPrompt(null); setLastFailedClientRequestId(null); lastFailedConversationIdRef.current = undefined;
-    } catch (error) { setHistoryError(error instanceof Error ? error.message : t.historyError); }
-    finally { setIsLoadingHistory(false); }
-  };
-
-  const deleteConversation = async (selectedId: string) => {
-    if (isSending || deletingConversationId) return;
-    if (pendingDeleteId !== selectedId) { setPendingDeleteId(selectedId); return; }
-    setDeletingConversationId(selectedId);
-    try {
-      await campusApi.deleteAssistantConversation(selectedId);
-      setConversations((current) => current.filter((item) => item.id !== selectedId));
-      if (selectedId === conversationId) { setConversationId(undefined); setMessages([]); setRequestError(null); lastFailedConversationIdRef.current = undefined; }
-      setPendingDeleteId(null);
-    } catch (error) { setHistoryError(error instanceof Error ? error.message : t.historyError); }
-    finally { setDeletingConversationId(null); }
-  };
-
-  const runAssistantTurn = async (request: AssistantChatRequest, signal: AbortSignal) => {
-    dispatch({ type: 'send', clientRequestId: request.clientRequestId });
-    let answer = '';
-    const collectedCitations: AssistantCitationEvent['citation'][] = [];
-    let metaEvent: AssistantMetaEvent | null = null;
-    let doneEvent: AssistantDoneEvent | null = null;
-    let errorEvent: AssistantErrorEvent | null = null;
-    for await (const event of transport.stream(request, { signal })) {
-      dispatch({ type: 'event', event });
-      if (event.type === 'delta') answer += event.text;
-      else if (event.type === 'citation') collectedCitations.push(event.citation);
-      else if (event.type === 'meta') metaEvent = event;
-      else if (event.type === 'done') doneEvent = event;
-      else if (event.type === 'error') errorEvent = event;
-    }
-    if (errorEvent) throw new AssistantStreamError(errorEvent.code, { retryable: errorEvent.retryable });
-    if (!doneEvent) throw new AssistantStreamError('STREAM_INCOMPLETE', { connectionLost: true, retryable: true });
-    return {
-      answer,
-      citations: collectedCitations as unknown as import('../../api/client').AssistantReply['citations'],
-      conversationId: metaEvent?.conversationId ?? request.conversationId ?? undefined,
-      messageId: doneEvent.messageId ?? null,
-      reasonCode: doneEvent.reasonCode,
-      degraded: doneEvent.degraded,
-      model: metaEvent?.model,
-    };
-  };
-
-  const sendMessage = async (promptOverride?: string, clientRequestIdOverride?: string) => {
-    const trimmedMessage = safeText(promptOverride ?? message, 2000);
-    if (!trimmedMessage || isSending) return;
-    const canReuseKey = Boolean(clientRequestIdOverride)
-      && !NON_REPLAYABLE_TERMINAL_CODES.has(requestError?.code ?? '');
-    const clientRequestId = canReuseKey ? clientRequestIdOverride as string : createAssistantClientRequestId();
-    const requestedConversationId = clientRequestIdOverride
-      ? lastFailedConversationIdRef.current
-      : conversationId;
-    setRequestError(null); setLastFailedPrompt(null); setLastFailedClientRequestId(null);
-    if (!clientRequestIdOverride) {
-      setMessages((current) => [...current, { id: `local-user-${clientRequestId}`, from: 'student', text: trimmedMessage }]);
-    }
-    setMessage('');
-    if (isPreview) {
-      setMessages((current) => [...current, { id: `local-preview-${Date.now()}`, from: 'assistant', text: locale === 'vi' ? 'Đã ghi nhận trong bản xem trước. Live mode sẽ trả lời qua API Java sau khi đăng nhập.' : 'Preview noted. Live mode will answer through the Java assistant API after sign-in.', model: 'preview-local', reasonCode: 'PREVIEW' }]);
-      return;
-    }
-    const controller = new AbortController(); abortRef.current = controller; activeClientRequestIdRef.current = clientRequestId; activePromptRef.current = trimmedMessage; activeConversationIdRef.current = requestedConversationId; setIsSending(true);
-    try {
-      const reply = await runAssistantTurn({ message: trimmedMessage, locale, conversationId: requestedConversationId, clientRequestId }, controller.signal);
-      if (reply.conversationId) setConversationId(reply.conversationId);
-      setMessages((current) => [...current, { id: reply.messageId ?? `local-assistant-${Date.now()}`, from: 'assistant', text: safeText(reply.answer) || t.unavailable, citations: reply.citations, model: safeText(reply.model, 80), degraded: reply.degraded, reasonCode: reply.reasonCode }]);
-      lastFailedConversationIdRef.current = undefined;
-      void loadConversations();
-    } catch (assistantError) {
-      if (controller.signal.aborted) return;
-      const apiError = assistantError instanceof ApiClientError ? assistantError : undefined;
-      const streamError = assistantError instanceof AssistantStreamError ? assistantError : undefined;
-      const code = apiError?.code ?? streamError?.code ?? (apiError?.status === 401 ? 'SESSION_EXPIRED' : apiError?.status === 403 ? 'FORBIDDEN' : undefined);
-      const streamCopy: Record<string, string> = {
-        ASSISTANT_UNAVAILABLE: msg.unavailable,
-        STREAMING_UNSUPPORTED: msg.unavailable,
-        STREAM_INVALID: msg.streamInvalid,
-        STREAM_INCOMPLETE: msg.interruptedStatus,
-        QUOTA_EXCEEDED: msg.quotaExceeded,
-        SESSION_EXPIRED: msg.sessionExpired,
-        FORBIDDEN: msg.forbidden,
-      };
-      const rateLimited = apiError?.status === 429 || code === 'RATE_LIMITED';
-      const message = streamCopy[code ?? ''] ?? (rateLimited
-        ? msg.rateLimited.replace('{seconds}', String(streamError?.retryAfter ?? '30'))
-        : apiError?.status === 401 ? t.sessionExpired : apiError?.status === 403 ? t.forbidden : apiError?.status === 0 || assistantError instanceof TypeError ? t.offline : apiError?.message ?? t.errorDescription);
-      if (streamError?.connectionLost || apiError?.status === 0 || assistantError instanceof TypeError) {
-        dispatch({ type: 'connectionLost' });
-      }
-      setRequestError({ code, message }); setLastFailedPrompt(trimmedMessage); setLastFailedClientRequestId(clientRequestId); lastFailedConversationIdRef.current = requestedConversationId;
-    } finally { if (abortRef.current === controller) abortRef.current = null; activeClientRequestIdRef.current = null; activePromptRef.current = null; activeConversationIdRef.current = undefined; setIsSending(false); }
-  };
-
-  const stopSending = async () => {
-    const clientRequestId = activeClientRequestIdRef.current;
-    if (!clientRequestId) return;
-    const prompt = activePromptRef.current;
-    let cancelAccepted = false;
-    let replayed = false;
-    try { await transport.cancel(clientRequestId); cancelAccepted = true; dispatch({ type: 'cancel' }); }
-    catch (error) {
-      if (error instanceof ApiClientError && error.status === 409 && activePromptRef.current) {
-        // Completion won the server CAS. Replay the committed result with the
-        // same key before aborting the local reader, so Stop cannot erase it.
-        try {
-          const reply = await campusApi.assistantChat(activePromptRef.current, locale, activeConversationIdRef.current, clientRequestId);
-          if (reply.conversationId) setConversationId(reply.conversationId);
-          setMessages((current) => [...current, { id: reply.messageId ?? `local-assistant-${Date.now()}`, from: 'assistant', text: safeText(reply.answer) || t.unavailable, citations: reply.citations, model: safeText(reply.model, 80), degraded: reply.degraded, reasonCode: reply.reasonCode }]);
-          void loadConversations();
-          replayed = true;
-        } catch (replayError) {
-          setRequestError({ code: replayError instanceof ApiClientError ? replayError.code : undefined, message: replayError instanceof ApiClientError ? replayError.message : t.errorDescription });
-        }
-      } else {
-        setRequestError({ code: error instanceof ApiClientError ? error.code : undefined, message: error instanceof ApiClientError ? error.message : t.errorDescription });
-      }
-    }
-    // The local transport boundary remains `finally { abortRef.current?.abort() }`
-    // after the owner-scoped server CAS (or replay) has completed.
-    finally {
-      if (prompt && cancelAccepted && !replayed) {
-        setMessages((current) => [...current, { id: `local-cancelled-${Date.now()}`, from: 'assistant', text: locale === 'vi' ? 'Đã dừng câu trả lời. Bạn có thể thử lại.' : 'Generation stopped. You can retry when ready.', degraded: true, reasonCode: 'CANCELLED' }]);
-        setLastFailedPrompt(prompt);
-        setLastFailedClientRequestId(null);
-      }
-      abortRef.current?.abort(); abortRef.current = null; activeClientRequestIdRef.current = null; activePromptRef.current = null; activeConversationIdRef.current = undefined; setIsSending(false);
-    }
-  };
-  const submitFeedback = async (messageId: string, rating: 'UP' | 'DOWN') => {
-    if (messageId.startsWith('local-') || feedbackBusyId) return;
-    setFeedbackBusyId(messageId);
-    try {
-      await campusApi.putAssistantFeedback(messageId, rating);
-      setMessages((current) => current.map((item) => item.id === messageId ? { ...item, feedback: rating } : item));
-    } catch (error) {
-      setRequestError({ code: error instanceof ApiClientError ? error.code : undefined, message: error instanceof ApiClientError ? error.message : t.errorDescription });
-    } finally { setFeedbackBusyId(null); }
-  };
-  const resetConversation = () => { if (isSending) return; setConversationId(undefined); setMessages([]); setRequestError(null); setLastFailedPrompt(null); setLastFailedClientRequestId(null); setPendingDeleteId(null); };
-  const requestErrorIsQuota = requestError?.code === 'QUOTA_EXCEEDED' || requestError?.code === 'DAILY_QUOTA_EXCEEDED';
+  const empty = messages.length === 0 && !chat.busy && !failure;
+  const specialized = chat.scope === 'specialized';
 
   return (
-    <ScreenShell title={t.title} eyebrow={t.eyebrow} subtitle={t.subtitle}>
-      <View style={styles.localeRow} accessibilityRole="tablist">
-        <UiText variant="label" tone="muted">Language / Ngôn ngữ</UiText>
-        <View style={styles.localeActions}>{(['vi', 'en'] as const).map((option) => <Button key={option} label={option.toUpperCase()} onPress={() => setLocale(option)} variant={locale === option ? 'primary' : 'secondary'} accessibilityLabel={option === 'vi' ? 'Use Vietnamese' : 'Use English'} style={styles.localeButton} />)}</View>
-      </View>
-      <Card tone="low" style={styles.trustCard}>
-        <View style={styles.trustHeader}><UiText variant="label" tone="primary">{t.trustTitle}</UiText><Badge label={isPreview ? 'PREVIEW' : 'LIVE'} tone={isPreview ? 'warning' : 'success'} /></View>
-        <UiText variant="bodySmall" tone="muted">{isPreview ? t.preview : t.live}</UiText>
-      </Card>
-      {!isPreview ? <><ScreenSpacer /><Card style={styles.historyCard}>
-        <View style={styles.sectionHeader}><UiText accessibilityRole="header" variant="headlineSmall">{t.history}</UiText><Button label={t.newChat} onPress={resetConversation} variant="text" /></View>
-        {isLoadingHistory ? <StatePanel kind="loading" title={t.loadingHistory} /> : null}
-        {historyError ? <StatePanel kind="error" title={t.historyError} description={historyError} actionLabel={t.retry} onAction={() => void loadConversations()} /> : null}
-        {!isLoadingHistory && !historyError && conversations.length === 0 ? <StatePanel kind="empty" title={t.noHistory} description={t.noHistoryDescription} /> : null}
-        {conversations.map((conversation) => <View key={conversation.id} style={styles.historyRow}><Button label={historyTitle(conversation, locale)} onPress={() => void selectConversation(conversation.id)} variant={conversation.id === conversationId ? 'primary' : 'secondary'} style={styles.historySelect} />{pendingDeleteId === conversation.id ? <><Button label={t.confirmDelete} loading={deletingConversationId === conversation.id} onPress={() => void deleteConversation(conversation.id)} variant="text" accessibilityLabel={`${t.confirmDelete} ${historyTitle(conversation, locale)}`} style={styles.deleteButton} /><Button label={t.cancelDelete} disabled={deletingConversationId === conversation.id} onPress={() => setPendingDeleteId(null)} variant="text" style={styles.deleteButton} /></> : <Button label={t.delete} onPress={() => void deleteConversation(conversation.id)} variant="text" accessibilityLabel={`${t.delete} ${historyTitle(conversation, locale)}`} style={styles.deleteButton} />}</View>)}
-      </Card></> : null}
-      <ScreenSpacer />
-      {messages.length === 0 && !isSending && !requestError ? <StatePanel kind="empty" title={t.emptyTitle} description={t.emptyDescription} /> : null}
-      {messages.map((chatMessage) => <View key={chatMessage.id} style={[styles.messageRow, chatMessage.from === 'student' ? styles.studentRow : undefined]}><Card tone={chatMessage.from === 'student' ? 'primary' : 'card'} style={styles.messageCard}>
-        <View style={styles.messageHeader}><UiText variant="meta" tone={chatMessage.from === 'student' ? 'primary' : 'muted'}>{chatMessage.from === 'student' ? t.you : t.assistant}</UiText>{chatMessage.from === 'assistant' && chatMessage.degraded ? <Badge label={t.fallback} tone="warning" /> : null}</View>
-        <UiText variant="bodySmall" tone={chatMessage.from === 'student' ? 'default' : 'muted'} style={styles.messageText}>{safeText(chatMessage.text) || t.unavailable}</UiText>
-        {chatMessage.from === 'assistant' && chatMessage.reasonCode && chatMessage.reasonCode !== 'ANSWERED' ? <UiText variant="meta" tone={chatMessage.degraded ? 'warning' : 'muted'} style={styles.reasonCode}>{chatMessage.reasonCode === 'KNOWLEDGE_UNAVAILABLE' ? t.unavailable : chatMessage.degraded ? t.fallback : t.unavailable}</UiText> : null}
-        {chatMessage.citations?.length ? <View style={styles.sources}><UiText variant="label" tone="primary">{t.sources}</UiText>{chatMessage.citations.map((citation) => <View key={citation.id} style={styles.citation}><UiText variant="label" tone="primary">{safeText(citation.title, 160)}</UiText><UiText variant="meta" tone="muted">{safeText(citation.source, 120)} · {citation.locale.toUpperCase()}</UiText><UiText variant="bodySmall" tone="muted" style={styles.citationExcerpt}>{safeText(citation.excerpt, 600)}</UiText></View>)}</View> : null}
-        {chatMessage.from === 'assistant' && !chatMessage.id.startsWith('local-') ? <View style={styles.feedbackRow}><Button label={chatMessage.feedback === 'UP' ? `✓ ${t.helpful}` : t.helpful} loading={feedbackBusyId === chatMessage.id} onPress={() => void submitFeedback(chatMessage.id, 'UP')} variant="text" /><Button label={chatMessage.feedback === 'DOWN' ? `✓ ${t.notHelpful}` : t.notHelpful} loading={feedbackBusyId === chatMessage.id} onPress={() => void submitFeedback(chatMessage.id, 'DOWN')} variant="text" /></View> : null}
-      </Card></View>)}
-      {isSending ? <StatePanel kind="loading" title={locale === 'vi' ? 'Đang tìm câu trả lời…' : 'Finding an answer…'} /> : null}
-      {requestError ? <StatePanel kind="error" title={requestErrorIsQuota ? t.quotaTitle : requestError.code === 'SESSION_EXPIRED' ? t.sessionExpired : requestError.code === 'FORBIDDEN' ? t.forbidden : t.errorTitle} description={requestErrorIsQuota ? t.quotaDescription : requestError.message} actionLabel={lastFailedPrompt ? t.retry : undefined} onAction={lastFailedPrompt ? () => void sendMessage(lastFailedPrompt, lastFailedClientRequestId ?? undefined) : undefined} /> : null}
-      <ScreenSpacer />
-      <View accessibilityLiveRegion="polite">
-        {stream.phase === 'sending' || stream.phase === 'streaming' ? (
-          <UiText variant="meta" tone="muted">{msg.a11yStreaming}</UiText>
-        ) : stream.phase === 'complete' ? (
-          <UiText variant="meta" tone="muted">{msg.a11yCompleted}</UiText>
-        ) : stream.phase === 'cancelled' ? (
-          <UiText variant="meta" tone="muted">{msg.a11yStopped}</UiText>
-        ) : stream.phase === 'error' && streamState.connectionLost ? (
-          <UiText variant="meta" tone="muted">{msg.a11yInterrupted}</UiText>
-        ) : null}
-      </View>
-      {STREAMING_PARITY_VERIFIED && stream.phase === 'streaming' && stream.answer ? (
-        <Card><UiText variant="bodyMedium">{stream.answer}</UiText></Card>
-      ) : null}
-      {stream.canResubmitSameRequest ? (
-        <StatePanel
-          kind="error"
-          title={msg.interruptedStatus}
-          actionLabel={msg.retryAction}
-          onAction={() => void sendMessage(lastFailedPrompt ?? activePromptRef.current ?? undefined, lastFailedClientRequestId ?? undefined)}
-        />
-      ) : null}
-      <Card style={styles.composer}><Field label={t.ask} multiline editable={!isSending} maxLength={2000} onChangeText={setMessage} placeholder={t.placeholder} value={message} helperText={t.characterCount(message.length)} accessibilityHint={t.emptyDescription} /><View style={styles.composerActions}><Button label={t.send} loading={isSending} disabled={!message.trim()} onPress={() => void sendMessage()} style={styles.sendButton} />{isSending ? <Button label={t.stop} onPress={stopSending} variant="secondary" style={styles.stopButton} /> : null}</View></Card>
-      <Button label={t.progress} onPress={() => navigation.navigate('thesis.progress')} variant="secondary" style={styles.progressButton} />
-    </ScreenShell>
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      <KeyboardSafeView>
+        <ScrollView
+          ref={scroll}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          onContentSizeChange={() => { if (stickToBottom.current) scroll.current?.scrollToEnd({ animated: false }); }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.titleRow}>
+            <UiText accessibilityRole="header" variant="headlineLarge" style={styles.title}>{copy.title}</UiText>
+            {chat.isPreview ? <Badge label="PREVIEW" tone="warning" /> : null}
+          </View>
+          <View style={styles.toolbar}>
+            <View style={styles.scope}>
+              <SegmentedControl
+                accessibilityLabel={copy.scopeLabel}
+                value={chat.scope}
+                onChange={(value) => chat.changeScope(value === 'specialized' ? 'specialized' : 'academic')}
+                options={[{ value: 'academic', label: copy.scopeAcademic }, { value: 'specialized', label: copy.scopeSpecialized }]}
+              />
+            </View>
+            {!chat.isPreview ? <Button label={copy.history} onPress={() => chat.setHistoryOpen(true)} variant="secondary" /> : null}
+            <Button label={copy.newChat} onPress={chat.newChat} variant="text" />
+          </View>
+          {chat.isPreview ? <UiText variant="bodySmall" tone="muted" style={styles.gap}>{copy.previewNotice}</UiText> : null}
+
+          {chat.earlierCursor ? (
+            <View style={styles.gap}>
+              <Button
+                label={chat.loadingEarlier ? copy.loadingEarlier : copy.loadEarlier}
+                loading={chat.loadingEarlier}
+                onPress={() => { stickToBottom.current = false; void chat.loadEarlier(); }}
+                variant="secondary"
+              />
+            </View>
+          ) : null}
+
+          {empty ? (
+            <StatePanel
+              kind="empty"
+              title={specialized ? copy.emptySpecializedTitle : copy.emptyAcademicTitle}
+              description={specialized ? copy.emptySpecializedBody : copy.emptyAcademicBody}
+            />
+          ) : null}
+
+          {messages.map((message) => (
+            <MessageBubble
+              key={message.id}
+              message={message}
+              copy={copy}
+              feedbackBusy={chat.feedbackBusyId === message.id}
+              onRate={(id, rating, reason) => void chat.rate(id, rating, reason)}
+            />
+          ))}
+
+          {chat.liveAnswer ? (
+            <Card style={styles.gap}><MarkdownText text={chat.liveAnswer} streaming /></Card>
+          ) : null}
+          {chat.busy ? <StatePanel kind="loading" title={chat.reconciling ? copy.reconciling : copy.working} /> : null}
+
+          {chat.quota ? (
+            <StatePanel
+              kind="error"
+              title={copy.quotaTitle}
+              description={chat.quota.resetAt
+                ? fillAssistantCopy(copy.quotaBody, { limit: chat.quota.limit, time: chat.quota.resetAt })
+                : fillAssistantCopy(copy.quotaBodyNoTime, { limit: chat.quota.limit })}
+            />
+          ) : null}
+          {failure ? (
+            <StatePanel
+              kind="error"
+              title={failureTitle(chat)}
+              description={failure.kind === 'generic' ? copy.errorBody : undefined}
+              actionLabel={failure.resubmittable && chat.canRetry ? msg.retryAction : undefined}
+              onAction={failure.resubmittable && chat.canRetry ? () => void chat.retry() : undefined}
+            />
+          ) : null}
+          {chat.feedbackError ? <UiText accessibilityRole="alert" variant="bodySmall" tone="error">{copy.feedbackFailed}</UiText> : null}
+
+          <View accessibilityLiveRegion="polite">
+            {stream.phase === 'sending' || stream.phase === 'streaming' ? (
+              <UiText variant="meta" tone="muted">{msg.a11yStreaming}</UiText>
+            ) : stream.phase === 'complete' ? (
+              <UiText variant="meta" tone="muted">{msg.a11yCompleted}</UiText>
+            ) : stream.phase === 'cancelled' ? (
+              <UiText variant="meta" tone="muted">{msg.a11yStopped}</UiText>
+            ) : stream.phase === 'error' && chat.streamState.connectionLost ? (
+              <UiText variant="meta" tone="muted">{msg.a11yInterrupted}</UiText>
+            ) : null}
+          </View>
+
+          {specialized ? (
+            <Button label={copy.openThesis} onPress={() => navigation.navigate('thesis.progress')} variant="text" style={styles.gap} />
+          ) : null}
+        </ScrollView>
+        <AssistantComposer chat={chat} />
+      </KeyboardSafeView>
+      <AssistantHistorySheet chat={chat} copy={copy} />
+    </View>
   );
 }
 
-const makeStyles = (colors: ThemeColors) => StyleSheet.create({
-  localeRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.md },
-  localeActions: { flexDirection: 'row', gap: tokens.spacing.xs },
-  localeButton: { minWidth: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.sm },
-  trustCard: { padding: tokens.spacing.md },
-  trustHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.xs },
-  historyCard: { padding: tokens.spacing.md },
-  sectionHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.sm },
-  historyRow: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.xs, marginTop: tokens.spacing.xs },
-  historySelect: { flex: 1, minWidth: 0 },
-  deleteButton: { minWidth: tokens.layout.touchTarget },
-  messageRow: { alignItems: 'flex-start', marginBottom: tokens.spacing.sm },
-  studentRow: { alignItems: 'flex-end' },
-  messageCard: { maxWidth: '92%', padding: tokens.spacing.md },
-  messageHeader: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm, justifyContent: 'space-between' },
-  messageText: { marginTop: tokens.spacing.xs },
-  reasonCode: { marginTop: tokens.spacing.sm },
-  sources: { marginTop: tokens.spacing.md },
-  citation: { borderLeftColor: colors.primary, borderLeftWidth: 2, marginTop: tokens.spacing.sm, paddingLeft: tokens.spacing.sm },
-  citationExcerpt: { marginTop: tokens.spacing.xs },
-  feedbackRow: { flexDirection: 'row', gap: tokens.spacing.xs, marginTop: tokens.spacing.sm },
-  composer: { padding: tokens.spacing.md },
-  composerActions: { flexDirection: 'row', gap: tokens.spacing.sm },
-  sendButton: { flex: 1 },
-  stopButton: { flex: 1 },
-  progressButton: { marginTop: tokens.spacing.sm },
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  content: { paddingHorizontal: tokens.layout.mobileGutter, paddingTop: tokens.spacing.md, paddingBottom: tokens.spacing.md },
+  titleRow: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm, marginBottom: tokens.spacing.sm },
+  title: { flexShrink: 1 },
+  toolbar: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs, marginBottom: tokens.spacing.sm },
+  scope: { flexGrow: 1, minWidth: 200 },
+  gap: { marginBottom: tokens.spacing.sm },
 });
