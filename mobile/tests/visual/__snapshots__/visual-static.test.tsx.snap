@@ -3767,34 +3767,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                   "c": [
                     {
                       "c": [
-                        "MY LEARNING",
-                      ],
-                      "s": {
-                        "color": "#98BDD7",
-                        "fontSize": 12,
-                        "marginBottom": 4,
-                      },
-                      "t": "Text",
-                    },
-                    {
-                      "c": [
-                        "Courses",
+                        "Học phần",
                       ],
                       "role": "header",
                       "s": {
                         "color": "#EDF0F2",
                         "fontSize": 26,
-                      },
-                      "t": "Text",
-                    },
-                    {
-                      "c": [
-                        "3 active courses this semester.",
-                      ],
-                      "s": {
-                        "color": "#A9B1BC",
-                        "fontSize": 14,
-                        "marginTop": 4,
                       },
                       "t": "Text",
                     },
@@ -3819,115 +3797,366 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                   "c": [
                     {
                       "c": [
-                        "Credits completed",
+                        "Dữ liệu xem trước, không phải hồ sơ thật.",
                       ],
                       "s": {
-                        "color": "#A9B1BC",
+                        "color": "#EED1A0",
                         "fontSize": 14,
                       },
                       "t": "Text",
                     },
-                    {
-                      "c": [
-                        "3",
-                      ],
-                      "s": {
-                        "color": "#98BDD7",
-                        "fontSize": 34,
-                      },
-                      "t": "Text",
-                    },
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                "Published course records",
-                              ],
-                              "s": {
-                                "color": "#A9B1BC",
-                                "fontSize": 14,
-                              },
-                              "t": "Text",
-                            },
-                            {
-                              "c": [
-                                "100",
-                                "%",
-                              ],
-                              "s": {
-                                "color": "#98BDD7",
-                                "fontSize": 12,
-                              },
-                              "t": "Text",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "flexDirection": "row",
-                            "justifyContent": "space-between",
-                            "marginBottom": 4,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [],
-                              "s": {
-                                "backgroundColor": "#1B5AA7",
-                                "borderRadius": 999,
-                                "width": "100%",
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "backgroundColor": "#1C314A",
-                            "borderRadius": 999,
-                          },
-                          "t": "View",
-                        },
-                      ],
-                      "label": "Published course records",
-                      "role": "progressbar",
-                      "s": {
-                        "marginTop": 8,
-                      },
-                      "t": "View",
-                    },
                   ],
                   "s": {
-                    "backgroundColor": "#1C314A",
-                    "borderColor": "#98BDD7",
+                    "alignItems": "center",
+                    "backgroundColor": "#1E2229",
+                    "borderColor": "#33363D",
                     "borderRadius": 8,
-                    "padding": 24,
+                    "flexDirection": "row",
+                    "padding": 16,
                   },
-                  "t": "View",
-                },
-                {
-                  "c": [],
                   "t": "View",
                 },
                 {
                   "c": [
                     {
                       "c": [
-                        "Active courses",
+                        {
+                          "c": [
+                            "Học kỳ",
+                          ],
+                          "s": {
+                            "color": "#EDF0F2",
+                            "fontSize": 13,
+                            "marginBottom": 4,
+                          },
+                          "t": "Text",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Tất cả học kỳ",
+                              ],
+                              "s": {
+                                "color": "#EDF0F2",
+                                "flex": 1,
+                                "fontSize": 16,
+                              },
+                              "t": "Text",
+                            },
+                            {
+                              "c": [
+                                "▾",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 13,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Học kỳ: Tất cả học kỳ",
+                          "role": "button",
+                          "s": {
+                            "alignItems": "center",
+                            "backgroundColor": "#1E2229",
+                            "borderColor": "#33363D",
+                            "borderRadius": 8,
+                            "flexDirection": "row",
+                            "justifyContent": "space-between",
+                            "paddingHorizontal": 16,
+                          },
+                          "t": "View",
+                        },
                       ],
-                      "role": "header",
                       "s": {
-                        "color": "#EDF0F2",
-                        "fontSize": 18,
+                        "marginBottom": 16,
                       },
-                      "t": "Text",
+                      "t": "View",
                     },
                     {
                       "c": [
                         {
                           "c": [
-                            "Grades",
+                            {
+                              "c": [
+                                "Đang học (2)",
+                              ],
+                              "s": {
+                                "color": "#98BDD7",
+                                "fontSize": 13,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Đang học (2)",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "backgroundColor": "#1C314A",
+                            "borderColor": "#98BDD7",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 8,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Đã học (1)",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 13,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Đã học (1)",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "backgroundColor": "#1E2229",
+                            "borderColor": "#33363D",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 8,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Đã rút (0)",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 13,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Đã rút (0)",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "backgroundColor": "#1E2229",
+                            "borderColor": "#33363D",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 8,
+                          },
+                          "t": "View",
+                        },
+                      ],
+                      "label": "Trạng thái học phần",
+                      "s": {
+                        "flexDirection": "row",
+                        "gap": 4,
+                      },
+                      "t": "View",
+                    },
+                    {
+                      "c": [],
+                      "t": "View",
+                    },
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "CS204",
+                                          ],
+                                          "s": {
+                                            "color": "#98BDD7",
+                                            "fontSize": 12,
+                                          },
+                                          "t": "Text",
+                                        },
+                                        {
+                                          "c": [
+                                            "Software Architecture",
+                                          ],
+                                          "s": {
+                                            "color": "#EDF0F2",
+                                            "fontSize": 18,
+                                          },
+                                          "t": "Text",
+                                        },
+                                        {
+                                          "c": [
+                                            "3 tín chỉ",
+                                          ],
+                                          "s": {
+                                            "color": "#A9B1BC",
+                                            "fontSize": 14,
+                                          },
+                                          "t": "Text",
+                                        },
+                                      ],
+                                      "s": {
+                                        "flex": 1,
+                                      },
+                                      "t": "View",
+                                    },
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "Đang học",
+                                          ],
+                                          "s": {
+                                            "color": "#98BDD7",
+                                            "fontSize": 12,
+                                          },
+                                          "t": "Text",
+                                        },
+                                      ],
+                                      "s": {
+                                        "backgroundColor": "#1C314A",
+                                        "borderRadius": 999,
+                                        "paddingHorizontal": 8,
+                                        "paddingVertical": 4,
+                                      },
+                                      "t": "View",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "space-between",
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "s": {
+                                "backgroundColor": "#1E2229",
+                                "borderColor": "#33363D",
+                                "borderRadius": 8,
+                                "marginBottom": 8,
+                                "padding": 16,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "label": "CS204 Software Architecture, Đang học",
+                          "role": "button",
+                          "s": {
+                            "width": "100%",
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "BA312",
+                                          ],
+                                          "s": {
+                                            "color": "#98BDD7",
+                                            "fontSize": 12,
+                                          },
+                                          "t": "Text",
+                                        },
+                                        {
+                                          "c": [
+                                            "Business Analytics",
+                                          ],
+                                          "s": {
+                                            "color": "#EDF0F2",
+                                            "fontSize": 18,
+                                          },
+                                          "t": "Text",
+                                        },
+                                        {
+                                          "c": [
+                                            "3 tín chỉ",
+                                          ],
+                                          "s": {
+                                            "color": "#A9B1BC",
+                                            "fontSize": 14,
+                                          },
+                                          "t": "Text",
+                                        },
+                                      ],
+                                      "s": {
+                                        "flex": 1,
+                                      },
+                                      "t": "View",
+                                    },
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "Đang học",
+                                          ],
+                                          "s": {
+                                            "color": "#98BDD7",
+                                            "fontSize": 12,
+                                          },
+                                          "t": "Text",
+                                        },
+                                      ],
+                                      "s": {
+                                        "backgroundColor": "#1C314A",
+                                        "borderRadius": 999,
+                                        "paddingHorizontal": 8,
+                                        "paddingVertical": 4,
+                                      },
+                                      "t": "View",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "space-between",
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "s": {
+                                "backgroundColor": "#1E2229",
+                                "borderColor": "#33363D",
+                                "borderRadius": 8,
+                                "marginBottom": 8,
+                                "padding": 16,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "label": "BA312 Business Analytics, Đang học",
+                          "role": "button",
+                          "s": {
+                            "width": "100%",
+                          },
+                          "t": "View",
+                        },
+                      ],
+                      "t": "View",
+                    },
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            "Đăng ký học phần",
                           ],
                           "s": {
                             "color": "#98BDD7",
@@ -3936,477 +4165,19 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w360
                           "t": "Text",
                         },
                       ],
-                      "label": "Grades",
+                      "label": "Đăng ký học phần",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
-                        "backgroundColor": "transparent",
+                        "backgroundColor": "#1E2229",
+                        "borderColor": "#33363D",
                         "borderRadius": 8,
                         "justifyContent": "center",
-                        "paddingHorizontal": 4,
+                        "paddingHorizontal": 16,
                       },
                       "t": "View",
                     },
                   ],
-                  "s": {
-                    "alignItems": "center",
-                    "flexDirection": "row",
-                    "justifyContent": "space-between",
-                    "marginBottom": 8,
-                  },
-                  "t": "View",
-                },
-                {
-                  "c": [
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "CS204",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Software Architecture",
-                                  ],
-                                  "s": {
-                                    "color": "#EDF0F2",
-                                    "fontSize": 18,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Dr. Le Minh",
-                                  ],
-                                  "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "flex": 1,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "In progress",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#1C314A",
-                                "borderRadius": 999,
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 4,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "flex-start",
-                            "flexDirection": "row",
-                            "justifyContent": "space-between",
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Course progress",
-                                  ],
-                                  "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "72",
-                                    "%",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "alignItems": "center",
-                                "flexDirection": "row",
-                                "justifyContent": "space-between",
-                                "marginBottom": 4,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [],
-                                  "s": {
-                                    "backgroundColor": "#1B5AA7",
-                                    "borderRadius": 999,
-                                    "width": "72%",
-                                  },
-                                  "t": "View",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#1C314A",
-                                "borderRadius": 999,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "label": "Course progress",
-                          "role": "progressbar",
-                          "s": {
-                            "marginTop": 8,
-                          },
-                          "t": "View",
-                        },
-                      ],
-                      "s": {
-                        "backgroundColor": "#1E2229",
-                        "borderColor": "#33363D",
-                        "borderRadius": 8,
-                        "marginBottom": 8,
-                        "padding": 16,
-                      },
-                      "t": "View",
-                    },
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "BA312",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Business Analytics",
-                                  ],
-                                  "s": {
-                                    "color": "#EDF0F2",
-                                    "fontSize": 18,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Assoc. Prof. Tran Ha",
-                                  ],
-                                  "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "flex": 1,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "In progress",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#1C314A",
-                                "borderRadius": 999,
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 4,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "flex-start",
-                            "flexDirection": "row",
-                            "justifyContent": "space-between",
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Course progress",
-                                  ],
-                                  "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "58",
-                                    "%",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "alignItems": "center",
-                                "flexDirection": "row",
-                                "justifyContent": "space-between",
-                                "marginBottom": 4,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [],
-                                  "s": {
-                                    "backgroundColor": "#1B5AA7",
-                                    "borderRadius": 999,
-                                    "width": "58%",
-                                  },
-                                  "t": "View",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#1C314A",
-                                "borderRadius": 999,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "label": "Course progress",
-                          "role": "progressbar",
-                          "s": {
-                            "marginTop": 8,
-                          },
-                          "t": "View",
-                        },
-                      ],
-                      "s": {
-                        "backgroundColor": "#1E2229",
-                        "borderColor": "#33363D",
-                        "borderRadius": 8,
-                        "marginBottom": 8,
-                        "padding": 16,
-                      },
-                      "t": "View",
-                    },
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "EN201",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Academic English",
-                                  ],
-                                  "s": {
-                                    "color": "#EDF0F2",
-                                    "fontSize": 18,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Ms. Nguyen Mai",
-                                  ],
-                                  "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "flex": 1,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "On track",
-                                  ],
-                                  "s": {
-                                    "color": "#9BD4BA",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#203C2F",
-                                "borderRadius": 999,
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 4,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "flex-start",
-                            "flexDirection": "row",
-                            "justifyContent": "space-between",
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Course progress",
-                                  ],
-                                  "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "86",
-                                    "%",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "alignItems": "center",
-                                "flexDirection": "row",
-                                "justifyContent": "space-between",
-                                "marginBottom": 4,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [],
-                                  "s": {
-                                    "backgroundColor": "#1B5AA7",
-                                    "borderRadius": 999,
-                                    "width": "86%",
-                                  },
-                                  "t": "View",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#1C314A",
-                                "borderRadius": 999,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "label": "Course progress",
-                          "role": "progressbar",
-                          "s": {
-                            "marginTop": 8,
-                          },
-                          "t": "View",
-                        },
-                      ],
-                      "s": {
-                        "backgroundColor": "#1E2229",
-                        "borderColor": "#33363D",
-                        "borderRadius": 8,
-                        "marginBottom": 8,
-                        "padding": 16,
-                      },
-                      "t": "View",
-                    },
-                  ],
-                  "t": "View",
-                },
-                {
-                  "c": [
-                    {
-                      "c": [
-                        "Open registration round",
-                      ],
-                      "s": {
-                        "color": "#98BDD7",
-                        "fontSize": 13,
-                      },
-                      "t": "Text",
-                    },
-                  ],
-                  "label": "Open registration round",
-                  "role": "button",
-                  "s": {
-                    "alignItems": "center",
-                    "backgroundColor": "#1E2229",
-                    "borderColor": "#33363D",
-                    "borderRadius": 8,
-                    "justifyContent": "center",
-                    "paddingHorizontal": 16,
-                  },
                   "t": "View",
                 },
               ],
@@ -4440,34 +4211,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                   "c": [
                     {
                       "c": [
-                        "MY LEARNING",
-                      ],
-                      "s": {
-                        "color": "#98BDD7",
-                        "fontSize": 12,
-                        "marginBottom": 4,
-                      },
-                      "t": "Text",
-                    },
-                    {
-                      "c": [
-                        "Courses",
+                        "Học phần",
                       ],
                       "role": "header",
                       "s": {
                         "color": "#EDF0F2",
                         "fontSize": 26,
-                      },
-                      "t": "Text",
-                    },
-                    {
-                      "c": [
-                        "3 active courses this semester.",
-                      ],
-                      "s": {
-                        "color": "#A9B1BC",
-                        "fontSize": 14,
-                        "marginTop": 4,
                       },
                       "t": "Text",
                     },
@@ -4492,115 +4241,370 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                   "c": [
                     {
                       "c": [
-                        "Credits completed",
+                        "Dữ liệu xem trước, không phải hồ sơ thật.",
                       ],
                       "s": {
-                        "color": "#A9B1BC",
+                        "color": "#EED1A0",
                         "fontSize": 14,
                       },
                       "t": "Text",
                     },
-                    {
-                      "c": [
-                        "3",
-                      ],
-                      "s": {
-                        "color": "#98BDD7",
-                        "fontSize": 34,
-                      },
-                      "t": "Text",
-                    },
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                "Published course records",
-                              ],
-                              "s": {
-                                "color": "#A9B1BC",
-                                "fontSize": 14,
-                              },
-                              "t": "Text",
-                            },
-                            {
-                              "c": [
-                                "100",
-                                "%",
-                              ],
-                              "s": {
-                                "color": "#98BDD7",
-                                "fontSize": 12,
-                              },
-                              "t": "Text",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "flexDirection": "row",
-                            "justifyContent": "space-between",
-                            "marginBottom": 4,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [],
-                              "s": {
-                                "backgroundColor": "#1B5AA7",
-                                "borderRadius": 999,
-                                "width": "100%",
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "backgroundColor": "#1C314A",
-                            "borderRadius": 999,
-                          },
-                          "t": "View",
-                        },
-                      ],
-                      "label": "Published course records",
-                      "role": "progressbar",
-                      "s": {
-                        "marginTop": 8,
-                      },
-                      "t": "View",
-                    },
                   ],
                   "s": {
-                    "backgroundColor": "#1C314A",
-                    "borderColor": "#98BDD7",
+                    "alignItems": "center",
+                    "backgroundColor": "#1E2229",
+                    "borderColor": "#33363D",
                     "borderRadius": 8,
-                    "padding": 24,
+                    "flexDirection": "row",
+                    "padding": 16,
                   },
-                  "t": "View",
-                },
-                {
-                  "c": [],
                   "t": "View",
                 },
                 {
                   "c": [
                     {
                       "c": [
-                        "Active courses",
+                        {
+                          "c": [
+                            "Học kỳ",
+                          ],
+                          "s": {
+                            "color": "#EDF0F2",
+                            "fontSize": 13,
+                            "marginBottom": 4,
+                          },
+                          "t": "Text",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Tất cả học kỳ",
+                              ],
+                              "s": {
+                                "color": "#EDF0F2",
+                                "flex": 1,
+                                "fontSize": 16,
+                              },
+                              "t": "Text",
+                            },
+                            {
+                              "c": [
+                                "▾",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 13,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Học kỳ: Tất cả học kỳ",
+                          "role": "button",
+                          "s": {
+                            "alignItems": "center",
+                            "backgroundColor": "#1E2229",
+                            "borderColor": "#33363D",
+                            "borderRadius": 8,
+                            "flexDirection": "row",
+                            "justifyContent": "space-between",
+                            "paddingHorizontal": 16,
+                          },
+                          "t": "View",
+                        },
                       ],
-                      "role": "header",
                       "s": {
-                        "color": "#EDF0F2",
-                        "fontSize": 18,
+                        "marginBottom": 16,
                       },
-                      "t": "Text",
+                      "t": "View",
                     },
                     {
                       "c": [
                         {
                           "c": [
-                            "Grades",
+                            {
+                              "c": [
+                                "Đang học (2)",
+                              ],
+                              "s": {
+                                "color": "#98BDD7",
+                                "fontSize": 13,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Đang học (2)",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "backgroundColor": "#1C314A",
+                            "borderColor": "#98BDD7",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 8,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Đã học (1)",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 13,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Đã học (1)",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "backgroundColor": "#1E2229",
+                            "borderColor": "#33363D",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 8,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Đã rút (0)",
+                              ],
+                              "s": {
+                                "color": "#A9B1BC",
+                                "fontSize": 13,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Đã rút (0)",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "backgroundColor": "#1E2229",
+                            "borderColor": "#33363D",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 8,
+                          },
+                          "t": "View",
+                        },
+                      ],
+                      "label": "Trạng thái học phần",
+                      "s": {
+                        "flexDirection": "row",
+                        "gap": 4,
+                      },
+                      "t": "View",
+                    },
+                    {
+                      "c": [],
+                      "t": "View",
+                    },
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "CS204",
+                                          ],
+                                          "s": {
+                                            "color": "#98BDD7",
+                                            "fontSize": 12,
+                                          },
+                                          "t": "Text",
+                                        },
+                                        {
+                                          "c": [
+                                            "Software Architecture",
+                                          ],
+                                          "s": {
+                                            "color": "#EDF0F2",
+                                            "fontSize": 18,
+                                          },
+                                          "t": "Text",
+                                        },
+                                        {
+                                          "c": [
+                                            "3 tín chỉ",
+                                          ],
+                                          "s": {
+                                            "color": "#A9B1BC",
+                                            "fontSize": 14,
+                                          },
+                                          "t": "Text",
+                                        },
+                                      ],
+                                      "s": {
+                                        "flex": 1,
+                                      },
+                                      "t": "View",
+                                    },
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "Đang học",
+                                          ],
+                                          "s": {
+                                            "color": "#98BDD7",
+                                            "fontSize": 12,
+                                          },
+                                          "t": "Text",
+                                        },
+                                      ],
+                                      "s": {
+                                        "backgroundColor": "#1C314A",
+                                        "borderRadius": 999,
+                                        "paddingHorizontal": 8,
+                                        "paddingVertical": 4,
+                                      },
+                                      "t": "View",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "space-between",
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "s": {
+                                "backgroundColor": "#1E2229",
+                                "borderColor": "#33363D",
+                                "borderRadius": 8,
+                                "marginBottom": 8,
+                                "padding": 16,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "label": "CS204 Software Architecture, Đang học",
+                          "role": "button",
+                          "s": {
+                            "width": "48.5%",
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "BA312",
+                                          ],
+                                          "s": {
+                                            "color": "#98BDD7",
+                                            "fontSize": 12,
+                                          },
+                                          "t": "Text",
+                                        },
+                                        {
+                                          "c": [
+                                            "Business Analytics",
+                                          ],
+                                          "s": {
+                                            "color": "#EDF0F2",
+                                            "fontSize": 18,
+                                          },
+                                          "t": "Text",
+                                        },
+                                        {
+                                          "c": [
+                                            "3 tín chỉ",
+                                          ],
+                                          "s": {
+                                            "color": "#A9B1BC",
+                                            "fontSize": 14,
+                                          },
+                                          "t": "Text",
+                                        },
+                                      ],
+                                      "s": {
+                                        "flex": 1,
+                                      },
+                                      "t": "View",
+                                    },
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "Đang học",
+                                          ],
+                                          "s": {
+                                            "color": "#98BDD7",
+                                            "fontSize": 12,
+                                          },
+                                          "t": "Text",
+                                        },
+                                      ],
+                                      "s": {
+                                        "backgroundColor": "#1C314A",
+                                        "borderRadius": 999,
+                                        "paddingHorizontal": 8,
+                                        "paddingVertical": 4,
+                                      },
+                                      "t": "View",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "space-between",
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "s": {
+                                "backgroundColor": "#1E2229",
+                                "borderColor": "#33363D",
+                                "borderRadius": 8,
+                                "marginBottom": 8,
+                                "padding": 16,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "label": "BA312 Business Analytics, Đang học",
+                          "role": "button",
+                          "s": {
+                            "width": "48.5%",
+                          },
+                          "t": "View",
+                        },
+                      ],
+                      "s": {
+                        "flexDirection": "row",
+                        "justifyContent": "space-between",
+                      },
+                      "t": "View",
+                    },
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            "Đăng ký học phần",
                           ],
                           "s": {
                             "color": "#98BDD7",
@@ -4609,484 +4613,19 @@ exports[`static visual snapshots (structure/token, not pixels) Courses dark w100
                           "t": "Text",
                         },
                       ],
-                      "label": "Grades",
+                      "label": "Đăng ký học phần",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
-                        "backgroundColor": "transparent",
+                        "backgroundColor": "#1E2229",
+                        "borderColor": "#33363D",
                         "borderRadius": 8,
                         "justifyContent": "center",
-                        "paddingHorizontal": 4,
+                        "paddingHorizontal": 16,
                       },
                       "t": "View",
                     },
                   ],
-                  "s": {
-                    "alignItems": "center",
-                    "flexDirection": "row",
-                    "justifyContent": "space-between",
-                    "marginBottom": 8,
-                  },
-                  "t": "View",
-                },
-                {
-                  "c": [
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "CS204",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Software Architecture",
-                                  ],
-                                  "s": {
-                                    "color": "#EDF0F2",
-                                    "fontSize": 18,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Dr. Le Minh",
-                                  ],
-                                  "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "flex": 1,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "In progress",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#1C314A",
-                                "borderRadius": 999,
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 4,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "flex-start",
-                            "flexDirection": "row",
-                            "justifyContent": "space-between",
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Course progress",
-                                  ],
-                                  "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "72",
-                                    "%",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "alignItems": "center",
-                                "flexDirection": "row",
-                                "justifyContent": "space-between",
-                                "marginBottom": 4,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [],
-                                  "s": {
-                                    "backgroundColor": "#1B5AA7",
-                                    "borderRadius": 999,
-                                    "width": "72%",
-                                  },
-                                  "t": "View",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#1C314A",
-                                "borderRadius": 999,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "label": "Course progress",
-                          "role": "progressbar",
-                          "s": {
-                            "marginTop": 8,
-                          },
-                          "t": "View",
-                        },
-                      ],
-                      "s": {
-                        "backgroundColor": "#1E2229",
-                        "borderColor": "#33363D",
-                        "borderRadius": 8,
-                        "marginBottom": 8,
-                        "padding": 16,
-                        "width": "48%",
-                      },
-                      "t": "View",
-                    },
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "BA312",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Business Analytics",
-                                  ],
-                                  "s": {
-                                    "color": "#EDF0F2",
-                                    "fontSize": 18,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Assoc. Prof. Tran Ha",
-                                  ],
-                                  "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "flex": 1,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "In progress",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#1C314A",
-                                "borderRadius": 999,
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 4,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "flex-start",
-                            "flexDirection": "row",
-                            "justifyContent": "space-between",
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Course progress",
-                                  ],
-                                  "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "58",
-                                    "%",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "alignItems": "center",
-                                "flexDirection": "row",
-                                "justifyContent": "space-between",
-                                "marginBottom": 4,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [],
-                                  "s": {
-                                    "backgroundColor": "#1B5AA7",
-                                    "borderRadius": 999,
-                                    "width": "58%",
-                                  },
-                                  "t": "View",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#1C314A",
-                                "borderRadius": 999,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "label": "Course progress",
-                          "role": "progressbar",
-                          "s": {
-                            "marginTop": 8,
-                          },
-                          "t": "View",
-                        },
-                      ],
-                      "s": {
-                        "backgroundColor": "#1E2229",
-                        "borderColor": "#33363D",
-                        "borderRadius": 8,
-                        "marginBottom": 8,
-                        "padding": 16,
-                        "width": "48%",
-                      },
-                      "t": "View",
-                    },
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "EN201",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Academic English",
-                                  ],
-                                  "s": {
-                                    "color": "#EDF0F2",
-                                    "fontSize": 18,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Ms. Nguyen Mai",
-                                  ],
-                                  "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "flex": 1,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "On track",
-                                  ],
-                                  "s": {
-                                    "color": "#9BD4BA",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#203C2F",
-                                "borderRadius": 999,
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 4,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "flex-start",
-                            "flexDirection": "row",
-                            "justifyContent": "space-between",
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Course progress",
-                                  ],
-                                  "s": {
-                                    "color": "#A9B1BC",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "86",
-                                    "%",
-                                  ],
-                                  "s": {
-                                    "color": "#98BDD7",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "alignItems": "center",
-                                "flexDirection": "row",
-                                "justifyContent": "space-between",
-                                "marginBottom": 4,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [],
-                                  "s": {
-                                    "backgroundColor": "#1B5AA7",
-                                    "borderRadius": 999,
-                                    "width": "86%",
-                                  },
-                                  "t": "View",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#1C314A",
-                                "borderRadius": 999,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "label": "Course progress",
-                          "role": "progressbar",
-                          "s": {
-                            "marginTop": 8,
-                          },
-                          "t": "View",
-                        },
-                      ],
-                      "s": {
-                        "backgroundColor": "#1E2229",
-                        "borderColor": "#33363D",
-                        "borderRadius": 8,
-                        "marginBottom": 8,
-                        "padding": 16,
-                        "width": "48%",
-                      },
-                      "t": "View",
-                    },
-                  ],
-                  "s": {
-                    "flexDirection": "row",
-                    "justifyContent": "space-between",
-                  },
-                  "t": "View",
-                },
-                {
-                  "c": [
-                    {
-                      "c": [
-                        "Open registration round",
-                      ],
-                      "s": {
-                        "color": "#98BDD7",
-                        "fontSize": 13,
-                      },
-                      "t": "Text",
-                    },
-                  ],
-                  "label": "Open registration round",
-                  "role": "button",
-                  "s": {
-                    "alignItems": "center",
-                    "backgroundColor": "#1E2229",
-                    "borderColor": "#33363D",
-                    "borderRadius": 8,
-                    "justifyContent": "center",
-                    "paddingHorizontal": 16,
-                  },
                   "t": "View",
                 },
               ],
@@ -5124,34 +4663,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                   "c": [
                     {
                       "c": [
-                        "MY LEARNING",
-                      ],
-                      "s": {
-                        "color": "#003F87",
-                        "fontSize": 12,
-                        "marginBottom": 4,
-                      },
-                      "t": "Text",
-                    },
-                    {
-                      "c": [
-                        "Courses",
+                        "Học phần",
                       ],
                       "role": "header",
                       "s": {
                         "color": "#17243A",
                         "fontSize": 26,
-                      },
-                      "t": "Text",
-                    },
-                    {
-                      "c": [
-                        "3 active courses this semester.",
-                      ],
-                      "s": {
-                        "color": "#526174",
-                        "fontSize": 14,
-                        "marginTop": 4,
                       },
                       "t": "Text",
                     },
@@ -5176,115 +4693,366 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                   "c": [
                     {
                       "c": [
-                        "Credits completed",
+                        "Dữ liệu xem trước, không phải hồ sơ thật.",
                       ],
                       "s": {
-                        "color": "#526174",
+                        "color": "#946200",
                         "fontSize": 14,
                       },
                       "t": "Text",
                     },
-                    {
-                      "c": [
-                        "3",
-                      ],
-                      "s": {
-                        "color": "#003F87",
-                        "fontSize": 34,
-                      },
-                      "t": "Text",
-                    },
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                "Published course records",
-                              ],
-                              "s": {
-                                "color": "#526174",
-                                "fontSize": 14,
-                              },
-                              "t": "Text",
-                            },
-                            {
-                              "c": [
-                                "100",
-                                "%",
-                              ],
-                              "s": {
-                                "color": "#003F87",
-                                "fontSize": 12,
-                              },
-                              "t": "Text",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "flexDirection": "row",
-                            "justifyContent": "space-between",
-                            "marginBottom": 4,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [],
-                              "s": {
-                                "backgroundColor": "#0056B3",
-                                "borderRadius": 999,
-                                "width": "100%",
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "backgroundColor": "#E6F0FF",
-                            "borderRadius": 999,
-                          },
-                          "t": "View",
-                        },
-                      ],
-                      "label": "Published course records",
-                      "role": "progressbar",
-                      "s": {
-                        "marginTop": 8,
-                      },
-                      "t": "View",
-                    },
                   ],
                   "s": {
-                    "backgroundColor": "#E6F0FF",
-                    "borderColor": "#003F87",
+                    "alignItems": "center",
+                    "backgroundColor": "#FFFFFF",
+                    "borderColor": "#C9D5E4",
                     "borderRadius": 8,
-                    "padding": 24,
+                    "flexDirection": "row",
+                    "padding": 16,
                   },
-                  "t": "View",
-                },
-                {
-                  "c": [],
                   "t": "View",
                 },
                 {
                   "c": [
                     {
                       "c": [
-                        "Active courses",
+                        {
+                          "c": [
+                            "Học kỳ",
+                          ],
+                          "s": {
+                            "color": "#17243A",
+                            "fontSize": 13,
+                            "marginBottom": 4,
+                          },
+                          "t": "Text",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Tất cả học kỳ",
+                              ],
+                              "s": {
+                                "color": "#17243A",
+                                "flex": 1,
+                                "fontSize": 16,
+                              },
+                              "t": "Text",
+                            },
+                            {
+                              "c": [
+                                "▾",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 13,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Học kỳ: Tất cả học kỳ",
+                          "role": "button",
+                          "s": {
+                            "alignItems": "center",
+                            "backgroundColor": "#FFFFFF",
+                            "borderColor": "#C9D5E4",
+                            "borderRadius": 8,
+                            "flexDirection": "row",
+                            "justifyContent": "space-between",
+                            "paddingHorizontal": 16,
+                          },
+                          "t": "View",
+                        },
                       ],
-                      "role": "header",
                       "s": {
-                        "color": "#17243A",
-                        "fontSize": 18,
+                        "marginBottom": 16,
                       },
-                      "t": "Text",
+                      "t": "View",
                     },
                     {
                       "c": [
                         {
                           "c": [
-                            "Grades",
+                            {
+                              "c": [
+                                "Đang học (2)",
+                              ],
+                              "s": {
+                                "color": "#003F87",
+                                "fontSize": 13,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Đang học (2)",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "backgroundColor": "#E6F0FF",
+                            "borderColor": "#003F87",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 8,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Đã học (1)",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 13,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Đã học (1)",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "backgroundColor": "#FFFFFF",
+                            "borderColor": "#C9D5E4",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 8,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Đã rút (0)",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 13,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Đã rút (0)",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "backgroundColor": "#FFFFFF",
+                            "borderColor": "#C9D5E4",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 8,
+                          },
+                          "t": "View",
+                        },
+                      ],
+                      "label": "Trạng thái học phần",
+                      "s": {
+                        "flexDirection": "row",
+                        "gap": 4,
+                      },
+                      "t": "View",
+                    },
+                    {
+                      "c": [],
+                      "t": "View",
+                    },
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "CS204",
+                                          ],
+                                          "s": {
+                                            "color": "#003F87",
+                                            "fontSize": 12,
+                                          },
+                                          "t": "Text",
+                                        },
+                                        {
+                                          "c": [
+                                            "Software Architecture",
+                                          ],
+                                          "s": {
+                                            "color": "#17243A",
+                                            "fontSize": 18,
+                                          },
+                                          "t": "Text",
+                                        },
+                                        {
+                                          "c": [
+                                            "3 tín chỉ",
+                                          ],
+                                          "s": {
+                                            "color": "#526174",
+                                            "fontSize": 14,
+                                          },
+                                          "t": "Text",
+                                        },
+                                      ],
+                                      "s": {
+                                        "flex": 1,
+                                      },
+                                      "t": "View",
+                                    },
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "Đang học",
+                                          ],
+                                          "s": {
+                                            "color": "#003F87",
+                                            "fontSize": 12,
+                                          },
+                                          "t": "Text",
+                                        },
+                                      ],
+                                      "s": {
+                                        "backgroundColor": "#E6F0FF",
+                                        "borderRadius": 999,
+                                        "paddingHorizontal": 8,
+                                        "paddingVertical": 4,
+                                      },
+                                      "t": "View",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "space-between",
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "s": {
+                                "backgroundColor": "#FFFFFF",
+                                "borderColor": "#C9D5E4",
+                                "borderRadius": 8,
+                                "marginBottom": 8,
+                                "padding": 16,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "label": "CS204 Software Architecture, Đang học",
+                          "role": "button",
+                          "s": {
+                            "width": "100%",
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "BA312",
+                                          ],
+                                          "s": {
+                                            "color": "#003F87",
+                                            "fontSize": 12,
+                                          },
+                                          "t": "Text",
+                                        },
+                                        {
+                                          "c": [
+                                            "Business Analytics",
+                                          ],
+                                          "s": {
+                                            "color": "#17243A",
+                                            "fontSize": 18,
+                                          },
+                                          "t": "Text",
+                                        },
+                                        {
+                                          "c": [
+                                            "3 tín chỉ",
+                                          ],
+                                          "s": {
+                                            "color": "#526174",
+                                            "fontSize": 14,
+                                          },
+                                          "t": "Text",
+                                        },
+                                      ],
+                                      "s": {
+                                        "flex": 1,
+                                      },
+                                      "t": "View",
+                                    },
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "Đang học",
+                                          ],
+                                          "s": {
+                                            "color": "#003F87",
+                                            "fontSize": 12,
+                                          },
+                                          "t": "Text",
+                                        },
+                                      ],
+                                      "s": {
+                                        "backgroundColor": "#E6F0FF",
+                                        "borderRadius": 999,
+                                        "paddingHorizontal": 8,
+                                        "paddingVertical": 4,
+                                      },
+                                      "t": "View",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "space-between",
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "s": {
+                                "backgroundColor": "#FFFFFF",
+                                "borderColor": "#C9D5E4",
+                                "borderRadius": 8,
+                                "marginBottom": 8,
+                                "padding": 16,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "label": "BA312 Business Analytics, Đang học",
+                          "role": "button",
+                          "s": {
+                            "width": "100%",
+                          },
+                          "t": "View",
+                        },
+                      ],
+                      "t": "View",
+                    },
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            "Đăng ký học phần",
                           ],
                           "s": {
                             "color": "#003F87",
@@ -5293,477 +5061,19 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w36
                           "t": "Text",
                         },
                       ],
-                      "label": "Grades",
+                      "label": "Đăng ký học phần",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
-                        "backgroundColor": "transparent",
+                        "backgroundColor": "#FFFFFF",
+                        "borderColor": "#C9D5E4",
                         "borderRadius": 8,
                         "justifyContent": "center",
-                        "paddingHorizontal": 4,
+                        "paddingHorizontal": 16,
                       },
                       "t": "View",
                     },
                   ],
-                  "s": {
-                    "alignItems": "center",
-                    "flexDirection": "row",
-                    "justifyContent": "space-between",
-                    "marginBottom": 8,
-                  },
-                  "t": "View",
-                },
-                {
-                  "c": [
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "CS204",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Software Architecture",
-                                  ],
-                                  "s": {
-                                    "color": "#17243A",
-                                    "fontSize": 18,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Dr. Le Minh",
-                                  ],
-                                  "s": {
-                                    "color": "#526174",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "flex": 1,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "In progress",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#E6F0FF",
-                                "borderRadius": 999,
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 4,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "flex-start",
-                            "flexDirection": "row",
-                            "justifyContent": "space-between",
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Course progress",
-                                  ],
-                                  "s": {
-                                    "color": "#526174",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "72",
-                                    "%",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "alignItems": "center",
-                                "flexDirection": "row",
-                                "justifyContent": "space-between",
-                                "marginBottom": 4,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [],
-                                  "s": {
-                                    "backgroundColor": "#0056B3",
-                                    "borderRadius": 999,
-                                    "width": "72%",
-                                  },
-                                  "t": "View",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#E6F0FF",
-                                "borderRadius": 999,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "label": "Course progress",
-                          "role": "progressbar",
-                          "s": {
-                            "marginTop": 8,
-                          },
-                          "t": "View",
-                        },
-                      ],
-                      "s": {
-                        "backgroundColor": "#FFFFFF",
-                        "borderColor": "#C9D5E4",
-                        "borderRadius": 8,
-                        "marginBottom": 8,
-                        "padding": 16,
-                      },
-                      "t": "View",
-                    },
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "BA312",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Business Analytics",
-                                  ],
-                                  "s": {
-                                    "color": "#17243A",
-                                    "fontSize": 18,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Assoc. Prof. Tran Ha",
-                                  ],
-                                  "s": {
-                                    "color": "#526174",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "flex": 1,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "In progress",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#E6F0FF",
-                                "borderRadius": 999,
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 4,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "flex-start",
-                            "flexDirection": "row",
-                            "justifyContent": "space-between",
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Course progress",
-                                  ],
-                                  "s": {
-                                    "color": "#526174",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "58",
-                                    "%",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "alignItems": "center",
-                                "flexDirection": "row",
-                                "justifyContent": "space-between",
-                                "marginBottom": 4,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [],
-                                  "s": {
-                                    "backgroundColor": "#0056B3",
-                                    "borderRadius": 999,
-                                    "width": "58%",
-                                  },
-                                  "t": "View",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#E6F0FF",
-                                "borderRadius": 999,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "label": "Course progress",
-                          "role": "progressbar",
-                          "s": {
-                            "marginTop": 8,
-                          },
-                          "t": "View",
-                        },
-                      ],
-                      "s": {
-                        "backgroundColor": "#FFFFFF",
-                        "borderColor": "#C9D5E4",
-                        "borderRadius": 8,
-                        "marginBottom": 8,
-                        "padding": 16,
-                      },
-                      "t": "View",
-                    },
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "EN201",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Academic English",
-                                  ],
-                                  "s": {
-                                    "color": "#17243A",
-                                    "fontSize": 18,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Ms. Nguyen Mai",
-                                  ],
-                                  "s": {
-                                    "color": "#526174",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "flex": 1,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "On track",
-                                  ],
-                                  "s": {
-                                    "color": "#247A4A",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#DFF4E4",
-                                "borderRadius": 999,
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 4,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "flex-start",
-                            "flexDirection": "row",
-                            "justifyContent": "space-between",
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Course progress",
-                                  ],
-                                  "s": {
-                                    "color": "#526174",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "86",
-                                    "%",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "alignItems": "center",
-                                "flexDirection": "row",
-                                "justifyContent": "space-between",
-                                "marginBottom": 4,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [],
-                                  "s": {
-                                    "backgroundColor": "#0056B3",
-                                    "borderRadius": 999,
-                                    "width": "86%",
-                                  },
-                                  "t": "View",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#E6F0FF",
-                                "borderRadius": 999,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "label": "Course progress",
-                          "role": "progressbar",
-                          "s": {
-                            "marginTop": 8,
-                          },
-                          "t": "View",
-                        },
-                      ],
-                      "s": {
-                        "backgroundColor": "#FFFFFF",
-                        "borderColor": "#C9D5E4",
-                        "borderRadius": 8,
-                        "marginBottom": 8,
-                        "padding": 16,
-                      },
-                      "t": "View",
-                    },
-                  ],
-                  "t": "View",
-                },
-                {
-                  "c": [
-                    {
-                      "c": [
-                        "Open registration round",
-                      ],
-                      "s": {
-                        "color": "#003F87",
-                        "fontSize": 13,
-                      },
-                      "t": "Text",
-                    },
-                  ],
-                  "label": "Open registration round",
-                  "role": "button",
-                  "s": {
-                    "alignItems": "center",
-                    "backgroundColor": "#FFFFFF",
-                    "borderColor": "#C9D5E4",
-                    "borderRadius": 8,
-                    "justifyContent": "center",
-                    "paddingHorizontal": 16,
-                  },
                   "t": "View",
                 },
               ],
@@ -5797,34 +5107,12 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                   "c": [
                     {
                       "c": [
-                        "MY LEARNING",
-                      ],
-                      "s": {
-                        "color": "#003F87",
-                        "fontSize": 12,
-                        "marginBottom": 4,
-                      },
-                      "t": "Text",
-                    },
-                    {
-                      "c": [
-                        "Courses",
+                        "Học phần",
                       ],
                       "role": "header",
                       "s": {
                         "color": "#17243A",
                         "fontSize": 26,
-                      },
-                      "t": "Text",
-                    },
-                    {
-                      "c": [
-                        "3 active courses this semester.",
-                      ],
-                      "s": {
-                        "color": "#526174",
-                        "fontSize": 14,
-                        "marginTop": 4,
                       },
                       "t": "Text",
                     },
@@ -5849,115 +5137,370 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                   "c": [
                     {
                       "c": [
-                        "Credits completed",
+                        "Dữ liệu xem trước, không phải hồ sơ thật.",
                       ],
                       "s": {
-                        "color": "#526174",
+                        "color": "#946200",
                         "fontSize": 14,
                       },
                       "t": "Text",
                     },
-                    {
-                      "c": [
-                        "3",
-                      ],
-                      "s": {
-                        "color": "#003F87",
-                        "fontSize": 34,
-                      },
-                      "t": "Text",
-                    },
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                "Published course records",
-                              ],
-                              "s": {
-                                "color": "#526174",
-                                "fontSize": 14,
-                              },
-                              "t": "Text",
-                            },
-                            {
-                              "c": [
-                                "100",
-                                "%",
-                              ],
-                              "s": {
-                                "color": "#003F87",
-                                "fontSize": 12,
-                              },
-                              "t": "Text",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "center",
-                            "flexDirection": "row",
-                            "justifyContent": "space-between",
-                            "marginBottom": 4,
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [],
-                              "s": {
-                                "backgroundColor": "#0056B3",
-                                "borderRadius": 999,
-                                "width": "100%",
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "backgroundColor": "#E6F0FF",
-                            "borderRadius": 999,
-                          },
-                          "t": "View",
-                        },
-                      ],
-                      "label": "Published course records",
-                      "role": "progressbar",
-                      "s": {
-                        "marginTop": 8,
-                      },
-                      "t": "View",
-                    },
                   ],
                   "s": {
-                    "backgroundColor": "#E6F0FF",
-                    "borderColor": "#003F87",
+                    "alignItems": "center",
+                    "backgroundColor": "#FFFFFF",
+                    "borderColor": "#C9D5E4",
                     "borderRadius": 8,
-                    "padding": 24,
+                    "flexDirection": "row",
+                    "padding": 16,
                   },
-                  "t": "View",
-                },
-                {
-                  "c": [],
                   "t": "View",
                 },
                 {
                   "c": [
                     {
                       "c": [
-                        "Active courses",
+                        {
+                          "c": [
+                            "Học kỳ",
+                          ],
+                          "s": {
+                            "color": "#17243A",
+                            "fontSize": 13,
+                            "marginBottom": 4,
+                          },
+                          "t": "Text",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Tất cả học kỳ",
+                              ],
+                              "s": {
+                                "color": "#17243A",
+                                "flex": 1,
+                                "fontSize": 16,
+                              },
+                              "t": "Text",
+                            },
+                            {
+                              "c": [
+                                "▾",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 13,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Học kỳ: Tất cả học kỳ",
+                          "role": "button",
+                          "s": {
+                            "alignItems": "center",
+                            "backgroundColor": "#FFFFFF",
+                            "borderColor": "#C9D5E4",
+                            "borderRadius": 8,
+                            "flexDirection": "row",
+                            "justifyContent": "space-between",
+                            "paddingHorizontal": 16,
+                          },
+                          "t": "View",
+                        },
                       ],
-                      "role": "header",
                       "s": {
-                        "color": "#17243A",
-                        "fontSize": 18,
+                        "marginBottom": 16,
                       },
-                      "t": "Text",
+                      "t": "View",
                     },
                     {
                       "c": [
                         {
                           "c": [
-                            "Grades",
+                            {
+                              "c": [
+                                "Đang học (2)",
+                              ],
+                              "s": {
+                                "color": "#003F87",
+                                "fontSize": 13,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Đang học (2)",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "backgroundColor": "#E6F0FF",
+                            "borderColor": "#003F87",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 8,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Đã học (1)",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 13,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Đã học (1)",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "backgroundColor": "#FFFFFF",
+                            "borderColor": "#C9D5E4",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 8,
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                "Đã rút (0)",
+                              ],
+                              "s": {
+                                "color": "#526174",
+                                "fontSize": 13,
+                              },
+                              "t": "Text",
+                            },
+                          ],
+                          "label": "Đã rút (0)",
+                          "role": "tab",
+                          "s": {
+                            "alignItems": "center",
+                            "backgroundColor": "#FFFFFF",
+                            "borderColor": "#C9D5E4",
+                            "borderRadius": 8,
+                            "justifyContent": "center",
+                            "paddingHorizontal": 8,
+                          },
+                          "t": "View",
+                        },
+                      ],
+                      "label": "Trạng thái học phần",
+                      "s": {
+                        "flexDirection": "row",
+                        "gap": 4,
+                      },
+                      "t": "View",
+                    },
+                    {
+                      "c": [],
+                      "t": "View",
+                    },
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "CS204",
+                                          ],
+                                          "s": {
+                                            "color": "#003F87",
+                                            "fontSize": 12,
+                                          },
+                                          "t": "Text",
+                                        },
+                                        {
+                                          "c": [
+                                            "Software Architecture",
+                                          ],
+                                          "s": {
+                                            "color": "#17243A",
+                                            "fontSize": 18,
+                                          },
+                                          "t": "Text",
+                                        },
+                                        {
+                                          "c": [
+                                            "3 tín chỉ",
+                                          ],
+                                          "s": {
+                                            "color": "#526174",
+                                            "fontSize": 14,
+                                          },
+                                          "t": "Text",
+                                        },
+                                      ],
+                                      "s": {
+                                        "flex": 1,
+                                      },
+                                      "t": "View",
+                                    },
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "Đang học",
+                                          ],
+                                          "s": {
+                                            "color": "#003F87",
+                                            "fontSize": 12,
+                                          },
+                                          "t": "Text",
+                                        },
+                                      ],
+                                      "s": {
+                                        "backgroundColor": "#E6F0FF",
+                                        "borderRadius": 999,
+                                        "paddingHorizontal": 8,
+                                        "paddingVertical": 4,
+                                      },
+                                      "t": "View",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "space-between",
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "s": {
+                                "backgroundColor": "#FFFFFF",
+                                "borderColor": "#C9D5E4",
+                                "borderRadius": 8,
+                                "marginBottom": 8,
+                                "padding": 16,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "label": "CS204 Software Architecture, Đang học",
+                          "role": "button",
+                          "s": {
+                            "width": "48.5%",
+                          },
+                          "t": "View",
+                        },
+                        {
+                          "c": [
+                            {
+                              "c": [
+                                {
+                                  "c": [
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "BA312",
+                                          ],
+                                          "s": {
+                                            "color": "#003F87",
+                                            "fontSize": 12,
+                                          },
+                                          "t": "Text",
+                                        },
+                                        {
+                                          "c": [
+                                            "Business Analytics",
+                                          ],
+                                          "s": {
+                                            "color": "#17243A",
+                                            "fontSize": 18,
+                                          },
+                                          "t": "Text",
+                                        },
+                                        {
+                                          "c": [
+                                            "3 tín chỉ",
+                                          ],
+                                          "s": {
+                                            "color": "#526174",
+                                            "fontSize": 14,
+                                          },
+                                          "t": "Text",
+                                        },
+                                      ],
+                                      "s": {
+                                        "flex": 1,
+                                      },
+                                      "t": "View",
+                                    },
+                                    {
+                                      "c": [
+                                        {
+                                          "c": [
+                                            "Đang học",
+                                          ],
+                                          "s": {
+                                            "color": "#003F87",
+                                            "fontSize": 12,
+                                          },
+                                          "t": "Text",
+                                        },
+                                      ],
+                                      "s": {
+                                        "backgroundColor": "#E6F0FF",
+                                        "borderRadius": 999,
+                                        "paddingHorizontal": 8,
+                                        "paddingVertical": 4,
+                                      },
+                                      "t": "View",
+                                    },
+                                  ],
+                                  "s": {
+                                    "alignItems": "center",
+                                    "flexDirection": "row",
+                                    "gap": 8,
+                                    "justifyContent": "space-between",
+                                  },
+                                  "t": "View",
+                                },
+                              ],
+                              "s": {
+                                "backgroundColor": "#FFFFFF",
+                                "borderColor": "#C9D5E4",
+                                "borderRadius": 8,
+                                "marginBottom": 8,
+                                "padding": 16,
+                              },
+                              "t": "View",
+                            },
+                          ],
+                          "label": "BA312 Business Analytics, Đang học",
+                          "role": "button",
+                          "s": {
+                            "width": "48.5%",
+                          },
+                          "t": "View",
+                        },
+                      ],
+                      "s": {
+                        "flexDirection": "row",
+                        "justifyContent": "space-between",
+                      },
+                      "t": "View",
+                    },
+                    {
+                      "c": [
+                        {
+                          "c": [
+                            "Đăng ký học phần",
                           ],
                           "s": {
                             "color": "#003F87",
@@ -5966,484 +5509,19 @@ exports[`static visual snapshots (structure/token, not pixels) Courses light w10
                           "t": "Text",
                         },
                       ],
-                      "label": "Grades",
+                      "label": "Đăng ký học phần",
                       "role": "button",
                       "s": {
                         "alignItems": "center",
-                        "backgroundColor": "transparent",
+                        "backgroundColor": "#FFFFFF",
+                        "borderColor": "#C9D5E4",
                         "borderRadius": 8,
                         "justifyContent": "center",
-                        "paddingHorizontal": 4,
+                        "paddingHorizontal": 16,
                       },
                       "t": "View",
                     },
                   ],
-                  "s": {
-                    "alignItems": "center",
-                    "flexDirection": "row",
-                    "justifyContent": "space-between",
-                    "marginBottom": 8,
-                  },
-                  "t": "View",
-                },
-                {
-                  "c": [
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "CS204",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Software Architecture",
-                                  ],
-                                  "s": {
-                                    "color": "#17243A",
-                                    "fontSize": 18,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Dr. Le Minh",
-                                  ],
-                                  "s": {
-                                    "color": "#526174",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "flex": 1,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "In progress",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#E6F0FF",
-                                "borderRadius": 999,
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 4,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "flex-start",
-                            "flexDirection": "row",
-                            "justifyContent": "space-between",
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Course progress",
-                                  ],
-                                  "s": {
-                                    "color": "#526174",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "72",
-                                    "%",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "alignItems": "center",
-                                "flexDirection": "row",
-                                "justifyContent": "space-between",
-                                "marginBottom": 4,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [],
-                                  "s": {
-                                    "backgroundColor": "#0056B3",
-                                    "borderRadius": 999,
-                                    "width": "72%",
-                                  },
-                                  "t": "View",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#E6F0FF",
-                                "borderRadius": 999,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "label": "Course progress",
-                          "role": "progressbar",
-                          "s": {
-                            "marginTop": 8,
-                          },
-                          "t": "View",
-                        },
-                      ],
-                      "s": {
-                        "backgroundColor": "#FFFFFF",
-                        "borderColor": "#C9D5E4",
-                        "borderRadius": 8,
-                        "marginBottom": 8,
-                        "padding": 16,
-                        "width": "48%",
-                      },
-                      "t": "View",
-                    },
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "BA312",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Business Analytics",
-                                  ],
-                                  "s": {
-                                    "color": "#17243A",
-                                    "fontSize": 18,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Assoc. Prof. Tran Ha",
-                                  ],
-                                  "s": {
-                                    "color": "#526174",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "flex": 1,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "In progress",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#E6F0FF",
-                                "borderRadius": 999,
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 4,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "flex-start",
-                            "flexDirection": "row",
-                            "justifyContent": "space-between",
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Course progress",
-                                  ],
-                                  "s": {
-                                    "color": "#526174",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "58",
-                                    "%",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "alignItems": "center",
-                                "flexDirection": "row",
-                                "justifyContent": "space-between",
-                                "marginBottom": 4,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [],
-                                  "s": {
-                                    "backgroundColor": "#0056B3",
-                                    "borderRadius": 999,
-                                    "width": "58%",
-                                  },
-                                  "t": "View",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#E6F0FF",
-                                "borderRadius": 999,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "label": "Course progress",
-                          "role": "progressbar",
-                          "s": {
-                            "marginTop": 8,
-                          },
-                          "t": "View",
-                        },
-                      ],
-                      "s": {
-                        "backgroundColor": "#FFFFFF",
-                        "borderColor": "#C9D5E4",
-                        "borderRadius": 8,
-                        "marginBottom": 8,
-                        "padding": 16,
-                        "width": "48%",
-                      },
-                      "t": "View",
-                    },
-                    {
-                      "c": [
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "EN201",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Academic English",
-                                  ],
-                                  "s": {
-                                    "color": "#17243A",
-                                    "fontSize": 18,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "Ms. Nguyen Mai",
-                                  ],
-                                  "s": {
-                                    "color": "#526174",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "flex": 1,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "On track",
-                                  ],
-                                  "s": {
-                                    "color": "#247A4A",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#DFF4E4",
-                                "borderRadius": 999,
-                                "paddingHorizontal": 8,
-                                "paddingVertical": 4,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "s": {
-                            "alignItems": "flex-start",
-                            "flexDirection": "row",
-                            "justifyContent": "space-between",
-                          },
-                          "t": "View",
-                        },
-                        {
-                          "c": [
-                            {
-                              "c": [
-                                {
-                                  "c": [
-                                    "Course progress",
-                                  ],
-                                  "s": {
-                                    "color": "#526174",
-                                    "fontSize": 14,
-                                  },
-                                  "t": "Text",
-                                },
-                                {
-                                  "c": [
-                                    "86",
-                                    "%",
-                                  ],
-                                  "s": {
-                                    "color": "#003F87",
-                                    "fontSize": 12,
-                                  },
-                                  "t": "Text",
-                                },
-                              ],
-                              "s": {
-                                "alignItems": "center",
-                                "flexDirection": "row",
-                                "justifyContent": "space-between",
-                                "marginBottom": 4,
-                              },
-                              "t": "View",
-                            },
-                            {
-                              "c": [
-                                {
-                                  "c": [],
-                                  "s": {
-                                    "backgroundColor": "#0056B3",
-                                    "borderRadius": 999,
-                                    "width": "86%",
-                                  },
-                                  "t": "View",
-                                },
-                              ],
-                              "s": {
-                                "backgroundColor": "#E6F0FF",
-                                "borderRadius": 999,
-                              },
-                              "t": "View",
-                            },
-                          ],
-                          "label": "Course progress",
-                          "role": "progressbar",
-                          "s": {
-                            "marginTop": 8,
-                          },
-                          "t": "View",
-                        },
-                      ],
-                      "s": {
-                        "backgroundColor": "#FFFFFF",
-                        "borderColor": "#C9D5E4",
-                        "borderRadius": 8,
-                        "marginBottom": 8,
-                        "padding": 16,
-                        "width": "48%",
-                      },
-                      "t": "View",
-                    },
-                  ],
-                  "s": {
-                    "flexDirection": "row",
-                    "justifyContent": "space-between",
-                  },
-                  "t": "View",
-                },
-                {
-                  "c": [
-                    {
-                      "c": [
-                        "Open registration round",
-                      ],
-                      "s": {
-                        "color": "#003F87",
-                        "fontSize": 13,
-                      },
-                      "t": "Text",
-                    },
-                  ],
-                  "label": "Open registration round",
-                  "role": "button",
-                  "s": {
-                    "alignItems": "center",
-                    "backgroundColor": "#FFFFFF",
-                    "borderColor": "#C9D5E4",
-                    "borderRadius": 8,
-                    "justifyContent": "center",
-                    "paddingHorizontal": 16,
-                  },
                   "t": "View",
                 },
               ],
