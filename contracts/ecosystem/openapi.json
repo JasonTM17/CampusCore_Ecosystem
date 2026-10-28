@@ -8578,6 +8578,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "checksum",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -8585,6 +8593,17 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AttachmentUploadRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
               }
             }
           },
@@ -8602,7 +8621,7 @@
             "description": "Created"
           }
         },
-        "summary": "Tải tệp đính kèm (checksum-bound)",
+        "summary": "Tải tệp đính kèm dạng multipart (cùng quy tắc với bản base64)",
         "tags": [
           "Admissions"
         ]
@@ -11788,6 +11807,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "checksum",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -11795,6 +11822,17 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AttachmentUploadRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
               }
             }
           },
@@ -11812,7 +11850,7 @@
             "description": "OK"
           }
         },
-        "summary": "Tải hồ sơ đính kèm lên đơn của tôi",
+        "summary": "Tải hồ sơ đính kèm dạng multipart (cùng quy tắc với bản base64)",
         "tags": [
           "Careers"
         ]
@@ -11917,6 +11955,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -11931,7 +11989,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Tin tuyển dụng đang đăng",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Tin tuyển dụng đang đăng (PUBLISHED)",
@@ -14461,6 +14528,28 @@
     "/api/v1/events": {
       "get": {
         "operationId": "list_9",
+        "parameters": [
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -14473,7 +14562,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Danh sách sự kiện",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Danh sách sự kiện đã công bố",
@@ -14485,6 +14583,28 @@
     "/api/v1/events/my/registrations": {
       "get": {
         "operationId": "myRegistrations",
+        "parameters": [
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -14497,7 +14617,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Lịch sử đăng ký",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Lịch sử đăng ký của tôi",
@@ -15477,6 +15606,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "textBody",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "checksum",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -15484,6 +15629,17 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SubmissionUpsertRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
               }
             }
           },
@@ -15501,7 +15657,7 @@
             "description": "OK"
           }
         },
-        "summary": "Nộp lại sau khi bị trả (LMS-T05) — tạo revision mới, không ghi đè",
+        "summary": "Nộp lại dạng multipart (cùng quy tắc với bản base64)",
         "tags": [
           "learning-student-controller"
         ]
@@ -15968,6 +16124,39 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "title",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "description",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "checksum",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -15975,6 +16164,17 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/MaterialUpsertRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
               }
             }
           },
@@ -15992,7 +16192,7 @@
             "description": "OK"
           }
         },
-        "summary": "Cập nhật học liệu (optimistic version)",
+        "summary": "Cập nhật học liệu dạng multipart (optimistic version)",
         "tags": [
           "learning-staff-controller"
         ]
@@ -16179,6 +16379,30 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "title",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "description",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "checksum",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -16186,6 +16410,17 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/MaterialUpsertRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
               }
             }
           },
@@ -16203,7 +16438,7 @@
             "description": "Created"
           }
         },
-        "summary": "Tạo học liệu mới cho lớp học phần",
+        "summary": "Tạo học liệu dạng multipart (cùng quy tắc với bản base64)",
         "tags": [
           "learning-staff-controller"
         ]
@@ -16431,6 +16666,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "textBody",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "checksum",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -16438,6 +16689,17 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SubmissionUpsertRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
               }
             }
           },
@@ -16455,7 +16717,7 @@
             "description": "OK"
           }
         },
-        "summary": "Lưu nội dung nháp (văn bản + tệp đính kèm)",
+        "summary": "Lưu nội dung nháp dạng multipart (cùng quy tắc với bản base64)",
         "tags": [
           "learning-student-controller"
         ]
@@ -16745,6 +17007,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -16759,7 +17041,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Danh mục sách",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Tra cứu danh mục sách",
@@ -20831,6 +21122,26 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -20845,7 +21156,16 @@
                 }
               }
             },
-            "description": "Truy xuất danh sách nhóm thành công"
+            "description": "Truy xuất danh sách nhóm thành công",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           },
           "401": {
             "content": {
@@ -20912,6 +21232,28 @@
       "get": {
         "description": "Sinh viên thấy nhóm mình là thành viên/nhóm trưởng, giảng viên thấy nhóm thuộc đề tài mình hướng dẫn — dùng để tự chọn đợt chứa nhóm thay vì đợt mới nhất",
         "operationId": "mine",
+        "parameters": [
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -20924,7 +21266,16 @@
                 }
               }
             },
-            "description": "Truy xuất danh sách nhóm của người gọi thành công"
+            "description": "Truy xuất danh sách nhóm của người gọi thành công",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           },
           "401": {
             "content": {
@@ -21668,6 +22019,26 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -21682,7 +22053,16 @@
                 }
               }
             },
-            "description": "Truy xuất danh sách đợt thành công"
+            "description": "Truy xuất danh sách đợt thành công",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Lấy danh sách các đợt đăng ký khóa luận",
@@ -22178,6 +22558,26 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -22192,7 +22592,16 @@
                 }
               }
             },
-            "description": "Truy xuất danh sách đề tài thành công"
+            "description": "Truy xuất danh sách đề tài thành công",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           },
           "400": {
             "content": {
@@ -22205,7 +22614,7 @@
                 }
               }
             },
-            "description": "Tham số roundId không hợp lệ"
+            "description": "Tham số roundId hoặc page/limit không hợp lệ"
           }
         },
         "summary": "Lấy danh sách đề tài theo đợt khóa luận",
