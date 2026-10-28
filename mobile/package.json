@@ -7,7 +7,7 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "test": "node --test tests/screen-atlas.test.mjs tests/phase-six-repair.test.mjs tests/student-json.test.mjs tests/router-guard.test.mjs tests/session-storage.test.mjs tests/oidc-flow.test.mjs tests/query-lifecycle.test.mjs tests/events-messages.test.mjs tests/domain-contracts.test.mjs tests/design-tokens.test.mjs tests/assistant-stream.test.mjs tests/push-client.test.mjs tests/offline-read.test.mjs tests/assistant-notification-messages.test.mjs",
+    "test": "node --test tests/screen-atlas.test.mjs tests/phase-six-repair.test.mjs tests/student-json.test.mjs tests/router-guard.test.mjs tests/role-capabilities.test.mjs tests/session-storage.test.mjs tests/oidc-flow.test.mjs tests/query-lifecycle.test.mjs tests/events-messages.test.mjs tests/domain-contracts.test.mjs tests/design-tokens.test.mjs tests/assistant-stream.test.mjs tests/push-client.test.mjs tests/offline-read.test.mjs tests/assistant-notification-messages.test.mjs",
     "typecheck": "tsc --noEmit",
     "test:component": "jest --config jest.config.js",
     "test:a11y": "jest --config jest.config.js tests/a11y",

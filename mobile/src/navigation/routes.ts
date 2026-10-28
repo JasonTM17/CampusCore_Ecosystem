@@ -1,6 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 
+import { hasCapability, type Capability, type CapabilitySet } from '../auth/capabilities';
+
 export type NavigationIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 export type UserRole = 'student' | 'lecturer' | 'admin';
 
@@ -33,6 +35,33 @@ export type ScreenName =
   | 'lecturer.schedule'
   | 'lecturer.grading'
   | 'lecturer.attendance';
+
+/**
+ * Flag-gated lane screens. They are deliberately not `ScreenName` members:
+ * the registry above stays the always-on surface, and a lane screen exists
+ * only for a session whose capability set grants it.
+ */
+export type LaneScreenId =
+  | 'dean.overview'
+  | 'staff.applyReview'
+  | 'staff.careersDesk'
+  | 'staff.libraryDesk'
+  | 'admin.overview'
+  | 'admin.attendance'
+  | 'admin.audit'
+  | 'admin.creditLimits'
+  | 'admin.enrollments'
+  | 'admin.events'
+  | 'admin.notifications';
+
+export interface LaneScreenDefinition {
+  id: LaneScreenId;
+  title: string;
+  /** UI role the lane renders under; null = any signed-in role (per-desk grant). */
+  role: UserRole | null;
+  capability: Capability;
+  icon: NavigationIconName;
+}
 
 export type ScreenFamily =
   | 'auth'
@@ -94,6 +123,20 @@ export const screenRegistry: readonly ScreenDefinition[] = [
   { name: 'lecturer.schedule', title: 'Teaching schedule', family: 'staff', roles: lecturerRoles, icon: 'calendar-account-outline' },
   { name: 'lecturer.grading', title: 'Gradebook', family: 'staff', roles: lecturerRoles, icon: 'notebook-edit-outline' },
   { name: 'lecturer.attendance', title: 'Class attendance', family: 'staff', roles: lecturerRoles, icon: 'account-check-outline' },
+];
+
+export const laneScreenRegistry: readonly LaneScreenDefinition[] = [
+  { id: 'dean.overview', title: 'Faculty thesis overview', role: 'lecturer', capability: 'dean.overview', icon: 'school-outline' },
+  { id: 'staff.applyReview', title: 'Admissions review', role: null, capability: 'staff.applyReview', icon: 'account-edit-outline' },
+  { id: 'staff.careersDesk', title: 'Careers desk', role: null, capability: 'staff.careersDesk', icon: 'briefcase-search-outline' },
+  { id: 'staff.libraryDesk', title: 'Library desk', role: null, capability: 'staff.libraryDesk', icon: 'bookshelf' },
+  { id: 'admin.overview', title: 'Oversight', role: 'admin', capability: 'admin.oversight', icon: 'shield-account-outline' },
+  { id: 'admin.attendance', title: 'Attendance oversight', role: 'admin', capability: 'admin.oversight', icon: 'account-check-outline' },
+  { id: 'admin.audit', title: 'Audit log', role: 'admin', capability: 'admin.oversight', icon: 'clipboard-text-clock-outline' },
+  { id: 'admin.creditLimits', title: 'Credit limit applications', role: 'admin', capability: 'admin.oversight', icon: 'credit-card-check-outline' },
+  { id: 'admin.enrollments', title: 'Enrollments', role: 'admin', capability: 'admin.oversight', icon: 'book-plus-outline' },
+  { id: 'admin.events', title: 'Event desk', role: 'admin', capability: 'admin.oversight', icon: 'calendar-star' },
+  { id: 'admin.notifications', title: 'Notification desk', role: 'admin', capability: 'admin.oversight', icon: 'bell-outline' },
 ];
 
 const bottomNavigationByRole: Readonly<Record<UserRole, readonly BottomNavigationItem[]>> = {
@@ -201,4 +244,30 @@ export function canAccessScreen(role: UserRole, route: ScreenName) {
 
 export function getBottomNavigation(role: UserRole) {
   return bottomNavigationByRole[role];
+}
+
+export function getLaneScreen(id: LaneScreenId) {
+  return laneScreenRegistry.find((screen) => screen.id === id);
+}
+
+/**
+ * Whether a lane screen is reachable for this surface role + capability set.
+ * Staff desks are granted per desk by the server, so they are not tied to the
+ * UI role; every other lane also needs its own UI role.
+ */
+export function canAccessLaneScreen(
+  role: UserRole,
+  capabilities: CapabilitySet,
+  id: LaneScreenId,
+) {
+  const screen = getLaneScreen(id);
+  if (!screen || !hasCapability(capabilities, screen.capability)) {
+    return false;
+  }
+  return screen.role === null || screen.role === role;
+}
+
+/** Lane entries to show in menus; an empty capability set shows none. */
+export function getLaneNavigation(role: UserRole, capabilities: CapabilitySet) {
+  return laneScreenRegistry.filter((screen) => canAccessLaneScreen(role, capabilities, screen.id));
 }
