@@ -5,8 +5,8 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "test": "node --test tests/screen-atlas.test.mjs tests/phase-six-repair.test.mjs tests/student-json.test.mjs tests/router-guard.test.mjs tests/session-storage.test.mjs tests/oidc-flow.test.mjs tests/query-lifecycle.test.mjs tests/events-messages.test.mjs tests/domain-contracts.test.mjs",
     "typecheck": "tsc --noEmit"
   },
