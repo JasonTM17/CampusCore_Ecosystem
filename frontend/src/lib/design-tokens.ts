@@ -161,7 +161,11 @@ const contract = {
   },
   "windowClasses": {
     "compactMax": 600,
-    "mediumMax": 840
+    "mediumMax": 840,
+    "contentMaxWidth": {
+      "medium": 720,
+      "expanded": 960
+    }
   },
   "elevation": {
     "none": 0,

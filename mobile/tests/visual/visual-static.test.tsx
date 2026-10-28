@@ -14,7 +14,16 @@ jest.mock('../../src/api/client', () => ({
 jest.mock('../../src/hooks/useScreenQuery', () => ({
   useScreenQuery: () => ({ data: undefined, error: null, warning: null, isLoading: false, reload: jest.fn(), setData: jest.fn() }),
 }));
-jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({}) }));
+jest.mock('expo-router', () => ({
+  useLocalSearchParams: () => ({}),
+  usePathname: () => '/dashboard',
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
+  Slot: () => null,
+}));
+jest.mock('../../src/session/SessionContext', () => ({
+  useSession: () => ({ kind: 'preview', role: 'student', switchRole: jest.fn() }),
+}));
+jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: require('react-native').View }));
 
 import { StudentDashboardScreen } from '../../src/screens/student/StudentDashboardScreen';
 import { CoursesScreen } from '../../src/screens/student/CoursesScreen';
@@ -22,6 +31,7 @@ import { NotificationsScreen } from '../../src/screens/student/NotificationsScre
 import { EventsScreen } from '../../src/screens/student/EventsScreen';
 import { AssistantChatScreen } from '../../src/screens/assistant/AssistantScreen';
 import { BottomNavigation } from '../../src/components/BottomNavigation';
+import AppGroupLayout from '../../app/(app)/_layout';
 import type { MobileScreenProps } from '../../src/navigation/types';
 
 const navigation = { navigate: jest.fn(), signOut: jest.fn() } as unknown as MobileScreenProps['navigation'];
@@ -57,6 +67,7 @@ const CASES: Array<[string, ReactElement]> = [
   ['Events', <EventsScreen {...props} />],
   ['Assistant-initial', <AssistantChatScreen {...props} />],
   ['BottomNavigation', <BottomNavigation activeRoute="dashboard.student" role="student" onNavigate={() => {}} onMenu={() => {}} />],
+  ['AppGroupLayout', <AppGroupLayout />],
 ];
 
 describe('static visual snapshots (structure/token, not pixels)', () => {

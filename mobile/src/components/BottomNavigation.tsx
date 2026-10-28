@@ -11,7 +11,7 @@ import {
 } from '../navigation/routes';
 import { UiText } from './Ui';
 
-interface BottomNavigationProps {
+export interface BottomNavigationProps {
   activeRoute: ScreenName;
   role: UserRole;
   onNavigate(route: ScreenName): void;
@@ -24,7 +24,7 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: Bott
   const items = getBottomNavigation(role);
 
   return (
-    <View style={styles.navigation}>
+    <View testID="bottom-navigation" style={styles.navigation}>
       <View style={styles.navigationInner}>
         <View accessibilityRole="tablist" style={[styles.tabList, { flex: items.length }]}>
           {items.map((item) => {
