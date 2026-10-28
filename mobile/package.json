@@ -9,7 +9,11 @@
     "ios": "expo run:ios",
     "test": "node --test tests/screen-atlas.test.mjs tests/phase-six-repair.test.mjs tests/student-json.test.mjs tests/router-guard.test.mjs tests/session-storage.test.mjs tests/oidc-flow.test.mjs tests/query-lifecycle.test.mjs tests/events-messages.test.mjs tests/domain-contracts.test.mjs tests/design-tokens.test.mjs tests/assistant-stream.test.mjs tests/push-client.test.mjs tests/offline-read.test.mjs tests/assistant-notification-messages.test.mjs",
     "typecheck": "tsc --noEmit",
-    "test:component": "jest --config jest.config.js"
+    "test:component": "jest --config jest.config.js",
+    "test:a11y": "jest --config jest.config.js tests/a11y",
+    "test:visual": "node scripts/visual-regression.mjs",
+    "test:perf": "node scripts/perf-probe.mjs",
+    "test:device": "node scripts/run-device-e2e.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/be-vietnam-pro": "^0.4.1",
