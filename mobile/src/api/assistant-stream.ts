@@ -197,8 +197,10 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string');
 }
 
-class AssistantEventValidator {
+/** Order and shape checks shared by every SSE transport (fetch and XHR). */
+export class AssistantEventValidator {
   private metaSeen = false;
+  private lastSequence = -1;
   private bodySeen = false;
   private citationSeen = false;
   private terminalSeen = false;
@@ -230,11 +232,12 @@ class AssistantEventValidator {
       case 'delta':
         if (
           !this.metaSeen || this.citationSeen || !Number.isInteger(value.sequence)
-          || (value.sequence as number) < 0 || typeof value.text !== 'string'
-          || !isStringArray(value.sourceIds)
+          || (value.sequence as number) <= this.lastSequence
+          || typeof value.text !== 'string' || !isStringArray(value.sourceIds)
         ) {
           throw new AssistantStreamError('STREAM_EVENT_ORDER_INVALID');
         }
+        this.lastSequence = value.sequence as number;
         this.bodySeen = true;
         break;
       case 'replace':
@@ -294,6 +297,17 @@ export interface SseTransportOptions {
   cancelRequest?: (clientRequestId: string) => Promise<unknown>;
 }
 
+/** Decode one SSE frame into a validated event; malformed frames never reach UI state. */
+export function decodeSseFrame(frame: SseFrame, validator: AssistantEventValidator): AssistantStreamEvent {
+  let data: unknown;
+  try {
+    data = JSON.parse(frame.data);
+  } catch {
+    throw new AssistantStreamError('STREAM_INVALID_JSON');
+  }
+  return validator.accept(data, frame.event);
+}
+
 const cancelFallbackCode: Record<number, string> = {
   400: 'INVALID_REQUEST',
   401: 'UNAUTHORIZED',
@@ -302,7 +316,7 @@ const cancelFallbackCode: Record<number, string> = {
   503: 'ASSISTANT_RLS_UNAVAILABLE',
 };
 
-function responseErrorCode(status: number, bodyText: string): string {
+export function responseErrorCode(status: number, bodyText: string): string {
   try {
     const body: unknown = JSON.parse(bodyText);
     if (isObject(body) && typeof body.code === 'string') return body.code;
@@ -312,13 +326,24 @@ function responseErrorCode(status: number, bodyText: string): string {
   return cancelFallbackCode[status] ?? 'HTTP_ERROR';
 }
 
-function requestId(): string {
+export function requestId(): string {
   const cryptoApi = globalThis.crypto as Crypto | undefined;
   if (cryptoApi?.randomUUID) return cryptoApi.randomUUID();
   return `stream-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function streamUrl(baseUrl: string): string {
+/** JSON body shared by every streaming transport. */
+export function streamRequestBody(request: AssistantChatRequest): string {
+  return JSON.stringify({
+    message: request.message,
+    locale: request.locale,
+    clientRequestId: request.clientRequestId,
+    ...(request.conversationId ? { conversationId: request.conversationId } : {}),
+    ...(request.scope ? { scope: request.scope } : {}),
+  });
+}
+
+export function streamUrl(baseUrl: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/assistant/chat/stream`;
 }
 
@@ -356,13 +381,7 @@ export function createSseTransport(options: SseTransportOptions): AssistantTrans
       const decoder = new TextDecoder();
 
       const readFrames = (frames: SseFrame[]): AssistantStreamEvent[] => frames.map((frame) => {
-        let data: unknown;
-        try {
-          data = JSON.parse(frame.data);
-        } catch {
-          throw new AssistantStreamError('STREAM_INVALID_JSON');
-        }
-        const event = validator.accept(data, frame.event);
+        const event = decodeSseFrame(frame, validator);
         if (event.type === 'error' || event.type === 'done') terminal = true;
         return event;
       });
@@ -381,13 +400,7 @@ export function createSseTransport(options: SseTransportOptions): AssistantTrans
           response = await fetchImpl(streamUrl(baseUrl), {
             method: 'POST',
             headers,
-            body: JSON.stringify({
-              message: request.message,
-              locale: request.locale,
-              clientRequestId: request.clientRequestId,
-              ...(request.conversationId ? { conversationId: request.conversationId } : {}),
-              ...(request.scope ? { scope: request.scope } : {}),
-            }),
+            body: streamRequestBody(request),
             signal: controller.signal,
           });
         } catch (error) {
@@ -496,6 +509,39 @@ export type BufferedAssistantChat = (
   init?: RequestInit,
 ) => Promise<BufferedAssistantReply>;
 
+/** Meta, body, citations and terminal for a JSON reply; `replace` overwrites any partial stream text. */
+export function* bufferedReplyEvents(
+  reply: BufferedAssistantReply,
+  request: AssistantChatRequest,
+  options: { replaceBody?: boolean } = {},
+): Generator<AssistantStreamEvent> {
+  const id = request.clientRequestId;
+  const sourceIds = reply.citations
+    .map((citation) => citation.sourceId)
+    .filter((sourceId): sourceId is string => typeof sourceId === 'string');
+  yield {
+    type: 'meta',
+    requestId: reply.requestId || id,
+    clientRequestId: reply.clientRequestId || id,
+    turnId: reply.turnId || id,
+    conversationId: reply.conversationId || request.conversationId || id,
+    model: reply.model,
+    locale: reply.locale || request.locale,
+  };
+  yield options.replaceBody
+    ? { type: 'replace', text: reply.answer, sourceIds }
+    : { type: 'delta', sequence: 0, text: reply.answer, sourceIds };
+  for (const citation of reply.citations) yield { type: 'citation', citation };
+  yield {
+    type: 'done',
+    messageId: reply.messageId || id,
+    reasonCode: reply.reasonCode,
+    degraded: reply.degraded,
+    terminalStatus: reply.terminalStatus || 'COMPLETED',
+    resetAt: null,
+  };
+}
+
 function bufferedError(error: unknown): AssistantErrorEvent {
   const value = error as { code?: unknown; status?: unknown; retryable?: unknown };
   const status = typeof value?.status === 'number' ? value.status : 0;
@@ -527,29 +573,7 @@ export function createBufferedTransport(
       try {
         const reply = await callBufferedChat(request, { signal: controller.signal });
         if (controller.signal.aborted) return;
-        const id = request.clientRequestId;
-        const sourceIds = reply.citations
-          .map((citation) => citation.sourceId)
-          .filter((sourceId): sourceId is string => typeof sourceId === 'string');
-        yield {
-          type: 'meta',
-          requestId: reply.requestId || id,
-          clientRequestId: reply.clientRequestId || id,
-          turnId: reply.turnId || id,
-          conversationId: reply.conversationId || request.conversationId || id,
-          model: reply.model,
-          locale: reply.locale || request.locale,
-        };
-        yield { type: 'delta', sequence: 0, text: reply.answer, sourceIds };
-        for (const citation of reply.citations) yield { type: 'citation', citation };
-        yield {
-          type: 'done',
-          messageId: reply.messageId || id,
-          reasonCode: reply.reasonCode,
-          degraded: reply.degraded,
-          terminalStatus: reply.terminalStatus || 'COMPLETED',
-          resetAt: null,
-        };
+        yield* bufferedReplyEvents(reply, request);
       } catch (error) {
         if (!controller.signal.aborted) yield bufferedError(error);
       } finally {
