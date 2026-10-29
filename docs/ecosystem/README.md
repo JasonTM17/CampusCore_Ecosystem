@@ -41,7 +41,7 @@
 
 ## Demo data
 - [Demo data policy](demo-data-policy.md)
-- [Demo acceptance criteria](demo-acceptance.md)
+- [Demo acceptance criteria (historical)](demo-acceptance.md)
 
 ## Release
 - [Release runbook](release-runbook.md)
