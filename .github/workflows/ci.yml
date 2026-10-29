@@ -336,7 +336,8 @@ jobs:
 
   portal-viewport:
     name: Portal viewport shell
-    runs-on: ubuntu-latest
+    # Playwright 1.59 has no browser build for ubuntu-latest (26.04); stay on a supported image.
+    runs-on: ubuntu-24.04
     steps:
       - name: Capture CI job start
         id: ci_timing_start
@@ -484,7 +485,8 @@ jobs:
 
   e2e:
     name: Official Playwright e2e
-    runs-on: ubuntu-latest
+    # Playwright 1.59 has no browser build for ubuntu-latest (26.04); stay on a supported image.
+    runs-on: ubuntu-24.04
     env:
       # Keep the suite deterministic and credential-free; the assistant flows
       # under test must exercise the degraded lexical path, not a live model.
