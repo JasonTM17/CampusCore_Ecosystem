@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
-import { Badge, Button, Card, StatePanel, UiText } from '../../components/Ui';
+import { Button, Card, IconChip, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -63,27 +63,44 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
             <Card key={section.sectionId} style={styles.scheduleCard}>
               <View style={styles.scheduleHeader}>
                 <View style={styles.topicCopy}>
-                  <UiText variant="meta" tone="primary">{section.courseCode ?? section.sectionId}</UiText>
-                  <UiText accessibilityRole="header" variant="headlineSmall">{courseTitle(section, locale) || copy.untitled}</UiText>
-                  {section.sectionNumber ? <UiText variant="bodySmall" tone="muted">{fillCopy(copy.sectionLine, { n: section.sectionNumber })}</UiText> : null}
+                  <StatusPill label={section.courseCode ?? section.sectionId} tone="primary" />
+                  <UiText accessibilityRole="header" variant="headlineSmall">
+                    {courseTitle(section, locale) || copy.untitled}
+                  </UiText>
+                  {section.sectionNumber ? (
+                    <UiText variant="bodySmall" tone="muted">
+                      {fillCopy(copy.sectionLine, { n: section.sectionNumber })}
+                    </UiText>
+                  ) : null}
                 </View>
-                <Badge label={fillCopy(copy.studentsCount, { n: section.enrolledCount ?? 0 })} tone="neutral" />
+                <StatusPill
+                  label={fillCopy(copy.studentsCount, { n: section.enrolledCount ?? 0 })}
+                  tone="neutral"
+                  icon="account-group-outline"
+                />
               </View>
               {(section.schedules ?? []).length === 0 ? (
                 <UiText variant="bodySmall" tone="muted">{copy.schedulePending}</UiText>
               ) : (
                 (section.schedules ?? []).map((slot, index) => (
-                  <UiText key={slot.id ?? index} variant="bodySmall" tone="muted">{slotText(slot, copy)}</UiText>
+                  <View key={slot.id ?? index} style={styles.slotRow}>
+                    <IconChip icon="clock-outline" size={32} tone="neutral" />
+                    <UiText variant="bodySmall" tone="muted" style={{ flex: 1 }}>
+                      {slotText(slot, copy)}
+                    </UiText>
+                  </View>
                 ))
               )}
               <View style={styles.rowBetween}>
                 <Button
+                  icon="clipboard-check-outline"
                   label={copy.takeAttendance}
                   variant="secondary"
                   onPress={() => navigation.navigate('lecturer.attendance', { sectionId: section.sectionId })}
                   style={styles.topButton}
                 />
                 <Button
+                  icon="file-document-edit-outline"
                   label={copy.openGrades}
                   variant="secondary"
                   onPress={() => navigation.navigate('lecturer.grading', { sectionId: section.sectionId })}
@@ -92,7 +109,13 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
               </View>
             </Card>
           ))}
-          {hasMore ? <Button label={copy.loadMore} variant="secondary" onPress={() => setPages((current) => current + 1)} /> : null}
+          {hasMore ? (
+            <Button
+              label={copy.loadMore}
+              variant="secondary"
+              onPress={() => setPages((current) => current + 1)}
+            />
+          ) : null}
         </View>
       )}
     </OpsShell>

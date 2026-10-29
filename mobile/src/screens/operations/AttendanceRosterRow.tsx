@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Pressable, View } from 'react-native';
 
-import { Card, UiText } from '../../components/Ui';
+import { Card, StatusPill, UiText } from '../../components/Ui';
 import { useTheme } from '../../design/theme';
 import { fillCopy } from '../../i18n/academic-messages';
 import type { OperationsCopy } from '../../i18n/operations-messages';
@@ -15,6 +15,13 @@ export const statusLabel = (copy: OperationsCopy, status: MarkStatus): string =>
   EXCUSED: copy.statusExcused,
 })[status];
 
+const statusToneMap: Record<MarkStatus, 'success' | 'error' | 'warning' | 'primary'> = {
+  PRESENT: 'success',
+  ABSENT: 'error',
+  LATE: 'warning',
+  EXCUSED: 'primary',
+};
+
 export interface AttendanceRosterRowProps {
   row: RosterRow;
   copy: OperationsCopy;
@@ -23,21 +30,50 @@ export interface AttendanceRosterRowProps {
   disabled?: boolean;
 }
 
-/** One student: name, code and four status choices with 44dp targets that wrap at large font sizes. */
+/** One student: avatar initials, name, code and four status choices with >=44dp targets that wrap cleanly. */
 function Row({ row, copy, onChange, disabled = false }: AttendanceRosterRowProps) {
   const styles = useOpsStyles();
   const { colors } = useTheme();
   const current = row.status ? statusLabel(copy, row.status) : copy.unmarked;
+  const initials = (row.name ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(-2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || '?';
+
   return (
     <Card style={styles.rosterCard}>
-      <View accessible accessibilityLabel={fillCopy(copy.statusOf, { name: row.name, status: current })}>
-        <UiText variant="label">{row.name}</UiText>
-        <UiText variant="bodySmall" tone="muted">{row.studentCode}</UiText>
+      <View
+        accessible
+        accessibilityLabel={fillCopy(copy.statusOf, { name: row.name, status: current })}
+        style={styles.directoryRow}
+      >
+        <View style={styles.avatar}>
+          <UiText style={styles.avatarText}>{initials}</UiText>
+        </View>
+        <View style={styles.directoryCopy}>
+          <UiText variant="label">{row.name}</UiText>
+          {row.studentCode ? (
+            <UiText variant="bodySmall" tone="muted">{row.studentCode}</UiText>
+          ) : null}
+        </View>
+        {row.status ? (
+          <StatusPill
+            label={statusLabel(copy, row.status)}
+            tone={statusToneMap[row.status]}
+          />
+        ) : null}
       </View>
       <View style={styles.chips}>
         {MARK_STATUSES.map((status) => {
           const selected = row.status === status;
           const label = statusLabel(copy, status);
+          const tone = statusToneMap[status];
+          const activeBg = colors[`${tone}Fixed` as keyof typeof colors] ?? colors.primaryFixed;
+          const activeInk = colors[tone as keyof typeof colors] ?? colors.primary;
+
           return (
             <Pressable
               key={status}
@@ -48,10 +84,15 @@ function Row({ row, copy, onChange, disabled = false }: AttendanceRosterRowProps
               onPress={() => onChange(row.studentId, selected ? null : status)}
               style={[
                 styles.chip,
-                { borderColor: selected ? colors.primary : colors.outlineVariant, backgroundColor: selected ? colors.primaryFixed : colors.card },
+                {
+                  borderColor: selected ? activeInk : colors.outlineVariant,
+                  backgroundColor: selected ? activeBg : colors.card,
+                },
               ]}
             >
-              <UiText variant="label" tone={selected ? 'primary' : 'muted'}>{label}</UiText>
+              <UiText variant="label" style={{ color: selected ? activeInk : colors.textMuted }}>
+                {label}
+              </UiText>
             </Pressable>
           );
         })}

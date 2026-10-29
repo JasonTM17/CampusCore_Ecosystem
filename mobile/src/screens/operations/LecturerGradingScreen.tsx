@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
-import { Badge, Button, Card, Notice, ProgressBar, StatePanel, UiText } from '../../components/Ui';
+import { Button, Card, Notice, ProgressBar, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { Dialog, SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileScreenProps } from '../../navigation/types';
@@ -42,7 +42,6 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
   const section = sections.find((item) => item.sectionId === sectionId);
 
   const gradesQuery = useOpsQuery(`lecturer:grades:${sectionId}`, () => lecturerApi.sectionGrades(sectionId), copy, Boolean(sectionId));
-  // The hook keeps the previous key's data until the next fetch lands; only rows that carry this section are used.
   const sheet: SectionGradeSheet | undefined = useMemo(() => {
     if (preview) return { sectionId, rows: previewGrades };
     const data = gradesQuery.data;
@@ -171,13 +170,17 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
       ) : (
         <View>
           <SectionPicker sections={sections} value={sectionId} onChange={setPicked} />
-          <Card tone="primary" style={styles.gradingHero}>
+          <Card style={styles.gradingHero}>
             <View style={styles.courseHeader}>
               <View style={styles.topicCopy}>
                 <UiText variant="bodySmall" tone="muted">{copy.pendingScores}</UiText>
                 <UiText variant="display" tone="primary">{Math.max(enrolled - graded, 0)}</UiText>
               </View>
-              <Badge label={status === 'PUBLISHED' ? copy.published : copy.draft} tone={status === 'PUBLISHED' ? 'success' : 'warning'} />
+              <StatusPill
+                label={status === 'PUBLISHED' ? copy.published : copy.draft}
+                tone={status === 'PUBLISHED' ? 'success' : 'warning'}
+                icon={status === 'PUBLISHED' ? 'check-decagram' : 'file-document-edit-outline'}
+              />
             </View>
             <ProgressBar label={copy.gradedProgress} value={gradedPercent(graded, enrolled)} />
           </Card>
@@ -205,31 +208,38 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
                 />
               ))}
               {hasMore ? <Button label={copy.loadMore} variant="secondary" onPress={() => setPages((current) => current + 1)} /> : null}
-              {message ? <Notice tone={message.tone} message={message.message} /> : null}
-              {dirty > 0 ? <UiText variant="bodySmall" tone="muted">{fillCopy(copy.changesCount, { n: dirty })}</UiText> : null}
-              <Button
-                label={copy.saveScores}
-                loading={busy === 'save'}
-                disabled={preview || dirty === 0 || busy !== null}
-                onPress={() => void saveScores()}
-                style={styles.topButton}
-              />
-              <Button
-                label={copy.publishGrades}
-                variant="secondary"
-                loading={busy === 'publish'}
-                disabled={!canPublish || status === 'PUBLISHED'}
-                onPress={() => setConfirming(true)}
-                style={styles.secondaryButton}
-              />
-              {publishHint ? <UiText variant="bodySmall" tone="muted">{publishHint}</UiText> : null}
-              <CsvExport
-                name={gradeCsvFilename(section?.courseCode ?? 'section', section?.sectionNumber ?? sectionId, localIsoDate())}
-                build={buildCsv}
-                rows={rows.length}
-              />
-              <UiText variant="bodySmall" tone="muted">{copy.importPrintWeb}</UiText>
-              <HandoffButton label={copy.openOnWeb} path={`/dashboard/lecturer/grades/${encodeURIComponent(sectionId)}`} />
+
+              <View style={styles.saveBar}>
+                {message ? <Notice tone={message.tone} message={message.message} /> : null}
+                {dirty > 0 ? (
+                  <UiText variant="bodySmall" tone="muted">
+                    {fillCopy(copy.changesCount, { n: dirty })}
+                  </UiText>
+                ) : null}
+                <Button
+                  icon="content-save-outline"
+                  label={copy.saveScores}
+                  loading={busy === 'save'}
+                  disabled={preview || dirty === 0 || busy !== null}
+                  onPress={() => void saveScores()}
+                />
+                <Button
+                  icon="cloud-upload-outline"
+                  label={copy.publishGrades}
+                  variant="secondary"
+                  loading={busy === 'publish'}
+                  disabled={!canPublish || status === 'PUBLISHED'}
+                  onPress={() => setConfirming(true)}
+                />
+                {publishHint ? <UiText variant="bodySmall" tone="muted">{publishHint}</UiText> : null}
+                <CsvExport
+                  name={gradeCsvFilename(section?.courseCode ?? 'section', section?.sectionNumber ?? sectionId, localIsoDate())}
+                  build={buildCsv}
+                  rows={rows.length}
+                />
+                <UiText variant="bodySmall" tone="muted">{copy.importPrintWeb}</UiText>
+                <HandoffButton label={copy.openOnWeb} path={`/dashboard/lecturer/grades/${encodeURIComponent(sectionId)}`} />
+              </View>
             </View>
           )}
         </View>

@@ -2,9 +2,10 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { Badge, Button, Card, Notice, ScreenShell, StatePanel, UiText } from '../../components/Ui';
+import { Button, Card, IconChip, Notice, ScreenShell, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { FormField, Sheet } from '../../components/ui/primitives';
+import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -108,19 +109,19 @@ export function LaneShell({ title, loading = false, error, onRetry, banner, chil
   );
 }
 
-const statusTone = (status: string | undefined): 'neutral' | 'primary' | 'success' | 'warning' | 'error' => {
+export const statusTone = (status: string | undefined): 'neutral' | 'primary' | 'success' | 'warning' | 'error' => {
   switch (status) {
-    case 'ACCEPTED': case 'APPROVED': case 'PUBLISHED': case 'COMPLETED': case 'ISSUED': case 'OFFER': case 'PRESENT': case 'ATTENDED': return 'success';
-    case 'REJECTED': case 'CANCELLED': case 'ABSENT': case 'EXPIRED': case 'ERROR': return 'error';
-    case 'SUBMITTED': case 'REQUESTED': case 'PENDING': case 'RETURNED': case 'LATE': return 'warning';
-    case 'IN_REVIEW': case 'REVIEWING': case 'INTERVIEW': case 'REGISTRATION_OPEN': return 'primary';
+    case 'ACCEPTED': case 'APPROVED': case 'PUBLISHED': case 'COMPLETED': case 'ISSUED': case 'OFFER': case 'PRESENT': case 'ATTENDED': case 'SUCCESS': return 'success';
+    case 'REJECTED': case 'CANCELLED': case 'ABSENT': case 'EXPIRED': case 'ERROR': case 'URGENT': return 'error';
+    case 'SUBMITTED': case 'REQUESTED': case 'PENDING': case 'RETURNED': case 'LATE': case 'WARNING': return 'warning';
+    case 'IN_REVIEW': case 'REVIEWING': case 'INTERVIEW': case 'REGISTRATION_OPEN': case 'INFO': case 'ACADEMIC': return 'primary';
     default: return 'neutral';
   }
 };
 
 export function StatusBadge({ status, copy }: { status: string | undefined; copy: LanesCopy }) {
   if (!status) return null;
-  return <Badge label={copy.statuses[status] ?? status} tone={statusTone(status)} />;
+  return <StatusPill label={copy.notifTypes?.[status] ?? copy.statuses[status] ?? status} tone={statusTone(status)} />;
 }
 
 export interface StatusFilterProps {
@@ -239,18 +240,28 @@ export interface QueueCardProps {
   title: string;
   lines: ReadonlyArray<string | null | undefined>;
   status?: string;
+  count?: number | string;
   copy: LanesCopy;
-  actions?: ReadonlyArray<{ key: string; label: string; onPress: () => void; disabled?: boolean }>;
+  actions?: ReadonlyArray<{
+    key: string;
+    label: string;
+    onPress: () => void;
+    disabled?: boolean;
+    variant?: 'primary' | 'secondary' | 'destructive' | 'text';
+  }>;
   children?: ReactNode;
 }
 
-/** One queue row: title, status, detail lines and the actions the state machine allows. */
-export function QueueCard({ title, lines, status, copy, actions = [], children }: QueueCardProps) {
+/** One queue row: title, status pill, detail lines and clearly separated actions. */
+export function QueueCard({ title, lines, status, count, copy, actions = [], children }: QueueCardProps) {
   return (
     <Card style={styles.card}>
       <View style={styles.cardHead}>
         <UiText accessibilityRole="header" variant="label" style={styles.cardTitle}>{title}</UiText>
-        <StatusBadge status={status} copy={copy} />
+        <View style={styles.cardHeadBadges}>
+          {count !== undefined ? <StatusPill label={String(count)} tone="primary" /> : null}
+          {status ? <StatusPill label={copy.notifTypes?.[status] ?? copy.statuses[status] ?? status} tone={statusTone(status)} /> : null}
+        </View>
       </View>
       {lines.filter(Boolean).map((line, index) => (
         <UiText key={index} variant="bodySmall" tone="muted">{line}</UiText>
@@ -259,11 +270,56 @@ export function QueueCard({ title, lines, status, copy, actions = [], children }
       {actions.length > 0 ? (
         <View style={styles.actions}>
           {actions.map((action) => (
-            <Button key={action.key} label={action.label} variant="secondary" onPress={action.onPress} disabled={action.disabled} />
+            <Button
+              key={action.key}
+              label={action.label}
+              variant={action.variant ?? 'secondary'}
+              onPress={action.onPress}
+              disabled={action.disabled}
+            />
           ))}
         </View>
       ) : null}
     </Card>
+  );
+}
+
+export interface AuditTimelineRowProps {
+  action: string;
+  entityType?: string | null;
+  actorId?: string | null;
+  createdAt?: string | null;
+  copy: LanesCopy;
+  isLast?: boolean;
+}
+
+/** One audit log row rendered as a compact timeline entry. */
+export function AuditTimelineRow({ action, entityType, actorId, createdAt, copy, isLast = false }: AuditTimelineRowProps) {
+  const { colors } = useTheme();
+  const { formatDateTime } = useLocale();
+  return (
+    <View style={laneStyles.timelineItem}>
+      <View style={laneStyles.timelineConnector}>
+        <IconChip icon="history" size={32} tone="neutral" />
+        {!isLast ? <View style={[laneStyles.timelineLine, { backgroundColor: colors.outlineVariant }]} /> : null}
+      </View>
+      <Card style={laneStyles.timelineContent}>
+        <View style={styles.cardHead}>
+          <UiText accessibilityRole="header" variant="label" style={styles.cardTitle}>{action}</UiText>
+          {entityType ? <StatusPill label={entityType} tone="neutral" /> : null}
+        </View>
+        {actorId ? (
+          <UiText variant="bodySmall" tone="muted">
+            {copy.actor}: {String(actorId).slice(0, 8)}
+          </UiText>
+        ) : null}
+        {createdAt ? (
+          <UiText variant="bodySmall" tone="muted">
+            {copy.when}: {formatDateTime(createdAt)}
+          </UiText>
+        ) : null}
+      </Card>
+    </View>
   );
 }
 
@@ -295,11 +351,16 @@ export const laneStyles = StyleSheet.create({
   stack: { gap: tokens.spacing.sm },
   metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, marginBottom: tokens.spacing.md },
   metric: { flexBasis: 140, flexGrow: 1 },
+  timelineItem: { flexDirection: 'row', gap: tokens.spacing.md, marginBottom: tokens.spacing.sm },
+  timelineConnector: { alignItems: 'center', width: 32 },
+  timelineLine: { width: 2, flex: 1, backgroundColor: tokens.colors.outlineVariant, marginTop: 4 },
+  timelineContent: { flex: 1, padding: tokens.spacing.md, gap: tokens.spacing.xs },
 });
 
 const styles = StyleSheet.create({
   card: { gap: tokens.spacing.xs, marginBottom: tokens.spacing.sm, padding: tokens.spacing.md },
   cardHead: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, justifyContent: 'space-between' },
+  cardHeadBadges: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.xs },
   cardTitle: { flex: 1 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, marginTop: tokens.spacing.sm },
   sheetActions: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'flex-end', marginTop: tokens.spacing.md },

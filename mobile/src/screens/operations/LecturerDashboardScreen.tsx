@@ -2,14 +2,16 @@ import { useMemo } from 'react';
 import { View } from 'react-native';
 
 import {
-  Badge,
-  Card,
+  Button,
   Divider,
+  HeroCard,
   ListRow,
-  MetricCard,
   ScreenSpacer,
+  SectionCard,
   SectionHeading,
+  StatStrip,
   StatePanel,
+  StatusPill,
   UiText,
 } from '../../components/Ui';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -44,6 +46,13 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
   const error = preview ? null : schedule.error ?? grading.error;
   const warning = preview ? null : schedule.warning ?? grading.warning;
 
+  const heroTitle = todayClasses.length > 0
+    ? fillCopy(copy.todayClassesCount, { n: todayClasses.length })
+    : copy.noClassToday;
+  const heroDetail = todayClasses.length > 0
+    ? fillCopy(copy.todayClassesDetail, { count: todayClasses.length, students })
+    : fillCopy(copy.studentsCount, { n: students });
+
   return (
     <OpsShell
       title={copy.dashboardTitle}
@@ -56,34 +65,64 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
         <StatePanel kind="empty" title={copy.emptyDashboard} />
       ) : (
         <View>
-          <View style={styles.metrics}>
-            <MetricCard label={copy.metricSections} value={String(sections.length)} style={styles.metric} />
-            <MetricCard label={copy.metricStudents} value={String(students)} style={styles.metric} />
-            <MetricCard label={copy.metricToGrade} value={String(pending)} style={styles.metric} />
-          </View>
-          <SectionHeading title={copy.todayTitle} />
-          {todayClasses.length === 0 ? (
-            <UiText variant="bodySmall" tone="muted">{copy.noClassToday}</UiText>
-          ) : (
-            <Card>
-              {todayClasses.map(({ section, slot }, index) => (
+          <HeroCard
+            icon="school-outline"
+            eyebrow={copy.todayTitle}
+            title={heroTitle}
+            detail={heroDetail}
+          >
+            <Button
+              icon="calendar-clock-outline"
+              label={copy.scheduleTitle}
+              onPress={() => navigation.navigate('lecturer.schedule')}
+              variant="secondary"
+              onBrand
+            />
+          </HeroCard>
+
+          <StatStrip
+            style={styles.stats}
+            items={[
+              { icon: 'book-open-page-variant-outline', label: copy.metricSections, value: String(sections.length) },
+              { icon: 'account-group-outline', label: copy.metricStudents, value: String(students) },
+              { icon: 'clipboard-edit-outline', label: copy.metricToGrade, value: String(pending) },
+            ]}
+          />
+
+          <ScreenSpacer />
+          <SectionCard
+            icon="calendar-clock-outline"
+            title={copy.todayTitle}
+            count={todayClasses.length > 0 ? String(todayClasses.length) : undefined}
+            actionLabel={copy.scheduleTitle}
+            onAction={() => navigation.navigate('lecturer.schedule')}
+          >
+            {todayClasses.length === 0 ? (
+              <UiText variant="bodySmall" tone="muted" style={{ paddingVertical: 12 }}>
+                {copy.noClassToday}
+              </UiText>
+            ) : (
+              todayClasses.map(({ section, slot }, index) => (
                 <View key={`${section.sectionId}-${slot.id ?? index}`}>
                   {index > 0 ? <Divider /> : null}
                   <ListRow
+                    icon="book-open-outline"
                     title={courseTitle(section, locale) || sectionLabel(section, copy, locale)}
                     subtitle={slotText(slot, copy)}
-                    meta={section.courseCode}
+                    trailing={<StatusPill label={section.courseCode ?? section.sectionId} tone="primary" />}
+                    stackedMeta
                   />
                 </View>
-              ))}
-            </Card>
-          )}
+              ))
+            )}
+          </SectionCard>
           <ScreenSpacer />
         </View>
       )}
-      <SectionHeading title={copy.shortcutsTitle} />
-      <Card>
+
+      <SectionCard icon="briefcase-outline" title={copy.shortcutsTitle}>
         <ListRow
+          icon="calendar-month-outline"
           title={copy.scheduleTitle}
           subtitle={fillCopy(copy.studentsCount, { n: students })}
           onPress={() => navigation.navigate('lecturer.schedule')}
@@ -91,18 +130,21 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
         />
         <Divider />
         <ListRow
+          icon="file-document-edit-outline"
           title={copy.gradingTitle}
           subtitle={pending > 0 ? fillCopy(copy.scoresPending, { n: pending }) : copy.allCaughtUp}
           onPress={() => navigation.navigate('lecturer.grading')}
-          trailing={pending > 0 ? <Badge label={String(pending)} tone="warning" /> : <UiText variant="bodyMedium" tone="muted">›</UiText>}
+          trailing={pending > 0 ? <StatusPill label={String(pending)} tone="warning" /> : <UiText variant="bodyMedium" tone="muted">›</UiText>}
         />
         <Divider />
         <ListRow
+          icon="account-check-outline"
           title={copy.attendanceTitle}
           onPress={() => navigation.navigate('lecturer.attendance')}
           trailing={<UiText variant="bodyMedium" tone="muted">›</UiText>}
         />
-      </Card>
+      </SectionCard>
+
       <ScreenSpacer />
       <LaneEntries groups={['dean', 'staff']} navigation={navigation} />
       <SectionHeading title={copy.handoffTitle} />

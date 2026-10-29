@@ -30,6 +30,7 @@ import {
   type NotificationDraft,
 } from './lane-model';
 import {
+  AuditTimelineRow,
   ConfirmSheet,
   LaneShell,
   Pager,
@@ -245,15 +246,14 @@ export function AdminAuditScreen() {
         </>
       }
       renderItem={(row, index) => (
-        <QueueCard
+        <AuditTimelineRow
           key={row.id ?? index}
-          title={String(row.action ?? '')}
+          action={String(row.action ?? '')}
+          entityType={row.entityType}
+          actorId={row.actorId}
+          createdAt={row.createdAt}
           copy={copy}
-          lines={[
-            row.entityType ? `${copy.entity}: ${row.entityType}` : null,
-            row.actorId ? `${copy.actor}: ${String(row.actorId).slice(0, 8)}` : null,
-            row.createdAt ? `${copy.when}: ${formatDateTime(row.createdAt)}` : null,
-          ]}
+          isLast={index === (request.data?.items.length ?? 0) - 1}
         />
       )}
     />
@@ -288,6 +288,7 @@ export function AdminCreditLimitsScreen() {
               key={row.id}
               title={row.studentName ?? row.studentCode ?? row.id}
               status={row.status}
+              count={typeof row.requestedLimit === 'number' ? `${row.requestedLimit} tín` : undefined}
               copy={copy}
               lines={[
                 row.studentCode,
@@ -298,8 +299,8 @@ export function AdminCreditLimitsScreen() {
                 row.reviewerNote,
               ]}
               actions={row.status === 'PENDING' ? [
-                { key: 'approve', label: copy.approve, onPress: () => runner.request(review(row, 'APPROVED')) },
-                { key: 'reject', label: copy.reject, onPress: () => runner.request(review(row, 'REJECTED')) },
+                { key: 'approve', label: copy.approve, variant: 'primary', onPress: () => runner.request(review(row, 'APPROVED')) },
+                { key: 'reject', label: copy.reject, variant: 'destructive', onPress: () => runner.request(review(row, 'REJECTED')) },
               ] : []}
             />
           ))}
@@ -360,8 +361,8 @@ function EventRoster({ event, copy, onBack }: { event: StaffEvent; copy: LanesCo
                 copy={copy}
                 lines={[row.email]}
                 actions={markable && attended && absent ? [
-                  { key: 'attended', label: copy.markAttended, onPress: () => runner.request(attended) },
-                  { key: 'absent', label: copy.markAbsent, onPress: () => runner.request(absent) },
+                  { key: 'attended', label: copy.markAttended, variant: 'primary', onPress: () => runner.request(attended) },
+                  { key: 'absent', label: copy.markAbsent, variant: 'destructive', onPress: () => runner.request(absent) },
                 ] : []}
               />
             );
@@ -401,6 +402,7 @@ export function AdminEventsScreen() {
               key={event.id}
               title={event.title ?? event.id}
               status={event.status}
+              count={event.registeredCount !== undefined ? `${event.registeredCount}${event.capacity ? `/${event.capacity}` : ''}` : undefined}
               copy={copy}
               lines={[
                 event.startsAt ? formatDateTime(event.startsAt) : null,
@@ -408,8 +410,13 @@ export function AdminEventsScreen() {
                 typeof event.capacity === 'number' ? fillCopy(copy.registered, { n: event.registeredCount ?? 0, cap: event.capacity }) : null,
               ]}
               actions={[
-                { key: 'detail', label: copy.eventDetail, onPress: () => setSelected(event) },
-                ...eventActions(event.status).map((action) => ({ key: action, label: EVENT_LABEL(copy, action), onPress: () => runner.request(act(event, action)) })),
+                { key: 'detail', label: copy.eventDetail, variant: 'secondary', onPress: () => setSelected(event) },
+                ...eventActions(event.status).map((action) => ({
+                  key: action,
+                  label: EVENT_LABEL(copy, action),
+                  variant: action === 'cancel' ? ('destructive' as const) : action === 'publish' ? ('primary' as const) : ('secondary' as const),
+                  onPress: () => runner.request(act(event, action)),
+                })),
               ]}
             />
           ))}
@@ -528,6 +535,7 @@ export function AdminNotificationsScreen() {
             <QueueCard
               key={row.id ?? index}
               title={row.title ?? ''}
+              status={row.type}
               copy={copy}
               lines={[row.type ? copy.notifTypes[row.type] ?? row.type : null, row.createdAt ? formatDateTime(row.createdAt) : null]}
             />

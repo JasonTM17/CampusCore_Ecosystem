@@ -1,14 +1,29 @@
 import { View } from 'react-native';
 
-import { Card, Divider, ListRow, MetricCard, SectionHeading, UiText } from '../../components/Ui';
+import {
+  Card,
+  Divider,
+  ListRow,
+  ScreenSpacer,
+  SectionCard,
+  StatStrip,
+  UiText,
+} from '../../components/Ui';
 import { ChartSummary } from '../../components/ui/chart-summary';
 import { useLocale } from '../../i18n/locale-provider';
 import type { MobileScreenProps } from '../../navigation/types';
 import type { LaneScreenId } from '../../navigation/routes';
 import { laneApi } from './lane-api';
-import { LaneShell, laneStyles, useLaneRequest, useLanesCopy } from './lane-ui';
+import { LaneShell, useLaneRequest, useLanesCopy } from './lane-ui';
 
-const DETAIL_LANES: readonly LaneScreenId[] = ['admin.attendance', 'admin.enrollments', 'admin.creditLimits', 'admin.events', 'admin.notifications', 'admin.audit'];
+const DETAIL_LANES: readonly { id: LaneScreenId; icon: string }[] = [
+  { id: 'admin.attendance', icon: 'calendar-check-outline' },
+  { id: 'admin.enrollments', icon: 'clipboard-list-outline' },
+  { id: 'admin.creditLimits', icon: 'credit-card-plus-outline' },
+  { id: 'admin.events', icon: 'calendar-star-outline' },
+  { id: 'admin.notifications', icon: 'bell-outline' },
+  { id: 'admin.audit', icon: 'history' },
+];
 
 /** Read-only oversight from the existing analytics endpoint; charts carry a text alternative. */
 export function AdminOverviewScreen({ navigation }: MobileScreenProps) {
@@ -18,13 +33,21 @@ export function AdminOverviewScreen({ navigation }: MobileScreenProps) {
   const data = overview.data;
 
   return (
-    <LaneShell title={copy.titles['admin.overview']} loading={overview.loading} error={overview.error} onRetry={() => void overview.reload()}>
+    <LaneShell
+      title={copy.titles['admin.overview']}
+      loading={overview.loading}
+      error={overview.error}
+      onRetry={() => void overview.reload()}
+    >
       <View>
-        <View style={laneStyles.metrics}>
-          <MetricCard label={copy.adminTotals} value={formatNumber(data?.totals?.total ?? 0)} style={laneStyles.metric} />
-          <MetricCard label={copy.adminUp} value={formatNumber(data?.totals?.up ?? 0)} style={laneStyles.metric} />
-          <MetricCard label={copy.adminDown} value={formatNumber(data?.totals?.down ?? 0)} style={laneStyles.metric} />
-        </View>
+        <StatStrip
+          items={[
+            { icon: 'account-group-outline', label: copy.adminTotals, value: formatNumber(data?.totals?.total ?? 0) },
+            { icon: 'arrow-up-circle-outline', label: copy.adminUp, value: formatNumber(data?.totals?.up ?? 0) },
+            { icon: 'arrow-down-circle-outline', label: copy.adminDown, value: formatNumber(data?.totals?.down ?? 0) },
+          ]}
+        />
+        <ScreenSpacer />
         <ChartSummary
           title={copy.adminChartTitle}
           series={(data?.gradeDistribution ?? []).map((row) => ({ label: row.grade ?? '', value: row.count ?? 0 }))}
@@ -39,19 +62,20 @@ export function AdminOverviewScreen({ navigation }: MobileScreenProps) {
           unit="%"
           series={(data?.semesterTrends ?? []).map((row) => ({ label: row.semester ?? '', value: row.completionRate ?? 0 }))}
         />
-        <SectionHeading title={copy.adminShortcuts} />
-        <Card>
-          {DETAIL_LANES.map((id, index) => (
+        <ScreenSpacer />
+        <SectionCard icon="tune-vertical-variant" title={copy.adminShortcuts}>
+          {DETAIL_LANES.map(({ id, icon }, index) => (
             <View key={id}>
               {index > 0 ? <Divider /> : null}
               <ListRow
+                icon={icon as never}
                 title={copy.titles[id]}
                 onPress={() => navigation.navigateLane?.(id)}
                 trailing={<UiText variant="bodyMedium" tone="muted">›</UiText>}
               />
             </View>
           ))}
-        </Card>
+        </SectionCard>
       </View>
     </LaneShell>
   );
