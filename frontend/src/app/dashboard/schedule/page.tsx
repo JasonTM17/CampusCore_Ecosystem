@@ -123,18 +123,14 @@ export default function SchedulePage() {
     try {
       await fetchSemesters();
     } catch {
-      setError(
-        locale === 'vi'
-          ? 'Hiện chưa thể tải bộ lọc thời khóa biểu.'
-          : 'Schedule filters could not be loaded.',
-      );
+      setError(messages.schedule.studentFiltersLoadFailed);
     } finally {
       // Always settle: when semesters were already loaded the enrollments
       // effect does not re-run, so this is the only place that can clear
       // the spinner on that path.
       setIsLoading(false);
     }
-  }, [fetchSemesters, locale]);
+  }, [fetchSemesters, messages]);
 
   // The JWT user.studentId is the opaque profile PK, not the MSSV — the real
   // code rides on each enrollment's Student record (student.studentId is the
@@ -174,11 +170,7 @@ export default function SchedulePage() {
         }
       } catch {
         if (!cancelled) {
-          setError(
-            locale === 'vi'
-              ? 'Hiện chưa thể tải dữ liệu thời khóa biểu.'
-              : 'Schedule data could not be loaded.',
-          );
+          setError(messages.schedule.studentDataLoadFailed);
         }
       } finally {
         if (!cancelled) {
@@ -191,7 +183,7 @@ export default function SchedulePage() {
     return () => {
       cancelled = true;
     };
-  }, [hasAccess, locale, selectedSemester, semestersLoaded, retryTick]);
+  }, [hasAccess, messages, selectedSemester, semestersLoaded, retryTick]);
 
   /** Projects active enrollments into sorted weekday meeting cards for the selected term. */
   const agenda = useMemo(() => {
@@ -276,11 +268,11 @@ export default function SchedulePage() {
       getLocalizedName(
         locale,
         semesters.find((semester) => semester.id === selectedSemester),
-        locale === 'vi' ? 'tất cả học kỳ' : 'all terms',
+        messages.schedule.studentAllSemestersFallback,
       ) ??
-      (locale === 'vi' ? 'tất cả học kỳ' : 'all terms')
+      messages.schedule.studentAllSemestersFallback
     );
-  }, [locale, selectedSemester, semesters]);
+  }, [locale, messages, selectedSemester, semesters]);
 
   const handlePrint = () => {
     window.print();
@@ -501,24 +493,20 @@ export default function SchedulePage() {
           {/* Printable Official Institutional Header */}
           <div className="hidden print:block mb-6 border-b-2 border-primary/40 pb-4 text-center">
             <div className="text-xs uppercase font-bold tracking-wider text-muted-foreground">
-              {locale === 'vi'
-                ? 'TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM'
-                : 'HO CHI MINH CITY UNIVERSITY OF TECHNOLOGY AND ENGINEERING'}
+              {messages.schedule.printUniversity}
             </div>
             <div className="text-sm font-extrabold text-foreground">
-              {locale === 'vi'
-                ? 'PHÒNG ĐÀO TẠO — HỆ THỐNG QUẢN LÝ ĐÀO TẠO CAMPUSUTE'
-                : 'ACADEMIC AFFAIRS OFFICE — CAMPUSUTE SYSTEM'}
+              {messages.schedule.printOffice}
             </div>
             <h1 className="text-xl font-black text-primary mt-2 uppercase tracking-wide">
-              {locale === 'vi' ? 'THỜI KHÓA BIỂU HỌC KỲ' : 'OFFICIAL SEMESTER TIMETABLE'}
+              {messages.schedule.printStudentTitle}
             </h1>
             <div className="flex flex-wrap justify-center gap-6 mt-3 text-xs text-foreground font-medium">
-              <span><strong>{locale === 'vi' ? 'Học kỳ:' : 'Semester:'}</strong> {selectedSemesterName}</span>
+              <span><strong>{messages.schedule.printSemesterLabel}</strong> {selectedSemesterName}</span>
               {user ? (
                 <>
-                  <span><strong>{locale === 'vi' ? 'Sinh viên:' : 'Student:'}</strong> {user.lastName} {user.firstName}</span>
-                  <span><strong>{locale === 'vi' ? 'MSSV:' : 'Student ID:'}</strong> {displayLabel(printableStudentCode)}</span>
+                  <span><strong>{messages.schedule.printStudentLabel}</strong> {user.lastName} {user.firstName}</span>
+                  <span><strong>{messages.schedule.printStudentIdLabel}</strong> {displayLabel(printableStudentCode)}</span>
                 </>
               ) : null}
               <span><strong>{copy.totalCourses}:</strong> {uniqueCoursesCount}</span>
@@ -532,7 +520,7 @@ export default function SchedulePage() {
             {/* View Mode Tabs */}
             <div
               role="tablist"
-              aria-label={locale === 'vi' ? 'Chế độ xem thời khóa biểu' : 'Schedule view mode'}
+              aria-label={messages.schedule.studentViewModeLabel}
               className="flex items-center gap-1 rounded-lg bg-secondary/60 p-1"
             >
               <Button
@@ -756,7 +744,7 @@ export default function SchedulePage() {
                               <div className="flex items-center gap-2">
                                 <MapPin className="h-3.5 w-3.5 text-primary" />
                                 <span className="font-medium text-foreground">
-                                  {locale === 'vi' ? 'Phòng' : 'Room'}: {item.building ? `${item.building}-` : ''}
+                                  {messages.schedule.roomLabel}: {item.building ? `${item.building}-` : ''}
                                   {item.roomNumber}
                                 </span>
                               </div>
