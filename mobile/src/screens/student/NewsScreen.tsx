@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 
 import { Card, UiText } from '../../components/Ui';
 import { FilterChip, StatusPill } from '../../components/ui/index';
@@ -18,11 +19,12 @@ import { usePagedList } from '../content/use-paged-list';
 const PRIORITIES = ['URGENT', 'HIGH', 'NORMAL', 'LOW'];
 
 /** Public campus news: paged feed, priority filter and a detail view. */
-export function NewsScreen(_props: MobileScreenProps) {
+export const NewsScreen = memo(function NewsScreen(_props: MobileScreenProps) {
   const { locale, formatDate } = useContentCopy();
   const copy = campusMessages[locale];
   const categoryLabels = copy.newsCategoryLabels as Readonly<Record<string, string>>;
-  const [selected, setSelected] = useState<string | null>(null);
+  const params = useLocalSearchParams<{ focus?: string }>();
+  const [selected, setSelected] = useState<string | null>(() => (typeof params.focus === 'string' ? params.focus : null));
   const [filter, setFilter] = useState<{ priority?: string[] }>({});
   const priorities = filter.priority ?? [];
 
@@ -98,7 +100,7 @@ export function NewsScreen(_props: MobileScreenProps) {
       />
     </>
   );
-}
+});
 
 const styles = StyleSheet.create({
   row: { minHeight: tokens.layout.touchTarget },

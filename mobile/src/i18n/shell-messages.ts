@@ -98,6 +98,15 @@ const vi = {
     roomTba: 'Chưa xếp',
     room: 'Phòng {room}',
   },
+  guest: {
+    newsEyebrow: 'TẠP CHÍ & BẢN TIN ĐẠI HỌC',
+    newsTitle: 'Nhịp Sống Học Thuật & Sáng Tạo HCMUTE',
+    seeAll: 'Xem tất cả thông báo',
+    readArticle: 'Đọc bài',
+    empty: 'Chưa có bài viết',
+    loading: 'Đang tải…',
+    retry: 'Thử lại',
+  },
 };
 
 type ShellCopy = typeof vi;
@@ -197,6 +206,15 @@ const en: ShellCopy = {
     schedulePending: 'Schedule pending',
     roomTba: 'TBA',
     room: 'Room {room}',
+  },
+  guest: {
+    newsEyebrow: 'CAMPUS PRESS & MAGAZINE',
+    newsTitle: 'HCMUTE Academic Life & Innovation',
+    seeAll: 'View all announcements',
+    readArticle: 'Read article',
+    empty: 'No articles yet',
+    loading: 'Loading…',
+    retry: 'Try again',
   },
 };
 
