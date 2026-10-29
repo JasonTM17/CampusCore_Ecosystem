@@ -14,6 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
+import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
+import { campusErrorKind } from '@/lib/campus-error';
 import { statusToneClass, type StatusTone } from '@/components/ui/status';
 import { admissionsMessages } from '@/i18n/admissions-messages';
 import { useI18n } from '@/i18n';
@@ -96,6 +98,9 @@ export function AdmissionsApplyPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+  // A 401/403 on the my-applications read is a denial, not an outage — show
+  // the forbidden state instead of a retryable error.
+  const [denied, setDenied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const selected = applications.find((application) => application.id === selectedId) ?? null;
@@ -103,12 +108,18 @@ export function AdmissionsApplyPage() {
   const load = useCallback(async () => {
     setIsLoading(true);
     setError('');
+    setDenied(false);
     try {
       const rows = await admissionsApi.myApplications();
       setApplications(rows);
       setSelectedId((current) => (rows.some((row) => row.id === current) ? current : rows[0]?.id ?? ''));
     } catch (cause) {
-      setError(friendlyError(copy, cause));
+      const kind = campusErrorKind(cause);
+      if (kind === 'forbidden' || kind === 'unauthorized') {
+        setDenied(true);
+      } else {
+        setError(friendlyError(copy, cause));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -243,10 +254,11 @@ export function AdmissionsApplyPage() {
         {copy.simulatedBanner}
       </div>
 
-      {error ? <div className="mt-4"><ErrorState title={copy.failed} description={error} /></div> : null}
+      {error ? <div className="mt-4"><ErrorState title={copy.failed} description={error} onRetry={() => void load()} /></div> : null}
+      {denied ? <div className="mt-8"><WorkspaceForbiddenState /></div> : null}
       {isLoading ? <div className="mt-8"><LoadingState label={copy.loading} /></div> : null}
 
-      {!isLoading && (
+      {!isLoading && !error && !denied && (
         <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_360px]">
           <section className="space-y-4">
             <h2 className="text-lg font-semibold">{copy.myApplications}</h2>

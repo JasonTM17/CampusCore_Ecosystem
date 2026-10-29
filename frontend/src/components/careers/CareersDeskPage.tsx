@@ -13,7 +13,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
-import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
+import { EmptyState, ErrorState, ForbiddenState, LoadingState } from '@/components/ui/state-block';
+import { LinkButton } from '@/components/ui/link-button';
+import { campusErrorKind } from '@/lib/campus-error';
 import { statusToneClass, type StatusTone } from '@/components/ui/status';
 import { careerMessages } from '@/i18n/careers-messages';
 import { useI18n } from '@/i18n';
@@ -60,7 +62,7 @@ function errorCode(error: unknown): string {
  */
 export function CareersDeskPage() {
   const { isLoading: authLoading } = useRequireAuth();
-  const { locale, formatDateTime } = useI18n();
+  const { locale, formatDateTime, messages } = useI18n();
   const copy = careerMessages[locale];
   const [organizations, setOrganizations] = useState<CareerOrganization[]>([]);
   const [opportunities, setOpportunities] = useState<CareerOpportunity[]>([]);
@@ -74,10 +76,14 @@ export function CareersDeskPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState('');
+  // Staff/reviewer denials get a forbidden state with a way back rather than
+  // being read as a transient failure.
+  const [denied, setDenied] = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
     setError('');
+    setDenied(false);
     let recruiter = false;
     let reviewer = false;
     try {
@@ -107,8 +113,10 @@ export function CareersDeskPage() {
       }
     } catch (cause) {
       const code = errorCode(cause);
-      if (code === 'CAREERS_STAFF_REQUIRED' || code === 'CAREERS_REVIEWER_REQUIRED') {
-        setError(copy.staffRequired);
+      const kind = campusErrorKind(cause);
+      if (code === 'CAREERS_STAFF_REQUIRED' || code === 'CAREERS_REVIEWER_REQUIRED'
+        || kind === 'forbidden' || kind === 'unauthorized') {
+        setDenied(true);
       } else {
         setError(copy.failed);
       }
@@ -165,12 +173,21 @@ export function CareersDeskPage() {
         {copy.simulatedBanner}
       </p>
 
-      {error ? <ErrorState title={copy.failed} description={error} /> : null}
-      {isLoading ? <LoadingState /> : null}
-
-      {!isLoading && !error && !isRecruiter && !isReviewer ? (
-        <ErrorState title={copy.staffRequired} description={copy.reviewerRequired} />
+      {denied || (!isLoading && !error && !isRecruiter && !isReviewer) ? (
+        <ForbiddenState
+          title={copy.staffRequired}
+          description={copy.reviewerRequired}
+          action={(
+            <LinkButton href="/dashboard" variant="outline">
+              {messages.common.actions.openDashboard}
+            </LinkButton>
+          )}
+        />
       ) : null}
+      {error ? (
+        <ErrorState title={copy.failed} description={error} onRetry={() => void load()} />
+      ) : null}
+      {isLoading ? <LoadingState /> : null}
 
       {!isLoading && isRecruiter ? (
         <>
