@@ -180,8 +180,13 @@ public class LibraryPatronService {
     @Transactional
     public LoanRequestResponse cancel(String borrowerId, String requestId,
             Integer expectedVersion, String reason, String idempotencyKey) {
+        // Canonicalize once before hashing: an omitted reason and the explicit
+        // default hash alike; a changed reason — or a key claimed before the
+        // reason bound the fingerprint — conflicts instead of replaying.
+        String normalizedReason = reason == null || reason.isBlank()
+                ? "BORROWER_CANCELLED" : reason;
         Map<String, Object> claimed = claimIdempotency(borrowerId, idempotencyKey,
-                "cancel:" + requestId + ":" + expectedVersion);
+                "cancel:" + requestId + ":" + expectedVersion + ":" + normalizedReason);
         if (claimed != null) {
             return replayResponse(claimed);
         }
@@ -201,13 +206,13 @@ public class LibraryPatronService {
                         + " WHERE \"id\" = :id AND \"status\" IN ('REQUESTED','APPROVED')",
                 new MapSqlParameterSource("id", requestId)
                         .addValue("actor", borrowerId)
-                        .addValue("reason", reason == null || reason.isBlank()
-                                ? "BORROWER_CANCELLED" : reason));
+                        .addValue("reason", normalizedReason));
         if (updated == 0) {
             throw problem(HttpStatus.CONFLICT, "REQUEST_STATE_INVALID",
                     "An issued loan cannot be cancelled — it must be returned at the desk");
         }
-        staff.audit("REQUEST", requestId, borrowerId, "CANCELLED", status, "CANCELLED", reason);
+        staff.audit("REQUEST", requestId, borrowerId, "CANCELLED", status, "CANCELLED",
+                normalizedReason);
         freeCopyIfUnheld(String.valueOf(loan.get("copyId")));
         LoanRequestResponse response = myLoan(borrowerId, requestId);
         completeIdempotency(borrowerId, idempotencyKey, requestId, response);
