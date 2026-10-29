@@ -245,3 +245,90 @@ serial and adapt swipe bounds; do not operate the concurrently connected phone.
 Use the same native configuration, seeded dataset and host load for both revisions.
 Native release measurements and final emulator restoration are recorded in the
 execution ledger. No commit/push/CI/release publication was performed.
+
+## Real device (SM-A057F)
+
+P4, 2026-10-29: **DONE_WITH_CONCERNS**. A05s, Android 15, arm64-v8a,
+1080×2400, existing font scale 1.0/light scheme. Display reports 90 Hz; system
+settings were unchanged. Source: `3837c1e3425c8f8898392456daa30cab7c3d4186`.
+Mobile source/config/package hashes still matched the build snapshot after
+journeys/performance at 17:04. Unrelated source edits appeared at final handoff;
+these results bind the packaged APK, not the later dirty working tree.
+Detailed journeys and defects: [P4 report](../../plans/reports/test-261029-1637-p4-real-android.md).
+
+Fresh Expo prebuild and arm64 release build/install passed. Packaged Hermes,
+preview mode, non-debuggable release variant signed with the generated debug key;
+this is a local verification APK, not a distribution signing claim.
+APK: **46,130,247 B (43.99 MiB)**, SHA-256
+`d620c30e4f00e5ddac144a9be99be2e2162b61e00b19c62cb3aeb3fe060cc61f`.
+Native document-picker/file-system/sharing modules were linked; their actual file
+operations remain NOT_RUN because preview hides upload controls and public docs
+have no download/share control. Release `run-as` was denied.
+
+Commands, from `mobile/`, then `mobile/android/`:
+
+```powershell
+$env:JAVA_TOOL_OPTIONS='--enable-native-access=ALL-UNNAMED'
+$env:EXPO_PUBLIC_API_MODE='preview'
+$env:NODE_ENV='production'
+npx expo prebuild --platform android --no-install
+# Apply the local generated-only Windows path repair described below.
+cd android
+.\gradlew.bat :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --console=plain
+adb -s <serial> install -r app/build/outputs/apk/release/app-release.apk
+.\gradlew.bat --stop
+```
+
+SDK was already installed under `D:/Android/Sdk`; the requested LOCALAPPDATA SDK
+location was absent. Incomplete ignored dependencies first required
+`npm ci --ignore-scripts --no-audit --no-fund`; package/lockfile stayed unchanged.
+Initial native build failed on a gesture-handler object path over 260 characters.
+The first local `CMAKE_OBJECT_PATH_MAX=128` workaround also failed. Successful
+repair, only in ignored `android/app/build.gradle`: defaultConfig CMake argument
+`-DCMAKE_OBJECT_PATH_MAX=256`, plus `android.externalNativeBuild.cmake`
+`buildStagingDirectory file("../c")`. Fresh prebuild replaces this local repair.
+Successful final build: 2m47s, 532 tasks, 114 executed/418 up-to-date.
+
+Warnings: missing `expo-system-ui` for `userInterfaceStyle`; deprecated Gradle
+features incompatible with Gradle 10; dependency Java/Kotlin/C++ deprecations;
+ignored NO_COLOR under FORCE_COLOR. The initial NODE_ENV warning was resolved
+by setting production on the successful build. Dependency restoration also
+reported the existing test-renderer/react-reconciler React peer mismatch and
+deprecated transitive packages. No app-source fixes or dependency additions.
+
+Five process-cold `am force-stop` / `am start -W -n
+io.campuscore.mobile/.MainActivity` launches: **892/602/473/600/518 ms**;
+median **600 ms**. Activity display only; full JS interactive time remains
+NOT_RUN. A preliminary locked-device launch was excluded. This is after-only,
+not a controlled before/after comparison with P1's emulator.
+
+Each list: validated route XML and screenshot, gfxinfo reset, 20 alternating
+350 ms swipes at x=540, y=1900↔700, then framestats. Preview record counts:
+notifications 3, news 2, docs 1, events 2. Raw evidence:
+`artifacts/verification/mobile-parity/p16/p4/`; screenshots: `device-*.png`
+in its parent. Percentiles below are Android gfxinfo histogram values.
+
+| Metric / feed | Observed | Budget comparison / limit |
+|---|---|---|
+| Median Activity cold start | 600 ms, 5 runs | Below 2500 ms reference; PASS for Activity display only |
+| Notifications | 965 frames; 17 janky, 1.76%; p90/p95/p99 25/26/29 ms | Observed below 5% / 32 ms; sustained-scroll gate NOT_RUN (<1000 frames, tiny preview dataset) |
+| News | 0 frames | N/A; 4950 ms sentinel percentiles discarded |
+| Docs | 0 frames | N/A; 4950 ms sentinel percentiles discarded |
+| Events | 880 frames; 1 janky, 0.11%; p90/p95/p99 23/24/25 ms | Observed below 5% / 32 ms; sustained-scroll gate NOT_RUN (<1000 frames, tiny preview dataset) |
+| TOTAL PSS | 194,262 KiB = 189.7 MiB | After >2 min active navigation; no PSS budget specified in this document |
+| Interactive dashboard / bytecode growth | NOT_RUN | No app readiness trace marker / matched physical-device baseline |
+
+Memory was sampled at 16:58:11, over two minutes after the 16:55:59 schedule
+capture, with uninterrupted preview navigation between them. Display was 90 Hz;
+the existing 60 Hz frame budget is a reference, not matched-hardware proof.
+Long seeded list smoothness remains open. No emulator measurements were rerun.
+
+Device acceptance found two low-severity UI defects: raw `preview-term` grades
+heading, and clipped Vietnamese profile preview badge. No redesign/fixes made.
+Preview chat, guest article, dashboard, schedule, notifications, content lists,
+document detail and VI↔EN switching were observed. Dark mode, font 1.3 and rotation
+remain NOT_RUN: the no-system-settings rule was retained and no exception arrived.
+Live authentication/file transfers need an explicitly authorized synthetic demo
+login policy and reachable demo API; the protected demo-acceptance doc contains
+no mobile demo login authorization. Push tap-through remains NOT_RUN without a
+real FCM project/build configuration and registered device token.
