@@ -196,7 +196,7 @@ public class PublicDocumentService {
         if (documents.submitHead(id, head.revision()) != 1) {
             throw conflict("DOCUMENT_STATE_CONFLICT", "Document was changed by another writer");
         }
-        documents.markDocInReviewIfNeverPublished(id, now);
+        documents.markDocInReviewIfDraft(id, now);
         DocumentResponse after = requireDocument(id);
         appendAudit("SUBMITTED", actor, label, "Submitted for review",
                 toResponse(before, head, null), after, head.revision(), now);
@@ -252,7 +252,7 @@ public class PublicDocumentService {
         if (documents.returnHead(id, head.revision(), actor, note, now) != 1) {
             throw conflict("DOCUMENT_STATE_CONFLICT", "Document was changed by another writer");
         }
-        documents.markDocDraftIfNeverPublished(id, now);
+        documents.markDocDraftIfInReview(id, now);
         DocumentResponse after = requireDocument(id);
         appendAudit("RETURNED", actor, label, note,
                 toResponse(before, head, null), after, head.revision(), now);

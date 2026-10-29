@@ -210,11 +210,15 @@ public class PublicDocumentRepository {
                         .addValue("rev", revision));
     }
 
-    /** On a never-published doc, submit also moves the shell to IN_REVIEW. */
-    public void markDocInReviewIfNeverPublished(String documentId, Instant now) {
+    /**
+     * Submit also lifts a non-public (DRAFT) shell to IN_REVIEW. A live shell
+     * stays PUBLISHED so the served publishedRevision is never interrupted,
+     * and a retained history publishedRevision does not block the transition.
+     */
+    public void markDocInReviewIfDraft(String documentId, Instant now) {
         jdbc.update(
                 "UPDATE " + DOC + " SET \"status\" = 'IN_REVIEW', \"updatedAt\" = :now"
-                        + " WHERE \"id\" = :id AND \"status\" = 'DRAFT' AND \"publishedRevision\" IS NULL",
+                        + " WHERE \"id\" = :id AND \"status\" = 'DRAFT'",
                 new MapSqlParameterSource()
                         .addValue("id", documentId)
                         .addValue("now", instant(now)));
@@ -266,11 +270,14 @@ public class PublicDocumentRepository {
                         .addValue("note", note));
     }
 
-    /** A returned never-published doc's shell drops back to DRAFT. */
-    public void markDocDraftIfNeverPublished(String documentId, Instant now) {
+    /**
+     * A returned head drops a non-public (IN_REVIEW) shell back to DRAFT. A
+     * live shell stays PUBLISHED so its served revision is never interrupted.
+     */
+    public void markDocDraftIfInReview(String documentId, Instant now) {
         jdbc.update(
                 "UPDATE " + DOC + " SET \"status\" = 'DRAFT', \"updatedAt\" = :now"
-                        + " WHERE \"id\" = :id AND \"status\" = 'IN_REVIEW' AND \"publishedRevision\" IS NULL",
+                        + " WHERE \"id\" = :id AND \"status\" = 'IN_REVIEW'",
                 new MapSqlParameterSource()
                         .addValue("id", documentId)
                         .addValue("now", instant(now)));
@@ -285,11 +292,19 @@ public class PublicDocumentRepository {
                         .addValue("now", instant(now)));
     }
 
-    /** Restore lands DRAFT — publishedRevision stays as history (policy §5). */
+    /**
+     * Restore never resurrects publishedRevision — it stays history and the
+     * doc needs a fresh approval to go public again. A head still under
+     * review lands IN_REVIEW so the queue sees it; anything else lands
+     * DRAFT (policy §5).
+     */
     public int restore(String documentId, Instant now) {
         return jdbc.update(
-                "UPDATE " + DOC + " SET \"status\" = 'DRAFT', \"updatedAt\" = :now"
-                        + " WHERE \"id\" = :id AND \"status\" = 'ARCHIVED'",
+                "UPDATE " + DOC + " d SET \"status\" = CASE WHEN EXISTS ("
+                        + "SELECT 1 FROM " + REV + " rev WHERE rev.\"documentId\" = d.\"id\""
+                        + " AND rev.\"revision\" = d.\"currentRevision\" AND rev.\"state\" = 'IN_REVIEW')"
+                        + " THEN 'IN_REVIEW' ELSE 'DRAFT' END, \"updatedAt\" = :now"
+                        + " WHERE d.\"id\" = :id AND d.\"status\" = 'ARCHIVED'",
                 new MapSqlParameterSource()
                         .addValue("id", documentId)
                         .addValue("now", instant(now)));
@@ -328,7 +343,7 @@ public class PublicDocumentRepository {
                         + " JOIN " + REV + " rev ON rev.\"documentId\" = d.\"id\""
                         + " AND rev.\"revision\" = d.\"publishedRevision\""
                         + where.sql()
-                        + " ORDER BY rev.\"createdAt\" DESC, d.\"slug\" DESC LIMIT :limit OFFSET :offset",
+                        + " ORDER BY rev.\"reviewedAt\" DESC, d.\"slug\" DESC LIMIT :limit OFFSET :offset",
                 where.parameters(),
                 PUBLIC_LIST_MAPPER);
     }
@@ -486,7 +501,7 @@ public class PublicDocumentRepository {
     private static final String PUBLIC_COLUMNS = """
             d."id" AS "documentId", d."slug", d."categoryId", d."publishedRevision",
             rev."revision", rev."titleVi", rev."titleEn", rev."summaryVi", rev."summaryEn",
-            rev."createdAt" AS "publishedAt"
+            rev."reviewedAt" AS "publishedAt"
             """;
 
     private static final String ATT_COLUMNS = """
