@@ -131,7 +131,8 @@ public class IdentitySecurityConfig {
                                 properties.getOidc().getLoginPage())))
                 .addFilterAfter(
                         new IdentityAccountGateFilter(users, errorWriter,
-                                properties.getOidc().isAuthorizePaused()),
+                                properties.getOidc().isAuthorizePaused(),
+                                properties.getOidc().getLoginPage()),
                         BearerTokenAuthenticationFilter.class);
         return http.build();
     }
@@ -377,8 +378,9 @@ public class IdentitySecurityConfig {
     }
 
     /** Unauthenticated authorize requests bounce to the login page contract. */
-    private static void redirectToLogin(jakarta.servlet.http.HttpServletRequest request,
+    static void redirectToLogin(jakarta.servlet.http.HttpServletRequest request,
             HttpServletResponse response, String loginPage) throws IOException {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
         String target = request.getRequestURI()
                 + (request.getQueryString() != null ? "?" + request.getQueryString() : "");
         response.sendRedirect(loginPage + "?return="

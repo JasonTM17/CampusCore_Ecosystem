@@ -126,7 +126,11 @@ Thứ tự global: **User → Session → oauth2_authorization**.
 
 `AccountStateFilter` chỉ chạy `/api/v1/*`. SAS chain thêm
 `IdentityAccountGateFilter` (sau authentication): principal authenticated →
-load `findAccountAuthorization` → `status != ACTIVE` → 403 JSON;
+load `findAccountAuthorization` → account missing / `status != ACTIVE`:
+authorize → redirect login nội bộ; user paths khác giữ 401/403 JSON.
+Code-stage save từ chối credential revision cũ (kể cả revoke sau account gate)
+→ SAS endpoint-specific `login_required`, chỉ redirect về exact registered URI,
+không trả error description nội bộ. Protocol validation errors giữ SAS handler.
 `mustChangePassword` → 403 `PASSWORD_CHANGE_REQUIRED` trên mọi `/oauth2/*`
 (không rotation allowlist — SSO authorize không là đường vòng rotate).
 `/oauth2/jwks` + discovery public → filter skip. Fail-closed 503 giống C5.
@@ -242,7 +246,7 @@ commit sau thắng deterministic. Phân biệt hai trường hợp authorize đa
 | Case | Test | Lane |
 | --- | --- | --- |
 | Protocol negatives | wrong `iss`/`aud` token → 401; reused code → invalid_grant; PKCE verifier sai → invalid_grant; state mismatch → error; **id_token chứa đúng nonce của request** (server embed, client verify — sửa chủ thể theo KM 15); callback ngoài exact list → authorize error | `EcosystemIdentityContractTest` MockMvc |
-| Disabled/must-change | `status != ACTIVE` → authorize + token reject; `mustChangePassword` → authorize 403 `PASSWORD_CHANGE_REQUIRED`; OIDC access trên `/api/v1/*` qua `AccountStateFilter` như legacy | contract test |
+| Disabled/must-change/stale | missing/inactive account → authorize login redirect; stale credential revision → registered callback `login_required`, không 500; token reject; `mustChangePassword` → authorize 403 `PASSWORD_CHANGE_REQUIRED`; OIDC access trên `/api/v1/*` qua `AccountStateFilter` như legacy | contract test + `MobileOidcTwoFactorFlowTest` |
 | Key rollover | JWKS ≥2 kid; token kid cũ verify trong overlap; active đổi → token mới kid mới | contract test |
 | Replay bridge | legacy replay → Session mọi lane + `oauth2_authorization` principal đó đều mất + credentialVersion+1; OIDC refresh reuse → legacy sessions mất; **OIDC refresh in-flight ‖ revokeAccount → không hồi sinh** (KM 2 test) | `UnifiedSessionRevocationPostgresIT` |
 | Race | concurrent refresh cùng session (serialize, không deadlock); logout‖refresh; password‖refresh; lock order User→Session→authz vi phạm = deadlock được phát hiện | PostgresIT pattern `AuthSessionLockOrderingPostgresIT` |

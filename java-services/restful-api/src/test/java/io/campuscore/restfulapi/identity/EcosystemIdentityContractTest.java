@@ -278,8 +278,9 @@ class EcosystemIdentityContractTest {
                         .queryParam("scope", "openid")
                         .queryParam("code_challenge", pkceChallenge(pkceVerifier()))
                         .queryParam("code_challenge_method", "S256"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("ACCOUNT_INACTIVE"));
+                .andExpect(status().isFound())
+                .andExpect(result -> assertThat(result.getResponse().getHeader("Location"))
+                        .startsWith("/login?return="));
     }
 
     @Test
