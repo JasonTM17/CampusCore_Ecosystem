@@ -18,6 +18,7 @@ import { useShellCopy } from '../i18n/use-shell-copy';
 import type { ThemeColors } from '../design/theme';
 import { UiText } from './ui/UiText';
 import type { TextTone } from './ui/UiText';
+import { Avatar as UiAvatar } from './ui/avatar';
 import { Button } from './ui/Button';
 import { FormField } from './ui/primitives';
 import { ResponsiveContent } from './ui/ResponsiveContent';
@@ -92,7 +93,6 @@ function buildStyles(colors: ThemeColors) {
     progressTrack: { backgroundColor: colors.primaryFixed, borderRadius: tokens.radii.pill, height: tokens.spacing.sm, overflow: 'hidden' },
     progressFill: { borderRadius: tokens.radii.pill, height: '100%' },
     divider: { backgroundColor: colors.outlineVariant, height: 1, marginVertical: tokens.spacing.sm },
-    avatar: { alignItems: 'center', backgroundColor: colors.primaryFixed, justifyContent: 'center' },
     scrollSection: { marginBottom: tokens.spacing.lg },
     statePanel: { alignItems: 'center', flexWrap: 'wrap', gap: tokens.spacing.sm, backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: tokens.radii.card, borderWidth: 1, flexDirection: 'row', padding: tokens.spacing.md },
     statePanelError: { backgroundColor: colors.errorFixed },
@@ -454,15 +454,12 @@ export function Divider() {
   return <View style={styles.divider} />;
 }
 
+/**
+ * Legacy initials avatar — delegates to the shared identity avatar in
+ * `ui/avatar.tsx` while keeping the original {label, size} contract.
+ */
 export function Avatar({ label, size = 48 }: { label: string; size?: number }) {
-  const styles = useUiStyles();
-  return (
-    <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
-      <UiText variant="headlineSmall" tone="primary">
-        {label.slice(0, 1).toUpperCase()}
-      </UiText>
-    </View>
-  );
+  return <UiAvatar label={label} size={size} />;
 }
 
 export function ScreenSpacer({ size = tokens.spacing.md }: { size?: number }) {

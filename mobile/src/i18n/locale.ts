@@ -165,6 +165,9 @@ const vi = {
   chartNoData: 'Chưa có số liệu',
   chartRange: 'thấp nhất {min}, cao nhất {max}, mới nhất {last}',
   language: 'Ngôn ngữ',
+  avatarLabel: 'Ảnh của {name}',
+  avatarLabelRole: 'Ảnh của {name}, {role}',
+  avatarLabelGeneric: 'Ảnh đại diện',
 } as const;
 
 export type UiMessageKey = keyof typeof vi;
@@ -196,6 +199,9 @@ const en: Record<UiMessageKey, string> = {
   chartNoData: 'No data yet',
   chartRange: 'lowest {min}, highest {max}, latest {last}',
   language: 'Language',
+  avatarLabel: 'Photo of {name}',
+  avatarLabelRole: 'Photo of {name}, {role}',
+  avatarLabelGeneric: 'Profile photo',
 };
 
 export const uiMessages: Record<AppLocale, Record<UiMessageKey, string>> = { vi, en };

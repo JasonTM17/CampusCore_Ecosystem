@@ -1,5 +1,7 @@
 export { UiText } from './UiText';
 export type { UiTextProps, TextVariant, TextTone } from './UiText';
+export { Avatar, IdentityHeader } from './avatar';
+export type { AvatarProps, AvatarStatus, AvatarSize, IdentityHeaderProps } from './avatar';
 export { Button } from './Button';
 export type { ButtonProps } from './Button';
 export {

@@ -34,8 +34,6 @@ const opsStyles = (colors: ThemeColors) => StyleSheet.create({
   topButton: { marginTop: tokens.spacing.sm },
   actionStatus: { backgroundColor: colors.successFixed, borderColor: colors.success, borderLeftColor: colors.success, borderLeftWidth: 3, borderRadius: tokens.radii.control, borderWidth: 1, marginBottom: tokens.spacing.sm, padding: tokens.spacing.sm },
   actionStatusError: { backgroundColor: colors.errorFixed, borderColor: colors.error, borderLeftColor: colors.error, borderLeftWidth: 3, borderRadius: tokens.radii.control, borderWidth: 1, marginBottom: tokens.spacing.sm, padding: tokens.spacing.sm },
-  avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primaryFixed, flexShrink: 0 },
-  avatarText: { color: colors.primary, fontWeight: '700', fontSize: 14 },
   saveBar: { marginTop: tokens.spacing.md, gap: tokens.spacing.sm, padding: tokens.spacing.md, backgroundColor: colors.card, borderRadius: tokens.radii.card, borderWidth: 1, borderColor: colors.outlineVariant },
   filterChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs, marginBottom: tokens.spacing.md },
   slotRow: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm, marginTop: tokens.spacing.xs },

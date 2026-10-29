@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import {
-  Badge,
   Button,
   Card,
   DataNotice,
   Dialog,
   Divider,
   Field,
+  IdentityHeader,
   ListRow,
   SectionCard,
   ScreenShell,
@@ -36,13 +36,6 @@ import { useStudentStyles } from './shared/styles';
 type AccountProfile = AuthUser & { phone?: string | null; address?: string | null };
 
 const PHONE_PATTERN = /^$|^\+?[0-9][0-9\s()./-]{4,78}$/;
-
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  return parts.length > 1
-    ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
-    : name.slice(0, 1).toUpperCase();
-}
 
 export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   const styles = useStudentStyles();
@@ -155,7 +148,6 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   const displayEmail = !isLive ? 'minh.nguyen@ute.edu.vn' : account?.email ?? '—';
   const idLabel = role === 'lecturer' ? copy.profile.lecturerId : copy.profile.studentId;
   const displayId = !isLive ? '2022SE0417' : (role === 'lecturer' ? account?.lecturerId : account?.studentId) ?? '—';
-  const initials = initialsOf(displayName);
 
   if (isLoading || error) {
     return (
@@ -175,16 +167,15 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     <ScreenShell title={copy.profile.title} eyebrow={copy.profile.eyebrow}>
       {warning ? <DataNotice message={warning} /> : null}
       <Card style={[styles.profileHero, { backgroundColor: chrome.surface, borderColor: colors.outlineVariant }]}>
-        <View style={profileStyles.profileHeader}>
-          <View style={[profileStyles.avatar, { backgroundColor: colors.primaryFixed, borderColor: chrome.onSurface }]}>
-            <UiText variant="headlineSmall" tone="primary">{initials}</UiText>
-          </View>
-          <View style={profileStyles.profileCopy}>
-            <UiText variant="headlineSmall" style={{ color: chrome.onSurface }}>{displayName}</UiText>
-            <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>{displayId}</UiText>
-            <Badge label={isLive ? roleLabel : `${roleLabel} · ${copy.profile.preview}`} tone="primary" />
-          </View>
-        </View>
+        <IdentityHeader
+          chips={[isLive ? roleLabel : `${roleLabel} · ${copy.profile.preview}`]}
+          imageUrl={isLive ? account?.avatar : undefined}
+          name={displayName}
+          onBrand
+          role={role === 'admin' ? 'admin' : role === 'lecturer' ? 'lecturer' : 'student'}
+          roleLabel={roleLabel}
+          subtitle={displayId}
+        />
       </Card>
       <ScreenSpacer />
       <SectionCard title={copy.profile.sectionDetails} icon="card-account-details-outline">
@@ -286,9 +277,3 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     </ScreenShell>
   );
 }
-
-const profileStyles = StyleSheet.create({
-  profileHeader: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
-  profileCopy: { flex: 1, gap: 4, minWidth: 160 },
-  avatar: { alignItems: 'center', borderRadius: 32, borderWidth: 2, height: 64, justifyContent: 'center', width: 64 },
-});
