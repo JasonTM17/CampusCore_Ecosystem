@@ -83,7 +83,7 @@ Closes audit item AUD-27.
 | `DEMO_ACCOUNTS_ENABLED` | Unlocks seeded demo accounts each boot | config | local demo only | **forbidden in prod** (`render.yaml` sets `false`) |
 | `DEMO_ACCOUNTS_ROLES` | Restrict which demo roles unlock | config | local demo | safe default all demo roles |
 | `REGISTRATION_CREDIT_LIMIT_OVERRIDE` | Override credit cap for enrollment (0 = rule-driven) | config | optional | safe default `0` |
-| `ACADEMIC_ENROLLED_COUNT_RECONCILE_DELAY_MS`, `_INITIAL_DELAY_MS`, `ACADEMIC_ENROLLED_COUNT_REPAIR` | Enrolled-count reconciliation cadence + repair mode | config | tuning | safe default |
+| `ACADEMIC_ENROLLED_COUNT_RECONCILE_DELAY_MS`, `ACADEMIC_ENROLLED_COUNT_RECONCILE_INITIAL_DELAY_MS`, `ACADEMIC_ENROLLED_COUNT_REPAIR` | Enrolled-count reconciliation cadence + repair mode | config | tuning | safe default |
 
 ## 6. Identity (OIDC issuer + BFF)
 
@@ -139,6 +139,8 @@ Closes audit item AUD-27.
 | `JAVA_API_ORIGIN`, `BACKEND_INTERNAL_ORIGIN` | Server-side proxy target (compose arg/runtime) | config | compose, vercel | safe default |
 | `CAMPUSCORE_PROXY_TOKEN` | Edge→backend shared secret for proxy routes | secret | when edge token used | required then |
 | `OUTPUT_STANDALONE` | `output: 'standalone'` for slim Docker image | config | docker build | safe default `false` |
+| `SITE_APPEARANCE_PATH` | Path for site appearance JSON persistence | config | optional | safe default `.data/campuscore-site-appearance.json` |
+| `NEXT_DIST_DIR` | Custom build output directory for Next.js | config | optional | safe default `.next` |
 | `NODE_ENV`, `PORT`, `HOSTNAME` | Next runtime env (standalone server) | config | docker run | safe default |
 | `VERCEL`, `VERCEL_URL`, `VERCEL_PROJECT_PRODUCTION_URL` | Vercel-injected deployment context | public | vercel | platform-injected |
 
@@ -151,7 +153,7 @@ Closes audit item AUD-27.
 | `EXPO_PUBLIC_ISSUER_URL` | OIDC issuer when it differs from API host | public | prod sign-in | required for prod login |
 | `EXPO_PUBLIC_PORTAL_URL` | Deep-link back to web portal | public | optional | safe default |
 | `EXPO_PUBLIC_ASSISTANT_TRANSPORT` | Assistant SSE/fetch transport selection | public | optional | safe default |
-| `EXPO_PUBLIC_LANE_DEAN`, `EXPO_PUBLIC_LANE_STAFF`, `EXPO_PUBLIC_LANE_ADMIN` | Lane feature flags | public | optional | safe default |
+| `EXPO_PUBLIC_LANE_DEAN`, `EXPO_PUBLIC_LANE_STAFF`, `EXPO_PUBLIC_LANE_ADMIN`, `EXPO_PUBLIC_LANE_CHECKIN` | Lane feature flags (dean, staff, admin, attendance check-in) | public | optional | safe default |
 
 ## 10. Compose / hosting only (not read by Spring)
 
