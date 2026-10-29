@@ -50,9 +50,9 @@ public class BffSessionService {
     private final AuthUserRepository users;
     private final UnifiedSessionAuthority authority;
     private final io.campuscore.restfulapi.identity.IdentityJwtDecoder decoder;
-    /** Per-session single-flight locks — see resolveForBusiness. */
-    private final java.util.concurrent.ConcurrentHashMap<String, Object> refreshLocks =
-            new java.util.concurrent.ConcurrentHashMap<>();
+    /** Fixed stripes keep monitor identity stable for waiters with bounded retention. */
+    private final Object[] refreshLocks = java.util.stream.IntStream.range(0, 256)
+            .mapToObj(ignored -> new Object()).toArray();
 
     public BffSessionService(IdentityProperties properties, BffSessionStore store,
             BffTokenClient tokens, DeterministicTokenCipher cipher,
@@ -242,13 +242,9 @@ public class BffSessionService {
             return fail("SESSION_REQUIRED");
         }
         String lockKey = surface.getId() + "|" + BffSessionStore.sha256Hex(opaqueValue);
-        Object lock = refreshLocks.computeIfAbsent(lockKey, k -> new Object());
+        Object lock = refreshLocks[(lockKey.hashCode() & Integer.MAX_VALUE) % refreshLocks.length];
         synchronized (lock) {
-            try {
-                return resolveLocked(surface, opaqueValue);
-            } finally {
-                refreshLocks.remove(lockKey, lock);
-            }
+            return resolveLocked(surface, opaqueValue);
         }
     }
 
