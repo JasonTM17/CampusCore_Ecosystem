@@ -77,6 +77,27 @@ const nextConfig = {
         ],
       },
       {
+        // The browser attendance check-in surface is the one approved
+        // consumer of a position fix: same-origin geolocation here only,
+        // every other path keeps the catch-all geolocation=() denial.
+        source: '/attendance/checkin/:path*',
+        headers: [
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(self), payment=(), usb=()',
+          },
+        ],
+      },
+      {
+        source: '/:locale(en|vi)/attendance/checkin/:path*',
+        headers: [
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(self), payment=(), usb=()',
+          },
+        ],
+      },
+      {
         // Universal-links association is an extensionless path that must
         // answer application/json — Next cannot infer it from a suffix.
         source: '/.well-known/apple-app-site-association',
