@@ -32,10 +32,10 @@ export interface BootstrapResult {
   wipedForReinstall: boolean;
 }
 
-export interface RefreshResult {
-  /** Fresh access token, or null when the session is dead (signed out). */
-  accessToken: string | null;
-}
+export type RefreshResult =
+  | { kind: 'refreshed'; accessToken: string }
+  | { kind: 'signedOut' | 'stale'; accessToken: null }
+  | { kind: 'unavailable'; accessToken: null; reason: 'network' | 'issuer' | 'configuration' | 'response' | 'storage' };
 
 export interface SessionStoreDeps {
   secure: SecureKv;
@@ -64,7 +64,7 @@ export interface SessionStore {
    */
   refreshAccessToken(): Promise<RefreshResult>;
   /**
-   * KM-6 logout ordering: epoch++ → wipe cu.refresh → clear memory →
+   * Logout ordering: epoch++ → clear memory → best-effort wipe cu.refresh →
    * best-effort POST {issuer}/oauth2/revoke. Never throws.
    */
   signOut(): Promise<void>;
@@ -104,6 +104,23 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
   // Bumped on sign-in/sign-out; a late refresh resolving under a newer epoch
   // is a no-op BEFORE it can touch disk (KM-6).
   let sessionEpoch = 0;
+  let mutationTail: Promise<unknown> = Promise.resolve();
+  let refreshFlight: { epoch: number; promise: Promise<RefreshResult> } | null = null;
+
+  // Native writes cannot be cancelled. A later wipe/sign-in must run after
+  // any already-started rotation, including a write paused inside SecureStore.
+  function mutate<T>(operation: () => Promise<T>): Promise<T> {
+    const pending = mutationTail.then(operation);
+    mutationTail = pending.catch(() => undefined);
+    return pending;
+  }
+
+  const stale = (): RefreshResult => ({ kind: 'stale', accessToken: null });
+  function unavailable(epoch: number, reason: Extract<RefreshResult, { kind: 'unavailable' }>['reason']): RefreshResult {
+    if (epoch !== sessionEpoch) return stale();
+    accessToken = null;
+    return { kind: 'unavailable', accessToken: null, reason };
+  }
 
   function oauthForm(fields: Record<string, string>) {
     return Object.entries(fields)
@@ -111,112 +128,133 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
       .join('&');
   }
 
+  async function refresh(epoch: number): Promise<RefreshResult> {
+    try {
+      const credential = await mutate(async () => epoch === sessionEpoch ? secure.getItemAsync(REFRESH_KEY) : null);
+      if (epoch !== sessionEpoch) return stale();
+      if (!credential) {
+        accessToken = null;
+        return { kind: 'signedOut', accessToken: null };
+      }
+      let response: Response;
+      let body: Record<string, unknown> | null;
+      try {
+        response = await fetchImpl(`${issuer}/oauth2/token`, {
+          method: 'POST',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: oauthForm({ grant_type: 'refresh_token', client_id: clientId, refresh_token: credential }),
+        });
+        body = parseJson(await response.text());
+      } catch {
+        return unavailable(epoch, 'network');
+      }
+      return await mutate(async (): Promise<RefreshResult> => {
+        if (epoch !== sessionEpoch) return stale();
+        // Only the issuer's terminal refresh-grant rejection destroys credentials.
+        // Outage bodies are not authoritative even if they contain that error.
+        if (response.status === 400 && body?.error === 'invalid_grant') {
+          accessToken = null;
+          await secure.deleteItemAsync(REFRESH_KEY);
+          return epoch === sessionEpoch ? { kind: 'signedOut', accessToken: null } : stale();
+        }
+        if (!response.ok) return unavailable(epoch, response.status === 429 || response.status >= 500 ? 'issuer' : 'configuration');
+        const nextAccess = typeof body?.access_token === 'string' && body.access_token.trim() ? body.access_token : null;
+        if (!nextAccess) return unavailable(epoch, 'response');
+        const nextRefresh = typeof body?.refresh_token === 'string' && body.refresh_token.trim() ? body.refresh_token : null;
+        if (nextRefresh) await secure.setItemAsync(REFRESH_KEY, nextRefresh);
+        if (epoch !== sessionEpoch) return stale();
+        accessToken = nextAccess;
+        return { kind: 'refreshed', accessToken: nextAccess };
+      });
+    } catch {
+      return unavailable(epoch, 'storage');
+    }
+  }
+
   return {
     issuer,
 
-    async loadBootstrap() {
-      const install = parseJson(await secure.getItemAsync(INSTALL_KEY));
-      const marker = parseJson(await sandbox.getItem(MARKER_KEY));
-      const installId = typeof install?.appInstanceId === 'string' ? install.appInstanceId : null;
-      const markerId = typeof marker?.appInstanceId === 'string' ? marker.appInstanceId : null;
+    loadBootstrap() {
+      const epoch = sessionEpoch;
+      return mutate(async () => {
+        if (epoch !== sessionEpoch) return { refreshToken: null, wipedForReinstall: false };
+        const install = parseJson(await secure.getItemAsync(INSTALL_KEY));
+        const marker = parseJson(await sandbox.getItem(MARKER_KEY));
+        if (epoch !== sessionEpoch) return { refreshToken: null, wipedForReinstall: false };
+        const installId = typeof install?.appInstanceId === 'string' ? install.appInstanceId : null;
+        const markerId = typeof marker?.appInstanceId === 'string' ? marker.appInstanceId : null;
 
-      if (!installId || markerId !== installId) {
-        // Reinstall or sandbox wipe (KM-1): the surviving keychain refresh is
-        // bound to a dead install identity — wipe it before any request,
-        // regenerate the identity, and write BOTH layers back.
-        await secure.deleteItemAsync(REFRESH_KEY);
-        const appInstanceId = newId();
-        await secure.setItemAsync(
-          INSTALL_KEY,
-          JSON.stringify({ appInstanceId, createdAt: new Date(now()).toISOString() }),
-        );
-        await sandbox.setItem(MARKER_KEY, JSON.stringify({ appInstanceId }));
-        return { refreshToken: null, wipedForReinstall: true };
-      }
+        if (!installId || markerId !== installId) {
+          sessionEpoch += 1;
+          accessToken = null;
+          // Reinstall or sandbox wipe: surviving credentials belong to the old
+          // identity. Wipe before any request and regenerate both marker layers.
+          await secure.deleteItemAsync(REFRESH_KEY);
+          const appInstanceId = newId();
+          await secure.setItemAsync(
+            INSTALL_KEY,
+            JSON.stringify({ appInstanceId, createdAt: new Date(now()).toISOString() }),
+          );
+          await sandbox.setItem(MARKER_KEY, JSON.stringify({ appInstanceId }));
+          return { refreshToken: null, wipedForReinstall: true };
+        }
 
-      return {
-        refreshToken: await secure.getItemAsync(REFRESH_KEY),
-        wipedForReinstall: false,
-      };
+        return {
+          refreshToken: await secure.getItemAsync(REFRESH_KEY),
+          wipedForReinstall: false,
+        };
+      });
     },
 
     saveRefresh(token) {
-      return secure.setItemAsync(REFRESH_KEY, token);
+      const epoch = sessionEpoch;
+      return mutate(async () => {
+        if (epoch !== sessionEpoch) throw new Error('Session changed before credential storage.');
+        await secure.setItemAsync(REFRESH_KEY, token);
+        if (epoch !== sessionEpoch) throw new Error('Session changed during credential storage.');
+      });
     },
 
     clearRefresh() {
-      return secure.deleteItemAsync(REFRESH_KEY);
+      return mutate(() => secure.deleteItemAsync(REFRESH_KEY));
     },
 
-    async refreshAccessToken() {
+    refreshAccessToken() {
       const epoch = sessionEpoch;
-      const refresh = await secure.getItemAsync(REFRESH_KEY);
-      if (!refresh) {
-        return { accessToken: null };
-      }
-
-      const response = await fetchImpl(`${issuer}/oauth2/token`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: oauthForm({
-          grant_type: 'refresh_token',
-          client_id: clientId,
-          refresh_token: refresh,
-        }),
+      if (refreshFlight?.epoch === epoch) return refreshFlight.promise;
+      const promise = refresh(epoch).finally(() => {
+        if (refreshFlight?.promise === promise) refreshFlight = null;
       });
-      const body = parseJson(await response.text());
-
-      // Epoch gate #1 — session changed while the request was in flight.
-      if (epoch !== sessionEpoch) {
-        return { accessToken: null };
-      }
-
-      const nextAccess = typeof body?.access_token === 'string' ? body.access_token : null;
-      if (!response.ok || !nextAccess) {
-        await secure.deleteItemAsync(REFRESH_KEY);
-        accessToken = null;
-        return { accessToken: null };
-      }
-
-      const nextRefresh = typeof body?.refresh_token === 'string' ? body.refresh_token : null;
-      // Epoch gate #2 — guards the disk write itself (KM-6).
-      if (epoch !== sessionEpoch) {
-        return { accessToken: null };
-      }
-      if (nextRefresh) {
-        await secure.setItemAsync(REFRESH_KEY, nextRefresh);
-      }
-      accessToken = nextAccess;
-      return { accessToken: nextAccess };
+      refreshFlight = { epoch, promise };
+      return promise;
     },
 
     async signOut() {
-      // KM-6 ordering: epoch++ first so any in-flight refresh resolves as a
-      // no-op, then disk wipe, then memory clear, then best-effort revoke.
+      // Local authorization ends synchronously, even when native storage fails.
       sessionEpoch += 1;
-      const refresh = await secure.getItemAsync(REFRESH_KEY);
-      await secure.deleteItemAsync(REFRESH_KEY);
       accessToken = null;
-      if (!refresh) {
+      const credential = await mutate(async () => {
+        const stored = await secure.getItemAsync(REFRESH_KEY).catch(() => null);
+        await secure.deleteItemAsync(REFRESH_KEY).catch(() => undefined);
+        return stored;
+      });
+      if (!credential) {
         return;
       }
       // Best-effort revoke — NOT awaited: the contract ordering puts every
       // local clear before revoke precisely so a hung issuer call can never
       // hold the UI in an authenticated state (review F6).
-      void fetchImpl(`${issuer}/oauth2/revoke`, {
+      void Promise.resolve().then(() => fetchImpl(`${issuer}/oauth2/revoke`, {
         method: 'POST',
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: oauthForm({
-          token: refresh,
+          token: credential,
           client_id: clientId,
         }),
-      }).catch(() => {
+      })).catch(() => {
         // Revoke is best-effort — local sign-out already happened.
       });
     },

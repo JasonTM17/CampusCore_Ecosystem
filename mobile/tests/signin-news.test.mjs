@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import fs from 'node:fs';
+import ts from 'typescript';
 
 import { loadTs } from './helpers/load-ts.mjs';
 
@@ -66,4 +68,82 @@ test('formatDate localizes publish dates and degrades invalid input quietly', ()
   assert.equal(formatDate('2026-10-20', 'en'), '10/20/2026');
   assert.equal(formatDate('not-a-date', 'vi'), '—');
   assert.equal(formatDate(undefined, 'vi'), '—');
+});
+
+// Execute the screen's actual handler with isolated native/service boundaries.
+const screenSource = fs.readFileSync(new URL('../src/screens/auth/SignInScreen.tsx', import.meta.url), 'utf8');
+const screenAst = ts.createSourceFile('SignInScreen.tsx', screenSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+let handler;
+function visit(node) {
+  if (ts.isVariableDeclaration(node) && node.name.getText(screenAst) === 'handleSignIn') handler = node.initializer.getText(screenAst);
+  ts.forEachChild(node, visit);
+}
+visit(screenAst);
+const handlerJs = ts.transpileModule(`const handle = ${handler};`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+const makeHandler = new Function('deps', `const {setError,setIsSubmitting,signInWithOidc,sessionStoreIssuer,sessionStore,session,navigation,copy,signInFlight}=deps; ${handlerJs}; return handle;`);
+
+function signinHarness(overrides = {}) {
+  const errors = [];
+  const blocked = [];
+  const completed = [];
+  const deps = {
+    setError: (value) => errors.push(value), setIsSubmitting: () => {},
+    signInWithOidc: async () => ({ kind: 'signedIn', role: 'student', accountId: 'user', refreshToken: 'synthetic', accessToken: 'synthetic' }),
+    sessionStoreIssuer: () => 'https://issuer.test',
+    sessionStore: { bumpEpoch() {}, saveRefresh: async () => {}, setAccessToken() {}, sessionEpoch: () => 1 },
+    session: { markBlocked: (value) => blocked.push(value) },
+    navigation: { completeSignIn: (...args) => completed.push(args) },
+    copy: { unreachable: 'network', storage: 'storage', invalid: 'validation' },
+    signInFlight: { current: false },
+    ...overrides,
+  };
+  return { run: makeHandler(deps), errors, blocked, completed };
+}
+
+test('sign-in storage failure is distinct from issuer transport failure', async () => {
+  const storage = signinHarness({ sessionStore: { bumpEpoch() {}, sessionEpoch: () => 1, saveRefresh: async () => { throw new Error('private storage detail'); } } });
+  await storage.run();
+  assert.equal(storage.errors.at(-1), 'storage');
+  assert.equal(storage.completed.length, 0);
+  const network = signinHarness({ signInWithOidc: async () => { throw new Error('private transport detail'); } });
+  await network.run();
+  assert.equal(network.errors.at(-1), 'network');
+});
+
+test('sign-in validation failure never exposes raw provider text', async () => {
+  const validation = signinHarness({ signInWithOidc: async () => ({ kind: 'blocked', reason: 'private provider text' }) });
+  await validation.run();
+  assert.equal(validation.errors.at(-1), 'validation');
+  assert.equal(validation.blocked.length, 0);
+  assert.equal(validation.completed.length, 0);
+});
+
+test('one sign-in attempt cannot be duplicated while the browser is pending', async () => {
+  let release;
+  let calls = 0;
+  const pending = new Promise((resolve) => { release = resolve; });
+  const view = signinHarness({ signInWithOidc: () => { calls++; return pending; } });
+  const first = view.run();
+  const second = view.run();
+  release({ kind: 'cancelled' });
+  await Promise.all([first, second]);
+  assert.equal(calls, 1);
+  assert.equal(view.completed.length, 0);
+});
+
+test('sign-out while the browser is pending invalidates that sign-in attempt', async () => {
+  let epoch = 1;
+  let release;
+  let writes = 0;
+  const pending = new Promise((resolve) => { release = resolve; });
+  const view = signinHarness({
+    signInWithOidc: () => pending,
+    sessionStore: { sessionEpoch: () => epoch, bumpEpoch: () => { epoch++; }, saveRefresh: async () => { writes++; }, setAccessToken() {} },
+  });
+  const signin = view.run();
+  epoch++;
+  release({ kind: 'signedIn', role: 'student', accountId: 'old-account' });
+  await signin;
+  assert.equal(writes, 0);
+  assert.equal(view.completed.length, 0);
 });

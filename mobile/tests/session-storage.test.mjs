@@ -135,14 +135,16 @@ test('a failed refresh wipes the refresh token and clears memory', async () => {
   assert.equal(store.getAccessToken(), null);
 });
 
-test('a refresh response without access_token is treated as dead', async () => {
+test('a malformed success retains the credential without granting access', async () => {
   const { store, secure } = makeStore({
     respond: async () => new Response('{"refresh_token":"rt-2"}', { status: 200 }),
   });
   secure.map.set('cu.refresh', 'rt-1');
   const result = await store.refreshAccessToken();
   assert.equal(result.accessToken, null);
-  assert.equal(secure.map.has('cu.refresh'), false);
+  assert.equal(secure.map.get('cu.refresh'), 'rt-1');
+  assert.equal(result.kind, 'unavailable');
+  assert.equal(store.getAccessToken(), null);
 });
 
 test('a late refresh resolving after sign-out never writes disk (KM-6)', async () => {
@@ -210,4 +212,116 @@ test('saveRefresh/clearRefresh touch only the whitelisted keys', async () => {
     ['cu.install'],
   );
   assert.deepEqual([...sandbox.map.keys()], ['installMarker']);
+});
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((yes) => { resolve = yes; });
+  return { promise, resolve };
+}
+
+for (const [label, respond] of [
+  ['rate limit', async () => new Response('{}', { status: 429 })],
+  ['issuer outage', async () => new Response('{"error":"invalid_grant"}', { status: 503 })],
+  ['network loss', async () => { throw new TypeError('offline'); }],
+  ['client configuration', async () => new Response('{"error":"invalid_client"}', { status: 401 })],
+]) {
+  test(`${label} retains refresh and allows a later explicit recovery`, async () => {
+    let recovered = false;
+    const { store, secure, calls } = makeStore({ respond: (...args) => recovered
+      ? new Response('{"access_token":"recovered","refresh_token":"rotated"}')
+      : respond(...args) });
+    secure.map.set('cu.refresh', 'surviving');
+    store.setAccessToken('expired');
+    const result = await store.refreshAccessToken();
+    assert.equal(secure.map.get('cu.refresh'), 'surviving');
+    assert.equal(result.kind, 'unavailable');
+    assert.equal(result.accessToken, null);
+    assert.equal(store.getAccessToken(), null);
+    assert.equal(calls.length, 1);
+    recovered = true;
+    assert.equal((await store.refreshAccessToken()).accessToken, 'recovered');
+  });
+}
+
+test('paused credential rotation cannot overwrite the next account', async () => {
+  const entered = deferred();
+  const release = deferred();
+  const secure = memoryKv();
+  const write = secure.setItemAsync;
+  secure.setItemAsync = async (key, value) => {
+    if (key === 'cu.refresh' && value === 'rt-2') {
+      entered.resolve();
+      await release.promise;
+    }
+    await write(key, value);
+  };
+  const { store } = makeStore({ secure });
+  secure.map.set('cu.refresh', 'account-a');
+  const refresh = store.refreshAccessToken();
+  await entered.promise;
+  const logout = store.signOut();
+  store.bumpEpoch();
+  const signin = store.saveRefresh('account-b').then(() => store.setAccessToken('access-b'));
+  release.resolve();
+  const [result] = await Promise.all([refresh, logout, signin]);
+  assert.equal(result.accessToken, null);
+  assert.equal(secure.map.get('cu.refresh'), 'account-b');
+  assert.equal(store.getAccessToken(), 'access-b');
+});
+
+test('reinstall wipe follows a paused credential rotation', async () => {
+  const entered = deferred();
+  const release = deferred();
+  const secure = memoryKv();
+  secure.map.set('cu.refresh', 'survivor');
+  const write = secure.setItemAsync;
+  secure.setItemAsync = async (key, value) => {
+    if (key === 'cu.refresh') { entered.resolve(); await release.promise; }
+    await write(key, value);
+  };
+  const { store } = makeStore({ secure });
+  const refresh = store.refreshAccessToken();
+  await entered.promise;
+  const boot = store.loadBootstrap();
+  release.resolve();
+  await Promise.all([refresh, boot]);
+  assert.equal(secure.map.has('cu.refresh'), false);
+  assert.equal(store.getAccessToken(), null);
+});
+
+for (const operation of ['getItemAsync', 'deleteItemAsync']) {
+  test(`sign-out clears memory immediately when ${operation} rejects`, async () => {
+    const { store, secure } = makeStore();
+    secure.map.set('cu.refresh', 'stored');
+    store.setAccessToken('old-access');
+    secure[operation] = async () => { throw new Error('storage unavailable'); };
+    const logout = store.signOut();
+    assert.equal(store.getAccessToken(), null);
+    await assert.doesNotReject(logout);
+    if (operation === 'getItemAsync') assert.equal(secure.map.has('cu.refresh'), false);
+    await store.saveRefresh('next-account');
+    assert.equal(secure.map.get('cu.refresh'), 'next-account');
+  });
+}
+
+test('a bootstrap marker read finishing after account switch cannot invalidate the new credential write', async () => {
+  const entered = deferred();
+  const release = deferred();
+  const secure = memoryKv();
+  secure.getItemAsync = async (key) => {
+    if (key === 'cu.install') { entered.resolve(); await release.promise; }
+    return secure.map.get(key) ?? null;
+  };
+  const { store } = makeStore({ secure });
+  const boot = store.loadBootstrap();
+  await entered.promise;
+  const logout = store.signOut();
+  store.bumpEpoch();
+  const signin = store.saveRefresh('current-account');
+  // Attach before releasing storage: a stale bootstrap must not reject sign-in.
+  const completed = Promise.all([boot, logout, signin]);
+  release.resolve();
+  await completed;
+  assert.equal(secure.map.get('cu.refresh'), 'current-account');
 });

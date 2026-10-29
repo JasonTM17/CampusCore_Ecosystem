@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { AppState } from 'react-native';
 
 import { apiClient, campusApi } from '../api/client';
 import { unregisterPushBestEffort } from '../api/push-notifications';
@@ -27,7 +28,7 @@ import type { UserRole } from '../navigation/routes';
  * Session authority for the router world (mobile-policy §3). Owns the
  * session-kind state the guard evaluates, the preview pseudo-session
  * (memory-only, never SecureStore — KM-9), and the sign-out ordering
- * (KM-6: epoch++ → wipe → clear memory → revoke). The OIDC bootstrap and
+ * (epoch++ → clear memory → wipe → revoke). The OIDC bootstrap and
  * SecureStore I/O plug in via `session-store.ts` — this context holds no
  * token material itself.
  */
@@ -47,7 +48,10 @@ export interface SessionState {
   capabilities?: CapabilitySet;
 }
 
+type BootStatus = 'checking' | 'ready' | 'unavailable';
+
 interface SessionActions {
+  retryBoot?(): Promise<void>;
   enterPreview(): boolean;
   completeSignIn(role: UserRole, accountId: string | null): void;
   switchRole(role: UserRole): void;
@@ -61,6 +65,8 @@ export interface SessionValue extends SessionState, SessionActions {
   epoch: number;
   /** KM-17: false until marker-check + bootstrap + optional silent refresh. */
   booted: boolean;
+  /** Unavailable retains credentials without granting an app session. */
+  bootStatus?: BootStatus;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -106,6 +112,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SessionState>(initialState);
   const [epoch, setEpoch] = useState(0);
   const [booted, setBooted] = useState(false);
+  const [bootStatus, setBootStatus] = useState<BootStatus>('checking');
+  const bootStatusRef = useRef(bootStatus);
+  const bootFlight = useRef<Promise<void> | null>(null);
+  const foregroundRetrySafe = useRef(false);
+  const mounted = useRef(false);
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -117,29 +128,48 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     );
   }, [state.kind, state.accountId, state.role, state.capabilities]);
 
-  // KM-17 boot: marker-check (may wipe cu.refresh) → loadBootstrap → one
-  // silent refresh → session state → only then render children so no guard
-  // or screen evaluates pre-bootstrap. A failed refresh is signedOut, never
-  // a crash.
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
+  const updateBootStatus = useCallback((status: BootStatus) => {
+    bootStatusRef.current = status;
+    setBootStatus(status);
+  }, []);
+
+  // One attempt per boot, manual retry or foreground transition. No timers or
+  // API mutation replay; unavailable credentials remain locally recoverable.
+  const runBoot = useCallback((): Promise<void> => {
+    if (bootFlight.current) return bootFlight.current;
+    const epoch = sessionStore.sessionEpoch();
+    const current = () => mounted.current && epoch === sessionStore.sessionEpoch();
+    foregroundRetrySafe.current = false;
+    updateBootStatus('checking');
+    const pending = (async () => {
       try {
-        // KM-9: preview never touches SecureStore — skip bootstrap entirely.
         if (apiClient.mode !== 'live') {
+          updateBootStatus('ready');
           return;
         }
-        const { refreshToken } = await sessionStore.loadBootstrap();
-        if (refreshToken) {
-          // A transport throw (offline at boot) is a failed refresh, not a
-          // crash — swallow to signed-out exactly like a rejected grant.
-          const result = await sessionStore.refreshAccessToken().catch(() => ({ accessToken: null }));
-          const claims = result.accessToken
-            ? decodeJwtPayload(result.accessToken)
-            : null;
+        const { refreshToken, wipedForReinstall } = await sessionStore.loadBootstrap();
+        if (wipedForReinstall && mounted.current) {
+          updateBootStatus('ready');
+          return;
+        }
+        if (!current()) return;
+        if (!refreshToken) {
+          updateBootStatus('ready');
+          return;
+        }
+        const result = await sessionStore.refreshAccessToken();
+        if (!current()) return;
+        if (result.kind === 'unavailable') {
+          // A lost response or malformed success may already have rotated the
+          // grant. Only an explicit issuer outage response permits auto retry.
+          foregroundRetrySafe.current = result.reason === 'issuer';
+          updateBootStatus('unavailable');
+        } else if (result.kind === 'refreshed') {
+          const claims = decodeJwtPayload(result.accessToken);
           const role = roleFromClaims(claimsOf(result.accessToken));
-          const accountId = typeof claims?.sub === 'string' ? claims.sub : null;
-          if (role && accountId && !cancelled) {
+          const accountId = typeof claims?.sub === 'string' && claims.sub.trim() ? claims.sub : null;
+          const unexpired = typeof claims?.exp === 'number' && Number.isFinite(claims.exp) && claims.exp > Date.now() / 1000;
+          if (role && accountId && unexpired) {
             setEpoch((e) => e + 1);
             setState({
               kind: 'authenticated',
@@ -148,18 +178,44 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               blockedReason: null,
               capabilities: capabilitiesOf(result.accessToken),
             });
+            updateBootStatus('ready');
+          } else {
+            sessionStore.setAccessToken(null);
+            updateBootStatus('unavailable');
           }
+        } else {
+          updateBootStatus('ready');
+        }
+      } catch {
+        if (current()) {
+          sessionStore.setAccessToken(null);
+          updateBootStatus('unavailable');
         }
       } finally {
-        if (!cancelled) {
-          setBooted(true);
-        }
+        if (mounted.current) setBooted(true);
       }
-    })();
+    })().finally(() => { if (bootFlight.current === pending) bootFlight.current = null; });
+    bootFlight.current = pending;
+    return pending;
+  }, [updateBootStatus]);
+
+  const retryBoot = useCallback(() => {
+    if (apiClient.mode !== 'live' || stateRef.current.kind !== 'signedOut') return Promise.resolve();
+    if (bootFlight.current) return bootFlight.current;
+    return bootStatusRef.current === 'unavailable' ? runBoot() : Promise.resolve();
+  }, [runBoot]);
+
+  useEffect(() => {
+    mounted.current = true;
+    void runBoot();
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'active' && foregroundRetrySafe.current) void retryBoot();
+    });
     return () => {
-      cancelled = true;
+      mounted.current = false;
+      subscription.remove();
     };
-  }, []);
+  }, [runBoot, retryBoot]);
 
   // A failed refresh clears the client tokens; without this bridge every
   // screen keeps retry states that can never succeed. Epoch-gated so a late
@@ -188,6 +244,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       return;
     }
     setEpoch((e) => e + 1);
+    updateBootStatus('ready');
     setState({
       kind: 'authenticated',
       role,
@@ -195,7 +252,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       blockedReason: null,
       capabilities: capabilitiesOf(sessionStore.getAccessToken()),
     });
-  }, []);
+  }, [updateBootStatus]);
 
   const switchRole = useCallback((role: UserRole) => {
     setState((current) =>
@@ -215,9 +272,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    // KM-6 ordering lives in sessionStore.signOut (epoch++ → wipe cu.refresh
-    // → clear memory → best-effort revoke); preview never touches the store
-    // (KM-9) so it resets locally only.
+    updateBootStatus('ready');
+    // Preview never touches the credential store.
     if (stateRef.current.kind === 'preview') {
       setEpoch((e) => e + 1);
       clearQueryCache();
@@ -234,29 +290,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     scheduleDevicePushUnregister(accessTokenSnapshot);
     // Local wipe first: it must not wait on, or depend on, the store call below.
     clearQueryCache();
-    try {
-      await sessionStore.signOut();
-    } finally {
-      // The wipe must not depend on the store call succeeding: a throwing
-      // revoke/storage error would otherwise leave this account's cached data
-      // and authenticated state behind.
-      clearQueryCache();
-      setEpoch((e) => e + 1);
-      setState(initialState);
-    }
-  }, []);
+    setEpoch((e) => e + 1);
+    stateRef.current = initialState;
+    setState(initialState);
+    // No post-await state write: a new sign-in may complete during the disk wipe.
+    await sessionStore.signOut();
+  }, [updateBootStatus]);
 
   const value = useMemo<SessionValue>(() => ({
     ...state,
     epoch,
     booted,
+    bootStatus,
+    retryBoot,
     enterPreview,
     completeSignIn,
     switchRole,
     signOut,
     markBlocked,
     setRole,
-  }), [state, epoch, booted, enterPreview, completeSignIn, switchRole, signOut, markBlocked, setRole]);
+  }), [state, epoch, booted, bootStatus, retryBoot, enterPreview, completeSignIn, switchRole, signOut, markBlocked, setRole]);
 
   if (!booted) {
     return null;

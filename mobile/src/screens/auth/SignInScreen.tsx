@@ -1,4 +1,4 @@
-import { useContext, useMemo, useState } from 'react';
+import { useContext, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -43,6 +43,10 @@ const copyByLocale = {
     explore: 'Explore preview',
     signIn: 'Sign in with CampusUTE ID',
     unreachable: 'Sign-in could not reach the CampusUTE identity service.',
+    storage: 'Sign-in could not save the session securely on this device.',
+    invalid: 'The sign-in response could not be validated.',
+    unavailable: 'The saved session is temporarily unavailable.',
+    retry: 'Retry session',
   },
   vi: {
     title: 'Chào mừng trở lại',
@@ -53,6 +57,10 @@ const copyByLocale = {
     explore: 'Khám phá bản xem thử',
     signIn: 'Đăng nhập bằng CampusUTE ID',
     unreachable: 'Không kết nối được dịch vụ định danh CampusUTE.',
+    storage: 'Không thể lưu phiên đăng nhập an toàn trên thiết bị này.',
+    invalid: 'Không thể xác thực phản hồi đăng nhập.',
+    unavailable: 'Phiên đã lưu tạm thời không khả dụng.',
+    retry: 'Thử lại phiên',
   },
 } as const;
 
@@ -74,28 +82,41 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
   const insets = useContext(SafeAreaInsetsContext);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const signInFlight = useRef(false);
   const isPreview = apiClient.mode === 'preview';
   const stackGuests = window.fontScale >= 1.3;
 
   const handleSignIn = async () => {
+    if (signInFlight.current) return;
+    signInFlight.current = true;
     setError(null);
     setIsSubmitting(true);
     try {
+      const attemptEpoch = sessionStore.sessionEpoch();
       const outcome = await signInWithOidc({ issuer: sessionStoreIssuer() });
+      if (attemptEpoch !== sessionStore.sessionEpoch()) return;
       if (outcome.kind === 'cancelled') {
         return;
       }
       if (outcome.kind === 'blocked') {
-        session.markBlocked(outcome.reason);
+        setError(copy.invalid);
         return;
       }
-      await sessionStore.saveRefresh(outcome.refreshToken);
-      sessionStore.setAccessToken(outcome.accessToken);
       sessionStore.bumpEpoch();
+      const epoch = sessionStore.sessionEpoch();
+      try {
+        await sessionStore.saveRefresh(outcome.refreshToken);
+      } catch {
+        setError(copy.storage);
+        return;
+      }
+      if (epoch !== sessionStore.sessionEpoch()) return;
+      sessionStore.setAccessToken(outcome.accessToken);
       navigation.completeSignIn(outcome.role, outcome.accountId);
     } catch {
       setError(copy.unreachable);
     } finally {
+      signInFlight.current = false;
       setIsSubmitting(false);
     }
   };
@@ -143,6 +164,12 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
                 variant="text"
               />
             )}
+            {!isPreview && (session.bootStatus === 'unavailable' || session.bootStatus === 'checking') ? (
+              <View accessibilityLiveRegion="polite">
+                <UiText variant="bodySmall" tone="error">{copy.unavailable}</UiText>
+                <Button label={copy.retry} loading={session.bootStatus === 'checking'} onPress={() => void session.retryBoot?.()} />
+              </View>
+            ) : null}
             {error ? (
               <View accessibilityLiveRegion="assertive" accessibilityRole="alert" style={styles.errorPanel}>
                 <UiText variant="bodySmall" tone="error">
