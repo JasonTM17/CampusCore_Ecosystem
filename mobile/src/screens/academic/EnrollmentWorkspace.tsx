@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Badge, Button, Card, StatePanel, UiText } from '../../components/Ui';
-import { useWindowClass } from '../../design/theme';
+import { Button, Card, IconChip, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileNavigation } from '../../navigation/types';
@@ -26,14 +26,16 @@ export interface EnrollmentWorkspaceProps {
 
 /** Active, past and withdrawn enrollments by term, with a detail view per enrollment. */
 /** Two columns once the window leaves the compact class, like the other card lists. */
-function gridStyle(windowClass: string) {
-  return windowClass === 'compact'
+function gridStyle(windowClass: string, largeText: boolean) {
+  return windowClass === 'compact' || largeText
     ? undefined
     : ({ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' } as const);
 }
 
 export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspaceProps) {
-  const { class: windowClass } = useWindowClass();
+  const { window } = useTheme();
+  const windowClass = window.class;
+  const largeText = window.fontScale >= 1.3;
   const { copy, locale } = useAcademicCopy();
   const preview = isPreviewMode();
   const enrollmentsQuery = useAcademicQuery('academic.enrollments', () => academicApi.enrollments(), copy);
@@ -78,7 +80,7 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
           />
           <View style={academicStyles.gap} />
           {rows.length === 0 ? <StatePanel kind="empty" title={emptyTitle} /> : null}
-          <View testID="course-grid" style={gridStyle(windowClass)}>
+          <View testID="course-grid" style={gridStyle(windowClass, largeText)}>
             {rows.map((item) => {
               const code = enrollmentCourseCode(item);
               const name = enrollmentCourseName(item, locale);
@@ -88,18 +90,22 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
                   accessibilityRole="button"
                   accessibilityLabel={`${code} ${name}, ${copy.status[item.status] ?? item.status}`}
                   onPress={() => setSelectedId(item.id)}
-                  style={{ minHeight: tokens.layout.touchTarget, width: windowClass === 'compact' ? '100%' : '48.5%' }}
+                  style={{ minHeight: tokens.layout.touchTarget, width: windowClass === 'compact' || largeText ? '100%' : '48.5%' }}
                 >
                   <Card style={academicStyles.card}>
-                    <View style={academicStyles.row}>
-                      <View style={academicStyles.rowCopy}>
-                        <UiText variant="meta" tone="primary">{code}</UiText>
+                    <View style={styles.courseRow}>
+                      <IconChip icon="book-open-variant" size={40} />
+                      <View style={styles.courseCopy}>
+                        <View style={styles.courseTags}>
+                          <StatusPill label={code} tone="primary" />
+                          <StatusPill label={copy.status[item.status] ?? item.status} tone={item.status === 'COMPLETED' ? 'success' : 'primary'} />
+                        </View>
                         <UiText variant="headlineSmall">{name}</UiText>
-                        <UiText variant="bodySmall" tone="muted">
-                          {fillCopy(copy.credits, { n: item.section?.course?.credits ?? 0 })}
-                        </UiText>
+                        <UiText variant="meta" tone="muted">{fillCopy(copy.credits, { n: item.section?.course?.credits ?? 0 })}</UiText>
+                        {item.section?.sectionNumber ? (
+                          <UiText variant="meta" tone="muted">{copy.sectionLabel}: {item.section.sectionNumber}</UiText>
+                        ) : null}
                       </View>
-                      <Badge label={copy.status[item.status] ?? item.status} tone={item.status === 'COMPLETED' ? 'success' : 'primary'} />
                     </View>
                   </Card>
                 </Pressable>
@@ -112,3 +118,9 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
     </AcademicShell>
   );
 }
+
+const styles = StyleSheet.create({
+  courseRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 },
+  courseCopy: { flex: 1, gap: 4, minWidth: 0 },
+  courseTags: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+});

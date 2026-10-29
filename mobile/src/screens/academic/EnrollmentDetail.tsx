@@ -1,6 +1,6 @@
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { Badge, Button, Card, Divider, ScreenSpacer, UiText } from '../../components/Ui';
+import { Button, Card, Divider, IconChip, ScreenSpacer, StatusPill, UiText } from '../../components/Ui';
 import { useLocale } from '../../i18n/locale-provider';
 import {
   enrollmentCourseCode,
@@ -14,9 +14,9 @@ import { academicStyles, useAcademicCopy } from './academic-ui';
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <View accessible accessibilityLabel={`${label}: ${value}`} style={academicStyles.row}>
-      <UiText variant="bodySmall" tone="muted">{label}</UiText>
-      <UiText variant="bodyMedium">{value}</UiText>
+    <View accessible accessibilityLabel={`${label}: ${value}`} style={styles.fieldRow}>
+      <UiText variant="bodySmall" tone="muted" style={styles.fieldLabel}>{label}</UiText>
+      <UiText variant="bodyMedium" style={styles.fieldValue}>{value}</UiText>
     </View>
   );
 }
@@ -40,10 +40,13 @@ export function EnrollmentDetail({ enrollment, onBack }: EnrollmentDetailProps) 
     <View>
       <Button label={copy.back} onPress={onBack} variant="text" />
       <Card>
-        <UiText variant="meta" tone="primary">{enrollmentCourseCode(enrollment)}</UiText>
-        <UiText accessibilityRole="header" variant="headlineSmall">{enrollmentCourseName(enrollment, locale)}</UiText>
-        <View style={academicStyles.actions}>
-          <Badge label={copy.status[enrollment.status] ?? enrollment.status} tone={enrollment.status === 'COMPLETED' ? 'success' : 'primary'} />
+        <View style={styles.detailHeader}>
+          <IconChip icon="book-open-variant" size={40} />
+          <View style={styles.detailCopy}>
+            <StatusPill label={enrollmentCourseCode(enrollment)} tone="primary" />
+            <UiText accessibilityRole="header" variant="headlineSmall">{enrollmentCourseName(enrollment, locale)}</UiText>
+            <StatusPill label={copy.status[enrollment.status] ?? enrollment.status} tone={enrollment.status === 'COMPLETED' ? 'success' : 'primary'} />
+          </View>
         </View>
         <ScreenSpacer size={8} />
         {section?.sectionNumber ? <Field label={copy.sectionLabel} value={section.sectionNumber} /> : null}
@@ -75,3 +78,11 @@ export function EnrollmentDetail({ enrollment, onBack }: EnrollmentDetailProps) 
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  fieldRow: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 4 },
+  fieldLabel: { flex: 1, minWidth: 110 },
+  fieldValue: { flex: 2, minWidth: 150 },
+  detailHeader: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 },
+  detailCopy: { flex: 1, gap: 4, minWidth: 0 },
+});

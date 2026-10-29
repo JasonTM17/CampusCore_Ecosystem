@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { Badge, Button, Card, Dialog, UiText } from '../../components/Ui';
+import { Button, Card, Dialog, IconChip, StatusPill, UiText } from '../../components/Ui';
 import { FormField } from '../../components/ui/primitives';
 import { tokens } from '../../design/tokens';
 import { SecureField } from './SecureField';
@@ -106,11 +106,10 @@ export function TwoFactorCard({ email, onCompleted }: TwoFactorCardProps) {
   return (
     <Card>
       <View style={styles.header}>
-        <UiText accessibilityRole="header" variant="headlineSmall" style={styles.title}>
-          {text.title}
-        </UiText>
+        <IconChip icon="shield-lock-outline" />
+        <UiText accessibilityRole="header" variant="headlineSmall" style={styles.title}>{text.title}</UiText>
         {state.enabled !== null ? (
-          <Badge label={status} tone={state.enabled ? 'success' : 'neutral'} />
+          <StatusPill label={status} tone={state.enabled ? 'success' : 'neutral'} />
         ) : null}
       </View>
       <UiText variant="bodySmall" tone="muted" style={styles.gap}>{text.description}</UiText>
@@ -204,7 +203,7 @@ export function TwoFactorCard({ email, onCompleted }: TwoFactorCardProps) {
 }
 
 const styles = StyleSheet.create({
-  header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  header: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
   title: { flex: 1, paddingRight: tokens.spacing.sm },
   gap: { marginTop: tokens.spacing.sm },
   codeNote: { marginBottom: tokens.spacing.sm },

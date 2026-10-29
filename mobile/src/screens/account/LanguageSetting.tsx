@@ -1,4 +1,4 @@
-import { Card, SectionHeading } from '../../components/Ui';
+import { SectionCard } from '../../components/Ui';
 import { SegmentedControl } from '../../components/ui/index';
 import { useLocale } from '../../i18n/locale-provider';
 import type { AppLocale } from '../../i18n/locale';
@@ -15,14 +15,13 @@ export function LanguageSetting() {
   const { locale, setLocale } = useLocale();
   const title = shellMessages[locale].language;
   return (
-    <Card>
-      <SectionHeading title={title} />
+    <SectionCard title={title} icon="translate">
       <SegmentedControl
         accessibilityLabel={title}
         options={OPTIONS}
         value={locale}
         onChange={(next) => setLocale(next as AppLocale)}
       />
-    </Card>
+    </SectionCard>
   );
 }

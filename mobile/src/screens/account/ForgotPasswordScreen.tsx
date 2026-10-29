@@ -55,6 +55,7 @@ export function ForgotPasswordScreen({ navigation }: MobileScreenProps) {
             </UiText>
           </View>
           <Button
+            icon="refresh"
             label={copy.forgot.startOver}
             onPress={() => {
               setEmail('');
@@ -83,6 +84,7 @@ export function ForgotPasswordScreen({ navigation }: MobileScreenProps) {
             textContentType="emailAddress"
           />
           <Button
+            icon="email-outline"
             label={sending ? copy.forgot.sending : copy.forgot.submit}
             loading={sending}
             onPress={() => void submit()}

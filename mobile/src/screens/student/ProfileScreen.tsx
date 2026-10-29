@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import {
-  Avatar,
   Badge,
   Button,
   Card,
@@ -11,13 +10,15 @@ import {
   Divider,
   Field,
   ListRow,
+  SectionCard,
   ScreenShell,
   ScreenSpacer,
-  SectionHeading,
   StatePanel,
   UiText,
 } from '../../components/Ui';
 import { apiClient, campusApi, type AuthUser } from '../../api/client';
+import { chromeFor } from '../../design/chrome';
+import { useTheme } from '../../design/theme';
 import { useScreenQuery } from '../../hooks/useScreenQuery';
 import type { MobileScreenProps } from '../../navigation/types';
 import { SecureField } from '../account/SecureField';
@@ -36,8 +37,17 @@ type AccountProfile = AuthUser & { phone?: string | null; address?: string | nul
 
 const PHONE_PATTERN = /^$|^\+?[0-9][0-9\s()./-]{4,78}$/;
 
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return parts.length > 1
+    ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+    : name.slice(0, 1).toUpperCase();
+}
+
 export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   const styles = useStudentStyles();
+  const { colors, scheme } = useTheme();
+  const chrome = chromeFor(scheme);
   const copy = useAccountCopy();
   const isLive = apiClient.mode === 'live';
   const {
@@ -145,6 +155,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   const displayEmail = !isLive ? 'minh.nguyen@ute.edu.vn' : account?.email ?? '—';
   const idLabel = role === 'lecturer' ? copy.profile.lecturerId : copy.profile.studentId;
   const displayId = !isLive ? '2022SE0417' : (role === 'lecturer' ? account?.lecturerId : account?.studentId) ?? '—';
+  const initials = initialsOf(displayName);
 
   if (isLoading || error) {
     return (
@@ -163,24 +174,25 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   return (
     <ScreenShell title={copy.profile.title} eyebrow={copy.profile.eyebrow}>
       {warning ? <DataNotice message={warning} /> : null}
-      <Card style={styles.profileHero}>
-        <View style={styles.profileHeader}>
-          <Avatar label={displayName} size={64} />
-          <View style={styles.profileCopy}>
-            <UiText variant="headlineSmall">{displayName}</UiText>
-            <UiText variant="bodySmall" tone="muted">{displayId}</UiText>
+      <Card style={[styles.profileHero, { backgroundColor: chrome.surface, borderColor: colors.outlineVariant }]}>
+        <View style={profileStyles.profileHeader}>
+          <View style={[profileStyles.avatar, { backgroundColor: colors.primaryFixed, borderColor: chrome.onSurface }]}>
+            <UiText variant="headlineSmall" tone="primary">{initials}</UiText>
+          </View>
+          <View style={profileStyles.profileCopy}>
+            <UiText variant="headlineSmall" style={{ color: chrome.onSurface }}>{displayName}</UiText>
+            <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>{displayId}</UiText>
             <Badge label={isLive ? roleLabel : `${roleLabel} · ${copy.profile.preview}`} tone="primary" />
           </View>
         </View>
       </Card>
       <ScreenSpacer />
-      <Card>
-        <SectionHeading title={copy.profile.sectionDetails} />
-        <ListRow title={copy.profile.fullName} subtitle={displayName} />
+      <SectionCard title={copy.profile.sectionDetails} icon="card-account-details-outline">
+        <ListRow icon="account-outline" title={copy.profile.fullName} subtitle={displayName} />
         <Divider />
-        <ListRow title={copy.profile.email} subtitle={displayEmail} />
+        <ListRow icon="email-outline" title={copy.profile.email} subtitle={displayEmail} />
         <Divider />
-        <ListRow title={idLabel} subtitle={displayId} />
+        <ListRow icon="card-account-details-outline" title={idLabel} subtitle={displayId} />
         {isLive ? (
           <>
             <Divider />
@@ -197,12 +209,11 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
             />
           </>
         ) : null}
-      </Card>
+      </SectionCard>
       {isLive ? (
         <>
           <ScreenSpacer />
-          <Card>
-            <SectionHeading title={copy.password.title} />
+          <SectionCard title={copy.password.title} icon="lock-outline">
             <SecureField
               label={copy.password.current}
               value={oldPassword}
@@ -243,7 +254,7 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
                 if (validatePassword()) setConfirmPasswordChange(true);
               }}
             />
-          </Card>
+          </SectionCard>
           <ScreenSpacer />
           <TwoFactorCard email={account?.email} onCompleted={handleTwoFactorDone} />
         </>
@@ -251,8 +262,10 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
       <ScreenSpacer />
       <LanguageSetting />
       <ScreenSpacer />
-      <Button label={copy.profile.openAssistant} onPress={() => navigation.navigate('assistant.chat')} variant="secondary" />
-      <Button label={copy.signOut.button} onPress={() => setConfirmSignOut(true)} variant="text" style={styles.signOut} />
+      <Card>
+        <ListRow icon="robot-outline" title={copy.profile.openAssistant} onPress={() => navigation.navigate('assistant.chat')} />
+      </Card>
+      <Button icon="logout" label={copy.signOut.button} onPress={() => setConfirmSignOut(true)} variant="destructive" style={styles.signOut} />
       <Dialog
         visible={confirmPasswordChange}
         title={copy.password.confirmTitle}
@@ -273,3 +286,9 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     </ScreenShell>
   );
 }
+
+const profileStyles = StyleSheet.create({
+  profileHeader: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
+  profileCopy: { flex: 1, gap: 4, minWidth: 160 },
+  avatar: { alignItems: 'center', borderRadius: 32, borderWidth: 2, height: 64, justifyContent: 'center', width: 64 },
+});
