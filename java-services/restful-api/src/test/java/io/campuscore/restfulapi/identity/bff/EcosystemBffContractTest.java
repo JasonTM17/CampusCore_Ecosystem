@@ -93,6 +93,10 @@ class EcosystemBffContractTest {
     private final JdbcTemplate jdbc;
     @Autowired private ObjectMapper mapper;
     @Autowired private PasswordEncoder passwordEncoder;
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+    private BffSessionStore logoutStore;
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+    private io.campuscore.restfulapi.identity.IdentitySessionMirror logoutMirror;
 
     EcosystemBffContractTest(@Autowired javax.sql.DataSource dataSource) {
         this.jdbc = new JdbcTemplate(dataSource);
@@ -592,6 +596,204 @@ class EcosystemBffContractTest {
                         "X-Campuscore-Bff-Secret", PORTAL_PROXY_SECRET));
         // Passes the proxy-context check; then resource auth decides.
         assertThat(response.statusCode()).isIn(200, 401);
+    }
+
+    // ---- AUD-06 fault and negative matrix ----------------------------------
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"session-store", "grant-store"})
+    void logoutStoreFailureRollsBackCookiesAndSessionThenRetrySucceeds(String fault) throws Exception {
+        String cookie = establishSession();
+        String csrf = csrfFor(cookie);
+        int grants = jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_identity.oauth2_authorization",
+                Integer.class);
+        if ("session-store".equals(fault)) {
+            org.mockito.Mockito.doThrow(new IllegalStateException("AUD06 synthetic session-store failure"))
+                    .when(logoutStore).revokeSession(org.mockito.ArgumentMatchers.anyString(),
+                            org.mockito.ArgumentMatchers.eq("portal"));
+        } else {
+            // The session marker and grant deletion have already executed in
+            // the transaction: failure here must roll BOTH back.
+            org.mockito.Mockito.doThrow(new IllegalStateException("AUD06 synthetic grant-store failure"))
+                    .when(logoutMirror).deleteOidcSessionsForClient("student-user", "cu-portal");
+        }
+        HttpResponse<String> failed = postLogout(cookie, csrf);
+        assertThat(failed.statusCode()).isEqualTo(500);
+        assertThat(failed.headers().allValues("Set-Cookie")).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_identity.bff_session"
+                + " WHERE revoked_at IS NULL", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_identity.oauth2_authorization",
+                Integer.class)).isEqualTo(grants);
+        Map<String, String> stateHeaders = edgePortal();
+        stateHeaders.put("Cookie", cookie);
+        assertThat(get(BASE + "/session/state", stateHeaders).statusCode()).isEqualTo(200);
+        org.mockito.Mockito.doCallRealMethod().when(logoutStore)
+                .revokeSession(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq("portal"));
+        org.mockito.Mockito.doCallRealMethod().when(logoutMirror)
+                .deleteOidcSessionsForClient("student-user", "cu-portal");
+        HttpResponse<String> recovered = postLogout(cookie, csrf);
+        assertThat(recovered.statusCode()).isEqualTo(200);
+        assertThat(recovered.headers().allValues("Set-Cookie")).hasSize(2)
+                .allMatch(value -> value.contains("Max-Age=0"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_identity.bff_session",
+                Integer.class)).isZero();
+        assertThat(postLogout(cookie, csrf).statusCode()).as("documented idempotent retry").isEqualTo(200);
+    }
+
+    @Test
+    void logoutRejectsMissingWrongAndOtherSessionCsrfWithoutClearingCookies() throws Exception {
+        String first = establishSession();
+        String second = establishSession();
+        String otherToken = csrfFor(second);
+        for (String token : new String[] {null, "wrong-token", otherToken}) {
+            HttpResponse<String> response = logoutRequest(first, token,
+                    "http://portal.test", "same-origin", null, "");
+            assertThat(response.statusCode()).isEqualTo(403);
+            assertThat(response.headers().allValues("Set-Cookie")).isEmpty();
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_identity.bff_session"
+                + " WHERE revoked_at IS NULL", Integer.class)).isEqualTo(2);
+    }
+
+    @Test
+    void logoutRejectsForeignOriginMissingProvenanceAndCrossSiteFetch() throws Exception {
+        String cookie = establishSession();
+        String csrf = csrfFor(cookie);
+        assertThat(logoutRequest(cookie, csrf, "http://learn.test", "same-origin", null, "")
+                .statusCode()).isEqualTo(403);
+        assertThat(logoutRequest(cookie, csrf, "https://evil.invalid", "cross-site", null, "")
+                .statusCode()).isEqualTo(403);
+        assertThat(logoutRequest(cookie, csrf, null, null, "https://evil.invalid/", "")
+                .statusCode()).isEqualTo(403);
+        assertThat(logoutRequest(cookie, csrf, "http://portal.test", "cross-site", null, "")
+                .statusCode()).isEqualTo(403);
+    }
+
+    @Test
+    void logoutRefererIsIgnoredWhenSameOriginMetadataIsPresentKnownPolicyGap() throws Exception {
+        String cookie = establishSession();
+        String csrf = csrfFor(cookie);
+        assertThat(logoutRequest(cookie, csrf, null, "same-origin", "https://evil.invalid/", "")
+                .statusCode()).as("known policy gap: Fetch Metadata authorizes without checking Referer")
+                .isEqualTo(200);
+    }
+
+    @Test
+    void staleTabBusinessMutationIsRejectedButLogoutRetryIsDocumentedException() throws Exception {
+        String cookie = establishSession();
+        String csrf = csrfFor(cookie);
+        assertThat(postLogout(cookie, csrf).statusCode()).isEqualTo(200);
+        // Same cookie/token represents the second tab after tab one logs out.
+        HttpRequest.Builder mutation = HttpRequest.newBuilder(URI.create(BASE + "/bff/api/auth/me"));
+        edgePortal().forEach(mutation::header);
+        var stale = http.send(mutation.header("Cookie", cookie)
+                .header("Origin", "http://portal.test").header("Sec-Fetch-Site", "same-origin")
+                .header("x-csrf-token", csrf).POST(HttpRequest.BodyPublishers.noBody()).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(stale.statusCode()).isIn(401, 403);
+        assertThat(postLogout(cookie, csrf).statusCode()).as("known policy conflict: stale logout is allowed")
+                .isEqualTo(200);
+        assertThat(logoutRequest(cookie, csrf, "https://evil.invalid", "cross-site", null, "")
+                .statusCode()).isEqualTo(403);
+    }
+
+    @Test
+    void logoutGetIsRejectedAndReturnToCannotOverrideFixedLogoutDestination() throws Exception {
+        String cookie = establishSession();
+        String csrf = csrfFor(cookie);
+        Map<String, String> headers = edgePortal();
+        headers.put("Cookie", cookie);
+        assertThat(get(BASE + "/session/logout?returnTo=https%3A%2F%2Fevil.invalid", headers)
+                .statusCode()).isEqualTo(405);
+        HttpResponse<String> result = logoutRequest(cookie, csrf, "http://portal.test", "same-origin", null,
+                "?returnTo=https%3A%2F%2Fevil.invalid&returnTo=%2F%2Fevil.invalid"
+                        + "&post_logout_redirect_uri=https%3A%2F%2Fevil.invalid");
+        assertThat(result.statusCode()).isEqualTo(200);
+        String logoutUrl = mapper.readTree(result.body()).get("logoutUrl").asText();
+        assertThat(logoutUrl.contains("evil.invalid")).isFalse();
+        assertThat(logoutUrl.contains("http%3A%2F%2Fportal.test%2Fsession%2Flogged-out")).isTrue();
+    }
+
+    @Test
+    void returnedLogoutUrlCannotCompleteEndSessionAfterGrantDeletionKnownContractGap() throws Exception {
+        String cookie = establishSession();
+        String csrf = csrfFor(cookie);
+        HttpResponse<String> first = postLogout(cookie, csrf);
+        assertThat(first.statusCode()).isEqualTo(200);
+        String firstUrl = mapper.readTree(first.body()).get("logoutUrl").asText();
+        assertThat(get(firstUrl, Map.of()).statusCode())
+                .as("known gap: SAS cannot resolve the hint after the BFF deleted its grant").isEqualTo(400);
+        HttpResponse<String> retry = postLogout(cookie, csrf);
+        assertThat(retry.statusCode()).isEqualTo(200);
+        String retryUrl = mapper.readTree(retry.body()).get("logoutUrl").asText();
+        assertThat(get(retryUrl, Map.of()).statusCode())
+                .as("known gap: SAS 7.1 requires a hint, contrary to host-policy hint-null claim").isEqualTo(400);
+    }
+
+    @Test
+    void returnPathRejectsOpenRedirectsAndMalformedCallbackCannotCreateSession() throws Exception {
+        for (String target : List.of("https://evil.invalid/", "//evil.invalid/", "/\\evil.invalid",
+                "/session/logout", "/api/v1/auth/logout")) {
+            HttpResponse<String> login = get(BASE + "/session/login?return="
+                    + java.net.URLEncoder.encode(target, java.nio.charset.StandardCharsets.UTF_8), edgePortal());
+            assertThat(login.statusCode()).isEqualTo(302);
+        }
+        assertThat(jdbc.queryForList("SELECT return_path FROM campuscore_identity.bff_transaction", String.class))
+                .allMatch("/"::equals);
+        for (String query : List.of("", "?state=x", "?state=x&code=x&state=y", "?state=x&code=x&code=y")) {
+            HttpResponse<String> callback = get(BASE + "/session/callback" + query, edgePortal());
+            assertThat(callback.statusCode()).isIn(400, 401);
+            assertThat(callback.headers().allValues("Set-Cookie").stream()
+                    .anyMatch(value -> value.startsWith(SESSION_COOKIE + "="))).isFalse();
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_identity.bff_session", Integer.class))
+                .isZero();
+    }
+
+    @Test
+    void duplicateCallbackParametersRejectOtherwiseValidCodeAndState() throws Exception {
+        String legacyCookies = legacyLogin();
+        for (String duplicateKey : List.of("code=", "state=")) {
+            var login = get(BASE + "/session/login", edgePortal());
+            String txCookie = setCookie(login, TX_PREFIX);
+            var authorized = get(login.headers().firstValue("Location").orElseThrow(),
+                    Map.of("Cookie", legacyCookies));
+            URI callback = URI.create(authorized.headers().firstValue("Location").orElseThrow());
+            String query = callback.getRawQuery();
+            String duplicate = java.util.Arrays.stream(query.split("&"))
+                    .filter(pair -> pair.startsWith(duplicateKey)).findFirst().orElseThrow();
+            Map<String, String> headers = edgePortal();
+            headers.put("Cookie", txCookie);
+            var rejected = get(BASE + callback.getRawPath() + "?" + query + "&" + duplicate, headers);
+            assertThat(rejected.statusCode()).as("duplicate callback field must not mint a session")
+                    .isIn(400, 401);
+            assertThat(rejected.headers().allValues("Set-Cookie").stream()
+                    .anyMatch(value -> value.startsWith(SESSION_COOKIE + "=") && !value.contains("Max-Age=0")))
+                    .isFalse();
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_identity.bff_session", Integer.class))
+                .isZero();
+    }
+
+    private String csrfFor(String cookie) throws Exception {
+        Map<String, String> headers = edgePortal();
+        headers.put("Cookie", cookie);
+        HttpResponse<String> response = get(BASE + "/session/state", headers);
+        assertThat(response.statusCode()).isEqualTo(200);
+        return mapper.readTree(response.body()).get("csrfToken").asText();
+    }
+
+    private HttpResponse<String> logoutRequest(String cookie, String token, String origin,
+            String fetchSite, String referer, String query) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(BASE + "/session/logout" + query));
+        edgePortal().forEach(builder::header);
+        builder.header("Cookie", cookie);
+        if (token != null) builder.header("x-csrf-token", token);
+        if (origin != null) builder.header("Origin", origin);
+        if (fetchSite != null) builder.header("Sec-Fetch-Site", fetchSite);
+        if (referer != null) builder.header("Referer", referer);
+        return http.send(builder.POST(HttpRequest.BodyPublishers.noBody()).build(),
+                HttpResponse.BodyHandlers.ofString());
     }
 
     // ---- helpers -----------------------------------------------------------
