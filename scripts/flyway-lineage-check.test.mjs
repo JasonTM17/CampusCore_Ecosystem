@@ -26,9 +26,9 @@ test('flyway-lineage-check: real repository migration directory passes verificat
   const result = verifyMigrationLineage();
 
   assert.equal(result.success, true, 'Verification of real migrations should succeed');
-  assert.equal(result.filesCount, 141, 'Should have exactly 141 migration files');
+  assert.equal(result.filesCount, 142, 'Should have exactly 142 migration files');
   assert.equal(result.minVersion, 1, 'Minimum version should be 1');
-  assert.equal(result.maxVersion, 144, 'Maximum version should be 144');
+  assert.equal(result.maxVersion, 145, 'Maximum version should be 145');
   assert.deepEqual(result.duplicates, [], 'Should have zero duplicates');
   assert.deepEqual(result.unexpectedGaps, [], 'Should have zero unexpected gaps');
   assert.deepEqual(result.allowedGapsFound, [56, 91, 119], 'Should verify exactly the allowed gaps [56, 91, 119]');
@@ -134,8 +134,8 @@ test('flyway-lineage-check: CLI invocation succeeds with default options', () =>
   const scriptPath = path.resolve('scripts/flyway-lineage-check.mjs');
   const stdout = execFileSync(process.execPath, [scriptPath], { encoding: 'utf8' });
 
-  assert.match(stdout, /Checked 141 migration files/);
-  assert.match(stdout, /Version range: V1 to V144/);
+  assert.match(stdout, /Checked 142 migration files/);
+  assert.match(stdout, /Version range: V1 to V145/);
   assert.match(stdout, /Allowed gaps verified: V56, V91, V119/);
   assert.match(stdout, /MIGRATION LINEAGE PASS/);
 });
@@ -146,9 +146,9 @@ test('flyway-lineage-check: CLI supports --json format', () => {
 
   const parsed = JSON.parse(stdout);
   assert.equal(parsed.success, true);
-  assert.equal(parsed.filesCount, 141);
+  assert.equal(parsed.filesCount, 142);
   assert.equal(parsed.minVersion, 1);
-  assert.equal(parsed.maxVersion, 144);
+  assert.equal(parsed.maxVersion, 145);
   assert.deepEqual(parsed.allowedGapsFound, [56, 91, 119]);
 });
 
