@@ -106,7 +106,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          node --test scripts/ci-secret-output.test.mjs scripts/ci-timing-report.test.mjs scripts/ecosystem-doc-index.test.mjs 2>&1 | tee /tmp/ci-support-tests.log
+          node --test scripts/ci-secret-output.test.mjs scripts/ci-timing-report.test.mjs scripts/ecosystem-doc-index.test.mjs scripts/ecosystem-devices-verify.test.mjs 2>&1 | tee /tmp/ci-support-tests.log
           node -e '
             const fs = require("fs");
             const log = fs.readFileSync("/tmp/ci-support-tests.log", "utf8");
