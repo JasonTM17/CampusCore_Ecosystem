@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.auth.service;
 
+import io.campuscore.restfulapi.exception.SensitiveLogRedactor;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -13,6 +14,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -184,8 +186,10 @@ public class DemoAccountGate implements ApplicationRunner {
             // values — then abort startup so the deployment cannot run with an
             // unenforced demo policy.
             log.warn("Demo account gate could not apply the configured demo policy; aborting startup: {}",
-                    ex.getMessage());
-            throw ex;
+                    SensitiveLogRedactor.exceptionType(ex));
+            throw new DataAccessResourceFailureException(
+                    "Demo account policy could not be applied; originalExceptionType="
+                            + SensitiveLogRedactor.exceptionType(ex));
         }
     }
 

@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.config;
 
+import io.campuscore.restfulapi.exception.SensitiveLogRedactor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -38,7 +39,8 @@ public class DatabaseKeepAliveScheduler {
             Integer probe = jdbc.queryForObject("SELECT 1", Integer.class);
             log.info("Database keep-alive ping succeeded (probe: {})", probe);
         } catch (DataAccessException ex) {
-            log.warn("Database keep-alive ping encountered non-fatal error: {}", ex.getMessage());
+            log.warn("Database keep-alive ping encountered non-fatal error; exceptionType={}",
+                    SensitiveLogRedactor.exceptionType(ex));
         }
     }
 }

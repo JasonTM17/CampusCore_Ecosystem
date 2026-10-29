@@ -6,6 +6,7 @@ import io.campuscore.restfulapi.auth.repository.TwoFactorChallengeRepository;
 import io.campuscore.restfulapi.auth.repository.TwoFactorChallengeRepository.ChallengeRecord;
 import io.campuscore.restfulapi.auth.web.SessionCookieService;
 import io.campuscore.restfulapi.exception.AppException;
+import io.campuscore.restfulapi.exception.SensitiveLogRedactor;
 import io.campuscore.restfulapi.mail.config.MailConfig;
 import io.campuscore.restfulapi.mail.service.EmailService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -442,7 +443,8 @@ public class TwoFactorService {
                             "expiryMinutes", (int) CODE_TTL.toMinutes()));
         } catch (RuntimeException exception) {
             // Never log or surface the code itself.
-            log.warn("Two-factor code email failed for userId={}: {}", userId, exception.getMessage());
+            log.warn("Two-factor code email failed for userId={} exceptionType={}",
+                    userId, SensitiveLogRedactor.exceptionType(exception));
             throw mailUnavailable();
         }
     }
