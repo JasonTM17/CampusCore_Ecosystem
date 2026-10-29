@@ -2,6 +2,10 @@ import type { Locale } from '@/i18n/config';
 import { thesisWorkflowEn, thesisWorkflowVi } from '@/i18n/messages-thesis-workflow';
 import { deanOverviewEn, deanOverviewVi } from '@/i18n/messages-dean-overview';
 import { contentEn, contentVi } from '@/i18n/messages-content';
+import {
+  attendanceGeofenceEn,
+  attendanceGeofenceVi,
+} from '@/i18n/messages-attendance-geofence';
 
 export const en = {
   common: {
@@ -316,6 +320,11 @@ export const en = {
     admin: {
       title: 'Admin portal | CampusUTE',
       description: 'Protected administration routes for CampusUTE.',
+    },
+    checkinLanding: {
+      title: 'Check in with the CampusUTE app | CampusUTE',
+      description:
+        'Open this check-in link in the CampusUTE app to mark attendance.',
     },
     socialImage: {
       eyebrow: 'CampusUTE · HCMUTE',
@@ -1057,6 +1066,7 @@ export const en = {
     backToDashboard: 'Back to admin dashboard',
     mobileNavigation: 'Admin navigation on mobile',
     menuAttendance: 'Attendance',
+    menuAttendanceGeofences: 'Attendance geofences',
     menuEvents: 'Events & union activities',
     menuSiteEditor: 'Site Editor & CMS',
     menuSystemNotifications: 'System notifications',
@@ -2838,6 +2848,7 @@ export const en = {
       'Attendance your lecturers have recorded: per-course totals first, then your most recent sessions.',
     loading: 'Loading attendance',
     unavailableTitle: 'Attendance unavailable',
+  attendanceGeofence: attendanceGeofenceEn,
     errorDescription: 'Attendance could not be loaded. Check your connection and try again.',
     emptyTitle: 'No attendance records yet',
     emptyDescription:
@@ -3300,6 +3311,11 @@ export const vi: I18nMessages = {
       },
       {
         title: 'Ưu tiên bảo mật',
+    checkinLanding: {
+      title: 'Điểm danh bằng ứng dụng CampusUTE | CampusUTE',
+      description:
+        'Mở liên kết điểm danh này trong ứng dụng CampusUTE để xác nhận có mặt.',
+    },
         description:
           'Các lớp bảo vệ tài khoản và giao dịch vẫn được giữ vững mà không biến giao diện thành bảng chẩn đoán kỹ thuật.',
       },
@@ -4039,6 +4055,7 @@ export const vi: I18nMessages = {
       ['Môn học', 'Duy trì danh mục, mã môn và thông tin môn học.'],
       ['Lớp học phần', 'Theo dõi sức chứa, người phụ trách và phòng học đi kèm.'],
       ['Quản lý Đăng ký học phần', 'Kiểm tra và quản lý hồ sơ đăng ký học phần sinh viên.'],
+    menuAttendanceGeofences: 'Khu vực điểm danh',
       ['Học kỳ', 'Kiểm soát dòng thời gian học vụ và cửa sổ đăng ký hiện tại.'],
       ['Bộ môn', 'Quản lý cấu trúc bộ môn và ánh xạ khoa.'],
       ['Phòng học', 'Theo dõi phòng, tòa nhà và mức sẵn sàng về sức chứa.'],
@@ -5815,6 +5832,7 @@ export const vi: I18nMessages = {
     statuses: {
       PRESENT: 'Có mặt',
       ABSENT: 'Vắng',
+  attendanceGeofence: attendanceGeofenceVi,
       LATE: 'Đi muộn',
       EXCUSED: 'Có phép',
     },
