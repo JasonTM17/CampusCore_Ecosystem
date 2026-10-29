@@ -53,7 +53,7 @@ import org.springframework.test.web.servlet.MvcResult;
  * test-scoped.
  */
 @SpringBootTest
-@AutoConfigureMockMvc
+@AutoConfigureMockMvc(print = org.springframework.boot.webmvc.test.autoconfigure.MockMvcPrint.NONE)
 @ActiveProfiles({"test", "persistence"})
 @TestPropertySource(properties = {
         "identity.oidc.enabled=true",
@@ -88,6 +88,8 @@ class EcosystemIdentityContractTest {
     @Autowired private ObjectMapper mapper;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired @Qualifier("identityJwtDecoder") private JwtDecoder identityDecoder;
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+    private IdentitySessionMirror logoutMirror;
 
     @BeforeEach
     void resetDemoAccount() {
@@ -377,16 +379,256 @@ class EcosystemIdentityContractTest {
         assertThat(decoder.decode(mintedBeforeRollover).getSubject()).isEqualTo("u-rollover");
     }
 
+    // ---- AUD-06 logout/CSRF evidence ----------------------------------------
+
+    @Test
+    void oidcCookieLogoutRequiresDoubleSubmitBeforeRevocation() throws Exception {
+        Cookie access = login();
+        JsonNode tokens = exchangeCode(access, pkceVerifier(), "aud06-csrf");
+        int before = grantCount();
+        var result = mvc.perform(post("/connect/logout").cookie(access)
+                .param("id_token_hint", tokens.get("id_token").asText())
+                .param("post_logout_redirect_uri", "http://127.0.0.1:3100/"))
+                .andReturn().getResponse();
+        assertThat(result.getStatus()).as("missing SAS cookie-CSRF must be rejected").isEqualTo(403);
+        assertThat(grantCount()).isEqualTo(before);
+        assertThat(result.getHeaders("Set-Cookie")).isEmpty();
+    }
+
+    @Test
+    void oidcCookieLogoutRejectsWrongTokensAndReplayedHintAfterSuccessfulPost() throws Exception {
+        Cookie access = login();
+        JsonNode tokens = exchangeCode(access, pkceVerifier(), "aud06-post-replay");
+        Cookie csrf = new Cookie("cc_csrf", "aud06-boundary-token");
+        int before = grantCount();
+        for (String token : List.of("", "wrong-token", "other-session-token")) {
+            var result = mvc.perform(post("/connect/logout").cookie(access, csrf)
+                    .header("X-CSRF-Token", token)
+                    .param("client_id", CLIENT)
+                    .param("id_token_hint", tokens.get("id_token").asText()))
+                    .andReturn().getResponse();
+            assertThat(result.getStatus()).isEqualTo(403);
+            assertThat(grantCount()).isEqualTo(before);
+        }
+        var success = mvc.perform(post("/connect/logout").cookie(access, csrf)
+                .header("X-CSRF-Token", csrf.getValue()).param("client_id", CLIENT)
+                .param("id_token_hint", tokens.get("id_token").asText()))
+                .andReturn().getResponse();
+        assertThat(success.getStatus()).isEqualTo(204);
+        assertThat(grantCount()).isZero();
+        var staleTab = mvc.perform(post("/connect/logout").cookie(access, csrf)
+                .header("X-CSRF-Token", csrf.getValue()).param("client_id", CLIENT)
+                .param("id_token_hint", tokens.get("id_token").asText()))
+                .andReturn().getResponse();
+        assertThat(staleTab.getStatus()).isEqualTo(400);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.NullAndEmptySource
+    @org.junit.jupiter.params.provider.ValueSource(strings = " ")
+    void oidcHintWithoutClientIdStillRevokesTheValidatedClientsGrants(String optionalClientId) throws Exception {
+        Cookie access = login();
+        JsonNode tokens = exchangeCode(access, pkceVerifier(), "aud06-client-omission");
+        var request = get("/connect/logout").cookie(access)
+                .queryParam("id_token_hint", tokens.get("id_token").asText())
+                .queryParam("post_logout_redirect_uri", "http://127.0.0.1:3100/");
+        if (optionalClientId != null) request.queryParam("client_id", optionalClientId);
+        var result = mvc.perform(request).andReturn().getResponse();
+        assertThat(result.getStatus()).isEqualTo(302);
+        assertThat(grantCount()).as("optional client_id must not bypass documented per-client revoke").isZero();
+    }
+
+    @Test
+    void oidcCrossOriginAndOtherSessionDoubleSubmitPairRemainKnownPolicyGaps() throws Exception {
+        Cookie access = login();
+        JsonNode tokens = exchangeCode(access, pkceVerifier(), "aud06-origin");
+        Cookie csrf = java.util.Arrays.stream(loginCookies())
+                .filter(cookie -> cookie.getName().equals("cc_csrf")).findFirst().orElseThrow();
+        var result = mvc.perform(post("/connect/logout").cookie(access, csrf)
+                .header("X-CSRF-Token", csrf.getValue())
+                .header("Origin", "https://evil.invalid").header("Referer", "https://evil.invalid/")
+                .param("client_id", CLIENT).param("id_token_hint", tokens.get("id_token").asText()))
+                .andReturn().getResponse();
+        assertThat(result.getStatus()).as("known policy gap: SAS has no Origin/Referer guard")
+                .isEqualTo(204);
+        assertThat(grantCount()).isZero();
+    }
+
+    @Test
+    void legacyDoubleSubmitIsNotSessionBoundAndRefererAloneIsNotAnOriginGuard() throws Exception {
+        Cookie[] first = loginCookies();
+        Cookie[] second = loginCookies();
+        Cookie access = java.util.Arrays.stream(first)
+                .filter(cookie -> cookie.getName().equals("cc_access_token")).findFirst().orElseThrow();
+        Cookie csrf = java.util.Arrays.stream(second)
+                .filter(cookie -> cookie.getName().equals("cc_csrf")).findFirst().orElseThrow();
+        // Explicit characterization of legacy double-submit: the pair can
+        // come from another login; adding session binding needs owner policy.
+        var result = mvc.perform(post("/api/v1/auth/logout").cookie(access, csrf)
+                .header("X-CSRF-Token", csrf.getValue())
+                .header("Referer", "https://evil.invalid/"))
+                .andReturn().getResponse();
+        assertThat(result.getStatus()).as("known policy gap: Referer is ignored and token pair unbound")
+                .isEqualTo(200);
+    }
+
+    @Test
+    void legacyStaleTabCanRevokeAFreshLoginKnownPolicyGap() throws Exception {
+        Cookie oldAccess = login();
+        Cookie csrf = new Cookie("cc_csrf", "aud06-stale-tab");
+        assertThat(mvc.perform(post("/api/v1/auth/logout").cookie(oldAccess, csrf)
+                .header("X-CSRF-Token", csrf.getValue())).andReturn().getResponse().getStatus()).isEqualTo(200);
+        Cookie freshAccess = login();
+        assertThat(mvc.perform(get("/api/v1/auth/me").cookie(freshAccess))
+                .andReturn().getResponse().getStatus()).isEqualTo(200);
+        assertThat(mvc.perform(post("/api/v1/auth/logout").cookie(oldAccess, csrf)
+                .header("X-CSRF-Token", csrf.getValue())).andReturn().getResponse().getStatus()).isEqualTo(200);
+        assertThat(mvc.perform(get("/api/v1/auth/me").cookie(freshAccess))
+                .andReturn().getResponse().getStatus())
+                .as("known policy gap: stale cleanup request revokes a newly established session").isEqualTo(401);
+    }
+
+    @Test
+    void oidcRevokeFailureCurrentlyCertifiesLogoutKnownContractGap() throws Exception {
+        Cookie access = login();
+        JsonNode tokens = exchangeCode(access, pkceVerifier(), "aud06-fault");
+        int grantsBefore = grantCount();
+        int sessionsBefore = sessionCount();
+        org.mockito.Mockito.doThrow(new IllegalStateException("AUD06 synthetic revoke failure"))
+                .when(logoutMirror).deleteOidcSessionsForClient("student-user", CLIENT);
+        var failed = mvc.perform(get("/connect/logout").cookie(access).queryParam("client_id", CLIENT)
+                .queryParam("id_token_hint", tokens.get("id_token").asText())
+                .queryParam("post_logout_redirect_uri", "http://127.0.0.1:3100/"))
+                .andReturn().getResponse();
+        // Characterizes the documented best-effort exception, NOT acceptance.
+        assertThat(failed.getStatus()).as("known gap: failure is reported as redirect success")
+                .isEqualTo(302);
+        assertThat(failed.getHeaders("Set-Cookie")).isEmpty();
+        assertThat(grantCount()).as("failed transaction rolls grant deletion back").isEqualTo(grantsBefore);
+        assertThat(sessionCount()).as("failed transaction leaves sessions live").isEqualTo(sessionsBefore);
+        org.mockito.Mockito.doCallRealMethod().when(logoutMirror)
+                .deleteOidcSessionsForClient("student-user", CLIENT);
+        var recovered = mvc.perform(get("/connect/logout").cookie(access).queryParam("client_id", CLIENT)
+                .queryParam("id_token_hint", tokens.get("id_token").asText())
+                .queryParam("post_logout_redirect_uri", "http://127.0.0.1:3100/"))
+                .andReturn().getResponse();
+        assertThat(recovered.getStatus()).isEqualTo(302);
+        assertThat(grantCount()).isZero();
+        // A retained hint no longer resolves after successful revocation.
+        var replay = mvc.perform(get("/connect/logout").cookie(access).queryParam("client_id", CLIENT)
+                .queryParam("id_token_hint", tokens.get("id_token").asText()))
+                .andReturn().getResponse();
+        assertThat(replay.getStatus()).isEqualTo(400);
+    }
+
+    @Test
+    void oidcLogoutRejectsUnregisteredAndDuplicateRedirectParameters() throws Exception {
+        Cookie access = login();
+        JsonNode tokens = exchangeCode(access, pkceVerifier(), "aud06-redirect");
+        for (String target : List.of("https://evil.invalid/", "//evil.invalid/",
+                "http://127.0.0.1:3100/@evil.invalid", "http://127.0.0.1:3100/%0d%0aLocation:evil")) {
+            var result = mvc.perform(get("/connect/logout").cookie(access).queryParam("client_id", CLIENT)
+                    .queryParam("id_token_hint", tokens.get("id_token").asText())
+                    .queryParam("post_logout_redirect_uri", target)).andReturn().getResponse();
+            assertThat(result.getStatus()).as("unregistered logout redirect").isEqualTo(400);
+            assertThat(result.getHeader("Location")).isNull();
+        }
+        var duplicate = mvc.perform(get("/connect/logout").cookie(access).queryParam("client_id", CLIENT)
+                .queryParam("id_token_hint", tokens.get("id_token").asText())
+                .queryParam("post_logout_redirect_uri", "http://127.0.0.1:3100/", "https://evil.invalid/"))
+                .andReturn().getResponse();
+        assertThat(duplicate.getStatus()).isEqualTo(400);
+        assertThat(duplicate.getHeader("Location")).isNull();
+        for (String hint : List.of("", "malformed-not-a-jwt")) {
+            var malformed = mvc.perform(get("/connect/logout").cookie(access)
+                    .queryParam("id_token_hint", hint)).andReturn().getResponse();
+            assertThat(malformed.getStatus()).isEqualTo(400);
+            assertThat(malformed.getHeader("Location")).isNull();
+        }
+        var duplicateHint = mvc.perform(get("/connect/logout").cookie(access)
+                .queryParam("id_token_hint", tokens.get("id_token").asText(), tokens.get("id_token").asText()))
+                .andReturn().getResponse();
+        assertThat(duplicateHint.getStatus()).isEqualTo(400);
+    }
+
+    @Test
+    void legacyLogoutRevokeFailureRollsBackAndPreservesCookiesUntilRetry() throws Exception {
+        Cookie access = login();
+        int sessionsBefore = sessionCount();
+        org.mockito.Mockito.doThrow(new IllegalStateException("AUD06 synthetic revoke failure"))
+                .when(logoutMirror).deleteLineageForUser("student-user");
+        Cookie csrf = new Cookie("cc_csrf", "aud06-double-submit");
+        var failure = mvc.perform(post("/api/v1/auth/logout").cookie(access, csrf)
+                .header("X-CSRF-Token", csrf.getValue())).andReturn().getResponse();
+        assertThat(failure.getStatus()).isEqualTo(500);
+        assertThat(failure.getHeaders("Set-Cookie")).isEmpty();
+        assertThat(sessionCount()).as("no half-revoked legacy session state").isEqualTo(sessionsBefore);
+        org.mockito.Mockito.doCallRealMethod().when(logoutMirror).deleteLineageForUser("student-user");
+        var recovered = mvc.perform(post("/api/v1/auth/logout").cookie(access, csrf)
+                .header("X-CSRF-Token", csrf.getValue())).andReturn().getResponse();
+        assertThat(recovered.getStatus()).isEqualTo(200);
+        assertThat(recovered.getHeaders("Set-Cookie")).hasSize(3)
+                .allMatch(value -> value.contains("Max-Age=0"));
+        assertThat(sessionCount()).isZero();
+        var staleTab = mvc.perform(post("/api/v1/auth/logout").cookie(access, csrf)
+                .header("X-CSRF-Token", csrf.getValue())).andReturn().getResponse();
+        assertThat(staleTab.getStatus()).as("documented legacy cleanup idempotence").isEqualTo(200);
+        assertThat(mvc.perform(get("/api/v1/auth/me").cookie(access))
+                .andReturn().getResponse().getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void legacyLogoutRejectsMissingWrongCsrfAndForeignOrigin() throws Exception {
+        Cookie access = login();
+        Cookie csrf = new Cookie("cc_csrf", "aud06-double-submit");
+        int before = sessionCount();
+        for (String token : List.of("", "wrong", "another-session")) {
+            var result = mvc.perform(post("/api/v1/auth/logout").cookie(access, csrf)
+                    .header("X-CSRF-Token", token)).andReturn().getResponse();
+            assertThat(result.getStatus()).isEqualTo(403);
+            assertThat(result.getHeaders("Set-Cookie")).isEmpty();
+        }
+        var crossOrigin = mvc.perform(post("/api/v1/auth/logout").cookie(access, csrf)
+                .header("X-CSRF-Token", csrf.getValue()).header("Origin", "https://evil.invalid"))
+                .andReturn().getResponse();
+        assertThat(crossOrigin.getStatus()).isEqualTo(403);
+        assertThat(sessionCount()).isEqualTo(before);
+        assertThat(mvc.perform(get("/api/v1/auth/logout").cookie(access))
+                .andReturn().getResponse().getStatus()).isEqualTo(405);
+        var malformedBody = mvc.perform(post("/api/v1/auth/logout").cookie(access, csrf)
+                .header("X-CSRF-Token", csrf.getValue()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":[\"one\",\"two\"]}"))
+                .andReturn().getResponse();
+        assertThat(malformedBody.getStatus()).isEqualTo(400);
+        assertThat(malformedBody.getHeaders("Set-Cookie")).isEmpty();
+        assertThat(sessionCount()).isEqualTo(before);
+    }
+
+    private int grantCount() {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_identity.oauth2_authorization"
+                + " WHERE principal_name='student-user' AND registered_client_id='cu-hub'", Integer.class);
+    }
+
+    private int sessionCount() {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_auth.\"Session\""
+                + " WHERE \"userId\"='student-user'", Integer.class);
+    }
+
     // ---- helpers -----------------------------------------------------------
 
-    private Cookie login() throws Exception {
+    private Cookie[] loginCookies() throws Exception {
         MvcResult result = mvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"student@campuscore.edu\",\"password\":\""
                                 + PASSWORD + "\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
-        Cookie access = result.getResponse().getCookie("cc_access_token");
+        return result.getResponse().getCookies();
+    }
+
+    private Cookie login() throws Exception {
+        Cookie access = java.util.Arrays.stream(loginCookies())
+                .filter(cookie -> cookie.getName().equals("cc_access_token")).findFirst().orElse(null);
         assertThat(access).as("login must issue the central session cookie").isNotNull();
         return access;
     }

@@ -72,6 +72,7 @@ public class IdentitySecurityConfig {
             OAuth2TokenGenerator<?> identityTokenGenerator,
             JwtDecoder identityJwtDecoder,
             io.campuscore.restfulapi.security.CookieOrBearerTokenResolver tokenResolver,
+            io.campuscore.restfulapi.security.CsrfCookieFilter csrfCookieFilter,
             AuthUserRepository users, ApiErrorWriter errorWriter,
             UnifiedSessionAuthority authority, IdentitySessionMirror mirror,
             IdentityProperties properties) throws Exception {
@@ -108,9 +109,14 @@ public class IdentitySecurityConfig {
                                         OidcRefreshReplayHandler.defaultDelegate())))
                         .oidc(oidc -> oidc.logoutEndpoint(logout -> logout
                                 .logoutResponseHandler((request, response, authentication) ->
-                                        handleLogout(request, response, authentication, authority)))))
+                                        handleLogout(request, response, authentication, authority,
+                                                identityAuthorizationService)))))
                 .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
                 .csrf(csrf -> csrf.disable())
+                // SAS endpoint filters terminate before servlet component
+                // filters run. Enforce the documented cookie double-submit
+                // rule inside this chain, before end-session can revoke.
+                .addFilterAfter(csrfCookieFilter, CsrfFilter.class)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .oauth2ResourceServer(oauth -> oauth
@@ -329,15 +335,28 @@ public class IdentitySecurityConfig {
     private static void handleLogout(jakarta.servlet.http.HttpServletRequest request,
             HttpServletResponse response,
             org.springframework.security.core.Authentication authentication,
-            UnifiedSessionAuthority authority) throws IOException {
+            UnifiedSessionAuthority authority, OAuth2AuthorizationService authorizations) throws IOException {
         if (authentication instanceof OidcLogoutAuthenticationToken logoutToken) {
             String userId = logoutToken.getIdToken() != null
                     ? logoutToken.getIdToken().getSubject() : null;
             String clientId = logoutToken.getClientId();
-            if (userId != null && clientId != null) {
+            if (userId != null) {
                 try {
-                    authority.revokeClientGrants(userId, clientId, "OIDC_LOGOUT",
-                            request.getHeader("X-Request-Id"));
+                    // client_id is optional for RP-initiated logout. SAS has
+                    // already validated the hint against the stored grant;
+                    // use that grant's registered id rather than skipping
+                    // revocation when the request omits the optional field.
+                    if (clientId == null || clientId.isBlank()) {
+                        var grant = authorizations.findByToken(logoutToken.getIdToken().getTokenValue(),
+                                new org.springframework.security.oauth2.server.authorization.OAuth2TokenType("id_token"));
+                        if (grant != null) {
+                            clientId = grant.getRegisteredClientId();
+                        }
+                    }
+                    if (clientId != null) {
+                        authority.revokeClientGrants(userId, clientId, "OIDC_LOGOUT",
+                                request.getHeader("X-Request-Id"));
+                    }
                 } catch (RuntimeException revokeFailure) {
                     // Logout UX must not fail on audit trouble; the revoke is
                     // best-effort at the edge and replay-safe server-side.
