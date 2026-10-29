@@ -66,6 +66,10 @@ jobs:
     name: Ecosystem and supply chain gates
     runs-on: ubuntu-latest
     steps:
+      - name: Capture CI job start
+        id: ci_timing_start
+        continue-on-error: true
+        run: echo "started_at=$(node -e 'process.stdout.write(new Date().toISOString())')" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -79,16 +83,16 @@ jobs:
           if git grep --quiet -E 'sk-[A-Za-z0-9]{20,}' -- . ':!plans' ':!scripts/run-course-e2e.mjs'; then
             echo 'A provider-looking secret is tracked; refusing CI.'
             exit 1
-          fi
-          node scripts/check-assistant-secrets.mjs
-          node --test scripts/secret-hygiene.test.mjs 2>&1 | tee /tmp/secret-hygiene.log
-          node -e '
           else
             grep_status=$?
             if [ "$grep_status" -ne 1 ]; then
               echo 'Secret sentinel scanner failed; refusing CI.'
               exit "$grep_status"
             fi
+          fi
+          node scripts/check-assistant-secrets.mjs
+          node --test scripts/secret-hygiene.test.mjs 2>&1 | tee /tmp/secret-hygiene.log
+          node -e '
             const fs = require("fs");
             const log = fs.readFileSync("/tmp/secret-hygiene.log", "utf8");
             const m = log.match(/(?:#|ℹ)\s*tests\s+(\d+)/);
@@ -97,6 +101,21 @@ jobs:
               process.exit(1);
             }
             console.log(`PASS: Verified ${m[1]} secret hygiene tests executed.`);
+          '
+      - name: CI support script and documentation tests
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test scripts/ci-secret-output.test.mjs scripts/ci-timing-report.test.mjs scripts/ecosystem-doc-index.test.mjs 2>&1 | tee /tmp/ci-support-tests.log
+          node -e '
+            const fs = require("fs");
+            const log = fs.readFileSync("/tmp/ci-support-tests.log", "utf8");
+            const m = log.match(/(?:#|ℹ)\s*tests\s+(\d+)/);
+            if (!m || parseInt(m[1], 10) === 0) {
+              console.error("FAIL: Zero CI support and documentation tests executed!");
+              process.exit(1);
+            }
+            console.log("PASS: Verified " + m[1] + " CI support and documentation tests executed.");
           '
       - name: Documentation hygiene gate
         run: node scripts/check-doc-hygiene.mjs
@@ -153,6 +172,28 @@ jobs:
         run: |
           node scripts/host-registry-verify.mjs
           node scripts/static-policy-verify.mjs
+      - name: Write and validate CI timing summary
+        if: always()
+        continue-on-error: true
+        env:
+          CI_TIMING_WORKFLOW: ${{ github.workflow }}
+          CI_TIMING_RUN_ID: ${{ github.run_id }}
+          CI_TIMING_RUN_ATTEMPT: ${{ github.run_attempt }}
+          CI_TIMING_JOB: ${{ github.job }}
+          CI_TIMING_CONCLUSION: ${{ job.status }}
+          CI_TIMING_STARTED_AT: ${{ steps.ci_timing_start.outputs.started_at }}
+        run: |
+          node scripts/ci-timing-report.mjs --write-job-summary
+          node scripts/check-ci-timing-report.mjs artifacts/ci/ci-timing-summary.json
+      - name: Upload CI timing summary
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-timing-${{ github.job }}-${{ github.run_attempt }}
+          path: artifacts/ci/ci-timing-summary.json
+          if-no-files-found: ignore
+          retention-days: 7
 
   java-api:
     name: Java REST API
@@ -162,6 +203,10 @@ jobs:
       DEEPSEEK_ENABLED: 'false'
       DEEPSEEK_API_KEY: ''
     steps:
+      - name: Capture CI job start
+        id: ci_timing_start
+        continue-on-error: true
+        run: echo "started_at=$(node -e 'process.stdout.write(new Date().toISOString())')" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
@@ -201,11 +246,37 @@ jobs:
             }
             console.log(`PASS: Verified ${total} Java tests executed across ${files.length} report files.`);
           '
+      - name: Write and validate CI timing summary
+        if: always()
+        continue-on-error: true
+        env:
+          CI_TIMING_WORKFLOW: ${{ github.workflow }}
+          CI_TIMING_RUN_ID: ${{ github.run_id }}
+          CI_TIMING_RUN_ATTEMPT: ${{ github.run_attempt }}
+          CI_TIMING_JOB: ${{ github.job }}
+          CI_TIMING_CONCLUSION: ${{ job.status }}
+          CI_TIMING_STARTED_AT: ${{ steps.ci_timing_start.outputs.started_at }}
+        run: |
+          node scripts/ci-timing-report.mjs --write-job-summary
+          node scripts/check-ci-timing-report.mjs artifacts/ci/ci-timing-summary.json
+      - name: Upload CI timing summary
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-timing-${{ github.job }}-${{ github.run_attempt }}
+          path: artifacts/ci/ci-timing-summary.json
+          if-no-files-found: ignore
+          retention-days: 7
 
   frontend:
     name: Next.js web
     runs-on: ubuntu-latest
     steps:
+      - name: Capture CI job start
+        id: ci_timing_start
+        continue-on-error: true
+        run: echo "started_at=$(node -e 'process.stdout.write(new Date().toISOString())')" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -240,11 +311,37 @@ jobs:
       - name: Build web
         working-directory: frontend
         run: npm run build
+      - name: Write and validate CI timing summary
+        if: always()
+        continue-on-error: true
+        env:
+          CI_TIMING_WORKFLOW: ${{ github.workflow }}
+          CI_TIMING_RUN_ID: ${{ github.run_id }}
+          CI_TIMING_RUN_ATTEMPT: ${{ github.run_attempt }}
+          CI_TIMING_JOB: ${{ github.job }}
+          CI_TIMING_CONCLUSION: ${{ job.status }}
+          CI_TIMING_STARTED_AT: ${{ steps.ci_timing_start.outputs.started_at }}
+        run: |
+          node scripts/ci-timing-report.mjs --write-job-summary
+          node scripts/check-ci-timing-report.mjs artifacts/ci/ci-timing-summary.json
+      - name: Upload CI timing summary
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-timing-${{ github.job }}-${{ github.run_attempt }}
+          path: artifacts/ci/ci-timing-summary.json
+          if-no-files-found: ignore
+          retention-days: 7
 
   portal-viewport:
     name: Portal viewport shell
     runs-on: ubuntu-latest
     steps:
+      - name: Capture CI job start
+        id: ci_timing_start
+        continue-on-error: true
+        run: echo "started_at=$(node -e 'process.stdout.write(new Date().toISOString())')" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -284,11 +381,37 @@ jobs:
             }
             console.log(`PASS: Verified ${m[1]} viewport tests executed.`);
           '
+      - name: Write and validate CI timing summary
+        if: always()
+        continue-on-error: true
+        env:
+          CI_TIMING_WORKFLOW: ${{ github.workflow }}
+          CI_TIMING_RUN_ID: ${{ github.run_id }}
+          CI_TIMING_RUN_ATTEMPT: ${{ github.run_attempt }}
+          CI_TIMING_JOB: ${{ github.job }}
+          CI_TIMING_CONCLUSION: ${{ job.status }}
+          CI_TIMING_STARTED_AT: ${{ steps.ci_timing_start.outputs.started_at }}
+        run: |
+          node scripts/ci-timing-report.mjs --write-job-summary
+          node scripts/check-ci-timing-report.mjs artifacts/ci/ci-timing-summary.json
+      - name: Upload CI timing summary
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-timing-${{ github.job }}-${{ github.run_attempt }}
+          path: artifacts/ci/ci-timing-summary.json
+          if-no-files-found: ignore
+          retention-days: 7
 
   mobile:
     name: Expo mobile
     runs-on: ubuntu-latest
     steps:
+      - name: Capture CI job start
+        id: ci_timing_start
+        continue-on-error: true
+        run: echo "started_at=$(node -e 'process.stdout.write(new Date().toISOString())')" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -336,6 +459,28 @@ jobs:
             }
             console.log(`PASS: Verified ${count} Jest component tests executed.`);
           '
+      - name: Write and validate CI timing summary
+        if: always()
+        continue-on-error: true
+        env:
+          CI_TIMING_WORKFLOW: ${{ github.workflow }}
+          CI_TIMING_RUN_ID: ${{ github.run_id }}
+          CI_TIMING_RUN_ATTEMPT: ${{ github.run_attempt }}
+          CI_TIMING_JOB: ${{ github.job }}
+          CI_TIMING_CONCLUSION: ${{ job.status }}
+          CI_TIMING_STARTED_AT: ${{ steps.ci_timing_start.outputs.started_at }}
+        run: |
+          node scripts/ci-timing-report.mjs --write-job-summary
+          node scripts/check-ci-timing-report.mjs artifacts/ci/ci-timing-summary.json
+      - name: Upload CI timing summary
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-timing-${{ github.job }}-${{ github.run_attempt }}
+          path: artifacts/ci/ci-timing-summary.json
+          if-no-files-found: ignore
+          retention-days: 7
 
   e2e:
     name: Official Playwright e2e
@@ -351,6 +496,10 @@ jobs:
       ASSISTANT_DB_PASSWORD: 'dev-ci-password-16chars-min'
       E2E_PLAYWRIGHT_PROJECT: chromium
     steps:
+      - name: Capture CI job start
+        id: ci_timing_start
+        continue-on-error: true
+        run: echo "started_at=$(node -e 'process.stdout.write(new Date().toISOString())')" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -372,6 +521,28 @@ jobs:
           name: playwright-traces
           path: frontend/test-results/playwright/
           retention-days: 7
+      - name: Write and validate CI timing summary
+        if: always()
+        continue-on-error: true
+        env:
+          CI_TIMING_WORKFLOW: ${{ github.workflow }}
+          CI_TIMING_RUN_ID: ${{ github.run_id }}
+          CI_TIMING_RUN_ATTEMPT: ${{ github.run_attempt }}
+          CI_TIMING_JOB: ${{ github.job }}
+          CI_TIMING_CONCLUSION: ${{ job.status }}
+          CI_TIMING_STARTED_AT: ${{ steps.ci_timing_start.outputs.started_at }}
+        run: |
+          node scripts/ci-timing-report.mjs --write-job-summary
+          node scripts/check-ci-timing-report.mjs artifacts/ci/ci-timing-summary.json
+      - name: Upload CI timing summary
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-timing-${{ github.job }}-${{ github.run_attempt }}
+          path: artifacts/ci/ci-timing-summary.json
+          if-no-files-found: ignore
+          retention-days: 7
 
   compose:
     name: PostgreSQL and Compose runtime
@@ -385,6 +556,10 @@ jobs:
       # committed on purpose (CI-only, not a secret) and never used elsewhere.
       ASSISTANT_DB_PASSWORD: 'dev-ci-password-16chars-min'
     steps:
+      - name: Capture CI job start
+        id: ci_timing_start
+        continue-on-error: true
+        run: echo "started_at=$(node -e 'process.stdout.write(new Date().toISOString())')" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
           # Full history so the immutable-migration guard can diff against
@@ -416,6 +591,12 @@ jobs:
           if git grep --quiet -E 'sk-[A-Za-z0-9]{20,}' -- . ':!plans' ':!scripts/run-course-e2e.mjs'; then
             echo 'A provider-looking secret is tracked; refusing CI.'
             exit 1
+          else
+            grep_status=$?
+            if [ "$grep_status" -ne 1 ]; then
+              echo 'Secret sentinel scanner failed; refusing CI.'
+              exit "$grep_status"
+            fi
           fi
           node scripts/check-assistant-secrets.mjs
           node scripts/check-doc-hygiene.mjs
@@ -531,11 +712,37 @@ jobs:
       - name: Stop course stack
         if: always()
         run: docker compose down
+      - name: Write and validate CI timing summary
+        if: always()
+        continue-on-error: true
+        env:
+          CI_TIMING_WORKFLOW: ${{ github.workflow }}
+          CI_TIMING_RUN_ID: ${{ github.run_id }}
+          CI_TIMING_RUN_ATTEMPT: ${{ github.run_attempt }}
+          CI_TIMING_JOB: ${{ github.job }}
+          CI_TIMING_CONCLUSION: ${{ job.status }}
+          CI_TIMING_STARTED_AT: ${{ steps.ci_timing_start.outputs.started_at }}
+        run: |
+          node scripts/ci-timing-report.mjs --write-job-summary
+          node scripts/check-ci-timing-report.mjs artifacts/ci/ci-timing-summary.json
+      - name: Upload CI timing summary
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-timing-${{ github.job }}-${{ github.run_attempt }}
+          path: artifacts/ci/ci-timing-summary.json
+          if-no-files-found: ignore
+          retention-days: 7
 
   web-supply-chain:
     name: Web production dependency audit
     runs-on: ubuntu-latest
     steps:
+      - name: Capture CI job start
+        id: ci_timing_start
+        continue-on-error: true
+        run: echo "started_at=$(node -e 'process.stdout.write(new Date().toISOString())')" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -548,12 +755,38 @@ jobs:
       - name: Audit web production dependencies (fails on high or critical)
         working-directory: frontend
         run: npm audit --omit=dev --audit-level=high
+      - name: Write and validate CI timing summary
+        if: always()
+        continue-on-error: true
+        env:
+          CI_TIMING_WORKFLOW: ${{ github.workflow }}
+          CI_TIMING_RUN_ID: ${{ github.run_id }}
+          CI_TIMING_RUN_ATTEMPT: ${{ github.run_attempt }}
+          CI_TIMING_JOB: ${{ github.job }}
+          CI_TIMING_CONCLUSION: ${{ job.status }}
+          CI_TIMING_STARTED_AT: ${{ steps.ci_timing_start.outputs.started_at }}
+        run: |
+          node scripts/ci-timing-report.mjs --write-job-summary
+          node scripts/check-ci-timing-report.mjs artifacts/ci/ci-timing-summary.json
+      - name: Upload CI timing summary
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-timing-${{ github.job }}-${{ github.run_attempt }}
+          path: artifacts/ci/ci-timing-summary.json
+          if-no-files-found: ignore
+          retention-days: 7
 
   mobile-supply-chain-report:
     name: Mobile dependency vulnerability report (report-only)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
+      - name: Capture CI job start
+        id: ci_timing_start
+        continue-on-error: true
+        run: echo "started_at=$(node -e 'process.stdout.write(new Date().toISOString())')" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -569,9 +802,25 @@ jobs:
         # KNOWN BLOCKER: upstream expo-router/metro/deepmerge dependency tree; triage is the mobile
         # dependency task. Report-only: does not block merge until that task lands.
         run: npm audit --omit=dev --audit-level=high
-          else
-            grep_status=$?
-            if [ "$grep_status" -ne 1 ]; then
-              echo 'Secret sentinel scanner failed; refusing CI.'
-              exit "$grep_status"
-            fi
+      - name: Write and validate CI timing summary
+        if: always()
+        continue-on-error: true
+        env:
+          CI_TIMING_WORKFLOW: ${{ github.workflow }}
+          CI_TIMING_RUN_ID: ${{ github.run_id }}
+          CI_TIMING_RUN_ATTEMPT: ${{ github.run_attempt }}
+          CI_TIMING_JOB: ${{ github.job }}
+          CI_TIMING_CONCLUSION: ${{ job.status }}
+          CI_TIMING_STARTED_AT: ${{ steps.ci_timing_start.outputs.started_at }}
+        run: |
+          node scripts/ci-timing-report.mjs --write-job-summary
+          node scripts/check-ci-timing-report.mjs artifacts/ci/ci-timing-summary.json
+      - name: Upload CI timing summary
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-timing-${{ github.job }}-${{ github.run_attempt }}
+          path: artifacts/ci/ci-timing-summary.json
+          if-no-files-found: ignore
+          retention-days: 7
