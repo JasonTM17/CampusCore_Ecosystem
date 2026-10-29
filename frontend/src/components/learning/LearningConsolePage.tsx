@@ -36,6 +36,7 @@ import { Modal } from '@/components/ui/modal';
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { statusToneClass } from '@/components/ui/status';
+import { UPLOAD_ACCEPT_COURSEWORK } from '@/lib/upload-validation';
 import { learningMessages } from '@/i18n/learning-messages';
 import { useI18n } from '@/i18n';
 import { cn } from '@/lib/utils';
@@ -61,11 +62,16 @@ function submissionTone(status: string | null) {
 }
 
 function errorCode(error: unknown): string {
-  return String((error as { response?: { data?: { code?: string } } })?.response?.data?.code ?? '');
+  return String(
+    (error as { response?: { data?: { code?: string } } })?.response?.data?.code
+    ?? (error as { code?: string })?.code
+    ?? '');
 }
 
 function friendlyError(copy: Copy, error: unknown): string {
   const code = errorCode(error);
+  if (code === 'UPLOAD_TOO_LARGE') return copy.uploadTooLarge;
+  if (code === 'UPLOAD_TYPE_UNSUPPORTED') return copy.uploadTypeUnsupported;
   if (code === 'NOT_ENROLLED' || code === 'ENROLLMENT_NOT_ACTIVE') return copy.notEnrolled;
   if (code === 'ASSIGNMENT_NOT_OPEN' || code === 'DEADLINE_PASSED') return copy.pastDeadline;
   return copy.failed;
@@ -373,7 +379,7 @@ function StudentWorkModal({
                     onChange={(event) => setTextBody(event.target.value)}
                   />
                   <label className="block text-xs font-medium">{copy.attachFile}</label>
-                  <input ref={fileRef} type="file" className="block w-full text-xs" data-testid="learning-file-input" aria-label={copy.attachFile} />
+                  <input ref={fileRef} type="file" accept={UPLOAD_ACCEPT_COURSEWORK} className="block w-full text-xs" data-testid="learning-file-input" aria-label={copy.attachFile} />
                   <div className="flex flex-wrap gap-2">
                     {submission.status === 'DRAFT' ? (
                       <>
@@ -718,7 +724,7 @@ function MaterialModal({
         <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={copy.materialTitle} />
         <Input value={description} onChange={(event) => setDescription(event.target.value)} placeholder={copy.descriptionField} />
         <label className="block text-xs font-medium">{copy.materialFile}</label>
-        <input ref={fileRef} type="file" className="block w-full text-xs" data-testid="learning-material-file" aria-label={copy.materialFile} />
+        <input ref={fileRef} type="file" accept={UPLOAD_ACCEPT_COURSEWORK} className="block w-full text-xs" data-testid="learning-material-file" aria-label={copy.materialFile} />
         <Button onClick={() => void create()} disabled={busy || !title.trim()}>{copy.addMaterial}</Button>
       </div>
     </Modal>

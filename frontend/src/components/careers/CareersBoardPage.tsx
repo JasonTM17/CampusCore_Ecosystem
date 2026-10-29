@@ -15,6 +15,7 @@ import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { campusErrorKind } from '@/lib/campus-error';
+import { UPLOAD_ACCEPT_DOCUMENTS, validateUploadFile } from '@/lib/upload-validation';
 import { statusToneClass, type StatusTone } from '@/components/ui/status';
 import { careerMessages } from '@/i18n/careers-messages';
 import { useI18n } from '@/i18n';
@@ -46,7 +47,11 @@ function isWithdrawable(application: CareerApplication): boolean {
 
 function friendlyError(copy: Copy, error: unknown): string {
   const code = String(
-    (error as { response?: { data?: { code?: string } } })?.response?.data?.code ?? '');
+    (error as { response?: { data?: { code?: string } } })?.response?.data?.code
+    ?? (error as { code?: string })?.code
+    ?? '');
+  if (code === 'UPLOAD_TOO_LARGE') return copy.uploadTooLarge;
+  if (code === 'UPLOAD_TYPE_UNSUPPORTED') return copy.uploadTypeUnsupported;
   if (code === 'APPLICATION_ACTIVE') return copy.alreadyApplied;
   if (code === 'OPPORTUNITY_NOT_OPEN') return copy.notOpen;
   return copy.failed;
@@ -135,12 +140,24 @@ export function CareersBoardPage() {
     }
   };
 
-  const upload = async (application: CareerApplication, file: File | undefined) => {
+  const upload = async (application: CareerApplication, file: File | undefined,
+      input: HTMLInputElement | null) => {
     if (!file) return;
+    // Rejected picks are dropped from the input immediately so the same file
+    // can be chosen again and still fire onChange.
+    const rejection = validateUploadFile(file, 'documents');
+    if (rejection) {
+      toast.error(rejection === 'too-large' ? copy.uploadTooLarge : copy.uploadTypeUnsupported);
+      if (input) input.value = '';
+      return;
+    }
     setIsBusy(true);
     try {
       await careersApi.uploadAttachment(application.id, file, newCareerIdempotencyKey());
       toast.success(copy.uploaded);
+      // Only a successful upload clears the input: on failure the picked file
+      // stays selected so the candidate does not have to re-pick it.
+      if (input) input.value = '';
       await load(query || undefined);
     } catch (cause) {
       setError(friendlyError(copy, cause));
@@ -274,15 +291,23 @@ export function CareersBoardPage() {
                 </span>
                 {isWithdrawable(application) ? (
                   <>
-                    <input type="file" hidden
+                    <input type="file" hidden accept={UPLOAD_ACCEPT_DOCUMENTS}
                       ref={(element) => { fileInputs.current[application.id] = element; }}
                       onChange={(event) => {
-                        void upload(application, event.target.files?.[0]);
-                        event.target.value = '';
+                        // Do not clear the input here: upload() owns the
+                        // clearing so a failed request keeps the picked file.
+                        void upload(application, event.target.files?.[0], event.target);
                       }} />
                     <Button size="sm" variant="outline" disabled={isBusy}
                       data-testid={`careers-upload-${application.id}`}
-                      onClick={() => fileInputs.current[application.id]?.click()}>
+                      onClick={() => {
+                        const input = fileInputs.current[application.id];
+                        if (!input) return;
+                        // Reset before opening the picker so choosing the same
+                        // file again still fires onChange (retry path).
+                        input.value = '';
+                        input.click();
+                      }}>
                       {copy.uploadAttachment}
                     </Button>
                     <Button size="sm" variant="outline" disabled={isBusy}

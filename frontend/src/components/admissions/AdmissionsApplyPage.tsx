@@ -16,6 +16,7 @@ import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { campusErrorKind } from '@/lib/campus-error';
+import { assertUploadFile, UPLOAD_ACCEPT_DOCUMENTS } from '@/lib/upload-validation';
 import { statusToneClass, type StatusTone } from '@/components/ui/status';
 import { admissionsMessages } from '@/i18n/admissions-messages';
 import { useI18n } from '@/i18n';
@@ -32,11 +33,16 @@ const EMPTY_FORM: ApplicationForm = {
 };
 
 function errorCode(error: unknown): string {
-  return String((error as { response?: { data?: { code?: string } } })?.response?.data?.code ?? '');
+  return String(
+    (error as { response?: { data?: { code?: string } } })?.response?.data?.code
+    ?? (error as { code?: string })?.code
+    ?? '');
 }
 
 function friendlyError(copy: Copy, error: unknown): string {
   const code = errorCode(error);
+  if (code === 'UPLOAD_TOO_LARGE') return copy.uploadTooLarge;
+  if (code === 'UPLOAD_TYPE_UNSUPPORTED') return copy.uploadTypeUnsupported;
   if (code === 'APPLICATION_CYCLE_ACTIVE') return copy.cycleActive;
   if (code === 'APPLICATION_INCOMPLETE') return copy.incomplete;
   if (code === 'STALE_VERSION') return copy.staleVersion;
@@ -68,6 +74,8 @@ async function pickFileBase64(input: HTMLInputElement | null): Promise<{ fileNam
   if (!file) {
     return null;
   }
+  // Refuses before the bytes are ever read into the tab (UploadValidationError).
+  assertUploadFile(file, 'documents');
   const buffer = await file.arrayBuffer();
   const bytes = new Uint8Array(buffer);
   const chunk = 0x8000;
@@ -458,6 +466,7 @@ export function AdmissionsApplyPage() {
                         ref={fileInputRef}
                         data-testid="admissions-file-input"
                         type="file"
+                        accept={UPLOAD_ACCEPT_DOCUMENTS}
                         className="text-sm"
                         aria-label={copy.attachFile}
                       />
