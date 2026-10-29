@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 
 import { Button, Card, Field, SectionHeading, UiText } from '../../components/Ui';
+import { IconChip } from '../../components/ui/index';
 import { Dialog } from '../../components/ui/primitives';
 import { tokens } from '../../design/tokens';
 import { getFileAdapter, type PickedFile } from '../../files/file-adapter';
@@ -194,20 +196,29 @@ export function ThesisReportCard({ group, isLeader, onChanged }: ThesisReportCar
         </UiText>
       ) : null}
 
-      {report ? <ReportSummary copy={copy} report={report} formatDateTime={locale.formatDateTime} formatSize={(bytes) => formatSize(bytes, locale.formatBytes)} /> : null}
+      {report ? (
+        <ReportSummary
+          copy={copy}
+          report={report}
+          formatDateTime={locale.formatDateTime}
+          formatSize={(bytes) => formatSize(bytes, locale.formatBytes)}
+          fileAction={hasStoredFile ? (
+            <Button
+              label={working === 'download' ? copy.reportDownloading : copy.reportDownload}
+              loading={working === 'download'}
+              disabled={busy || !canSave}
+              onPress={() => void download()}
+              variant="secondary"
+            />
+          ) : undefined}
+        />
+      ) : null}
 
       {report?.url && report.url.toLowerCase().startsWith('https://') ? (
         <Button label={copy.reportOpenLink} onPress={() => { void Linking.openURL(report.url as string).catch(() => undefined); }} variant="text" />
       ) : null}
       {hasStoredFile ? (
         <View style={styles.actions}>
-          <Button
-            label={working === 'download' ? copy.reportDownloading : copy.reportDownload}
-            loading={working === 'download'}
-            disabled={busy || !canSave}
-            onPress={() => void download()}
-            variant="secondary"
-          />
           {writable ? (
             <Button label={copy.reportRemoveFile} disabled={busy} onPress={() => setConfirmRemove(true)} variant="text" />
           ) : null}
@@ -298,19 +309,29 @@ function ReportSummary({
   report,
   formatDateTime,
   formatSize: size,
+  fileAction,
 }: {
   copy: ThesisCopy;
   report: ThesisReport;
   formatDateTime: (value: string) => string;
   formatSize: (bytes: number | null | undefined) => string;
+  fileAction?: ReactNode;
 }) {
-  const fileLine = report.fileName ? `${report.fileName}${size(report.fileSize) ? ` (${size(report.fileSize)})` : ''}` : null;
   return (
     <View style={styles.gap}>
       {report.title ? <UiText variant="label">{report.title}</UiText> : null}
       {report.note ? <UiText variant="bodySmall" tone="muted">{report.note}</UiText> : null}
       {report.url ? <UiText variant="bodySmall" selectable>{report.url}</UiText> : null}
-      {fileLine ? <UiText variant="bodySmall">{fileLine}</UiText> : null}
+      {report.fileName ? (
+        <View style={styles.fileRow}>
+          <IconChip icon="file-document-outline" />
+          <View style={styles.fileCopy}>
+            <UiText variant="bodySmall">{report.fileName}</UiText>
+            {size(report.fileSize) ? <UiText variant="meta" tone="muted">{size(report.fileSize)}</UiText> : null}
+          </View>
+          {fileAction}
+        </View>
+      ) : null}
       {report.submittedAt ? (
         <UiText variant="meta" tone="muted">{`${copy.reportSubmittedAt}: ${formatDateTime(report.submittedAt)}`}</UiText>
       ) : null}
@@ -323,4 +344,6 @@ const styles = StyleSheet.create({
   gap: { marginBottom: tokens.spacing.sm },
   form: { marginTop: tokens.spacing.sm },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, marginBottom: tokens.spacing.sm },
+  fileRow: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, marginVertical: tokens.spacing.xs },
+  fileCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
 });

@@ -28,7 +28,7 @@ export function AssistantComposer({ chat }: { chat: AssistantChat }) {
         style={styles.field}
       />
       <View style={styles.actions}>
-        <Button label={copy.send} loading={busy} disabled={!draft.trim()} onPress={() => void chat.send()} style={styles.button} />
+        <Button icon="send-outline" label={copy.send} loading={busy} disabled={!draft.trim()} onPress={() => void chat.send()} style={styles.button} />
         {busy ? <Button label={copy.stop} onPress={() => void chat.stop()} variant="secondary" style={styles.button} /> : null}
       </View>
     </View>
@@ -36,7 +36,7 @@ export function AssistantComposer({ chat }: { chat: AssistantChat }) {
 }
 
 const styles = StyleSheet.create({
-  composer: { borderTopWidth: 1, paddingHorizontal: tokens.layout.mobileGutter, paddingTop: tokens.spacing.sm, paddingBottom: tokens.spacing.sm },
+  composer: { borderTopWidth: 1, borderTopLeftRadius: tokens.radii.card, borderTopRightRadius: tokens.radii.card, paddingHorizontal: tokens.layout.mobileGutter, paddingTop: tokens.spacing.sm, paddingBottom: tokens.spacing.sm },
   notice: { marginBottom: tokens.spacing.xs },
   field: { marginBottom: tokens.spacing.sm, maxHeight: 180 },
   actions: { flexDirection: 'row', gap: tokens.spacing.sm },

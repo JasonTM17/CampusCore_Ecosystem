@@ -1,11 +1,11 @@
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Card, StatePanel, UiText } from '../../components/Ui';
 import type { MobilePublicAnnouncement } from '../../api/client';
 import { campusMessages } from '../../i18n/campus-messages';
 import { contentApi } from './content-api';
 import { joinMeta } from './content-rules';
-import { DetailFrame, StatusChip, isPreviewMode, useContentCopy } from './content-ui';
+import { ContentHero, DetailFrame, StatusChip, isPreviewMode, useContentCopy } from './content-ui';
 import { previewNews } from './preview-data';
 import { htmlToPlainText } from './rich-text';
 import { useContentQuery } from './use-content-query';
@@ -45,20 +45,27 @@ export function NewsDetail({ idOrSlug, onBack }: NewsDetailProps) {
         <StatePanel kind="empty" title={shared.notFound} />
       ) : (
         <Card>
-          <UiText accessibilityRole="header" variant="headlineMedium">{item.title}</UiText>
-          <View style={{ alignItems: 'flex-start', gap: 8, marginVertical: 8 }}>
-            <StatusChip code={item.priority} labels={copy.priorityLabels} />
-            <UiText variant="bodySmall" tone="muted">
-              {joinMeta([
-                item.publishAt ? `${copy.publishedAt}: ${formatDateTime(item.publishAt)}` : null,
-                item.lecturerDisplayName ?? item.publishedBy,
-                item.semesterName ? `${copy.semester}: ${item.semesterName}` : null,
-              ])}
-            </UiText>
-          </View>
-          <UiText variant="bodyMedium">{htmlToPlainText(item.content ?? item.summary)}</UiText>
+          <ContentHero
+            title={item.title}
+            icon="newspaper-variant-outline"
+            detail={joinMeta([
+              item.publishAt ? `${copy.publishedAt}: ${formatDateTime(item.publishAt)}` : null,
+              item.lecturerDisplayName ?? item.publishedBy,
+              item.semesterName ? `${copy.semester}: ${item.semesterName}` : null,
+            ])}
+          >
+            <View style={styles.heroPills}>
+              <StatusChip code={item.priority} labels={copy.priorityLabels} />
+            </View>
+          </ContentHero>
+          <UiText variant="bodyLarge" style={styles.body}>{htmlToPlainText(item.content ?? item.summary)}</UiText>
         </Card>
       )}
     </DetailFrame>
   );
 }
+
+const styles = StyleSheet.create({
+  heroPills: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 },
+  body: { marginTop: 16 },
+});

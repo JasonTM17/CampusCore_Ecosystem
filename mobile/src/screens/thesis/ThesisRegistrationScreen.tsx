@@ -23,7 +23,7 @@ import {
   type ThesisGroup,
   type ThesisMember,
 } from './thesis-model';
-import { QueryNotices, useThesisUi } from './thesis-ui';
+import { QueryNotices, ThesisStepper, useThesisUi } from './thesis-ui';
 import { useActiveThesisRound, useThesisGroup, useThesisTopic } from './use-thesis';
 
 type Notice = { tone: 'success' | 'error'; text: string } | null;
@@ -123,11 +123,11 @@ export function ThesisRegistrationScreen({ navigation, selectedThesisTopicId }: 
               {group && !state.isLeader ? <UiText variant="bodySmall" tone="muted" style={styles.gap}>{copy.leaderOnly}</UiText> : null}
 
               <Card tone="primary" style={styles.card}>
-                <View style={styles.steps}>
-                  <Badge label={copy.stepGroup} tone={group ? 'success' : 'warning'} />
-                  <Badge label={copy.stepMembers} tone={group && size !== 'tooSmall' ? 'success' : group ? 'warning' : 'neutral'} />
-                  <Badge label={copy.stepTopic} tone={topicAssigned ? 'success' : 'neutral'} />
-                </View>
+                <ThesisStepper copy={copy} steps={[
+                  { label: copy.stepGroup, state: group ? 'done' : 'current' },
+                  { label: copy.stepMembers, state: group && size !== 'tooSmall' ? 'done' : group ? 'current' : 'pending' },
+                  { label: copy.stepTopic, state: topicAssigned ? 'done' : group && size !== 'tooSmall' ? 'current' : 'pending' },
+                ]} />
                 <ProgressBar label={copy.registrationTitle} value={Math.round((stepsDone / 3) * 100)} />
               </Card>
 
@@ -287,7 +287,6 @@ const styles = StyleSheet.create({
   gap: { marginBottom: tokens.spacing.sm },
   header: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, justifyContent: 'space-between' },
   grow: { flex: 1, minWidth: 0 },
-  steps: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, marginBottom: tokens.spacing.sm },
   search: { marginTop: tokens.spacing.md },
   pending: { gap: tokens.spacing.sm, marginVertical: tokens.spacing.sm },
 });

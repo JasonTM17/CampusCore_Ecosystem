@@ -53,13 +53,14 @@ export interface MessageBubbleProps {
 }
 
 export const MessageBubble = memo(function MessageBubble({ message, copy, feedbackBusy, onRate }: MessageBubbleProps) {
+  const { colors } = useTheme();
   const student = message.from === 'student';
   const rated = message.feedback;
   const reasons = rated ? (rated.rating === 'UP' ? POSITIVE_REASONS : NEGATIVE_REASONS) : [];
   const canRate = !student && !message.local;
   return (
     <View style={[styles.row, student ? styles.studentRow : undefined]}>
-      <Card tone={student ? 'primary' : 'card'} style={styles.card}>
+      <Card tone={student ? 'primary' : 'card'} style={[styles.card, { borderColor: student ? colors.primary : colors.outlineVariant }, student ? styles.studentCard : undefined]}>
         <View style={styles.header}>
           <UiText variant="meta" tone={student ? 'primary' : 'muted'}>{student ? copy.you : copy.assistant}</UiText>
           {!student && message.degraded && message.reasonCode !== 'CANCELLED' ? <Badge label={copy.fallbackAnswer} tone="warning" /> : null}
@@ -103,7 +104,10 @@ export const MessageBubble = memo(function MessageBubble({ message, copy, feedba
                     accessibilityState={{ selected: rated.reason === reason }}
                     disabled={feedbackBusy}
                     onPress={() => onRate(message.id, rated.rating, reason)}
-                    style={[styles.reason, rated.reason === reason ? styles.reasonSelected : undefined]}
+                    style={[styles.reason, {
+                      backgroundColor: rated.reason === reason ? colors.primaryFixed : colors.card,
+                      borderColor: rated.reason === reason ? colors.primary : colors.outlineVariant,
+                    }]}
                   >
                     <UiText variant="meta" tone={rated.reason === reason ? 'primary' : 'muted'}>{copy.reasons[reason]}</UiText>
                   </Pressable>
@@ -118,9 +122,10 @@ export const MessageBubble = memo(function MessageBubble({ message, copy, feedba
 });
 
 const styles = StyleSheet.create({
-  row: { alignItems: 'flex-start', marginBottom: tokens.spacing.sm },
-  studentRow: { alignItems: 'flex-end' },
-  card: { maxWidth: '94%', padding: tokens.spacing.md },
+  row: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'flex-start', marginBottom: tokens.spacing.sm, width: '100%' },
+  studentRow: { justifyContent: 'flex-end' },
+  card: { alignSelf: 'flex-start', maxWidth: '94%', padding: tokens.spacing.md },
+  studentCard: { alignSelf: 'flex-end' },
   header: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm, justifyContent: 'space-between', marginBottom: tokens.spacing.xs },
   text: { marginTop: tokens.spacing.xs },
   sources: { marginTop: tokens.spacing.sm },
@@ -130,6 +135,5 @@ const styles = StyleSheet.create({
   excerpt: { marginTop: tokens.spacing.xs },
   feedback: { flexDirection: 'row', gap: tokens.spacing.xs, marginTop: tokens.spacing.xs },
   reasons: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
-  reason: { alignItems: 'center', borderColor: 'transparent', borderRadius: tokens.radii.pill, borderWidth: 1, justifyContent: 'center', minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.sm },
-  reasonSelected: { borderColor: tokens.colors.primary },
+  reason: { alignItems: 'center', borderRadius: tokens.radii.pill, borderWidth: 1, justifyContent: 'center', minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.sm },
 });

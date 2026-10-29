@@ -52,7 +52,7 @@ function Block({ block, tone }: { block: MarkdownBlock; tone: TextTone }) {
   switch (block.type) {
     case 'heading':
       return (
-        <UiText accessibilityRole="header" variant={block.level === 1 ? 'headlineSmall' : 'label'} style={styles.heading}>
+        <UiText accessibilityRole="header" variant={block.level === 1 ? 'headlineSmall' : 'label'} tone="primary" style={styles.heading}>
           {spansToText(block.spans)}
         </UiText>
       );
@@ -60,7 +60,7 @@ function Block({ block, tone }: { block: MarkdownBlock; tone: TextTone }) {
       return <UiText variant="bodyMedium" tone={tone} style={styles.paragraph}><Spans spans={block.spans} tone={tone} /></UiText>;
     case 'quote':
       return (
-        <View style={[styles.quote, { borderLeftColor: colors.outlineVariant }]}>
+        <View style={[styles.quote, { backgroundColor: colors.surfaceLow, borderLeftColor: colors.primary }]}>
           <UiText variant="bodyMedium" tone="muted"><Spans spans={block.spans} tone="muted" /></UiText>
         </View>
       );

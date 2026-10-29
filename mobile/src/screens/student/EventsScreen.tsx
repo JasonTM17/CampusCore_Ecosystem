@@ -1,9 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button, Card, UiText } from '../../components/Ui';
-import { FilterSheet, SegmentedControl } from '../../components/ui/index';
-import type { FilterValue } from '../../components/ui/index';
+import { FilterChip, SegmentedControl } from '../../components/ui/index';
 import { apiClient } from '../../api/client';
 import type { MobileEvent, MobileEventRegistration } from '../../api/client';
 import { tokens } from '../../design/tokens';
@@ -13,7 +12,7 @@ import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi } from '../content/content-api';
 import { contentErrorMessage, errorCode } from '../content/content-errors';
 import { EVENT_FILTER_STATUSES, eventAction, filterByStatus, joinMeta } from '../content/content-rules';
-import { ListFrame, StatusChip, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
+import { ContentChevron, ContentIconChip, ListFrame, StatusChip, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
 import { EventDetail } from '../content/EventDetail';
 import { previewEvents, previewRegistrations } from '../content/preview-data';
 import { usePagedList } from '../content/use-paged-list';
@@ -22,17 +21,20 @@ type Tab = 'catalog' | 'mine';
 
 /** Student events: published catalogue, own registrations, register and cancel. The server owns every transition. */
 export function EventsScreen(_props: MobileScreenProps) {
-  const { locale, formatDateTime, copy: common, t } = useContentCopy();
+  const { locale, formatDateTime, copy: common } = useContentCopy();
   const copy = eventsMessages[locale];
   const labels = copy.statusLabels as Record<string, string>;
   const [tab, setTab] = useState<Tab>('catalog');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [filter, setFilter] = useState<FilterValue>({});
+  const [filter, setFilter] = useState<{ status?: string[] }>({});
   const [busy, setBusy] = useState(false);
   const { flash, success, fail, clear } = useFlash();
   const { ask, dialog } = useConfirm();
   const statuses = filter.status ?? [];
+  const toggleStatus = (value: string) => setFilter((current) => {
+    const currentValues = current.status ?? [];
+    return { status: currentValues.includes(value) ? currentValues.filter((item) => item !== value) : [...currentValues, value] };
+  });
 
   const previewList = useMemo(() => previewEvents(locale), [locale]);
   const catalog = usePagedList<MobileEvent>({
@@ -100,9 +102,9 @@ export function EventsScreen(_props: MobileScreenProps) {
   const rows = filterByStatus(catalog.items, statuses);
   const actionButton = (event: MobileEvent, registrationId?: string | null) => {
     const action = eventAction(event);
-    if (action === 'register') return <Button label={copy.register} accessibilityLabel={`${copy.register}: ${event.title}`} variant="secondary" disabled={busy || catalog.preview} onPress={() => register(event)} />;
+    if (action === 'register') return <Button icon="calendar-plus-outline" label={copy.register} accessibilityLabel={`${copy.register}: ${event.title}`} variant="secondary" disabled={busy || catalog.preview} onPress={() => register(event)} />;
     const id = registrationId ?? event.myRegistrationId;
-    if (action === 'cancel' && id) return <Button label={copy.cancel} accessibilityLabel={`${copy.cancel}: ${event.title}`} variant="text" disabled={busy || catalog.preview} onPress={() => cancel(event, id)} />;
+    if (action === 'cancel' && id) return <Button icon="calendar-remove-outline" label={copy.cancel} accessibilityLabel={`${copy.cancel}: ${event.title}`} variant="text" disabled={busy || catalog.preview} onPress={() => cancel(event, id)} />;
     if (action === 'full') return <UiText variant="meta" tone="warning">{copy.full}</UiText>;
     return null;
   };
@@ -117,13 +119,18 @@ export function EventsScreen(_props: MobileScreenProps) {
         options={[{ value: 'catalog', label: copy.published }, { value: 'mine', label: copy.mine }]}
       />
       {tab === 'catalog' ? (
-        <View style={styles.filterRow}>
-          <Button
-            label={statuses.length > 0 ? `${t('filters')} (${statuses.length})` : t('filters')}
-            accessibilityLabel={t('filters')}
-            variant="secondary"
-            onPress={() => setFilterOpen(true)}
-          />
+        <View style={styles.filters}>
+          <UiText variant="meta" tone="muted">{copy.statusFilter}</UiText>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+            {EVENT_FILTER_STATUSES.map((value) => (
+              <FilterChip
+                key={value}
+                label={labels[value] ?? value}
+                selected={statuses.includes(value)}
+                onPress={() => toggleStatus(value)}
+              />
+            ))}
+          </ScrollView>
         </View>
       ) : null}
     </View>
@@ -134,6 +141,7 @@ export function EventsScreen(_props: MobileScreenProps) {
       {tab === 'catalog' ? (
         <ListFrame
           title={copy.title}
+          icon="calendar-star-outline"
           list={catalog}
           items={rows}
           filtered={statuses.length > 0}
@@ -150,20 +158,25 @@ export function EventsScreen(_props: MobileScreenProps) {
                 onPress={() => setSelectedId(event.id)}
                 style={styles.rowMain}
               >
-                <UiText variant="label">{event.title}</UiText>
-                <UiText variant="bodySmall" tone="muted">{eventMeta(event)}</UiText>
-                <View style={styles.chips}>
-                  <StatusChip code={event.myRegistrationStatus === 'REGISTERED' ? 'REGISTERED' : event.status} labels={labels} />
-                  <UiText variant="meta" tone="muted">{fillCopy(copy.seats, { n: Math.max(0, event.seatsRemaining) })}</UiText>
+                <ContentIconChip icon="calendar-star-outline" />
+                <View style={styles.rowCopy}>
+                  <UiText variant="label">{event.title}</UiText>
+                  <UiText variant="bodySmall" tone="muted">{eventMeta(event)}</UiText>
+                  <View style={styles.chips}>
+                    <StatusChip code={event.myRegistrationStatus === 'REGISTERED' ? 'REGISTERED' : event.status} labels={labels} />
+                    <UiText variant="meta" tone="muted">{fillCopy(copy.seats, { n: Math.max(0, event.seatsRemaining) })}</UiText>
+                  </View>
                 </View>
+                <ContentChevron />
               </Pressable>
-              {actionButton(event)}
+              <View style={styles.actionRow}>{actionButton(event)}</View>
             </Card>
           )}
         />
       ) : (
         <ListFrame
           title={copy.title}
+          icon="calendar-check-outline"
           list={mine}
           keyOf={(item) => item.registrationId}
           emptyTitle={copy.noRegistrations}
@@ -177,31 +190,23 @@ export function EventsScreen(_props: MobileScreenProps) {
                 onPress={() => setSelectedId(entry.event.id)}
                 style={styles.rowMain}
               >
-                <UiText variant="label">{entry.event.title}</UiText>
-                <UiText variant="bodySmall" tone="muted">{eventMeta(entry.event)}</UiText>
-                <View style={styles.chips}>
-                  <StatusChip code={entry.attendanceStatus === 'ATTENDED' ? 'ATTENDED' : entry.registrationStatus} labels={labels} />
+                <ContentIconChip icon="calendar-check-outline" />
+                <View style={styles.rowCopy}>
+                  <UiText variant="label">{entry.event.title}</UiText>
+                  <UiText variant="bodySmall" tone="muted">{eventMeta(entry.event)}</UiText>
+                  <View style={styles.chips}>
+                    <StatusChip code={entry.attendanceStatus === 'ATTENDED' ? 'ATTENDED' : entry.registrationStatus} labels={labels} />
+                  </View>
                 </View>
+                <ContentChevron />
               </Pressable>
               {entry.registrationStatus === 'REGISTERED'
-                ? actionButton({ ...entry.event, myRegistrationStatus: 'REGISTERED', myRegistrationId: entry.registrationId }, entry.registrationId)
+                ? <View style={styles.actionRow}>{actionButton({ ...entry.event, myRegistrationStatus: 'REGISTERED', myRegistrationId: entry.registrationId }, entry.registrationId)}</View>
                 : null}
             </Card>
           )}
         />
       )}
-      <FilterSheet
-        visible={filterOpen}
-        onClose={() => setFilterOpen(false)}
-        groups={[{
-          id: 'status',
-          label: copy.statusFilter,
-          multiple: true,
-          options: EVENT_FILTER_STATUSES.map((value) => ({ value, label: labels[value] ?? value })),
-        }]}
-        value={filter}
-        onApply={setFilter}
-      />
       {dialog}
     </>
   );
@@ -209,7 +214,10 @@ export function EventsScreen(_props: MobileScreenProps) {
 
 const styles = StyleSheet.create({
   header: { gap: tokens.spacing.sm },
-  filterRow: { alignItems: 'flex-start' },
-  rowMain: { gap: tokens.spacing.xs, minHeight: tokens.layout.touchTarget },
+  filters: { gap: tokens.spacing.xs },
+  filterChips: { flexDirection: 'row', gap: tokens.spacing.sm, paddingVertical: 1 },
+  rowMain: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
+  rowCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
+  actionRow: { alignItems: 'flex-end', marginTop: tokens.spacing.xs },
   chips: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
 });

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Card, StatePanel, UiText } from '../../components/Ui';
-import { ChoiceField, SegmentedControl } from '../../components/ui/index';
+import { ChoiceField, SegmentedControl, StatusPill } from '../../components/ui/index';
 import { apiClient } from '../../api/client';
 import type { MobileLearningAssignment, MobileLearningMaterial, MobileLearningSection } from '../../api/client';
 import { tokens } from '../../design/tokens';
@@ -11,7 +11,7 @@ import type { MobileScreenProps } from '../../navigation/types';
 import { AssignmentDetail } from '../content/AssignmentDetail';
 import { contentApi } from '../content/content-api';
 import { joinMeta } from '../content/content-rules';
-import { AttachmentRow, ListFrame, StatusChip, useContentCopy } from '../content/content-ui';
+import { AttachmentRow, ContentChevron, ContentIconChip, ListFrame, StatusChip, useContentCopy } from '../content/content-ui';
 import {
   previewAssignments,
   previewLearningSections,
@@ -91,6 +91,7 @@ export function LearningScreen(_props: MobileScreenProps) {
   return tab === 'assignments' ? (
     <ListFrame
       title={copy.title}
+      icon="book-open-variant"
       list={assignments}
       keyOf={(item) => item.id}
       emptyTitle={copy.emptyAssignments}
@@ -103,13 +104,18 @@ export function LearningScreen(_props: MobileScreenProps) {
             onPress={() => setAssignmentId(item.id)}
             style={styles.rowMain}
           >
-            <UiText variant="label">{item.title}</UiText>
-            <UiText variant="bodySmall" tone="muted">
-              {`${copy.deadline}: ${item.deadlineAt ? formatDateTime(item.deadlineAt) : copy.noDeadline}`}
-            </UiText>
-            <View style={styles.chips}>
-              <StatusChip code={item.mySubmissionStatus ?? item.status} labels={copy.statusLabels} />
+            <ContentIconChip icon="clipboard-text-outline" />
+            <View style={styles.rowCopy}>
+              <UiText variant="label">{item.title}</UiText>
+              <View style={styles.chips}>
+                <StatusPill
+                  label={`${copy.deadline}: ${item.deadlineAt ? formatDateTime(item.deadlineAt) : copy.noDeadline}`}
+                  tone={item.deadlineAt ? 'warning' : 'neutral'}
+                />
+                <StatusChip code={item.mySubmissionStatus ?? item.status} labels={copy.statusLabels} />
+              </View>
             </View>
+            <ContentChevron />
           </Pressable>
         </Card>
       )}
@@ -117,6 +123,7 @@ export function LearningScreen(_props: MobileScreenProps) {
   ) : (
     <ListFrame
       title={copy.title}
+      icon="book-open-variant"
       list={materials}
       keyOf={(item) => item.id}
       emptyTitle={copy.emptyMaterials}
@@ -124,11 +131,14 @@ export function LearningScreen(_props: MobileScreenProps) {
       renderItem={(item) => (
         <Card>
           <View style={styles.rowMain}>
-            <UiText variant="label">{item.title}</UiText>
-            {item.description ? <UiText variant="bodySmall" tone="muted">{item.description}</UiText> : null}
-            {item.fileName ? (
-              <AttachmentRow name={item.fileName} sizeBytes={item.sizeBytes} fetchBytes={() => contentApi.learningDownloadMaterial(item.id)} />
-            ) : null}
+            <ContentIconChip icon="folder-outline" />
+            <View style={styles.rowCopy}>
+              <UiText variant="label">{item.title}</UiText>
+              {item.description ? <UiText variant="bodySmall" tone="muted">{item.description}</UiText> : null}
+              {item.fileName ? (
+                <AttachmentRow name={item.fileName} sizeBytes={item.sizeBytes} fetchBytes={() => contentApi.learningDownloadMaterial(item.id)} />
+              ) : null}
+            </View>
           </View>
         </Card>
       )}
@@ -138,6 +148,7 @@ export function LearningScreen(_props: MobileScreenProps) {
 
 const styles = StyleSheet.create({
   header: { gap: tokens.spacing.sm },
-  rowMain: { gap: tokens.spacing.xs, minHeight: tokens.layout.touchTarget },
+  rowMain: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
+  rowCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
   chips: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
 });

@@ -10,7 +10,7 @@ import { recordsMessages } from '../../i18n/records-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi } from './content-api';
 import { filterByPriority, joinMeta } from './content-rules';
-import { ListFrame, StatusChip, useContentCopy } from './content-ui';
+import { ContentIconChip, ListFrame, StatusChip, useContentCopy } from './content-ui';
 import { previewAnnouncements } from './preview-data';
 import { htmlToPlainText } from './rich-text';
 import { usePagedList } from './use-paged-list';
@@ -59,14 +59,17 @@ export function AnnouncementsScreen(_props: MobileScreenProps) {
           const expanded = open === item.id;
           return (
             <Card>
-              <UiText variant="label">{item.title}</UiText>
+              <View style={styles.titleRow}>
+                <ContentIconChip icon="bullhorn-outline" />
+                <UiText variant="label" style={styles.title}>{item.title}</UiText>
+              </View>
               <View style={styles.meta}>
                 <StatusChip code={item.priority} labels={copy.priorityLabels} />
                 <UiText variant="meta" tone="muted">
                   {joinMeta([item.publishAt ? formatDateTime(item.publishAt) : null, item.lecturerDisplayName ?? item.publishedBy])}
                 </UiText>
               </View>
-              {expanded ? <UiText variant="bodyMedium">{htmlToPlainText(item.content ?? item.summary)}</UiText> : null}
+              {expanded ? <UiText variant="bodyLarge" style={styles.body}>{htmlToPlainText(item.content ?? item.summary)}</UiText> : null}
               <Button
                 label={expanded ? copy.collapse : copy.expand}
                 accessibilityLabel={`${expanded ? copy.collapse : copy.expand}: ${item.title}`}
@@ -94,6 +97,9 @@ export function AnnouncementsScreen(_props: MobileScreenProps) {
 }
 
 const styles = StyleSheet.create({
-  meta: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, marginVertical: tokens.spacing.xs },
+  titleRow: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm },
+  title: { flex: 1, minWidth: 0 },
+  meta: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, marginTop: tokens.spacing.sm },
+  body: { marginTop: tokens.spacing.md },
   filterRow: { alignItems: 'flex-start' },
 });

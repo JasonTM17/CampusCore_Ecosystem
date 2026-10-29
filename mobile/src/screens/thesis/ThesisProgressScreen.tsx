@@ -1,7 +1,9 @@
 import { StyleSheet, View } from 'react-native';
 
 import { Badge, Button, Card, Divider, ListRow, ProgressBar, ScreenShell, SectionHeading, StatePanel, UiText } from '../../components/Ui';
+import { IconChip, StatusPill } from '../../components/ui/index';
 import { tokens } from '../../design/tokens';
+import { useTheme } from '../../design/theme';
 import { fillThesisCopy } from '../../i18n/thesis-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { ThesisReportCard } from './ThesisReportCard';
@@ -25,6 +27,7 @@ const MILESTONE_TONE: Record<MilestoneState, 'success' | 'primary' | 'neutral'> 
 
 /** Server-derived progress of the student's group in the selected round, with the report. */
 export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
+  const { colors } = useTheme();
   const { copy } = useThesisUi();
   const active = useActiveThesisRound();
   const state = useThesisGroup(active.round?.id ?? null);
@@ -62,6 +65,7 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
             <>
               <Card tone="primary" style={styles.card}>
                 <View style={styles.header}>
+                  <IconChip icon="file-chart-outline" size={40} />
                   <View style={styles.grow}>
                     <UiText variant="label">{progress?.topicTitle ?? copy.topicChoose}</UiText>
                     <UiText variant="display" tone="primary">{fillThesisCopy(copy.progressPercent, { value: percent })}</UiText>
@@ -85,13 +89,18 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
                     {THESIS_MILESTONES.map((milestone, index) => {
                       const value = milestoneState(progress, milestone);
                       return (
-                        <View key={milestone}>
-                          <ListRow
-                            leading={String(index + 1)}
-                            title={milestoneLabel(milestone)}
-                            trailing={<Badge label={stateLabel(value)} tone={MILESTONE_TONE[value]} />}
-                          />
-                          {index < THESIS_MILESTONES.length - 1 ? <Divider /> : null}
+                        <View key={milestone} style={styles.milestoneRow}>
+                          <View style={styles.milestoneTrack}>
+                            <View style={[styles.milestoneNode, {
+                              backgroundColor: value === 'done' ? colors.successFixed : value === 'current' ? colors.primaryFixed : colors.surfaceLow,
+                              borderColor: value === 'done' ? colors.success : value === 'current' ? colors.primary : colors.outlineVariant,
+                            }]} />
+                            {index < THESIS_MILESTONES.length - 1 ? <View style={[styles.milestoneConnector, { backgroundColor: colors.outlineVariant }]} /> : null}
+                          </View>
+                          <View style={styles.milestoneCopy}>
+                            <UiText variant="label" style={styles.milestoneLabel}>{milestoneLabel(milestone)}</UiText>
+                            <StatusPill label={stateLabel(value)} tone={MILESTONE_TONE[value]} />
+                          </View>
                         </View>
                       );
                     })}
@@ -137,4 +146,10 @@ const styles = StyleSheet.create({
   grow: { flex: 1, minWidth: 0 },
   line: { marginTop: tokens.spacing.sm },
   assist: { marginTop: tokens.spacing.md },
+  milestoneRow: { alignItems: 'stretch', flexDirection: 'row', gap: tokens.spacing.sm, minWidth: 0, paddingVertical: tokens.spacing.xs },
+  milestoneTrack: { alignItems: 'center', width: 28 },
+  milestoneNode: { borderRadius: tokens.radii.pill, borderWidth: 2, height: 16, marginTop: tokens.spacing.xs, width: 16 },
+  milestoneConnector: { flex: 1, marginVertical: tokens.spacing.xs, width: 2 },
+  milestoneCopy: { alignItems: 'flex-start', flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, minWidth: 0 },
+  milestoneLabel: { flexShrink: 1, minWidth: 120 },
 });

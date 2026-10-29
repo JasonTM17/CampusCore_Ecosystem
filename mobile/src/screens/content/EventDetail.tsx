@@ -1,11 +1,11 @@
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, UiText } from '../../components/Ui';
 import type { MobileEvent } from '../../api/client';
 import { eventsMessages } from '../../i18n/events-messages';
 import { fillCopy } from '../../i18n/academic-messages';
 import { eventAction } from './content-rules';
-import { DetailFrame, FlashNotice, MetaRow, StatusChip, useContentCopy, type Flash } from './content-ui';
+import { ContentHero, DetailFrame, FlashNotice, MetaRow, StatusChip, useContentCopy, type Flash } from './content-ui';
 
 export interface EventDetailProps {
   event: MobileEvent;
@@ -25,11 +25,16 @@ export function EventDetail({ event, busy, flash, onBack, onRegister, onCancel }
       <View style={{ gap: 12 }}>
         <FlashNotice flash={flash} />
         <Card>
-          <UiText accessibilityRole="header" variant="headlineMedium">{event.title}</UiText>
-          <View style={{ alignItems: 'flex-start', marginVertical: 8 }}>
-            <StatusChip code={event.myRegistrationStatus === 'REGISTERED' ? 'REGISTERED' : event.status} labels={copy.statusLabels as Record<string, string>} />
-          </View>
-          {event.description ? <UiText variant="bodyMedium">{event.description}</UiText> : null}
+          <ContentHero
+            title={event.title}
+            icon="calendar-star-outline"
+            detail={[event.organizer, event.location, formatDateTime(event.startsAt)].filter(Boolean).join(' · ')}
+          >
+            <View style={styles.heroPills}>
+              <StatusChip code={event.myRegistrationStatus === 'REGISTERED' ? 'REGISTERED' : event.status} labels={copy.statusLabels as Record<string, string>} />
+            </View>
+          </ContentHero>
+          {event.description ? <UiText variant="bodyLarge" style={styles.body}>{event.description}</UiText> : null}
           <View style={{ gap: 4, marginTop: 8 }}>
             <MetaRow label={copy.organizer} value={event.organizer} />
             <MetaRow label={copy.location} value={event.location} />
@@ -47,3 +52,8 @@ export function EventDetail({ event, busy, flash, onBack, onRegister, onCancel }
     </DetailFrame>
   );
 }
+
+const styles = StyleSheet.create({
+  heroPills: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 },
+  body: { marginTop: 16 },
+});

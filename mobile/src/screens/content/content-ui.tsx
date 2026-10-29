@@ -4,13 +4,15 @@
 
 import { useCallback, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { Badge, Button, ScreenShell, UiText } from '../../components/Ui';
-import { DataList, Dialog, Notice, FileRow } from '../../components/ui/index';
-import type { FileRowAction } from '../../components/ui/index';
+import { Button, ScreenShell, UiText } from '../../components/Ui';
+import { DataList, Dialog, Notice, FileRow, StatusPill } from '../../components/ui/index';
+import type { FileRowAction, FileRowProps } from '../../components/ui/index';
 import { ResponsiveContent } from '../../components/ui/ResponsiveContent';
 import { apiClient } from '../../api/client';
+import { chromeFor } from '../../design/chrome';
 import { tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import { getFileAdapter } from '../../files/file-adapter';
@@ -97,15 +99,94 @@ export function useConfirm(): { ask: (request: ConfirmRequest) => void; dialog: 
 
 export function StatusChip({ code, labels }: { code: string | null | undefined; labels: Readonly<Record<string, string>> }) {
   if (!code) return null;
-  return <Badge label={labels[code] ?? code} tone={statusTone(code)} />;
+  return <StatusPill label={labels[code] ?? code} tone={statusTone(code)} />;
 }
 
 export function MetaRow({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null;
+  const { window } = useTheme();
+  const stacked = window.fontScale >= 1.3 || window.width < 360;
   return (
-    <View accessible accessibilityLabel={`${label}: ${value}`} style={styles.metaRow}>
-      <UiText variant="bodySmall" tone="muted" style={styles.metaLabel}>{label}</UiText>
+    <View accessible accessibilityLabel={`${label}: ${value}`} style={[styles.metaRow, stacked ? styles.metaRowStacked : undefined]}>
+      <UiText variant="bodySmall" tone="muted" style={[styles.metaLabel, stacked ? styles.metaLabelStacked : undefined]}>{label}</UiText>
       <UiText variant="bodySmall" style={styles.metaValue}>{value}</UiText>
+    </View>
+  );
+}
+
+export type ContentIconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+
+/** Decorative icon chip for content rows and detail summaries. */
+export function ContentIconChip({ icon, onBrand = false }: { icon: ContentIconName; onBrand?: boolean }) {
+  const { colors, scheme } = useTheme();
+  const chrome = chromeFor(scheme);
+  return (
+    <View accessible={false} importantForAccessibility="no" style={[styles.iconChip, { backgroundColor: onBrand ? chrome.overlay : colors.primaryFixed }]}>
+      <MaterialCommunityIcons color={onBrand ? chrome.onSurface : colors.primary} name={icon} size={20} />
+    </View>
+  );
+}
+
+/** Decorative forward cue for a card that is already an accessible button. */
+export function ContentChevron() {
+  const { colors } = useTheme();
+  return <MaterialCommunityIcons accessible={false} importantForAccessibility="no" color={colors.textMuted} name="chevron-right" size={20} />;
+}
+
+/** The 44dp trailing action used by compact rows; its accessible name is supplied by the screen. */
+export function ContentIconAction({
+  accessibilityLabel,
+  icon,
+  onPress,
+  disabled = false,
+}: {
+  accessibilityLabel: string;
+  icon: ContentIconName;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [styles.iconAction, {
+        backgroundColor: pressed ? colors.surface : colors.primaryFixed,
+        borderColor: colors.outlineVariant,
+      }, disabled ? styles.iconActionDisabled : undefined]}
+    >
+      <MaterialCommunityIcons color={disabled ? colors.textMuted : colors.primary} name={icon} size={20} />
+    </Pressable>
+  );
+}
+
+/** Locally composed brand summary, preserving the title's header role. */
+export function ContentHero({
+  title,
+  detail,
+  detailLive = false,
+  icon,
+  children,
+}: {
+  title: string;
+  detail?: string;
+  detailLive?: boolean;
+  icon?: ContentIconName;
+  children?: ReactNode;
+}) {
+  const { scheme } = useTheme();
+  const chrome = chromeFor(scheme);
+  return (
+    <View style={[styles.hero, { backgroundColor: chrome.surface }]}>
+      {icon ? <ContentIconChip icon={icon} onBrand /> : null}
+      <View style={styles.heroCopy}>
+        <UiText accessibilityRole="header" variant="headlineMedium" style={{ color: chrome.onSurface }}>{title}</UiText>
+        {detail ? <UiText accessibilityLiveRegion={detailLive ? 'polite' : undefined} variant="bodySmall" style={[styles.heroDetail, { color: chrome.onSurfaceMuted }]}>{detail}</UiText> : null}
+        {children}
+      </View>
     </View>
   );
 }
@@ -126,6 +207,7 @@ export interface ListFrameProps<T> {
   header?: ReactNode;
   flash?: Flash | null;
   accessibilityLabel?: string;
+  icon?: ContentIconName;
 }
 
 /** One list screen: header, filters, banners and a paged, refreshable list. */
@@ -141,6 +223,7 @@ export function ListFrame<T>({
   header,
   flash,
   accessibilityLabel,
+  icon,
 }: ListFrameProps<T>) {
   const { colors } = useTheme();
   const { copy } = useContentCopy();
@@ -153,12 +236,11 @@ export function ListFrame<T>({
 
   const head = (
     <View style={styles.head}>
-      <UiText accessibilityRole="header" variant="headlineLarge">{title}</UiText>
+      <ContentHero title={title} detail={count ?? undefined} detailLive={count !== null} icon={icon} />
       {list.preview ? <Notice tone="warning" message={copy.previewNotice} /> : null}
       {list.warning ? <Notice tone="warning" message={list.warning} /> : null}
       <FlashNotice flash={flash ?? null} />
       {header}
-      {count ? <UiText variant="meta" tone="muted" accessibilityLiveRegion="polite">{count}</UiText> : null}
     </View>
   );
 
@@ -234,7 +316,19 @@ export function AttachmentRow({ name, sizeBytes, fetchBytes, extraActions = [] }
     ...(canSave ? [{ key: 'download', label: copy.fileSave, onPress: () => void download() }] : []),
     ...extraActions,
   ];
-  return <FileRow name={name} sizeBytes={sizeBytes} status={status} statusLabel={statusLabel} actions={actions} />;
+  return <ContentFileRow name={name} sizeBytes={sizeBytes} status={status} statusLabel={statusLabel} actions={actions} />;
+}
+
+/** File row used locally by content screens until the shared FileRow accepts a leading icon. */
+function ContentFileRow(props: FileRowProps) {
+  return (
+    <View style={styles.attachmentRow}>
+      <ContentIconChip icon="file-outline" />
+      <View style={styles.attachmentFile}>
+        <FileRow {...props} />
+      </View>
+    </View>
+  );
 }
 
 function problemMessage(copy: (typeof contentMessages)['vi'], problem: FileProblem): string {
@@ -271,7 +365,7 @@ export function FilePicker({ policy, file, onChange, status = 'ready', statusLab
   if (file) {
     const check = checkPickedFile(file, policy);
     return (
-      <FileRow
+      <ContentFileRow
         name={file.name}
         sizeBytes={file.sizeBytes}
         status={check.ok ? status : 'failed'}
@@ -349,9 +443,19 @@ const styles = StyleSheet.create({
   frame: { flex: 1 },
   frameInner: { flex: 1 },
   head: { gap: tokens.spacing.sm, marginBottom: tokens.spacing.sm },
+  hero: { alignItems: 'flex-start', borderRadius: tokens.radii.card, flexDirection: 'row', gap: tokens.spacing.sm, padding: tokens.spacing.md },
+  heroCopy: { flex: 1, minWidth: 0 },
+  heroDetail: { marginTop: tokens.spacing.xs },
+  iconChip: { alignItems: 'center', borderRadius: tokens.radii.control, flexShrink: 0, height: 40, justifyContent: 'center', width: 40 },
+  iconAction: { alignItems: 'center', borderRadius: tokens.radii.control, borderWidth: 1, height: tokens.layout.touchTarget, justifyContent: 'center', width: tokens.layout.touchTarget },
+  iconActionDisabled: { opacity: 0.65 },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
-  metaLabel: { minWidth: 112 },
+  metaRowStacked: { flexDirection: 'column', alignItems: 'flex-start' },
+  metaLabel: { flexShrink: 1, minWidth: 0 },
+  metaLabelStacked: { width: '100%' },
   metaValue: { flex: 1, minWidth: 120 },
+  attachmentRow: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, minWidth: 0 },
+  attachmentFile: { flex: 1, minWidth: 0 },
   pickRow: { alignItems: 'flex-start', gap: tokens.spacing.xs },
   uploadBlock: { gap: tokens.spacing.xs },
 });

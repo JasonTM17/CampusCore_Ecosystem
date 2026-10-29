@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { Button, Card, Field, UiText } from '../../components/Ui';
+import { StatusPill } from '../../components/ui/index';
 import type { MobileCareerOpportunity } from '../../api/client';
 import { careersMessages } from '../../i18n/careers-messages';
 import { DOCUMENT_POLICY } from './attachment-transfer';
@@ -9,6 +10,7 @@ import { contentApi, type CareerApplicationView } from './content-api';
 import { isApplicationWithdrawable } from './content-rules';
 import {
   AttachmentRow,
+  ContentHero,
   DetailFrame,
   FlashNotice,
   MetaRow,
@@ -42,8 +44,13 @@ export function OpportunityDetail({ opportunity, alreadyApplied, busy, preview, 
       <View style={{ gap: 12 }}>
         <FlashNotice flash={flash} />
         <Card>
-          <UiText accessibilityRole="header" variant="headlineMedium">{opportunity.title}</UiText>
-          {opportunity.description ? <UiText variant="bodyMedium" style={{ marginTop: 8 }}>{opportunity.description}</UiText> : null}
+          <ContentHero title={opportunity.title} icon="briefcase-outline" detail={opportunity.organizationName ?? undefined}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
+              {!open ? <StatusPill label={copy.notOpen} tone="warning" /> : null}
+              {alreadyApplied ? <StatusPill label={copy.alreadyApplied} tone="success" /> : null}
+            </View>
+          </ContentHero>
+          {opportunity.description ? <UiText variant="bodyLarge" style={{ marginTop: 16 }}>{opportunity.description}</UiText> : null}
           <View style={{ gap: 4, marginTop: 8 }}>
             <MetaRow label={copy.organization} value={opportunity.organizationName} />
             <MetaRow label={copy.location} value={opportunity.location} />
@@ -97,16 +104,21 @@ export function ApplicationDetail({ application, busy, preview, flash, onBack, o
       <View style={{ gap: 12 }}>
         <FlashNotice flash={flash} />
         <Card>
-          <UiText accessibilityRole="header" variant="headlineMedium">{application.opportunityTitle ?? application.opportunityId}</UiText>
-          <View style={{ alignItems: 'flex-start', marginVertical: 8 }}>
-            <StatusChip code={application.status} labels={copy.statusLabels} />
-          </View>
+          <ContentHero
+            title={application.opportunityTitle ?? application.opportunityId}
+            icon="briefcase-check-outline"
+            detail={application.organizationName ?? undefined}
+          >
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
+              <StatusChip code={application.status} labels={copy.statusLabels} />
+            </View>
+          </ContentHero>
           <View style={{ gap: 4 }}>
             <MetaRow label={copy.organization} value={application.organizationName} />
             <MetaRow label={copy.submittedAt} value={application.submittedAt ? formatDate(application.submittedAt) : null} />
             <MetaRow label={copy.reason} value={application.moderationReason} />
           </View>
-          {application.coverLetter ? <UiText variant="bodyMedium" style={{ marginTop: 8 }}>{application.coverLetter}</UiText> : null}
+          {application.coverLetter ? <UiText variant="bodyLarge" style={{ marginTop: 16 }}>{application.coverLetter}</UiText> : null}
         </Card>
         <Card>
           <UiText accessibilityRole="header" variant="headlineSmall">{shared.attachments}</UiText>

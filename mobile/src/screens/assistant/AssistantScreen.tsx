@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { Badge, Button, Card, SegmentedControl, StatePanel, UiText } from '../../components/Ui';
+import { FilterChip, Notice } from '../../components/ui/index';
 import { tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import type { MobileScreenProps } from '../../navigation/types';
@@ -27,6 +28,11 @@ function failureTitle(chat: AssistantChat): string {
   }
 }
 
+function suggestionLabels(text: string, locale: string): string[] {
+  const separator = locale === 'vi' ? /\s*,\s*|\s+(?:hoặc|và)\s+/i : /\s*,\s*|\s+(?:or|and)\s+/i;
+  return text.replace(/[.!?]+$/u, '').split(separator).map((part) => part.trim()).filter(Boolean);
+}
+
 /** Assistant chat: scope switch, history, guarded composer, citations, feedback, cancel and retry. */
 export function AssistantChatScreen({ navigation }: MobileScreenProps) {
   const { colors } = useTheme();
@@ -42,6 +48,7 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
 
   const empty = messages.length === 0 && !chat.busy && !failure;
   const specialized = chat.scope === 'specialized';
+  const suggestions = suggestionLabels(specialized ? copy.emptySpecializedBody : copy.emptyAcademicBody, locale);
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -71,6 +78,7 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
             <Button label={copy.newChat} onPress={chat.newChat} variant="text" />
           </View>
           {chat.isPreview ? <UiText variant="bodySmall" tone="muted" style={styles.gap}>{copy.previewNotice}</UiText> : null}
+          <Notice tone="info" message={copy.guardTechnical} />
 
           {chat.earlierCursor ? (
             <View style={styles.gap}>
@@ -84,11 +92,17 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
           ) : null}
 
           {empty ? (
-            <StatePanel
-              kind="empty"
-              title={specialized ? copy.emptySpecializedTitle : copy.emptyAcademicTitle}
-              description={specialized ? copy.emptySpecializedBody : copy.emptyAcademicBody}
-            />
+            <>
+              <StatePanel
+                kind="empty"
+                title={specialized ? copy.emptySpecializedTitle : copy.emptyAcademicTitle}
+              />
+              <View style={styles.suggestions}>
+                {suggestions.map((suggestion) => (
+                  <FilterChip key={suggestion} label={suggestion} selected={false} onPress={() => chat.setDraft(suggestion)} />
+                ))}
+              </View>
+            </>
           ) : null}
 
           {messages.map((message) => (
@@ -157,4 +171,5 @@ const styles = StyleSheet.create({
   toolbar: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs, marginBottom: tokens.spacing.sm },
   scope: { flexGrow: 1, minWidth: 200 },
   gap: { marginBottom: tokens.spacing.sm },
+  suggestions: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, marginBottom: tokens.spacing.md, marginTop: tokens.spacing.sm },
 });

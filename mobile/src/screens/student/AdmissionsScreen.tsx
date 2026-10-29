@@ -11,7 +11,7 @@ import { AdmissionDetail } from '../content/AdmissionDetail';
 import { contentApi, type AdmissionApplicationView, type AttachmentInfo } from '../content/content-api';
 import { contentErrorMessage, errorCode } from '../content/content-errors';
 import { joinMeta } from '../content/content-rules';
-import { DetailFrame, FlashNotice, ListFrame, StatusChip, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
+import { ContentIconChip, DetailFrame, FlashNotice, ListFrame, StatusChip, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
 import { previewAdmissions } from '../content/preview-data';
 import { useListQuery } from '../content/use-list-query';
 
@@ -157,6 +157,7 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
     <>
       <ListFrame
         title={copy.title}
+        icon="file-document-edit-outline"
         list={apps}
         keyOf={(item) => item.id}
         emptyTitle={copy.emptyApplications}
@@ -165,7 +166,7 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
           <View style={styles.header}>
             {banner}
             <View style={styles.actions}>
-              <Button label={copy.newApplication} variant="secondary" disabled={!live} onPress={() => { setView({ kind: 'new' }); clear(); }} />
+              <Button label={copy.newApplication} disabled={!live} onPress={() => { setView({ kind: 'new' }); clear(); }} />
             </View>
           </View>
         )}
@@ -177,12 +178,15 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
               onPress={() => { setView({ kind: 'detail', id: item.id }); clear(); }}
               style={styles.rowMain}
             >
-              <UiText variant="label">{item.cycle}</UiText>
-              <UiText variant="bodySmall" tone="muted">
-                {joinMeta([item.fullName, item.submittedAt ? formatDate(item.submittedAt) : null])}
-              </UiText>
-              <View style={styles.chips}>
-                <StatusChip code={item.status} labels={copy.statusLabels} />
+              <ContentIconChip icon="file-document-edit-outline" />
+              <View style={styles.rowCopy}>
+                <UiText variant="label">{item.cycle}</UiText>
+                <UiText variant="bodySmall" tone="muted">
+                  {joinMeta([item.fullName, item.submittedAt ? formatDate(item.submittedAt) : null])}
+                </UiText>
+                <View style={styles.chips}>
+                  <StatusChip code={item.status} labels={copy.statusLabels} />
+                </View>
               </View>
             </Pressable>
           </Card>
@@ -196,6 +200,7 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
 const styles = StyleSheet.create({
   header: { gap: tokens.spacing.sm },
   actions: { alignItems: 'flex-start', gap: tokens.spacing.sm },
-  rowMain: { gap: tokens.spacing.xs, minHeight: tokens.layout.touchTarget },
+  rowMain: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
+  rowCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
   chips: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
 });

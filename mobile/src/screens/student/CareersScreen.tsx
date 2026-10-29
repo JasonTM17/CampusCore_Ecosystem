@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Card, DataNotice, UiText } from '../../components/Ui';
 import { SearchBar, SegmentedControl } from '../../components/ui/index';
+import { StatusPill } from '../../components/ui/index';
 import { apiClient } from '../../api/client';
 import type { MobileCareerOpportunity } from '../../api/client';
 import { tokens } from '../../design/tokens';
@@ -11,7 +12,7 @@ import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi, type CareerApplicationView } from '../content/content-api';
 import { contentErrorMessage, errorCode } from '../content/content-errors';
 import { activeOpportunityIds, joinMeta, isApplicationWithdrawable } from '../content/content-rules';
-import { ListFrame, StatusChip, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
+import { ContentIconChip, ListFrame, StatusChip, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
 import { ApplicationDetail, OpportunityDetail } from '../content/CareerDetail';
 import { previewCareerApplications, previewOpportunities } from '../content/preview-data';
 import { useListQuery } from '../content/use-list-query';
@@ -139,6 +140,7 @@ export function CareersScreen(_props: MobileScreenProps) {
       {tab === 'board' ? (
         <ListFrame
           title={copy.title}
+          icon="briefcase-outline"
           list={board}
           filtered={search.length > 0}
           keyOf={(item) => item.id}
@@ -167,9 +169,14 @@ export function CareersScreen(_props: MobileScreenProps) {
                 onPress={() => setOpportunity(item)}
                 style={styles.rowMain}
               >
-                <UiText variant="label">{item.title}</UiText>
-                <UiText variant="bodySmall" tone="muted">{joinMeta([item.organizationName, item.location, item.employmentType])}</UiText>
-                {liveIds.has(item.id) ? <UiText variant="meta" tone="success">{copy.alreadyApplied}</UiText> : null}
+                <ContentIconChip icon="briefcase-outline" />
+                <View style={styles.rowCopy}>
+                  <UiText variant="label">{item.title}</UiText>
+                  <UiText variant="bodySmall" tone="muted">{joinMeta([item.organizationName, item.location, item.employmentType])}</UiText>
+                  <View style={styles.chips}>
+                    {liveIds.has(item.id) ? <StatusPill label={copy.alreadyApplied} tone="success" /> : null}
+                  </View>
+                </View>
               </Pressable>
             </Card>
           )}
@@ -177,6 +184,7 @@ export function CareersScreen(_props: MobileScreenProps) {
       ) : (
         <ListFrame
           title={copy.title}
+          icon="briefcase-check-outline"
           list={apps}
           items={mine}
           filtered
@@ -203,12 +211,15 @@ export function CareersScreen(_props: MobileScreenProps) {
                 onPress={() => setApplicationId(item.id)}
                 style={styles.rowMain}
               >
-                <UiText variant="label">{item.opportunityTitle ?? item.opportunityId}</UiText>
-                <UiText variant="bodySmall" tone="muted">
-                  {joinMeta([item.organizationName, item.submittedAt ? `${copy.submittedAt}: ${formatDate(item.submittedAt)}` : null])}
-                </UiText>
-                <View style={styles.chips}>
-                  <StatusChip code={item.status} labels={copy.statusLabels} />
+                <ContentIconChip icon="briefcase-check-outline" />
+                <View style={styles.rowCopy}>
+                  <UiText variant="label">{item.opportunityTitle ?? item.opportunityId}</UiText>
+                  <UiText variant="bodySmall" tone="muted">
+                    {joinMeta([item.organizationName, item.submittedAt ? `${copy.submittedAt}: ${formatDate(item.submittedAt)}` : null])}
+                  </UiText>
+                  <View style={styles.chips}>
+                    <StatusChip code={item.status} labels={copy.statusLabels} />
+                  </View>
                 </View>
               </Pressable>
             </Card>
@@ -222,6 +233,7 @@ export function CareersScreen(_props: MobileScreenProps) {
 
 const styles = StyleSheet.create({
   header: { gap: tokens.spacing.sm },
-  rowMain: { gap: tokens.spacing.xs, minHeight: tokens.layout.touchTarget },
+  rowMain: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
+  rowCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
   chips: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
 });
