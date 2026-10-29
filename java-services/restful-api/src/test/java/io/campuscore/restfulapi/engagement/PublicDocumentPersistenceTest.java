@@ -11,6 +11,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.TimeZone;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -444,6 +447,190 @@ class PublicDocumentPersistenceTest {
         mvc.perform(get("/api/v1/public/docs/archive-me"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.titleVi").value("Phiên bản mới"));
+    }
+
+    @Test
+    void publishedAtIsTheApprovalInstantNotTheDraftInstant() throws Exception {
+        String earlierDraft = publishDoc("doc-earlier-draft", "Dự thảo sớm", "Earlier draft",
+                "<p>bản 1</p>", "<p>body one</p>");
+        String laterDraft = publishDoc("doc-later-draft", "Dự thảo muộn", "Later draft",
+                "<p>bản 2</p>", "<p>body two</p>");
+
+        // Deterministic history: the first doc was drafted Monday and approved
+        // Friday; the second drafted Tuesday and approved Thursday. Written
+        // with a non-UTC offset — only the instants matter.
+        Instant mondayDraft = Instant.parse("2026-10-26T01:30:00Z");
+        Instant tuesdayDraft = Instant.parse("2026-10-27T01:30:00Z");
+        Instant thursdayApproval = Instant.parse("2026-10-29T02:15:00Z");
+        Instant fridayApproval = Instant.parse("2026-10-30T02:15:00Z");
+        jdbc.update("UPDATE \"engagement\".\"PublicDocumentRevision\""
+                        + " SET \"createdAt\" = ?, \"reviewedAt\" = ? WHERE \"documentId\" = ?",
+                OffsetDateTime.ofInstant(mondayDraft, ZoneOffset.ofHours(7)),
+                OffsetDateTime.ofInstant(fridayApproval, ZoneOffset.ofHours(7)),
+                earlierDraft);
+        jdbc.update("UPDATE \"engagement\".\"PublicDocumentRevision\""
+                        + " SET \"createdAt\" = ?, \"reviewedAt\" = ? WHERE \"documentId\" = ?",
+                OffsetDateTime.ofInstant(tuesdayDraft, ZoneOffset.ofHours(7)),
+                OffsetDateTime.ofInstant(thursdayApproval, ZoneOffset.ofHours(7)),
+                laterDraft);
+
+        TimeZone originalZone = TimeZone.getDefault();
+        try {
+            // A JVM zone far from UTC must not shift the projected instant.
+            TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Kiritimati"));
+
+            String detail = mvc.perform(get("/api/v1/public/docs/doc-earlier-draft"))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            org.assertj.core.api.Assertions.assertThat(
+                    Instant.parse(objectMapper.readTree(detail).get("publishedAt").asText()))
+                    .isEqualTo(fridayApproval);
+
+            String permalink = mvc.perform(get("/api/v1/public/docs/doc-earlier-draft/revisions/1"))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            org.assertj.core.api.Assertions.assertThat(
+                    Instant.parse(objectMapper.readTree(permalink).get("publishedAt").asText()))
+                    .isEqualTo(fridayApproval);
+
+            // The list both reports and orders by the approval instant: the
+            // Friday approval outranks the later-drafted Thursday approval.
+            String list = mvc.perform(get("/api/v1/public/docs"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.meta.total").value(2))
+                    .andExpect(jsonPath("$.data[0].slug").value("doc-earlier-draft"))
+                    .andExpect(jsonPath("$.data[1].slug").value("doc-later-draft"))
+                    .andReturn().getResponse().getContentAsString();
+            org.assertj.core.api.Assertions.assertThat(
+                    Instant.parse(objectMapper.readTree(list).get("data").get(0).get("publishedAt").asText()))
+                    .isEqualTo(fridayApproval);
+        } finally {
+            TimeZone.setDefault(originalZone);
+        }
+
+        // While the next revision sits in review the live row is untouched:
+        // still the approved content and still the same approval instant.
+        mvc.perform(put("/api/v1/docs/" + earlierDraft)
+                        .contentType("application/json")
+                        .content(contentJson("doc-earlier-draft", "Bản nháp hai", "Draft two",
+                                "<p>nháp 2</p>", "<p>draft two body</p>"))
+                        .with(lecturer("lecturer-1")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/docs/" + earlierDraft + "/submit").with(lecturer("lecturer-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.headRevision.state").value("IN_REVIEW"));
+        String stillLive = mvc.perform(get("/api/v1/public/docs/doc-earlier-draft"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.titleVi").value("Dự thảo sớm"))
+                .andExpect(jsonPath("$.bodyEn").value("<p>body one</p>"))
+                .andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(
+                Instant.parse(objectMapper.readTree(stillLive).get("publishedAt").asText()))
+                .isEqualTo(fridayApproval);
+    }
+
+    @Test
+    void restoredLiveDocumentReentersReviewQueue() throws Exception {
+        String id = publishDoc("restore-queue", "Quy chế cũ", "Old regulation",
+                "<p>bản cũ</p>", "<p>old body</p>");
+
+        mvc.perform(post("/api/v1/docs/" + id + "/archive")
+                        .contentType("application/json").content("{\"reason\": \"Tạm ngưng\"}")
+                        .with(admin("admin-1")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/docs/" + id + "/restore")
+                        .contentType("application/json").content("{\"reason\": \"Soạn lại\"}")
+                        .with(admin("admin-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"));
+
+        // The restored doc keeps publishedRevision only as history — a fresh
+        // revision cycle is required, and its submitted head must re-enter
+        // the review queue despite that history row.
+        mvc.perform(put("/api/v1/docs/" + id)
+                        .contentType("application/json")
+                        .content(contentJson("restore-queue", "Quy chế mới", "New regulation",
+                                "<p>nháp mới</p>", "<p>new draft body</p>"))
+                        .with(lecturer("lecturer-1")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/docs/" + id + "/submit").with(lecturer("lecturer-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IN_REVIEW"))
+                .andExpect(jsonPath("$.headRevision.state").value("IN_REVIEW"));
+
+        // Discovery: the staff IN_REVIEW filter and a foreign lecturer's
+        // queue scope both see it; the anonymous surface still answers 404.
+        mvc.perform(get("/api/v1/docs").queryParam("status", "IN_REVIEW").with(admin("admin-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.meta.total").value(1))
+                .andExpect(jsonPath("$.data[0].slug").value("restore-queue"));
+        mvc.perform(get("/api/v1/docs").with(lecturer("lecturer-2")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.meta.total").value(1))
+                .andExpect(jsonPath("$.data[0].slug").value("restore-queue"));
+        mvc.perform(get("/api/v1/public/docs/restore-queue")).andExpect(status().isNotFound());
+
+        // Self-approval stays refused; a return must drop the shell back to
+        // DRAFT even though a history publishedRevision row remains.
+        mvc.perform(post("/api/v1/docs/" + id + "/approve").with(lecturer("lecturer-1")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("REVIEWER_EQUALS_AUTHOR"));
+        mvc.perform(post("/api/v1/docs/" + id + "/return")
+                        .contentType("application/json").content("{\"reason\": \"Bổ sung nội dung\"}")
+                        .with(admin("admin-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.headRevision.state").value("DRAFT"));
+        mvc.perform(get("/api/v1/docs").queryParam("status", "IN_REVIEW").with(admin("admin-1")))
+                .andExpect(jsonPath("$.meta.total").value(0));
+
+        // Resubmit and approve by a different reviewer: revision 2 goes live
+        // and revision 1 stays permalink-addressable as superseded history.
+        submit(id, "lecturer-1");
+        approve(id, "admin-2");
+        mvc.perform(get("/api/v1/docs/" + id).with(admin("admin-1")))
+                .andExpect(jsonPath("$.status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.publishedRevision").value(2));
+        mvc.perform(get("/api/v1/public/docs/restore-queue"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.titleVi").value("Quy chế mới"))
+                .andExpect(jsonPath("$.bodyEn").value("<p>new draft body</p>"));
+        mvc.perform(get("/api/v1/public/docs/restore-queue/revisions/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.superseded").value(true));
+    }
+
+    @Test
+    void restoredInReviewHeadRejoinsReviewQueue() throws Exception {
+        String id = createDoc("mid-review", "lecturer-1", "Đang chờ duyệt", "Awaiting review",
+                "<p>nháp</p>", "<p>draft body</p>");
+        submit(id, "lecturer-1");
+
+        mvc.perform(post("/api/v1/docs/" + id + "/archive")
+                        .contentType("application/json").content("{\"reason\": \"Tạm cất\"}")
+                        .with(admin("admin-1")))
+                .andExpect(status().isOk());
+
+        // The head never left review — restoring must land the shell back in
+        // IN_REVIEW so the queue finds it again; nothing becomes public.
+        mvc.perform(post("/api/v1/docs/" + id + "/restore")
+                        .contentType("application/json").content("{\"reason\": \"Duyệt tiếp\"}")
+                        .with(admin("admin-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IN_REVIEW"))
+                .andExpect(jsonPath("$.headRevision.state").value("IN_REVIEW"));
+
+        mvc.perform(get("/api/v1/docs").queryParam("status", "IN_REVIEW").with(admin("admin-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.meta.total").value(1))
+                .andExpect(jsonPath("$.data[0].slug").value("mid-review"));
+        mvc.perform(get("/api/v1/public/docs/mid-review")).andExpect(status().isNotFound());
+
+        approve(id, "admin-1");
+        mvc.perform(get("/api/v1/public/docs/mid-review"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.publishedRevision").value(1));
     }
 
     // ------------------------------------------------------------------
