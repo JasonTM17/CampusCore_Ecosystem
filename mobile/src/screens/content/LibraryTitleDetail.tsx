@@ -1,12 +1,13 @@
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, StatePanel, UiText } from '../../components/Ui';
+import { StatusPill } from '../../components/ui/index';
 import type { MobileLibraryTitle } from '../../api/client';
 import { fillCopy } from '../../i18n/academic-messages';
 import { libraryMessages } from '../../i18n/library-messages';
 import { contentApi } from './content-api';
-import { firstAvailableCopy } from './content-rules';
-import { DetailFrame, FlashNotice, MetaRow, StatusChip, isPreviewMode, useContentCopy, type Flash } from './content-ui';
+import { firstAvailableCopy, joinMeta } from './content-rules';
+import { ContentHero, ContentIconChip, DetailFrame, FlashNotice, MetaRow, StatusChip, isPreviewMode, useContentCopy, type Flash } from './content-ui';
 import { previewLibraryTitles } from './preview-data';
 import { useContentQuery } from './use-content-query';
 
@@ -42,7 +43,14 @@ export function LibraryTitleDetail({ titleId, busy, flash, onBack, onHold, reloa
         <View style={{ gap: 12 }}>
           <FlashNotice flash={flash} />
           <Card>
-            <UiText accessibilityRole="header" variant="headlineMedium">{title.title}</UiText>
+            <ContentHero title={title.title} icon="book-open-page-variant-outline" detail={joinMeta([title.author, title.publisher, title.publishedYear ? String(title.publishedYear) : null])}>
+              <View style={styles.heroPills}>
+                <StatusPill
+                  label={fillCopy(copy.copiesAvailable, { available: formatNumber(title.availableCopies), total: formatNumber(title.totalCopies) })}
+                  tone={title.availableCopies > 0 ? 'success' : 'warning'}
+                />
+              </View>
+            </ContentHero>
             <View style={{ gap: 4, marginTop: 8 }}>
               <MetaRow label={copy.author} value={title.author} />
               <MetaRow label={copy.publisher} value={title.publisher} />
@@ -60,7 +68,8 @@ export function LibraryTitleDetail({ titleId, busy, flash, onBack, onHold, reloa
             <Card>
               <UiText accessibilityRole="header" variant="headlineSmall">{copy.copies}</UiText>
               {copies.map((entry) => (
-                <View key={entry.id} accessible accessibilityLabel={`${entry.barcode}, ${copy.copyStatus[entry.status] ?? entry.status}`} style={{ alignItems: 'center', flexDirection: 'row', gap: 8, minHeight: 44 }}>
+                <View key={entry.id} accessible accessibilityLabel={`${entry.barcode}, ${copy.copyStatus[entry.status] ?? entry.status}`} style={styles.copyRow}>
+                  <ContentIconChip icon="barcode-scan" />
                   <UiText variant="bodyMedium" style={{ flex: 1 }}>{entry.barcode}</UiText>
                   <StatusChip code={entry.status} labels={copy.copyStatus} />
                 </View>
@@ -77,3 +86,8 @@ export function LibraryTitleDetail({ titleId, busy, flash, onBack, onHold, reloa
     </DetailFrame>
   );
 }
+
+const styles = StyleSheet.create({
+  heroPills: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 },
+  copyRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 8, minHeight: 44, paddingVertical: 4 },
+});

@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, Divider, ScreenShell, SectionHeading, StatePanel, UiText } from '../../components/Ui';
+import { IconChip } from '../../components/ui/index';
 import { tokens } from '../../design/tokens';
 import { fillThesisCopy } from '../../i18n/thesis-messages';
 import type { MobileScreenProps } from '../../navigation/types';
@@ -27,8 +28,9 @@ export function ThesisDetailScreen({ navigation, selectedThesisTopicId }: Mobile
       {!topicId ? <StatePanel kind="empty" title={copy.topicNotFound} actionLabel={copy.back} onAction={() => navigation.navigate('thesis.topics')} /> : null}
       {topic ? (
         <>
-          <Card style={styles.card}>
+          <Card tone="primary" style={styles.card}>
             <View style={styles.header}>
+              <IconChip icon="lightbulb-outline" size={40} />
               <View style={styles.grow}>
                 <UiText variant="meta" tone="primary">{`${copy.topicDepartment}: ${topic.departmentId}`}</UiText>
                 <UiText variant="headlineSmall">{topic.title}</UiText>
@@ -78,7 +80,7 @@ export function ThesisDetailScreen({ navigation, selectedThesisTopicId }: Mobile
 
 const styles = StyleSheet.create({
   card: { marginBottom: tokens.spacing.md, padding: tokens.spacing.lg },
-  header: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, justifyContent: 'space-between' },
+  header: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
   grow: { flex: 1, minWidth: 0 },
   line: { marginBottom: tokens.spacing.xs, marginTop: tokens.spacing.xs },
   actions: { gap: tokens.spacing.sm },

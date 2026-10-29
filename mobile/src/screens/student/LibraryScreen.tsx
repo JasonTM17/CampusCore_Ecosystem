@@ -2,8 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button, Card, DataNotice, UiText } from '../../components/Ui';
-import { FilterSheet, SearchBar, SegmentedControl } from '../../components/ui/index';
-import type { FilterValue } from '../../components/ui/index';
+import { FilterChip, SearchBar, SegmentedControl, StatusPill } from '../../components/ui/index';
 import { apiClient } from '../../api/client';
 import type { MobileLibraryLoan, MobileLibraryTitle } from '../../api/client';
 import { tokens } from '../../design/tokens';
@@ -13,7 +12,7 @@ import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi } from '../content/content-api';
 import { contentErrorMessage, errorCode } from '../content/content-errors';
 import { filterLoans, firstAvailableCopy, isLoanCancellable, joinMeta, type LoanTab } from '../content/content-rules';
-import { ListFrame, StatusChip, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
+import { ContentIconChip, ListFrame, StatusChip, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
 import { LibraryTitleDetail } from '../content/LibraryTitleDetail';
 import { previewLibraryLoans, previewLibraryTitles } from '../content/preview-data';
 import { useListQuery } from '../content/use-list-query';
@@ -31,12 +30,14 @@ export function LibraryScreen(_props: MobileScreenProps) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [filter, setFilter] = useState<FilterValue>({});
+  const [filter, setFilter] = useState<{ availability?: string[] }>({});
   const [busy, setBusy] = useState(false);
   const { flash, success, fail, clear } = useFlash();
   const { ask, dialog } = useConfirm();
   const availableOnly = (filter.availability ?? []).includes('available');
+  const toggleAvailability = () => setFilter((current) => ({
+    availability: (current.availability ?? []).includes('available') ? [] : ['available'],
+  }));
 
   const previewTitles = useMemo(() => previewLibraryTitles(locale), [locale]);
   const previewLoans = useMemo(() => previewLibraryLoans(locale), [locale]);
@@ -125,6 +126,7 @@ export function LibraryScreen(_props: MobileScreenProps) {
       {tab === 'catalogue' ? (
         <ListFrame
           title={copy.title}
+          icon="bookshelf"
           list={catalogue}
           items={rows}
           filtered={availableOnly || search.length > 0}
@@ -145,12 +147,7 @@ export function LibraryScreen(_props: MobileScreenProps) {
                 onSubmitEditing={() => setSearch(input.trim())}
               />
               <View style={styles.filterRow}>
-                <Button
-                  label={availableOnly ? `${t('filters')} (1)` : t('filters')}
-                  accessibilityLabel={t('filters')}
-                  variant="secondary"
-                  onPress={() => setFilterOpen(true)}
-                />
+                <FilterChip label={copy.availableOnly} selected={availableOnly} onPress={toggleAvailability} />
               </View>
             </View>
           )}
@@ -162,13 +159,19 @@ export function LibraryScreen(_props: MobileScreenProps) {
                 onPress={() => setSelected(item.id)}
                 style={styles.rowMain}
               >
-                <UiText variant="label">{item.title}</UiText>
-                <UiText variant="bodySmall" tone="muted">{joinMeta([item.author, item.category])}</UiText>
-                <UiText variant="meta" tone={item.availableCopies > 0 ? 'success' : 'warning'}>
-                  {item.availableCopies > 0
-                    ? fillCopy(copy.copiesAvailable, { available: item.availableCopies, total: item.totalCopies })
-                    : copy.noCopiesAvailable}
-                </UiText>
+                <ContentIconChip icon="book-open-page-variant-outline" />
+                <View style={styles.rowCopy}>
+                  <UiText variant="label">{item.title}</UiText>
+                  <UiText variant="bodySmall" tone="muted">{joinMeta([item.author, item.category])}</UiText>
+                  <View style={styles.chips}>
+                    <StatusPill
+                      label={item.availableCopies > 0
+                        ? fillCopy(copy.copiesAvailable, { available: item.availableCopies, total: item.totalCopies })
+                        : copy.noCopiesAvailable}
+                      tone={item.availableCopies > 0 ? 'success' : 'warning'}
+                    />
+                  </View>
+                </View>
               </Pressable>
             </Card>
           )}
@@ -176,6 +179,7 @@ export function LibraryScreen(_props: MobileScreenProps) {
       ) : (
         <ListFrame
           title={copy.title}
+          icon="book-check-outline"
           list={loans}
           items={filterLoans(loans.items, loanTab)}
           filtered
@@ -197,17 +201,20 @@ export function LibraryScreen(_props: MobileScreenProps) {
           renderItem={(loan) => (
             <Card>
               <View accessible accessibilityLabel={joinMeta([loan.title ?? loan.barcode, copy.statusLabels[loan.status] ?? loan.status])} style={styles.rowMain}>
-                <UiText variant="label">{loan.title ?? loan.barcode ?? loan.copyId}</UiText>
-                <View style={styles.chips}>
-                  <StatusChip code={loan.status} labels={copy.statusLabels} />
+                <ContentIconChip icon="book-check-outline" />
+                <View style={styles.rowCopy}>
+                  <UiText variant="label">{loan.title ?? loan.barcode ?? loan.copyId}</UiText>
+                  <View style={styles.chips}>
+                    <StatusChip code={loan.status} labels={copy.statusLabels} />
+                  </View>
+                  <UiText variant="bodySmall" tone="muted">
+                    {joinMeta([
+                      `${copy.requestedAt}: ${formatDate(loan.requestedAt)}`,
+                      loan.expiresAt ? `${copy.expiresAt}: ${formatDate(loan.expiresAt)}` : null,
+                      loan.dueAt ? `${copy.dueAt}: ${formatDate(loan.dueAt)}` : null,
+                    ])}
+                  </UiText>
                 </View>
-                <UiText variant="bodySmall" tone="muted">
-                  {joinMeta([
-                    `${copy.requestedAt}: ${formatDate(loan.requestedAt)}`,
-                    loan.expiresAt ? `${copy.expiresAt}: ${formatDate(loan.expiresAt)}` : null,
-                    loan.dueAt ? `${copy.dueAt}: ${formatDate(loan.dueAt)}` : null,
-                  ])}
-                </UiText>
               </View>
               {isLoanCancellable(loan) ? (
                 <Button label={copy.cancel} accessibilityLabel={`${copy.cancel}: ${loan.title ?? loan.barcode ?? ''}`} variant="text" disabled={busy || loans.preview} onPress={() => cancelLoan(loan)} />
@@ -216,13 +223,6 @@ export function LibraryScreen(_props: MobileScreenProps) {
           )}
         />
       )}
-      <FilterSheet
-        visible={filterOpen}
-        onClose={() => setFilterOpen(false)}
-        groups={[{ id: 'availability', label: copy.availability, options: [{ value: 'available', label: copy.availableOnly }] }]}
-        value={filter}
-        onApply={setFilter}
-      />
       {dialog}
     </>
   );
@@ -231,6 +231,7 @@ export function LibraryScreen(_props: MobileScreenProps) {
 const styles = StyleSheet.create({
   header: { gap: tokens.spacing.sm },
   filterRow: { alignItems: 'flex-start' },
-  rowMain: { gap: tokens.spacing.xs, minHeight: tokens.layout.touchTarget },
+  rowCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
+  rowMain: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
   chips: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
 });

@@ -11,6 +11,7 @@ import { contentApi, type AdmissionApplicationView, type AttachmentInfo } from '
 import { admissionPhase, canChangeAttachments, missingAdmissionFields, type AdmissionRequiredField } from './content-rules';
 import {
   AttachmentRow,
+  ContentHero,
   DetailFrame,
   FlashNotice,
   MetaRow,
@@ -51,11 +52,11 @@ export function AdmissionDetail(props: AdmissionDetailProps) {
         <DataNotice message={copy.simulatedBanner} />
         <FlashNotice flash={flash} />
         <Card>
-          <UiText accessibilityRole="header" variant="headlineMedium">{application.cycle}</UiText>
-          <View style={{ alignItems: 'flex-start', marginVertical: 8 }}>
-            <StatusChip code={application.status} labels={copy.statusLabels} />
-          </View>
-          <UiText variant="bodySmall" tone="muted">{fillCopy(copy.version, { n: application.version })}</UiText>
+          <ContentHero title={application.cycle} icon="file-document-edit-outline" detail={fillCopy(copy.version, { n: application.version })}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
+              <StatusChip code={application.status} labels={copy.statusLabels} />
+            </View>
+          </ContentHero>
           {phase === 'returned' ? <UiText variant="label" tone="warning" style={{ marginTop: 8 }}>{copy.returnedHint}</UiText> : null}
           {phase === 'locked' ? <UiText variant="label" tone="muted" style={{ marginTop: 8 }}>{copy.locked}</UiText> : null}
           {phase === 'terminal' ? <UiText variant="label" tone="muted" style={{ marginTop: 8 }}>{copy.terminal}</UiText> : null}

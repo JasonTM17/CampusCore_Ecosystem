@@ -1,7 +1,9 @@
 import { StyleSheet, View } from 'react-native';
 
 import { requestAssistantEntryScope } from '../../assistant/entry-scope';
-import { Badge, Button, Card, DataNotice, Divider, StatePanel, UiText } from '../../components/Ui';
+import { Button, Card, DataNotice, Divider, StatePanel, UiText } from '../../components/Ui';
+import { IconChip, StatusPill } from '../../components/ui/index';
+import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillThesisCopy, thesisMessages, type ThesisCopy } from '../../i18n/thesis-messages';
@@ -30,13 +32,58 @@ export function QueryNotices({ state, copy }: { state: ThesisQueryState; copy: T
 
 export function ThesisStatusBadge({ status, copy }: { status: string | null | undefined; copy: ThesisCopy }) {
   if (!status) return null;
-  return <Badge label={statusLabel(copy, status)} tone={statusTone(status)} />;
+  return <StatusPill label={statusLabel(copy, status)} tone={statusTone(status)} />;
+}
+
+export type ThesisStepState = 'done' | 'current' | 'pending';
+
+/** Local vertical stepper used by thesis registration and progress screens. */
+export function ThesisStepper({
+  steps,
+  copy,
+}: {
+  steps: readonly { label: string; state: ThesisStepState }[];
+  copy: ThesisCopy;
+}) {
+  const { colors } = useTheme();
+  const stateLabel = (state: ThesisStepState) => (
+    state === 'done' ? copy.milestoneDone : state === 'current' ? copy.milestoneCurrent : copy.milestonePending
+  );
+  const iconTone = (state: ThesisStepState) => (
+    state === 'done' ? 'success' : state === 'current' ? 'primary' : 'muted'
+  );
+  const pillTone = (state: ThesisStepState) => (
+    state === 'done' ? 'success' : state === 'current' ? 'primary' : 'neutral'
+  );
+  return (
+    <View style={styles.stepper}>
+      {steps.map((step, index) => (
+        <View key={`${index}:${step.label}`} style={styles.stepRow}>
+          <View style={styles.stepTrack}>
+            <View style={[styles.stepNode, {
+              backgroundColor: step.state === 'done' ? colors.successFixed : step.state === 'current' ? colors.primaryFixed : colors.surfaceLow,
+              borderColor: step.state === 'done' ? colors.success : step.state === 'current' ? colors.primary : colors.outlineVariant,
+            }]}>
+              <UiText variant="meta" tone={iconTone(step.state)}>{index + 1}</UiText>
+            </View>
+            {index < steps.length - 1 ? <View style={[styles.stepConnector, { backgroundColor: colors.outlineVariant }]} /> : null}
+          </View>
+          <View style={styles.stepCopy}>
+            <UiText variant="label" style={styles.stepLabel}>{step.label}</UiText>
+            <StatusPill label={stateLabel(step.state)} tone={pillTone(step.state)} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
 }
 
 export function DateLine({ label, text }: { label: string; text?: string | null }) {
   if (!text) return null;
+  const { window } = useTheme();
+  const stacked = window.fontScale >= 1.3 || window.width < 360;
   return (
-    <View style={styles.dateLine}>
+    <View style={[styles.dateLine, stacked ? styles.dateLineStacked : undefined]}>
       <UiText variant="bodySmall" tone="muted" style={styles.dateLabel}>{label}</UiText>
       <UiText variant="bodySmall" style={styles.grow}>{text}</UiText>
     </View>
@@ -64,15 +111,16 @@ export function TopicCard({ topic, copy, onOpen }: { topic: ThesisTopic; copy: T
   return (
     <Card style={styles.gap}>
       <View style={styles.row}>
+        <IconChip icon="lightbulb-outline" />
         <View style={styles.grow}>
           <UiText variant="meta" tone="primary">{topic.departmentId}</UiText>
           <UiText variant="headlineSmall">{topic.title}</UiText>
         </View>
         <ThesisStatusBadge status={topic.status} copy={copy} />
       </View>
-      <UiText variant="bodySmall" tone="muted" numberOfLines={3} style={styles.brief}>{topic.description}</UiText>
+      <UiText variant="bodySmall" tone="muted" style={styles.brief}>{topic.description}</UiText>
       <UiText variant="meta" tone="muted">{fillThesisCopy(copy.topicGroupsMax, { count: topic.maxGroups })}</UiText>
-      <Button label={copy.openTopic} onPress={onOpen} variant="text" accessibilityLabel={`${copy.openTopic}: ${topic.title}`} />
+      <Button label={copy.openTopic} onPress={onOpen} variant="secondary" accessibilityLabel={`${copy.openTopic}: ${topic.title}`} />
     </Card>
   );
 }
@@ -108,8 +156,16 @@ const styles = StyleSheet.create({
   row: thesisStyles.row,
   grow: thesisStyles.grow,
   roundCard: { marginBottom: tokens.spacing.sm, padding: tokens.spacing.lg },
-  dateLine: { flexDirection: 'row', gap: tokens.spacing.sm, marginTop: tokens.spacing.xs },
-  dateLabel: { minWidth: 120 },
+  dateLine: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, marginTop: tokens.spacing.xs },
+  dateLineStacked: { flexDirection: 'column', gap: tokens.spacing.xs },
+  dateLabel: { flexShrink: 1, minWidth: 0 },
   brief: { marginBottom: tokens.spacing.xs, marginTop: tokens.spacing.xs },
   divider: { marginVertical: tokens.spacing.sm },
+  stepper: { gap: tokens.spacing.sm },
+  stepRow: { alignItems: 'stretch', flexDirection: 'row', gap: tokens.spacing.sm, minWidth: 0 },
+  stepTrack: { alignItems: 'center', width: 32 },
+  stepNode: { alignItems: 'center', borderRadius: tokens.radii.pill, borderWidth: 1, height: 28, justifyContent: 'center', width: 28 },
+  stepConnector: { flex: 1, marginVertical: tokens.spacing.xs, width: 2 },
+  stepCopy: { alignItems: 'flex-start', flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, minWidth: 0, paddingVertical: tokens.spacing.xs },
+  stepLabel: { flexShrink: 1, minWidth: 120 },
 });
