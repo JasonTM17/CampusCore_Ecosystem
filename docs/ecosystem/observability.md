@@ -116,7 +116,7 @@ Nguyên tắc bất biến: Thông tin xác thực (Bearer token, refresh token,
 
 - `redactForLog()` trong cả hai module `observability` (web và mobile) thực hiện:
   - Strip `Bearer [A-Za-z0-9._~+/=-]+` thành `Bearer <redacted>`.
-  - Strip query params: `([?&](?:access_token|refresh_token|token|password|secret)=)[^&\s]+` thành `$1<redacted>`.
+  - Strip query params: `([?&]` + `(?:access_token|refresh_token|token|password|secret)=)[^&\s]+` thành `$1<redacted>`.
   - Strip auth/cookie trong JSON/string: `"(cookie|authorization|set-cookie)"\s*:\s*"[^"]*"` thành `"$1":"<redacted>"`.
 - Spring Boot REST API:
   - Cấu hình `server.error.include-message: never` và `server.error.include-stacktrace: never` trong `application.yml` ngăn rò rỉ cấu trúc bảng, tên cột hoặc stack trace qua error response.
@@ -197,7 +197,7 @@ flowchart TD
 
 - Trên Render free-tier, container bị sleep sau thời gian nhàn rỗi. Thời gian đánh thức JVM và khởi tạo Hibernate/HikariCP mất từ 15 đến 40 giây.
 - **Client-side Absorption**: Interceptor axios của frontend tự động retry một lần (với 3s backoff) đối với các request GET idempotent khi nhận mã 502/503/504 từ gateway trong quá trình cold start.
-- **Warm Ping Mitigation**: Database migration `supabase/migrations/20260920210000_render_keepalive_warm_ping.sql` hỗ trợ gửi ping định kỳ 10 phút qua `pg_cron` + `pg_net` nhằm giữ container không bị sleep (xem chi tiết tại [PRODUCTION_RUNBOOK.md](file:///D:/CampusUTE_EcoSystem/docs/PRODUCTION_RUNBOOK.md#render-cold-start-mitigation)).
+- **Warm Ping Mitigation**: Database migration `supabase/migrations/20260920210000_render_keepalive_warm_ping.sql` hỗ trợ gửi ping định kỳ 10 phút qua `pg_cron` + `pg_net` nhằm giữ container không bị sleep (xem chi tiết tại [PRODUCTION_RUNBOOK.md](../PRODUCTION_RUNBOOK.md#render-cold-start-mitigation)).
 
 ---
 
@@ -249,18 +249,18 @@ Mỗi luồng nghiệp vụ trọng yếu (Critical User Journey) được áp �
 ## 8. Alert Rules Manifests & Operational Severity Matrix
 
 Tất cả các định nghĩa cảnh báo được lưu trữ dạng tệp cấu hình Prometheus chuẩn tại thư mục `ops/monitoring/`:
-- [`ops/monitoring/alerts-api-slo.yml`](file:///D:/CampusUTE_EcoSystem/ops/monitoring/alerts-api-slo.yml): Cảnh báo vi phạm SLO độ trễ và tỷ lệ lỗi các luồng nghiệp vụ.
-- [`ops/monitoring/alerts-infrastructure.yml`](file:///D:/CampusUTE_EcoSystem/ops/monitoring/alerts-infrastructure.yml): Cảnh báo bão hòa pool kết nối DB, lỗi probe liveness/readiness, và cold-start kéo dài.
-- [`ops/monitoring/alerts-assistant.yml`](file:///D:/CampusUTE_EcoSystem/ops/monitoring/alerts-assistant.yml): Cảnh báo cạn quota assistant, lỗi provider AI và lease recovery.
-- [`ops/monitoring/README.md`](file:///D:/CampusUTE_EcoSystem/ops/monitoring/README.md): Hướng dẫn vận hành, ma trận độ nghiêm trọng và ánh xạ runbook.
+- [`ops/monitoring/alerts-api-slo.yml`](../../ops/monitoring/alerts-api-slo.yml): Cảnh báo vi phạm SLO độ trễ và tỷ lệ lỗi các luồng nghiệp vụ.
+- [`ops/monitoring/alerts-infrastructure.yml`](../../ops/monitoring/alerts-infrastructure.yml): Cảnh báo bão hòa pool kết nối DB, lỗi probe liveness/readiness, và cold-start kéo dài.
+- [`ops/monitoring/alerts-assistant.yml`](../../ops/monitoring/alerts-assistant.yml): Cảnh báo cạn quota assistant, lỗi provider AI và lease recovery.
+- [`ops/monitoring/README.md`](../../ops/monitoring/README.md): Hướng dẫn vận hành, ma trận độ nghiêm trọng và ánh xạ runbook.
 
 ### 8.1 Ma trận Phân cấp Cảnh báo (Severity Matrix)
 
 | Mức độ | Thời gian Phản hồi | Kênh Thông báo | Hành động Xử lý & Liên kết Runbook |
 | :--- | :--- | :--- | :--- |
-| `critical` | **< 15 phút** | On-call Paging, Kênh Khẩn cấp | Can thiệp tức thời. Tra cứu tại [PRODUCTION_RUNBOOK.md](file:///D:/CampusUTE_EcoSystem/docs/PRODUCTION_RUNBOOK.md#start-and-smoke). |
-| `warning` | **< 2 giờ** | Kênh Triage Kỹ thuật | Phân tích nguyên nhân suy giảm hiệu năng trước khi thành outage. Xem [PRODUCTION_RUNBOOK.md](file:///D:/CampusUTE_EcoSystem/docs/PRODUCTION_RUNBOOK.md#render--neon-operating-notes). |
-| `info` | Trong ngày | Dashboard Review | Theo dõi xu hướng sử dụng tài nguyên hoặc reset quota. Xem [deepseek-assistant.md](file:///D:/CampusUTE_EcoSystem/docs/integrations/deepseek-assistant.md). |
+| `critical` | **< 15 phút** | On-call Paging, Kênh Khẩn cấp | Can thiệp tức thời. Tra cứu tại [PRODUCTION_RUNBOOK.md](../PRODUCTION_RUNBOOK.md#start-and-smoke). |
+| `warning` | **< 2 giờ** | Kênh Triage Kỹ thuật | Phân tích nguyên nhân suy giảm hiệu năng trước khi thành outage. Xem [PRODUCTION_RUNBOOK.md](../PRODUCTION_RUNBOOK.md#render--neon-operating-notes). |
+| `info` | Trong ngày | Dashboard Review | Theo dõi xu hướng sử dụng tài nguyên hoặc reset quota. Xem [deepseek-assistant.md](../integrations/deepseek-assistant.md). |
 
 ---
 
