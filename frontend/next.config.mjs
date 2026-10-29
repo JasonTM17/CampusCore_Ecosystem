@@ -9,6 +9,8 @@
  * nonced; TinyMCE's dynamic script loading rides on 'strict-dynamic'.
  */
 const nextConfig = {
+  // Optional private build output for concurrent verification; default stays .next.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   reactStrictMode: true,
   output: process.env.OUTPUT_STANDALONE === 'true' || process.platform !== 'win32' ? 'standalone' : undefined,
   experimental: {
