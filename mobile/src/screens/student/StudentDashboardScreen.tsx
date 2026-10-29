@@ -43,6 +43,7 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
   );
   const {
     data: liveAnnouncements,
+    error: announcementsError,
   } = useLiveResource<JsonObject[]>(
     'announcements',
     [],
@@ -53,7 +54,7 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
   const dashboardClasses: Array<{ semesterId?: string; code: string; name: string; time: string; room: string }> = apiClient.mode === 'preview'
     ? upcomingClasses
     : activeEnrollments.slice(0, 3).map((item) => ({
-        code: item.section?.course?.code ?? item.section?.sectionNumber ?? item.sectionId,
+        code: item.section?.course?.code ?? item.section?.sectionNumber ?? c.course,
         name: item.section?.course?.nameVi ?? item.section?.course?.name ?? c.course,
         time: item.section?.schedules?.[0]
           ? `${item.section.schedules[0].startTime} – ${item.section.schedules[0].endTime}`
@@ -89,7 +90,7 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
         icon="school-outline"
         eyebrow={c.currentSemester}
         title={apiClient.mode === 'preview' ? c.previewSemester : fillShellCopy(c.activeSections, { n: activeEnrollments.length })}
-        detail={apiClient.mode === 'preview' ? undefined : fillShellCopy(c.announcements, { n: liveAnnouncements.length })}
+        detail={apiClient.mode === 'preview' ? undefined : announcementsError ?? fillShellCopy(c.announcements, { n: liveAnnouncements.length })}
       >
         <Button icon="calendar-week-outline" label={c.openSchedule} onPress={() => navigation.navigate('schedule')} variant="secondary" onBrand />
       </HeroCard>
