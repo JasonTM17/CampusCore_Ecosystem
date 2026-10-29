@@ -6,6 +6,7 @@ import { Dimensions, StyleSheet } from 'react-native';
 import { NavigationRail } from '../../src/components/NavigationRail';
 import { ThemeProvider } from '../../src/design/theme';
 import { tokens } from '../../src/design/tokens';
+import { chromeFor } from '../../src/design/chrome';
 import { getBottomNavigation } from '../../src/navigation/routes';
 import { auditTree } from './audit';
 
@@ -17,7 +18,7 @@ describe('NavigationRail accessibility and theme', () => {
       test(`${role} ${scheme} at fontScale 1.5 has no violations or truncated actions`, async () => {
         jest.spyOn(Dimensions, 'get').mockReturnValue({ width: 1000, height: 800, scale: 2, fontScale: 1.5 });
         const items = getBottomNavigation(role);
-        const colors = scheme === 'dark' ? tokens.colorsDark : tokens.colors;
+        const chrome = chromeFor(scheme);
         await render(
           <ThemeProvider forcedScheme={scheme}>
             <NavigationRail activeRoute={items[0].route} role={role} onNavigate={() => {}} onMenu={() => {}} />
@@ -26,10 +27,10 @@ describe('NavigationRail accessibility and theme', () => {
         const audit = auditTree(screen.toJSON() as never);
         expect(audit.violations).toEqual([]);
         expect(audit.unknownSize).toBe(0);
-        expect(screen.getByTestId('navigation-rail')).toHaveStyle({ backgroundColor: colors.card, borderRightColor: colors.outlineVariant });
+        expect(screen.getByTestId('navigation-rail')).toHaveStyle({ backgroundColor: chrome.surfaceStrong, borderRightColor: chrome.overlay });
         for (const [index, item] of items.entries()) {
           const label = screen.getByText(localizedNavLabel('vi', item.label));
-          expect(label).toHaveStyle({ color: index === 0 ? colors.primary : colors.textMuted });
+          expect(label).toHaveStyle({ color: index === 0 ? chrome.onSurface : chrome.onSurfaceMuted });
         }
         const actions = [...screen.getAllByRole('tab'), screen.getByRole('button', { name: 'Mở menu' })];
         for (const action of actions) {

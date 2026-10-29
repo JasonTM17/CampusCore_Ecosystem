@@ -39,7 +39,7 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: Bott
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
                 onPress={() => onNavigate(item.route)}
-                style={({ pressed }) => [styles.item, pressed ? styles.pressed : undefined]}
+                style={({ pressed }) => [styles.item, { borderTopColor: active ? colors.primary : 'transparent' }, pressed ? styles.pressed : undefined]}
               >
                 <View style={[styles.icon, active ? styles.activeIcon : undefined]}>
                   <MaterialCommunityIcons
@@ -49,10 +49,11 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: Bott
                   />
                 </View>
                 <UiText
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.8}
-                  numberOfLines={1}
+                  adjustsFontSizeToFit={false}
+                  minimumFontScale={1}
+                  numberOfLines={2}
                   variant="meta"
+                  style={styles.label}
                   tone={active ? 'primary' : 'muted'}
                 >
                   {navLabel(item.label)}
@@ -70,7 +71,7 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: Bott
           <View style={styles.icon}>
             <MaterialCommunityIcons color={colors.textMuted} name="menu" size={20} />
           </View>
-          <UiText variant="meta" tone="muted">
+          <UiText variant="meta" tone="muted" style={styles.label}>
             {copy.menu}
           </UiText>
         </Pressable>
@@ -87,10 +88,11 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     minHeight: tokens.layout.bottomNavigationHeight,
     paddingHorizontal: tokens.spacing.xs,
   },
-  navigationInner: { alignItems: 'center', flexDirection: 'row', minHeight: tokens.layout.bottomNavigationHeight },
-  tabList: { alignItems: 'center', flexDirection: 'row', minWidth: 0 },
-  item: { alignItems: 'center', flex: 1, justifyContent: 'center', minHeight: tokens.layout.touchTarget, minWidth: 0, paddingHorizontal: 2 },
-  icon: { alignItems: 'center', borderRadius: tokens.radii.control, height: 30, justifyContent: 'center', marginBottom: 2, width: 40 },
+  navigationInner: { alignItems: 'stretch', flexDirection: 'row', minHeight: tokens.layout.bottomNavigationHeight },
+  tabList: { alignItems: 'stretch', flexDirection: 'row', minWidth: 0 },
+  item: { alignItems: 'center', flex: 1, justifyContent: 'flex-start', minHeight: tokens.layout.bottomNavigationHeight, minWidth: 0, paddingHorizontal: 2, paddingVertical: tokens.spacing.sm, borderTopWidth: 2, borderTopColor: 'transparent' },
+  icon: { alignItems: 'center', borderRadius: tokens.radii.pill, height: 28, justifyContent: 'center', marginBottom: tokens.spacing.xs, width: 44 },
+  label: { textAlign: 'center', alignSelf: 'stretch' },
   activeIcon: { backgroundColor: colors.primaryFixed },
   pressed: { backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control },
 });

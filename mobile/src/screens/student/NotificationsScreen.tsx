@@ -1,14 +1,16 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Button, Card, StatePanel, UiText } from '../../components/Ui';
-import { Notice, SegmentedControl } from '../../components/ui/index';
+import { IconChip, Notice, SegmentedControl, StatusPill } from '../../components/ui/index';
 import { ApiClientError, apiClient, campusApi } from '../../api/client';
 import type { MobileNotification } from '../../api/client';
 import type { PushApi } from '../../api/push-notifications';
 import { resolveNotificationRoute } from '../../api/push-routes';
 import { PUSH_OPT_IN_ENABLED } from '../../config/features';
 import { tokens } from '../../design/tokens';
+import { useTheme } from '../../design/theme';
 import { fillCopy } from '../../i18n/academic-messages';
 import { notificationsCenterMessages } from '../../i18n/notifications-center-messages';
 import { notificationsMessages } from '../../i18n/notifications-messages';
@@ -41,6 +43,7 @@ function useOptionalSession(): SessionValue | null {
  * rows stay readable and every mutation is blocked.
  */
 export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
+  const { colors } = useTheme();
   const { locale, copy: shared, formatDateTime, t } = useContentCopy();
   const copy = recordsMessages[locale];
   const center = notificationsCenterMessages[locale];
@@ -134,6 +137,7 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
     <>
       <ListFrame
         title={copy.notificationsTitle}
+        icon="bell-outline"
         list={list}
         keyOf={(item) => item.id}
         emptyTitle={tab === 'unread' ? copy.notificationsUnreadEmpty : copy.notificationsEmpty}
@@ -163,7 +167,7 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
         renderItem={(item) => {
           const hasLink = typeof item.link === 'string' && item.link.length > 0;
           return (
-          <Card tone={item.isRead ? 'card' : 'low'}>
+          <Card style={[styles.rowCard, !item.isRead ? { borderColor: colors.primaryFixed } : undefined]}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={joinMeta([item.isRead ? null : copy.unread, item.title, item.message, formatDateTime(item.createdAt)])}
@@ -173,19 +177,25 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
               style={styles.rowMain}
             >
               <View style={styles.titleRow}>
+                <IconChip icon={item.isRead ? 'bell-check-outline' : 'bell-ring-outline'} tone={item.isRead ? 'neutral' : 'primary'} />
                 <UiText variant="label" tone={item.isRead ? 'default' : 'primary'} style={styles.title}>{item.title}</UiText>
-                {item.isRead ? null : <UiText variant="meta" tone="primary">{copy.unread}</UiText>}
               </View>
               {item.message ? <UiText variant="bodySmall" tone="muted">{item.message}</UiText> : null}
-              <UiText variant="meta" tone="muted">{formatDateTime(item.createdAt)}</UiText>
+              <View style={styles.metaRow}>
+                {item.isRead ? null : <StatusPill icon="circle-small" label={copy.unread} tone="primary" />}
+                <UiText variant="meta" tone="muted">{formatDateTime(item.createdAt)}</UiText>
+              </View>
             </Pressable>
-            <Button
-              label={copy.deleteNotification}
+            <Pressable
+              accessibilityRole="button"
               accessibilityLabel={`${copy.deleteNotification}: ${item.title}`}
-              variant="text"
+              accessibilityState={{ disabled: busy || offline || list.preview }}
               disabled={busy || offline || list.preview}
               onPress={() => remove(item)}
-            />
+              style={({ pressed }) => [styles.rowDelete, pressed ? { backgroundColor: colors.surfaceLow } : undefined, busy || offline || list.preview ? { opacity: 0.4 } : undefined]}
+            >
+              <MaterialCommunityIcons color={colors.textMuted} name="trash-can-outline" size={20} />
+            </Pressable>
           </Card>
           );
         }}
@@ -198,9 +208,13 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
 const styles = StyleSheet.create({
   header: { gap: tokens.spacing.sm },
   summary: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'space-between' },
-  rowMain: { gap: tokens.spacing.xs, minHeight: tokens.layout.touchTarget },
-  titleRow: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm },
-  title: { flex: 1 },
+  rowCard: { position: 'relative', padding: tokens.spacing.md },
+  rowIcon: { alignItems: 'center', borderRadius: tokens.radii.pill, height: 36, justifyContent: 'center', width: 36 },
+  rowDelete: { position: 'absolute', right: tokens.spacing.sm, top: tokens.spacing.sm, alignItems: 'center', borderRadius: tokens.radii.control, height: tokens.layout.touchTarget, justifyContent: 'center', width: tokens.layout.touchTarget },
+  rowMain: { gap: tokens.spacing.sm + tokens.spacing.xs, minHeight: tokens.layout.touchTarget },
+  titleRow: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, paddingRight: tokens.layout.touchTarget },
+  title: { flex: 1, minWidth: 0 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: tokens.spacing.sm },
 });
 
 type PushOptInStatus = 'idle' | 'registered' | 'denied' | 'unavailable' | 'failed';

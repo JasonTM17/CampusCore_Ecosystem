@@ -1,17 +1,18 @@
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import {
+  ActionTile,
   Button,
-  Card,
   DataNotice,
   Divider,
+  HeroCard,
   ListRow,
-  MetricCard,
   ScreenShell,
   ScreenSpacer,
   SectionHeading,
+  SectionCard,
+  StatStrip,
   StatePanel,
-  UiText,
 } from '../../components/Ui';
 import { apiClient, campusApi, type JsonObject, type MobileEnrollment } from '../../api/client';
 import { fillShellCopy, shellMessages } from '../../i18n/shell-messages';
@@ -19,10 +20,12 @@ import { useLocale } from '../../i18n/locale-provider';
 import type { MobileScreenProps } from '../../navigation/types';
 import { useLiveResource } from './shared/useLiveResource';
 import { upcomingClasses } from './shared/preview';
-import { useStudentStyles } from './shared/styles';
+import { tokens } from '../../design/tokens';
+import { useTheme } from '../../design/theme';
 
 export function StudentDashboardScreen({ navigation }: MobileScreenProps) {
-  const styles = useStudentStyles();
+  const { window } = useTheme();
+  const largeText = window.fontScale >= 1.3;
   const { locale } = useLocale();
   const c = shellMessages[locale].dashboard;
   const {
@@ -81,52 +84,52 @@ export function StudentDashboardScreen({ navigation }: MobileScreenProps) {
       title={c.title}
     >
       {warning ? <DataNotice message={warning} /> : null}
-      <Card tone="primary" style={styles.heroCard}>
-        <View style={styles.heroCopy}>
-          <UiText variant="meta" tone="primary">
-            {c.currentSemester}
-          </UiText>
-          <UiText variant="headlineSmall" style={styles.heroTitle}>
-            {apiClient.mode === 'preview' ? c.previewSemester : fillShellCopy(c.activeSections, { n: activeEnrollments.length })}
-          </UiText>
-          <UiText variant="bodySmall" tone="muted">
-            {apiClient.mode === 'preview'
-              ? c.previewData
-              : fillShellCopy(c.announcements, { n: liveAnnouncements.length })}
-          </UiText>
-        </View>
-        <Button label={c.openSchedule} onPress={() => navigation.navigate('schedule')} variant="secondary" />
-      </Card>
+      <HeroCard
+        icon="school-outline"
+        eyebrow={c.currentSemester}
+        title={apiClient.mode === 'preview' ? c.previewSemester : fillShellCopy(c.activeSections, { n: activeEnrollments.length })}
+        detail={apiClient.mode === 'preview'
+          ? c.previewData
+          : fillShellCopy(c.announcements, { n: liveAnnouncements.length })}
+      >
+        <Button icon="calendar-week-outline" label={c.openSchedule} onPress={() => navigation.navigate('schedule')} variant="secondary" onBrand />
+      </HeroCard>
 
-      <View style={styles.metricGrid}>
-        <MetricCard label={c.activeLabel} value={apiClient.mode === 'preview' ? '3' : String(activeEnrollments.length)} style={styles.metricLeft} />
-        <MetricCard label={c.weeklyLabel} value={apiClient.mode === 'preview' ? '2' : String(scheduledSessions)} />
+      <StatStrip style={styles.stats} items={[
+        { icon: 'book-open-page-variant-outline', label: c.activeLabel, value: apiClient.mode === 'preview' ? '3' : String(activeEnrollments.length) },
+        { icon: 'calendar-clock-outline', label: c.weeklyLabel, value: apiClient.mode === 'preview' ? '2' : String(scheduledSessions) },
+      ]} />
+
+      <ScreenSpacer />
+      <SectionHeading title={c.quick} />
+      <View style={[styles.actionGrid, largeText ? styles.actionStack : undefined]}>
+        <ActionTile compact={largeText} icon="clipboard-edit-outline" label={c.registerCourses} onPress={() => navigation.navigate('registration')} />
+        <ActionTile compact={largeText} icon="school-outline" label={c.viewThesis} onPress={() => navigation.navigate('thesis.topics')} />
+        <ActionTile compact={largeText} icon="robot-outline" label={c.askAssistant} onPress={() => navigation.navigate('assistant.chat')} />
       </View>
 
       <ScreenSpacer />
-      <SectionHeading title={c.nextOnSchedule} actionLabel={c.seeAll} onAction={() => navigation.navigate('schedule')} />
-      <Card>
+      <SectionCard icon="calendar-clock-outline" title={c.nextOnSchedule} actionLabel={c.seeAll} onAction={() => navigation.navigate('schedule')}>
         {dashboardClasses.map((item, index) => (
           <View key={`${item.semesterId ?? 'na'}-${item.code}`}>
             <ListRow
-              leading={item.code.slice(0, 1)}
+              icon="book-open-outline"
               meta={item.time}
               subtitle={`${item.name} · ${fillShellCopy(c.room, { room: item.room })}`}
               title={item.code}
+              stackedMeta
             />
             {index < dashboardClasses.length - 1 ? <Divider /> : null}
           </View>
         ))}
-      </Card>
+      </SectionCard>
       {dashboardClasses.length === 0 ? <StatePanel kind="empty" title={c.emptyTitle} description={c.emptyDetail} /> : null}
-
-      <ScreenSpacer />
-      <SectionHeading title={c.quick} />
-      <View style={styles.actionGrid}>
-        <Button label={c.registerCourses} onPress={() => navigation.navigate('registration')} variant="secondary" style={styles.actionButton} />
-        <Button label={c.viewThesis} onPress={() => navigation.navigate('thesis.topics')} variant="secondary" style={styles.actionButton} />
-        <Button label={c.askAssistant} onPress={() => navigation.navigate('assistant.chat')} variant="secondary" style={styles.actionButton} />
-      </View>
     </ScreenShell>
   );
 }
+
+const styles = StyleSheet.create({
+  stats: { marginTop: tokens.spacing.sm + tokens.spacing.xs },
+  actionGrid: { flexDirection: 'row', alignItems: 'stretch', gap: tokens.spacing.sm },
+  actionStack: { flexDirection: 'column' },
+});

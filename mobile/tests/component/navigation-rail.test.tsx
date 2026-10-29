@@ -74,7 +74,7 @@ describe('adaptive app navigation', () => {
         }
         expect(screen.getAllByRole('tab')).toHaveLength(getBottomNavigation('student').length);
         expect(screen.getAllByRole('button', { name: 'Mở menu' })).toHaveLength(1);
-        expect(screen.toJSON()?.props.edges).toEqual(['top', 'bottom']);
+        expect(screen.toJSON()?.props.edges).toEqual(['bottom']);
       });
     }
   }

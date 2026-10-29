@@ -9,6 +9,9 @@ import {
   ViewStyle,
 } from 'react-native';
 
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+
+import { chromeFor } from '../design/chrome';
 import { tokens } from '../design/tokens';
 import { useTheme } from '../design/theme';
 import { useShellCopy } from '../i18n/use-shell-copy';
@@ -18,6 +21,7 @@ import type { TextTone } from './ui/UiText';
 import { Button } from './ui/Button';
 import { FormField } from './ui/primitives';
 import { ResponsiveContent } from './ui/ResponsiveContent';
+import { IconChip } from './ui/institutional';
 
 export { UiText } from './ui/UiText';
 export type { UiTextProps, TextVariant, TextTone } from './ui/UiText';
@@ -45,7 +49,7 @@ function buildStyles(colors: ThemeColors) {
       paddingTop: tokens.spacing.md,
       paddingBottom: tokens.spacing.xl + tokens.layout.bottomNavigationHeight,
     },
-    headerRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: tokens.spacing.lg, paddingBottom: tokens.spacing.md, borderBottomColor: colors.outlineVariant, borderBottomWidth: 1 },
+    headerRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: tokens.spacing.md },
     headerCopy: { flex: 1, paddingRight: tokens.spacing.sm },
     eyebrow: { letterSpacing: 0, marginBottom: tokens.spacing.xs, textTransform: 'uppercase' },
     subtitle: { marginTop: tokens.spacing.xs },
@@ -54,20 +58,32 @@ function buildStyles(colors: ThemeColors) {
       borderColor: colors.outlineVariant,
       borderRadius: tokens.radii.card,
       borderWidth: 1,
+      elevation: tokens.elevation.low,
       padding: tokens.spacing.md,
+      shadowColor: '#0A2A57',
+      shadowOffset: { height: 1, width: 0 },
+      shadowOpacity: 0.06,
+      shadowRadius: 3,
     },
+    heroCard: { borderRadius: tokens.radii.card, padding: tokens.spacing.md },
+    heroActions: { marginTop: tokens.spacing.sm + tokens.spacing.xs },
+    metricHead: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+    metricIcon: { alignItems: 'center', backgroundColor: colors.primaryFixed, borderRadius: tokens.radii.control, height: 32, justifyContent: 'center', width: 32 },
+    actionTile: { alignItems: 'center', flex: 1, gap: tokens.spacing.sm, justifyContent: 'center', minHeight: 92, minWidth: tokens.layout.touchTarget, padding: tokens.spacing.sm + tokens.spacing.xs },
+    actionIcon: { alignItems: 'center', backgroundColor: colors.primaryFixed, borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', width: 36 },
+    chevron: { marginLeft: tokens.spacing.xs },
     fieldGroup: { marginBottom: tokens.spacing.md },
     badge: { alignSelf: 'flex-start', borderRadius: tokens.radii.pill, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
-    metricCard: { flex: 1, minHeight: 88, padding: tokens.spacing.sm + tokens.spacing.xs },
+    metricCard: { flex: 1, justifyContent: 'space-between', minHeight: 104, minWidth: 0, padding: tokens.spacing.md },
     metricValue: { marginVertical: tokens.spacing.xs },
-    sectionHeading: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
-    listRow: { alignItems: 'center', flexDirection: 'row', minHeight: tokens.layout.touchTarget, paddingVertical: tokens.spacing.sm },
+    sectionHeading: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'space-between', marginBottom: tokens.spacing.sm },
+    listRow: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, minHeight: 48, paddingVertical: tokens.spacing.sm + tokens.spacing.xs },
     leading: { alignItems: 'center', backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', marginRight: tokens.spacing.sm, width: 36 },
     leadingUnread: { backgroundColor: colors.primaryFixed },
-    listCopy: { flex: 1, paddingRight: tokens.spacing.sm },
+    listCopy: { flex: 1, minWidth: 0, gap: tokens.spacing.xs },
     listTitle: { flex: 1 },
     listTitleRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
-    listMeta: { marginLeft: tokens.spacing.sm },
+    listMeta: { flexShrink: 1, maxWidth: '36%', textAlign: 'right', fontVariant: ['tabular-nums'] },
     unreadTitle: { color: colors.primary, fontWeight: '600' },
     unreadLabel: { backgroundColor: colors.primaryFixed, borderRadius: tokens.radii.pill, paddingHorizontal: tokens.spacing.xs, paddingVertical: 2 },
     rowPressed: { backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control },
@@ -78,9 +94,9 @@ function buildStyles(colors: ThemeColors) {
     divider: { backgroundColor: colors.outlineVariant, height: 1, marginVertical: tokens.spacing.sm },
     avatar: { alignItems: 'center', backgroundColor: colors.primaryFixed, justifyContent: 'center' },
     scrollSection: { marginBottom: tokens.spacing.lg },
-    statePanel: { alignItems: 'center', backgroundColor: colors.card, borderColor: colors.outlineVariant, borderLeftColor: colors.primary, borderLeftWidth: 3, borderRadius: tokens.radii.card, borderWidth: 1, flexDirection: 'row', padding: tokens.spacing.md },
-    statePanelError: { borderLeftColor: colors.error },
-    dataNotice: { borderLeftColor: colors.warning },
+    statePanel: { alignItems: 'center', flexWrap: 'wrap', gap: tokens.spacing.sm, backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: tokens.radii.card, borderWidth: 1, flexDirection: 'row', padding: tokens.spacing.md },
+    statePanelError: { backgroundColor: colors.errorFixed },
+    dataNotice: { backgroundColor: colors.warningFixed },
     stateCopy: { flex: 1, marginHorizontal: tokens.spacing.sm },
     stateDescription: { marginTop: tokens.spacing.xs },
   });
@@ -101,9 +117,11 @@ export interface ScreenShellProps {
   children: ReactNode;
   headerAction?: ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
+  /** Custom auth composition can keep the shell without its standard heading. */
+  hideHeader?: boolean;
 }
 
-export function ScreenShell({ title, eyebrow, subtitle, children, headerAction, contentStyle }: ScreenShellProps) {
+export function ScreenShell({ title, eyebrow, subtitle, children, headerAction, contentStyle, hideHeader = false }: ScreenShellProps) {
   const styles = useUiStyles();
   return (
     <View style={styles.screen}>
@@ -112,14 +130,14 @@ export function ScreenShell({ title, eyebrow, subtitle, children, headerAction, 
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.headerRow}>
+        {hideHeader ? null : <View style={styles.headerRow}>
           <View style={styles.headerCopy}>
             {eyebrow ? (
               <UiText variant="meta" tone="primary" style={styles.eyebrow}>
                 {eyebrow.toUpperCase()}
               </UiText>
             ) : null}
-            <UiText accessibilityRole="header" variant="headlineLarge">{title}</UiText>
+            <UiText accessibilityRole="header" variant="headlineMedium">{title}</UiText>
             {subtitle ? (
               <UiText variant="bodySmall" tone="muted" style={styles.subtitle}>
                 {subtitle}
@@ -127,7 +145,7 @@ export function ScreenShell({ title, eyebrow, subtitle, children, headerAction, 
             ) : null}
           </View>
           {headerAction}
-        </View>
+        </View>}
         <ResponsiveContent>{children}</ResponsiveContent>
       </ScrollView>
     </View>
@@ -142,13 +160,13 @@ export interface CardProps {
 
 export function Card({ children, style, tone = 'card' }: CardProps) {
   const styles = useUiStyles();
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   const tones = {
     card: { backgroundColor: colors.card },
     low: { backgroundColor: colors.surfaceLow },
     primary: { backgroundColor: colors.primaryFixed, borderColor: colors.primary },
   } satisfies Record<NonNullable<CardProps['tone']>, ViewStyle>;
-  return <View style={[styles.card, tones[tone], style]}>{children}</View>;
+  return <View style={[styles.card, tones[tone], scheme === 'dark' ? { elevation: 0, shadowOpacity: 0 } : undefined, style]}>{children}</View>;
 }
 
 export interface FieldProps extends React.ComponentProps<typeof FormField> {
@@ -189,18 +207,28 @@ export interface MetricCardProps {
   label: string;
   value: string;
   detail?: string;
+  /** Optional MaterialCommunityIcons glyph shown in a tinted chip. */
+  icon?: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
   style?: StyleProp<ViewStyle>;
 }
 
-export function MetricCard({ label, value, detail, style }: MetricCardProps) {
+export function MetricCard({ label, value, detail, icon, style }: MetricCardProps) {
   const styles = useUiStyles();
+  const { colors } = useTheme();
   return (
     <Card style={[styles.metricCard, style]}>
-      <UiText variant="bodySmall" tone="muted">
+      <View style={styles.metricHead}>
+        <UiText variant="headlineLarge" tone="primary" style={[styles.metricValue, { flex: 1, fontVariant: ['tabular-nums'] }]}>
+          {value}
+        </UiText>
+        {icon ? (
+          <View style={styles.metricIcon}>
+            <MaterialCommunityIcons color={colors.primary} name={icon} size={18} />
+          </View>
+        ) : null}
+      </View>
+      <UiText variant="label" tone="muted">
         {label}
-      </UiText>
-      <UiText variant="headlineMedium" tone="primary" style={styles.metricValue}>
-        {value}
       </UiText>
       {detail ? (
         <UiText variant="meta" tone="muted">
@@ -208,6 +236,75 @@ export function MetricCard({ label, value, detail, style }: MetricCardProps) {
         </UiText>
       ) : null}
     </Card>
+  );
+}
+
+export interface HeroCardProps {
+  eyebrow?: string;
+  title: string;
+  detail?: string;
+  children?: ReactNode;
+  style?: StyleProp<ViewStyle>;
+  icon?: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+}
+
+/** Brand-navy summary surface (web hero band): light copy on the portal chrome. */
+export function HeroCard({ eyebrow, title, detail, children, style, icon }: HeroCardProps) {
+  const styles = useUiStyles();
+  const { scheme } = useTheme();
+  const chrome = chromeFor(scheme);
+  return (
+    <View style={[styles.heroCard, { backgroundColor: chrome.surface }, style]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm + tokens.spacing.xs }}>
+      {icon ? <IconChip icon={icon} onBrand size={40} /> : null}
+      <View style={{ flex: 1, minWidth: 0 }}>
+      {eyebrow ? (
+        <UiText variant="meta" style={{ color: chrome.accent }}>
+          {eyebrow}
+        </UiText>
+      ) : null}
+      <UiText variant="headlineMedium" style={{ color: chrome.onSurface, marginTop: tokens.spacing.xs }}>
+        {title}
+      </UiText>
+      {detail ? (
+        <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted, marginTop: tokens.spacing.xs }}>
+          {detail}
+        </UiText>
+      ) : null}
+      </View>
+      </View>
+      {children ? <View style={styles.heroActions}>{children}</View> : null}
+    </View>
+  );
+}
+
+export interface ActionTileProps {
+  label: string;
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+  onPress: () => void;
+  style?: StyleProp<ViewStyle>;
+  compact?: boolean;
+}
+
+/** Icon-over-label shortcut used for quick actions. */
+export function ActionTile({ label, icon, onPress, style, compact = false }: ActionTileProps) {
+  const styles = useUiStyles();
+  const { colors, scheme } = useTheme();
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.card, styles.actionTile, scheme === 'dark' ? { elevation: 0, shadowOpacity: 0 } : undefined, compact ? { flexDirection: 'row', justifyContent: 'flex-start', minHeight: 60 } : undefined, pressed ? { backgroundColor: colors.surfaceLow } : undefined, style]}
+    >
+      <View style={styles.actionIcon}>
+        <MaterialCommunityIcons color={colors.primary} name={icon} size={22} />
+      </View>
+      <UiText variant="label" style={{ textAlign: compact ? 'left' : 'center', flexShrink: 1, ...(compact ? { flex: 1 } : {}) }}>
+        {label}
+      </UiText>
+      {compact ? <MaterialCommunityIcons accessible={false} name="chevron-right" color={colors.textMuted} size={20} /> : null}
+    </Pressable>
   );
 }
 
@@ -221,7 +318,7 @@ export function SectionHeading({ title, actionLabel, onAction }: SectionHeadingP
   const styles = useUiStyles();
   return (
     <View style={styles.sectionHeading}>
-      <UiText accessibilityRole="header" variant="headlineSmall">{title}</UiText>
+      <UiText accessibilityRole="header" variant="headlineSmall" style={{ flexShrink: 1 }}>{title}</UiText>
       {actionLabel && onAction ? (
         <Button label={actionLabel} onPress={onAction} variant="text" />
       ) : null}
@@ -237,10 +334,14 @@ export interface ListRowProps {
   trailing?: ReactNode;
   onPress?: () => void;
   unread?: boolean;
+  icon?: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+  stackedMeta?: boolean;
 }
 
-export function ListRow({ title, subtitle, meta, leading, trailing, onPress, unread = false }: ListRowProps) {
+export function ListRow({ title, subtitle, meta, leading, trailing, onPress, unread = false, icon, stackedMeta = false }: ListRowProps) {
   const styles = useUiStyles();
+  const { colors, window } = useTheme();
+  const stack = stackedMeta || window.fontScale >= 1.3;
   const { copy } = useShellCopy();
   const accessibilityLabel = [
     unread ? copy.unread : null,
@@ -254,7 +355,7 @@ export function ListRow({ title, subtitle, meta, leading, trailing, onPress, unr
       accessibilityLabel={!onPress ? accessibilityLabel : undefined}
       style={styles.listRow}
     >
-      {leading ? (
+      {icon ? <IconChip icon={icon} tone={unread ? 'primary' : 'neutral'} /> : leading ? (
         <View style={[styles.leading, unread ? styles.leadingUnread : undefined]}>
           <UiText variant="label" tone={unread ? 'primary' : 'muted'}>
             {leading}
@@ -273,17 +374,21 @@ export function ListRow({ title, subtitle, meta, leading, trailing, onPress, unr
           ) : null}
         </View>
         {subtitle ? (
-          <UiText variant="bodySmall" tone="muted" numberOfLines={3}>
+          <UiText variant="bodySmall" tone="muted">
             {subtitle}
           </UiText>
         ) : null}
+        {meta && stack ? <UiText variant="meta" tone="muted">{meta}</UiText> : null}
       </View>
-      {meta ? (
+      {meta && !stack ? (
         <UiText variant="meta" tone="muted" style={styles.listMeta}>
           {meta}
         </UiText>
       ) : null}
       {trailing}
+      {onPress && !trailing ? (
+        <MaterialCommunityIcons color={colors.textMuted} name="chevron-right" size={20} style={styles.chevron} />
+      ) : null}
     </View>
   );
 
@@ -383,7 +488,7 @@ export function StatePanel({ kind, title, description, actionLabel, onAction }: 
     >
       {kind === 'loading' ? (
         <ActivityIndicator color={colors.primary} size="small" />
-      ) : null}
+      ) : <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name={kind === 'error' ? 'alert-circle-outline' : 'inbox-outline'} color={kind === 'error' ? colors.error : colors.textMuted} size={24} />}
       <View style={styles.stateCopy}>
         <UiText variant="label" tone={kind === 'error' ? 'error' : 'default'}>
           {title}

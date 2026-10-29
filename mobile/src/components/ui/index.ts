@@ -39,3 +39,5 @@ export { FileRow } from './file-row';
 export type { FileRowProps, FileRowAction, FileRowStatus } from './file-row';
 export { ChartSummary, barRatios } from './chart-summary';
 export type { ChartSummaryProps, ChartPoint } from './chart-summary';
+export { IconChip, IconButton, StatusPill, SectionCard, StatStrip, FilterChip, SheetHeader } from './institutional';
+export type { UiIconName, StatusTone, IconChipProps, IconButtonProps, StatusPillProps, SectionCardProps, StatStripProps, FilterChipProps } from './institutional';

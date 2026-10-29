@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 
 import { tokens } from '../../design/tokens';
+import { chromeFor } from '../../design/chrome';
 import { useTheme } from '../../design/theme';
 import { Button } from './Button';
 import { UiText } from './UiText';
@@ -29,16 +30,16 @@ export interface SheetProps {
 }
 
 export function Sheet({ visible, onClose, title, children, accessibilityLabel }: SheetProps) {
-  const { colors, spacing, radii, layout } = useTheme();
+  const { colors, spacing, radii, scheme, reducedMotion } = useTheme();
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={[sheetStyles.backdrop, { backgroundColor: 'rgba(0,0,0,0.45)' }]}>
+    <Modal visible={visible} transparent animationType={reducedMotion ? 'none' : 'slide'} onRequestClose={onClose}>
+      <View style={[sheetStyles.backdrop, { backgroundColor: chromeFor(scheme).scrim }]}>
         <View
           accessibilityViewIsModal
           accessibilityLabel={accessibilityLabel ?? title}
-          style={[sheetStyles.panel, { backgroundColor: colors.card, borderTopLeftRadius: radii.card * 2, borderTopRightRadius: radii.card * 2, padding: spacing.md }]}
+          style={[sheetStyles.panel, { backgroundColor: colors.card, borderTopLeftRadius: radii.card, borderTopRightRadius: radii.card, padding: spacing.md }]}
         >
-          <View style={sheetStyles.header}>
+          <View style={[sheetStyles.header, { borderBottomColor: colors.outlineVariant, borderBottomWidth: 1, paddingBottom: spacing.sm }]}>
             {title ? (
               <UiText accessibilityRole="header" variant="headlineSmall" style={sheetStyles.title}>
                 {title}
@@ -87,7 +88,7 @@ export function Dialog({ visible, title, description, confirmLabel, cancelLabel,
           {description ? <UiText variant="bodySmall" tone="muted" style={dialogStyles.desc}>{description}</UiText> : null}
           <View style={dialogStyles.actions}>
             {cancelLabel ? <Button label={cancelLabel} onPress={close} variant="secondary" /> : null}
-            <Button label={confirmLabel} onPress={onConfirm} variant={destructive ? 'primary' : 'primary'} accessibilityLabel={confirmLabel} />
+            <Button label={confirmLabel} onPress={onConfirm} variant={destructive ? 'destructive' : 'primary'} accessibilityLabel={confirmLabel} />
           </View>
         </View>
       </View>
@@ -99,7 +100,7 @@ const dialogStyles = StyleSheet.create({
   backdrop: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.45)', flex: 1, justifyContent: 'center', padding: tokens.spacing.lg },
   panel: { borderWidth: 1, maxWidth: 420, width: '100%' },
   desc: { marginTop: tokens.spacing.xs },
-  actions: { flexDirection: 'row', gap: tokens.spacing.sm, justifyContent: 'flex-end', marginTop: tokens.spacing.lg },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'flex-end', marginTop: tokens.spacing.lg },
 });
 
 /* ---------- Toast: auto-hiding live-region banner ---------- */
@@ -276,7 +277,7 @@ export function SegmentedControl({ options, value, onChange, accessibilityLabel,
             disabled={disabled}
             onPress={() => onChange(opt.value)}
             style={({ pressed }) => [
-              { alignItems: 'center', borderRadius: radii.control - 2, flex: 1, justifyContent: 'center', minHeight: layout.touchTarget, paddingHorizontal: spacing.sm },
+              { alignItems: 'center', borderRadius: radii.control - 2, flex: 1, justifyContent: 'center', minHeight: layout.touchTarget, paddingHorizontal: spacing.sm, paddingVertical: spacing.sm },
               selected ? { backgroundColor: colors.card, borderColor: colors.primary, borderWidth: 1 } : undefined,
               pressed && !disabled ? { opacity: 0.85 } : undefined,
               disabled ? { opacity: 0.5 } : undefined,
@@ -349,6 +350,7 @@ export interface FormFieldProps extends Omit<TextInputProps, 'style'> {
 
 export function FormField({ label, error, hint, required = false, style, ...input }: FormFieldProps) {
   const { colors, spacing, radii, layout, typography } = useTheme();
+  const [focused, setFocused] = useState(false);
   const description = [required ? 'bắt buộc' : null, hint, error].filter(Boolean).join('. ') || undefined;
   return (
     <View style={[{ marginBottom: spacing.md }, style]}>
@@ -358,6 +360,8 @@ export function FormField({ label, error, hint, required = false, style, ...inpu
       </UiText>
       <TextInput
         {...input}
+        onFocus={(event) => { setFocused(true); input.onFocus?.(event); }}
+        onBlur={(event) => { setFocused(false); input.onBlur?.(event); }}
         accessibilityLabel={input.accessibilityLabel ?? label}
         accessibilityHint={description}
         accessibilityState={{ disabled: input.editable === false }}
@@ -365,15 +369,16 @@ export function FormField({ label, error, hint, required = false, style, ...inpu
         style={[
           {
             backgroundColor: colors.card,
-            borderColor: error ? colors.error : colors.outlineVariant,
+            borderColor: error ? colors.error : focused ? colors.primary : colors.outlineVariant,
             borderRadius: radii.control,
             borderWidth: 1,
             color: colors.text,
             fontFamily: typography.family,
             fontSize: typography.bodyMedium.fontSize,
-            minHeight: layout.touchTarget,
+            minHeight: Math.max(48, layout.touchTarget),
             paddingHorizontal: spacing.md,
             paddingVertical: spacing.sm,
+            ...(focused ? { outlineColor: colors.primary, outlineWidth: 2, outlineOffset: 2, outlineStyle: 'solid' as const } : {}),
           },
         ]}
       />
