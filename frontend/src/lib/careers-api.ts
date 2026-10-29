@@ -1,4 +1,5 @@
 import api from '@/lib/api';
+import { assertUploadFile } from '@/lib/upload-validation';
 
 /**
  * Simulated careers board client (contract §9, phase-12). Opportunities
@@ -130,6 +131,8 @@ export const careersApi = {
   },
   uploadAttachment: async (applicationId: string, file: File,
       idempotencyKey: string): Promise<CareerApplication> => {
+    // Refuses before the bytes are ever buffered (UploadValidationError).
+    assertUploadFile(file, 'documents');
     const dataBase64 = await fileToBase64(file);
     const response = await api.post<CareerApplication>(
       `/careers/applications/${applicationId}/attachments`,

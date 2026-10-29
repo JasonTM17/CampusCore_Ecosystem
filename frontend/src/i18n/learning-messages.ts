@@ -55,6 +55,8 @@ export const learningMessages = {
     updated: 'Đã cập nhật.',
     deleted: 'Đã xóa.',
     failed: 'Thao tác chưa thành công — thử lại.',
+    uploadTooLarge: 'Tệp lớn hơn 700 KB không được chấp nhận — hãy chọn tệp nhỏ hơn.',
+    uploadTypeUnsupported: 'Định dạng tệp này không được hỗ trợ.',
     notEnrolled: 'Bạn không còn ghi danh hợp lệ trong lớp này.',
     pastDeadline: 'Đã quá hạn nộp theo giờ máy chủ.',
     statusLabels: {
@@ -139,6 +141,8 @@ export const learningMessages = {
     updated: 'Updated.',
     deleted: 'Deleted.',
     failed: 'The action did not succeed — try again.',
+    uploadTooLarge: 'Files over 700 KB are not accepted — choose a smaller file.',
+    uploadTypeUnsupported: 'This file type is not supported.',
     notEnrolled: 'Your enrollment in this section is no longer active.',
     pastDeadline: 'The server-side deadline has passed.',
     statusLabels: {

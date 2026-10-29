@@ -1,4 +1,5 @@
 import api from '@/lib/api';
+import { assertUploadFile } from '@/lib/upload-validation';
 
 /**
  * Learning domain client (contract D5 / §6, phase-09). Staff calls resolve
@@ -134,8 +135,11 @@ export function newLearningIdempotencyKey(): string {
   return globalThis.crypto?.randomUUID?.() ?? `lm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-/** Read a picked file into the (base64, sha256) pair the API expects. */
+/** Read a picked file into the (base64, sha256) pair the API expects.
+ *  Throws UploadValidationError before any bytes are read when the pick
+ *  breaks the shared upload contract. */
 export async function readFilePayload(file: File): Promise<FilePayload> {
+  assertUploadFile(file, 'coursework');
   const buffer = await file.arrayBuffer();
   const digest = await globalThis.crypto.subtle.digest('SHA-256', buffer);
   const hash = Array.from(new Uint8Array(digest))
