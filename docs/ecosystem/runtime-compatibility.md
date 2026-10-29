@@ -174,3 +174,9 @@ the pin when H2 ships the fix upstream; do not silently accept a newer H2.
   renames, config edits) — the renames do not compile under 3.5.16.
 - Schema: untouched — no migration-file edits; `git diff` on `db/migration*`
   returns empty for this phase.
+
+## 10. Static dependency baseline
+
+Run `node scripts/dependency-baseline.mjs --check` after changing a version
+surface. A lane change needs a reviewed baseline update; an H2 pin change also
+needs a matching entry here. The check does not resolve dependencies or query advisories.
