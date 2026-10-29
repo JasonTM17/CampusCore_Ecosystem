@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.thesis.assistant;
 
+import io.campuscore.restfulapi.exception.SensitiveLogRedactor;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -232,8 +233,8 @@ public class ThesisAssistantKnowledgeRepository {
                 snapshotLoadedAtNanos = System.nanoTime();
                 return loaded;
             } catch (RuntimeException failure) {
-                LOG.warn("assistant knowledge snapshot load failed; falling back to per-request SQL: {}",
-                        failure.toString());
+                LOG.warn("assistant knowledge snapshot load failed; falling back to per-request SQL; exceptionType={}",
+                        SensitiveLogRedactor.exceptionType(failure));
                 snapshotFailureAtNanos = now;
                 // Stale-while-error: a cached copy that just expired is a
                 // better answer than no cache at all — publish cadence is

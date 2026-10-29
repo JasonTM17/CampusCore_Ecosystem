@@ -1,6 +1,7 @@
 package io.campuscore.restfulapi.mail.service;
 
 import io.campuscore.restfulapi.mail.config.MailConfig;
+import io.campuscore.restfulapi.exception.SensitiveLogRedactor;
 import io.campuscore.restfulapi.mail.web.MailDtos.AcademicNoticeRequest;
 import io.campuscore.restfulapi.mail.web.MailDtos.CourseRegistrationRequest;
 import io.campuscore.restfulapi.mail.web.MailDtos.GradeAlertRequest;
@@ -45,7 +46,7 @@ public class EmailServiceImpl implements EmailService {
     @Override
     public void sendHtmlEmail(String to, String subject, String templateName, Map<String, Object> variables) {
         if (!mailConfig.isEnabled()) {
-            log.warn("Email service is disabled. Skipping dispatch to {}", to);
+            log.warn("Email service is disabled; skipping dispatch");
             return;
         }
 
@@ -69,10 +70,11 @@ public class EmailServiceImpl implements EmailService {
             helper.setText(htmlToPlainText(htmlBody), htmlBody);
 
             mailSender.send(mimeMessage);
-            log.info("Email sent successfully to {} [Subject: {}, Template: {}]", to, subject, templateName);
+            log.info("Email sent successfully using template {}", templateName);
         } catch (MessagingException | UnsupportedEncodingException e) {
-            log.error("Failed to construct or send email to {}: {}", to, e.getMessage(), e);
-            throw new RuntimeException("Lỗi gửi email: " + e.getMessage(), e);
+            log.error("Failed to construct or send email; exceptionType={}",
+                    SensitiveLogRedactor.exceptionType(e));
+            throw new RuntimeException("Failed to send email", e);
         }
     }
 
@@ -82,7 +84,8 @@ public class EmailServiceImpl implements EmailService {
         try {
             sendHtmlEmail(to, subject, templateName, variables);
         } catch (Exception e) {
-            log.error("Async email dispatch failed for recipient {}: {}", to, e.getMessage(), e);
+            log.error("Async email dispatch failed; exceptionType={}",
+                    SensitiveLogRedactor.exceptionType(e));
         }
     }
 

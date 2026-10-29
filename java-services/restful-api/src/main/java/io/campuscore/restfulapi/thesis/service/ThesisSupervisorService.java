@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.thesis.service;
 
+import io.campuscore.restfulapi.exception.SensitiveLogRedactor;
 import io.campuscore.restfulapi.audit.AdminAuditRecorder;
 import io.campuscore.restfulapi.thesis.domain.RoundStatus;
 import io.campuscore.restfulapi.thesis.domain.ThesisTopic;
@@ -202,7 +203,8 @@ public class ThesisSupervisorService {
                     try {
                         notifier.notifySupervisorsAssigned(topicId, added);
                     } catch (RuntimeException exception) {
-                        log.warn("Thesis supervisor notification fan-out failed for topic {}", topicId, exception);
+                        log.warn("Thesis supervisor notification fan-out failed for topic {} exceptionType={}",
+                                topicId, SensitiveLogRedactor.exceptionType(exception));
                     }
                 });
             }

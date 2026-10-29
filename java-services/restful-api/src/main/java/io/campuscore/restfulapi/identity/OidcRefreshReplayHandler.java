@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.identity;
 
+import io.campuscore.restfulapi.exception.SensitiveLogRedactor;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -47,8 +48,8 @@ public class OidcRefreshReplayHandler implements AuthenticationFailureHandler {
                         authority.revokeAccount(userId, "OIDC", "REFRESH_REPLAY",
                                 request.getHeader("X-Request-Id"));
                     } catch (RuntimeException revokeFailure) {
-                        log.warn("OIDC refresh replay revoke failed user={}: {}",
-                                userId, revokeFailure.toString());
+                        log.warn("OIDC refresh replay revoke failed user={} exceptionType={}",
+                                userId, SensitiveLogRedactor.exceptionType(revokeFailure));
                     }
                     log.warn("REFRESH_TOKEN_REPLAY oidc lane user={}", userId);
                 }
