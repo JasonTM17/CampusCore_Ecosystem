@@ -21,21 +21,12 @@
         format json
     }
 
-    # Geolocation stays denied everywhere except the approved same-origin
-    # web check-in surface. The matchers are complementary, so every response
-    # carries exactly one Permissions-Policy value.
-    @geolocation_checkin path /attendance/checkin /attendance/checkin/* /en/attendance/checkin /en/attendance/checkin/* /vi/attendance/checkin /vi/attendance/checkin/*
-    @geolocation_denied {
-        not path /attendance/checkin /attendance/checkin/* /en/attendance/checkin /en/attendance/checkin/* /vi/attendance/checkin /vi/attendance/checkin/*
-    }
-    header @geolocation_checkin Permissions-Policy "camera=(), microphone=(), geolocation=(self)"
-    header @geolocation_denied Permissions-Policy "camera=(), microphone=(), geolocation=()"
-
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
         -Server
     }
 
