@@ -35,3 +35,12 @@ export function excerptOf(html: string | null | undefined, limit = 140): string 
   const text = htmlToPlainText(html).split('\n').find((line) => line.trim().length > 0) ?? '';
   return text.length > limit ? `${text.slice(0, limit - 1).trimEnd()}…` : text;
 }
+
+/** Card teaser: the authored summary when present, else an excerpt of the body. */
+export function summaryOrExcerpt(
+  item: { summary?: string | null; content?: string | null },
+  limit = 140,
+): string {
+  const summary = item.summary?.trim();
+  return summary ? summary : excerptOf(item.content, limit);
+}

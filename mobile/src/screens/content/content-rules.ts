@@ -151,6 +151,30 @@ export function labelFor(labels: Readonly<Record<string, string>>, code: string 
   return labels[code] ?? code;
 }
 
+/* ---------- guest landing feed ---------- */
+
+/** First feed rows shaped as a magazine: the lead article plus the follow-ups shown under it. */
+export function newsHighlights<T>(items: readonly T[], max: number): { featured: T | null; rest: T[] } {
+  const top = items.slice(0, Math.max(0, max));
+  return { featured: top[0] ?? null, rest: top.slice(1) };
+}
+
+/** Only the server URGENT code earns the "Khẩn" pill — HIGH stays a normal row. */
+export function isUrgentPriority(priority: string | null | undefined): boolean {
+  return priority === 'URGENT';
+}
+
+/** Server category ids arrive in several casings/separators; labels key on UPPER_SNAKE. */
+export function newsCategoryLabel(labels: Readonly<Record<string, string>>, categoryId: string | null | undefined): string {
+  const key = categoryId?.trim().toUpperCase().replace(/[ -]+/g, '_') ?? '';
+  return key ? labels[key] ?? '' : '';
+}
+
+/** The detail target one announcement row opens: the permalink slug, else the id. */
+export function newsTargetOf(item: { id: string; slug?: string | null }): string {
+  return item.slug ?? item.id;
+}
+
 export function joinMeta(parts: ReadonlyArray<string | null | undefined | false>): string {
   return parts.filter((part): part is string => typeof part === 'string' && part.length > 0).join(' · ');
 }

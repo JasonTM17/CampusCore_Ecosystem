@@ -26,6 +26,9 @@ export function useMobileNavigation(): MobileNavigation {
     if (options?.sectionId) {
       params.sectionId = options.sectionId;
     }
+    if (options?.newsItem) {
+      params.focus = options.newsItem;
+    }
     router.push(pathFor(route, Object.keys(params).length > 0 ? params : undefined));
   }, [router]);
 
