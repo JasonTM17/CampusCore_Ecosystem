@@ -54,6 +54,3 @@
 - [Mobile environments](mobile-environments.md)
 - [Mobile performance](mobile-performance.md)
 - [Mobile excellence checklist](mobile-excellence.md)
-
-## Active plan tracker
-Working plans, reports and ledgers live in the local `plans/` directory and are not versioned; ask the maintainer for the current plan.
