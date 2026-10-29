@@ -29,9 +29,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Staff admissions surface (contract §7). Coarse gate is authentication; the
- * scoped {@code STAFF:admissions} grant is enforced inside the service so an
- * authenticated non-grantee receives 403 ADMISSIONS_STAFF_REQUIRED (§1.1 —
- * roles never imply domain rights). Grant administration requires ADMIN.
+ * scoped {@code STAFF:admissions} grant is enforced inside the service for
+ * staff operations. ADMIN may list grant metadata and manage grants, but the
+ * role does not confer admissions-record access (§1.1).
  */
 @Tag(name = "Admissions Staff", description = "Hàng đợi tuyển sinh mô phỏng: claim, trả hồ sơ, quyết định, grants")
 @RestController
@@ -109,7 +109,7 @@ public class AdmissionStaffController {
     @GetMapping("/grants")
     @PreAuthorize("isAuthenticated()")
     public List<StaffGrantResponse> grants(@AuthenticationPrincipal Jwt jwt) {
-        return admissions.listGrants(staff(jwt));
+        return admissions.listGrants(staff(jwt), roles(jwt));
     }
 
     @Operation(summary = "Cấp grant STAFF:admissions (admin)")
