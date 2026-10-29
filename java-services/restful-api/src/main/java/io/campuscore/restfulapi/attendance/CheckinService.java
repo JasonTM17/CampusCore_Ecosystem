@@ -8,6 +8,7 @@ import io.campuscore.restfulapi.audit.AdminAuditRecorder;
 import io.campuscore.restfulapi.security.ratelimit.RateLimiterService;
 import io.campuscore.restfulapi.web.DomainException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -56,8 +57,9 @@ public class CheckinService {
             var s=store.session(sessionId,false);
             if(s==null) throw failure(HttpStatus.GONE,"SESSION_CLOSED");
             exists=true;
-            store.lockSection(s.sectionId());
+            // Global lock order, shared with registration: Student -> Section -> Session -> Geofence.
             store.lockStudent(student);
+            store.lockSection(s.sectionId());
             s=store.session(sessionId,true);
             // Lock contention must not extend the attendance window using a pre-wait timestamp.
             now=clock.instant();
@@ -67,12 +69,14 @@ public class CheckinService {
             List<AttendanceStore.Checkin> peers=store.checkins(sessionId);
             if(peers.stream().anyMatch(c->c.studentId().equals(student) && !c.decision().equals("REJECTED")))
                 throw failure(HttpStatus.CONFLICT,"ALREADY_CHECKED_IN");
-            if(!s.openAt(now)) {
-                if(!now.isBefore(s.closesAt())) store.close(sessionId,s.closesAt());
-                throw failure(HttpStatus.GONE,"SESSION_CLOSED");
-            }
+            requireOpen(s,now);
             var g=store.geofence(s.geofenceId(),true);
             if(!g.isActive()) throw failure(HttpStatus.GONE,"SESSION_CLOSED");
+            // The geofence FOR UPDATE is the last blocking lock: re-admit against
+            // a fresh timestamp so a queued request cannot write after the window
+            // ended; code step and fix freshness re-check below use this clock too.
+            now=clock.instant();
+            requireOpen(s,now);
             if(r==null || r.latitude()==null || r.longitude()==null || r.accuracyMeters()==null || r.capturedAt()==null
                     || r.mockProvider()==null || r.installationId()==null || r.installationId().isBlank()
                     || r.installationId().length()>200 || (r.nonce()!=null && (r.nonce().length()<16 || r.nonce().length()>200)))
@@ -89,8 +93,10 @@ public class CheckinService {
             List<AttendanceStore.Checkin> shared=active.stream().filter(c->c.deviceHash().equals(device)).toList();
             List<AttendanceStore.Checkin> cluster=active.stream().filter(c->c.lat()!=null && c.lng()!=null
                     && rounded(c.lat())==rounded(r.latitude()) && rounded(c.lng())==rounded(r.longitude())).toList();
+            // Same-day non-rejected prior fix (pending positions are real submissions).
+            Instant dayStart=s.date().atStartOfDay(SessionService.CAMPUS_ZONE).toInstant();
             var reasons=risk.evaluate(r.mockProvider(),r.accuracyMeters(),new RiskEvaluator.Position(r.latitude(),r.longitude(),r.capturedAt()),
-                    store.previousAccepted(student),!shared.isEmpty(),(int)cluster.stream().map(AttendanceStore.Checkin::studentId).distinct().count());
+                    store.previousRelevant(student,dayStart,dayStart.plus(Duration.ofDays(1))),!shared.isEmpty(),(int)cluster.stream().map(AttendanceStore.Checkin::studentId).distinct().count());
             String decision=reasons.isEmpty()?geo.decision():"PENDING_REVIEW";
             String reason=reasons.isEmpty()?geo.reason():String.join(",",reasons)+(geo.reason().equals("BORDERLINE")?",BORDERLINE":"");
             for(var c:shared) store.flag(c,"SHARED_DEVICE");
@@ -108,11 +114,17 @@ public class CheckinService {
         }
     }
     private static long rounded(double value) { return Math.round(value*100_000); }
+    private void requireOpen(AttendanceStore.Session s,Instant now) {
+        if(!s.openAt(now)) {
+            if(!now.isBefore(s.closesAt())) store.close(s.id(),s.closesAt());
+            throw failure(HttpStatus.GONE,"SESSION_CLOSED");
+        }
+    }
     @Transactional(noRollbackFor=DomainException.class)
     public void recordInvalidAttempt(String session,String student,String ip,String code) {
         String hash=risk.hash("ip",ip);
         var s=store.session(session,false);
-        if(s!=null) { store.lockSection(s.sectionId()); store.lockStudent(student); store.session(session,true); }
+        if(s!=null) { store.lockStudent(student); store.lockSection(s.sectionId()); store.session(session,true); }
         try {
             if(s!=null) enforceLimits(session,student,hash,clock.instant());
         } catch(Throttled denied) {
@@ -135,7 +147,10 @@ public class CheckinService {
     public CheckinView review(String id,ReviewRequest r,String actor,String lecturer,List<String> roles) {
         var c=store.findCheckin(id); var s=sessions.require(c.sessionId());
         sessions.authorize(s.sectionId(),lecturer,roles);
-        store.lockSection(s.sectionId()); store.lockStudent(c.studentId()); store.session(s.id(),true);
+        store.lockStudent(c.studentId()); store.lockSection(s.sectionId());
+        // Re-verify ownership under the section lock: it may have been reassigned while waiting.
+        sessions.authorize(s.sectionId(),lecturer,roles);
+        store.session(s.id(),true);
         c=store.findCheckin(id);
         if(!c.decision().equals("PENDING_REVIEW")) throw failure(HttpStatus.CONFLICT,"CHECKIN_ALREADY_REVIEWED");
         String decision=r.decision().equals("APPROVE")?"ACCEPTED":"REJECTED";

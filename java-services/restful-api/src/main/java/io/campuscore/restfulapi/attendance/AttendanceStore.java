@@ -14,7 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-/** All SQL is parameterized; lock order: section, student, session, geofence. */
+/** All SQL is parameterized; global lock order: student, section, session, geofence (shared with registration). */
 @Repository
 @Profile("persistence")
 public class AttendanceStore {
@@ -127,12 +127,15 @@ public class AttendanceStore {
         if(rows.isEmpty()) throw new DomainException(HttpStatus.NOT_FOUND,"CHECKIN_NOT_FOUND","Check-in not found");
         return rows.getFirst();
     }
-    public RiskEvaluator.Position previousAccepted(String student) {
+    /** Latest same-day non-rejected fix: pending positions are real submissions; rejected ones are not evidence. */
+    public RiskEvaluator.Position previousRelevant(String student,Instant dayStart,Instant dayEnd) {
         List<RiskEvaluator.Position> rows=jdbc.query("""
                 SELECT "lat","lng","capturedAt" FROM academic."AttendanceCheckin"
-                WHERE "studentId"=? AND "decision"='ACCEPTED' AND "lat" IS NOT NULL
+                WHERE "studentId"=? AND "decision"<>'REJECTED' AND "lat" IS NOT NULL
+                AND "createdAt">=? AND "createdAt"<?
                 ORDER BY "createdAt" DESC,"id" DESC LIMIT 1
-                """,(rs,n)->new RiskEvaluator.Position(rs.getDouble(1),rs.getDouble(2),rs.getTimestamp(3).toInstant()),student);
+                """,(rs,n)->new RiskEvaluator.Position(rs.getDouble(1),rs.getDouble(2),rs.getTimestamp(3).toInstant()),
+                student,ts(dayStart),ts(dayEnd));
         return rows.isEmpty()?null:rows.getFirst();
     }
     public void insertCheckin(Checkin c) {
@@ -154,9 +157,11 @@ public class AttendanceStore {
         jdbc.update("UPDATE academic.\"AttendanceCheckin\" SET \"decision\"=?,\"reviewedBy\"=?,\"reviewedAt\"=?,\"reviewNote\"=? WHERE \"id\"=?",decision,actor,ts(now),note,id);
     }
     public ConsentResponse consent(String student,String required) {
+        // version is always the CURRENT required version so an outdated client
+        // learns what to accept; acceptedVersion exposes the stored one.
         List<ConsentResponse> rows=jdbc.query("SELECT \"version\",\"acceptedAt\" FROM academic.\"AttendanceLocationConsent\" WHERE \"studentId\"=?",
-                (rs,n)->new ConsentResponse(required.equals(rs.getString(1)),rs.getString(1),rs.getTimestamp(2).toInstant()),student);
-        return rows.isEmpty()?new ConsentResponse(false,required,null):rows.getFirst();
+                (rs,n)->new ConsentResponse(required.equals(rs.getString(1)),required,rs.getString(1),rs.getTimestamp(2).toInstant()),student);
+        return rows.isEmpty()?new ConsentResponse(false,required,null,null):rows.getFirst();
     }
     public void saveConsent(String student,String version,Instant now) {
         jdbc.update("DELETE FROM academic.\"AttendanceLocationConsent\" WHERE \"studentId\"=?",student);

@@ -52,6 +52,8 @@ public class SessionService {
                 || late<0 || late>60 || opens.plusSeconds(late*60L).isAfter(closes) || !closes.isAfter(now))
             throw failure(HttpStatus.BAD_REQUEST,"INVALID_SESSION_WINDOW");
         store.lockSection(r.sectionId());
+        // Re-verify ownership under the section lock: it may have been reassigned while waiting.
+        authorize(r.sectionId(),lecturer,roles);
         store.closeExpiredSection(r.sectionId(),now);
         if (!store.geofence(r.geofenceId(),true).isActive()) throw failure(HttpStatus.BAD_REQUEST,"GEOFENCE_INACTIVE");
         if (store.hasOpenSession(r.sectionId(),r.date())) throw failure(HttpStatus.CONFLICT,"SESSION_ALREADY_OPEN");
@@ -71,7 +73,7 @@ public class SessionService {
     @Transactional
     public SessionResponse close(String id,String actor,String lecturer,List<String> roles) {
         var s=require(id); authorize(s.sectionId(),lecturer,roles);
-        store.lockSection(s.sectionId()); s=store.session(id,true);
+        store.lockSection(s.sectionId()); authorize(s.sectionId(),lecturer,roles); s=store.session(id,true);
         store.close(id,clock.instant());
         audit.record(actor,null,"CLOSED","AttendanceSession",id,"Attendance window closed");
         return store.summary(store.session(id,false),clock.instant(),academic.findActiveEnrolledStudentIds(s.sectionId()).size());
