@@ -460,6 +460,31 @@ class LibraryContractPersistenceTest {
                         .content("{\"expectedVersion\":1}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED"));
+        MvcResult explicitDefaultReasonReplay = mvc.perform(post("/api/v1/library/requests/"
+                        + requestId + "/cancel")
+                        .with(borrowerJwt).header("Idempotency-Key", "lc-idem-2")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":1,\"reason\":\"BORROWER_CANCELLED\"}"))
+                .andReturn();
+        assertThat(explicitDefaultReasonReplay.getResponse().getStatus()).isEqualTo(200);
+        assertThat(objectMapper.readTree(explicitDefaultReasonReplay.getResponse().getContentAsString())
+                .get("cancelReason").asText()).isEqualTo("BORROWER_CANCELLED");
+
+        MvcResult changedReason = mvc.perform(post("/api/v1/library/requests/" + requestId + "/cancel")
+                        .with(borrowerJwt).header("Idempotency-Key", "lc-idem-2")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":1,\"reason\":\"NO_LONGER_NEEDED\"}"))
+                .andReturn();
+        assertThat(changedReason.getResponse().getStatus()).isEqualTo(409);
+        assertThat(objectMapper.readTree(changedReason.getResponse().getContentAsString())
+                .get("code").asText()).isEqualTo("IDEMPOTENCY_CONFLICT");
+        assertThat(jdbc.queryForObject(
+                "SELECT \"version\" FROM library.\"LoanRequest\" WHERE \"id\" = ?",
+                Integer.class, requestId)).isEqualTo(2);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM library.\"Audit\" WHERE \"entityType\" = 'REQUEST'"
+                        + " AND \"entityId\" = ? AND \"action\" = 'CANCELLED'",
+                Integer.class, requestId)).isEqualTo(1);
         mvc.perform(post("/api/v1/library/requests/" + requestId + "/cancel")
                         .with(borrowerJwt).header("Idempotency-Key", "lc-idem-2")
                         .contentType(MediaType.APPLICATION_JSON)
