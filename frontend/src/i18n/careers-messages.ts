@@ -33,6 +33,8 @@ export const careerMessages = {
     attachments: 'Tệp đính kèm',
     uploadAttachment: 'Tải hồ sơ lên',
     uploaded: 'Đã tải tệp lên.',
+    uploadTooLarge: 'Tệp lớn hơn 700 KB không được chấp nhận — hãy chọn tệp nhỏ hơn.',
+    uploadTypeUnsupported: 'Định dạng tệp này không được hỗ trợ.',
     failed: 'Thao tác chưa thành công — thử lại.',
 
     // staff recruiter desk
@@ -134,6 +136,8 @@ export const careerMessages = {
     attachments: 'Attachments',
     uploadAttachment: 'Upload file',
     uploaded: 'File uploaded.',
+    uploadTooLarge: 'Files over 700 KB are not accepted — choose a smaller file.',
+    uploadTypeUnsupported: 'This file type is not supported.',
     failed: 'Action failed — try again.',
 
     deskEyebrow: 'RECRUITER DESK • SIMULATED',
