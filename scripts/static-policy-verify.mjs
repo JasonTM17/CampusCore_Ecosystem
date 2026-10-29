@@ -79,7 +79,7 @@ check('proxy-no-setcookie-passthrough', /Set-Cookie/i.test(proxy));
 check('proxy-response-strips-setcookie', /strip|exclude|skip/i.test(proxy) && /set-cookie/i.test(proxy));
 
 const service = sources.get('BffSessionService.java') ?? '';
-check('service-single-flight', service.includes('ConcurrentHashMap') || service.includes('computeIfAbsent'));
+check('service-single-flight', /refreshLocks\[[^\]]+\]/.test(service) && /synchronized\s*\(lock\)/.test(service));
 check('service-no-db-lock-over-http', !/for update[\s\S]{0,400}tokens\.(refresh|exchangeCode)/i.test(service));
 check('service-revokes-on-refresh-failure', service.includes('revokeSession'));
 
