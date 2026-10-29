@@ -11,11 +11,11 @@ các leg còn lại hiển thị BLOCKED/NOT_RUN trong report.
 | D1 | Định danh — SSO portal↔LMS↔admissions + system browser mobile | P04, P05, P13 | `identity` (2/2), `bff` (5/5), `devices` assoc leg | PASS local; device lanes BLOCKED_CAPABILITY |
 | D2 | Học vụ hiện hữu — đăng ký/lịch/điểm/khóa luận/trợ lý/thông báo giữ invariant | P02, P07, P14 | `platform` (6/6 executed, 1 non-required FAIL recorded — stale CorrectionMigration ITs, defect-ledger owned), `mobile-core` (3/3) | PASS local |
 | D3 | Hub/tin/tài liệu — soạn→duyệt→công bố→tìm/đọc VI/EN | P06 | `content` (4/4) | PASS local |
-| D4 | Sự kiện — công bố→đăng ký→roster→điểm danh→lịch sử | P08 | `events` (4/4 stable-source) | PASS |
-| D5 | LMS — roster→tài liệu→bài tập→nộp→phản hồi | P09 | `learning` (4/4 stable-source) | PASS |
-| D6 | Tuyển sinh — nháp→nộp→trả sửa→nộp lại→quyết định mô phỏng | P10 | `admissions` (4/4 stable-source) | PASS |
-| D7 | Thư viện — danh mục→yêu cầu→xuất mượn→trả→khả dụng | P11 | `library` (4/4 stable-source) | PASS |
-| D8 | Việc làm — kiểm duyệt tin→ứng tuyển→cập nhật trạng thái | P12 | `careers` (4/4 stable-source) | PASS |
+| D4 | Sự kiện — công bố→đăng ký→roster→điểm danh→lịch sử | P08 | `events` (4/4 stable-source) | PASS local (historical; full exit pending P07) |
+| D5 | LMS — roster→tài liệu→bài tập→nộp→phản hồi | P09 | `learning` (4/4 stable-source) | PASS local (historical; full exit pending P07) |
+| D6 | Tuyển sinh — nháp→nộp→trả sửa→nộp lại→quyết định mô phỏng | P10 | `admissions` (4/4 stable-source) | PASS local (historical; full exit pending P07) |
+| D7 | Thư viện — danh mục→yêu cầu→xuất mượn→trả→khả dụng | P11 | `library` (4/4 stable-source) | PASS local (historical; full exit pending P07) |
+| D8 | Việc làm — kiểm duyệt tin→ứng tuyển→cập nhật trạng thái | P12 | `careers` (4/4 stable-source) | PASS local (historical; full exit pending P07) |
 | D9 | Mobile/API — mọi miền thao tác native, Android/iOS kiểm chứng riêng | P03, P07, P13 | `devices` (3/5 executed, 2 blocked); contracts | Partial — OS device evidence BLOCKED_CAPABILITY |
 | D10 | Vận hành — quota/cold-start đo, backup/restore, rollback, giới hạn free | P03, P14 | `demo` (manifest + reconcile + drill/probe khi stack có) | Partial — deploy/DNS BLOCKED_CAPABILITY |
 
