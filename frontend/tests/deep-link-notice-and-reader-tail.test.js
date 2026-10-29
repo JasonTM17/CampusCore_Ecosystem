@@ -100,7 +100,15 @@ test('the light reading-theme chip no longer paints a fixed-white surface', () =
   );
   assert.ok(chip.length > 0, 'the light theme chip is missing');
   assert.deepEqual(fixedLightSurfaces(chip), []);
-  assert.match(chip, /preferences\.theme === 'light'\s+\? 'bg-background[^']*'/);
+  // The active chip opts into the real light reader theme, so the swatch is
+  // painted by --reader-bg/--reader-text tokens rather than a fixed-white
+  // utility that would lie about the preview in dark app mode.
+  assert.match(chip, /preferences\.theme === 'light'\s+\? 'reader-theme-light[^']*'/);
+});
+
+test('the sepia and dark chips preview their real reader themes too', () => {
+  assert.match(TOOLBAR, /preferences\.theme === 'sepia'\s+\? 'reader-theme-sepia[^']*'/);
+  assert.match(TOOLBAR, /preferences\.theme === 'dark'\s+\? 'reader-theme-dark[^']*'/);
 });
 
 test('the whole reading toolbar is free of unpaired fixed-light surfaces', () => {
@@ -110,6 +118,97 @@ test('the whole reading toolbar is free of unpaired fixed-light surfaces', () =>
 test('the pre-fix toolbar chip really is what this guard rejects', () => {
   const before = `? 'bg-white text-amber-600 shadow-xs'`;
   assert.equal(fixedLightSurfaces(before).length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// UX-W2-04 — every toolbar control was sized for mouse pointers only
+// (h-7/h-8/h-9). Touch widths now get the 44 px contract target; desktop keeps
+// the compact sizes through the sm: variants.
+// ---------------------------------------------------------------------------
+
+test('reader toolbar controls meet the 44 px touch-target contract', () => {
+  // Square icon buttons: 44 px below sm:, the compact 28 px from sm: up.
+  assert.ok(
+    (TOOLBAR.match(/h-11 w-11[\s\S]*?sm:h-7 sm:w-7/g) ?? []).length >= 4,
+    'icon buttons must be h-11 w-11 on touch and sm:h-7 sm:w-7 on desktop',
+  );
+  // Row controls (font family, Edit, Print, Share) follow the same split.
+  assert.ok(
+    (TOOLBAR.match(/h-11[\s\S]*?sm:h-8/g) ?? []).length >= 4,
+    'row controls must be h-11 on touch and sm:h-8 on desktop',
+  );
+  // The mode toggle uses min-height so its label never clips.
+  assert.ok(
+    (TOOLBAR.match(/min-h-11 sm:min-h-8/g) ?? []).length >= 2,
+    'mode toggles must keep min-h-11 below sm:',
+  );
+  // The close button keeps a 44 px target at every width — it is the only
+  // always-visible exit from the reader.
+  assert.match(TOOLBAR, /inline-flex h-11 w-11 items-center justify-center rounded-lg/);
+  // No control may be left below the contract on touch widths: every compact
+  // sizing must carry the sm: qualifier (min-h-* entries are measured
+  // separately above, and icon glyphs are exempt by design).
+  const undersized = TOOLBAR.match(/(?<!min-)(?<!sm:)(?<!md:)\bh-(7|8|9)(?!0|\d|px)/g) ?? [];
+  assert.deepEqual(undersized, [], `touch-width controls under 44px remain: ${undersized.join(', ')}`);
+  // The guard must still see a genuine unqualified compact height.
+  assert.deepEqual('inline-flex h-9 w-9'.match(/(?<!min-)(?<!sm:)(?<!md:)\bh-(7|8|9)(?!0|\d|px)/g), ['h-9']);
+});
+
+// ---------------------------------------------------------------------------
+// UX-W2-05 — the three theme chips announced themselves in English to every
+// locale. Their accessible names now follow the same isVi copy the titles use.
+// ---------------------------------------------------------------------------
+
+test('theme chip aria-labels are localized in both locales', () => {
+  const themeChips = TOOLBAR.slice(
+    TOOLBAR.indexOf('{/* Theme Palette Switcher */}'),
+    TOOLBAR.indexOf('{/* Sticky Close Button'),
+  );
+  const localized = themeChips.match(/aria-label=\{isVi \?/g) ?? [];
+  assert.equal(localized.length, 3, 'each theme chip must take its aria-label from the locale copy');
+  for (const fragment of [
+    'Nền sáng tiêu chuẩn',
+    'Nền Sepia dịu mắt ban đêm',
+    'Nền tối chống chói',
+    'Light background',
+    'Dark mode',
+  ]) {
+    assert.ok(themeChips.includes(fragment), `missing localized label: ${fragment}`);
+  }
+  assert.doesNotMatch(themeChips, /aria-label="(Light|Sepia|Dark) mode"/);
+});
+
+// ---------------------------------------------------------------------------
+// UX-W2-07 — Edit/Close/copy-status painted fixed palette colours that ignore
+// the theme tokens. They now use primary/destructive/status semantic classes.
+// ---------------------------------------------------------------------------
+
+test('reader toolbar actions use semantic status tokens, not raw palette colours', () => {
+  for (const raw of [
+    /bg-blue-600/,
+    /hover:bg-blue-700/,
+    /text-emerald-[45]00/,
+    /text-amber-[45]00/,
+    /hover:bg-red-50/,
+    /hover:text-red-[46]00/,
+    /ring-red-500/,
+    /bg-slate-900/,
+    /text-sky-400/,
+    /bg-\[#[0-9A-Fa-f]{3,6}\]/,
+  ]) {
+    assert.doesNotMatch(TOOLBAR, raw, `raw palette utility still in the toolbar: ${raw}`);
+  }
+  for (const semantic of [
+    /text-status-success\b/,
+    /text-status-success-foreground/,
+    /text-status-warning\b/,
+    /text-status-warning-foreground/,
+    /hover:text-destructive/,
+    /hover:border-destructive\/40/,
+    /focus:ring-destructive\/40/,
+  ]) {
+    assert.match(TOOLBAR, semantic, `missing semantic token: ${semantic}`);
+  }
 });
 
 test('the dispatch sheet formats dates through the shared locale helper', () => {
