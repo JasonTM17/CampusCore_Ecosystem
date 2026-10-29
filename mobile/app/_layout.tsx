@@ -1,5 +1,5 @@
 import { Redirect, SplashScreen, Stack, usePathname } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StatusBar, View } from 'react-native';
 import { useFonts } from 'expo-font';
 import { BeVietnamPro_400Regular } from '@expo-google-fonts/be-vietnam-pro/400Regular';
@@ -9,7 +9,10 @@ import { BeVietnamPro_700Bold } from '@expo-google-fonts/be-vietnam-pro/700Bold'
 
 import { ThemeProvider, useTheme } from '../src/design/theme';
 import { LocaleProvider, useLocale } from '../src/i18n/locale-provider';
+import { NO_CAPABILITIES } from '../src/auth/capabilities';
+import { LANE_FLAGS } from '../src/config/lane-flags';
 import { pathFor, resolveGuard } from '../src/navigation/route-map';
+import { consumePendingCheckinPath, rememberCheckinPath } from '../src/navigation/pending-checkin';
 import { SessionProvider, useSession } from '../src/session/SessionContext';
 
 // Hold at module evaluation, before Router can auto-hide the native splash.
@@ -67,9 +70,33 @@ function ThemedStatusBar() {
 function RootNavigator() {
   const session = useSession();
   const pathname = usePathname() ?? '/';
-  const decision = resolveGuard(session.kind, session.role, pathname, session.capabilities);
+  const [resumePath, setResumePath] = useState<string | null>(null);
+  // Preserve a lecturer check-in link through the sign-in detour (G3B); the
+  // store validates the session-id shape and only holds memory.
+  if (session.kind === 'signedOut') {
+    rememberCheckinPath(pathname);
+  }
+  // Resume the preserved link once a session exists: consume it in an effect,
+  // then let it take over the guard's redirect slot on the NEXT commit. A
+  // plain replace races (and loses to) the /sign-in → role-home Redirect that
+  // fires in the same commit as the session flip.
+  const { kind, role, capabilities } = session;
+  useEffect(() => {
+    if (kind === 'signedOut') return;
+    const pending = consumePendingCheckinPath();
+    if (pending === null) return;
+    if (resolveGuard(kind, role, pending, capabilities ?? NO_CAPABILITIES, LANE_FLAGS).action === 'allow') {
+      setResumePath(pending);
+    }
+  }, [kind, role, capabilities]);
+  useEffect(() => {
+    if (resumePath !== null && pathname === resumePath) setResumePath(null);
+  }, [resumePath, pathname]);
+  const decision = resolveGuard(session.kind, session.role, pathname, session.capabilities, LANE_FLAGS);
   let redirectHref: string | null = null;
-  if (session.blockedReason && pathname !== '/sign-in-blocked') {
+  if (resumePath !== null && pathname !== resumePath) {
+    redirectHref = resumePath;
+  } else if (session.blockedReason && pathname !== '/sign-in-blocked') {
     redirectHref = '/sign-in-blocked';
   } else if (decision.action === 'redirect' && decision.to) {
     redirectHref = pathFor(decision.to);

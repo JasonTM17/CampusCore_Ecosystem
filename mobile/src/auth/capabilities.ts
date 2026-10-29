@@ -14,7 +14,8 @@ export type Capability =
   | 'admin.oversight'
   | 'staff.applyReview'
   | 'staff.careersDesk'
-  | 'staff.libraryDesk';
+  | 'staff.libraryDesk'
+  | 'student.checkin';
 
 export type CapabilitySet = readonly Capability[];
 
@@ -83,6 +84,11 @@ export function resolveCapabilities(input: CapabilityInput): CapabilitySet {
       }
     }
   }
+  // Student check-in lane (G3B): flag + STUDENT claim — every real student can
+  // check in; the flag is the build-time switch for the whole surface.
+  if (input.lanes.checkin && claims.has('STUDENT')) {
+    granted.push('student.checkin');
+  }
   return granted;
 }
 
@@ -90,11 +96,15 @@ export function hasCapability(capabilities: CapabilitySet, capability: Capabilit
   return capabilities.includes(capability);
 }
 
+/** Portal host whose HTTPS links are app-claimed (universal links). */
+const PORTAL_HOST = 'www.campusute.io.vn';
+
 /**
  * Deep-link input → app path (+ query), or null when the input is not an
- * app-owned link. Only the app scheme or a bare absolute path is accepted;
- * foreign schemes, traversal, encoded separators, backslashes, control
- * characters and empty/doubled segments are rejected before any routing.
+ * app-owned link. Only the app scheme, a bare absolute path or an
+ * `https://www.campusute.io.vn` link is accepted; foreign schemes/hosts,
+ * traversal, encoded separators, backslashes, control characters and
+ * empty/doubled segments are rejected before any routing.
  */
 export function normalizeDeepLink(input: string): string | null {
   if (typeof input !== 'string' || input.length === 0 || input.length > 2048) {
@@ -112,10 +122,16 @@ export function normalizeDeepLink(input: string): string | null {
   let rest = input;
   const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):\/\//.exec(input);
   if (scheme) {
-    if (scheme[1].toLowerCase() !== 'campuscore') {
+    const name = scheme[1].toLowerCase();
+    if (name === 'campuscore') {
+      rest = `/${input.slice(scheme[0].length)}`;
+    } else if (name === 'https' && input.slice(scheme[0].length).toLowerCase().startsWith(`${PORTAL_HOST}/`)) {
+      // Claimed universal link: strip exactly the portal host — ports,
+      // userinfo, subdomains and look-alike hosts all stay refused.
+      rest = input.slice(scheme[0].length + PORTAL_HOST.length);
+    } else {
       return null;
     }
-    rest = `/${input.slice(scheme[0].length)}`;
   }
   if (!rest.startsWith('/')) {
     return null;

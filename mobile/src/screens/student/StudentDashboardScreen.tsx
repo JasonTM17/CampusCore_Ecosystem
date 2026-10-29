@@ -20,6 +20,7 @@ import { fillShellCopy, shellMessages } from '../../i18n/shell-messages';
 import { useLocale } from '../../i18n/locale-provider';
 import type { MobileScreenProps } from '../../navigation/types';
 import { useLiveResource } from './shared/useLiveResource';
+import { CheckinEntryCard } from '../attendance-checkin/CheckinEntryCard';
 import { upcomingClasses } from './shared/preview';
 import { tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
@@ -100,6 +101,8 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
         { icon: 'calendar-clock-outline', label: c.weeklyLabel, value: apiClient.mode === 'preview' ? '2' : String(scheduledSessions) },
       ]} />
 
+      <ScreenSpacer />
+      <CheckinEntryCard navigation={navigation} />
       <ScreenSpacer />
       <SectionHeading title={c.quick} />
       <View style={[styles.actionGrid, largeText ? styles.actionStack : undefined]}>

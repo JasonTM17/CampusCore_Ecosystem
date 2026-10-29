@@ -74,7 +74,7 @@ export function StatusPill({ label, tone = 'neutral', icon }: StatusPillProps) {
   return (
     <View style={[styles.pill, { backgroundColor: fill }]}>
       {icon ? <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name={icon} size={14} color={ink} /> : null}
-      <UiText variant="meta" numberOfLines={1} style={{ color: ink }}>{label}</UiText>
+      <UiText variant="meta" style={{ color: ink, flexShrink: 1 }}>{label}</UiText>
     </View>
   );
 }
@@ -172,7 +172,7 @@ const compact = tokens.spacing.sm + tokens.spacing.xs;
 const styles = StyleSheet.create({
   chip: { alignItems: 'center', justifyContent: 'center', borderRadius: tokens.radii.control, flexShrink: 0 },
   iconButton: { alignItems: 'center', justifyContent: 'center', minHeight: tokens.layout.touchTarget, minWidth: tokens.layout.touchTarget, borderRadius: tokens.radii.control },
-  pill: { alignSelf: 'flex-start', alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.xs, borderRadius: tokens.radii.pill, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs, flexShrink: 0 },
+  pill: { alignSelf: 'flex-start', alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs, borderRadius: tokens.radii.pill, flexShrink: 1, maxWidth: '100%', minHeight: tokens.spacing.xl, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
   sectionCard: { borderWidth: 1, borderRadius: tokens.radii.card, minWidth: 0 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm, paddingHorizontal: compact, paddingVertical: tokens.spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth },
   sectionTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm, minWidth: 0 },

@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 
 import { ThemeProvider } from '../../src/design/theme';
 
-const mockFlags = { dean: false, staff: false, admin: false };
+const mockFlags = { dean: false, staff: false, admin: false, checkin: false };
 const mockSession: { kind: string; role: string; capabilities: string[] } = { kind: 'authenticated', role: 'admin', capabilities: [] };
 const mockNavigation = { navigate: jest.fn(), navigateLane: jest.fn(), goBack: jest.fn() };
 
@@ -38,6 +38,7 @@ beforeEach(() => {
   mockFlags.dean = false;
   mockFlags.staff = false;
   mockFlags.admin = false;
+  mockFlags.checkin = false;
   mockSession.kind = 'authenticated';
   mockSession.role = 'admin';
   mockSession.capabilities = [];

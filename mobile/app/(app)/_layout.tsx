@@ -9,6 +9,7 @@ import { BottomNavigation } from '../../src/components/BottomNavigation';
 import { MenuPanel } from '../../src/components/MenuPanel';
 import { NavigationRail } from '../../src/components/NavigationRail';
 import { NO_CAPABILITIES } from '../../src/auth/capabilities';
+import { LANE_FLAGS } from '../../src/config/lane-flags';
 import { useTheme } from '../../src/design/theme';
 import { useDashboardPrefetch } from '../../src/hooks/use-dashboard-prefetch';
 import {
@@ -36,7 +37,7 @@ export default function AppGroupLayout() {
   const { colors, window } = useTheme();
   const expanded = window.class === 'expanded';
 
-  const decision = resolveGuard(session.kind, session.role, pathname, session.capabilities);
+  const decision = resolveGuard(session.kind, session.role, pathname, session.capabilities, LANE_FLAGS);
   if (decision.action === 'redirect' && decision.to) {
     return <Redirect href={pathFor(decision.to)} />;
   }

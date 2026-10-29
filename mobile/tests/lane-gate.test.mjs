@@ -36,14 +36,14 @@ const access = await load('lane-access');
 const lane = await load('lane-model');
 
 const { laneScreenRegistry } = routes;
-const { resolveGuard, lanePathFor } = routeMap;
-const ALL_ON = { dean: true, staff: true, admin: true };
+const { resolveGuard, lanePathFor, laneScreenForPath } = routeMap;
+const ALL_ON = { dean: true, staff: true, admin: true, checkin: true };
 const ALL_DESKS = { desks: ['applyReview', 'careersDesk', 'libraryDesk'] };
 const grant = (claims, lanes = ALL_ON, staffGrants = ALL_DESKS) => caps.resolveCapabilities({ claims, lanes, staffGrants });
 const allow = (kind, role, capabilities, flags, id) => access.laneAllowed({ kind, role, capabilities, flags, id });
 
 test('lane flags default to off in the shipped build', () => {
-  assert.deepEqual(flagsModule.LANE_FLAGS, { dean: false, staff: false, admin: false });
+  assert.deepEqual(flagsModule.LANE_FLAGS, { dean: false, staff: false, admin: false, checkin: false });
 });
 
 test('flag off: no lane renders even with the matching capability and session', () => {
@@ -61,13 +61,60 @@ test('flag on but no capability: every lane is refused', () => {
   }
 });
 
-test('preview and signed-out sessions never reach a lane', () => {
+test('preview and signed-out sessions never reach a lane (except the flagged check-in demo)', () => {
   const capabilities = grant(['TRUONG_KHOA', 'ADMIN']);
   for (const { id, role } of laneScreenRegistry) {
     for (const kind of ['preview', 'signedOut']) {
+      if (id === 'attendance.checkin' && kind === 'preview') continue;
       assert.equal(allow(kind, role ?? 'admin', capabilities, ALL_ON, id), false, `${id} ${kind}`);
     }
   }
+});
+
+test('check-in lane: flag, capability and role gate; preview opens only the flagged demo', () => {
+  const studentCaps = grant(['STUDENT']);
+  // Authenticated student with the capability opens it; wrong roles do not.
+  assert.equal(allow('authenticated', 'student', studentCaps, ALL_ON, 'attendance.checkin'), true);
+  assert.equal(allow('authenticated', 'student', studentCaps, { ...ALL_ON, checkin: false }, 'attendance.checkin'), false);
+  assert.equal(allow('authenticated', 'student', [], ALL_ON, 'attendance.checkin'), false);
+  assert.equal(allow('authenticated', 'lecturer', grant(['LECTURER']), ALL_ON, 'attendance.checkin'), false);
+  assert.equal(allow('authenticated', 'admin', grant(['ADMIN']), ALL_ON, 'attendance.checkin'), false);
+  // Preview pseudo-session: only a flagged check-in lane, only on the student surface.
+  assert.equal(allow('preview', 'student', [], ALL_ON, 'attendance.checkin'), true);
+  assert.equal(allow('preview', 'student', [], { ...ALL_ON, checkin: false }, 'attendance.checkin'), false);
+  assert.equal(allow('preview', 'lecturer', [], ALL_ON, 'attendance.checkin'), false);
+  assert.equal(allow('preview', 'admin', [], ALL_ON, 'attendance.checkin'), false);
+  // Signed out never reaches it.
+  assert.equal(allow('signedOut', 'student', studentCaps, ALL_ON, 'attendance.checkin'), false);
+});
+
+test('check-in deep-link path resolves to the lane and stays guarded', () => {
+  const id = '9e107d9d-372b-4c81-8d1f-8f0b9f9f0001';
+  assert.equal(laneScreenForPath('/attendance/checkin'), 'attendance.checkin');
+  assert.equal(laneScreenForPath(`/attendance/checkin/${id}`), 'attendance.checkin');
+  // Not arbitrary segments: deeper paths and sibling paths are not the lane.
+  for (const bad of ['/attendance/checkin/x/y', '/attendance/checkin/x/../y', '/attendance/other', '/checkin']) {
+    assert.equal(laneScreenForPath(bad), null, bad);
+  }
+  const studentCaps = grant(['STUDENT']);
+  assert.deepEqual(
+    resolveGuard('authenticated', 'student', `/attendance/checkin/${id}`, studentCaps, ALL_ON),
+    { action: 'allow' },
+  );
+  // Deep link without flags → preview check-in is refused (flags required).
+  assert.equal(
+    resolveGuard('preview', 'student', `/attendance/checkin/${id}`, [], ALL_ON).action,
+    'allow',
+  );
+  assert.equal(
+    resolveGuard('preview', 'student', `/attendance/checkin/${id}`, []).action,
+    'redirect',
+  );
+  // Signed-out deep link → sign-in (the intent is preserved separately).
+  assert.deepEqual(resolveGuard('signedOut', 'student', `/attendance/checkin/${id}`), {
+    action: 'redirect',
+    to: 'auth.signIn',
+  });
 });
 
 test('flag and capability and authenticated session open exactly the granted lanes', () => {

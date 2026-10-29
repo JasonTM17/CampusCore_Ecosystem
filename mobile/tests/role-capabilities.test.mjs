@@ -69,18 +69,19 @@ const { canAccessLaneScreen, getLaneNavigation, laneScreenRegistry } = routes;
 const { lanePathFor, laneScreenForPath, resolveDeepLink, resolveGuard, screenForPath } = routeMap;
 const { roleFromClaims } = oidcCore;
 
-const ALL_ON = { dean: true, staff: true, admin: true };
+const ALL_ON = { dean: true, staff: true, admin: true, checkin: true };
 const ALL_GRANTS = { desks: ['applyReview', 'careersDesk', 'libraryDesk'] };
 
 test('lane flags are off unless the build sets the exact string true', () => {
   assert.deepEqual(readLaneFlags({}), LANES_OFF);
-  assert.deepEqual(LANES_OFF, { dean: false, staff: false, admin: false });
+  assert.deepEqual(LANES_OFF, { dean: false, staff: false, admin: false, checkin: false });
   for (const value of ['', '1', 'TRUE', 'True', 'yes', ' true', 'true ', 'false']) {
     assert.deepEqual(
       readLaneFlags({
         EXPO_PUBLIC_LANE_DEAN: value,
         EXPO_PUBLIC_LANE_STAFF: value,
         EXPO_PUBLIC_LANE_ADMIN: value,
+        EXPO_PUBLIC_LANE_CHECKIN: value,
       }),
       LANES_OFF,
       `"${value}" must not enable a lane`,
@@ -88,7 +89,7 @@ test('lane flags are off unless the build sets the exact string true', () => {
   }
   assert.deepEqual(
     readLaneFlags({ EXPO_PUBLIC_LANE_DEAN: 'true', EXPO_PUBLIC_LANE_ADMIN: 'false' }),
-    { dean: true, staff: false, admin: false },
+    { dean: true, staff: false, admin: false, checkin: false },
   );
   // The module-level read reflects the (unset) test environment.
   assert.deepEqual(LANE_FLAGS, LANES_OFF);
@@ -119,7 +120,9 @@ test('flags on: dean needs the faculty head claim, admin the admin claim', () =>
     resolveCapabilities({ claims: ['SUPER_ADMIN'], lanes: { ...ALL_ON, admin: false } }),
     [],
   );
-  assert.deepEqual(resolveCapabilities({ claims: ['STUDENT'], lanes: ALL_ON }), []);
+  // The check-in flag plus the STUDENT claim unlocks exactly the check-in lane.
+  assert.deepEqual(resolveCapabilities({ claims: ['STUDENT'], lanes: ALL_ON }), ['student.checkin']);
+  assert.deepEqual(resolveCapabilities({ claims: ['STUDENT'], lanes: { ...ALL_ON, checkin: false } }), []);
 });
 
 test('dean is TRUONG_KHOA only; TRUONG_BO_MON follows the lecturer precedence', () => {
@@ -152,7 +155,7 @@ test('staff desks come from server grants only, never from the admin claim', () 
       lanes: ALL_ON,
       staffGrants: { desks: ['libraryDesk'] },
     }),
-    ['staff.libraryDesk'],
+    ['staff.libraryDesk', 'student.checkin'],
   );
   // Flag off drops the grant even though the server returned it.
   assert.deepEqual(
@@ -161,7 +164,7 @@ test('staff desks come from server grants only, never from the admin claim', () 
       lanes: { ...ALL_ON, staff: false },
       staffGrants: ALL_GRANTS,
     }),
-    [],
+    ['student.checkin'],
   );
   // A forged desk name is not a capability.
   assert.deepEqual(
@@ -170,7 +173,7 @@ test('staff desks come from server grants only, never from the admin claim', () 
       lanes: ALL_ON,
       staffGrants: { desks: ['superDesk'] },
     }),
-    [],
+    ['student.checkin'],
   );
 });
 
@@ -193,7 +196,7 @@ test('a 403 (or any non-200) grant response is denied and opens nothing', () => 
     lanes: ALL_ON,
     staffGrants: staffGrantsFromResponse(403, { desks: ['applyReview'] }),
   });
-  assert.deepEqual(denied, []);
+  assert.deepEqual(denied, ['student.checkin']);
   assert.deepEqual(resolveGuard('authenticated', 'student', '/apply/review', denied), {
     action: 'redirect',
     to: 'dashboard.student',
@@ -205,8 +208,12 @@ test('lane routes cover exactly the lane-gated rows of the parity manifest', () 
   const manifest = JSON.parse(
     fs.readFileSync(path.join(repoRoot, 'contracts/ecosystem/mobile-parity.json'), 'utf8'),
   );
-  assert.equal(manifest.routes.length, 74);
-  const gated = manifest.routes.filter((route) => route.laneGated).map((route) => route.web).sort();
+  assert.equal(manifest.routes.length, 77);
+  // Dynamic web segments (`[param]`) collapse to the lane's static path.
+  const gated = manifest.routes
+    .filter((route) => route.laneGated)
+    .map((route) => route.web.replace(/\/\[[^\]]+\]$/, ''))
+    .sort();
   const lanePaths = laneScreenRegistry.map((screen) => lanePathFor(screen.id)).sort();
   assert.deepEqual(lanePaths, gated);
   // Lane paths are not part of the always-on registry.

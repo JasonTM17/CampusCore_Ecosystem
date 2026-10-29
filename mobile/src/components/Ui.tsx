@@ -74,7 +74,7 @@ function buildStyles(colors: ThemeColors) {
     actionIcon: { alignItems: 'center', backgroundColor: colors.primaryFixed, borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', width: 36 },
     chevron: { marginLeft: tokens.spacing.xs },
     fieldGroup: { marginBottom: tokens.spacing.md },
-    badge: { alignSelf: 'flex-start', borderRadius: tokens.radii.pill, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
+    badge: { alignSelf: 'flex-start', borderRadius: tokens.radii.pill, flexShrink: 1, flexWrap: 'wrap', maxWidth: '100%', minHeight: tokens.spacing.xl, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
     metricCard: { flex: 1, justifyContent: 'space-between', minHeight: 104, minWidth: 0, padding: tokens.spacing.md },
     metricValue: { marginVertical: tokens.spacing.xs },
     sectionHeading: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'space-between', marginBottom: tokens.spacing.sm },
@@ -90,8 +90,8 @@ function buildStyles(colors: ThemeColors) {
     rowPressed: { backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control },
     progressGroup: { marginTop: tokens.spacing.sm },
     progressHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.xs },
-    progressTrack: { backgroundColor: colors.primaryFixed, borderRadius: tokens.radii.pill, height: tokens.spacing.sm, overflow: 'hidden' },
-    progressFill: { borderRadius: tokens.radii.pill, height: '100%' },
+    progressTrack: { backgroundColor: colors.primaryFixed, borderRadius: tokens.spacing.xs, height: tokens.spacing.sm, overflow: 'hidden' },
+    progressFill: { borderRadius: tokens.spacing.xs, height: '100%' },
     divider: { backgroundColor: colors.outlineVariant, height: 1, marginVertical: tokens.spacing.sm },
     scrollSection: { marginBottom: tokens.spacing.lg },
     statePanel: { alignItems: 'center', flexWrap: 'wrap', gap: tokens.spacing.sm, backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: tokens.radii.card, borderWidth: 1, flexDirection: 'row', padding: tokens.spacing.md },
@@ -196,7 +196,7 @@ export function Badge({ label, tone = 'neutral' }: BadgeProps) {
     tone === 'primary' ? 'primary' : tone === 'neutral' ? 'muted' : tone;
   return (
     <View style={[styles.badge, { backgroundColor: bg[tone] }]}>
-      <UiText variant="meta" tone={textTone}>
+      <UiText variant="meta" tone={textTone} style={{ flexShrink: 1 }}>
         {label}
       </UiText>
     </View>

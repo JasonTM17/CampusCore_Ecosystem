@@ -11,6 +11,7 @@ import { academicApi, type AttendanceSummaryRow } from '../academic/academic-api
 import { localizedName, termOptions } from '../academic/academic-model';
 import { previewAttendance } from '../academic/academic-preview';
 import { AcademicShell, TermField, academicStyles, isPreviewMode, useAcademicCopy, useAcademicQuery } from '../academic/academic-ui';
+import { CheckinEntryCard } from '../attendance-checkin/CheckinEntryCard';
 
 /** Attendance rate weighted by sessions, from the server per-course rates. */
 export function overallRate(rows: readonly AttendanceSummaryRow[]): number {
@@ -22,7 +23,7 @@ export function overallRate(rows: readonly AttendanceSummaryRow[]): number {
 const tone = (status: string) => (status === 'PRESENT' ? 'success' : status === 'ABSENT' ? 'error' : 'warning');
 const rateTone = (rate: number) => (rate >= 80 ? 'success' : rate >= 60 ? 'warning' : 'error');
 
-export function AttendanceScreen(_props: MobileScreenProps) {
+export function AttendanceScreen({ navigation }: MobileScreenProps) {
   const { copy, locale } = useAcademicCopy();
   const { formatDate, formatNumber } = useLocale();
   const preview = isPreviewMode();
@@ -83,6 +84,7 @@ export function AttendanceScreen(_props: MobileScreenProps) {
               ), {}))], keyExtractor: (row) => row.key, renderItem: renderVirtualRow, footer: <>
     </> }}
     >
+      <CheckinEntryCard navigation={navigation} />
       {options.length > 0 ? <TermField options={options} value={term} onChange={(value) => { setTerm(value); setSectionId(''); }} /> : null}
       {summary.length === 0 ? (
         <StatePanel kind="empty" title={copy.emptyAttendance} />

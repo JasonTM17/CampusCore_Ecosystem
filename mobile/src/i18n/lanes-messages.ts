@@ -33,6 +33,7 @@ const vi = {
     'admin.enrollments': 'Đăng ký học phần',
     'admin.events': 'Sự kiện',
     'admin.notifications': 'Thông báo hệ thống',
+    'attendance.checkin': 'Điểm danh',
   } as Record<string, string>,
   entriesTitle: 'Công việc nghiệp vụ',
 
@@ -189,6 +190,7 @@ const en: Shape = {
     'admin.enrollments': 'Enrollments',
     'admin.events': 'Events',
     'admin.notifications': 'System notifications',
+    'attendance.checkin': 'Check in',
   },
   entriesTitle: 'Staff work',
 

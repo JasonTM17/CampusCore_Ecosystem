@@ -46,6 +46,11 @@
               "scheme": "https",
               "host": "www.campusute.io.vn",
               "path": "/apply"
+            },
+            {
+              "scheme": "https",
+              "host": "www.campusute.io.vn",
+              "pathPrefix": "/attendance/checkin"
             }
           ],
           "category": [

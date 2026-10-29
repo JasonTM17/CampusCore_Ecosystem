@@ -15,7 +15,15 @@ const isoDay = (offsetDays: number) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 };
 
-export const previewSemester: AcademicSemester = { id: 'preview-term', name: 'HK1 2026-2027', startDate: isoDay(-56), endDate: isoDay(56), status: 'IN_PROGRESS' };
+export const previewSemester: AcademicSemester = {
+  id: 'preview-term',
+  name: 'HK1 2026-2027',
+  nameEn: 'Semester 1 - 2026/2027',
+  nameVi: 'Học kỳ 1 - 2026/2027',
+  startDate: isoDay(-56),
+  endDate: isoDay(56),
+  status: 'IN_PROGRESS',
+};
 
 export const previewEnrollments: AcademicEnrollment[] = [
   {
@@ -33,8 +41,8 @@ export const previewEnrollments: AcademicEnrollment[] = [
 ];
 
 export const previewGrades: AcademicGradeRecord[] = [
-  { id: 'preview-g-cs204', courseCode: 'CS204', courseName: 'Software Architecture', credits: 3, finalGrade: 9.1, letterGrade: 'A+', gradeStatus: 'PUBLISHED', enrollmentStatus: 'COMPLETED', semesterId: previewSemester.id },
-  { id: 'preview-g-ba312', courseCode: 'BA312', courseName: 'Business Analytics', credits: 3, finalGrade: 8.4, letterGrade: 'B+', gradeStatus: 'PUBLISHED', enrollmentStatus: 'COMPLETED', semesterId: previewSemester.id },
+  { id: 'preview-g-cs204', courseCode: 'CS204', courseName: 'Software Architecture', credits: 3, finalGrade: 9.1, letterGrade: 'A+', gradeStatus: 'PUBLISHED', enrollmentStatus: 'COMPLETED', semesterId: previewSemester.id, semesterNameEn: previewSemester.nameEn, semesterNameVi: previewSemester.nameVi },
+  { id: 'preview-g-ba312', courseCode: 'BA312', courseName: 'Business Analytics', credits: 3, finalGrade: 8.4, letterGrade: 'B+', gradeStatus: 'PUBLISHED', enrollmentStatus: 'COMPLETED', semesterId: previewSemester.id, semesterNameEn: previewSemester.nameEn, semesterNameVi: previewSemester.nameVi },
 ];
 
 export const previewAttendance: AttendanceSummaryRow[] = [
