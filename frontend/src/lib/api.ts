@@ -40,6 +40,7 @@ import { resolvePublicApiBaseUrl } from '@/lib/public-api-url';
 import { CSRF_COOKIE_NAME, isLogoutInProgress } from '@/lib/session-hint';
 import { publishSessionChange } from '@/lib/session-sync';
 import { surfaceFromHost } from '@/lib/surfaces';
+import type { components as GeneratedApiComponents } from '@/types/generated-api';
 
 export const API_BASE_URL = resolvePublicApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
@@ -2164,6 +2165,142 @@ export const attendanceApi = {
     const response = await api.get<ApiResponse<AttendanceRecord[]>>(
       '/attendance',
       { params },
+    );
+    return response.data;
+  },
+};
+
+type GeofencedAttendanceOpenSessionRequest =
+  GeneratedApiComponents['schemas']['AttendanceOpenSessionRequest'];
+type GeofencedAttendanceSessionResponse =
+  GeneratedApiComponents['schemas']['AttendanceSessionResponse'];
+type GeofencedAttendanceCodeResponse =
+  GeneratedApiComponents['schemas']['AttendanceCodeResponse'];
+type GeofencedAttendanceCheckinRequest =
+  GeneratedApiComponents['schemas']['AttendanceCheckinRequest'];
+type GeofencedAttendanceCheckinResponse =
+  GeneratedApiComponents['schemas']['AttendanceCheckinResponse'];
+type GeofencedAttendanceCheckinView =
+  GeneratedApiComponents['schemas']['AttendanceCheckinView'];
+type GeofencedAttendanceOpenSessionResponse =
+  GeneratedApiComponents['schemas']['AttendanceOpenSessionResponse'];
+type GeofencedAttendanceReviewRequest =
+  GeneratedApiComponents['schemas']['AttendanceReviewRequest'];
+type GeofencedAttendanceConsentRequest =
+  GeneratedApiComponents['schemas']['AttendanceConsentRequest'];
+type GeofencedAttendanceConsentResponse =
+  GeneratedApiComponents['schemas']['AttendanceConsentResponse'];
+type GeofencedAttendanceGeofenceRequest =
+  GeneratedApiComponents['schemas']['AttendanceGeofenceRequest'];
+type GeofencedAttendanceGeofenceResponse =
+  GeneratedApiComponents['schemas']['AttendanceGeofenceResponse'];
+type GeofencedAttendanceActiveGeofenceResponse =
+  GeneratedApiComponents['schemas']['AttendanceActiveGeofenceResponse'];
+
+export const geofencedAttendanceApi = {
+  openSession: async (
+    request: GeofencedAttendanceOpenSessionRequest,
+  ): Promise<GeofencedAttendanceSessionResponse> => {
+    const response = await api.post<GeofencedAttendanceSessionResponse>(
+      '/attendance/sessions',
+      request,
+    );
+    return response.data;
+  },
+  getSession: async (sessionId: string): Promise<GeofencedAttendanceSessionResponse> => {
+    const response = await api.get<GeofencedAttendanceSessionResponse>(
+      `/attendance/sessions/${encodeURIComponent(sessionId)}`,
+    );
+    return response.data;
+  },
+  getCurrentCode: async (sessionId: string): Promise<GeofencedAttendanceCodeResponse> => {
+    const response = await api.get<GeofencedAttendanceCodeResponse>(
+      `/attendance/sessions/${encodeURIComponent(sessionId)}/code`,
+    );
+    return response.data;
+  },
+  closeSession: async (sessionId: string): Promise<GeofencedAttendanceSessionResponse> => {
+    const response = await api.post<GeofencedAttendanceSessionResponse>(
+      `/attendance/sessions/${encodeURIComponent(sessionId)}/close`,
+      {},
+    );
+    return response.data;
+  },
+  listSessionCheckins: async (sessionId: string): Promise<GeofencedAttendanceCheckinView[]> => {
+    const response = await api.get<GeofencedAttendanceCheckinView[]>(
+      `/attendance/sessions/${encodeURIComponent(sessionId)}/checkins`,
+    );
+    return response.data;
+  },
+  listOpenSessionsForStudent: async (): Promise<GeofencedAttendanceOpenSessionResponse[]> => {
+    const response = await api.get<GeofencedAttendanceOpenSessionResponse[]>(
+      '/attendance/sessions/open',
+    );
+    return response.data;
+  },
+  submitStudentCheckin: async (
+    sessionId: string,
+    request: GeofencedAttendanceCheckinRequest,
+  ): Promise<GeofencedAttendanceCheckinResponse> => {
+    const response = await api.post<GeofencedAttendanceCheckinResponse>(
+      `/attendance/sessions/${encodeURIComponent(sessionId)}/checkin`,
+      request,
+    );
+    return response.data;
+  },
+  reviewCheckin: async (
+    checkinId: string,
+    request: GeofencedAttendanceReviewRequest,
+  ): Promise<GeofencedAttendanceCheckinView> => {
+    const response = await api.post<GeofencedAttendanceCheckinView>(
+      `/attendance/checkins/${encodeURIComponent(checkinId)}/review`,
+      request,
+    );
+    return response.data;
+  },
+  getLocationConsent: async (): Promise<GeofencedAttendanceConsentResponse> => {
+    const response = await api.get<GeofencedAttendanceConsentResponse>(
+      '/attendance/location-consent',
+    );
+    return response.data;
+  },
+  acceptLocationConsent: async (
+    request: GeofencedAttendanceConsentRequest,
+  ): Promise<GeofencedAttendanceConsentResponse> => {
+    const response = await api.post<GeofencedAttendanceConsentResponse>(
+      '/attendance/location-consent',
+      request,
+    );
+    return response.data;
+  },
+  listAdminGeofences: async (): Promise<GeofencedAttendanceGeofenceResponse[]> => {
+    const response = await api.get<GeofencedAttendanceGeofenceResponse[]>(
+      '/admin/attendance/geofences',
+    );
+    return response.data;
+  },
+  createAdminGeofence: async (
+    request: GeofencedAttendanceGeofenceRequest,
+  ): Promise<GeofencedAttendanceGeofenceResponse> => {
+    const response = await api.post<GeofencedAttendanceGeofenceResponse>(
+      '/admin/attendance/geofences',
+      request,
+    );
+    return response.data;
+  },
+  updateAdminGeofence: async (
+    geofenceId: string,
+    request: GeofencedAttendanceGeofenceRequest,
+  ): Promise<GeofencedAttendanceGeofenceResponse> => {
+    const response = await api.put<GeofencedAttendanceGeofenceResponse>(
+      `/admin/attendance/geofences/${encodeURIComponent(geofenceId)}`,
+      request,
+    );
+    return response.data;
+  },
+  listActiveGeofences: async (): Promise<GeofencedAttendanceActiveGeofenceResponse[]> => {
+    const response = await api.get<GeofencedAttendanceActiveGeofenceResponse[]>(
+      '/attendance/geofences/active',
     );
     return response.data;
   },
