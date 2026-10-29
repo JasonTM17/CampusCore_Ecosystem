@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.notification.push;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import io.campuscore.restfulapi.notification.push.PushDeviceDtos.PushDeviceRegistrationRequest;
 import io.campuscore.restfulapi.notification.push.PushDeviceDtos.PushDeviceRegistrationResponse;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @Profile("persistence")
 @RequestMapping("/api/v1/notifications/my/devices")
+@PreAuthorize("isAuthenticated()")
 public class PushDeviceController {
 
     private final PushDeviceService devices;

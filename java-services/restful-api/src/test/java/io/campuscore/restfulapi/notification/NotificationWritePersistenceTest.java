@@ -448,4 +448,12 @@ class NotificationWritePersistenceTest {
                         .claim("roles", List.of("ADMIN")), "ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
+
+    @Test
+    void inboxWritePolicyRejectsAnonymousForEveryPersonalMutation() throws Exception {
+        mvc.perform(patch("/api/v1/notifications/my/unknown/read")).andExpect(status().isUnauthorized());
+        mvc.perform(patch("/api/v1/notifications/my/read-all")).andExpect(status().isUnauthorized());
+        mvc.perform(delete("/api/v1/notifications/my/unknown")).andExpect(status().isUnauthorized());
+    }
+
 }

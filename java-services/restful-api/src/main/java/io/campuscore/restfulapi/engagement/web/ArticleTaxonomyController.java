@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.engagement.web;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import io.campuscore.restfulapi.engagement.domain.ArticleAttachment;
 import io.campuscore.restfulapi.engagement.domain.ArticleCategory;
 import io.campuscore.restfulapi.engagement.domain.ArticleMediaGallery;
@@ -95,6 +96,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "200", description = "Truy xuất danh mục thành công")
     })
     @GetMapping("/article-categories")
+    @PreAuthorize("isAuthenticated()")
     public List<ArticleCategory> getCategories() {
         return categoryRepository.findByIsActiveTrueOrderByDisplayOrderAsc();
     }
@@ -112,6 +114,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "404", description = "Không tìm thấy chuyên mục với slug tương ứng")
     })
     @GetMapping("/article-categories/{slug}")
+    @PreAuthorize("isAuthenticated()")
     public ArticleCategory getCategoryBySlug(
             @Parameter(description = "Slug chuyên mục (vd: nghien-cuu-cong-nghe, hoc-bong-khen-thuong)", required = true)
             @PathVariable String slug) {
@@ -130,6 +133,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "200", description = "Truy xuất danh sách thẻ thành công")
     })
     @GetMapping("/article-tags")
+    @PreAuthorize("isAuthenticated()")
     public List<ArticleTag> getTags() {
         return tagRepository.findTop20ByOrderByUsageCountDesc();
     }
@@ -147,6 +151,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "404", description = "Không tìm thấy thẻ bài viết với slug tương ứng")
     })
     @GetMapping("/article-tags/{slug}")
+    @PreAuthorize("isAuthenticated()")
     public ArticleTag getTagBySlug(
             @Parameter(description = "Slug thẻ bài viết (vd: ai, robotics, kltn)", required = true)
             @PathVariable String slug) {
@@ -167,6 +172,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "200", description = "Truy xuất danh sách media thành công")
     })
     @GetMapping("/article-media-galleries")
+    @PreAuthorize("isAuthenticated()")
     public List<ArticleMediaGallery> getMediaGalleries(
             @Parameter(description = "Mã bài viết/thông báo để lọc gallery tương ứng (tùy chọn)")
             @RequestParam(required = false) String announcementId,
@@ -193,6 +199,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "200", description = "Truy xuất danh sách tài liệu đính kèm thành công")
     })
     @GetMapping("/article-attachments")
+    @PreAuthorize("isAuthenticated()")
     public List<ArticleTaxonomyDtos.AttachmentDto> getAttachments(
             @Parameter(description = "Mã bài viết/thông báo để lọc tệp đính kèm (tùy chọn)")
             @RequestParam(required = false) String announcementId,
@@ -238,6 +245,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "404", description = "Không tìm thấy chuyên mục với slug tương ứng")
     })
     @GetMapping("/article-taxonomy/v2/categories/{slug}")
+    @PreAuthorize("isAuthenticated()")
     public CategoryDto getCategoryBySlugV2(
             @Parameter(description = "Slug chuyên mục (vd: nghien-cuu-cong-nghe, hoc-bong-khen-thuong)", required = true)
             @PathVariable String slug) {
@@ -256,6 +264,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "200", description = "Truy xuất danh sách thẻ thành công")
     })
     @GetMapping("/article-taxonomy/v2/tags")
+    @PreAuthorize("isAuthenticated()")
     public List<TagDto> getTagsV2() {
         return tagRepository.findTop20ByOrderByUsageCountDesc().stream()
                 .map(TagDto::from)
@@ -275,6 +284,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "404", description = "Không tìm thấy thẻ bài viết với slug tương ứng")
     })
     @GetMapping("/article-taxonomy/v2/tags/{slug}")
+    @PreAuthorize("isAuthenticated()")
     public TagDto getTagBySlugV2(
             @Parameter(description = "Slug thẻ bài viết (vd: ai, robotics, kltn)", required = true)
             @PathVariable String slug) {
@@ -299,6 +309,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "200", description = "Truy xuất danh sách media thành công")
     })
     @GetMapping("/article-taxonomy/v2/media-galleries")
+    @PreAuthorize("isAuthenticated()")
     public MediaGalleryListResponse getMediaGalleriesV2(
             @Parameter(description = "Mã bài viết/thông báo để lọc gallery tương ứng (tùy chọn)")
             @RequestParam(required = false) String announcementId,
@@ -341,6 +352,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "200", description = "Truy xuất danh sách tài liệu đính kèm thành công")
     })
     @GetMapping("/article-taxonomy/v2/attachments")
+    @PreAuthorize("isAuthenticated()")
     public AttachmentListResponse getAttachmentsV2(
             @Parameter(description = "Mã bài viết/thông báo để lọc tệp đính kèm (tùy chọn)")
             @RequestParam(required = false) String announcementId,

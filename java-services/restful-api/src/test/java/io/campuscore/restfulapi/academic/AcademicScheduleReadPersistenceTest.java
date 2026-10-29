@@ -197,4 +197,11 @@ class AcademicScheduleReadPersistenceTest {
                 startTime,
                 endTime);
     }
+
+    @Test
+    void schedulePolicyRejectsAnonymousOnListAndDetail() throws Exception {
+        mvc.perform(get("/api/v1/schedules")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/schedules/unknown")).andExpect(status().isUnauthorized());
+    }
+
 }
