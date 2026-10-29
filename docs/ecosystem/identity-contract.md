@@ -274,3 +274,36 @@ commit sau thắng deterministic. Phân biệt hai trường hợp authorize đa
 - `handleLogout` nuốt lỗi `revokeClientGrants` (best-effort): logout thành
   công nhưng grant có thể sót — ghi nhận, monitor bằng `logout_audit` +
   UNIFIED_SESSION_CLIENT_REVOKE log.
+
+## 5. Identity/logout policy exception inventory (AUD-06)
+
+Code inventory: `identity/IdentityPolicyInventoryTest` (test source). It scans
+all identity MVC handlers regardless of feature flags, pins the executable
+exception predicates, and checks the default anonymous BFF allowlist. Changes
+require an explicit inventory review. These entries describe current policy;
+they do not certify the stricter AUD-06 acceptance criteria.
+
+| Exception | Current boundary / evidence |
+| --- | --- |
+| SAS framework CSRF disabled | Protocol clients use client authentication/PKCE. Cookie mutations still require `CsrfCookieFilter` **inside the SAS chain**; external servlet filters run too late for terminating SAS endpoints. AUD-06 repairs that placement. |
+| Safe methods / Bearer / no legacy auth cookie | Legacy double-submit exempts GET, HEAD, OPTIONS, explicit `Bearer ` transport, and requests without access/refresh cookies. `/bff/` and `/session/` use the separate BFF guard. |
+| SAS GET end-session | `GET /connect/logout` is deliberately supported, including cross-origin RP navigation. Exact registered redirect and validated ID-token hint remain required; POST also accepts double-submit pairs from another login and has no Origin/Referer guard. Tightening this policy needs owner approval. |
+| Best-effort OIDC revoke | A revoke-store failure rolls its transaction back but currently returns successful redirect/204 with cookies unchanged. Fault test demonstrates live grants remain. **Open AUD-06 proposal:** fail closed with a stable retryable response before claiming logout success. |
+| Optional OIDC `client_id` | SAS permits omission. Revocation now resolves the validated hint's stored grant to identify the client; omission must not silently skip documented per-client revocation. |
+| Legacy cleanup paths | Login, two-factor verification, forgot/reset-password, refresh and logout bypass the current credential-state gate. Repeated legacy logout may return 200 with a stale access token; protected reads still reject it. Double-submit is cookie/header equality, not session binding; Referer alone is not checked. |
+| Public identity MVC handlers | `/login`, `/session/login`, `/session/callback`, `/session/logged-out`, `/session/state`, `/session/logout`, `/bff/api/**` are filter-permitted. Callback state/transaction-cookie/PKCE/nonce, opaque sessions, proxy credentials and handler CSRF remain the authority. The landing page itself does not revoke anything. |
+| Dead/no-cookie BFF logout | Origin-only idempotence intentionally skips the token check after session deletion/revocation. It returns 200 and expires both BFF cookies; stale business mutations return 403. Requiring stale logout itself to reject conflicts with this policy. |
+| BFF-to-SAS logout bridge gap | BFF deletes the hint's grant before returning `logoutUrl`; SAS rejects that now-unresolvable hint with 400. Retry omits the hint, which SAS 7.1 also rejects with 400. The host-policy §3 claim that hint-null end-session succeeds needs owner reconciliation; BFF cookie deletion alone does not prove central end-session completion. |
+| BFF Origin fallback | A live mutation without Origin requires `Sec-Fetch-Site: same-origin` plus session-bound CSRF. Reads/dead-session logout allow absent Origin. Referer is currently ignored; foreign Origin and cross-site metadata are rejected. |
+| BFF anonymous reads | No-cookie GET/HEAD only: default prefixes `/api/v1/announcements/public`, `/api/v1/public/docs`, `/api/v1/article-taxonomy/v2/categories`, `/api/v1/site-appearance`. Upstream public policy still applies; an invalid present cookie cannot downgrade to anonymous. |
+| BFF return/redirect inputs | Configured `/` return prefix allows local relative paths; absolute/protocol-relative/backslash/reserved paths fall back to `/`. Logout ignores `returnTo` and caller `post_logout_redirect_uri`, including duplicates, and builds the fixed registered landing URL. Runtime registry configuration is external authority, not verified by the source inventory. |
+| Development compatibility | Dev/test profiles, or no active profile, permit Host fallback and non-TLS dev cookies. Outside those profiles the edge context must be authenticated; stamped hosts must be registered. No-surface legacy calls and paths outside `/api/v1/` skip the per-surface proxy credential filter. |
+
+H2/local HTTP evidence: `EcosystemIdentityContractTest` and
+`EcosystemBffContractTest` cover revoke faults/rollback/recovery, missing/wrong/
+foreign-session CSRF, Origin/Referer, GET-vs-POST, redirects, malformed/duplicate
+inputs and stale tabs. Tests named `KnownContractGap`/`KnownPolicyGap` are
+characterizations of unresolved policy defects, **not acceptance passes**.
+Generic revoke-store failures currently produce 500 on legacy/BFF routes,
+preserve cookies and roll back changes; stable 503/retry guidance needs an owner
+decision. PostgreSQL locking and real-provider behavior require separate proof.
