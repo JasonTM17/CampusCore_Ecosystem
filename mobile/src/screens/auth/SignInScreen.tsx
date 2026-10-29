@@ -19,26 +19,24 @@ import type { MobileScreenProps } from '../../navigation/types';
 
 const copyByLocale = {
   en: {
-    eyebrow: 'CampusCore mobile',
     title: 'Welcome back',
     portal: 'Academic information portal',
     heading: 'Sign in',
     preview: 'Preview build — explore with a local pseudo-session.',
-    live: 'Continue in your browser with CampusCore ID. Your credentials never touch this app.',
+    live: 'Continue in your browser with CampusUTE ID. Your credentials never touch this app.',
     explore: 'Explore preview',
-    signIn: 'Sign in with CampusCore ID',
-    unreachable: 'Sign-in could not reach the CampusCore identity service.',
+    signIn: 'Sign in with CampusUTE ID',
+    unreachable: 'Sign-in could not reach the CampusUTE identity service.',
   },
   vi: {
-    eyebrow: 'CampusCore mobile',
     title: 'Chào mừng trở lại',
     portal: 'Cổng thông tin đào tạo',
     heading: 'Đăng nhập',
     preview: 'Bản xem thử — khám phá bằng phiên cục bộ.',
-    live: 'Tiếp tục trong trình duyệt với CampusCore ID. Thông tin đăng nhập không đi qua ứng dụng này.',
+    live: 'Tiếp tục trong trình duyệt với CampusUTE ID. Thông tin đăng nhập không đi qua ứng dụng này.',
     explore: 'Khám phá bản xem thử',
-    signIn: 'Đăng nhập bằng CampusCore ID',
-    unreachable: 'Không kết nối được dịch vụ định danh CampusCore.',
+    signIn: 'Đăng nhập bằng CampusUTE ID',
+    unreachable: 'Không kết nối được dịch vụ định danh CampusUTE.',
   },
 } as const;
 
@@ -98,7 +96,7 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
           <View style={styles.brandRow}>
             <Image accessibilityLabel="HCMUTE" accessibilityRole="image" source={require('../../../assets/hcmute-logo.png')} resizeMode="contain" style={styles.brandMark} />
             <View style={styles.brandCopy}>
-              <UiText variant="headlineMedium" style={{ color: chrome.onSurface }}>CampusCore</UiText>
+              <UiText variant="headlineMedium" style={{ color: chrome.onSurface }}>CampusUTE</UiText>
               <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>{copy.portal}</UiText>
             </View>
           </View>
@@ -141,7 +139,6 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
             <Button icon="file-document-outline" label={shellMessages[locale].screens.docs} onPress={() => navigation.navigate('docs')} variant="secondary" style={stackGuests ? undefined : styles.guestButton} />
           </View>
           <View style={styles.footerFlex} />
-          <UiText variant="meta" tone="muted" style={styles.footer}>{copy.eyebrow}</UiText>
         </View>
       </ScrollView>
     </View>
@@ -169,7 +166,6 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   guestColumn: { gap: tokens.spacing.sm, marginTop: tokens.spacing.md },
   guestButton: { flex: 1 },
   footerFlex: { flex: 1, minHeight: tokens.spacing.lg },
-  footer: { marginTop: tokens.spacing.md, textAlign: 'center' },
   submit: { marginTop: tokens.spacing.sm },
   errorPanel: { backgroundColor: colors.errorFixed, borderColor: colors.error, borderRadius: tokens.radii.control, borderWidth: 1, marginTop: tokens.spacing.md, padding: tokens.spacing.sm },
 });

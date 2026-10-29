@@ -33,7 +33,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
               "c": [
                 {
                   "c": [
-                    "CampusCore",
+                    "CampusUTE",
                   ],
                   "s": {
                     "color": "#EDF0F2",
@@ -434,7 +434,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout da
               "c": [
                 {
                   "c": [
-                    "CampusCore",
+                    "CampusUTE",
                   ],
                   "s": {
                     "color": "#EDF0F2",
@@ -830,7 +830,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
               "c": [
                 {
                   "c": [
-                    "CampusCore",
+                    "CampusUTE",
                   ],
                   "s": {
                     "color": "#FFFFFF",
@@ -1231,7 +1231,7 @@ exports[`static visual snapshots (structure/token, not pixels) AppGroupLayout li
               "c": [
                 {
                   "c": [
-                    "CampusCore",
+                    "CampusUTE",
                   ],
                   "s": {
                     "color": "#FFFFFF",
@@ -1609,7 +1609,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                       "c": [
                         {
                           "c": [
-                            "Trợ lý CampusCore",
+                            "Trợ lý CampusUTE",
                           ],
                           "role": "header",
                           "s": {
@@ -2122,7 +2122,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                       "c": [
                         {
                           "c": [
-                            "Trợ lý CampusCore",
+                            "Trợ lý CampusUTE",
                           ],
                           "role": "header",
                           "s": {
@@ -2635,7 +2635,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                       "c": [
                         {
                           "c": [
-                            "Trợ lý CampusCore",
+                            "Trợ lý CampusUTE",
                           ],
                           "role": "header",
                           "s": {
@@ -3148,7 +3148,7 @@ exports[`static visual snapshots (structure/token, not pixels) Assistant-initial
                       "c": [
                         {
                           "c": [
-                            "Trợ lý CampusCore",
+                            "Trợ lý CampusUTE",
                           ],
                           "role": "header",
                           "s": {

@@ -154,7 +154,7 @@ test('Stitch mobile references stay traceable and live sign-in runs the OIDC PKC
   // navigation adapter. Preview keeps the local pseudo-session entry (KM-9).
   assert.match(signIn, /const isPreview = apiClient\.mode === 'preview'/);
   assert.match(signIn, /Explore preview/);
-  assert.match(signIn, /Sign in with CampusCore ID/);
+  assert.match(signIn, /Sign in with CampusUTE ID/);
   assert.match(signIn, /navigation\.enterPreview\(\)/);
   assert.match(signIn, /signInWithOidc\(/);
   assert.match(signIn, /sessionStore\.saveRefresh\(outcome\.refreshToken\)/);
