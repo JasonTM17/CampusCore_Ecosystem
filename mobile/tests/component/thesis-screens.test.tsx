@@ -513,7 +513,7 @@ describe('preview mode', () => {
     setWidth(360);
     mockClient.mode = 'preview';
     await renderThemed(<ThesisTopicsScreen {...baseProps} />);
-    expect(await screen.findByText(copy.previewNotice)).toBeOnTheScreen();
+    expect(screen.queryByText(copy.previewNotice)).toBeNull();
     expect(screen.getByText('Trợ lý học vụ có kiểm chứng nguồn')).toBeOnTheScreen();
     for (const fn of Object.values(mockApi)) expect(fn).not.toHaveBeenCalled();
   });
@@ -522,7 +522,7 @@ describe('preview mode', () => {
     setWidth(360);
     mockClient.mode = 'preview';
     await renderThemed(<ThesisRegistrationScreen {...baseProps} selectedThesisTopicId="preview-topic-1" />);
-    expect(await screen.findByText(copy.previewNotice)).toBeOnTheScreen();
+    expect(screen.queryByText(copy.previewNotice)).toBeNull();
     expect(screen.queryByLabelText(copy.memberSearch)).toBeNull();
     for (const fn of Object.values(mockApi)) expect(fn).not.toHaveBeenCalled();
   });

@@ -4,9 +4,11 @@ import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppBar } from '../../src/components/AppBar';
+import { AssistantFab } from '../../src/components/AssistantFab';
 import { BottomNavigation } from '../../src/components/BottomNavigation';
 import { MenuPanel } from '../../src/components/MenuPanel';
 import { NavigationRail } from '../../src/components/NavigationRail';
+import { NO_CAPABILITIES } from '../../src/auth/capabilities';
 import { useTheme } from '../../src/design/theme';
 import { useDashboardPrefetch } from '../../src/hooks/use-dashboard-prefetch';
 import {
@@ -72,7 +74,16 @@ export default function AppGroupLayout() {
               onMenu={() => setMenuOpen(true)}
             />
           ) : null}
-          <View testID="app-route-content" style={styles.routeContent}><Slot /></View>
+          <View testID="app-route-content" style={styles.routeContent}>
+            <Slot />
+            <AssistantFab
+              session={session.kind}
+              role={session.role}
+              capabilities={session.capabilities ?? NO_CAPABILITIES}
+              pathname={pathname}
+              onPress={() => navigate('assistant.chat')}
+            />
+          </View>
           {!expanded ? (
             <BottomNavigation
               activeRoute={activeRoute}

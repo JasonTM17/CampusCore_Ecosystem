@@ -212,7 +212,7 @@ export interface ListFrameProps<T> {
   icon?: ContentIconName;
 }
 
-/** One list screen: header, filters, banners and a paged, refreshable list. */
+/** One list screen: header, filters, notices and a paged, refreshable list. */
 export function ListFrame<T>({
   title,
   list,
@@ -239,7 +239,6 @@ export function ListFrame<T>({
   const head = (
     <View style={styles.head}>
       <ContentHero title={title} detail={count ?? undefined} detailLive={count !== null} icon={icon} />
-      {list.preview ? <Notice tone="warning" message={copy.previewNotice} /> : null}
       {list.warning ? <Notice tone="warning" message={list.warning} /> : null}
       <FlashNotice flash={flash ?? null} />
       {header}

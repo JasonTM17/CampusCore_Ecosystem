@@ -77,7 +77,6 @@ export function ConductScreen(_props: MobileScreenProps) {
               ), {}) : [])], keyExtractor: (row) => row.key, renderItem: renderVirtualRow, footer: <>
     </> }}
     >
-      {preview ? <DataNotice message={shared.previewNotice} /> : null}
       {query.warning && !preview ? <DataNotice message={query.warning} /> : null}
       {!preview && query.isLoading ? (
         <StatePanel kind="loading" title={t('loading')} />

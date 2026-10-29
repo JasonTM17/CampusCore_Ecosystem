@@ -60,12 +60,11 @@ export interface AcademicShellProps<T = unknown> {
   children: ReactNode;
 }
 
-/** Screen frame with the loading, error, stale-data and preview states in one place. */
+/** Screen frame with the loading, error and stale-data states in one place. */
 export function AcademicShell<T>({ title, eyebrow, loading = false, error, warning, onRetry, children, list }: AcademicShellProps<T>) {
   const { copy } = useAcademicCopy();
   return (
     <ScreenShell title={title} eyebrow={eyebrow} list={list && (loading || error ? { ...list, data: [], footer: null } : list)}>
-      {isPreviewMode() ? <DataNotice message={copy.previewNotice} /> : null}
       {warning ? <DataNotice message={warning} /> : null}
       {loading ? (
         <StatePanel kind="loading" title={copy.loading} />
