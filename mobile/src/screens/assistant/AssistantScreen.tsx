@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 
-import { Badge, Button, Card, SegmentedControl, StatePanel, UiText } from '../../components/Ui';
+import { Button, Card, SegmentedControl, StatePanel, UiText } from '../../components/Ui';
 import { FilterChip, Notice } from '../../components/ui/index';
 import { PerformanceList } from '../../components/perf/performance-list';
 import { useStableCallback } from '../../hooks/use-stable-callback';
@@ -75,7 +75,6 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
           header={<>
           <View style={styles.titleRow}>
             <UiText accessibilityRole="header" variant="headlineLarge" style={styles.title}>{copy.title}</UiText>
-            {chat.isPreview ? <Badge label="PREVIEW" tone="warning" /> : null}
           </View>
           <View style={styles.toolbar}>
             <View style={styles.scope}>

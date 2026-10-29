@@ -16,11 +16,10 @@ export function useThesisUi() {
   return { copy: thesisMessages[locale.locale], locale };
 }
 
-/** Stale banner, first-load spinner and blocking error with retry, in that order. */
+/** Stale-data notice, first-load spinner and blocking error with retry, in that order. */
 export function QueryNotices({ state, copy }: { state: ThesisQueryState; copy: ThesisCopy }) {
   return (
     <>
-      {state.preview ? <UiText variant="bodySmall" tone="muted" style={styles.gap}>{copy.previewNotice}</UiText> : null}
       {state.warning ? <DataNotice message={state.warning} /> : null}
       {state.loading ? <StatePanel kind="loading" title={copy.loading} /> : null}
       {state.error ? (

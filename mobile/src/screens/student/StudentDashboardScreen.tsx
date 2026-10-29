@@ -89,9 +89,7 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
         icon="school-outline"
         eyebrow={c.currentSemester}
         title={apiClient.mode === 'preview' ? c.previewSemester : fillShellCopy(c.activeSections, { n: activeEnrollments.length })}
-        detail={apiClient.mode === 'preview'
-          ? c.previewData
-          : fillShellCopy(c.announcements, { n: liveAnnouncements.length })}
+        detail={apiClient.mode === 'preview' ? undefined : fillShellCopy(c.announcements, { n: liveAnnouncements.length })}
       >
         <Button icon="calendar-week-outline" label={c.openSchedule} onPress={() => navigation.navigate('schedule')} variant="secondary" onBrand />
       </HeroCard>

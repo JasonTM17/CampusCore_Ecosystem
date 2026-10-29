@@ -82,7 +82,7 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
             return (
               <View key={section.title} style={styles.section}>
                 <UiText accessibilityRole="header" variant="label" tone="muted" style={styles.sectionTitle}>
-                  {section.title === 'Staff' ? copy.sections.staff : copy.sections.student}
+                  {section.title === 'Staff' ? copy.sections.staff : section.title === 'Assistant' ? copy.sections.assistant : copy.sections.student}
                 </UiText>
                 {screens.map((screen) => {
                   const active = screen.name === activeRoute;
