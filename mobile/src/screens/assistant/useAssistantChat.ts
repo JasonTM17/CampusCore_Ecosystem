@@ -128,6 +128,7 @@ export function useAssistantChat() {
   const lastTextRef = useRef('');
   const optimisticIdRef = useRef<string | null>(null);
   const historySeq = useRef(0);
+  const selectionSeq = useRef(0);
   const localCounter = useRef(0);
 
   const runtime = useMemo(
@@ -300,10 +301,12 @@ export function useAssistantChat() {
   }, [accumulator, orchestrator]);
 
   const clearThread = useCallback(() => {
+    selectionSeq.current += 1;
     abandonTurn();
     setMessages([]);
     setConversationId(undefined);
     setEarlierCursor(null);
+    setLoadingEarlier(false);
     setFailure(null);
     setNotice(null);
     setQuotaResetAt(null);
@@ -323,20 +326,24 @@ export function useAssistantChat() {
     if (history.open && !history.loaded && !history.loading && !history.error) void refreshHistory(scope, false, null);
   }, [history.open, history.loaded, history.loading, history.error, refreshHistory, scope]);
 
-  useEffect(() => () => { orchestrator?.dispose(); }, [orchestrator]);
+  useEffect(() => () => { selectionSeq.current += 1; orchestrator?.dispose(); }, [orchestrator]);
 
   const setHistoryOpen = useCallback((open: boolean) => setHistory((current) => ({ ...current, open })), []);
 
   const selectConversation = useCallback(async (conversation: AssistantConversation) => {
     clearThread();
+    const seq = ++selectionSeq.current;
+    const owner = scopeRef.current;
     setHistory((current) => ({ ...current, open: false }));
     if (isPreview) return;
     try {
       const page = await assistantApi.messagesPage(conversation.id);
+      if (seq !== selectionSeq.current || scopeRef.current !== owner) return;
       setConversationId(conversation.id);
       setMessages(page.data.map((item) => toChatMessage(item, copyRef.current.outputBlocked, localeRef.current, scopeRef.current)));
       setEarlierCursor(page.nextCursor ?? null);
     } catch {
+      if (seq !== selectionSeq.current || scopeRef.current !== owner) return;
       setHistory((current) => ({ ...current, error: true }));
     }
   }, [clearThread, isPreview]);
@@ -344,18 +351,21 @@ export function useAssistantChat() {
   const loadEarlier = useCallback(async () => {
     const id = conversationIdRef.current;
     if (!id || !earlierCursor || loadingEarlier) return;
+    const seq = selectionSeq.current;
+    const selected = () => seq === selectionSeq.current && conversationIdRef.current === id;
     setLoadingEarlier(true);
     try {
       const page = await assistantApi.messagesPage(id, { cursor: earlierCursor });
+      if (!selected()) return;
       setMessages((current) => [
         ...page.data.map((item) => toChatMessage(item, copyRef.current.outputBlocked, localeRef.current, scopeRef.current)),
         ...current,
       ]);
       setEarlierCursor(page.nextCursor ?? null);
     } catch {
-      setFailure({ kind: 'generic', resubmittable: false });
+      if (selected()) setFailure({ kind: 'generic', resubmittable: false });
     } finally {
-      setLoadingEarlier(false);
+      if (selected()) setLoadingEarlier(false);
     }
   }, [earlierCursor, loadingEarlier]);
 
