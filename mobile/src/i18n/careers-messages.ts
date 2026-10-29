@@ -42,6 +42,16 @@ export const careersMessages = {
       "OFFER": "Đề nghị",
       "REJECTED": "Bị từ chối",
       "WITHDRAWN": "Đã rút"
+    } as Record<string, string>,
+    "employmentTypeLabels": {
+      "INTERNSHIP": "Thực tập",
+      "FULL_TIME": "Toàn thời gian",
+      "PART_TIME": "Bán thời gian",
+      "CONTRACT": "Theo hợp đồng",
+      "TEMPORARY": "Thời vụ",
+      "FREELANCE": "Cộng tác tự do",
+      "REMOTE": "Làm từ xa",
+      "VOLUNTEER": "Tình nguyện"
     } as Record<string, string>
   },
   "en": {
@@ -86,6 +96,16 @@ export const careersMessages = {
       "OFFER": "Offer",
       "REJECTED": "Rejected",
       "WITHDRAWN": "Withdrawn"
+    } as Record<string, string>,
+    "employmentTypeLabels": {
+      "INTERNSHIP": "Internship",
+      "FULL_TIME": "Full-time",
+      "PART_TIME": "Part-time",
+      "CONTRACT": "Contract",
+      "TEMPORARY": "Temporary",
+      "FREELANCE": "Freelance",
+      "REMOTE": "Remote",
+      "VOLUNTEER": "Volunteer"
     } as Record<string, string>
   }
 };

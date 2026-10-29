@@ -121,7 +121,7 @@ export function EventsScreen(_props: MobileScreenProps) {
       {tab === 'catalog' ? (
         <View style={styles.filters}>
           <UiText variant="meta" tone="muted">{copy.statusFilter}</UiText>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterChips}>
             {EVENT_FILTER_STATUSES.map((value) => (
               <FilterChip
                 key={value}
@@ -215,7 +215,8 @@ export function EventsScreen(_props: MobileScreenProps) {
 const styles = StyleSheet.create({
   header: { gap: tokens.spacing.sm },
   filters: { gap: tokens.spacing.xs },
-  filterChips: { flexDirection: 'row', gap: tokens.spacing.sm, paddingVertical: 1 },
+  filterScroll: { marginHorizontal: -tokens.spacing.md },
+  filterChips: { flexDirection: 'row', gap: tokens.spacing.sm, paddingVertical: 1, paddingHorizontal: tokens.spacing.md },
   rowMain: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
   rowCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 0 },
   actionRow: { alignItems: 'flex-end', marginTop: tokens.spacing.xs },

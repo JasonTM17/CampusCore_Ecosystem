@@ -66,7 +66,7 @@ export function AccountFrame({ title, subtitle, error, children }: AccountFrameP
         />
         <View style={styles.brandCopy}>
           <UiText variant="headlineMedium" style={{ color: chrome.onSurface }}>
-            CampusCore
+            CampusUTE
           </UiText>
           <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>
             {portalSubtitle}

@@ -64,6 +64,23 @@ export function activeOpportunityIds(applications: readonly { opportunityId: str
   return new Set(applications.filter(isApplicationWithdrawable).map((application) => application.opportunityId));
 }
 
+/** Turns an enum-ish server code into readable words: FULL_TIME → "Full time". */
+export function humanizeEmploymentType(code: string): string {
+  const words = code
+    .replace(/([a-z\d])([A-Z])/g, '$1 $2')
+    .replace(/[_.\-/]+/g, ' ')
+    .trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1).toLowerCase() : '';
+}
+
+/** Employment type for display: localized label for known enums, humanized fallback for unknown ones. */
+export function employmentTypeLabel(labels: Readonly<Record<string, string>>, code: string | null | undefined): string {
+  if (!code) return '';
+  const trimmed = code.trim();
+  if (!trimmed) return '';
+  return labels[trimmed] ?? humanizeEmploymentType(trimmed);
+}
+
 /* ---------- admissions ---------- */
 
 export type AdmissionPhase = 'editable' | 'returned' | 'locked' | 'terminal';

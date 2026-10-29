@@ -24,7 +24,7 @@ export interface AppBarProps {
 
 /**
  * Brand top bar shared by every (app) screen: the web portal navy chrome with
- * the CampusCore mark, the role and a profile shortcut. It owns the status-bar inset so the navy runs under the clock.
+ * the CampusUTE mark, the role and a profile shortcut. It owns the status-bar inset so the navy runs under the clock.
  */
 export function AppBar({ role, onProfile, onSignIn }: AppBarProps) {
   const { scheme, window } = useTheme();
@@ -51,7 +51,7 @@ export function AppBar({ role, onProfile, onSignIn }: AppBarProps) {
         </View>
         <View style={styles.copy}>
           <UiText variant="headlineSmall" style={{ color: chrome.onSurface }}>
-            CampusCore
+            CampusUTE
           </UiText>
           {roleLabel && window.fontScale >= 1.3 ? <UiText variant="meta" style={{ color: chrome.onSurfaceMuted }}>{roleLabel}</UiText> : null}
         </View>
