@@ -16,6 +16,7 @@ import {
 import { tokens } from '../../design/tokens';
 import { chromeFor } from '../../design/chrome';
 import { useTheme } from '../../design/theme';
+import { useLocale } from '../../i18n/locale-provider';
 import { Button } from './Button';
 import { UiText } from './UiText';
 import type { TextTone } from './UiText';
@@ -31,8 +32,9 @@ export interface SheetProps {
   closeAccessibilityLabel?: string;
 }
 
-export function Sheet({ visible, onClose, title, children, accessibilityLabel, closeLabel = 'Đóng', closeAccessibilityLabel = 'Đóng bảng' }: SheetProps) {
+export function Sheet({ visible, onClose, title, children, accessibilityLabel, closeLabel, closeAccessibilityLabel }: SheetProps) {
   const { colors, spacing, radii, scheme, reducedMotion } = useTheme();
+  const { t } = useLocale();
   return (
     <Modal visible={visible} transparent animationType={reducedMotion ? 'none' : 'slide'} onRequestClose={onClose}>
       <View style={[sheetStyles.backdrop, { backgroundColor: chromeFor(scheme).scrim }]}>
@@ -47,7 +49,7 @@ export function Sheet({ visible, onClose, title, children, accessibilityLabel, c
                 {title}
               </UiText>
             ) : null}
-            <Button label={closeLabel} onPress={onClose} variant="text" accessibilityLabel={closeAccessibilityLabel} />
+            <Button label={closeLabel ?? t('close')} onPress={onClose} variant="text" accessibilityLabel={closeAccessibilityLabel ?? t('closeSheet')} />
           </View>
           {children}
         </View>
@@ -124,10 +126,11 @@ function toneKeys() { return tokens.colors; }
 
 export function Toast({ visible, message, tone = 'default', duration = 4000, onDismiss }: ToastProps) {
   const { colors, spacing, radii, layout } = useTheme();
+  const { t } = useLocale();
   useEffect(() => {
     if (!visible || !onDismiss) return;
-    const t = setTimeout(onDismiss, duration);
-    return () => clearTimeout(t);
+    const timer = setTimeout(onDismiss, duration);
+    return () => clearTimeout(timer);
   }, [visible, duration, onDismiss]);
   if (!visible) return null;
   const m = toastTones[tone];
@@ -137,7 +140,7 @@ export function Toast({ visible, message, tone = 'default', duration = 4000, onD
       style={[toastStyles.toast, { backgroundColor: (colors as Record<string, string>)[m.bg], borderColor: colors.outlineVariant, borderRadius: radii.card, margin: spacing.md, minHeight: layout.touchTarget, padding: spacing.md }]}
     >
       <UiText accessibilityRole={tone === 'error' ? 'alert' : undefined} variant="bodySmall" tone={m.text} style={toastStyles.text}>{message}</UiText>
-      {onDismiss ? <Button label="Đóng" onPress={onDismiss} variant="text" accessibilityLabel="Đóng thông báo" /> : null}
+      {onDismiss ? <Button label={t('close')} onPress={onDismiss} variant="text" accessibilityLabel={t('dismissNotification')} /> : null}
     </View>
   );
 }
@@ -220,6 +223,7 @@ export interface SearchBarProps extends Omit<TextInputProps, 'style'> {
 
 export function SearchBar({ value, onChangeText, onClear, placeholder, accessibilityLabel, style, ...input }: SearchBarProps) {
   const { colors, spacing, radii, layout, typography } = useTheme();
+  const { t } = useLocale();
   const clear = onClear ?? (() => onChangeText(''));
   return (
     <View style={[{ alignItems: 'center', backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: radii.control, borderWidth: 1, flexDirection: 'row', minHeight: layout.touchTarget, paddingLeft: spacing.md }, style]}>
@@ -227,7 +231,7 @@ export function SearchBar({ value, onChangeText, onClear, placeholder, accessibi
         {...input}
         value={value}
         onChangeText={onChangeText}
-        accessibilityLabel={accessibilityLabel ?? placeholder ?? 'Tìm kiếm'}
+        accessibilityLabel={accessibilityLabel ?? placeholder ?? t('search')}
         placeholder={placeholder}
         placeholderTextColor={colors.outline}
         style={{ color: colors.text, flex: 1, fontFamily: typography.family, fontSize: typography.bodyMedium.fontSize, minHeight: layout.touchTarget, paddingVertical: spacing.sm }}
@@ -235,7 +239,7 @@ export function SearchBar({ value, onChangeText, onClear, placeholder, accessibi
       {value.length > 0 ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Xóa tìm kiếm"
+          accessibilityLabel={t('clearSearch')}
           onPress={clear}
           style={{ alignItems: 'center', justifyContent: 'center', minHeight: layout.touchTarget, minWidth: layout.touchTarget }}
         >
@@ -330,13 +334,14 @@ export interface InlineErrorProps {
 
 export function InlineError({ message, onRetry, retryLabel }: InlineErrorProps) {
   const { colors, spacing, radii, layout } = useTheme();
+  const { t } = useLocale();
   return (
     <View
       accessibilityLiveRegion="assertive"
       style={{ alignItems: 'center', backgroundColor: colors.errorFixed, borderColor: colors.error, borderLeftWidth: 3, borderRadius: radii.card, borderWidth: 1, flexDirection: 'row', minHeight: layout.touchTarget, padding: spacing.md }}
     >
       <UiText accessibilityRole="alert" variant="bodySmall" tone="error" style={{ flex: 1, marginRight: spacing.sm }}>{message}</UiText>
-      {onRetry ? <Button label={retryLabel ?? 'Thử lại'} onPress={onRetry} variant="secondary" accessibilityLabel={retryLabel ?? 'Thử lại'} /> : null}
+      {onRetry ? <Button label={retryLabel ?? t('retry')} onPress={onRetry} variant="secondary" accessibilityLabel={retryLabel ?? t('retry')} /> : null}
     </View>
   );
 }
@@ -352,8 +357,9 @@ export interface FormFieldProps extends Omit<TextInputProps, 'style'> {
 
 export function FormField({ label, error, hint, required = false, style, ...input }: FormFieldProps) {
   const { colors, spacing, radii, layout, typography } = useTheme();
+  const { t } = useLocale();
   const [focused, setFocused] = useState(false);
-  const description = [required ? 'bắt buộc' : null, hint, error].filter(Boolean).join('. ') || undefined;
+  const description = [required ? t('required') : null, hint, error].filter(Boolean).join('. ') || undefined;
   return (
     <View style={[{ marginBottom: spacing.md }, style]}>
       <UiText variant="label" style={{ marginBottom: spacing.xs }}>
