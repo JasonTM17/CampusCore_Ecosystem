@@ -125,7 +125,30 @@ public class AcademicMutationService {
      */
     @Transactional
     public void deleteEnrollment(String enrollmentId, String actorId) {
+        // Resolve the immutable placement without locking the row, then lock in
+        // the module-wide order — Section before Enrollment (registration adds
+        // a Student prefix). Holding the enrollment row while waiting on the
+        // section used to cycle against grade saves, publishes, and enrolls.
+        String resolvedStudentId;
+        String resolvedSectionId;
+        try {
+            Map<String, Object> resolved = jdbc.queryForMap(
+                    "SELECT \"studentId\" AS student_id, \"sectionId\" AS section_id"
+                            + " FROM " + ENROLLMENT + " WHERE \"id\" = :id",
+                    new MapSqlParameterSource("id", enrollmentId));
+            resolvedStudentId = String.valueOf(resolved.get("student_id"));
+            resolvedSectionId = String.valueOf(resolved.get("section_id"));
+        } catch (EmptyResultDataAccessException exception) {
+            throw problem(HttpStatus.NOT_FOUND, "ENROLLMENT_NOT_FOUND", "Enrollment not found");
+        }
+        requireSection(resolvedSectionId);
         Map<String, Object> enrollment = enrollment(enrollmentId);
+        // Authority is re-read under the row lock: the unlocked resolve could
+        // not see a concurrent reparenting or delete that committed meanwhile.
+        if (!resolvedStudentId.equals(String.valueOf(enrollment.get("student_id")))
+                || !resolvedSectionId.equals(String.valueOf(enrollment.get("section_id")))) {
+            throw problem(HttpStatus.CONFLICT, "ENROLLMENT_NOT_ACTIVE", "Enrollment changed during the request");
+        }
         String status = String.valueOf(enrollment.get("status"));
         jdbc.update(
                 "INSERT INTO " + ENROLLMENT_EVENT
@@ -295,7 +318,7 @@ public class AcademicMutationService {
         List<Map<String, Object>> enrollmentRows = jdbc.queryForList(
                 "SELECT \"id\", \"studentId\" AS student_id, \"sectionId\" AS section_id, \"status\","
                         + " \"gradeStatus\" AS grade_status"
-                        + " FROM " + ENROLLMENT + " WHERE \"id\" IN (:ids) FOR UPDATE",
+                        + " FROM " + ENROLLMENT + " WHERE \"id\" IN (:ids) ORDER BY \"id\" FOR UPDATE",
                 new MapSqlParameterSource("ids", enrollmentIds));
 
         Map<String, Map<String, Object>> enrollmentMap = new HashMap<>();

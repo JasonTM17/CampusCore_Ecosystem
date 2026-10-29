@@ -590,18 +590,27 @@ public class RegistrationService {
         if (replay != null) {
             return;
         }
-        // Resolve the immutable owner without locking Enrollment. All mutations
-        // of one student's registration serialize on Student before taking any
-        // Enrollment lock, including administrative drops.
+        // Resolve the immutable owner and section without locking Enrollment.
+        // Every writer in this module takes row locks in one order — Student,
+        // then Section, then Enrollment (the order attendance check-in shares);
+        // a writer may skip a prefix but must never hold an Enrollment lock
+        // while waiting on the owning Section, including administrative drops.
         String targetStudentId;
+        String resolvedSectionId;
         try {
-            targetStudentId = jdbc.queryForObject(
-                    "SELECT \"studentId\" FROM " + ENROLLMENT + " WHERE \"id\" = :id",
-                    new MapSqlParameterSource("id", enrollmentId), String.class);
+            Map<String, Object> resolved = jdbc.queryForMap(
+                    "SELECT \"studentId\" AS student_id, \"sectionId\" AS section_id"
+                            + " FROM " + ENROLLMENT + " WHERE \"id\" = :id",
+                    new MapSqlParameterSource("id", enrollmentId));
+            targetStudentId = String.valueOf(resolved.get("student_id"));
+            resolvedSectionId = String.valueOf(resolved.get("section_id"));
         } catch (EmptyResultDataAccessException exception) {
             throw problem(HttpStatus.NOT_FOUND, "ENROLLMENT_NOT_FOUND", "Enrollment not found");
         }
         lockStudent(targetStudentId);
+        // Student serializes same-student operations. Across students, Section
+        // must precede Round on both enroll and drop to avoid a second lock cycle.
+        Map<String, Object> section = lockSection(resolvedSectionId);
         Map<String, Object> enrollment;
         try {
             enrollment = jdbc.queryForMap(
@@ -611,7 +620,10 @@ public class RegistrationService {
         } catch (EmptyResultDataAccessException exception) {
             throw problem(HttpStatus.NOT_FOUND, "ENROLLMENT_NOT_FOUND", "Enrollment not found");
         }
-        if (!targetStudentId.equals(String.valueOf(enrollment.get("student_id")))) {
+        // Authority is re-read under the row lock: the unlocked resolve could
+        // not see a concurrent reparenting or delete that committed meanwhile.
+        if (!targetStudentId.equals(String.valueOf(enrollment.get("student_id")))
+                || !resolvedSectionId.equals(String.valueOf(enrollment.get("section_id")))) {
             throw problem(HttpStatus.CONFLICT, "ENROLLMENT_NOT_ACTIVE", "Enrollment changed during the request");
         }
         boolean admin = roles != null && (roles.contains("ADMIN") || roles.contains("SUPER_ADMIN"));
@@ -621,9 +633,6 @@ public class RegistrationService {
         if (!List.of("ENROLLED", "PENDING").contains(String.valueOf(enrollment.get("status")))) {
             throw problem(HttpStatus.CONFLICT, "ENROLLMENT_NOT_ACTIVE", "Enrollment is no longer active");
         }
-        // Student serializes same-student operations. Across students, Section
-        // must precede Round on both enroll and drop to avoid a second lock cycle.
-        Map<String, Object> section = lockSection(String.valueOf(enrollment.get("section_id")));
         String droppedCourseId = String.valueOf(section.get("course_id"));
         String semesterId = String.valueOf(enrollment.get("semester_id"));
         assertNoActiveCorequisiteDependents(targetStudentId, droppedCourseId, semesterId, enrollmentId);
@@ -938,6 +947,9 @@ public class RegistrationService {
                         + " JOIN " + COURSE + " course ON course.\"id\" = section.\"courseId\""
                         + " WHERE enrollment.\"studentId\" = :studentId AND enrollment.\"semesterId\" = :semesterId"
                         + " AND enrollment.\"status\" IN ('ENROLLED', 'PENDING', 'CONFIRMED')"
+                        // Multi-row locks are taken in a fixed id order so two
+                        // overlapping sets cannot contend in opposite orders.
+                        + " ORDER BY enrollment.\"id\""
                         // PostgreSQL otherwise locks the joined Section/Course rows too,
                         // inverting Section -> Round for a different student's drop.
                         + (postgres ? " FOR UPDATE OF enrollment" : " FOR UPDATE"),
