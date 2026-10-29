@@ -100,6 +100,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
   const historyFetchedRef = useRef(false);
   const userScrolledRef = useRef(false);
   const announcedMessageRef = useRef<string>();
+  const previousPathnameRef = useRef(pathname);
 
   const reconcileHistory = useCallback(() => {
     historyFetchedRef.current = false;
@@ -212,11 +213,17 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
   }, []);
 
   // The specialized workspace is itself a full-page assistant — an open
-  // drawer carried over from another route would cover its composer. Same
-  // boundary-aware match as the suppression check above: a broad
-  // startsWith would also fire on a sibling like
-  // "/dashboard/assistant-specialized-archive".
+  // drawer carried over from another route would cover its composer. Only a
+  // navigation INTO that route closes the panel: at mount the lazy shell may
+  // be replaying an explicit open request for this very page, and Strict
+  // Mode replays mount effects, so matching the pathname alone would undo
+  // an open the user just asked for. Same boundary-aware match as the
+  // suppression check above: a broad startsWith would also fire on a
+  // sibling like "/dashboard/assistant-specialized-archive".
   useEffect(() => {
+    const previousPathname = previousPathnameRef.current;
+    previousPathnameRef.current = pathname;
+    if (previousPathname === pathname) return;
     if (pathname === '/dashboard/assistant-specialized'
         || pathname.startsWith('/dashboard/assistant-specialized/')) {
       setOpen(false);
