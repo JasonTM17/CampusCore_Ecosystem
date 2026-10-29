@@ -1,13 +1,14 @@
 import os
 import sys
 import time
+import tempfile
 from playwright.sync_api import sync_playwright
 
 if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8')
     sys.stderr.reconfigure(encoding='utf-8')
 
-ARTIFACT_DIR = r"C:\Users\Admin\.gemini\antigravity\brain\32baa29e-0b4a-488d-8978-7fca7b16587f"
+ARTIFACT_DIR = os.environ.get("ARTIFACT_DIR", tempfile.gettempdir())
 FRONTEND_URL = "http://127.0.0.1:3100"
 
 def test_login_rate_limiting_ui():
