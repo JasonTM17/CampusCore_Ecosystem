@@ -13,7 +13,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
-import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
+import { EmptyState, ErrorState, ForbiddenState, LoadingState } from '@/components/ui/state-block';
+import { LinkButton } from '@/components/ui/link-button';
+import { campusErrorKind } from '@/lib/campus-error';
 import { statusToneClass, type StatusTone } from '@/components/ui/status';
 import { admissionsMessages } from '@/i18n/admissions-messages';
 import { useI18n } from '@/i18n';
@@ -54,7 +56,7 @@ function friendlyError(copy: Copy, error: unknown): string {
  */
 export function AdmissionsReviewPage() {
   const { isLoading: authLoading } = useRequireAuth();
-  const { locale, formatDateTime } = useI18n();
+  const { locale, formatDateTime, messages } = useI18n();
   const copy = admissionsMessages[locale];
   const [queue, setQueue] = useState<AdmissionApplication[]>([]);
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | ''>('');
@@ -76,7 +78,9 @@ export function AdmissionsReviewPage() {
       const rows = await admissionsApi.queue(statusFilter || undefined);
       setQueue(rows);
     } catch (cause) {
-      if (errorCode(cause) === 'ADMISSIONS_STAFF_REQUIRED') {
+      const kind = campusErrorKind(cause);
+      if (errorCode(cause) === 'ADMISSIONS_STAFF_REQUIRED'
+        || kind === 'forbidden' || kind === 'unauthorized') {
         setForbidden(true);
       } else {
         setError(friendlyError(copy, cause));
@@ -158,13 +162,21 @@ export function AdmissionsReviewPage() {
 
       {forbidden ? (
         <div className="mt-8" data-testid="admissions-forbidden">
-          <ErrorState title={copy.staffRequired} description="" />
+          <ForbiddenState
+            title={copy.staffRequired}
+            description=""
+            action={(
+              <LinkButton href="/dashboard" variant="outline">
+                {messages.common.actions.openDashboard}
+              </LinkButton>
+            )}
+          />
         </div>
       ) : null}
-      {error ? <div className="mt-4"><ErrorState title={copy.failed} description={error} /></div> : null}
+      {error ? <div className="mt-4"><ErrorState title={copy.failed} description={error} onRetry={() => void loadQueue()} /></div> : null}
       {isLoading && !forbidden ? <div className="mt-8"><LoadingState label={copy.loading} /></div> : null}
 
-      {!isLoading && !forbidden && (
+      {!isLoading && !forbidden && !error && (
         <div className="mt-8 grid gap-6 lg:grid-cols-[380px_1fr]">
           <section className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">

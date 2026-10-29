@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Calendar, Camera, Eye, EyeOff, KeyRound, Mail, MapPin, Phone, Save, ShieldCheck, ShieldOff, User } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { authApi } from '@/lib/api';
@@ -213,30 +213,39 @@ export default function ProfilePage() {
   };
 
   // Two-factor status belongs to the signed-in account, so reload it when the
-  // user context resolves (or changes) rather than once per mount.
+  // user context resolves (or changes) rather than once per mount. The loader
+  // is a useCallback so the inline retry control can refetch the same read.
+  const loadTwoFactorStatus = useCallback(
+    (active?: () => boolean) => {
+      if (!user?.id) {
+        return;
+      }
+      const isCurrent = active ?? (() => true);
+      authApi
+        .getTwoFactorStatus()
+        .then((status) => {
+          if (isCurrent()) {
+            setTwoFactorEnabled(Boolean(status.enabled));
+            setTwoFactorStatusError('');
+          }
+        })
+        .catch(() => {
+          if (isCurrent()) {
+            setTwoFactorEnabled(null);
+            setTwoFactorStatusError(messages.profile.twoFactor.errors.statusFailed);
+          }
+        });
+    },
+    [user?.id, messages.profile.twoFactor.errors.statusFailed],
+  );
+
   useEffect(() => {
-    if (!user?.id) {
-      return;
-    }
     let active = true;
-    authApi
-      .getTwoFactorStatus()
-      .then((status) => {
-        if (active) {
-          setTwoFactorEnabled(Boolean(status.enabled));
-          setTwoFactorStatusError('');
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setTwoFactorEnabled(null);
-          setTwoFactorStatusError(messages.profile.twoFactor.errors.statusFailed);
-        }
-      });
+    loadTwoFactorStatus(() => active);
     return () => {
       active = false;
     };
-  }, [user?.id, messages.profile.twoFactor.errors.statusFailed]);
+  }, [loadTwoFactorStatus]);
 
   // Business codes from the two-factor endpoints take priority over the
   // generic HTTP-kind copy so the message names the actual failure.
@@ -782,7 +791,14 @@ export default function ProfilePage() {
 
             {twoFactorStatusError ? (
               <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
-                {twoFactorStatusError}
+                {twoFactorStatusError}{' '}
+                <button
+                  type="button"
+                  onClick={() => loadTwoFactorStatus()}
+                  className="font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {messages.common.actions.retry}
+                </button>
               </p>
             ) : null}
 

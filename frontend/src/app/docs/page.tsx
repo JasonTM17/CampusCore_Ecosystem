@@ -9,6 +9,7 @@ import { SectionEyebrow } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { HomeNewsBentoSkeleton } from '@/components/ui/skeleton';
+import { ErrorState } from '@/components/ui/state-block';
 import { useI18n } from '@/i18n';
 import { useApiQuery } from '@/lib/query';
 import { formatRelativeTime } from '@/lib/announcement-presentation';
@@ -61,9 +62,11 @@ export default function DocsPage() {
       {query.isLoading ? (
         <HomeNewsBentoSkeleton />
       ) : query.isError ? (
-        <p role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 p-6 text-sm text-destructive">
-          {copy.loadError}
-        </p>
+        <ErrorState
+          title={copy.loadErrorTitle}
+          description={copy.loadError}
+          onRetry={() => void query.refetch()}
+        />
       ) : items.length === 0 ? (
         <p className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
           {copy.empty}

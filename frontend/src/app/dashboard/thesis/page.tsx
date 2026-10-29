@@ -167,6 +167,9 @@ export default function ThesisPage() {
   // a failed fetch instead of silently rendering as empty.
   const [secondaryDataError, setSecondaryDataError] = useState(false);
   const [actionSuccess, setActionSuccess] = useState('');
+  // Bumping this token re-runs the workspace data effect, giving the mid-page
+  // load-error state a retry that actually refetches topics/groups/councils.
+  const [workspaceRetryToken, setWorkspaceRetryToken] = useState(0);
 
   // Propose topic state
   const [isProposeModalOpen, setIsProposeModalOpen] = useState(false);
@@ -841,7 +844,7 @@ export default function ThesisPage() {
       topicRequestRef.current += 1;
       councilRequestRef.current += 1;
     };
-  }, [canLoadStaffRelations, isStudent, loadCouncilDetails, messages.thesis.loadFailed, refreshTopics, selectedRoundId]);
+  }, [canLoadStaffRelations, isStudent, loadCouncilDetails, messages.thesis.loadFailed, refreshTopics, selectedRoundId, workspaceRetryToken]);
 
   // Retry path for a failed council listing: the defense tab gets the real
   // failure with a way back, instead of a council workspace that silently
@@ -2561,7 +2564,14 @@ export default function ThesisPage() {
 
           <ThesisRegulationGuide />
 
-          {error ? <ErrorState title={messages.thesis.loadFailed} description={error} /> : null}
+          {error ? (
+            <ErrorState
+              title={messages.thesis.loadFailed}
+              description={error}
+              retryLabel={messages.thesis.retry}
+              onRetry={() => setWorkspaceRetryToken((token) => token + 1)}
+            />
+          ) : null}
           {workloadError ? (
             <div
               role="status"

@@ -13,6 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
+import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
+import { campusErrorKind } from '@/lib/campus-error';
 import { statusToneClass, type StatusTone } from '@/components/ui/status';
 import { libraryMessages } from '@/i18n/library-messages';
 import { useI18n } from '@/i18n';
@@ -62,10 +64,13 @@ export function LibraryCataloguePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState('');
+  // A 401/403 on the catalogue read is a denial, not an outage.
+  const [denied, setDenied] = useState(false);
 
   const load = useCallback(async (search?: string) => {
     setIsLoading(true);
     setError('');
+    setDenied(false);
     try {
       const [rows, mine] = await Promise.all([
         libraryApi.catalogue(search),
@@ -74,7 +79,12 @@ export function LibraryCataloguePage() {
       setTitles(rows);
       setLoans(mine);
     } catch (cause) {
-      setError(friendlyError(copy, cause));
+      const kind = campusErrorKind(cause);
+      if (kind === 'forbidden' || kind === 'unauthorized') {
+        setDenied(true);
+      } else {
+        setError(friendlyError(copy, cause));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -128,7 +138,8 @@ export function LibraryCataloguePage() {
         {copy.simulatedBanner}
       </p>
 
-      {error ? <ErrorState title={copy.failed} description={error} /> : null}
+      {error ? <ErrorState title={copy.failed} description={error} onRetry={() => void load(query || undefined)} /> : null}
+      {denied ? <WorkspaceForbiddenState /> : null}
 
       <div className="flex gap-2">
         <Input
@@ -145,11 +156,11 @@ export function LibraryCataloguePage() {
 
       {isLoading ? <LoadingState /> : null}
 
-      {!isLoading && titles.length === 0 ? (
+      {!isLoading && !error && !denied && titles.length === 0 ? (
         <EmptyState title={copy.emptyCatalogue} description="" />
       ) : null}
 
-      {!isLoading && titles.length > 0 ? (
+      {!isLoading && !error && !denied && titles.length > 0 ? (
         <section className="space-y-4" data-testid="library-catalogue">
           {titles.map((title) => (
             <article key={title.id} className="rounded-lg border p-4" data-testid={`library-title-${title.id}`}>

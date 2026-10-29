@@ -6,6 +6,8 @@ import { ContentBackLink, PublicChrome } from '@/components/content/PublicChrome
 import { SectionEyebrow } from '@/components/ui/page-header';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { HomeNewsBentoSkeleton } from '@/components/ui/skeleton';
+import { ErrorState } from '@/components/ui/state-block';
+import { campusErrorKind } from '@/lib/campus-error';
 import { useI18n } from '@/i18n';
 import { useApiQuery } from '@/lib/query';
 import { sanitizeAnnouncementHtml } from '@/lib/html-sanitizer';
@@ -40,7 +42,18 @@ export default function DocDetailPage() {
       <ContentBackLink href="/docs" label={copy.backToList} />
       {query.isLoading ? (
         <HomeNewsBentoSkeleton />
-      ) : query.isError || !doc ? (
+      ) : query.isError && campusErrorKind(query.error) === 'notFound' ? (
+        <div className="mt-8 rounded-xl border border-border bg-card p-10 text-center">
+          <h1 className="text-2xl font-bold text-foreground">{copy.notFoundTitle}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{copy.notFoundBody}</p>
+        </div>
+      ) : query.isError ? (
+        <ErrorState
+          title={copy.loadErrorTitle}
+          description={copy.loadError}
+          onRetry={() => void query.refetch()}
+        />
+      ) : !doc ? (
         <div className="mt-8 rounded-xl border border-border bg-card p-10 text-center">
           <h1 className="text-2xl font-bold text-foreground">{copy.notFoundTitle}</h1>
           <p className="mt-2 text-sm text-muted-foreground">{copy.notFoundBody}</p>
