@@ -401,14 +401,17 @@ export default function AdminDepartmentsPage() {
               </div>
             </div>
             <div className="relative h-48 lg:h-full lg:col-span-4 overflow-hidden border-t lg:border-t-0 lg:border-l border-border/60 min-h-[160px]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/images/banners/department_research_lab.jpg"
-                alt="HCMUTE IT Department Research Lab"
-                width={1376}
-                height={768}
-                className="h-full w-full object-cover object-center transition duration-500 hover:scale-105"
-              />
+              <picture className="absolute inset-0 block">
+                <source srcSet="/images/banners/department_research_lab.webp" type="image/webp" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/images/banners/department_research_lab.jpg"
+                  alt="HCMUTE IT Department Research Lab"
+                  width={1376}
+                  height={768}
+                  className="h-full w-full object-cover object-center transition duration-500 hover:scale-105"
+                />
+              </picture>
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent lg:hidden" />
               <div className="absolute bottom-2 left-3 rounded-md bg-background/80 px-2 py-0.5 text-[11px] font-semibold text-foreground backdrop-blur-xs">
                 Smart Systems & Robotics Lab

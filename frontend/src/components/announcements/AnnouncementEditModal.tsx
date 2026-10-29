@@ -156,8 +156,8 @@ export function AnnouncementEditModal({
     content.match(/src=["'](\/images\/(?:banners|news)\/[^"']+)["']/i)?.[1] ||
     null;
 
-  const handleApplyBanner = (bannerUrl: string, bannerTitle: string) => {
-    const figureMarkup = `<figure class="my-3 text-center">\n  <img src="${bannerUrl}" alt="${bannerTitle}" class="w-full rounded-lg object-cover max-h-72 shadow-xs" />\n  <figcaption class="mt-1.5 text-xs text-muted-foreground italic">${bannerTitle}</figcaption>\n</figure>\n\n`;
+  const handleApplyBanner = (banner: (typeof EDIT_BANNER_PRESETS)[number], bannerTitle: string) => {
+    const figureMarkup = `<figure class="my-3 text-center">\n  <img src="${banner.url}" alt="${bannerTitle}" width="${banner.width}" height="${banner.height}" class="w-full rounded-lg object-cover max-h-72 shadow-xs" />\n  <figcaption class="mt-1.5 text-xs text-muted-foreground italic">${bannerTitle}</figcaption>\n</figure>\n\n`;
 
     if (activeCoverUrl) {
       // Splice only the block carrying the active cover URL; the old spanning
@@ -392,7 +392,7 @@ export function AnnouncementEditModal({
                 <button
                   key={banner.id}
                   type="button"
-                  onClick={() => handleApplyBanner(banner.url, bannerTitle)}
+                  onClick={() => handleApplyBanner(banner, bannerTitle)}
                   className={cn(
                     'group relative flex flex-col overflow-hidden rounded-lg border text-left transition-all duration-150',
                     isSelected
@@ -401,14 +401,20 @@ export function AnnouncementEditModal({
                   )}
                 >
                   <div className="relative h-16 w-full overflow-hidden bg-muted">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={banner.url}
-                      alt={bannerTitle}
-                      width={banner.width}
-                      height={banner.height}
-                      className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-105"
-                    />
+                    <picture className="absolute inset-0 block h-full w-full">
+                      <source
+                        srcSet={banner.url.replace(/\.jpg$/i, '.webp')}
+                        type="image/webp"
+                      />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={banner.url}
+                        alt={bannerTitle}
+                        width={banner.width}
+                        height={banner.height}
+                        className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-105"
+                      />
+                    </picture>
                     {isSelected ? (
                       <div className="absolute right-1.5 top-1.5 rounded-full bg-primary p-0.5 text-primary-foreground shadow-xs">
                         <Check className="h-3 w-3" />
