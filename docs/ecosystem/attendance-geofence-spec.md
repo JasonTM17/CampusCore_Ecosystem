@@ -112,4 +112,5 @@ Waves: G1 -> G2 -> (G3, G5 in parallel, different trees) -> G4 -> G6 -> G7 -> G8
 - Code step 30 s, accepted current+previous; session default 15 min, max 60.
 - Coordinates kept 30 days. Owner decision: confirm the retention period with the school's data-protection officer.
 - Mock-location and shared-device signals send the check-in to lecturer review instead of rejecting. Owner decision (2026-10-29): keep manual review, do not reject outright.
+- Residual risk: coordinates travel over plain HTTPS JSON, so a determined attacker can fabricate a fix. Exploiting that still requires a valid student account, active enrolment in the section, the in-room rotating code, and a forged request body. Mitigations present: the rotating code is only visible in the room, per-student/per-session rate limits, shared-device and impossible-speed signals, lecturer review of every flagged check-in, and full audit of attempts and reviews. Device attestation (Play Integrity / App Attest) is Phase 2 and is intentionally not part of this release.
 - Phase 2: Play Integrity attestation (needs a Google Cloud project and Play console, BLOCKED_HUMAN).

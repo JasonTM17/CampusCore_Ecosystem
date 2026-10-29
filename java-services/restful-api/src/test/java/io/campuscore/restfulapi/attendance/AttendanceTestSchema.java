@@ -18,6 +18,19 @@ final class AttendanceTestSchema {
                 UNIQUE ("studentId","sectionId","date"))
                 """);
         if(postgres) {
+            // Production parity (V8): real Attendance->Student/Section FKs so FK
+            // checks contend on row locks exactly like production. The H2 mirror
+            // intentionally omits them; PostgreSQL is the constraint authority.
+            for(String[] fk:new String[][]{
+                    {"attendance_it_student_fk","studentId","Student"},
+                    {"attendance_it_section_fk","sectionId","Section"}})
+                jdbc.execute("""
+                        DO $$ BEGIN
+                            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='%s') THEN
+                                ALTER TABLE academic."Attendance"
+                                    ADD CONSTRAINT %s FOREIGN KEY ("%s") REFERENCES academic."%s" ("id") ON DELETE CASCADE;
+                            END IF;
+                        END $$""".formatted(fk[0],fk[0],fk[1],fk[2]));
             // Real Flyway discovery/validation from a simulated V143 baseline.
             // Earlier catalog migrations are outside this narrow authority fixture.
             org.flywaydb.core.Flyway.configure().dataSource(jdbc.getDataSource()).schemas("academic")

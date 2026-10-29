@@ -47,14 +47,16 @@ public class AcademicAttendanceWriteService {
         }
 
         boolean isAdmin = roles != null && (roles.contains("ADMIN") || roles.contains("SUPER_ADMIN"));
-        if (!isAdmin) {
-            if (lecturerId == null || lecturerId.isBlank() || !repository.isSectionOwnedByLecturer(normalizedSectionId, lecturerId)) {
-                throw new DomainException(HttpStatus.FORBIDDEN, "SECTION_FORBIDDEN", "Section is not assigned to the current lecturer");
-            }
-        }
+        requireSectionOwnership(normalizedSectionId, lecturerId, isAdmin);
 
         Instant normalizedDate = parseAndNormalizeDate(request.date());
+        // Global lock order Student -> Section (shared with registration): the
+        // attendance rows' real Student FK checks would otherwise contend on
+        // registration's Student locks while this transaction holds Section.
+        repository.lockStudentsForAttendance(stableStudentOrder(request.records()));
         repository.lockSectionForAttendance(normalizedSectionId);
+        // Re-verify ownership under the section lock: it may have been reassigned while waiting.
+        requireSectionOwnership(normalizedSectionId, lecturerId, isAdmin);
         Instant maxAllowedDate = AttendanceDay.parse(Instant.now().toString());
         if (normalizedDate.isAfter(maxAllowedDate)) {
             throw new DomainException(HttpStatus.BAD_REQUEST, "INVALID_ATTENDANCE_DATE", "Attendance date cannot be in the future");
@@ -124,6 +126,20 @@ public class AcademicAttendanceWriteService {
                 insertRows.isEmpty()
                         ? "Attendance records cleared for " + targetStudentIds.size() + " students"
                         : "Attendance recorded successfully for " + insertRows.size() + " students");
+    }
+
+    private void requireSectionOwnership(String sectionId, String lecturerId, boolean isAdmin) {
+        if (!isAdmin && (lecturerId == null || lecturerId.isBlank()
+                || !repository.isSectionOwnedByLecturer(sectionId, lecturerId))) {
+            throw new DomainException(HttpStatus.FORBIDDEN, "SECTION_FORBIDDEN", "Section is not assigned to the current lecturer");
+        }
+    }
+
+    private static List<String> stableStudentOrder(List<StudentAttendanceEntry> records) {
+        if (records == null) return List.of();
+        return records.stream().map(StudentAttendanceEntry::studentId)
+                .filter(id -> id != null && !id.isBlank()).map(String::trim)
+                .distinct().sorted().toList();
     }
 
     /**
