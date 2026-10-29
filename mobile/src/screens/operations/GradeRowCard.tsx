@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { View } from 'react-native';
 
 import { Card, Field, StatusPill, UiText } from '../../components/Ui';
+import { Avatar } from '../../components/ui/avatar';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillCopy } from '../../i18n/academic-messages';
 import type { OperationsCopy } from '../../i18n/operations-messages';
@@ -36,21 +37,11 @@ function Row({ row, edit, problems, copy, onEdit, disabled = false }: GradeRowCa
     ? copy.noGradeYet
     : `${formatNumber(total, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · ${calculateGrade(total)}`;
 
-  const initials = (name ?? '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(-2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('') || '?';
-
   return (
     <Card style={styles.gradeRow}>
       <View style={styles.rowBetween}>
         <View style={styles.directoryRow}>
-          <View style={styles.avatar}>
-            <UiText style={styles.avatarText}>{initials}</UiText>
-          </View>
+          <Avatar decorative name={name} size="sm" />
           <View style={styles.rowCopy}>
             <UiText variant="label">{name}</UiText>
             {row.studentCode ? <UiText variant="bodySmall" tone="muted">{row.studentCode}</UiText> : null}

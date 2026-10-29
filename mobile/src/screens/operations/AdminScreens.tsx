@@ -18,6 +18,7 @@ import {
   StatusPill,
   UiText,
 } from '../../components/Ui';
+import { Avatar } from '../../components/ui/avatar';
 import { SearchBar } from '../../components/ui/primitives';
 import type { MobileScreenProps } from '../../navigation/types';
 import { LaneEntries } from '../lanes/LaneEntries';
@@ -169,15 +170,6 @@ const SAMPLE_LECTURERS: LecturerDirectoryItem[] = [
   },
 ];
 
-const initialsOf = (fullName: string): string =>
-  fullName
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(-2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('') || '?';
-
 export function AdminDashboardScreen({ navigation }: MobileScreenProps) {
   const styles = useOpsStyles();
   const { copy } = useOpsCopy();
@@ -251,9 +243,7 @@ export function AdminStudentsScreen() {
               onPress={() => setSelectedStudent(student)}
               style={styles.directoryRow}
             >
-              <View style={styles.avatar}>
-                <UiText style={styles.avatarText}>{initialsOf(student.name)}</UiText>
-              </View>
+              <Avatar decorative name={student.name} size="sm" />
               <View style={styles.directoryCopy}>
                 <View style={styles.directoryTop}>
                   <UiText variant="label">{student.name}</UiText>
@@ -416,9 +406,7 @@ export function AdminLecturersScreen() {
               onPress={() => setSelectedLecturer(lecturer)}
               style={styles.directoryRow}
             >
-              <View style={styles.avatar}>
-                <UiText style={styles.avatarText}>{initialsOf(lecturer.name)}</UiText>
-              </View>
+              <Avatar decorative name={lecturer.name} size="sm" />
               <View style={styles.directoryCopy}>
                 <View style={styles.directoryTop}>
                   <UiText variant="label">{`${lecturer.title} ${lecturer.name}`}</UiText>
