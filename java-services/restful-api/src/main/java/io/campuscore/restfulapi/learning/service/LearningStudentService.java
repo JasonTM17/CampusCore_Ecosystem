@@ -207,23 +207,24 @@ public class LearningStudentService {
         Map<String, Object> submission = lockSubmissionFor(studentId, assignmentId);
         if (submission == null) {
             String id = "sub-" + UUID.randomUUID();
+            // Two requests can race the first (assignment, student) draft
+            // under different retry keys. ON CONFLICT DO NOTHING keeps the
+            // loser's transaction valid on PostgreSQL, where a plain unique
+            // violation would abort it and poison the re-read below.
+            String insert = "INSERT INTO " + SUBMISSION
+                    + " (\"id\", \"assignmentId\", \"studentId\", \"status\")"
+                    + " VALUES (:id, :assignmentId, :studentId, 'DRAFT')"
+                    + (postgres ? " ON CONFLICT (\"assignmentId\", \"studentId\") DO NOTHING" : "");
+            MapSqlParameterSource insertParameters = new MapSqlParameterSource("id", id)
+                    .addValue("assignmentId", assignmentId)
+                    .addValue("studentId", studentId);
             try {
-                jdbc.update("INSERT INTO " + SUBMISSION
-                                + " (\"id\", \"assignmentId\", \"studentId\", \"status\")"
-                                + " VALUES (:id, :assignmentId, :studentId, 'DRAFT')",
-                        new MapSqlParameterSource("id", id)
-                                .addValue("assignmentId", assignmentId)
-                                .addValue("studentId", studentId));
+                jdbc.update(insert, insertParameters);
             } catch (org.springframework.dao.DuplicateKeyException duplicate) {
-                // Raced first-write: the unique (assignment, student) row now
-                // exists — re-read and return it as a clean replay.
-                submission = lockSubmissionFor(studentId, assignmentId);
+                // Only the non-PostgreSQL mirror raises here; the re-read below
+                // returns the row the racing request created.
             }
-            if (submission == null) {
-                submission = jdbc.queryForMap("SELECT * FROM " + SUBMISSION
-                                + " WHERE \"id\" = :id",
-                        new MapSqlParameterSource("id", id));
-            }
+            submission = lockSubmissionFor(studentId, assignmentId);
             staff.audit(assignmentId, (String) submission.get("id"), studentId,
                     "DRAFT_OPENED", null);
         }
