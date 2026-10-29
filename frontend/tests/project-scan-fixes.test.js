@@ -484,7 +484,7 @@ test('dogfood audit: profile form is gated on the loaded user and keeps local da
   assert.match(page, /profileFormState\(user\)/);
   assert.match(page, /if \(!user\) \{/);
   assert.doesNotMatch(page, /toISOString\(\)\.split\('T'\)\[0\]/);
-  assert.match(page, /function localDateInput/);
+  assert.match(page, /civilDateInputValue\(user\?\.dateOfBirth\)/);
 });
 
 test('dogfood audit: weekly timetable grid maps Sunday dayOfWeek 0 to day 1 and lecturer agenda covers full week', () => {
