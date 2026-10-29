@@ -1,13 +1,13 @@
 import { useContext, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image, ScrollView, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
-import { Button, Card, ScreenShell, UiText } from '../../components/Ui';
+import { Button, Card, UiText } from '../../components/Ui';
 import { apiClient } from '../../api/client';
 import { signInWithOidc } from '../../auth/oidc-session';
 import { sessionStore } from '../../auth/mobile-session-store';
 import { tokens } from '../../design/tokens';
+import { chromeFor } from '../../design/chrome';
 import { useThemedStyles, useTheme } from '../../design/theme';
 import type { ThemeColors } from '../../design/theme';
 import { accountMessages } from '../../i18n/account-messages';
@@ -21,7 +21,6 @@ const copyByLocale = {
   en: {
     eyebrow: 'CampusCore mobile',
     title: 'Welcome back',
-    subtitle: 'Sign in with your university account.',
     portal: 'Academic information portal',
     heading: 'Sign in',
     preview: 'Preview build — explore with a local pseudo-session.',
@@ -33,7 +32,6 @@ const copyByLocale = {
   vi: {
     eyebrow: 'CampusCore mobile',
     title: 'Chào mừng trở lại',
-    subtitle: 'Đăng nhập bằng tài khoản trường.',
     portal: 'Cổng thông tin đào tạo',
     heading: 'Đăng nhập',
     preview: 'Bản xem thử — khám phá bằng phiên cục bộ.',
@@ -44,6 +42,9 @@ const copyByLocale = {
   },
 } as const;
 
+/** How far the form card rides up over the navy hero band. */
+const HERO_OVERLAP = tokens.spacing.lg + tokens.spacing.xs;
+
 /**
  * OIDC sign-in (mobile-policy §3): the system browser owns credentials —
  * this screen never sees a credential. Preview mode keeps the local
@@ -51,7 +52,8 @@ const copyByLocale = {
  */
 export function SignInScreen({ navigation }: MobileScreenProps) {
   const styles = useThemedStyles(makeStyles);
-  const { colors } = useTheme();
+  const { scheme, window } = useTheme();
+  const chrome = chromeFor(scheme);
   const session = useSession();
   const { locale } = useLocale();
   const copy = copyByLocale[locale];
@@ -59,6 +61,7 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isPreview = apiClient.mode === 'preview';
+  const stackGuests = window.fontScale >= 1.3;
 
   const handleSignIn = async () => {
     setError(null);
@@ -84,57 +87,64 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
   };
 
   return (
-    <ScreenShell
-      eyebrow={copy.eyebrow}
-      title={copy.title}
-      subtitle={copy.subtitle}
-      contentStyle={[styles.content, { paddingTop: tokens.spacing.sm + (insets?.top ?? 0) }]}
-    >
-      <View style={styles.brandRow}>
-        <View style={styles.brandMark}>
-          <MaterialCommunityIcons color={colors.text} name="school-outline" size={22} />
-        </View>
-        <View style={styles.brandCopy}>
-          <UiText variant="headlineSmall">CampusCore</UiText>
-          <UiText variant="bodySmall" tone="muted">{copy.portal}</UiText>
-        </View>
-      </View>
-
-      <Card style={styles.formCard}>
-        <UiText variant="headlineSmall">{copy.heading}</UiText>
-        <UiText variant="bodySmall" tone="muted" style={styles.formIntro}>
-          {isPreview ? copy.preview : copy.live}
-        </UiText>
-        {isPreview ? (
-          <Button label={copy.explore} onPress={() => navigation.enterPreview()} style={styles.submit} />
-        ) : (
-          <Button
-            label={copy.signIn}
-            loading={isSubmitting}
-            onPress={handleSignIn}
-            style={styles.submit}
-          />
-        )}
-        {isPreview ? null : (
-          <Button
-            label={accountMessages[locale].forgot.title}
-            onPress={() => navigation.navigate(accountScreen('forgotPassword'))}
-            variant="text"
-          />
-        )}
-        {error ? (
-          <View accessibilityLiveRegion="assertive" accessibilityRole="alert" style={styles.errorPanel}>
-            <UiText variant="bodySmall" tone="error">
-              {error}
-            </UiText>
+    <View style={styles.screen}>
+      <StatusBar barStyle="light-content" backgroundColor={chrome.surface} />
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: tokens.spacing.xl + (insets?.bottom ?? 0) }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.hero, { backgroundColor: chrome.surface, paddingTop: (insets?.top ?? 0) + tokens.spacing.lg }]}>
+          <View style={styles.brandRow}>
+            <Image accessibilityLabel="HCMUTE" accessibilityRole="image" source={require('../../../assets/hcmute-logo.png')} resizeMode="contain" style={styles.brandMark} />
+            <View style={styles.brandCopy}>
+              <UiText variant="headlineMedium" style={{ color: chrome.onSurface }}>CampusCore</UiText>
+              <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>{copy.portal}</UiText>
+            </View>
           </View>
-        ) : null}
-      </Card>
-      <View style={styles.guestRow}>
-        <Button label={shellMessages[locale].screens.news} onPress={() => navigation.navigate('news')} variant="text" />
-        <Button label={shellMessages[locale].screens.docs} onPress={() => navigation.navigate('docs')} variant="text" />
-      </View>
-    </ScreenShell>
+          <UiText variant="headlineMedium" style={[styles.heroTitle, { color: chrome.onSurface }]}>{copy.title}</UiText>
+        </View>
+        <View style={styles.body}>
+          <Card style={styles.formCard}>
+            <UiText accessibilityRole="header" variant="headlineLarge">{copy.heading}</UiText>
+            <UiText variant="bodySmall" tone="muted" style={styles.formIntro}>
+              {isPreview ? copy.preview : copy.live}
+            </UiText>
+            {isPreview ? (
+              <Button icon="arrow-right" label={copy.explore} onPress={() => navigation.enterPreview()} style={styles.submit} />
+            ) : (
+              <Button
+                label={copy.signIn}
+                icon="login"
+                loading={isSubmitting}
+                onPress={handleSignIn}
+                style={styles.submit}
+              />
+            )}
+            {isPreview ? null : (
+              <Button
+                label={accountMessages[locale].forgot.title}
+                onPress={() => navigation.navigate(accountScreen('forgotPassword'))}
+                variant="text"
+              />
+            )}
+            {error ? (
+              <View accessibilityLiveRegion="assertive" accessibilityRole="alert" style={styles.errorPanel}>
+                <UiText variant="bodySmall" tone="error">
+                  {error}
+                </UiText>
+              </View>
+            ) : null}
+          </Card>
+          <View style={stackGuests ? styles.guestColumn : styles.guestRow}>
+            <Button icon="newspaper-variant-outline" label={shellMessages[locale].screens.news} onPress={() => navigation.navigate('news')} variant="secondary" style={stackGuests ? undefined : styles.guestButton} />
+            <Button icon="file-document-outline" label={shellMessages[locale].screens.docs} onPress={() => navigation.navigate('docs')} variant="secondary" style={stackGuests ? undefined : styles.guestButton} />
+          </View>
+          <View style={styles.footerFlex} />
+          <UiText variant="meta" tone="muted" style={styles.footer}>{copy.eyebrow}</UiText>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -145,13 +155,21 @@ function sessionStoreIssuer(): string {
 }
 
 const makeStyles = (colors: ThemeColors) => StyleSheet.create({
-  content: { paddingTop: tokens.spacing.sm },
-  brandRow: { alignItems: 'center', borderBottomColor: colors.outlineVariant, borderBottomWidth: 1, flexDirection: 'row', marginBottom: tokens.spacing.lg, paddingBottom: tokens.spacing.md },
-  brandMark: { alignItems: 'center', backgroundColor: colors.accent, borderRadius: tokens.radii.control, height: 44, justifyContent: 'center', width: 44 },
-  brandCopy: { flex: 1, marginLeft: tokens.spacing.sm },
-  formCard: { padding: tokens.spacing.lg },
-  formIntro: { marginBottom: tokens.spacing.lg, marginTop: tokens.spacing.xs },
-  guestRow: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, marginTop: tokens.spacing.md },
+  screen: { flex: 1, backgroundColor: colors.background },
+  content: { flexGrow: 1 },
+  hero: { paddingBottom: HERO_OVERLAP + tokens.spacing.lg, paddingHorizontal: tokens.spacing.lg },
+  brandRow: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.md },
+  brandMark: { backgroundColor: tokens.colors.card, borderRadius: tokens.radii.control, height: 56, width: 56 },
+  brandCopy: { flex: 1, minWidth: 0, gap: tokens.spacing.xs },
+  heroTitle: { marginTop: tokens.spacing.lg },
+  body: { alignSelf: 'center', flex: 1, maxWidth: tokens.windowClasses.contentMaxWidth.medium, paddingHorizontal: tokens.layout.mobileGutter, width: '100%' },
+  formCard: { marginTop: -HERO_OVERLAP, padding: tokens.spacing.lg },
+  formIntro: { marginBottom: tokens.spacing.md, marginTop: tokens.spacing.xs },
+  guestRow: { flexDirection: 'row', gap: tokens.spacing.sm, marginTop: tokens.spacing.md },
+  guestColumn: { gap: tokens.spacing.sm, marginTop: tokens.spacing.md },
+  guestButton: { flex: 1 },
+  footerFlex: { flex: 1, minHeight: tokens.spacing.lg },
+  footer: { marginTop: tokens.spacing.md, textAlign: 'center' },
   submit: { marginTop: tokens.spacing.sm },
-  errorPanel: { backgroundColor: colors.errorFixed, borderColor: colors.error, borderLeftColor: colors.error, borderLeftWidth: 3, borderRadius: tokens.radii.control, borderWidth: 1, marginTop: tokens.spacing.md, padding: tokens.spacing.sm },
+  errorPanel: { backgroundColor: colors.errorFixed, borderColor: colors.error, borderRadius: tokens.radii.control, borderWidth: 1, marginTop: tokens.spacing.md, padding: tokens.spacing.sm },
 });

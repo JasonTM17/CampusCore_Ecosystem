@@ -60,6 +60,12 @@ function tonesFor(colors: ThemeColors) {
 
 export function UiText({ variant = 'bodyMedium', tone = 'default', style, ...props }: UiTextProps) {
   const { colors, typography } = useTheme();
+  // Expo loads each weight as a named face. Android must not synthesize bold
+  // from the regular face; selecting the actual font also preserves diacritics.
+  const weight = String(StyleSheet.flatten(style)?.fontWeight ?? textStyles[variant].fontWeight ?? '400');
+  const face = Number(weight) >= 700 || weight === 'bold' ? 'BeVietnamPro_700Bold'
+    : Number(weight) >= 600 ? 'BeVietnamPro_600SemiBold'
+      : Number(weight) >= 500 ? 'BeVietnamPro_500Medium' : 'BeVietnamPro_400Regular';
   const capped =
     props.maxFontSizeMultiplier !== undefined
       ? props.maxFontSizeMultiplier
@@ -68,7 +74,7 @@ export function UiText({ variant = 'bodyMedium', tone = 'default', style, ...pro
     <Text
       {...props}
       maxFontSizeMultiplier={capped}
-      style={[textStyles[variant], tonesFor(colors)[tone], style]}
+      style={[textStyles[variant], tonesFor(colors)[tone], style, { fontFamily: face, fontWeight: 'normal' }]}
     />
   );
 }
