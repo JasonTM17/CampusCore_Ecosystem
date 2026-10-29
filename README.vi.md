@@ -4,7 +4,7 @@
 > Kiến trúc hướng dịch vụ: một Spring Boot Java REST API trung tâm, một Next.js Web Portal, một PostgreSQL quản lý bằng Flyway và một RAG Sidecar riêng tư chỉ chạy trong mạng nội bộ.
 
 [![Java 21](https://img.shields.io/badge/Java-21-orange.svg?style=flat-square&logo=openjdk)](https://openjdk.org/)
-[![Spring Boot 3.5](https://img.shields.io/badge/Spring%20Boot-3.5-brightgreen.svg?style=flat-square&logo=springboot)](https://spring.io/projects/spring-boot)
+[![Spring Boot 4.1](https://img.shields.io/badge/Spring%20Boot-4.1-brightgreen.svg?style=flat-square&logo=springboot)](https://spring.io/projects/spring-boot)
 [![Next.js 15](https://img.shields.io/badge/Next.js-15-black.svg?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![PostgreSQL 15](https://img.shields.io/badge/PostgreSQL-15-blue.svg?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Flyway](https://img.shields.io/badge/Flyway-Migrations-red.svg?style=flat-square)](https://flywaydb.org/)
@@ -57,6 +57,8 @@ Expo Mobile App (Thử nghiệm) ──┘         │ (mạng nội bộ /inter
 ```
 
 > Cổng ở sơ đồ trên là **giá trị mặc định của Docker Compose**. Toàn bộ cổng host đều ghi đè được qua biến môi trường trong `.env` (xem [Hướng dẫn cài đặt](#hướng-dẫn-cài-đặt--chạy-ứng-dụng)).
+
+> **Thương hiệu:** bản triển khai công khai mang tên hiển thị **CampusUTE** (`campusute.io.vn`; logo tại `frontend/public/icon.png`); `CampusCore` là tên mã nguồn nội bộ (groupId, image Docker, tên database). App di động Expo trong `mobile/` cũng mang tên `CampusUTE` (`mobile/app.json`).
 
 ---
 
@@ -252,7 +254,7 @@ flowchart TD
     end
 
     subgraph BACKEND["TẦNG DỊCH VỤ JAVA (APPLICATION SERVICES)"]
-        REST["Spring Boot 3.5 REST API\n(:4010 | /api/v1/)\n• Auth & RBAC Security Filter\n• Registration Engine chống race 4 lớp\n• Gradebook & Transcript Service\n• Thesis Lifecycle Manager\n• Assistant Gateway & Quota Guard"]
+        REST["Spring Boot 4.1 REST API\n(:4010 | /api/v1/)\n• Auth & RBAC Security Filter\n• Registration Engine chống race 4 lớp\n• Gradebook & Transcript Service\n• Thesis Lifecycle Manager\n• Assistant Gateway & Quota Guard"]
         RAG["Private rag-service Sidecar\n(:4011 | chỉ expose nội bộ)\n• Prompt-Injection Guard song ngữ\n• Lexical ranking BM25\n• Snapshot runtime reader\n• Thực thi Flyway migration trong cụm compose"]
     end
 
@@ -473,13 +475,14 @@ flowchart LR
 
 | Phân tầng | Công nghệ chính | Phiên bản | Vai trò & Mục đích sử dụng |
 | --- | --- | --- | --- |
-| **Backend API** | Java / Spring Boot | 21 / 3.5.16 | RESTful API trung tâm, Spring Security, Validation, JPA/Hibernate |
-| **Frontend Web** | Next.js (App Router) | 15.5 | Cổng thông tin tương tác, Server Components, proxy cùng nguồn `/api/v1` |
+| **Backend API** | Java / Spring Boot | 21 / 4.1.1 | RESTful API trung tâm, Spring Security, Validation, JPA/Hibernate |
+| **Frontend Web** | Next.js (App Router) / React | 15.5 / 18.3 | Cổng thông tin tương tác, Server Components, proxy cùng nguồn `/api/v1` |
+| **Ứng dụng Mobile** | Expo / React Native | ~57 / 0.86 | App `CampusUTE` (expo-router, SecureStore) — chế độ preview/live qua `EXPO_PUBLIC_API_*` |
 | **Thư viện UI** | Tailwind CSS, Radix UI, TinyMCE | 3.4 / Radix / 8 | Hệ thống thiết kế nhận diện HCMUTE, bảng biểu dữ liệu, soạn thảo rich-text |
 | **Biên dịch & Gói** | Maven / Node.js | 3.9.12 / 20 | Build tool cho Java backend và Node runtime cho frontend |
 | **Cơ sở dữ liệu** | PostgreSQL | 15 (postgres:15-alpine) | Giao dịch ACID, Partial Index, Full-text Search tsvector |
 | **Quản lý Schema** | Flyway | kèm Spring Boot | Versioned migration trong `java-services/restful-api/src/main/resources/db/migration/` |
-| **RAG Sidecar** | Spring Boot (chế độ sidecar) | 3.5.16 | Dịch vụ AI nội bộ cổng 4011, xếp hạng Lexical, Prompt-injection guard |
+| **RAG Sidecar** | Spring Boot (chế độ sidecar) | 4.1.1 | Dịch vụ AI nội bộ cổng 4011, xếp hạng Lexical, Prompt-injection guard |
 | **Mô hình AI** | DeepSeek | deepseek-v4-flash | LLM tùy chọn cho câu hỏi suy luận, tắt được hoàn toàn qua `DEEPSEEK_ENABLED` |
 | **Kiểm thử Email** | Mailpit | v1.21 | SMTP server ảo giả lập gửi nhận email thông báo trên môi trường dev |
 | **Kiểm thử & QA** | JUnit 5, Mockito, node:test, Playwright | Latest | Kiểm thử đơn vị backend, smoke test frontend, e2e Playwright |
@@ -538,6 +541,15 @@ Giá trị dưới đây là **mặc định của `docker-compose.yml`**. Mọi
 - **Mailpit Email Dashboard**: `http://127.0.0.1:8025`
 - **Cơ sở dữ liệu PostgreSQL**: `127.0.0.1:5432` | Database: `campuscore_restful` | User: `campuscore`
 
+### Ứng dụng di động CampusUTE (Expo — thử nghiệm)
+
+Mã nguồn app Expo/React Native nằm trong `mobile/` (expo-router + expo-secure-store). Chạy bằng `npm start` trong `mobile/` (Metro + Expo Go/dev client). Hai chế độ qua biến trong `mobile/.env` (gitignored; mẫu ở `mobile/.env.example`):
+
+- `EXPO_PUBLIC_API_MODE=preview`: nội dung mẫu cục bộ, **không gọi mạng** — mọi request API đều bị chặn (`MOBILE_API_PREVIEW`), dùng để xem giao diện.
+- `EXPO_PUBLIC_API_MODE=live` + `EXPO_PUBLIC_API_URL`: gọi backend thật — emulator Android dùng `http://10.0.2.2:4010/api/v1`, điện thoại thật dùng IP LAN của máy dev; host production `https://www.campusute.io.vn/api/v1` chỉ phục vụ nội dung ẩn danh (đăng nhập cần issuer `id.campusute.io.vn`).
+
+App không bao giờ kết nối database trực tiếp; chi tiết ba môi trường chạy: [docs/ecosystem/mobile-environments.md](docs/ecosystem/mobile-environments.md).
+
 ---
 
 ## Tài khoản demo kiểm thử
@@ -582,6 +594,16 @@ khai công khai, và là giá trị `render.yaml` đặt tường minh.
 
 Nếu không đặt `NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS=true` kèm mật khẩu, nút "Điền nhanh" sẽ **ẩn**.
 Đăng nhập bằng tay vẫn hoạt động bình thường — trang đăng nhập chỉ không quảng cáo thông tin đăng nhập.
+
+### Xác thực hai yếu tố (2FA) qua email OTP
+
+Mỗi tài khoản **tự bật** 2FA trong trang *Hồ sơ → Xác thực hai yếu tố*: nhập mật khẩu, nhận mã 6 chữ số
+qua email, xác nhận một lần. Khi 2FA đang bật, bước đăng nhập sẽ dừng sau mật khẩu và yêu cầu mã OTP —
+mã lưu dưới dạng SHA-256, hạn 10 phút, sai 5 lần thì khoá yêu cầu; endpoint xác minh có rate limit riêng.
+**Tắt 2FA cũng đi qua hai bước y như bật**: nhập lại mật khẩu để bắt đầu challenge, rồi nhập mã OTP
+một-lần được gửi qua email để xác nhận — không thể tắt chỉ bằng mật khẩu. Luồng gửi mail phụ thuộc SMTP
+đã cấu hình (`SPRING_MAIL_*`); môi trường chưa cấu hình SMTP sẽ nhận lỗi 502 `MAIL_DELIVERY_FAILED` thay
+vì gửi giả thành công.
 
 ---
 
