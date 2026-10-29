@@ -408,6 +408,8 @@ export default function StudentAnnouncementsPage() {
             <img
               src="/images/banners/campus_academic_banner.jpg"
               alt="HCMUTE Campus Banner"
+              width={1376}
+              height={768}
               className="h-full w-full object-cover object-center"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />

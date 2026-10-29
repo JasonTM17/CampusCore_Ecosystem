@@ -181,6 +181,8 @@ export default function ThesisTopicDetailPage() {
             <img
               src="/images/banners/thesis_defense_hall.jpg"
               alt="HCMUTE Thesis Defense Hall & Faculty Committee"
+              width={1376}
+              height={768}
               className="h-full w-full object-cover object-center transition duration-500 hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent lg:hidden" />

@@ -127,6 +127,8 @@ export function ThesisRegulationGuide() {
                 <img
                   src="/images/banners/thesis_defense_hall.jpg"
                   alt={copy.councilBannerAlt}
+                  width={1376}
+                  height={768}
                   className="h-full w-full object-cover object-center"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />

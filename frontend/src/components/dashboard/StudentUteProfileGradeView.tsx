@@ -246,6 +246,8 @@ export function StudentUteProfileGradeView({
                   <img
                     src={avatarPreview || user?.avatar || ''}
                     alt={studentInfo.name}
+                    width={256}
+                    height={256}
                     className="w-full h-full object-cover"
                   />
                 ) : (
