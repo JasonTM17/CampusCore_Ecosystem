@@ -1,0 +1,236 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AssistantEvaluationReport",
+  "description": "Report schema for offline/live assistant evaluation per AUD-16",
+  "type": "object",
+  "required": [
+    "evaluationId",
+    "corpusVersion",
+    "executedAt",
+    "mode",
+    "thresholds",
+    "summary",
+    "results"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "evaluationId": {
+      "type": "string",
+      "description": "Unique identifier for this evaluation run"
+    },
+    "corpusVersion": {
+      "type": "string",
+      "description": "Semantic or date version of the evaluation corpus"
+    },
+    "executedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 execution timestamp"
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["lexical", "stub", "live"],
+      "description": "Execution evaluation mode: lexical rules, stub mock, or live provider"
+    },
+    "thresholds": {
+      "type": "object",
+      "required": [
+        "minPassRate",
+        "maxLatencyMs",
+        "p95LatencyMs",
+        "minCitationRecall"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "minPassRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Minimum acceptable overall pass rate (0.0 to 1.0)"
+        },
+        "maxLatencyMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Maximum tolerated per-turn latency in milliseconds"
+        },
+        "p95LatencyMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Maximum tolerated 95th-percentile latency in milliseconds"
+        },
+        "minCitationRecall": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Minimum recall threshold for expected citations in grounded cases"
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "total",
+        "passed",
+        "failed",
+        "skipped",
+        "passRate",
+        "p95LatencyMs",
+        "durationMs",
+        "verdict"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total cases evaluated"
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of passed cases"
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of failed cases"
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of skipped cases (e.g. unauthenticated live mode)"
+        },
+        "passRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Proportion of non-skipped cases passed"
+        },
+        "p95LatencyMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "95th percentile latency across cases in ms"
+        },
+        "citationRecall": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Citation recall across grounded cases"
+        },
+        "durationMs": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Total wall-clock duration of the evaluation in milliseconds"
+        },
+        "verdict": {
+          "type": "string",
+          "enum": ["PASS", "FAIL", "NOT_RUN"],
+          "description": "Overall verdict. NOT_RUN indicates live mode was refused due to missing authorization"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Summary rationale or live gate status"
+        }
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "category",
+          "locale",
+          "verdict",
+          "mode",
+          "latencyMs"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Corpus case identifier"
+          },
+          "category": {
+            "type": "string",
+            "description": "Evaluation category"
+          },
+          "locale": {
+            "type": "string",
+            "enum": ["vi", "en"],
+            "description": "Query language"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": ["PASS", "FAIL", "SKIPPED"],
+            "description": "Case evaluation verdict"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["lexical", "stub", "live"],
+            "description": "Execution mode used for this case"
+          },
+          "latencyMs": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Observed or simulated latency in milliseconds"
+          },
+          "tokenCounts": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "properties": {
+              "promptTokens": { "type": "integer", "minimum": 0 },
+              "completionTokens": { "type": "integer", "minimum": 0 },
+              "totalTokens": { "type": "integer", "minimum": 0 }
+            }
+          },
+          "reasonCode": {
+            "type": ["string", "null"],
+            "description": "Returned assistant reasonCode"
+          },
+          "terminalStatus": {
+            "type": ["string", "null"],
+            "description": "Terminal status (ANSWERED, REJECTED, DEGRADED, ERROR)"
+          },
+          "citationsMatched": {
+            "type": ["boolean", "null"],
+            "description": "Whether expected citation oracle constraints were satisfied"
+          },
+          "expectedSourceIds": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Oracle sourceId list from the corpus"
+          },
+          "citationsFound": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Citation sourceIds or slugs returned in the answer"
+          },
+          "factsMatched": {
+            "type": ["boolean", "null"],
+            "description": "Whether all authoritative expected facts were matched"
+          },
+          "missingFacts": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Expected facts missing from the answer"
+          },
+          "forbiddenFound": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Forbidden strings (PII, injection tokens) found in the answer"
+          },
+          "failures": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Human-readable failure details"
+          },
+          "details": {
+            "type": ["object", "null"],
+            "description": "Supplemental debugging metadata or raw responses"
+          }
+        }
+      }
+    }
+  }
+}

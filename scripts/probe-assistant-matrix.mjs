@@ -34,6 +34,49 @@ const PASSWORD = process.env.ASSISTANT_PROBE_PASSWORD;
 const TIMEOUT_MS = Number(flag('timeout-ms', '60000'));
 const JSON_OUT = flag('json', null);
 
+function showHelp() {
+  console.log(`Assistant probe matrix — repeatable contract checks for the chatbot.
+
+Usage:
+  ASSISTANT_PROBE_EMAIL=... ASSISTANT_PROBE_PASSWORD=... node scripts/probe-assistant-matrix.mjs [options]
+
+Options:
+  --base-url <url>      Base API URL (default: http://127.0.0.1:4010; env: ASSISTANT_PROBE_BASE_URL)
+  --json <file>         Write JSON report to specified file path
+  --timeout-ms <ms>     Timeout for each HTTP request in ms (default: 60000)
+  --dry-run             Run offline dry-run evaluation using synthetic corpus (no credentials needed)
+  --eval-corpus <path>  Custom corpus path for evaluation (default: scripts/assistant-eval/corpus.json)
+  --help, -h            Show this help message and exit
+
+Environment Variables:
+  ASSISTANT_PROBE_EMAIL                     Probe account email (required for live probe)
+  ASSISTANT_PROBE_PASSWORD                  Probe account password (required for live probe)
+  ASSISTANT_PROBE_BASE_URL                  Base URL of the running API service
+  CAMPUSCORE_ASSISTANT_LIVE_EVAL_PERMITTED  Explicit authorization gate for live model provider calls (AUD-16)
+`);
+}
+
+if (args.includes('--help') || args.includes('-h')) {
+  showHelp();
+  process.exit(0);
+}
+
+const DRY_RUN = args.includes('--dry-run') || args.includes('--offline');
+if (DRY_RUN) {
+  const { runEvaluation, loadCorpus } = await import('./assistant-eval/runner.mjs');
+  const corpusPath = flag('eval-corpus', null);
+  const corpus = loadCorpus(corpusPath);
+  console.log(`probe matrix [DRY-RUN] → running offline evaluation across ${corpus.cases.length} synthetic cases...`);
+  const report = await runEvaluation({ corpus, mode: 'stub' });
+  console.log(`\nsummary: ${report.summary.passed} pass, ${report.summary.failed} fail, ${report.summary.skipped} skipped → ${report.summary.verdict === 'PASS' ? 'MATRIX GREEN (DRY-RUN)' : 'MATRIX RED'}`);
+  if (JSON_OUT) {
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(JSON_OUT, JSON.stringify(report, null, 2), 'utf8');
+    console.log(`report → ${JSON_OUT}`);
+  }
+  process.exit(report.summary.verdict === 'PASS' ? 0 : 1);
+}
+
 if (!EMAIL || !PASSWORD) {
   console.error('ASSISTANT_PROBE_EMAIL and ASSISTANT_PROBE_PASSWORD are required (never hardcode credentials).');
   process.exit(2);
