@@ -45,6 +45,7 @@ export default R;`,
   'jsx-runtime': `import { createRequire } from 'node:module';
 const J = createRequire(${pkgJson})('react/jsx-runtime');
 export const { jsx, jsxs, Fragment } = J;`,
+  'react-native': `export const AppState = { addEventListener: () => ({ remove() {} }) };`,
   client: `export const apiClient = {
   mode: 'live',
   setOnSessionExpired(callback) { globalThis.__onExpired = callback; },
@@ -91,6 +92,7 @@ function transpileSession(tag, laneModule) {
     map: {
       react: url('stub-react'),
       'react/jsx-runtime': url('stub-jsx-runtime'),
+      'react-native': url('stub-react-native'),
       '../api/client': url('stub-client'),
       '../api/push-notifications': url('stub-push'),
       '../api/expo-push-platform': url('stub-expo-push'),

@@ -159,7 +159,7 @@ test('Stitch mobile references stay traceable and live sign-in runs the OIDC PKC
   assert.match(signIn, /signInWithOidc\(/);
   assert.match(signIn, /sessionStore\.saveRefresh\(outcome\.refreshToken\)/);
   assert.match(signIn, /navigation\.completeSignIn\(outcome\.role, outcome\.accountId\)/);
-  assert.match(signIn, /session\.markBlocked\(outcome\.reason\)/);
+  assert.match(signIn, /outcome\.kind === 'blocked'\) \{\s*setError\(copy\.invalid\)/);
   assert.doesNotMatch(signIn, /campusApi\.login|password|setSessionTokens/);
   assert.doesNotMatch(signIn, /navigation\.navigate\('dashboard\.student'\)/);
   assert.match(readme, /role-specific bottom bar/);
