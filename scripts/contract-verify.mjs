@@ -3,7 +3,7 @@
  * contract-verify.mjs — P03 step 3, `contracts` gate cases.
  *
  * Subcommands:
- *   contract-probes --project <p> --evidence <dir>
+ *   contract-probes --project <p> --evidence <dir> [--compose-overlay <repo-relative.yml>]
  *     Boots the disposable e2e stack (postgres + assistant provisioner + api on
  *     host port 4100), then runs, in order:
  *       1. generate-api-contract --check (byte-equal artifacts, invariants);
@@ -22,22 +22,60 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const COMPOSE = path.join(REPO, "docker-compose.e2e.yml");
 const API_HOST_PORT = 4100;
+const PROJECT_RE = /^campuscore-[a-z0-9-]+$/;
 
-function parseArgs(argv) {
-  const a = { evidence: path.join(REPO, "artifacts/verification/contracts"), project: null, its: null };
-  for (let i = 3; i < argv.length; i++) {
-    if (argv[i] === "--evidence") a.evidence = path.resolve(argv[++i]);
-    else if (argv[i] === "--project") a.project = argv[++i];
-    else if (argv[i] === "--its") a.its = argv[++i];
+function inside(root, target) {
+  const relative = path.relative(root, target);
+  return relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+export function validateComposeOverlay(value, repo = REPO) {
+  if (!value || value.includes("\0") || path.isAbsolute(value) || path.win32.isAbsolute(value)) {
+    throw new Error("--compose-overlay must be a repo-relative YAML file");
   }
+  const file = path.resolve(repo, value);
+  if (!inside(path.resolve(repo), file) || !/\.ya?ml$/i.test(file)) {
+    throw new Error("--compose-overlay must be a YAML file inside the project");
+  }
+  if (!existsSync(file) || !statSync(file).isFile()) {
+    throw new Error("--compose-overlay must name an existing YAML file");
+  }
+  // Resolve links as well as lexical traversal before any Docker invocation.
+  if (!inside(realpathSync(repo), realpathSync(file))) {
+    throw new Error("--compose-overlay resolves outside the project");
+  }
+  return file;
+}
+
+export function parseArgs(argv, repo = REPO) {
+  const sub = argv[2];
+  if (!["contract-probes", "pgit-real"].includes(sub)) {
+    throw new Error("usage: contract-verify.mjs <contract-probes|pgit-real> [--project p] [--evidence dir] [--its pattern] [--compose-overlay repo-relative.yml]");
+  }
+  const a = { evidence: path.join(repo, "artifacts/verification/contracts"), project: null, its: null, composeOverlay: null };
+  for (let i = 3; i < argv.length; i++) {
+    const option = argv[i];
+    if (!["--evidence", "--project", "--its", "--compose-overlay"].includes(option)) {
+      throw new Error(`unknown option ${option}`);
+    }
+    const value = argv[++i];
+    if (!value || value.startsWith("--")) throw new Error(`${option} requires a value`);
+    if (option === "--evidence") a.evidence = path.resolve(value);
+    else if (option === "--project") a.project = value;
+    else if (option === "--its") a.its = value;
+    else {
+      if (sub !== "contract-probes") throw new Error("--compose-overlay is only supported by contract-probes");
+      a.composeOverlay = validateComposeOverlay(value, repo);
+    }
+  }
+  if (a.project !== null && !PROJECT_RE.test(a.project)) throw new Error("--project must match campuscore-*");
   return a;
 }
 
@@ -78,9 +116,10 @@ async function waitHealth(url, timeoutMs) {
   return false;
 }
 
-function composeArgs(project) {
+export function composeArgs(project, overlay = null, repo = REPO) {
   return [
-    "compose", "-p", project, "-f", COMPOSE,
+    "compose", "-p", project, "-f", path.join(repo, "docker-compose.e2e.yml"),
+    ...(overlay ? ["-f", overlay] : []),
   ];
 }
 
@@ -96,11 +135,19 @@ async function caseProbes(args, log) {
   evidence.project = project;
   evidence.postgresPort = pgPort;
   evidence.apiPort = API_HOST_PORT;
+  const compose = composeArgs(project, args.composeOverlay);
+  if (args.composeOverlay) {
+    evidence.composeOverlay = path.relative(REPO, args.composeOverlay).split(path.sep).join("/");
+    // Compose owns YAML/schema validation. `config --quiet` is read-only and
+    // runs before up or teardown can mutate a Docker project.
+    const config = run("docker", [...compose, "config", "--quiet"], { env });
+    if (config.status !== 0) throw new Error("compose overlay validation failed");
+  }
 
   const results = { generator: null, headers: [], requestId: [], logRedaction: null };
   let failed = false;
   const teardown = () => {
-    run("docker", ["compose", "-p", project, "-f", COMPOSE, "down", "-v", "--remove-orphans"], { timeout: 120000 });
+    run("docker", [...compose, "down", "-v", "--remove-orphans"], { env, timeout: 120000 });
   };
 
   try {
@@ -112,7 +159,7 @@ async function caseProbes(args, log) {
     }
 
     log(`up ${project} pg:${pgPort} api:${API_HOST_PORT}`);
-    const up = run("docker", [...composeArgs(project), "up", "-d", "--build"], { env, timeout: 900000 });
+    const up = run("docker", [...compose, "up", "-d", "--build"], { env, timeout: 900000 });
     if (up.status !== 0) throw new Error(`compose up failed: ${up.stderr.slice(-800)}`);
 
     const healthy = await waitHealth(`http://127.0.0.1:${API_HOST_PORT}/api/v1/health/liveness`, 240000);
@@ -182,7 +229,7 @@ async function caseProbes(args, log) {
       body: JSON.stringify({ email: "sentinel@example.invalid", password: passSentinel }),
     }).catch(() => {});
     await sleep(1500);
-    const logs = run("docker", ["compose", "-p", project, "-f", COMPOSE, "logs", "--no-color", "--tail", "4000", "restful-api"], { timeout: 120000 });
+    const logs = run("docker", [...compose, "logs", "--no-color", "--tail", "4000", "restful-api"], { env, timeout: 120000 });
     const hay = logs.stdout + logs.stderr;
     results.logRedaction = {
       bearerLeaked: hay.includes(bearerSentinel),
@@ -248,7 +295,9 @@ async function main() {
   process.exit(outcome.failed ? 1 : 0);
 }
 
-main().catch((e) => {
-  console.log(JSON.stringify({ verdict: "FAIL", problems: [String(e?.message ?? e)] }));
-  process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((e) => {
+    console.log(JSON.stringify({ verdict: "FAIL", problems: [String(e?.message ?? e)] }));
+    process.exit(1);
+  });
+}
