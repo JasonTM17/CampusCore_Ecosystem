@@ -114,3 +114,85 @@ test('portal table headers use the semantic foreground, not a sidebar-tinted mix
     'the header text colour must not mix in the dark sidebar surface token',
   );
 });
+
+// ---------------------------------------------------------------------------
+// UX-W2-01 — the admissions "simulated service" notice painted text-amber-200
+// over a fixed amber wash: ~1.15:1 on the light canvas. The notice now uses the
+// shared semantic warning pair; these tests pin the classes and prove the token
+// pair itself clears WCAG AA 4.5:1 in both themes.
+// ---------------------------------------------------------------------------
+
+const ADMISSIONS_PAGES = [
+  'src/components/admissions/AdmissionsApplyPage.tsx',
+  'src/components/admissions/AdmissionsReviewPage.tsx',
+];
+
+test('admissions simulated-service notice uses the semantic warning pair', () => {
+  for (const relative of ADMISSIONS_PAGES) {
+    const source = fs.readFileSync(path.join(root, relative), 'utf8');
+    const notice = source.slice(
+      source.indexOf('data-testid="admissions-simulated-banner"') - 400,
+      source.indexOf('data-testid="admissions-simulated-banner"'),
+    );
+    assert.match(notice, /bg-status-warning\/10/, `${relative} must use the warning surface token`);
+    assert.match(notice, /text-status-warning-foreground/, `${relative} must use the warning foreground token`);
+    assert.match(notice, /border-status-warning\/40/, `${relative} must use the warning border token`);
+    assert.doesNotMatch(source, /text-amber-200/, `${relative} still paints the unreadable amber-200 text`);
+    assert.doesNotMatch(notice, /bg-amber-/, `${relative} still uses the raw amber surface`);
+  }
+});
+
+/** Resolves `--name: h s% l%` triplets (incl. `var(--x)` aliases) inside a CSS block. */
+function themeTriplets(block) {
+  const raw = {};
+  for (const [, name, value] of block.matchAll(/--([\w-]+):\s*([^;]+);/g)) {
+    raw[name] = value.trim();
+  }
+  const resolve = (name) => {
+    let value = raw[name];
+    const alias = /^var\(--([\w-]+)\)$/.exec(value);
+    if (alias) value = raw[alias[1]];
+    const parts = value.split(/\s+/).map((part) => parseFloat(part));
+    return { h: parts[0], s: parts[1] / 100, l: parts[2] / 100 };
+  };
+  return resolve;
+}
+
+function hslToRgb({ h, s, l }) {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  const [r, g, b] =
+    h < 60 ? [c, x, 0] :
+    h < 120 ? [x, c, 0] :
+    h < 180 ? [0, c, x] :
+    h < 240 ? [0, x, c] :
+    h < 300 ? [x, 0, c] : [c, 0, x];
+  return [r + m, g + m, b + m];
+}
+
+function relativeLuminance([r, g, b]) {
+  const channel = (v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+test('the warning foreground clears WCAG AA 4.5:1 on the warning surface in both themes', () => {
+  const css = fs.readFileSync(path.join(root, 'src', 'app', 'globals.css'), 'utf8');
+  const rootBlock = css.match(/:root\s*\{([\s\S]*?)\n\s*\}/)[1];
+  const darkBlock = css.match(/\.dark\s*\{([\s\S]*?)\n\s*\}/)[1];
+
+  for (const [theme, block] of [['light', rootBlock], ['dark', darkBlock]]) {
+    const token = themeTriplets(block);
+    // bg-status-warning/10 composites the warning colour at 10% over --card.
+    const surface = hslToRgb(token('status-warning'));
+    const card = hslToRgb(token('card'));
+    const blended = surface.map((v, i) => v * 0.1 + card[i] * 0.9);
+    const text = hslToRgb(token('status-warning-foreground'));
+    const [hi, lo] = [relativeLuminance(text), relativeLuminance(blended)].sort((a, b) => b - a);
+    const ratio = (hi + 0.05) / (lo + 0.05);
+    assert.ok(
+      ratio >= 4.5,
+      `${theme} warning notice contrast ${ratio.toFixed(2)}:1 is below WCAG AA 4.5:1`,
+    );
+  }
+});
