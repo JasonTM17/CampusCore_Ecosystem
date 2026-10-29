@@ -90,6 +90,9 @@ function loadReviewPanel() {
     '@/i18n/messages': {},
     '@/lib/thesis-api': {},
     '@/lib/thesis-text': thesisText,
+    // The static renderer never runs effects, so the hook is stubbed to the
+    // same fresh timestamp it would return after its first client tick.
+    '@/lib/use-now': { useNow: () => Date.now() },
   }).default;
 }
 
