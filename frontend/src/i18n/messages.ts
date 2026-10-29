@@ -351,6 +351,10 @@ export const en = {
       description:
         'Open this check-in link in the CampusUTE app to mark attendance.',
     },
+    staff: {
+      title: 'Staff desks | CampusUTE',
+      description: 'Protected staff desk services for CampusUTE staff.',
+    },
     socialImage: {
       eyebrow: 'CampusUTE · HCMUTE',
       title: 'Academic work that stays clear from sign-in to thesis progress.',
@@ -3365,6 +3369,10 @@ export const vi: I18nMessages = {
       title: 'Điểm danh bằng ứng dụng CampusUTE | CampusUTE',
       description:
         'Mở liên kết điểm danh này trong ứng dụng CampusUTE để xác nhận có mặt.',
+    },
+    staff: {
+      title: 'Bàn làm việc cán bộ | CampusUTE',
+      description: 'Khu vực bàn làm việc cán bộ được bảo vệ của CampusUTE.',
     },
     socialImage: {
       eyebrow: 'CampusUTE · HCMUTE',

@@ -94,6 +94,7 @@ function getRouteMetadata(pathname: string, locale: Locale) {
     { prefix: '/careers', metadata: messages.meta.careers },
     { prefix: '/library', metadata: messages.meta.library },
     { prefix: '/session', metadata: messages.meta.session },
+    { prefix: '/staff', metadata: messages.meta.staff },
   ].find(({ prefix }) => pathname === prefix || pathname.startsWith(`${prefix}/`));
   if (protectedSurface) {
     return {
