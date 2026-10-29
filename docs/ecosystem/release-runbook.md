@@ -63,6 +63,10 @@ no-store; apex→portal redirect; id liveness + X-Request-Id.
 egress estimate từ dump size. Ghi vào `demo-acceptance.md` D10 row —
 free-tier CU-h chỉ là ước lượng ghi rõ method, không gọi là bill thực.
 
+### Cổng quyết định sizing trước cloud preview/demo
+
+Mốc đo lịch sử trong rehearsal: API RSS774,6MiB; các mốc trước ghi825MiB–1,03GiB. Các giá trị đó vượt ngân sách512MiB đã dùng khi lập phương án miễn phí; không phải phép đo của candidate hiện tại hay xác nhận gói dịch vụ hiện hành. Trước cloud deployment, owner phải chọn phương án có bằng chứng: tài nguyên trả phí đủ RAM, giảm footprint rồi đo lại mà giữ các kiểm bảo mật, hoặc tiếp tục local/tự host trong phạm vi được phép. Chưa có quyết định thì cloud deploy còn BLOCKED_CAPABILITY. Ưu tiên miễn phí không đồng nghĩa cam kết vận hành miễn phí; không tự mua hoặc đăng ký dịch vụ. Local verification không thay quyết định cloud sizing.
+
 ## 5. Staged deploy (BLOCKED_CAPABILITY hiện tại)
 
 Cần DNS + hosting credentials + store/signing. Khi có:
