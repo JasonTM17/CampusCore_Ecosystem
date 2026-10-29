@@ -3074,6 +3074,8 @@ export const vi: I18nMessages = {
       loadingMetrics: 'Đang tải số liệu',
       loadingAnnouncements: 'Đang tải thông báo trường',
       loadingThesisTopics: 'Đang tải đề tài',
+      sectionErrorTitle: 'Không hiển thị được phần này',
+      sectionErrorDescription: 'Một lỗi không mong muốn đã làm gián đoạn phần này của trang. Hãy thử tải lại mà không rời khỏi không gian làm việc.',
     },
     statuses: {
       OPEN: 'Đang mở',
@@ -3097,8 +3099,6 @@ export const vi: I18nMessages = {
       IN_PROGRESS: 'Đang xử lý',
       NONE: 'Chưa có điểm',
       PARTIAL: 'Đã nhập một phần',
-      sectionErrorTitle: 'Không hiển thị được phần này',
-      sectionErrorDescription: 'Một lỗi không mong muốn đã làm gián đoạn phần này của trang. Hãy thử tải lại mà không rời khỏi không gian làm việc.',
       ALL_GRADED: 'Đã nhập đủ điểm',
       NOT_GRADED: 'Chưa chấm điểm',
       APPEALED: 'Đang xem xét',
