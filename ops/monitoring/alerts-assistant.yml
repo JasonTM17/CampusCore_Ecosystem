@@ -1,0 +1,92 @@
+# Portable Prometheus Alert Rules: AI Campus Assistant & Knowledge Engine
+# Definitions only -- NOT_RUN against a live Prometheus instance.
+# Cross-reference: docs/ecosystem/observability.md, docs/integrations/deepseek-assistant.md
+groups:
+  - name: campuscore-assistant
+    rules:
+      # -----------------------------------------------------------------------
+      # 1. Assistant Provider Outage & High Degraded Response Rate
+      # Reason codes: PROVIDER_TIMEOUT, PROVIDER_ERROR, CIRCUIT_OPEN, KNOWLEDGE_UNAVAILABLE
+      # -----------------------------------------------------------------------
+      - alert: AssistantHighDegradedRate
+        expr: >-
+          (sum(rate(campuscore_assistant_requests_total{degraded="true"}[10m]))
+          /
+          clamp_min(sum(rate(campuscore_assistant_requests_total[10m])), 0.001)) > 0.20
+        for: 5m
+        labels:
+          severity: warning
+          service: restful-api
+          component: campus-assistant
+        annotations:
+          summary: "Over 20% of assistant answers are degraded"
+          description: >-
+            More than 20% of assistant conversations in the last 10 minutes returned degraded
+            lexical fallback answers (reason_code: {{ $labels.reason_code }}). Check DeepSeek
+            provider status, RAG service connectivity, or API key balance.
+          runbook_url: "docs/integrations/deepseek-assistant.md#runtime-configuration"
+          instrumentation_status: "TO INSTRUMENT (requires custom Micrometer meter campuscore_assistant_requests_total)"
+
+      # -----------------------------------------------------------------------
+      # 2. Daily Quota Near Exhaustion
+      # Default: user-daily-quota: 20 | global-daily-quota: 200
+      # -----------------------------------------------------------------------
+      - alert: AssistantGlobalQuotaExhaustionRisk
+        expr: >-
+          sum(campuscore_assistant_quota_consumed_daily_total) > 180
+        for: 5m
+        labels:
+          severity: warning
+          service: restful-api
+          component: assistant-quota
+        annotations:
+          summary: "Campus Assistant global daily quota is 90% exhausted (>180/200)"
+          description: >-
+            Daily DeepSeek synthesis attempts have reached {{ $value }} of the 200 global limit.
+            Subsequent user requests will fall back to local lexical RAG with reasonCode
+            GLOBAL_QUOTA_EXCEEDED.
+          runbook_url: "docs/integrations/deepseek-assistant.md#runtime-configuration"
+          instrumentation_status: "TO INSTRUMENT (requires custom gauge or counter campuscore_assistant_quota_consumed_daily_total)"
+
+      # -----------------------------------------------------------------------
+      # 3. Assistant Row-Level-Security (RLS) Runtime Degraded
+      # HealthController line 83 checks AssistantRlsState (verified vs degraded)
+      # -----------------------------------------------------------------------
+      - alert: AssistantRlsStateDegraded
+        expr: >-
+          campuscore_assistant_rls_verified == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: restful-api
+          component: assistant-rls
+        annotations:
+          summary: "Assistant RLS state is degraded; chat returning 503"
+          description: >-
+            The assistant RLS check in HealthController or AssistantDatabaseConfiguration
+            reported degraded state. Chat endpoints return HTTP 503 Service Unavailable to
+            prevent unisolated cross-tenant retrieval.
+          runbook_url: "docs/integrations/supabase-assistant.md"
+          instrumentation_status: "TO INSTRUMENT (or query via /api/v1/health/readiness JSON field assistantRls)"
+
+      # -----------------------------------------------------------------------
+      # 4. Assistant Turn Recovery Surge / Stale Leases
+      # State machine: RESERVED -> DISPATCHED -> COMPLETED (or FAILED_AMBIGUOUS)
+      # Sweep period: 30s (ASSISTANT_RECOVERY_DELAY_MS: 30000)
+      # -----------------------------------------------------------------------
+      - alert: AssistantStaleLeaseRecoverySurge
+        expr: >-
+          increase(campuscore_assistant_turn_stale_recovered_total[10m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: restful-api
+          component: assistant-recovery
+        annotations:
+          summary: "Elevated number of assistant turn leases recovered"
+          description: >-
+            The 30-second lease recovery job found {{ $value }} expired turn leases.
+            Investigate thread starvation, unhandled timeouts in provider client, or
+            database network partitions.
+          runbook_url: "docs/integrations/deepseek-assistant.md#api-behavior"
+          instrumentation_status: "TO INSTRUMENT (requires custom meter campuscore_assistant_turn_stale_recovered_total)"

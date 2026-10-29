@@ -1,0 +1,215 @@
+# Portable Prometheus Alert Rules: API SLOs and Critical Journeys
+# Definitions only -- NOT_RUN against a live Prometheus instance.
+# Cross-reference: docs/ecosystem/observability.md, docs/PRODUCTION_RUNBOOK.md
+groups:
+  - name: campuscore-api-slo
+    rules:
+      # -----------------------------------------------------------------------
+      # 1. Global API Error Rate SLO (Overall Availability >= 99.0%)
+      # -----------------------------------------------------------------------
+      - alert: ApiHighServerErrorRate
+        expr: >-
+          (sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+          /
+          sum(rate(http_server_requests_seconds_count[5m]))) > 0.01
+        for: 3m
+        labels:
+          severity: critical
+          service: restful-api
+          component: web-tier
+        annotations:
+          summary: "API 5xx server error rate exceeds 1% (SLO breached)"
+          description: >-
+            Over the last 5 minutes, {{ $value | humanizePercentage }} of requests to restful-api
+            returned HTTP 5xx responses. Expected baseline is < 0.1%.
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#start-and-smoke"
+          instrumentation_status: "TO INSTRUMENT (requires micrometer-registry-prometheus in pom.xml)"
+
+      # -----------------------------------------------------------------------
+      # 2. Critical Journey: Sign-in (POST /api/v1/auth/login, POST /oauth2/token)
+      # Latency SLO: P95 < 800ms | Error Rate SLO: 5xx < 0.1%
+      # -----------------------------------------------------------------------
+      - alert: SignInLatencyP95Breached
+        expr: >-
+          histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{uri=~"/api/v1/auth/login|/oauth2/token",method="POST"}[5m])) by (le)) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: restful-api
+          journey: sign-in
+        annotations:
+          summary: "Sign-in P95 latency exceeds 800ms SLO"
+          description: >-
+            Sign-in endpoint P95 latency is {{ $value | humanizeDuration }}.
+            Target is < 800ms (accounting for password hashing work factor).
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#preflight"
+          instrumentation_status: "TO INSTRUMENT (requires micrometer-registry-prometheus in pom.xml)"
+
+      - alert: SignInServerErrorRateHigh
+        expr: >-
+          (sum(rate(http_server_requests_seconds_count{uri=~"/api/v1/auth/login|/oauth2/token",method="POST",status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(http_server_requests_seconds_count{uri=~"/api/v1/auth/login|/oauth2/token",method="POST"}[5m])), 0.001)) > 0.001
+        for: 3m
+        labels:
+          severity: critical
+          service: restful-api
+          journey: sign-in
+        annotations:
+          summary: "Sign-in server error rate exceeds 0.1% SLO"
+          description: >-
+            Sign-in endpoint returned 5xx errors exceeding 0.1% threshold.
+            Client errors (401 UNAUTHENTICATED, 400) are excluded from this SLI.
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#start-and-smoke"
+          instrumentation_status: "TO INSTRUMENT (requires micrometer-registry-prometheus in pom.xml)"
+
+      # -----------------------------------------------------------------------
+      # 3. Critical Journey: Course Registration (POST/DELETE /api/v1/academic/me/enrollments)
+      # Latency SLO: P95 < 500ms | Error Rate SLO: 5xx < 0.2%
+      # -----------------------------------------------------------------------
+      - alert: RegistrationLatencyP95Breached
+        expr: >-
+          histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{uri=~"/api/v1/academic/(me/)?enrollments.*",method=~"POST|DELETE"}[5m])) by (le)) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: restful-api
+          journey: course-registration
+        annotations:
+          summary: "Course registration mutation P95 latency exceeds 500ms SLO"
+          description: >-
+            Course enrollment mutation P95 latency is {{ $value | humanizeDuration }}.
+            Target is < 500ms under registration peak windows.
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#preflight"
+          instrumentation_status: "TO INSTRUMENT (requires micrometer-registry-prometheus in pom.xml)"
+
+      - alert: RegistrationServerErrorRateHigh
+        expr: >-
+          (sum(rate(http_server_requests_seconds_count{uri=~"/api/v1/academic/(me/)?enrollments.*",method=~"POST|DELETE",status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(http_server_requests_seconds_count{uri=~"/api/v1/academic/(me/)?enrollments.*",method=~"POST|DELETE"}[5m])), 0.001)) > 0.002
+        for: 3m
+        labels:
+          severity: critical
+          service: restful-api
+          journey: course-registration
+        annotations:
+          summary: "Course registration server error rate exceeds 0.2% SLO"
+          description: >-
+            Course enrollment mutations returned 5xx errors exceeding 0.2% threshold.
+            Domain conflicts (409 SECTION_FULL, SCHEDULE_CONFLICT) are excluded.
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#start-and-smoke"
+          instrumentation_status: "TO INSTRUMENT (requires micrometer-registry-prometheus in pom.xml)"
+
+      # -----------------------------------------------------------------------
+      # 4. Critical Journey: Attendance Check-in (POST /api/v1/attendance/sessions/{id}/checkin)
+      # Latency SLO: P95 < 600ms | Error Rate SLO: 5xx < 0.1%
+      # -----------------------------------------------------------------------
+      - alert: AttendanceCheckinLatencyP95Breached
+        expr: >-
+          histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{uri=~"/api/v1/attendance/sessions/.*/checkin",method="POST"}[5m])) by (le)) > 0.6
+        for: 5m
+        labels:
+          severity: warning
+          service: restful-api
+          journey: attendance-checkin
+        annotations:
+          summary: "Attendance check-in P95 latency exceeds 600ms SLO"
+          description: >-
+            Attendance check-in P95 latency is {{ $value | humanizeDuration }}.
+            Target is < 600ms (includes geofence evaluation and idempotency lock).
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#preflight"
+          instrumentation_status: "TO INSTRUMENT (requires micrometer-registry-prometheus in pom.xml)"
+
+      - alert: AttendanceCheckinServerErrorRateHigh
+        expr: >-
+          (sum(rate(http_server_requests_seconds_count{uri=~"/api/v1/attendance/sessions/.*/checkin",method="POST",status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(http_server_requests_seconds_count{uri=~"/api/v1/attendance/sessions/.*/checkin",method="POST"}[5m])), 0.001)) > 0.001
+        for: 3m
+        labels:
+          severity: critical
+          service: restful-api
+          journey: attendance-checkin
+        annotations:
+          summary: "Attendance check-in server error rate exceeds 0.1% SLO"
+          description: >-
+            Attendance check-in endpoint returned 5xx errors exceeding 0.1% threshold.
+            Validation rejections (422 OUTSIDE_AREA, 409 ALREADY_CHECKED_IN) are excluded.
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#start-and-smoke"
+          instrumentation_status: "TO INSTRUMENT (requires micrometer-registry-prometheus in pom.xml)"
+
+      # -----------------------------------------------------------------------
+      # 5. Critical Journey: Grades Read (GET /api/v1/enrollments/my/grades, /transcript)
+      # Latency SLO: P95 < 300ms | Error Rate SLO: 5xx < 0.05%
+      # -----------------------------------------------------------------------
+      - alert: GradesReadLatencyP95Breached
+        expr: >-
+          histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{uri=~"/api/v1/enrollments/my/grades|/api/v1/enrollments/my/transcript|/api/v1/grades/.*",method="GET"}[5m])) by (le)) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+          service: restful-api
+          journey: grades-read
+        annotations:
+          summary: "Grades and transcript read P95 latency exceeds 300ms SLO"
+          description: >-
+            Student grades and transcript read P95 latency is {{ $value | humanizeDuration }}.
+            Target is < 300ms for read-only queries.
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#preflight"
+          instrumentation_status: "TO INSTRUMENT (requires micrometer-registry-prometheus in pom.xml)"
+
+      - alert: GradesReadServerErrorRateHigh
+        expr: >-
+          (sum(rate(http_server_requests_seconds_count{uri=~"/api/v1/enrollments/my/grades|/api/v1/enrollments/my/transcript|/api/v1/grades/.*",method="GET",status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(http_server_requests_seconds_count{uri=~"/api/v1/enrollments/my/grades|/api/v1/enrollments/my/transcript|/api/v1/grades/.*",method="GET"}[5m])), 0.001)) > 0.0005
+        for: 3m
+        labels:
+          severity: critical
+          service: restful-api
+          journey: grades-read
+        annotations:
+          summary: "Grades read server error rate exceeds 0.05% SLO"
+          description: >-
+            Student grades retrieval returned 5xx errors exceeding 0.05% threshold.
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#start-and-smoke"
+          instrumentation_status: "TO INSTRUMENT (requires micrometer-registry-prometheus in pom.xml)"
+
+      # -----------------------------------------------------------------------
+      # 6. Rate Limiting 429 Anomalies (RateLimitFilter)
+      # -----------------------------------------------------------------------
+      - alert: RateLimitSurgeDetected
+        expr: >-
+          (sum(rate(http_server_requests_seconds_count{status="429"}[5m]))
+          /
+          clamp_min(sum(rate(http_server_requests_seconds_count[5m])), 0.001)) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: restful-api
+          component: rate-limiter
+        annotations:
+          summary: "HTTP 429 rate limit responses exceed 5% of all traffic"
+          description: >-
+            Over 5% of inbound requests are being rejected by RateLimitFilter.
+            Investigate client retry loops, buggy scripts, or excessive traffic spikes.
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#demo-account-and-rate-limit-switches"
+          instrumentation_status: "TO INSTRUMENT (requires micrometer-registry-prometheus in pom.xml)"
+
+      - alert: RateLimitLoginBruteForceSpike
+        expr: >-
+          sum(rate(http_server_requests_seconds_count{uri="/api/v1/auth/login",status="429"}[3m])) * 60 > 50
+        for: 2m
+        labels:
+          severity: critical
+          service: restful-api
+          component: rate-limiter
+          security_event: credential-stuffing
+        annotations:
+          summary: "High 429 rate on /api/v1/auth/login indicates brute force attempt"
+          description: >-
+            Sign-in endpoint is rejecting more than 50 requests/minute with HTTP 429
+            RATE_LIMIT_EXCEEDED. Possible credential stuffing or brute force against student/staff accounts.
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#demo-account-and-rate-limit-switches"
+          instrumentation_status: "TO INSTRUMENT (requires micrometer-registry-prometheus in pom.xml)"
