@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
   header: { gap: tokens.spacing.sm },
   summary: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'space-between' },
   rowCard: { position: 'relative', padding: tokens.spacing.md },
-  rowIcon: { alignItems: 'center', borderRadius: tokens.radii.pill, height: 36, justifyContent: 'center', width: 36 },
+  rowIcon: { alignItems: 'center', borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', width: 36 },
   rowDelete: { position: 'absolute', right: tokens.spacing.sm, top: tokens.spacing.sm, alignItems: 'center', borderRadius: tokens.radii.control, height: tokens.layout.touchTarget, justifyContent: 'center', width: tokens.layout.touchTarget },
   rowMain: { gap: tokens.spacing.sm + tokens.spacing.xs, minHeight: tokens.layout.touchTarget },
   titleRow: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, paddingRight: tokens.layout.touchTarget },

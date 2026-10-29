@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   mark: { alignItems: 'center', backgroundColor: tokens.colors.card, borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', padding: 4, width: 36 },
   logo: { height: '100%', width: '100%' },
   copy: { flex: 1, minWidth: 0 },
-  rolePill: { borderRadius: tokens.radii.control, paddingHorizontal: tokens.spacing.sm, paddingVertical: 4, flexShrink: 1 },
-  iconButton: { alignItems: 'center', borderRadius: tokens.radii.pill, height: tokens.layout.touchTarget, justifyContent: 'center', width: tokens.layout.touchTarget },
+  rolePill: { borderRadius: tokens.spacing.xs, paddingHorizontal: tokens.spacing.sm, paddingVertical: 4, flexShrink: 1 },
+  iconButton: { alignItems: 'center', borderRadius: tokens.radii.control, height: tokens.layout.touchTarget, justifyContent: 'center', width: tokens.layout.touchTarget },
   signIn: { alignItems: 'center', borderRadius: tokens.radii.control, justifyContent: 'center', minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.md },
 });

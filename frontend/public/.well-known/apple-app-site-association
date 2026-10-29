@@ -35,6 +35,10 @@
           {
             "/": "/apply",
             "comment": "simulated admissions lane → native admissions screen (portal path is /apply)"
+          },
+          {
+            "/": "/attendance/checkin/*",
+            "comment": "attendance session links → native check-in screen"
           }
         ]
       }

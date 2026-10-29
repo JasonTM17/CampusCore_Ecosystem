@@ -12,7 +12,7 @@ const manifestPath = path.join(root, 'contracts', 'ecosystem', 'mobile-parity.js
 const MODES = new Set(['NATIVE-FULL', 'NATIVE-READ', 'NATIVE-LITE', 'WEB-ONLY']);
 const DECISIONS = new Set(['approved', 'approved-flag-gated']);
 const HANDOFFS = new Set(['web-same-path', null]);
-const EXPECTED_ROUTES = 74;
+const EXPECTED_ROUTES = 77;
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {

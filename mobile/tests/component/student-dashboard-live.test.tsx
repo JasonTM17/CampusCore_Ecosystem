@@ -34,6 +34,9 @@ jest.mock('../../src/hooks/useScreenQuery', () => ({
 jest.mock('../../src/session/SessionContext', () => ({
   useSession: () => ({ kind: 'signedIn', role: 'student', capabilities: [] }),
 }));
+// The check-in entry lane is owned by another worker — keep it out of this test.
+jest.mock('../../src/screens/attendance-checkin/CheckinEntryCard', () => ({ CheckinEntryCard: () => null }));
+
 import { StudentDashboardScreen } from '../../src/screens/student/StudentDashboardScreen';
 import type { MobileScreenProps } from '../../src/navigation/types';
 

@@ -189,7 +189,7 @@ export interface SkeletonProps {
   testID?: string;
 }
 
-export function Skeleton({ width = '100%', height = 16, borderRadius = 8, style, testID }: SkeletonProps) {
+export function Skeleton({ width = '100%', height = 16, borderRadius = tokens.radii.control, style, testID }: SkeletonProps) {
   const { colors, reducedMotion, motion } = useTheme();
   const opacity = useRef(new Animated.Value(0.45)).current;
   useEffect(() => {

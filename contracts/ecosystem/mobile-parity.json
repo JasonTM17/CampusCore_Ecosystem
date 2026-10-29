@@ -891,6 +891,42 @@
       "note": "role/password/unlock và CRUD nhạy cảm",
       "decision": "approved",
       "handoff": "web-same-path"
+    },
+    {
+      "id": 75,
+      "web": "/attendance/checkin/[sessionId]",
+      "actor": "S",
+      "mode": "NATIVE-LITE",
+      "laneGated": true,
+      "tier": "NEXT",
+      "phase": "P16",
+      "note": "check-in điểm danh bằng GPS thật; link giảng viên campuscore://attendance/checkin/<sessionId> và https twin mở cùng lane; web chỉ là trang hand-off noindex",
+      "decision": "approved-flag-gated",
+      "handoff": "web-same-path"
+    },
+    {
+      "id": 76,
+      "web": "/admin/attendance-geofences",
+      "actor": "A",
+      "mode": "WEB-ONLY",
+      "laneGated": false,
+      "tier": "NEXT",
+      "phase": "P16",
+      "note": "CRUD geofence điểm danh giữ trên web console",
+      "decision": "approved",
+      "handoff": "web-same-path"
+    },
+    {
+      "id": 77,
+      "web": "/staff",
+      "actor": "STAFF",
+      "mode": "WEB-ONLY",
+      "laneGated": false,
+      "tier": "NEXT",
+      "phase": "P16",
+      "note": "hub chọn desk theo grant STAFF:<domain>; từng desk đã có lane mobile riêng",
+      "decision": "approved",
+      "handoff": "web-same-path"
     }
   ]
 }

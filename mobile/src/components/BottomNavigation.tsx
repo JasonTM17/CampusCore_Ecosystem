@@ -91,7 +91,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   navigationInner: { alignItems: 'stretch', flexDirection: 'row', minHeight: tokens.layout.bottomNavigationHeight },
   tabList: { alignItems: 'stretch', flexDirection: 'row', minWidth: 0 },
   item: { alignItems: 'center', flex: 1, justifyContent: 'flex-start', minHeight: tokens.layout.bottomNavigationHeight, minWidth: 0, paddingHorizontal: 2, paddingVertical: tokens.spacing.sm, borderTopWidth: 2, borderTopColor: 'transparent' },
-  icon: { alignItems: 'center', borderRadius: tokens.radii.pill, height: 28, justifyContent: 'center', marginBottom: tokens.spacing.xs, width: 44 },
+  icon: { alignItems: 'center', borderRadius: tokens.radii.control, height: 28, justifyContent: 'center', marginBottom: tokens.spacing.xs, width: 44 },
   label: { textAlign: 'center', alignSelf: 'stretch' },
   activeIcon: { backgroundColor: colors.primaryFixed },
   pressed: { backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control },

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globa
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 
+import { apiClient } from '../../src/api/client';
 import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { auditTree } from '../a11y/audit';
@@ -93,6 +94,7 @@ const registrationData = (sections: unknown[], roundOpen = true) => ({ sections,
 
 beforeEach(() => {
   for (const key of Object.keys(mockQueries)) delete mockQueries[key];
+  Object.defineProperty(apiClient, 'mode', { configurable: true, value: 'live' });
   mockConnected = true;
   mockPost.mockReset();
   mockReload.mockClear();
@@ -182,6 +184,20 @@ describe('enrollments and courses', () => {
 });
 
 describe('grades', () => {
+  test('labels preview grades with the localized semester name', async () => {
+    Object.defineProperty(apiClient, 'mode', { configurable: true, value: 'preview' });
+    await render(wrap(<GradesScreen {...props} />));
+    expect(screen.getAllByText('Học kỳ 1 - 2026/2027').length).toBeGreaterThan(0);
+    expect(screen.queryByText('preview-term')).toBeNull();
+  });
+
+  test('uses the English preview semester name in English', async () => {
+    Object.defineProperty(apiClient, 'mode', { configurable: true, value: 'preview' });
+    await render(wrap(<GradesScreen {...props} />, 'en'));
+    expect(screen.getAllByText('Semester 1 - 2026/2027').length).toBeGreaterThan(0);
+    expect(screen.queryByText('preview-term')).toBeNull();
+  });
+
   test('lists published grades only and explains the scale', async () => {
     mockQueries['academic.grades'] = {
       data: [

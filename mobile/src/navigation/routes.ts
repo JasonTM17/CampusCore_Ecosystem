@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 
 import { hasCapability, type Capability, type CapabilitySet } from '../auth/capabilities';
+import type { LaneFlags } from '../config/lane-flags';
 
 export type NavigationIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 export type UserRole = 'student' | 'lecturer' | 'admin';
@@ -61,7 +62,23 @@ export type LaneScreenId =
   | 'admin.creditLimits'
   | 'admin.enrollments'
   | 'admin.events'
-  | 'admin.notifications';
+  | 'admin.notifications'
+  | 'attendance.checkin';
+
+/** Flag group a lane belongs to — indexes `LaneFlags`. */
+export type LaneGroup = 'dean' | 'staff' | 'admin' | 'checkin';
+
+export const laneGroupOf = (id: LaneScreenId): LaneGroup =>
+  id.startsWith('attendance.') ? 'checkin'
+    : id.startsWith('dean.') ? 'dean'
+      : id.startsWith('staff.') ? 'staff' : 'admin';
+
+/**
+ * Lanes a preview pseudo-session may open when its flag is on. Preview is
+ * still never an authorization substitute — a lane in this set must render
+ * simulated data only, and the check-in API itself refuses non-live POSTs.
+ */
+export const PREVIEW_LANES: ReadonlySet<LaneScreenId> = new Set(['attendance.checkin']);
 
 export interface LaneScreenDefinition {
   id: LaneScreenId;
@@ -155,6 +172,7 @@ export const laneScreenRegistry: readonly LaneScreenDefinition[] = [
   { id: 'admin.enrollments', title: 'Enrollments', role: 'admin', capability: 'admin.oversight', icon: 'book-plus-outline' },
   { id: 'admin.events', title: 'Event desk', role: 'admin', capability: 'admin.oversight', icon: 'calendar-star' },
   { id: 'admin.notifications', title: 'Notification desk', role: 'admin', capability: 'admin.oversight', icon: 'bell-outline' },
+  { id: 'attendance.checkin', title: 'Check in', role: 'student', capability: 'student.checkin', icon: 'map-marker-check-outline' },
 ];
 
 const bottomNavigationByRole: Readonly<Record<UserRole, readonly BottomNavigationItem[]>> = {
@@ -292,4 +310,41 @@ export function canAccessLaneScreen(
 /** Lane entries to show in menus; an empty capability set shows none. */
 export function getLaneNavigation(role: UserRole, capabilities: CapabilitySet) {
   return laneScreenRegistry.filter((screen) => canAccessLaneScreen(role, capabilities, screen.id));
+}
+
+/**
+ * Preview-session lane rule: a preview pseudo-session holds no capabilities,
+ * so the grant is the build flag plus the lane's UI role — demo surfaces only.
+ */
+export function canPreviewLaneScreen(role: UserRole, flags: LaneFlags, id: LaneScreenId): boolean {
+  const screen = getLaneScreen(id);
+  if (!screen || !PREVIEW_LANES.has(id) || flags[laneGroupOf(id)] !== true) {
+    return false;
+  }
+  return screen.role === null || screen.role === role;
+}
+
+/**
+ * One session+flag+capability lane rule shared by the router guard, the
+ * navigation adapter and the render-time check: authenticated sessions need
+ * the capability; preview sessions reach only `PREVIEW_LANES`; signed-out
+ * sessions reach nothing.
+ */
+export function laneAllowedForSession(input: {
+  kind: 'signedOut' | 'preview' | 'authenticated';
+  role: UserRole;
+  capabilities: CapabilitySet | undefined;
+  flags: LaneFlags;
+  id: LaneScreenId;
+}): boolean {
+  if (input.flags[laneGroupOf(input.id)] !== true) {
+    return false;
+  }
+  if (input.kind === 'authenticated') {
+    return canAccessLaneScreen(input.role, input.capabilities ?? [], input.id);
+  }
+  if (input.kind === 'preview') {
+    return canPreviewLaneScreen(input.role, input.flags, input.id);
+  }
+  return false;
 }
