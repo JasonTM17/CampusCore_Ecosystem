@@ -55,4 +55,7 @@ public final class AttendanceDtos {
     @Schema(name="AttendanceGeofenceResponse")
     public record GeofenceResponse(String id, String name, String campusCode, double centerLat,
             double centerLng, int radiusMeters, boolean isActive, String note) { }
+    @Schema(name="AttendanceActiveGeofenceResponse")
+    public record ActiveGeofenceResponse(String id, String name, String campusCode, double centerLat,
+            double centerLng, int radiusMeters) { }
 }
