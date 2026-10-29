@@ -139,8 +139,8 @@ test('mobile refreshes the session single-flight and exits to sign-in on expiry'
 
   // Concurrent 401s must share one refresh rotation; independent refreshes race
   // the issuer rotation and revoke both tokens.
-  assert.match(client, /let sessionRefreshPromise: Promise<boolean> \| null = null/);
-  assert.match(client, /refreshSessionOnce\(\)/);
+  assert.match(client, /let sessionRefreshFlight: \{ epoch: number \| undefined; promise: Promise<boolean> \} \| null = null/);
+  assert.match(client, /refreshSessionOnce\(requestEpoch\)/);
   assert.match(client, /options\.refreshSession\?\.\(\)/);
   assert.doesNotMatch(client, /refreshToken/);
   assert.match(client, /setOnSessionExpired\(handler: \(\(\) => void\) \| undefined\): void/);
