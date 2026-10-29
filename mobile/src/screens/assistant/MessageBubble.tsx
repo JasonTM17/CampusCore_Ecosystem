@@ -135,5 +135,5 @@ const styles = StyleSheet.create({
   excerpt: { marginTop: tokens.spacing.xs },
   feedback: { flexDirection: 'row', gap: tokens.spacing.xs, marginTop: tokens.spacing.xs },
   reasons: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
-  reason: { alignItems: 'center', borderRadius: tokens.radii.pill, borderWidth: 1, justifyContent: 'center', minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.sm },
+  reason: { alignItems: 'center', borderRadius: tokens.radii.control, borderWidth: 1, justifyContent: 'center', minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.sm },
 });

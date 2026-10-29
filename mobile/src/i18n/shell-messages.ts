@@ -68,6 +68,7 @@ const vi = {
     'admin.enrollments': 'Đăng ký học phần',
     'admin.events': 'Quầy sự kiện',
     'admin.notifications': 'Quầy thông báo',
+    'attendance.checkin': 'Điểm danh',
   } as Record<LaneScreenId, string>,
   dashboard: {
     eyebrow: 'Sinh viên',
@@ -179,6 +180,7 @@ const en: ShellCopy = {
     'admin.enrollments': 'Enrollments',
     'admin.events': 'Event desk',
     'admin.notifications': 'Notification desk',
+    'attendance.checkin': 'Check in',
   } as Record<LaneScreenId, string>,
   dashboard: {
     eyebrow: 'Student',

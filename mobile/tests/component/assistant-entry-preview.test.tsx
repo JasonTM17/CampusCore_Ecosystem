@@ -71,7 +71,7 @@ describe('AssistantFab', () => {
       })).toBe(false);
     }
 
-    const lanesOff = { dean: false, staff: false, admin: false };
+    const lanesOff = { dean: false, staff: false, admin: false, checkin: false };
     const lanesAdminOn = { ...lanesOff, admin: true };
     const adminWithoutLane = resolveCapabilities({ claims: ['ADMIN'], lanes: lanesOff });
     const adminWithLane = resolveCapabilities({ claims: ['ADMIN'], lanes: lanesAdminOn });

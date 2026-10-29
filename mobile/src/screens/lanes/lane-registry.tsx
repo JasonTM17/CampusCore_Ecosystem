@@ -16,6 +16,7 @@ import {
 } from './AdminLaneScreens';
 import { AdminOverviewScreen } from './AdminOverviewScreen';
 import { DeanOverviewScreen } from './DeanOverviewScreen';
+import { CheckinScreen } from '../attendance-checkin/CheckinScreen';
 import { laneAllowed } from './lane-access';
 import { useLanesCopy } from './lane-ui';
 import { ApplyReviewScreen, CareersDeskScreen, LibraryDeskScreen } from './StaffDeskScreens';
@@ -42,6 +43,7 @@ export const laneComponents: Readonly<Record<LaneScreenId, ComponentType<MobileS
   'admin.enrollments': AdminEnrollmentsScreen,
   'admin.events': AdminEventsScreen,
   'admin.notifications': AdminNotificationsScreen,
+  'attendance.checkin': CheckinScreen,
 };
 
 /**

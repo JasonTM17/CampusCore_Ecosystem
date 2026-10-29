@@ -2,9 +2,10 @@ import { useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
 
 import { NO_CAPABILITIES } from '../auth/capabilities';
+import { LANE_FLAGS } from '../config/lane-flags';
 import { lanePathFor, pathFor, roleHomePath } from './route-map';
 import type { MobileNavigation, MobileNavigationOptions } from './types';
-import { canAccessLaneScreen, type LaneScreenId, type ScreenName, type UserRole } from './routes';
+import { laneAllowedForSession, type LaneScreenId, type ScreenName, type UserRole } from './routes';
 import { useSession } from '../session/SessionContext';
 
 /**
@@ -34,9 +35,13 @@ export function useMobileNavigation(): MobileNavigation {
 
   // Lane entries are guarded here as well as by the (app) layout: a refused
   // lane goes to the role home (and its web hand-off), never to a half-built
-  // route.
+  // route. The rule itself (flag + capability, or the flagged preview demo
+  // surface) is shared with the guard via `laneAllowedForSession`.
   const navigateLane = useCallback((id: LaneScreenId) => {
-    if (session.kind === 'authenticated' && canAccessLaneScreen(session.role, session.capabilities ?? NO_CAPABILITIES, id)) {
+    if (laneAllowedForSession({
+      kind: session.kind, role: session.role,
+      capabilities: session.capabilities ?? NO_CAPABILITIES, flags: LANE_FLAGS, id,
+    })) {
       router.push(lanePathFor(id));
     } else {
       router.replace(roleHomePath(session.role));

@@ -266,7 +266,7 @@ export function IdentityHeader({
                 key={chip}
                 style={[styles.chip, { backgroundColor: chipBg, borderColor: chipBorder }]}
               >
-                <UiText variant="meta" style={{ color: chipInk }}>
+                <UiText variant="meta" style={{ color: chipInk, flexShrink: 1 }}>
                   {chip}
                 </UiText>
               </View>
@@ -306,10 +306,14 @@ const styles = StyleSheet.create({
   },
   header: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.md },
   headerCopy: { flex: 1, gap: tokens.spacing.xs, minWidth: 160 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs, marginTop: tokens.spacing.xs },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs, maxWidth: '100%', marginTop: tokens.spacing.xs },
   chip: {
+    alignSelf: 'flex-start',
     borderRadius: tokens.radii.pill,
     borderWidth: 1,
+    flexShrink: 1,
+    maxWidth: '100%',
+    minHeight: tokens.spacing.xl,
     paddingHorizontal: tokens.spacing.sm,
     paddingVertical: tokens.spacing.xs,
   },

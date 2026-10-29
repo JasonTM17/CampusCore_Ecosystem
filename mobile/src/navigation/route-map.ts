@@ -1,7 +1,10 @@
 import { NO_CAPABILITIES, normalizeDeepLink, type CapabilitySet } from '../auth/capabilities';
+import type { LaneFlags } from '../config/lane-flags';
 import {
   canAccessLaneScreen,
   canAccessScreen,
+  canPreviewLaneScreen,
+  laneGroupOf,
   type LaneScreenId,
   type ScreenName,
   type UserRole,
@@ -98,6 +101,7 @@ const lanePathById: Record<LaneScreenId, string> = {
   'admin.enrollments': '/admin/enrollments',
   'admin.events': '/admin/events',
   'admin.notifications': '/admin/notifications',
+  'attendance.checkin': '/attendance/checkin',
 };
 
 const laneByPath = new Map<string, LaneScreenId>(
@@ -111,7 +115,17 @@ export function lanePathFor(id: LaneScreenId): string {
 /** Deep-link path → lane screen, or null when it is not a lane route. */
 export function laneScreenForPath(pathname: string): LaneScreenId | null {
   const clean = pathname.split('?')[0].replace(/\/+$/, '') || '/';
-  return laneByPath.get(clean) ?? null;
+  const exact = laneByPath.get(clean);
+  if (exact) {
+    return exact;
+  }
+  // The lecturer check-in link carries the session id as the final segment
+  // (campuscore://attendance/checkin/<id> and the claimed https twin); the
+  // segment's shape is validated by checkin-link, not by routing.
+  if (/^\/attendance\/checkin\/[^/]+$/.test(clean)) {
+    return 'attendance.checkin';
+  }
+  return null;
 }
 
 // Dynamic templates (`[topicId]`) never enter the exact-match table — the
@@ -198,7 +212,9 @@ export interface GuardDecision {
  *   need role access (else role home); unknown paths → role home.
  * - lane routes (flag-gated) are allowed only for an authenticated session
  *   whose capability set grants them; the default empty set refuses every one
- *   (preview is never an authorization substitute, so it gets no lane).
+ *   (preview is never an authorization substitute, so it gets no lane —
+ *   except the check-in demo surface, which a flagged preview student may
+ *   open: `PREVIEW_LANES` renders simulated data and cannot submit).
  * - preview role switching mutates `role` inside the pseudo-session — the
  *   guard then treats the fake role as the surface selector exactly like a
  *   live one (KM-9: preview is never an authorization substitute).
@@ -208,6 +224,7 @@ export function resolveGuard(
   role: UserRole,
   pathname: string,
   capabilities: CapabilitySet = NO_CAPABILITIES,
+  flags?: LaneFlags,
 ): GuardDecision {
   const clean = pathname.split('?')[0].replace(/\/+$/, '') || '/';
   if (clean === '/auth/callback') {
@@ -222,7 +239,10 @@ export function resolveGuard(
   }
   const lane = laneScreenForPath(clean);
   if (lane !== null) {
-    return session === 'authenticated' && canAccessLaneScreen(role, capabilities, lane)
+    const granted = session === 'authenticated'
+      ? canAccessLaneScreen(role, capabilities, lane)
+      : session === 'preview' && flags !== undefined && canPreviewLaneScreen(role, flags, lane);
+    return granted
       ? { action: 'allow' }
       : { action: 'redirect', to: roleHomeScreen[role], reason: 'lane-unavailable' };
   }
