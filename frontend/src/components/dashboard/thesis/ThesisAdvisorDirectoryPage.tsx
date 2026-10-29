@@ -674,14 +674,17 @@ export default function ThesisAdvisorDirectoryPage() {
             </p>
           </div>
           <div className="relative h-48 min-h-[160px] overflow-hidden border-t border-border/60 lg:col-span-4 lg:h-full lg:border-l lg:border-t-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/images/banners/thesis_evaluation_council.jpg"
-              alt="HCMUTE Academic Thesis Evaluation Council"
-              width={2172}
-              height={724}
-              className="h-full w-full object-cover object-center transition duration-500 hover:scale-105"
-            />
+            <picture className="absolute inset-0 block">
+              <source srcSet="/images/banners/thesis_evaluation_council.webp" type="image/webp" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/images/banners/thesis_evaluation_council.jpg"
+                alt="HCMUTE Academic Thesis Evaluation Council"
+                width={2172}
+                height={724}
+                className="h-full w-full object-cover object-center transition duration-500 hover:scale-105"
+              />
+            </picture>
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent lg:hidden" />
             <div className="absolute bottom-2 left-3 rounded-md bg-background/85 px-2 py-0.5 text-[11px] font-semibold text-foreground backdrop-blur-xs">
               {isVi ? 'Hội đồng Bảo vệ Khóa luận HCMUTE' : 'HCMUTE Thesis Defense Council'}
