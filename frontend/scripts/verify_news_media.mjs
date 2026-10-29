@@ -1,6 +1,7 @@
 import { chromium } from 'playwright';
+import os from 'os';
 
-const artifactDir = 'C:/Users/Admin/.gemini/antigravity/brain/149f1b30-2f42-4e2f-890c-021712bdeaf1';
+const artifactDir = process.env.ARTIFACT_DIR || os.tmpdir();
 
 async function main() {
   console.log('Launching browser (msedge)...');

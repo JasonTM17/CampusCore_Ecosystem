@@ -2,9 +2,10 @@ import os
 import sys
 import time
 import json
+import tempfile
 from playwright.sync_api import sync_playwright
 
-ARTIFACT_DIR = r"C:\Users\Admin\.gemini\antigravity\brain\32baa29e-0b4a-488d-8978-7fca7b16587f"
+ARTIFACT_DIR = os.environ.get("ARTIFACT_DIR", tempfile.gettempdir())
 FRONTEND_URL = "http://127.0.0.1:3100"
 
 findings = []

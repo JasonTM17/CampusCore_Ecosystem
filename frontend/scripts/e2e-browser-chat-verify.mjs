@@ -1,8 +1,9 @@
 import { chromium } from '@playwright/test';
+import os from 'os';
 import path from 'path';
 import fs from 'fs';
 
-const ARTIFACT_DIR = 'C:/Users/Admin/.gemini/antigravity/brain/149f1b30-2f42-4e2f-890c-021712bdeaf1';
+const ARTIFACT_DIR = process.env.ARTIFACT_DIR || os.tmpdir();
 const BASE_URL = 'http://127.0.0.1:3100';
 
 async function runVerification() {
