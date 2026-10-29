@@ -23,6 +23,8 @@ jest.mock('expo-router', () => {
   };
 });
 jest.mock('../../src/session/SessionContext', () => ({ useSession: jest.fn() }));
+jest.mock('../../src/api/client', () => ({ apiClient: { mode: 'live' } }));
+jest.mock('../../src/hooks/use-dashboard-prefetch', () => ({ useDashboardPrefetch: jest.fn() }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: require('react-native').View }));
 
 const push = jest.fn();

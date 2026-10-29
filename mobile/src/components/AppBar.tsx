@@ -3,11 +3,13 @@ import { Image, Pressable, StatusBar, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
+import { apiClient } from '../api/client';
 import { chromeFor } from '../design/chrome';
 import { tokens } from '../design/tokens';
 import { useTheme } from '../design/theme';
 import { useShellCopy } from '../i18n/use-shell-copy';
 import type { UserRole } from '../navigation/routes';
+import { PreviewPill } from './PreviewPill';
 import { UiText } from './ui/UiText';
 
 // Standalone component renderers may omit the safe-area provider/context.
@@ -32,6 +34,7 @@ export function AppBar({ role, onProfile, onSignIn }: AppBarProps) {
   const insets = useContext(AppBarInsetsContext);
   const { copy } = useShellCopy();
   const roleLabel = role ? copy.roles[role] : null;
+  const preview = apiClient.mode === 'preview';
 
   return (
     <View
@@ -55,13 +58,14 @@ export function AppBar({ role, onProfile, onSignIn }: AppBarProps) {
           </UiText>
           {roleLabel && window.fontScale >= 1.3 ? <UiText variant="meta" style={{ color: chrome.onSurfaceMuted }}>{roleLabel}</UiText> : null}
         </View>
-        {roleLabel && window.fontScale < 1.3 ? (
+        {roleLabel && window.fontScale < 1.3 && !preview ? (
           <View style={[styles.rolePill, { backgroundColor: chrome.overlay }]}>
             <UiText variant="meta" style={{ color: chrome.onSurface }}>
               {roleLabel}
             </UiText>
           </View>
         ) : null}
+        <PreviewPill />
         {onProfile ? (
           <Pressable
             accessibilityLabel={copy.screens.profile}

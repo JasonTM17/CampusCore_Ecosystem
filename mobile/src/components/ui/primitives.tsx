@@ -27,9 +27,11 @@ export interface SheetProps {
   title?: string;
   children?: ReactNode;
   accessibilityLabel?: string;
+  closeLabel?: string;
+  closeAccessibilityLabel?: string;
 }
 
-export function Sheet({ visible, onClose, title, children, accessibilityLabel }: SheetProps) {
+export function Sheet({ visible, onClose, title, children, accessibilityLabel, closeLabel = 'Đóng', closeAccessibilityLabel = 'Đóng bảng' }: SheetProps) {
   const { colors, spacing, radii, scheme, reducedMotion } = useTheme();
   return (
     <Modal visible={visible} transparent animationType={reducedMotion ? 'none' : 'slide'} onRequestClose={onClose}>
@@ -45,7 +47,7 @@ export function Sheet({ visible, onClose, title, children, accessibilityLabel }:
                 {title}
               </UiText>
             ) : null}
-            <Button label="Đóng" onPress={onClose} variant="text" accessibilityLabel="Đóng bảng" />
+            <Button label={closeLabel} onPress={onClose} variant="text" accessibilityLabel={closeAccessibilityLabel} />
           </View>
           {children}
         </View>

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { Button, Card, DataNotice, ProgressBar, ScreenShell, StatePanel, UiText } from '../../components/Ui';
+import { Button, Card, ProgressBar, ScreenShell, StatePanel, UiText } from '../../components/Ui';
 import { apiClient } from '../../api/client';
 import { tokens } from '../../design/tokens';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -39,7 +39,6 @@ export function CertificatesScreen({ navigation }: MobileScreenProps) {
 
   return (
     <ScreenShell title={copy.certificatesTitle}>
-      {preview ? <DataNotice message={shared.previewNotice} /> : null}
       {loading ? (
         <StatePanel kind="loading" title={t('loading')} />
       ) : failure ? (

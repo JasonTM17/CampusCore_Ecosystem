@@ -75,7 +75,7 @@ describe('service screens in preview mode (Vietnamese by default)', () => {
     await renderThemed(<NewsScreen {...props} />);
     expect(screen.getByRole('header', { name: campusMessages.vi.newsTitle })).toBeOnTheScreen();
     expect(screen.getByText('Lịch thi cuối kỳ')).toBeOnTheScreen();
-    expect(screen.getByText(contentMessages.vi.previewNotice)).toBeOnTheScreen();
+    expect(screen.queryByText(contentMessages.vi.previewNotice)).toBeNull();
   });
 
   test('docs shows the preview document', async () => {
@@ -141,7 +141,7 @@ describe('service screens in preview mode (Vietnamese by default)', () => {
     await renderThemed(<LearningScreen {...props} />);
     expect(screen.getByRole('header', { name: learningMessages.vi.title })).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: new RegExp('Bài thực hành 1') }));
-    expect(screen.getByText(contentMessages.vi.previewNotice)).toBeOnTheScreen();
+    expect(screen.queryByText(contentMessages.vi.previewNotice)).toBeNull();
     expect(screen.queryByRole('button', { name: learningMessages.vi.startDraft })).toBeNull();
   });
 });
@@ -163,6 +163,7 @@ describe('service screens in live mode', () => {
     await renderThemed(<LearningScreen {...props} />);
     expect(screen.getByText(learningMessages.vi.errorTitle)).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: learningMessages.vi.retry })).toBeOnTheScreen();
+    expect(screen.queryByText(contentMessages.vi.previewNotice)).toBeNull();
   });
 
   test('an empty live list shows the empty state', async () => {

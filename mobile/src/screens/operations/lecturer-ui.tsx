@@ -39,12 +39,11 @@ export interface OpsShellProps<T = unknown> {
   children: ReactNode;
 }
 
-/** Screen frame with the loading, error, stale-data and preview states in one place. */
+/** Screen frame with the loading, error and stale-data states in one place. */
 export function OpsShell<T>({ title, eyebrow, subtitle, loading = false, error, warning, onRetry, children, list }: OpsShellProps<T>) {
   const { copy } = useOpsCopy();
   return (
     <ScreenShell title={title} eyebrow={eyebrow} subtitle={subtitle} list={list && (loading || error ? { ...list, data: [], footer: null } : list)}>
-      {isOpsPreview() ? <DataNotice message={copy.previewNotice} /> : null}
       {warning ? <DataNotice message={warning} /> : null}
       {loading || error ? (
         <StatePanel

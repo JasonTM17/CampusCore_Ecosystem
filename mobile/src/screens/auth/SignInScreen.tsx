@@ -4,6 +4,7 @@ import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Button, Card, DataNotice, StatePanel, UiText } from '../../components/Ui';
+import { PreviewPill } from '../../components/PreviewPill';
 import { StatusPill } from '../../components/ui/index';
 import { apiClient } from '../../api/client';
 import type { MobilePublicAnnouncement } from '../../api/client';
@@ -116,6 +117,7 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
             </View>
           </View>
           <UiText variant="headlineMedium" style={[styles.heroTitle, { color: chrome.onSurface }]}>{copy.title}</UiText>
+          <PreviewPill style={styles.previewPill} />
         </View>
         <View style={styles.body}>
           <Card style={styles.formCard}>
@@ -384,6 +386,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   brandMark: { backgroundColor: tokens.colors.card, borderRadius: tokens.radii.control, height: 56, width: 56 },
   brandCopy: { flex: 1, minWidth: 0, gap: tokens.spacing.xs },
   heroTitle: { marginTop: tokens.spacing.lg },
+  previewPill: { alignSelf: 'flex-start', marginTop: tokens.spacing.sm },
   body: { alignSelf: 'center', flex: 1, maxWidth: tokens.windowClasses.contentMaxWidth.medium, paddingHorizontal: tokens.layout.mobileGutter, width: '100%' },
   formCard: { marginTop: -HERO_OVERLAP, padding: tokens.spacing.lg },
   formIntro: { marginBottom: tokens.spacing.md, marginTop: tokens.spacing.xs },

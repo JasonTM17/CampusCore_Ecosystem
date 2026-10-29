@@ -2,7 +2,7 @@ import { cardRows, renderVirtualRow } from '../../components/perf/virtual-rows';
 import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 
-import { Button, Card, DataNotice, Field, StatePanel, UiText } from '../../components/Ui';
+import { Button, Card, Field, StatePanel, UiText } from '../../components/Ui';
 import type { MobileLearningAssignment, MobileLearningFeedback, MobileLearningRevision, MobileLearningSubmission } from '../../api/client';
 import { readQueryCache, writeQueryCache } from '../../hooks/query-cache';
 import type { PickedFile } from '../../files/file-adapter';
@@ -196,8 +196,6 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
           </View>
           {late && canWrite ? <UiText variant="bodySmall" tone="warning" style={{ marginTop: 8 }}>{copy.pastDeadline}</UiText> : null}
         </Card>
-
-        {preview ? <DataNotice message={shared.previewNotice} /> : null}
 
         {submissionId !== null && submissionQuery.isLoading && !submission ? <StatePanel kind="loading" title={copy.loading} /> : null}
         {submissionId !== null && submissionQuery.error ? (

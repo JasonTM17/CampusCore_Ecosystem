@@ -12,8 +12,10 @@ const vi = {
   unread: 'Chưa đọc',
   language: 'Ngôn ngữ',
   previewRole: 'Vai trò xem thử',
+  previewLabel: 'Bản xem thử',
+  assistantFabLabel: 'Trợ lý CampusUTE',
   roles: { student: 'Sinh viên', lecturer: 'Giảng viên', admin: 'Quản trị' },
-  sections: { student: 'Sinh viên', staff: 'Nghiệp vụ', lanes: 'Nghiệp vụ mở rộng' },
+  sections: { student: 'Sinh viên', assistant: 'Trợ lý', staff: 'Nghiệp vụ', lanes: 'Nghiệp vụ mở rộng' },
   nav: { home: 'Trang chủ', schedule: 'Lịch học', register: 'Đăng ký', alerts: 'Thông báo', gradebook: 'Sổ điểm', students: 'Sinh viên', lecturers: 'Giảng viên' },
   screens: {
     'auth.signIn': 'Đăng nhập',
@@ -121,8 +123,10 @@ const en: ShellCopy = {
   unread: 'Unread',
   language: 'Language',
   previewRole: 'Preview role',
+  previewLabel: 'Preview',
+  assistantFabLabel: 'CampusUTE Assistant',
   roles: { student: 'Student', lecturer: 'Lecturer', admin: 'Admin' },
-  sections: { student: 'Student', staff: 'Staff', lanes: 'Extended desks' },
+  sections: { student: 'Student', assistant: 'Assistant', staff: 'Staff', lanes: 'Extended desks' },
   nav: { home: 'Home', schedule: 'Schedule', register: 'Register', alerts: 'Alerts', gradebook: 'Gradebook', students: 'Students', lecturers: 'Lecturers' },
   screens: {
     'auth.signIn': 'Sign in',
