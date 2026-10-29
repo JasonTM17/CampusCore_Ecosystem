@@ -448,3 +448,89 @@ test('preview mode refuses every lane before any network call', async () => {
     net.restore();
   }
 });
+
+test('native disk downloads use the authenticated manual redirect lane and forward progress', async () => {
+  const { options } = makeSession();
+  const calls = [];
+  const progress = [];
+  let released = 0;
+  const nativeFiles = {
+    fetch: async (url, init) => {
+      calls.push({ url, init, headers: new Headers(init.headers) });
+      if (calls.length === 1) return new Response(null, { status: 302, headers: { location: 'https://cdn.test/a' } });
+      return new Response(new Uint8Array([1]), { headers: { 'content-type': 'application/pdf' } });
+    },
+    streamDownload: async (response, signal, onProgress) => {
+      assert.equal(signal.aborted, false);
+      assert.equal(response.ok, true);
+      onProgress(1, 1);
+      return { localUri: 'file:///cache/generated.pdf', release: () => { released += 1; } };
+    },
+  };
+  const client = createApiClient({ ...options, nativeFiles });
+  const file = await client.download('/learning/materials/a/file', { nativeFile: true, onProgress: (...p) => progress.push(p) });
+  assert.equal(file.localUri, 'file:///cache/generated.pdf');
+  assert.equal(file.data.byteLength, 0, 'the disk lane never materializes an ArrayBuffer');
+  assert.equal(calls[0].headers.get('authorization'), 'Bearer old-token');
+  assert.equal(calls[1].headers.has('authorization'), false);
+  assert.ok(calls.every(call => call.init.redirect === 'manual'));
+  assert.deepEqual(progress, [[1, 1]]);
+  assert.equal(released, 0);
+  file.release();
+  assert.equal(released, 1);
+});
+
+test('native disk result is deleted when the session changes just after streaming', async () => {
+  const { state, options } = makeSession();
+  let released = 0;
+  const nativeFiles = {
+    fetch: async () => new Response(new Uint8Array([1])),
+    streamDownload: async () => {
+      state.epoch += 1;
+      return { localUri: 'file:///cache/generated.pdf', release: () => { released += 1; } };
+    },
+  };
+  const client = createApiClient({ ...options, nativeFiles, epochPollMs: 10000 });
+  await assert.rejects(client.download('/learning/materials/a/file', { nativeFile: true }), e => e.code === 'SESSION_CHANGED');
+  assert.equal(released, 1);
+});
+
+test('legacy bytes consumer uses the bounded native disk lane then releases the cache file', async () => {
+  const { options } = makeSession();
+  let released = 0;
+  const nativeFiles = {
+    fetch: async () => new Response(new Uint8Array([1]), { headers: { 'content-type': 'application/pdf' } }),
+    streamDownload: async () => ({ localUri: 'file:///cache/generated.pdf', release: () => { released += 1; } }),
+    readDiskDownload: async () => new Uint8Array([1]).buffer,
+  };
+  const file = await createApiClient({ ...options, nativeFiles }).download('/learning/materials/a/file');
+  assert.deepEqual([...new Uint8Array(file.data)], [1]);
+  assert.equal(file.localUri, undefined);
+  assert.equal(released, 1);
+});
+
+test('native multipart is prepared once and replays the prepared body/key after refresh', async () => {
+  const { options, state } = makeSession();
+  const sent = [];
+  const original = new FormData();
+  const prepared = new FormData();
+  prepared.append('file', new Blob(['%PDF'], { type: 'application/pdf' }));
+  let preparedCount = 0;
+  const nativeFiles = {
+    prepareUpload: (form, path) => {
+      assert.equal(form, original);
+      assert.equal(path, '/admissions/applications/a/attachments');
+      preparedCount += 1;
+      return prepared;
+    },
+    fetch: async (_url, init) => {
+      sent.push(init);
+      return sent.length === 1 ? json(401, {}) : json(200, { id: 'uploaded' });
+    },
+  };
+  const client = createApiClient({ ...options, nativeFiles });
+  assert.deepEqual(await client.upload('/admissions/applications/a/attachments', original, { idempotencyKey: 'native-intent' }), { id: 'uploaded' });
+  assert.equal(preparedCount, 1);
+  assert.equal(state.refreshCalls, 1);
+  assert.ok(sent.every(init => init.body === prepared && init.headers.get('Idempotency-Key') === 'native-intent'));
+});

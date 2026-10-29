@@ -4,6 +4,7 @@
 // attempts reuse one idempotency key until the outcome is known.
 
 import type { FileAdapter, PickedFile } from '../../files/file-adapter';
+import { sanitizeFileName, type DiskDownload } from '../../api/native-file-adapter';
 import type { AttemptKeys } from '../academic/idempotency-attempts';
 
 /** Same ceiling as the server's multipart lanes. */
@@ -118,25 +119,59 @@ export function bytesToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
-/** Fetches through the authenticated client, then hands the bytes to the save sheet. */
+/** Native results stay on disk; byte-only callers retain the compatibility lane. */
 export async function downloadToDevice(
   adapter: FileAdapter,
-  fetchBytes: () => Promise<DownloadedBytes>,
+  fetchBytes: () => Promise<DownloadedBytes & Partial<DiskDownload>>,
   fallbackName: string,
 ): Promise<DownloadOutcome> {
   const capability = adapter.capability('save');
   if (!capability.available) return { status: 'unavailable', reason: capability.reason };
+  let file: (DownloadedBytes & Partial<DiskDownload>) | undefined;
+  let timer: ReturnType<typeof setInterval> | undefined;
+  let released = false;
+  let cleanupFailed = false;
+  const release = () => {
+    if (file?.release && !released) {
+      file.release();
+      released = true;
+    }
+  };
   try {
-    const file = await fetchBytes();
-    if (file.data.byteLength === 0) return { status: 'failed', reason: 'EMPTY' };
+    // Loading the helper must not initialize native session storage (preview,
+    // unavailable adapters and component-only environments also import it).
+    const { sessionStore } = await import('../../auth/mobile-session-store');
+    const epoch = sessionStore.sessionEpoch();
+    const stale = () => sessionStore.sessionEpoch() !== epoch;
+    file = await fetchBytes();
+    if (stale()) return { status: 'failed', reason: 'SESSION_CHANGED' };
+    if (!file.localUri && file.data.byteLength === 0) return { status: 'failed', reason: 'EMPTY' };
+    if (file.localUri) {
+      if (!file.release) return { status: 'failed', reason: 'ERROR' };
+      // The transport stops watching when it returns. Keep the disk file scoped
+      // to this session even while the native sheet is still pending.
+      timer = setInterval(() => {
+        if (stale()) {
+          clearInterval(timer);
+          try { release(); } catch { cleanupFailed = true; }
+        }
+      }, 100);
+    }
     const mimeType = file.contentType ?? 'application/octet-stream';
-    return await adapter.save({
-      uri: `data:${mimeType};base64,${bytesToBase64(file.data)}`,
-      name: file.fileName ?? fallbackName,
+    const result = await adapter.save({
+      uri: file.localUri ?? `data:${mimeType};base64,${bytesToBase64(file.data)}`,
+      // A native title comes only from the adapter's generated destination.
+      // Legacy display names are reduced to a bounded, safe path segment.
+      name: sanitizeFileName(file.localUri ?? file.fileName ?? fallbackName),
       mimeType,
     });
+    return stale() ? { status: 'failed', reason: 'SESSION_CHANGED' } : result;
   } catch (error) {
     return { status: 'failed', reason: (error as { code?: string } | null)?.code ?? 'ERROR' };
+  } finally {
+    if (timer !== undefined) clearInterval(timer);
+    try { release(); } catch { cleanupFailed = true; }
+    if (cleanupFailed) return { status: 'failed', reason: 'ERROR' };
   }
 }
 

@@ -9,6 +9,7 @@ import type {
   PushDeviceRegistrationBody,
   PushDeviceRegistrationResponse,
 } from './push-notifications';
+import type { DiskDownload, NativeFileRuntime, TransferProgress } from './native-file-adapter';
 
 export type JsonObject = Record<string, unknown>;
 export type AssistantLocale = 'en' | 'vi';
@@ -621,6 +622,8 @@ export interface ApiClientOptions {
    * one it started under; a sign-out or account switch aborts the transfer.
    */
   epochPollMs?: number;
+  /** Injectable native boundary; null deliberately keeps byte-only transport. */
+  nativeFiles?: NativeFileRuntime | null;
 }
 
 export type ApiMode = 'preview' | 'live';
@@ -639,9 +642,12 @@ export interface ApiRequestInit extends RequestInit {
 export interface ApiTransferInit extends Omit<ApiRequestInit, 'body' | 'method'> {
   /** Sent as `Idempotency-Key`; replays of the same call (refresh or caller retry) must reuse it. */
   idempotencyKey?: string;
+  /** Stream to an owned cache file on native; byte-only callers remain compatible. */
+  nativeFile?: boolean;
+  onProgress?: TransferProgress;
 }
 
-export interface ApiUploadInit extends ApiTransferInit {
+export interface ApiUploadInit extends Omit<ApiTransferInit, 'nativeFile' | 'onProgress'> {
   method?: 'POST' | 'PUT' | 'PATCH';
 }
 
@@ -652,6 +658,9 @@ export interface ApiDownload {
   fileName: string | null;
   headers: Headers;
   requestId: string;
+  /** Present only for an explicitly requested native disk download. */
+  localUri?: string;
+  release?: () => void;
 }
 
 export interface ApiClient {
@@ -854,7 +863,7 @@ export function safeDownloadFileName(disposition: string | null | undefined): st
     raw = (plain?.[1] ?? plain?.[2] ?? '').trim();
   }
   // eslint-disable-next-line no-control-regex
-  const segment = (raw.split(/[\\/]/).pop() ?? '').replace(/[\u0000-\u001f\u007f<>:"|?*]/g, '').trim();
+  const segment = (raw.split(/[\\/]/).pop() ?? '').replace(/[\u0000-\u001f\u007f<>:"|?*]/g, '').trim().replace(/^\.+/, '');
   if (!segment || /^\.+$/.test(segment)) return null;
   return segment.slice(0, 200);
 }
@@ -867,6 +876,11 @@ function shouldRefreshAfterUnauthorized(_path: string, status: number) {
 }
 
 export function createApiClient(options: ApiClientOptions = {}): ApiClient {
+  let nativeFiles = options.nativeFiles ?? undefined;
+  if (options.nativeFiles === undefined) {
+    try { nativeFiles = (require('./native-file-adapter') as typeof import('./native-file-adapter')).getNativeFileRuntime(); }
+    catch { /* Web/node or an older native binary keeps the existing bytes lane. */ }
+  }
   const baseUrl = normalizeBaseUrl(
     options.baseUrl ?? configuredApiBaseUrl ?? DEFAULT_API_BASE_URL,
   );
@@ -920,7 +934,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     let currentHeaders = headers;
     let sameOrigin = true;
     for (let hop = 0; ; hop += 1) {
-      const response = await fetch(currentUrl, { ...currentInit, headers: currentHeaders });
+      const response = await (nativeFiles?.fetch ?? fetch)(currentUrl, { ...currentInit, headers: currentHeaders });
       if (response.type === 'opaqueredirect') {
         throw new ApiClientError('The server redirect could not be followed', 0, requestId, 'REDIRECT_UNSUPPORTED');
       }
@@ -929,8 +943,10 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         return { response, sameOrigin };
       }
       if (hop >= MAX_TRANSFER_REDIRECTS) {
+        await response.body?.cancel().catch(() => {});
         throw new ApiClientError('Too many redirects', 0, requestId, 'REDIRECT_LIMIT');
       }
+      await response.body?.cancel().catch(() => {});
       currentUrl = resolveLocation(currentUrl, location);
       if (originOf(currentUrl) !== apiOrigin) {
         sameOrigin = false;
@@ -947,7 +963,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     }
   }
 
-  async function dispatch(path: string, init: ApiRequestInit, mode: TransferMode) {
+  async function dispatch(path: string, init: ApiRequestInit, mode: TransferMode, transferOptions: ApiTransferInit = {}) {
     const requestId = createRequestId();
     const startedAt = Date.now();
     const { auth = 'protected', ...fetchInit } = init;
@@ -978,10 +994,24 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     }
 
     const url = `${baseUrl}${normalizePath(path)}`;
-    const readBody = mode === 'download'
-      ? (response: Response): Promise<unknown> =>
-        (response.ok ? response.arrayBuffer() : readResponseBody(response))
-      : readResponseBody;
+    let diskDownload: DiskDownload | undefined;
+    const readBody = async (response: Response): Promise<unknown> => {
+      if (mode !== 'download' || !response.ok) return readResponseBody(response);
+      const report = /^\/thesis\/groups\/[^/]+\/report\/file$/.test(path);
+      if (nativeFiles && (transferOptions.nativeFile || /^\/(admissions|careers|learning)\//.test(path) || report)) {
+        diskDownload = await nativeFiles.streamDownload(response, fetchInit.signal, transferOptions.onProgress,
+          report ? 20 * 1024 * 1024 : undefined,
+          report ? ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'] : undefined);
+        if (transferOptions.nativeFile) return diskDownload;
+        // Compatibility consumers require bytes. Keep that bounded lane until
+        // their owner opts into localUri; networking still streams to cache.
+        const bytes = await nativeFiles.readDiskDownload(diskDownload);
+        diskDownload.release();
+        diskDownload = undefined;
+        return bytes;
+      }
+      return response.arrayBuffer();
+    };
 
     // Transfers run under their own controller: the caller's signal and a
     // session-epoch change (sign-out or account switch) both abort it.
@@ -1012,6 +1042,10 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     }
 
     try {
+      if (mode === 'upload' && nativeFiles && isFormData(fetchInit.body)
+        && (/^\/(admissions|careers|learning)\//.test(path) || /^\/thesis\/groups\/[^/]+\/report\/file$/.test(path))) {
+        fetchInit.body = nativeFiles.prepareUpload(fetchInit.body as FormData, path);
+      }
       let { response, sameOrigin } = await send(url, fetchInit, headers, transfer);
       let body = await readBody(response);
 
@@ -1069,6 +1103,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
 
       return { body, headers: response.headers, requestId };
     } catch (error) {
+      diskDownload?.release();
       if (!transfer || error instanceof ApiClientError) throw error;
       if (sessionChanged) {
         throw new ApiClientError('The session changed during the transfer', 0, requestId, 'SESSION_CHANGED');
@@ -1076,8 +1111,12 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       if (controller?.signal.aborted) {
         throw new ApiClientError('The transfer was aborted', 0, requestId, 'REQUEST_ABORTED');
       }
+      const nativeCode = (error as { name?: string; code?: string } | null);
+      if (nativeCode?.name === 'NativeFileError') {
+        throw new ApiClientError('The file transfer failed', 0, requestId, nativeCode.code);
+      }
       throw new ApiClientError(
-        error instanceof Error ? error.message : 'The network request failed',
+        'The network request failed',
         0,
         requestId,
         'NETWORK_ERROR',
@@ -1117,11 +1156,12 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     },
 
     async download(path: string, init: ApiTransferInit = {}) {
-      const { idempotencyKey, ...rest } = init;
+      const { idempotencyKey, nativeFile, onProgress, ...rest } = init;
       const result = await dispatch(
         path,
         { ...rest, method: 'GET', headers: withIdempotencyKey(rest.headers, idempotencyKey) },
         'download',
+        { nativeFile, onProgress },
       );
       const data = result.body instanceof ArrayBuffer ? result.body : new ArrayBuffer(0);
       return {
@@ -1130,6 +1170,8 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         fileName: safeDownloadFileName(result.headers.get('content-disposition')),
         headers: result.headers,
         requestId: result.requestId,
+        ...(result.body && typeof result.body === 'object' && 'localUri' in result.body
+          ? result.body as DiskDownload : {}),
       };
     },
 
@@ -1191,6 +1233,19 @@ export const apiClient = createApiClient({
     (await sessionStore.refreshAccessToken()).accessToken !== null,
   sessionEpoch: () => sessionStore.sessionEpoch(),
 });
+
+// API startup is the native composition root. Keep the public file boundary
+// dependency-free for web/node and preserve an explicitly registered adapter.
+try {
+  const nativeFiles = (require('./native-file-adapter') as typeof import('./native-file-adapter')).getNativeFileRuntime();
+  const registry = require('../files/file-adapter') as typeof import('../files/file-adapter');
+  const current = registry.getFileAdapter();
+  const capability = current.capability('pick');
+  if (nativeFiles && !capability.available && capability.reason === registry.FILE_UNAVAILABLE_REASON
+    && !current.capability('save').available && !current.capability('share').available) {
+    registry.setFileAdapter(nativeFiles.adapter);
+  }
+} catch { /* Missing modules retain the existing localized unavailable lane. */ }
 
 export const apiRoutes = {
   identity: '/me',

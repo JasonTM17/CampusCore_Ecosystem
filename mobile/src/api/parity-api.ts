@@ -2,6 +2,7 @@ import {
   apiClient,
   type ApiClient,
   type ApiDownload,
+  type ApiTransferInit,
   type MobileCareerOpportunity,
   type MobileEvent,
   type MobileEventRegistration,
@@ -36,6 +37,9 @@ export type UploadFilePart = Blob | { uri: string; name: string; type: string };
 
 export interface TransferOptions {
   signal?: AbortSignal;
+  /** Opt in only when the consumer handles ApiDownload.localUri and release. */
+  nativeFile?: boolean;
+  onProgress?: ApiTransferInit['onProgress'];
 }
 
 /**
@@ -143,7 +147,7 @@ export function createParityApi(client: ApiClient) {
     ): Promise<ApiDownload> =>
       client.download(
         `/admissions/applications/${id(applicationId)}/attachments/${id(attachmentId)}/file`,
-        { signal: options.signal },
+        { signal: options.signal, ...(options.nativeFile ? { nativeFile: true, onProgress: options.onProgress } : {}) },
       ),
 
     // Careers: candidate-owned attachment.
@@ -164,7 +168,7 @@ export function createParityApi(client: ApiClient) {
     ): Promise<ApiDownload> =>
       client.download(
         `/careers/applications/${id(applicationId)}/attachments/${id(attachmentId)}/download`,
-        { signal: options.signal },
+        { signal: options.signal, ...(options.nativeFile ? { nativeFile: true, onProgress: options.onProgress } : {}) },
       ),
 
     // Learning (student lane): draft save and resubmit accept an optional file part.
@@ -189,9 +193,11 @@ export function createParityApi(client: ApiClient) {
         { idempotencyKey: options.idempotencyKey, signal: options.signal },
       ),
     learningDownloadMaterial: (materialId: string, options: TransferOptions = {}): Promise<ApiDownload> =>
-      client.download(`/learning/materials/${id(materialId)}/file`, { signal: options.signal }),
+      client.download(`/learning/materials/${id(materialId)}/file`, { signal: options.signal,
+        ...(options.nativeFile ? { nativeFile: true, onProgress: options.onProgress } : {}) }),
     learningDownloadRevision: (revisionId: string, options: TransferOptions = {}): Promise<ApiDownload> =>
-      client.download(`/learning/revisions/${id(revisionId)}/file`, { signal: options.signal }),
+      client.download(`/learning/revisions/${id(revisionId)}/file`, { signal: options.signal,
+        ...(options.nativeFile ? { nativeFile: true, onProgress: options.onProgress } : {}) }),
   };
 }
 

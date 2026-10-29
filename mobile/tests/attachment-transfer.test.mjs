@@ -1,8 +1,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import fs from 'node:fs';
+import ts from 'typescript';
 import { loadTs } from './helpers/load-ts.mjs';
 
-const transfer = await loadTs('src/screens/content/attachment-transfer.ts');
+function moduleUrl(source) {
+  const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } });
+  return `data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`;
+}
+const sessionUrl = moduleUrl('let epoch = 0; export const sessionStore = { sessionEpoch: () => epoch, bumpEpoch: () => { epoch += 1; } };');
+const { sessionStore } = await import(sessionUrl);
+const nativeUrl = moduleUrl(fs.readFileSync(new URL('../src/api/native-file-adapter.ts', import.meta.url), 'utf8'));
+const transferSource = fs.readFileSync(new URL('../src/screens/content/attachment-transfer.ts', import.meta.url), 'utf8')
+  .replace("'../../api/native-file-adapter'", JSON.stringify(nativeUrl))
+  .replace("'../../auth/mobile-session-store'", JSON.stringify(sessionUrl));
+const transfer = await import(moduleUrl(transferSource));
 const attempts = await loadTs('src/screens/academic/idempotency-attempts.ts');
 const adapterModule = await loadTs('src/files/file-adapter.ts');
 
@@ -131,4 +143,106 @@ test('transferStateOf maps outcomes to a row state', () => {
   assert.deepEqual(transfer.transferStateOf({ status: 'unavailable', reason: 'x' }), { status: 'unavailable' });
   assert.deepEqual(transfer.transferStateOf({ status: 'failed', reason: 'x' }), { status: 'failed' });
   assert.deepEqual(transfer.transferStateOf({ status: 'cancelled' }), { status: 'idle' });
+});
+
+test('regression: server traversal names never reach the save sheet', async () => {
+  const adapter = fakeAdapter();
+  await transfer.downloadToDevice(adapter, async () => ({
+    data: new Uint8Array([1]).buffer, contentType: 'application/pdf', fileName: '../../.hidden.pdf',
+  }), 'fallback.pdf');
+  assert.equal(adapter.calls.save[0].name, 'hidden.pdf');
+});
+
+test('regression: disk download is released when the save sheet fails', async () => {
+  let released = 0;
+  const adapter = fakeAdapter({ save: async () => ({ status: 'failed', reason: 'ERROR' }) });
+  const outcome = await transfer.downloadToDevice(adapter, async () => ({
+    data: new ArrayBuffer(0), localUri: 'file:///cache/generated.pdf',
+    contentType: 'application/pdf', fileName: 'server.pdf', release: () => { released += 1; },
+  }), 'fallback.pdf');
+  assert.equal(outcome.status, 'failed');
+  assert.equal(released, 1);
+});
+
+for (const status of ['done', 'failed', 'cancelled', 'unavailable']) {
+  test(`disk download stays on disk and is released after save returns ${status}`, async () => {
+    let released = 0;
+    const result = status === 'failed' || status === 'unavailable' ? { status, reason: 'ERROR' } : { status };
+    const file = {
+      get data() { assert.fail('native results must never be read into bytes/base64'); },
+      get fileName() { assert.fail('native save must never use a server name'); },
+      localUri: 'file:///cache/attachment-generated.pdf', contentType: 'application/pdf',
+      release: () => { released += 1; },
+    };
+    const adapter = fakeAdapter({ save: async target => {
+      assert.equal(released, 0, 'keep the file until the sheet settles');
+      assert.deepEqual(target, {
+        uri: file.localUri, name: 'attachment-generated.pdf', mimeType: 'application/pdf',
+      });
+      return result;
+    } });
+    assert.deepEqual(await transfer.downloadToDevice(adapter, async () => file, '../../server-fallback.pdf'), result);
+    assert.equal(released, 1);
+  });
+}
+
+test('disk download is released when the save sheet throws and preserves the error code', async () => {
+  let released = 0;
+  const adapter = fakeAdapter({ save: async () => { throw { code: 'REQUEST_ABORTED' }; } });
+  assert.deepEqual(await transfer.downloadToDevice(adapter, async () => ({
+    data: new ArrayBuffer(0), localUri: 'file:///cache/attachment-generated.pdf',
+    contentType: 'application/pdf', fileName: '../../private.pdf', release: () => { released += 1; },
+  }), 'fallback.pdf'), { status: 'failed', reason: 'REQUEST_ABORTED' });
+  assert.equal(released, 1);
+});
+
+test('logout before the download returns releases the disk file without opening the sheet', async () => {
+  let released = 0;
+  const adapter = fakeAdapter();
+  const result = await transfer.downloadToDevice(adapter, async () => {
+    sessionStore.bumpEpoch();
+    return { data: new ArrayBuffer(0), localUri: 'file:///cache/attachment-generated.pdf',
+      contentType: 'application/pdf', fileName: 'private.pdf', release: () => { released += 1; } };
+  }, 'fallback.pdf');
+  assert.deepEqual(result, { status: 'failed', reason: 'SESSION_CHANGED' });
+  assert.equal(adapter.calls.save.length, 0);
+  assert.equal(released, 1);
+});
+
+test('logout while the save sheet is pending releases the disk file and stops watching', async context => {
+  context.mock.timers.enable({ apis: ['setInterval'] });
+  let released = 0;
+  let finishSheet;
+  let enterSheet;
+  const sheetEntered = new Promise(resolve => { enterSheet = resolve; });
+  const pending = transfer.downloadToDevice(fakeAdapter({ save: () => new Promise(resolve => { finishSheet = resolve; enterSheet(); }) }), async () => ({
+    data: new ArrayBuffer(0), localUri: 'file:///cache/attachment-generated.pdf',
+    contentType: 'application/pdf', fileName: 'private.pdf', release: () => { released += 1; },
+  }), 'fallback.pdf');
+  await sheetEntered;
+  assert.equal(typeof finishSheet, 'function');
+  sessionStore.bumpEpoch();
+  context.mock.timers.tick(100);
+  assert.equal(released, 1, 'delete immediately on the session check, without waiting for the sheet');
+  finishSheet({ status: 'done' });
+  assert.deepEqual(await pending, { status: 'failed', reason: 'SESSION_CHANGED' });
+  context.mock.timers.tick(1000);
+  assert.equal(released, 1);
+});
+
+test('disk cleanup errors return only the existing safe error code', async () => {
+  const result = await transfer.downloadToDevice(fakeAdapter(), async () => ({
+    data: new ArrayBuffer(0), localUri: 'file:///cache/attachment-generated.pdf',
+    contentType: 'application/pdf', fileName: null,
+    release: () => { throw new Error('private native error'); },
+  }), 'fallback.pdf');
+  assert.deepEqual(result, { status: 'failed', reason: 'ERROR' });
+});
+
+test('legacy fallback names are sanitized before reaching the save sheet', async () => {
+  const adapter = fakeAdapter();
+  await transfer.downloadToDevice(adapter, async () => ({
+    data: new Uint8Array([1]).buffer, contentType: 'application/pdf', fileName: null,
+  }), '..\\..\\.hidden.pdf');
+  assert.equal(adapter.calls.save[0].name, 'hidden.pdf');
 });
