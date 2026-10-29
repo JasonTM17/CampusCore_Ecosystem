@@ -2501,6 +2501,9 @@ export interface components {
       accepted?: boolean;
       /** Format: date-time */
       acceptedAt?: string;
+      /** @description Version the student actually accepted, if any */
+      acceptedVersion?: string;
+      /** @description Currently required consent version; echo it in POST /location-consent */
       version?: string;
     };
     AttendanceGeofenceRequest: {
@@ -3244,6 +3247,20 @@ export interface components {
       /** Format: date-time */
       updatedAt?: string;
     };
+    ErrorResponse: {
+      code?: string;
+      fieldErrors?: components["schemas"]["FieldErrorItem"][];
+      fields?: {
+        [key: string]: string;
+      };
+      message?: string;
+      path?: string;
+      requestId?: string;
+      /** Format: int32 */
+      status?: number;
+      /** Format: date-time */
+      timestamp?: string;
+    };
     EventResponse: {
       /** Format: int32 */
       capacity?: number;
@@ -3365,6 +3382,10 @@ export interface components {
       byReason?: components["schemas"]["ReasonCount"][];
       recent?: components["schemas"]["RecentItem"][];
       totals?: components["schemas"]["Totals"];
+    };
+    FieldErrorItem: {
+      field?: string;
+      message?: string;
     };
     ForgotPasswordRequest: {
       /** Format: email */
@@ -7125,8 +7146,8 @@ export interface operations {
       };
     };
     responses: {
-      /** @description OK */
-      200: {
+      /** @description Phiên đã mở */
+      201: {
         content: {
           "*/*": components["schemas"]["AttendanceSessionResponse"];
         };
@@ -7182,37 +7203,37 @@ export interface operations {
       /** @description INVALID_LOCATION */
       400: {
         content: {
-          "*/*": components["schemas"]["AttendanceCheckinResponse"];
+          "*/*": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description NOT_ENROLLED hoặc CONSENT_REQUIRED */
       403: {
         content: {
-          "*/*": components["schemas"]["AttendanceCheckinResponse"];
+          "*/*": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description ALREADY_CHECKED_IN */
       409: {
         content: {
-          "*/*": components["schemas"]["AttendanceCheckinResponse"];
+          "*/*": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description SESSION_CLOSED */
       410: {
         content: {
-          "*/*": components["schemas"]["AttendanceCheckinResponse"];
+          "*/*": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description BAD_CODE, OUTSIDE_AREA hoặc LOW_ACCURACY */
       422: {
         content: {
-          "*/*": components["schemas"]["AttendanceCheckinResponse"];
+          "*/*": components["schemas"]["ErrorResponse"];
         };
       };
       /** @description TOO_MANY_ATTEMPTS; Retry-After */
       429: {
         content: {
-          "*/*": components["schemas"]["AttendanceCheckinResponse"];
+          "*/*": components["schemas"]["ErrorResponse"];
         };
       };
     };
