@@ -38,6 +38,11 @@ export default function robots(): MetadataRoute.Robots {
           '/attendance/checkin/',
           '/en/attendance/checkin/',
           '/vi/attendance/checkin/',
+          // The staff desk start page is a gated surface like the desks it
+          // links to.
+          '/staff',
+          '/en/staff',
+          '/vi/staff',
           '/api/',
           '/_next/',
         ],
