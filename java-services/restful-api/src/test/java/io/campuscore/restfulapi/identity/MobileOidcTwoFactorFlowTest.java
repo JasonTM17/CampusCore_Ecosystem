@@ -26,10 +26,13 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.MockMvcPrint;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -38,6 +41,10 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextImpl;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -53,7 +60,7 @@ import tools.jackson.databind.ObjectMapper;
  * sender is mocked only to read the emailed code.
  */
 @SpringBootTest
-@AutoConfigureMockMvc
+@AutoConfigureMockMvc(print = MockMvcPrint.NONE)
 @ActiveProfiles({"test", "persistence"})
 @TestPropertySource(properties = {
         "identity.oidc.enabled=true",
@@ -110,8 +117,9 @@ class MobileOidcTwoFactorFlowTest {
     void restoreSingleStepLogin() {
         // The H2 database is shared with other identity test contexts; leave
         // the seeded account in the single-step shape they expect.
-        jdbc.update("UPDATE campuscore_auth.\"User\" SET \"twoFactorEnabled\" = FALSE WHERE \"id\" = ?",
-                USER_ID);
+        jdbc.update("UPDATE campuscore_auth.\"User\" SET \"twoFactorEnabled\" = FALSE,"
+                        + " \"status\" = 'ACTIVE', \"mustChangePassword\" = FALSE, \"password\" = ?"
+                        + " WHERE \"id\" = ?", passwordEncoder.encode(PASSWORD), USER_ID);
         jdbc.update("DELETE FROM campuscore_auth.\"TwoFactorChallenge\" WHERE \"userId\" = ?", USER_ID);
     }
 
@@ -219,7 +227,14 @@ class MobileOidcTwoFactorFlowTest {
     void sessionMintedBeforeTwoFactorWasEnabledCannotAuthorizeAfterwards() throws Exception {
         // Signed in while the switch was off, then enabled 2FA through the
         // real enable/confirm flow (which advances the credential revision).
-        Cookie preEnable = singleStepLogin();
+        MvcResult passwordOnly = passwordStep().andExpect(status().isOk()).andReturn();
+        Cookie preEnable = passwordOnly.getResponse().getCookie(ACCESS_COOKIE);
+        String legacyRefresh = passwordOnly.getResponse().getCookie(REFRESH_COOKIE).getValue();
+        String verifier = pkceVerifier();
+        JsonNode priorTokens = json(exchange(codeFrom(authorize(preEnable, verifier, "nonce-before-enable")),
+                verifier).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        String pendingVerifier = pkceVerifier();
+        String pendingCode = codeFrom(authorize(preEnable, pendingVerifier, "nonce-pending-enable"));
         MvcResult enable = mvc.perform(post("/api/v1/me/two-factor/enable")
                         .with(CurrentAccountJwt.currentJwt(jdbc, USER_ID))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -236,24 +251,179 @@ class MobileOidcTwoFactorFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enabled").value(true));
 
-        // The stale session cookie still decodes, but the code-stage save
-        // compares its credential revision with the row and refuses it.
-        // Today that refusal escapes the authorize endpoint as a server
-        // error rather than an OAuth error response; either way no code and
-        // no grant may come out of it.
-        MvcResult stale;
-        try {
-            stale = authorize(preEnable, pkceVerifier(), "nonce-stale");
-        } catch (Exception refused) {
-            stale = null;
-        }
-        if (stale != null) {
-            assertNoCodeIssued(stale);
-        }
+        // A superseded cookie must restart authentication, never escape as
+        // a servlet exception / HTTP 500 or silently authenticate without OTP.
+        MvcResult stale = authorize(preEnable, pkceVerifier(), "nonce-stale");
+        assertThat(stale.getResponse().getStatus()).isEqualTo(302);
+        assertThat(stale.getResponse().getHeader("Location")).startsWith(REDIRECT + "?");
+        assertThat(queryParam(stale.getResponse().getHeader("Location"), "error"))
+                .isEqualTo("login_required");
+        assertNoCodeIssued(stale);
         assertNoGrantRow();
+
+        // Enrollment revoked every other password-only session and pending
+        // grant. Neither refresh family nor a previously issued code can
+        // turn that old authentication into a current, OTP-complete login.
+        exchange(pendingCode, pendingVerifier).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_grant"));
+        mvc.perform(post("/oauth2/token").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("client_id", CLIENT).param("grant_type", "refresh_token")
+                        .param("refresh_token", priorTokens.path("refresh_token").asText()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_grant"));
+        mvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("refreshToken", legacyRefresh))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(cookie().doesNotExist(ACCESS_COOKIE));
 
         // The next sign-in must clear the second factor again.
         passwordStepChallenge();
+    }
+
+    @Test
+    void supersededCredentialCookieReturnsLoginRequiredWithoutInternalDetails() throws Exception {
+        Cookie stale = singleStepLogin();
+        jdbc.update("UPDATE campuscore_auth.\"User\" SET \"credentialVersion\" = \"credentialVersion\" + 1"
+                + " WHERE \"id\" = ?", USER_ID);
+        MvcResult result = authorize(stale, pkceVerifier(), "nonce-revision");
+        assertThat(result.getResponse().getStatus()).isEqualTo(302);
+        String location = result.getResponse().getHeader("Location");
+        assertThat(location).startsWith(REDIRECT + "?");
+        assertThat(queryParam(location, "error")).isEqualTo("login_required");
+        assertThat(queryParam(location, "state")).isEqualTo("s");
+        assertThat(queryParam(location, "error_description")).isNull();
+        assertThat(result.getResponse().getContentAsString()).isEmpty();
+        assertNoCodeIssued(result);
+        assertNoGrantRow();
+    }
+
+    @Test
+    void passwordChangedCookieReturnsLoginRequired() throws Exception {
+        Cookie stale = singleStepLogin();
+        mvc.perform(post("/api/v1/auth/change-password")
+                        .with(CurrentAccountJwt.currentJwt(jdbc, USER_ID))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("oldPassword", PASSWORD,
+                                "newPassword", "H-A-new-password-2026!"))))
+                .andExpect(status().isOk());
+        MvcResult result = authorize(stale, pkceVerifier(), "nonce-password-change");
+        assertThat(result.getResponse().getStatus()).isEqualTo(302);
+        String location = result.getResponse().getHeader("Location");
+        assertThat(location).startsWith(REDIRECT + "?");
+        assertThat(queryParam(location, "error")).isEqualTo("login_required");
+        assertNoCodeIssued(result);
+        assertNoGrantRow();
+    }
+
+    @Test
+    void staleCredentialsNeverRedirectToAnUnregisteredCallback() throws Exception {
+        Cookie stale = singleStepLogin();
+        jdbc.update("UPDATE campuscore_auth.\"User\" SET \"credentialVersion\" = \"credentialVersion\" + 1"
+                + " WHERE \"id\" = ?", USER_ID);
+        mvc.perform(get("/oauth2/authorize").cookie(stale)
+                        .queryParam("response_type", "code").queryParam("client_id", CLIENT)
+                        .queryParam("redirect_uri", "https://unregistered.invalid/callback")
+                        .queryParam("scope", "openid")
+                        .queryParam("code_challenge", pkceChallenge(pkceVerifier()))
+                        .queryParam("code_challenge_method", "S256"))
+                .andExpect(status().isBadRequest())
+                .andExpect(result -> assertThat(result.getResponse().getHeader("Location")).isNull());
+        assertNoGrantRow();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"SUSPENDED", "LOCKED"})
+    void inactiveCredentialCookieRestartsLogin(String status) throws Exception {
+        Cookie stale = singleStepLogin();
+        jdbc.update("UPDATE campuscore_auth.\"User\" SET \"status\" = ? WHERE \"id\" = ?", status, USER_ID);
+        MvcResult result = authorize(stale, pkceVerifier(), "nonce-inactive");
+        assertThat(result.getResponse().getStatus()).isEqualTo(302);
+        assertThat(result.getResponse().getHeader("Location")).startsWith("/login?return=");
+        assertNoCodeIssued(result);
+        assertNoGrantRow();
+    }
+
+    @Test
+    void deletedAccountCookieRestartsLogin() throws Exception {
+        String deletedId = "ha-deleted-account";
+        io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.ensureUser(jdbc, deletedId);
+        jdbc.update("UPDATE campuscore_auth.\"User\" SET \"password\" = ? WHERE \"id\" = ?",
+                passwordEncoder.encode(PASSWORD), deletedId);
+        MvcResult login = mvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("email", deletedId + "@fixture.invalid",
+                                "password", PASSWORD))))
+                .andExpect(status().isOk()).andReturn();
+        Cookie stale = login.getResponse().getCookie(ACCESS_COOKIE);
+        jdbc.update("DELETE FROM campuscore_auth.\"Session\" WHERE \"userId\" = ?", deletedId);
+        jdbc.update("DELETE FROM campuscore_auth.\"User\" WHERE \"id\" = ?", deletedId);
+        MvcResult result = authorize(stale, pkceVerifier(), "nonce-deleted");
+        assertThat(result.getResponse().getStatus()).isEqualTo(302);
+        assertThat(result.getResponse().getHeader("Location")).startsWith("/login?return=");
+        assertNoCodeIssued(result);
+        assertNoGrantRow();
+    }
+
+    @Test
+    void twoFactorChallengeCannotBeUsedAsRefreshOrPasswordGrant() throws Exception {
+        enableTwoFactor();
+        String challenge = passwordStepChallenge();
+        exchange(challenge, pkceVerifier()).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_grant"))
+                .andExpect(jsonPath("$.access_token").doesNotExist());
+        mvc.perform(post("/oauth2/token").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("client_id", CLIENT).param("grant_type", "refresh_token")
+                        .param("refresh_token", challenge))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("invalid_grant"))
+                .andExpect(jsonPath("$.access_token").doesNotExist());
+        mvc.perform(post("/oauth2/token").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("client_id", CLIENT).param("grant_type", "password")
+                        .param("username", EMAIL).param("password", PASSWORD))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("unsupported_grant_type"))
+                .andExpect(jsonPath("$.access_token").doesNotExist());
+        mvc.perform(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(Map.of("refreshToken", challenge))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(cookie().doesNotExist(ACCESS_COOKIE));
+        assertNoGrantRow();
+    }
+
+    @Test
+    void servletSessionAndRememberMeCannotRestoreAnOtpIncompletePrincipal() throws Exception {
+        enableTwoFactor();
+        passwordStepChallenge();
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
+                new SecurityContextImpl(UsernamePasswordAuthenticationToken.authenticated(
+                        USER_ID, null, List.of())));
+        MvcResult result = mvc.perform(get("/oauth2/authorize").session(session)
+                        .cookie(new Cookie("remember-me", "untrusted-remembered-authentication"))
+                        .queryParam("response_type", "code").queryParam("client_id", CLIENT)
+                        .queryParam("redirect_uri", REDIRECT).queryParam("scope", "openid")
+                        .queryParam("code_challenge", pkceChallenge(pkceVerifier()))
+                        .queryParam("code_challenge_method", "S256"))
+                .andReturn();
+        assertThat(result.getResponse().getStatus()).isEqualTo(302);
+        assertThat(result.getResponse().getHeader("Location")).startsWith("/login?return=");
+        assertNoCodeIssued(result);
+        assertNoGrantRow();
+    }
+
+    @Test
+    void refreshContinuesOnlyTheSessionEstablishedAfterOtp() throws Exception {
+        enableTwoFactor();
+        Cookie access = completeTwoFactorLogin();
+        String verifier = pkceVerifier();
+        String code = codeFrom(authorize(access, verifier, "nonce-refresh-2fa"));
+        JsonNode tokens = json(exchange(code, verifier).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        mvc.perform(post("/oauth2/token").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .param("client_id", CLIENT).param("grant_type", "refresh_token")
+                        .param("refresh_token", tokens.path("refresh_token").asText()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.access_token").exists());
     }
 
     @Test

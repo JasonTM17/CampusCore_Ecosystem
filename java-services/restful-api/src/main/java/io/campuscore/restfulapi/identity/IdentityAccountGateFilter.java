@@ -18,7 +18,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * Current-account gate for the SAS chain (identity-contract.md §2.4). Runs
  * after authentication on every {@code /oauth2/*} user path:
- * {@code status != ACTIVE} → 403, {@code mustChangePassword} → 403
+ * Missing/inactive accounts restart login on authorize (401/403 elsewhere).
+ * {@code mustChangePassword} → 403
  * {@code PASSWORD_CHANGE_REQUIRED} — SSO authorize is not a rotation
  * bypass. Client-credential flows carry no user principal and skip the gate;
  * public endpoints (jwks, discovery) reach it unauthenticated and skip.
@@ -29,12 +30,14 @@ public class IdentityAccountGateFilter extends OncePerRequestFilter {
     private final AuthUserRepository users;
     private final ApiErrorWriter errorWriter;
     private final boolean authorizePaused;
+    private final String loginPage;
 
     public IdentityAccountGateFilter(AuthUserRepository users, ApiErrorWriter errorWriter,
-            boolean authorizePaused) {
+            boolean authorizePaused, String loginPage) {
         this.users = users;
         this.errorWriter = errorWriter;
         this.authorizePaused = authorizePaused;
+        this.loginPage = loginPage;
     }
 
     @Override
@@ -66,11 +69,19 @@ public class IdentityAccountGateFilter extends OncePerRequestFilter {
             return;
         }
         if (state.isEmpty()) {
+            if ("/oauth2/authorize".equals(request.getRequestURI())) {
+                IdentitySecurityConfig.redirectToLogin(request, response, loginPage);
+                return;
+            }
             errorWriter.write(request, response, HttpStatus.UNAUTHORIZED,
                     "SESSION_INVALID", "Sign in again to continue");
             return;
         }
         if (!"ACTIVE".equals(state.get().status())) {
+            if ("/oauth2/authorize".equals(request.getRequestURI())) {
+                IdentitySecurityConfig.redirectToLogin(request, response, loginPage);
+                return;
+            }
             errorWriter.write(request, response, HttpStatus.FORBIDDEN,
                     "ACCOUNT_INACTIVE", "This account is not active");
             return;

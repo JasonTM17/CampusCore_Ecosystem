@@ -12,6 +12,10 @@ import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationException;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationCode;
 import org.springframework.security.oauth2.core.OAuth2DeviceCode;
@@ -57,6 +61,7 @@ public class LockingIdentityAuthorizationService extends JdbcOAuth2Authorization
     private final DeterministicTokenCipher cipher;
     private final AuthUserRepository users;
     private final IdentitySessionMirror mirror;
+    private final RegisteredClientRepository clients;
 
     public LockingIdentityAuthorizationService(JdbcOperations jdbcOperations,
             RegisteredClientRepository registeredClientRepository,
@@ -66,6 +71,7 @@ public class LockingIdentityAuthorizationService extends JdbcOAuth2Authorization
         this.cipher = cipher;
         this.users = users;
         this.mirror = mirror;
+        this.clients = registeredClientRepository;
     }
 
     /**
@@ -84,7 +90,32 @@ public class LockingIdentityAuthorizationService extends JdbcOAuth2Authorization
         String userId = authorization.getPrincipalName();
         users.lockUserRow(userId);
         OAuth2Authorization prepared = portablePrincipal(authorization);
-        assertCurrentCredentials(prepared, userId);
+        try {
+            assertCurrentCredentials(prepared, userId);
+        } catch (OAuth2AuthenticationException exception) {
+            // SAS's authorize failure handler requires its endpoint-specific
+            // exception type; a generic persistence rejection causes a cast
+            // failure / HTTP 500. Translate only the initial code stage, leaving
+            // token exchange/refresh error handling and under-lock checks intact.
+            OAuth2AuthorizationRequest request = prepared.getAttribute(
+                    OAuth2AuthorizationRequest.class.getName());
+            if (prepared.getAccessToken() == null && request != null
+                    && AuthorizationGrantType.AUTHORIZATION_CODE.equals(prepared.getAuthorizationGrantType())) {
+                var client = clients.findById(prepared.getRegisteredClientId());
+                var redirectContext = client != null
+                        && client.getClientId().equals(request.getClientId())
+                        && client.getRedirectUris().contains(request.getRedirectUri())
+                        ? new OAuth2AuthorizationCodeRequestAuthenticationToken(
+                                request.getAuthorizationUri(), request.getClientId(),
+                                prepared.getAttribute(java.security.Principal.class.getName()),
+                                request.getRedirectUri(), request.getState(), request.getScopes(),
+                                request.getAdditionalParameters())
+                        : null;
+                throw new OAuth2AuthorizationCodeRequestAuthenticationException(
+                        new OAuth2Error("login_required"), redirectContext);
+            }
+            throw exception;
+        }
         mirrorGrant(prepared);
         super.save(encrypt(prepared));
     }
