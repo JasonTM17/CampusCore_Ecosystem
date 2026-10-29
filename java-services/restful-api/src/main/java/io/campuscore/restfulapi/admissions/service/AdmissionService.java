@@ -110,8 +110,10 @@ public class AdmissionService {
     // Grants
     // ------------------------------------------------------------------
 
-    public List<StaffGrantResponse> listGrants(String actorId) {
-        requireStaffGrant(actorId);
+    public List<StaffGrantResponse> listGrants(String actorId, List<String> actorRoles) {
+        if (actorRoles == null || !actorRoles.contains("ADMIN")) {
+            requireStaffGrant(actorId);
+        }
         return jdbc.query(
                 "SELECT \"id\", \"userId\", \"scope\", \"grantedBy\", \"createdAt\""
                         + " FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope ORDER BY \"createdAt\"",

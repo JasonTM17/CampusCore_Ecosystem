@@ -38,6 +38,9 @@ import org.springframework.web.util.pattern.PathPatternParser;
  */
 class AuthorizationPolicyInventoryTest {
     private static final String BASE = "io/campuscore/restfulapi";
+    private static final Map<String, String> REVIEWED_SERVICE_AUTHORITY = Map.of(
+            "io.campuscore.restfulapi.admissions.web.AdmissionStaffController#grants",
+            "Authenticated endpoint; ADMIN may list grant metadata, otherwise STAFF:admissions is required");
 
     @Test
     void everyMappedControllerMethodHasAnExplicitPolicy() throws Exception {
@@ -75,6 +78,20 @@ class AuthorizationPolicyInventoryTest {
             }
         });
         assertTrue(missing.isEmpty(), "Mappings without explicit policy:\n" + String.join("\n", missing));
+    }
+
+    @Test
+    void admissionsGrantListingRetainsItsReviewedServiceAuthorityPolicy() throws Exception {
+        Class<?> controller = io.campuscore.restfulapi.admissions.web.AdmissionStaffController.class;
+        Method method = controller.getDeclaredMethod("grants", org.springframework.security.oauth2.jwt.Jwt.class);
+        RequestMappingInfo mapping = new DeclaredMappings().forMethod(method, controller);
+        String handler = controller.getName() + "#" + method.getName();
+        PreAuthorize annotation = AnnotatedElementUtils.findMergedAnnotation(method, PreAuthorize.class);
+
+        assertEquals(Policy.METHOD_ANNOTATED, classify(method, controller, mapping));
+        assertEquals("isAuthenticated()", annotation.value());
+        assertEquals("Authenticated endpoint; ADMIN may list grant metadata, otherwise STAFF:admissions is required",
+                REVIEWED_SERVICE_AUTHORITY.get(handler));
     }
 
     private static Policy classify(Method method, Class<?> controller, RequestMappingInfo mapping) {
