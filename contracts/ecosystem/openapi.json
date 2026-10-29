@@ -897,6 +897,32 @@
         },
         "type": "object"
       },
+      "AttendanceActiveGeofenceResponse": {
+        "properties": {
+          "campusCode": {
+            "type": "string"
+          },
+          "centerLat": {
+            "format": "double",
+            "type": "number"
+          },
+          "centerLng": {
+            "format": "double",
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "radiusMeters": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "AttendanceBatchRequest": {
         "properties": {
           "marks": {
@@ -11371,6 +11397,30 @@
         "summary": "Duyệt hoặc từ chối điểm danh nghi vấn",
         "tags": [
           "Attendance Check-in"
+        ]
+      }
+    },
+    "/api/v1/attendance/geofences/active": {
+      "get": {
+        "operationId": "attendanceListActiveGeofences",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AttendanceActiveGeofenceResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "List active geofences for session setup",
+        "tags": [
+          "Attendance Geofences"
         ]
       }
     },
