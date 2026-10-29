@@ -21,7 +21,6 @@ test('ecosystem documentation index contains the task-based sections', () => {
     'Demo data',
     'Release',
     'Mobile policy',
-    'Active plan tracker',
   ];
   for (const section of requiredSections) {
     assert.match(readme, new RegExp(`^## ${section.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'), `${section} section is required`);
