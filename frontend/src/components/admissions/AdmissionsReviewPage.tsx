@@ -291,6 +291,7 @@ export function AdmissionsReviewPage() {
                             />
                             <select
                               className="rounded-md border border-border bg-background px-2 text-sm"
+                              aria-label={copy.checklistResult}
                               value={item.result ?? 'NOTE'}
                               onChange={(event) => setChecklist((current) => current.map(
                                 (entry, i) => (i === index

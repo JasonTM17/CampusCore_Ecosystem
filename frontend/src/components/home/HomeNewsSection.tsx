@@ -308,6 +308,8 @@ export function HomeNewsSection() {
                         src={cover}
                         alt={ann.title}
                         loading="lazy"
+                        width={1600}
+                        height={900}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                       <div className="absolute top-2.5 left-2.5 z-10">

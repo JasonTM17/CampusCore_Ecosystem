@@ -36,6 +36,8 @@ export const EDIT_BANNER_PRESETS = [
   {
     id: 'campus',
     url: '/images/banners/campus_academic_banner.jpg',
+    width: 1376,
+    height: 768,
     titleVi: 'Khuôn viên học thuật HCMUTE',
     titleEn: 'HCMUTE Campus Academic',
     tagVi: 'Khuôn viên',
@@ -44,6 +46,8 @@ export const EDIT_BANNER_PRESETS = [
   {
     id: 'notice',
     url: '/images/banners/academic_notice_banner.jpg',
+    width: 1376,
+    height: 768,
     titleVi: 'Bản tin thông báo học vụ',
     titleEn: 'Academic Notice Bulletin',
     tagVi: 'Học vụ',
@@ -52,6 +56,8 @@ export const EDIT_BANNER_PRESETS = [
   {
     id: 'thesis',
     url: '/images/banners/thesis_defense_hall.jpg',
+    width: 1376,
+    height: 768,
     titleVi: 'Hội đồng bảo vệ khóa luận',
     titleEn: 'Thesis Defense Committee',
     tagVi: 'Khóa luận',
@@ -60,6 +66,8 @@ export const EDIT_BANNER_PRESETS = [
   {
     id: 'council',
     url: '/images/banners/thesis_evaluation_council.jpg',
+    width: 2172,
+    height: 724,
     titleVi: 'Hội đồng đánh giá đề tài',
     titleEn: 'Thesis Evaluation Council',
     tagVi: 'Hội đồng',
@@ -68,6 +76,8 @@ export const EDIT_BANNER_PRESETS = [
   {
     id: 'faculty',
     url: '/images/banners/faculty_engineering_hall.jpg',
+    width: 1376,
+    height: 768,
     titleVi: 'Tòa nhà Khoa Kỹ thuật HCMUTE',
     titleEn: 'Faculty of Engineering Hall',
     tagVi: 'Khoa Viện',
@@ -76,6 +86,8 @@ export const EDIT_BANNER_PRESETS = [
   {
     id: 'library',
     url: '/images/banners/smart_campus_library.jpg',
+    width: 1376,
+    height: 768,
     titleVi: 'Thư viện số & Không gian học tập',
     titleEn: 'Smart Digital Library & Commons',
     tagVi: 'Thư viện',
@@ -84,6 +96,8 @@ export const EDIT_BANNER_PRESETS = [
   {
     id: 'convocation',
     url: '/images/banners/academic_convocation_ceremony.jpg',
+    width: 1376,
+    height: 768,
     titleVi: 'Lễ tốt nghiệp & Vinh danh học thuật',
     titleEn: 'Grand Convocation Ceremony',
     tagVi: 'Tốt nghiệp',
@@ -92,6 +106,8 @@ export const EDIT_BANNER_PRESETS = [
   {
     id: 'lab',
     url: '/images/banners/department_research_lab.jpg',
+    width: 1376,
+    height: 768,
     titleVi: 'Phòng Lab nghiên cứu Khoa CNTT',
     titleEn: 'IT Smart Systems Lab',
     tagVi: 'Nghiên cứu',
@@ -389,6 +405,8 @@ export function AnnouncementEditModal({
                     <img
                       src={banner.url}
                       alt={bannerTitle}
+                      width={banner.width}
+                      height={banner.height}
                       className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-105"
                     />
                     {isSelected ? (

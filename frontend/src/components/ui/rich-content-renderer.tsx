@@ -203,6 +203,8 @@ function SafeImage({ src, alt }: { src: string; alt: string }) {
       <img
         src={src}
         alt={alt}
+        width={1200}
+        height={800}
         className="max-h-96 max-w-full h-auto rounded-md border border-border/70 object-cover shadow-sm"
         loading="lazy"
         onError={() => setHasError(true)}

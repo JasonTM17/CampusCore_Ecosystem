@@ -108,7 +108,7 @@ function AdvisorAvatar({ lecturer, size = 'md' }: { lecturer: Lecturer; size?: '
     >
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt="" className="h-full w-full object-cover" />
+        <img src={src} alt="" width={256} height={256} className="h-full w-full object-cover" />
       ) : (
         <span aria-hidden="true">{getInitials(name)}</span>
       )}
@@ -678,6 +678,8 @@ export default function ThesisAdvisorDirectoryPage() {
             <img
               src="/images/banners/thesis_evaluation_council.jpg"
               alt="HCMUTE Academic Thesis Evaluation Council"
+              width={2172}
+              height={724}
               className="h-full w-full object-cover object-center transition duration-500 hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent lg:hidden" />

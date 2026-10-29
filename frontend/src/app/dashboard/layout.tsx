@@ -998,7 +998,7 @@ export default function DashboardLayout({
                   messages.adminShell.officeBadge
                 ) : avatarPhoto ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatarPhoto} alt="" className="h-full w-full object-cover" />
+                  <img src={avatarPhoto} alt="" width={256} height={256} className="h-full w-full object-cover" />
                 ) : (
                   <>
                     {user.firstName?.[0]}
@@ -1370,7 +1370,7 @@ export default function DashboardLayout({
                       messages.adminShell.officeBadge
                     ) : avatarPhoto ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={avatarPhoto} alt="" className="h-full w-full object-cover" />
+                  <img src={avatarPhoto} alt="" width={256} height={256} className="h-full w-full object-cover" />
                     ) : (
                       <>
                         {user.firstName?.[0]}
@@ -1409,7 +1409,7 @@ export default function DashboardLayout({
                           messages.adminShell.officeBadge
                         ) : avatarPhoto ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={avatarPhoto} alt="" className="h-full w-full object-cover" />
+                          <img src={avatarPhoto} alt="" width={256} height={256} className="h-full w-full object-cover" />
                         ) : (
                           <>
                             {user.firstName?.[0]}

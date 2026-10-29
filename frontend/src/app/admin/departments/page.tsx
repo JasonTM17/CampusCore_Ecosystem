@@ -405,6 +405,8 @@ export default function AdminDepartmentsPage() {
               <img
                 src="/images/banners/department_research_lab.jpg"
                 alt="HCMUTE IT Department Research Lab"
+                width={1376}
+                height={768}
                 className="h-full w-full object-cover object-center transition duration-500 hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent lg:hidden" />

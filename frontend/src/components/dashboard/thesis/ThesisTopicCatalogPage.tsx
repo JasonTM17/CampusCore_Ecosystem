@@ -193,6 +193,8 @@ export default function ThesisTopicCatalogPage() {
             <img
               src="/images/banners/faculty_engineering_hall.jpg"
               alt="HCMUTE Faculty of Engineering Hall"
+              width={1376}
+              height={768}
               className="h-full w-full object-cover object-center transition duration-500 hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent lg:hidden" />

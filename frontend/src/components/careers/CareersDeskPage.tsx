@@ -187,6 +187,7 @@ export function CareersDeskPage() {
               <select
                 className="rounded-md border bg-background px-3 py-2 text-sm"
                 data-testid="careers-org-select"
+                aria-label={copy.organization}
                 value={organizationId}
                 onChange={(event) => setOrganizationId(event.target.value)}>
                 {organizations.map((organization) => (
