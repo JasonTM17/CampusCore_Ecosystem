@@ -1,5 +1,36 @@
 # Domain contracts — DTO/state/error/RBAC/idempotency
 
+Geofenced attendance is specified in [attendance-geofence-spec.md](../../docs/ecosystem/attendance-geofence-spec.md)
+(sections 1–5 and 8). Attendance sessions, check-in, review, location consent and
+admin geofences are additive `/api/v1/attendance` and `/api/v1/admin/attendance`
+routes. Runtime Springdoc export is exercised by
+`AttendanceGeofencePersistenceTest#runtimeOpenApiExportsToTargetForAdditiveContractUpdate`;
+the export is written to the backend `target/attendance-runtime-openapi.json`.
+G1 merges only the new attendance paths and their namespaced schemas into
+`openapi.json`; G2 owns consumer regeneration with `scripts/generate-api-contract.mjs`.
+No response exposes a code secret, installation/IP hash, or student coordinates.
+The disabled campus seed is approximate and requires admin verification.
+
+Configuration: `attendance.checkin.encryption-key` (base64 32-byte AES key),
+`attendance.checkin.pepper` (at least 32 characters, independent secret),
+`attendance.checkin.consent-version` (default `1`),
+`attendance.checkin.coordinate-retention-days` (`30`),
+`attendance.checkin.attempt-retention-days` (`90`), and
+`attendance.checkin.jobs-enabled` (`true`; disabled in tests).
+Missing cryptographic configuration fails feature operations closed with 503
+`CHECKIN_NOT_CONFIGURED`. Configure secrets through the deployment secret store;
+close existing sessions before key/pepper rotation. No secrets belong in DTOs or logs.
+Client payload may include an optional random `nonce` (16–200 characters).
+Without it, the server fingerprints the authenticated session/student, installation
+and captured fix for single-use replay detection; a rejected replay returns 400
+`INVALID_LOCATION`, and a previously successful check-in returns 409
+`ALREADY_CHECKED_IN`. No slot field exists, so one OPEN session per section/day is
+enforced. Admin PUT uses `/geofences/{id}`; deactivate with `isActive=false`.
+Inactive fences fail check-in as 410 `SESSION_CLOSED`. A pre-existing attendance
+entry is preserved (response status `MANUAL_RECORD_PRESERVED`); review uses the
+original persisted server check-in time to determine PRESENT/LATE. Only geofence-generated
+attendance is withdrawn when later risk signals send an earlier check-in to review.
+
 Pha: P03 step 1 · Owner: controller · Review: Kongming + tester contract
 Nguồn state machine: `plans/261021-2123-campusute-ecosystem/selected-design.md`
 (các excerpt P04–P12) + enum EXISTING trong `java-services/restful-api`.

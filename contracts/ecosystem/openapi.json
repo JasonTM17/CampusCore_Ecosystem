@@ -908,6 +908,246 @@
         },
         "type": "object"
       },
+      "AttendanceCheckinRequest": {
+        "properties": {
+          "accuracyMeters": {
+            "format": "double",
+            "minimum": 0,
+            "type": "number"
+          },
+          "capturedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "code": {
+            "pattern": "[0-9]{6}",
+            "type": "string"
+          },
+          "installationId": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "latitude": {
+            "format": "double",
+            "maximum": 90,
+            "minimum": -90,
+            "type": "number"
+          },
+          "longitude": {
+            "format": "double",
+            "maximum": 180,
+            "minimum": -180,
+            "type": "number"
+          },
+          "mockProvider": {
+            "type": "boolean"
+          },
+          "nonce": {
+            "description": "Optional single-use random request nonce; legacy clients use a server-derived request fingerprint",
+            "maxLength": 200,
+            "minLength": 16,
+            "type": "string"
+          }
+        },
+        "required": [
+          "accuracyMeters",
+          "capturedAt",
+          "installationId",
+          "latitude",
+          "longitude",
+          "mockProvider"
+        ],
+        "type": "object"
+      },
+      "AttendanceCheckinResponse": {
+        "properties": {
+          "decision": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AttendanceCheckinView": {
+        "properties": {
+          "accuracyMeters": {
+            "format": "double",
+            "type": "number"
+          },
+          "capturedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "distanceMeters": {
+            "format": "double",
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "mockProvider": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reviewNote": {
+            "type": "string"
+          },
+          "reviewedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reviewedBy": {
+            "type": "string"
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "studentId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AttendanceCodeResponse": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "stepSeconds": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "AttendanceConsentRequest": {
+        "properties": {
+          "version": {
+            "maxLength": 40,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "AttendanceConsentResponse": {
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "acceptedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AttendanceGeofenceRequest": {
+        "properties": {
+          "campusCode": {
+            "maxLength": 60,
+            "minLength": 0,
+            "type": "string"
+          },
+          "centerLat": {
+            "format": "double",
+            "maximum": 90,
+            "minimum": -90,
+            "type": "number"
+          },
+          "centerLng": {
+            "format": "double",
+            "maximum": 180,
+            "minimum": -180,
+            "type": "number"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "radiusMeters": {
+            "format": "int32",
+            "maximum": 1000,
+            "minimum": 30,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campusCode",
+          "centerLat",
+          "centerLng",
+          "isActive",
+          "name",
+          "radiusMeters"
+        ],
+        "type": "object"
+      },
+      "AttendanceGeofenceResponse": {
+        "properties": {
+          "campusCode": {
+            "type": "string"
+          },
+          "centerLat": {
+            "format": "double",
+            "type": "number"
+          },
+          "centerLng": {
+            "format": "double",
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "radiusMeters": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "AttendanceListResponse": {
         "properties": {
           "data": {
@@ -958,6 +1198,71 @@
         },
         "type": "object"
       },
+      "AttendanceOpenSessionRequest": {
+        "properties": {
+          "closesAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "type": "string"
+          },
+          "geofenceId": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "lateAfterMinutes": {
+            "format": "int32",
+            "maximum": 60,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "opensAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requireCode": {
+            "type": "boolean"
+          },
+          "sectionId": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "geofenceId",
+          "sectionId"
+        ],
+        "type": "object"
+      },
+      "AttendanceOpenSessionResponse": {
+        "properties": {
+          "closesAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "geofenceName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "requireCode": {
+            "type": "boolean"
+          },
+          "sectionId": {
+            "type": "string"
+          },
+          "sectionLabel": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "AttendanceResponse": {
         "properties": {
           "createdAt": {
@@ -992,6 +1297,25 @@
         },
         "type": "object"
       },
+      "AttendanceReviewRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "APPROVE|REJECT",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "note"
+        ],
+        "type": "object"
+      },
       "AttendanceRosterEntry": {
         "properties": {
           "enrollmentStatus": {
@@ -1010,6 +1334,58 @@
             "type": "string"
           },
           "studentId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AttendanceSessionResponse": {
+        "properties": {
+          "accepted": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "closesAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "type": "string"
+          },
+          "enrolled": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "geofenceId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lateAfterMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "opensAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "pending": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rejected": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "requireCode": {
+            "type": "boolean"
+          },
+          "sectionId": {
+            "type": "string"
+          },
+          "status": {
             "type": "string"
           }
         },
@@ -7922,6 +8298,102 @@
         ]
       }
     },
+    "/api/v1/admin/attendance/geofences": {
+      "get": {
+        "operationId": "attendanceListGeofences",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AttendanceGeofenceResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Danh sách vùng điểm danh",
+        "tags": [
+          "Attendance Geofences"
+        ]
+      },
+      "post": {
+        "operationId": "attendanceCreateGeofence",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttendanceGeofenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceGeofenceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Tạo vùng điểm danh đã xác minh tọa độ",
+        "tags": [
+          "Attendance Geofences"
+        ]
+      }
+    },
+    "/api/v1/admin/attendance/geofences/{id}": {
+      "put": {
+        "operationId": "attendanceUpdateGeofence",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 120,
+              "minLength": 0,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttendanceGeofenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceGeofenceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Cập nhật hoặc vô hiệu hóa vùng điểm danh",
+        "tags": [
+          "Attendance Geofences"
+        ]
+      }
+    },
     "/api/v1/admin/audit": {
       "get": {
         "description": "Truy vấn phân trang các bản ghi audit hệ thống, lọc theo hành động, loại/thực thể hoặc tác nhân.",
@@ -10859,6 +11331,49 @@
         ]
       }
     },
+    "/api/v1/attendance/checkins/{id}/review": {
+      "post": {
+        "operationId": "attendanceReviewCheckin",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 120,
+              "minLength": 0,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttendanceReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceCheckinView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Duyệt hoặc từ chối điểm danh nghi vấn",
+        "tags": [
+          "Attendance Check-in"
+        ]
+      }
+    },
     "/api/v1/attendance/lecturer/my": {
       "get": {
         "description": "Truy vấn danh sách điểm danh các lớp do giảng viên đang giảng dạy",
@@ -10909,6 +11424,56 @@
         "summary": "Giảng viên tra cứu dữ liệu điểm danh lớp phụ trách",
         "tags": [
           "Attendance Tracking"
+        ]
+      }
+    },
+    "/api/v1/attendance/location-consent": {
+      "get": {
+        "operationId": "attendanceGetLocationConsent",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceConsentResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Xem phiên bản đồng ý sử dụng vị trí",
+        "tags": [
+          "Attendance Check-in"
+        ]
+      },
+      "post": {
+        "operationId": "attendanceAcceptLocationConsent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttendanceConsentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceConsentResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Ghi nhận đồng ý sử dụng vị trí khi điểm danh",
+        "tags": [
+          "Attendance Check-in"
         ]
       }
     },
@@ -11288,6 +11853,301 @@
         "summary": "Ghi nhận / cập nhật điểm danh theo lớp học phần",
         "tags": [
           "Attendance Operations"
+        ]
+      }
+    },
+    "/api/v1/attendance/sessions": {
+      "post": {
+        "operationId": "attendanceOpenSession",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttendanceOpenSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceSessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Mở phiên điểm danh theo vị trí",
+        "tags": [
+          "Attendance Check-in"
+        ]
+      }
+    },
+    "/api/v1/attendance/sessions/open": {
+      "get": {
+        "operationId": "attendanceOpenForStudent",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AttendanceOpenSessionResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Xem phiên điểm danh đang mở của sinh viên",
+        "tags": [
+          "Attendance Check-in"
+        ]
+      }
+    },
+    "/api/v1/attendance/sessions/{id}": {
+      "get": {
+        "operationId": "attendanceGetSession",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 120,
+              "minLength": 0,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceSessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Xem phiên điểm danh và số lượng kết quả",
+        "tags": [
+          "Attendance Check-in"
+        ]
+      }
+    },
+    "/api/v1/attendance/sessions/{id}/checkin": {
+      "post": {
+        "operationId": "attendanceStudentCheckin",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 120,
+              "minLength": 0,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttendanceCheckinRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceCheckinResponse"
+                }
+              }
+            },
+            "description": "ACCEPTED hoặc PENDING_REVIEW"
+          },
+          "400": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceCheckinResponse"
+                }
+              }
+            },
+            "description": "INVALID_LOCATION"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceCheckinResponse"
+                }
+              }
+            },
+            "description": "NOT_ENROLLED hoặc CONSENT_REQUIRED"
+          },
+          "409": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceCheckinResponse"
+                }
+              }
+            },
+            "description": "ALREADY_CHECKED_IN"
+          },
+          "410": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceCheckinResponse"
+                }
+              }
+            },
+            "description": "SESSION_CLOSED"
+          },
+          "422": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceCheckinResponse"
+                }
+              }
+            },
+            "description": "BAD_CODE, OUTSIDE_AREA hoặc LOW_ACCURACY"
+          },
+          "429": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceCheckinResponse"
+                }
+              }
+            },
+            "description": "TOO_MANY_ATTEMPTS; Retry-After"
+          }
+        },
+        "summary": "Sinh viên xác nhận điểm danh tại khu vực cho phép",
+        "tags": [
+          "Attendance Check-in"
+        ]
+      }
+    },
+    "/api/v1/attendance/sessions/{id}/checkins": {
+      "get": {
+        "description": "Không trả tọa độ hoặc mã thiết bị của sinh viên.",
+        "operationId": "attendanceListCheckins",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 120,
+              "minLength": 0,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AttendanceCheckinView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Xem danh sách điểm danh cần kiểm tra",
+        "tags": [
+          "Attendance Check-in"
+        ]
+      }
+    },
+    "/api/v1/attendance/sessions/{id}/close": {
+      "post": {
+        "operationId": "attendanceCloseSession",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 120,
+              "minLength": 0,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceSessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Đóng phiên điểm danh",
+        "tags": [
+          "Attendance Check-in"
+        ]
+      }
+    },
+    "/api/v1/attendance/sessions/{id}/code": {
+      "get": {
+        "description": "Mã đổi mỗi 30 giây. Không lưu bộ nhớ đệm.",
+        "operationId": "attendanceGetCode",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 120,
+              "minLength": 0,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceCodeResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Lấy mã điểm danh hiện tại",
+        "tags": [
+          "Attendance Check-in"
         ]
       }
     },
@@ -23926,6 +24786,14 @@
     {
       "description": "Theo dõi tiến độ thực hiện khóa luận của sinh viên và nhóm theo các mốc học thuật",
       "name": "Thesis Student Progress"
+    },
+    {
+      "description": "Quản trị vùng điểm danh; vô hiệu hóa thay vì xóa",
+      "name": "Attendance Geofences"
+    },
+    {
+      "description": "Phiên điểm danh có xác minh vị trí",
+      "name": "Attendance Check-in"
     }
   ]
 }
