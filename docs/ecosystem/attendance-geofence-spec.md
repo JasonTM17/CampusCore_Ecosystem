@@ -111,5 +111,5 @@ Waves: G1 -> G2 -> (G3, G5 in parallel, different trees) -> G4 -> G6 -> G7 -> G8
 - Geofence = circle per campus/building, radius default 150 m, editable by admin; seeded campus entry disabled until verified. Owner decision needed: which campuses/buildings and exact coordinates (the real centres and radii must come from the school).
 - Code step 30 s, accepted current+previous; session default 15 min, max 60.
 - Coordinates kept 30 days. Owner decision: confirm the retention period with the school's data-protection officer.
-- Mock-location and shared-device signals send the check-in to lecturer review instead of rejecting. Owner decision: reject outright instead?
+- Mock-location and shared-device signals send the check-in to lecturer review instead of rejecting. Owner decision (2026-10-29): keep manual review, do not reject outright.
 - Phase 2: Play Integrity attestation (needs a Google Cloud project and Play console, BLOCKED_HUMAN).
