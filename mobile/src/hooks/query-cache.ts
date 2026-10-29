@@ -78,6 +78,12 @@ export function writeQueryCache(key: string, data: unknown): void {
   cache.set(key, { data, at: Date.now() });
 }
 
+/** Freshness never evicts stale data: it stays available for SWR/offline reads. */
+export function isQueryCacheFresh(key: string, staleTime: number, now = Date.now()): boolean {
+  const entry = cache.get(key);
+  return Boolean(entry && staleTime > 0 && now - entry.at < staleTime);
+}
+
 export function evictQueryCache(key: string): void {
   cache.delete(key);
 }

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -11,6 +11,8 @@ import { resolveNotificationRoute } from '../../api/push-routes';
 import { PUSH_OPT_IN_ENABLED } from '../../config/features';
 import { tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
+import { useOptimisticRows } from '../../hooks/use-optimistic-rows';
+import { evictQueryCache, queryCacheKey } from '../../hooks/query-cache';
 import { fillCopy } from '../../i18n/academic-messages';
 import { notificationsCenterMessages } from '../../i18n/notifications-center-messages';
 import { notificationsMessages } from '../../i18n/notifications-messages';
@@ -61,30 +63,45 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
     keyOf: (item) => item.id,
     preview: tab === 'unread' ? preview.filter((item) => !item.isRead) : preview,
   });
-  const unread = useContentQuery<number>('content.notifications.unread', () => contentApi.unreadCount());
+  // The unread page is a PagedResult; its count must never share that cache key.
+  const unread = useContentQuery<number>('content.notifications.unread-count', () => contentApi.unreadCount());
   const unreadTotal = apiClient.mode === 'live' ? unread.data ?? countUnread(list.items) : countUnread(preview);
   const offline = apiClient.mode === 'live' && list.errorStatus === 0;
+  const cacheScope = { locale, roleLane: session?.role ?? role, grants: session?.capabilities ?? [] };
+  const identity = JSON.stringify([session?.accountId, locale, session?.role ?? role, cacheScope.grants, session?.epoch, tab]);
+  const identityRef = useRef(identity);
+  identityRef.current = identity;
+  const busyRef = useRef(false);
+  const { rows: optimisticRows, begin } = useOptimisticRows(list.items, identity);
 
-  const run = useCallback(async (action: () => Promise<unknown>, apply: () => void, ok: string | null) => {
-    if (busy || offline || apiClient.mode !== 'live') return;
+  const run = useCallback(async (action: () => Promise<unknown>, transform: (row: InboxNotification) => InboxNotification | null, ok: string | null) => {
+    if (busyRef.current || offline || apiClient.mode !== 'live') return;
+    busyRef.current = true;
     setBusy(true);
+    const rollback = begin(transform);
     try {
       await action();
-      apply();
+      if (identityRef.current !== identity) return;
+      list.patch(transform);
+      for (const resource of ['content.notifications.all', 'content.notifications.unread', 'content.notifications.unread-count']) {
+        evictQueryCache(queryCacheKey(session?.accountId ?? null, resource, cacheScope));
+      }
       if (ok) success(ok);
       void unread.reload();
     } catch (error) {
-      fail(contentErrorMessage(shared, error, copy.updateFailed));
+      if (identityRef.current === identity) fail(contentErrorMessage(shared, error, copy.updateFailed));
     } finally {
+      rollback();
+      busyRef.current = false;
       setBusy(false);
     }
-  }, [busy, copy.updateFailed, fail, offline, shared, success, unread]);
+  }, [begin, cacheScope, copy.updateFailed, fail, identity, list, offline, session?.accountId, shared, success, unread]);
 
   const markRead = (item: MobileNotification, announce = true) => {
     if (item.isRead) return;
     void run(
       () => contentApi.markNotificationRead(item.id),
-      () => list.patch((row) => (row.id !== item.id ? row : tab === 'unread' ? null : { ...row, isRead: true })),
+      (row) => (row.id !== item.id ? row : tab === 'unread' ? null : { ...row, isRead: true }),
       announce ? copy.markRead : null,
     );
   };
@@ -117,7 +134,7 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
     destructive: true,
     onConfirm: () => void run(
       () => contentApi.deleteNotification(item.id),
-      () => list.patch((row) => (row.id === item.id ? null : row)),
+      (row) => (row.id === item.id ? null : row),
       copy.deleted,
     ),
   });
@@ -128,7 +145,7 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
     cancelLabel: t('cancel'),
     onConfirm: () => void run(
       () => contentApi.markAllNotificationsRead(),
-      () => list.patch((row) => (tab === 'unread' ? null : { ...row, isRead: true })),
+      (row) => (tab === 'unread' ? null : { ...row, isRead: true }),
       copy.markedAll,
     ),
   });
@@ -139,6 +156,7 @@ export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
         title={copy.notificationsTitle}
         icon="bell-outline"
         list={list}
+        items={optimisticRows}
         keyOf={(item) => item.id}
         emptyTitle={tab === 'unread' ? copy.notificationsUnreadEmpty : copy.notificationsEmpty}
         flash={flash}

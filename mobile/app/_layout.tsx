@@ -1,47 +1,51 @@
-import { Redirect, Stack, usePathname } from 'expo-router';
-import { StatusBar } from 'react-native';
-import {
-  BeVietnamPro_400Regular,
-  BeVietnamPro_500Medium,
-  BeVietnamPro_600SemiBold,
-  BeVietnamPro_700Bold,
-  useFonts,
-} from '@expo-google-fonts/be-vietnam-pro';
+import { Redirect, SplashScreen, Stack, usePathname } from 'expo-router';
+import { useEffect } from 'react';
+import { StatusBar, View } from 'react-native';
+import { useFonts } from 'expo-font';
+import { BeVietnamPro_400Regular } from '@expo-google-fonts/be-vietnam-pro/400Regular';
+import { BeVietnamPro_500Medium } from '@expo-google-fonts/be-vietnam-pro/500Medium';
+import { BeVietnamPro_600SemiBold } from '@expo-google-fonts/be-vietnam-pro/600SemiBold';
+import { BeVietnamPro_700Bold } from '@expo-google-fonts/be-vietnam-pro/700Bold';
 
 import { ThemeProvider, useTheme } from '../src/design/theme';
-import { LocaleProvider } from '../src/i18n/locale-provider';
+import { LocaleProvider, useLocale } from '../src/i18n/locale-provider';
 import { pathFor, resolveGuard } from '../src/navigation/route-map';
 import { SessionProvider, useSession } from '../src/session/SessionContext';
 
-/**
- * Root layout (mobile-policy §1, KM-14/KM-17). Boot order is pinned:
- * fonts → install-marker check → loadBootstrap → optional silent refresh →
- * session state → router render. The SecureStore/bootstrap steps plug into
- * this slot in the OIDC wave — until then the bootstrap is just fonts, and
- * the guard never evaluates before fonts resolve.
- */
+// Hold at module evaluation, before Router can auto-hide the native splash.
+void SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+/** Fonts and session bootstrap run in parallel; guards wait for both. */
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     BeVietnamPro_400Regular,
     BeVietnamPro_500Medium,
     BeVietnamPro_600SemiBold,
     BeVietnamPro_700Bold,
   });
 
-  if (!fontsLoaded) {
-    return null;
-  }
-
   return (
     <ThemeProvider>
       <ThemedStatusBar />
       <LocaleProvider>
         <SessionProvider>
-          <RootNavigator />
+          <BootReady fontsReady={fontsLoaded || Boolean(fontError)} />
         </SessionProvider>
       </LocaleProvider>
     </ThemeProvider>
   );
+}
+
+function BootReady({ fontsReady }: { fontsReady: boolean }) {
+  const { booted } = useSession();
+  const { ready: localeReady } = useLocale();
+  const ready = fontsReady && booted && localeReady;
+  useEffect(() => {
+    if (!ready) return;
+    const frame = requestAnimationFrame(() => { void SplashScreen.hideAsync().catch(() => undefined); });
+    return () => cancelAnimationFrame(frame);
+  }, [ready]);
+  return ready ? <RootNavigator /> : <View />;
 }
 
 /** Status bar follows the active scheme (light content on dark surfaces). */

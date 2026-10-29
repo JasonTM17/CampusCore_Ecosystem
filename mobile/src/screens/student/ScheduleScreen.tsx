@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -26,7 +26,7 @@ import { AcademicShell, SegmentTabs, TermField, academicStyles, isPreviewMode, u
 
 type View_ = 'week' | 'term';
 
-function SessionCard({ item, expanded, onToggle }: { item: AgendaItem; expanded: boolean; onToggle: () => void }) {
+const SessionCard = memo(function SessionCard({ item, expanded, onToggle }: { item: AgendaItem; expanded: boolean; onToggle: (id: string) => void }) {
   const { copy } = useAcademicCopy();
   const { colors } = useTheme();
   const summary = `${item.startTime} – ${item.endTime}`;
@@ -35,7 +35,7 @@ function SessionCard({ item, expanded, onToggle }: { item: AgendaItem; expanded:
       accessibilityRole="button"
       accessibilityLabel={`${item.courseCode} ${item.courseName}, ${summary}${item.room ? `, ${item.room}` : ''}`}
       accessibilityState={{ expanded }}
-      onPress={onToggle}
+      onPress={() => onToggle(item.id)}
       style={{ minHeight: tokens.layout.touchTarget }}
     >
       <Card style={academicStyles.card}>
@@ -68,9 +68,11 @@ function SessionCard({ item, expanded, onToggle }: { item: AgendaItem; expanded:
       </Card>
     </Pressable>
   );
-}
+});
 
-export function ScheduleScreen(_props: MobileScreenProps) {
+type ScheduleRow = { kind: 'session'; item: AgendaItem } | { kind: 'heading'; day: number; label: string };
+
+export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenProps) {
   const { copy, locale } = useAcademicCopy();
   const { colors } = useTheme();
   const { formatDate } = useLocale();
@@ -98,7 +100,15 @@ export function ScheduleScreen(_props: MobileScreenProps) {
   const start = weekStartOf(today, weekOffset);
   const days = weekDates(start);
   const weekLabel = `${formatDate(civilKey(days[0]))} – ${formatDate(civilKey(days[6]))}`;
-  const toggle = (id: string) => setOpenId((current) => (current === id ? null : id));
+  const toggle = useCallback((id: string) => setOpenId((current) => (current === id ? null : id)), []);
+  const selectedItems = agendaForDate(agenda, days[selectedDayIndex], semester);
+  const scheduleRows: ScheduleRow[] = view === 'week'
+    ? selectedItems.map((item) => ({ kind: 'session', item }))
+    : DAY_ORDER.flatMap((day, index): ScheduleRow[] => {
+      const items = agenda.filter((item) => item.dayOfWeek === day);
+      return items.length ? [{ kind: 'heading', day, label: copy.dayLong[day] ?? copy.dayShort[index] },
+        ...items.map((item): ScheduleRow => ({ kind: 'session', item }))] : [];
+    });
 
   return (
     <AcademicShell
@@ -107,6 +117,13 @@ export function ScheduleScreen(_props: MobileScreenProps) {
       error={preview ? null : enrollmentsQuery.error}
       warning={preview ? null : enrollmentsQuery.warning}
       onRetry={() => void enrollmentsQuery.reload()}
+      list={{ data: scheduleRows,
+        keyExtractor: (row) => row.kind === 'heading' ? `day:${row.day}` : row.item.id,
+        renderItem: ({ item: row }) => row.kind === 'session'
+          ? <SessionCard item={row.item} expanded={openId === row.item.id} onToggle={toggle} />
+          : <View style={styles.termDay}><UiText accessibilityRole="header" variant="label" tone="muted" style={styles.dayHeading}>{row.label}</UiText></View>,
+        footer: <><ScreenSpacer /><ScheduleExport enrollments={termEnrollments} semester={semester} /></>,
+      }}
     >
       <TermField options={options} value={termId} onChange={(value) => { setTermChoice(value); setOpenId(null); }} allowAll={false} />
       <SegmentTabs
@@ -150,32 +167,17 @@ export function ScheduleScreen(_props: MobileScreenProps) {
                     <UiText variant="bodySmall" tone="muted" style={styles.emptyDayText}>{copy.noSessions}</UiText>
                   </Card>
                 ) : null}
-                {items.map((item) => <SessionCard key={item.id} item={item} expanded={openId === item.id} onToggle={() => toggle(item.id)} />)}
               </View>
             );
           })()}
         </View>
-      ) : (
-        <View>
-          {DAY_ORDER.map((dow, index) => {
-            const items = agenda.filter((item) => item.dayOfWeek === dow);
-            if (items.length === 0) return null;
-            return (
-              <View key={dow} style={{ marginTop: tokens.spacing.md }}>
-                <UiText accessibilityRole="header" variant="label" tone="muted" style={{ marginBottom: tokens.spacing.xs }}>{copy.dayLong[dow] ?? copy.dayShort[index]}</UiText>
-                {items.map((item) => <SessionCard key={item.id} item={item} expanded={openId === item.id} onToggle={() => toggle(item.id)} />)}
-              </View>
-            );
-          })}
-        </View>
-      )}
-      <ScreenSpacer />
-      <ScheduleExport enrollments={termEnrollments} semester={semester} />
+      ) : null}
     </AcademicShell>
   );
-}
+});
 
 const styles = StyleSheet.create({
+  termDay: { marginTop: tokens.spacing.md },
   sessionRow: { alignItems: 'stretch', flexDirection: 'row', gap: tokens.spacing.md },
   timeRail: { alignItems: 'center', borderRightWidth: 1, justifyContent: 'center', minWidth: 64, paddingRight: tokens.spacing.sm },
   timeRule: { height: tokens.spacing.md, marginVertical: tokens.spacing.xs, width: 1 },

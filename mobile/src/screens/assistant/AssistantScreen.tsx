@@ -1,8 +1,10 @@
-import { useEffect, useRef } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef } from 'react';
+import { FlatList, StyleSheet, View } from 'react-native';
 
 import { Badge, Button, Card, SegmentedControl, StatePanel, UiText } from '../../components/Ui';
 import { FilterChip, Notice } from '../../components/ui/index';
+import { PerformanceList } from '../../components/perf/performance-list';
+import { useStableCallback } from '../../hooks/use-stable-callback';
 import { tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import type { MobileScreenProps } from '../../navigation/types';
@@ -12,7 +14,7 @@ import { AssistantComposer } from './AssistantComposer';
 import { AssistantHistorySheet } from './AssistantHistorySheet';
 import { KeyboardSafeView } from './KeyboardSafeView';
 import { MessageBubble } from './MessageBubble';
-import { useAssistantChat, type AssistantChat } from './useAssistantChat';
+import { useAssistantChat, type AssistantChat, type ChatMessage } from './useAssistantChat';
 
 function failureTitle(chat: AssistantChat): string {
   const msg = assistantMessages[chat.locale];
@@ -39,7 +41,7 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
   const chat = useAssistantChat();
   const { copy, locale, stream, messages, failure } = chat;
   const msg = assistantMessages[locale];
-  const scroll = useRef<ScrollView>(null);
+  const scroll = useRef<FlatList<ChatMessage>>(null);
   const stickToBottom = useRef(true);
   const lastId = messages[messages.length - 1]?.id;
 
@@ -49,18 +51,28 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
   const empty = messages.length === 0 && !chat.busy && !failure;
   const specialized = chat.scope === 'specialized';
   const suggestions = suggestionLabels(specialized ? copy.emptySpecializedBody : copy.emptyAcademicBody, locale);
+  const onRate = useStableCallback((...args: Parameters<typeof chat.rate>) => { void chat.rate(...args); });
+  const feedbackBusyId = chat.feedbackBusyId;
+  const renderMessage = useCallback(({ item }: { item: ChatMessage }) => (
+    <MessageBubble message={item} copy={copy} feedbackBusy={feedbackBusyId === item.id} onRate={onRate} />
+  ), [copy, feedbackBusyId, onRate]);
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <KeyboardSafeView>
-        <ScrollView
-          ref={scroll}
+        <PerformanceList
+          listRef={scroll}
+          data={messages}
+          keyExtractor={messageKey}
+          renderItem={renderMessage}
+          gutters={false}
+          removeClippedSubviews={false}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
           onContentSizeChange={() => { if (stickToBottom.current) scroll.current?.scrollToEnd({ animated: false }); }}
           showsVerticalScrollIndicator={false}
-        >
+          header={<>
           <View style={styles.titleRow}>
             <UiText accessibilityRole="header" variant="headlineLarge" style={styles.title}>{copy.title}</UiText>
             {chat.isPreview ? <Badge label="PREVIEW" tone="warning" /> : null}
@@ -105,16 +117,8 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
             </>
           ) : null}
 
-          {messages.map((message) => (
-            <MessageBubble
-              key={message.id}
-              message={message}
-              copy={copy}
-              feedbackBusy={chat.feedbackBusyId === message.id}
-              onRate={(id, rating, reason) => void chat.rate(id, rating, reason)}
-            />
-          ))}
-
+          </>}
+          footer={<>
           {chat.liveAnswer ? (
             <Card style={styles.gap}><MarkdownText text={chat.liveAnswer} streaming /></Card>
           ) : null}
@@ -155,13 +159,16 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
           {specialized ? (
             <Button label={copy.openThesis} onPress={() => navigation.navigate('thesis.progress')} variant="text" style={styles.gap} />
           ) : null}
-        </ScrollView>
+          </>}
+        />
         <AssistantComposer chat={chat} />
       </KeyboardSafeView>
       <AssistantHistorySheet chat={chat} copy={copy} />
     </View>
   );
 }
+
+const messageKey = (message: ChatMessage) => message.id;
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },

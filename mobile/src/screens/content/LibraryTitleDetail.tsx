@@ -1,3 +1,4 @@
+import { cardRows, renderVirtualRow } from '../../components/perf/virtual-rows';
 import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, StatePanel, UiText } from '../../components/Ui';
@@ -32,15 +33,31 @@ export function LibraryTitleDetail({ titleId, busy, flash, onBack, onHold, reloa
   const canHold = title !== null && !preview && firstAvailableCopy(copies) !== null;
 
   return (
-    <DetailFrame title={copy.title} onBack={onBack}>
+    <DetailFrame title={copy.title} onBack={onBack}
+      list={{ data: [...((!preview && query.isLoading) ? [] : (!preview && query.error) ? [] : (!title) ? [] : (copies.length > 0) ? cardRows("section-1", copies, (item, index) => String(item.id ?? index), <>
+              <UiText accessibilityRole="header" variant="headlineSmall">{copy.copies}</UiText>
+              </>, (entry) => (
+                <View key={entry.id} accessible accessibilityLabel={`${entry.barcode}, ${copy.copyStatus[entry.status] ?? entry.status}`} style={styles.copyRow}>
+                  <ContentIconChip icon="barcode-scan" />
+                  <UiText variant="bodyMedium" style={{ flex: 1 }}>{entry.barcode}</UiText>
+                  <StatusChip code={entry.status} labels={copy.copyStatus} />
+                </View>
+              ), {}) : [])], keyExtractor: (row) => row.key, renderItem: renderVirtualRow, footer: <>{!preview && query.isLoading ? null : (<>{!preview && query.error ? null : (<>{!title ? null : (<><View style={{ gap: 12 }}>
+          {title.availableCopies > 0 || canHold ? (
+            <Button label={copy.hold} loading={busy} disabled={busy || preview || !canHold} onPress={() => onHold(title)} />
+          ) : (
+            <UiText variant="label" tone="warning">{copy.noCopiesAvailable}</UiText>
+          )}
+        </View></>)}</>)}</>)}
+    </> }}
+    >
       {!preview && query.isLoading ? (
         <StatePanel kind="loading" title={t('loading')} />
-      ) : !preview && query.error ? (
+      ) : (<>{!preview && query.error ? (
         <StatePanel kind="error" title={shared.errorTitle} description={query.error} actionLabel={t('retry')} onAction={() => void query.reload()} />
-      ) : !title ? (
+      ) : (<>{!title ? (
         <StatePanel kind="empty" title={shared.notFound} />
-      ) : (
-        <View style={{ gap: 12 }}>
+      ) : (<><View style={{ gap: 12 }}>
           <FlashNotice flash={flash} />
           <Card>
             <ContentHero title={title.title} icon="book-open-page-variant-outline" detail={joinMeta([title.author, title.publisher, title.publishedYear ? String(title.publishedYear) : null])}>
@@ -64,26 +81,7 @@ export function LibraryTitleDetail({ titleId, busy, flash, onBack, onHold, reloa
             </View>
             {title.description ? <UiText variant="bodyMedium" style={{ marginTop: 8 }}>{title.description}</UiText> : null}
           </Card>
-          {copies.length > 0 ? (
-            <Card>
-              <UiText accessibilityRole="header" variant="headlineSmall">{copy.copies}</UiText>
-              {copies.map((entry) => (
-                <View key={entry.id} accessible accessibilityLabel={`${entry.barcode}, ${copy.copyStatus[entry.status] ?? entry.status}`} style={styles.copyRow}>
-                  <ContentIconChip icon="barcode-scan" />
-                  <UiText variant="bodyMedium" style={{ flex: 1 }}>{entry.barcode}</UiText>
-                  <StatusChip code={entry.status} labels={copy.copyStatus} />
-                </View>
-              ))}
-            </Card>
-          ) : null}
-          {title.availableCopies > 0 || canHold ? (
-            <Button label={copy.hold} loading={busy} disabled={busy || preview || !canHold} onPress={() => onHold(title)} />
-          ) : (
-            <UiText variant="label" tone="warning">{copy.noCopiesAvailable}</UiText>
-          )}
-        </View>
-      )}
-    </DetailFrame>
+          {copies.length > 0 ? null : null}</View></>)}</>)}</>)}</DetailFrame>
   );
 }
 

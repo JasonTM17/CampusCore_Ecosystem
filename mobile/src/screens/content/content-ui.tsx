@@ -7,7 +7,9 @@ import type { ReactElement, ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { Button, ScreenShell, UiText } from '../../components/Ui';
+import { Button, UiText } from '../../components/Ui';
+import { ScrollableScreenShell as ScreenShell } from '../../components/perf/list-screen-shell';
+import type { PerformanceListProps } from '../../components/perf/performance-list';
 import { DataList, Dialog, Notice, FileRow, StatusPill } from '../../components/ui/index';
 import type { FileRowAction, FileRowProps } from '../../components/ui/index';
 import { ResponsiveContent } from '../../components/ui/ResponsiveContent';
@@ -269,11 +271,12 @@ export function ListFrame<T>({
 }
 
 /** Frame for a detail view: scrollable, with a 44dp back control in the header. */
-export function DetailFrame({ title, onBack, children }: { title: string; onBack: () => void; children: ReactNode }) {
+export function DetailFrame<T>({ title, onBack, children, list }: { title: string; onBack: () => void; children: ReactNode; list?: PerformanceListProps<T> }) {
   const { copy } = useContentCopy();
   return (
     <ScreenShell
       title={title}
+      list={list}
       headerAction={<Button label={copy.back} accessibilityLabel={copy.back} variant="text" onPress={onBack} />}
     >
       {children}

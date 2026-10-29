@@ -46,16 +46,21 @@ interface DeskProps<T extends { id: string }> {
 /** Queue frame shared by the three staff desks: status filter, list, confirmation sheet, web hand-off. */
 function Desk<T extends { id: string }>({ title, copy, statuses, items, loading, error, status, onStatus, onReload, runner, webPath, renderItem }: DeskProps<T>) {
   return (
-    <LaneShell title={title} loading={loading} error={error} onRetry={onReload} banner={runner.banner}>
-      <View>
-        <StatusFilter copy={copy} statuses={statuses} value={status} onChange={onStatus} />
-        {items.length === 0 ? <StatePanel kind="empty" title={copy.empty} /> : null}
-        <View style={laneStyles.stack}>{items.map(renderItem)}</View>
+    <LaneShell title={title} loading={loading} error={error} onRetry={onReload} banner={runner.banner}
+      list={{ data: items, keyExtractor: (item, index) => String(item.id),
+        renderItem: ({ item }) => <>{renderItem(item)}</>,
+        footer: <><View><View style={laneStyles.stack}></View>
         <UiText variant="bodySmall" tone="muted">{copy.webForAttachments}</UiText>
         <HandoffLink label={copy.openOnWeb} path={webPath} />
       </View>
       <ConfirmSheet runner={runner} copy={copy} />
-    </LaneShell>
+    </>,
+      }}
+    >
+      <View>
+        <StatusFilter copy={copy} statuses={statuses} value={status} onChange={onStatus} />
+        {items.length === 0 ? <StatePanel kind="empty" title={copy.empty} /> : null}
+        <View style={laneStyles.stack}></View></View></LaneShell>
   );
 }
 

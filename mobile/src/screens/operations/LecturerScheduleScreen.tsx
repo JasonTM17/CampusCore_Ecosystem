@@ -37,29 +37,9 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
       error={preview ? null : query.error}
       warning={preview ? null : query.warning}
       onRetry={() => void query.reload()}
-    >
-      {sections.length === 0 ? (
-        <StatePanel kind="empty" title={copy.emptySchedule} />
-      ) : (
-        <View>
-          {terms.length > 1 ? (
-            <ChoiceField
-              label={copy.semester}
-              display="sheet"
-              options={[{ value: '', label: copy.allTerms }, ...terms]}
-              value={term}
-              onChange={(value) => { setTerm(value); setPages(1); }}
-            />
-          ) : null}
-          <SearchBar
-            value={search}
-            onChangeText={(value) => { setSearch(value); setPages(1); }}
-            placeholder={copy.searchSections}
-            accessibilityLabel={copy.searchSections}
-            style={styles.searchBar}
-          />
-          {matches.length === 0 ? <StatePanel kind="empty" title={copy.noMatch} /> : null}
-          {rows.map((section) => (
+
+      list={{ data: rows, keyExtractor: (item, index) => String(item.sectionId),
+        renderItem: ({ item: section }) => (
             <Card key={section.sectionId} style={styles.scheduleCard}>
               <View style={styles.scheduleHeader}>
                 <View style={styles.topicCopy}>
@@ -108,7 +88,8 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
                 />
               </View>
             </Card>
-          ))}
+          ),
+        footer: <>{sections.length === 0 ? null : (<View>
           {hasMore ? (
             <Button
               label={copy.loadMore}
@@ -116,8 +97,30 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
               onPress={() => setPages((current) => current + 1)}
             />
           ) : null}
-        </View>
-      )}
-    </OpsShell>
+        </View>)}
+    </>,
+      }}
+    >
+      {sections.length === 0 ? (
+        <StatePanel kind="empty" title={copy.emptySchedule} />
+      ) : (<View>
+          {terms.length > 1 ? (
+            <ChoiceField
+              label={copy.semester}
+              display="sheet"
+              options={[{ value: '', label: copy.allTerms }, ...terms]}
+              value={term}
+              onChange={(value) => { setTerm(value); setPages(1); }}
+            />
+          ) : null}
+          <SearchBar
+            value={search}
+            onChangeText={(value) => { setSearch(value); setPages(1); }}
+            placeholder={copy.searchSections}
+            accessibilityLabel={copy.searchSections}
+            style={styles.searchBar}
+          />
+          {matches.length === 0 ? <StatePanel kind="empty" title={copy.noMatch} /> : null}
+          </View>)}</OpsShell>
   );
 }

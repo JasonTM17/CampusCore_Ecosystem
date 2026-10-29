@@ -1,3 +1,4 @@
+import { cardRows, renderVirtualRow } from '../../components/perf/virtual-rows';
 import { useState } from 'react';
 import { View } from 'react-native';
 
@@ -100,7 +101,34 @@ export function ApplicationDetail({ application, busy, preview, flash, onBack, o
   const active = isApplicationWithdrawable(application);
 
   return (
-    <DetailFrame title={copy.myApplications} onBack={onBack}>
+    <DetailFrame title={copy.myApplications} onBack={onBack}
+      list={{ data: [...(cardRows("section-1", attachments, (item, index) => String(item.id ?? index), <>
+          <UiText accessibilityRole="header" variant="headlineSmall">{shared.attachments}</UiText>
+          {attachments.length === 0 ? <UiText variant="bodySmall" tone="muted">{shared.noAttachments}</UiText> : null}
+          </>, (file) => (
+            <AttachmentRow
+              key={file.id}
+              name={file.fileName ?? file.id}
+              sizeBytes={file.sizeBytes}
+              fetchBytes={() => contentApi.careersDownload(application.id, file.id)}
+            />
+          ), {footer: <>
+          {active && !preview ? (
+            <UploadPicker
+              intent={`careers:${application.id}`}
+              policy={DOCUMENT_POLICY}
+              disabled={busy}
+              upload={(part, key) => contentApi.careersUpload(application.id, part, key)}
+              onUploaded={onUploaded}
+            />
+          ) : null}
+        </>}))], keyExtractor: (row) => row.key, renderItem: renderVirtualRow, footer: <><View style={{ gap: 12 }}>
+        {active ? (
+          <Button label={copy.withdraw} variant="secondary" loading={busy} disabled={busy || preview} onPress={() => onWithdraw(application)} />
+        ) : null}
+      </View>
+    </> }}
+    >
       <View style={{ gap: 12 }}>
         <FlashNotice flash={flash} />
         <Card>
@@ -120,31 +148,6 @@ export function ApplicationDetail({ application, busy, preview, flash, onBack, o
           </View>
           {application.coverLetter ? <UiText variant="bodyLarge" style={{ marginTop: 16 }}>{application.coverLetter}</UiText> : null}
         </Card>
-        <Card>
-          <UiText accessibilityRole="header" variant="headlineSmall">{shared.attachments}</UiText>
-          {attachments.length === 0 ? <UiText variant="bodySmall" tone="muted">{shared.noAttachments}</UiText> : null}
-          {attachments.map((file) => (
-            <AttachmentRow
-              key={file.id}
-              name={file.fileName ?? file.id}
-              sizeBytes={file.sizeBytes}
-              fetchBytes={() => contentApi.careersDownload(application.id, file.id)}
-            />
-          ))}
-          {active && !preview ? (
-            <UploadPicker
-              intent={`careers:${application.id}`}
-              policy={DOCUMENT_POLICY}
-              disabled={busy}
-              upload={(part, key) => contentApi.careersUpload(application.id, part, key)}
-              onUploaded={onUploaded}
-            />
-          ) : null}
-        </Card>
-        {active ? (
-          <Button label={copy.withdraw} variant="secondary" loading={busy} disabled={busy || preview} onPress={() => onWithdraw(application)} />
-        ) : null}
-      </View>
-    </DetailFrame>
+        </View></DetailFrame>
   );
 }

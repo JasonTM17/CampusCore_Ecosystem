@@ -241,40 +241,9 @@ export function AdminStudentsScreen() {
   });
 
   return (
-    <WebOnlyPanel title={copy.adminStudentsTitle} path="/admin/users">
-      <SearchBar
-        value={search}
-        onChangeText={setSearch}
-        placeholder={copy.searchStudents}
-        accessibilityLabel={copy.searchStudents}
-        style={styles.searchBar}
-      />
-
-      <View style={styles.filterChipsRow}>
-        <FilterChip
-          label={copy.filterAll}
-          selected={statusFilter === 'ALL'}
-          onPress={() => setStatusFilter('ALL')}
-        />
-        <FilterChip
-          label={copy.filterActive}
-          selected={statusFilter === 'ACTIVE'}
-          onPress={() => setStatusFilter('ACTIVE')}
-        />
-        <FilterChip
-          label={copy.filterSuspended}
-          selected={statusFilter === 'SUSPENDED'}
-          onPress={() => setStatusFilter('SUSPENDED')}
-        />
-        <FilterChip
-          label={copy.filterGraduated}
-          selected={statusFilter === 'GRADUATED'}
-          onPress={() => setStatusFilter('GRADUATED')}
-        />
-      </View>
-
-      <View style={styles.stack}>
-        {filtered.map((student) => (
+    <WebOnlyPanel title={copy.adminStudentsTitle} path="/admin/users"
+      list={{ data: filtered, keyExtractor: (item, index) => String(item.id),
+        renderItem: ({ item: student }) => (
           <Card key={student.id} style={styles.rosterCard}>
             <Pressable
               accessibilityRole="button"
@@ -311,7 +280,8 @@ export function AdminStudentsScreen() {
               </View>
             </Pressable>
           </Card>
-        ))}
+        ),
+        footer: <><View style={styles.stack}>
       </View>
 
       <ScreenSpacer />
@@ -378,7 +348,42 @@ export function AdminStudentsScreen() {
           </View>
         </Sheet>
       ) : null}
-    </WebOnlyPanel>
+    </>,
+      }}
+    >
+      <SearchBar
+        value={search}
+        onChangeText={setSearch}
+        placeholder={copy.searchStudents}
+        accessibilityLabel={copy.searchStudents}
+        style={styles.searchBar}
+      />
+
+      <View style={styles.filterChipsRow}>
+        <FilterChip
+          label={copy.filterAll}
+          selected={statusFilter === 'ALL'}
+          onPress={() => setStatusFilter('ALL')}
+        />
+        <FilterChip
+          label={copy.filterActive}
+          selected={statusFilter === 'ACTIVE'}
+          onPress={() => setStatusFilter('ACTIVE')}
+        />
+        <FilterChip
+          label={copy.filterSuspended}
+          selected={statusFilter === 'SUSPENDED'}
+          onPress={() => setStatusFilter('SUSPENDED')}
+        />
+        <FilterChip
+          label={copy.filterGraduated}
+          selected={statusFilter === 'GRADUATED'}
+          onPress={() => setStatusFilter('GRADUATED')}
+        />
+      </View>
+
+      <View style={styles.stack}>
+        </View></WebOnlyPanel>
   );
 }
 
@@ -401,30 +406,9 @@ export function AdminLecturersScreen() {
   });
 
   return (
-    <WebOnlyPanel title={copy.adminLecturersTitle} path="/admin/lecturers">
-      <SearchBar
-        value={search}
-        onChangeText={setSearch}
-        placeholder={copy.searchSections}
-        accessibilityLabel={copy.searchSections}
-        style={styles.searchBar}
-      />
-
-      <View style={styles.filterChipsRow}>
-        <FilterChip
-          label={copy.filterAll}
-          selected={filter === 'ALL'}
-          onPress={() => setFilter('ALL')}
-        />
-        <FilterChip
-          label={copy.filterAvailable}
-          selected={filter === 'AVAILABLE'}
-          onPress={() => setFilter('AVAILABLE')}
-        />
-      </View>
-
-      <View style={styles.stack}>
-        {filtered.map((lecturer) => (
+    <WebOnlyPanel title={copy.adminLecturersTitle} path="/admin/lecturers"
+      list={{ data: filtered, keyExtractor: (item, index) => String(item.id),
+        renderItem: ({ item: lecturer }) => (
           <Card key={lecturer.id} style={styles.scheduleCard}>
             <Pressable
               accessibilityRole="button"
@@ -455,7 +439,8 @@ export function AdminLecturersScreen() {
               </View>
             </Pressable>
           </Card>
-        ))}
+        ),
+        footer: <><View style={styles.stack}>
       </View>
 
       <ScreenSpacer />
@@ -509,6 +494,31 @@ export function AdminLecturersScreen() {
           </View>
         </Sheet>
       ) : null}
-    </WebOnlyPanel>
+    </>,
+      }}
+    >
+      <SearchBar
+        value={search}
+        onChangeText={setSearch}
+        placeholder={copy.searchSections}
+        accessibilityLabel={copy.searchSections}
+        style={styles.searchBar}
+      />
+
+      <View style={styles.filterChipsRow}>
+        <FilterChip
+          label={copy.filterAll}
+          selected={filter === 'ALL'}
+          onPress={() => setFilter('ALL')}
+        />
+        <FilterChip
+          label={copy.filterAvailable}
+          selected={filter === 'AVAILABLE'}
+          onPress={() => setFilter('AVAILABLE')}
+        />
+      </View>
+
+      <View style={styles.stack}>
+        </View></WebOnlyPanel>
   );
 }

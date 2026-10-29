@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Card, DataNotice, ScreenShell, StatePanel, UiText } from '../../components/Ui';
+import { Card, DataNotice, StatePanel, UiText } from '../../components/Ui';
+import { ScrollableScreenShell as ScreenShell } from '../../components/perf/list-screen-shell';
+import type { PerformanceListProps } from '../../components/perf/performance-list';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { apiClient } from '../../api/client';
 import { tokens } from '../../design/tokens';
@@ -47,7 +49,8 @@ export function useAcademicQuery<T>(key: string, fetcher: () => Promise<T>, copy
   });
 }
 
-export interface AcademicShellProps {
+export interface AcademicShellProps<T = unknown> {
+  list?: PerformanceListProps<T>;
   title: string;
   eyebrow?: string;
   loading?: boolean;
@@ -58,10 +61,10 @@ export interface AcademicShellProps {
 }
 
 /** Screen frame with the loading, error, stale-data and preview states in one place. */
-export function AcademicShell({ title, eyebrow, loading = false, error, warning, onRetry, children }: AcademicShellProps) {
+export function AcademicShell<T>({ title, eyebrow, loading = false, error, warning, onRetry, children, list }: AcademicShellProps<T>) {
   const { copy } = useAcademicCopy();
   return (
-    <ScreenShell title={title} eyebrow={eyebrow}>
+    <ScreenShell title={title} eyebrow={eyebrow} list={list && (loading || error ? { ...list, data: [], footer: null } : list)}>
       {isPreviewMode() ? <DataNotice message={copy.previewNotice} /> : null}
       {warning ? <DataNotice message={warning} /> : null}
       {loading ? (

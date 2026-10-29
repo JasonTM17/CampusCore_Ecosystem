@@ -1,3 +1,4 @@
+import { groupedRows } from '../../components/perf/grouped-rows';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -95,41 +96,21 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
       error={preview ? null : query.error}
       warning={preview ? null : query.warning}
       onRetry={() => void query.reload()}
-    >
-      {actions.notice ? <Notice message={actions.notice.text} tone={actions.notice.tone} /> : null}
-      <HeroCard
-        icon="clipboard-list-outline"
-        eyebrow={copy.registrationTitle}
-        title={fillCopy(copy.basketTitle, { n: selectedCount })}
-        detail={eligibility?.creditLimit != null
-          ? fillCopy(copy.creditsUsed, { used: eligibility.creditsUsed ?? 0, limit: eligibility.creditLimit })
-          : undefined}
-      >
-        <View style={styles.heroActions}>
-          {roundOpen ? <StatusPill label={copy.availability.open} tone="success" /> : null}
-          {selectedCount > 0 ? (
-            <Button label={copy.registerSelected} onPress={() => void actions.registerSelected()} loading={actions.busy} disabled={preview} />
-          ) : null}
-        </View>
-        {selectedCount > 0 && Object.keys(actions.basket.failures).length > 0 ? (
-          <UiText variant="bodySmall" tone="muted" style={styles.keptSelection}>{copy.selectionKept}</UiText>
-        ) : null}
-      </HeroCard>
-      {!roundOpen ? <StatePanel kind="empty" title={copy.roundClosed} /> : null}
-      <RegistrationControls query={browse} onChange={(next) => { setBrowse(next); setVisibleGroups(PAGE_SIZE); }} />
-      <ScreenSpacer />
-      {roundOpen && groups.length === 0 ? <StatePanel kind="empty" title={copy.noSections} /> : null}
-      {groups.slice(0, visibleGroups).map((group) => (
-        <View key={group.courseKey}>
+
+      list={{ data: groupedRows(groups.slice(0, visibleGroups), (group) => group.courseKey, (group) => group.sections, (item) => item.id), keyExtractor: (entry) => entry.key,
+        renderItem: ({ item: entry }) => { const group = entry.group;
+if (entry.kind === "header") return <>
           <View style={styles.courseHeading}>
             <IconChip icon="book-open-variant" size={32} />
             <UiText accessibilityRole="header" variant="label" tone="primary" style={styles.courseHeadingText}>
               {group.courseCode} · {group.courseName} · {fillCopy(copy.credits, { n: group.credits })}
             </UiText>
           </View>
-          {group.sections.map((raw) => {
+          </>;
+const raw = entry.item;
             const section = toView(raw);
-            return (
+
+return (
               <Card key={section.id} style={academicStyles.card}>
                 <View style={styles.sectionTop}>
                   <IconChip icon="book-open-outline" size={32} tone="neutral" />
@@ -155,10 +136,8 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
                   ) : null}
                 </View>
               </Card>
-            );
-          })}
-        </View>
-      ))}
+            ); },
+        footer: <>
       {groups.length > visibleGroups ? <Button label={copy.loadMore} onPress={() => setVisibleGroups((count) => count + PAGE_SIZE)} variant="secondary" /> : null}
       <ScreenSpacer />
       <Button label={copy.viewEnrollments} onPress={() => openRoute(navigation, 'enrollments')} variant="secondary" />
@@ -176,7 +155,33 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
           if (target?.enrollmentId) void actions.drop(target.enrollmentId);
         }}
       />
-    </AcademicShell>
+    </>,
+      }}
+    >
+      {actions.notice ? <Notice message={actions.notice.text} tone={actions.notice.tone} /> : null}
+      <HeroCard
+        icon="clipboard-list-outline"
+        eyebrow={copy.registrationTitle}
+        title={fillCopy(copy.basketTitle, { n: selectedCount })}
+        detail={eligibility?.creditLimit != null
+          ? fillCopy(copy.creditsUsed, { used: eligibility.creditsUsed ?? 0, limit: eligibility.creditLimit })
+          : undefined}
+      >
+        <View style={styles.heroActions}>
+          {roundOpen ? <StatusPill label={copy.availability.open} tone="success" /> : null}
+          {selectedCount > 0 ? (
+            <Button label={copy.registerSelected} onPress={() => void actions.registerSelected()} loading={actions.busy} disabled={preview} />
+          ) : null}
+        </View>
+        {selectedCount > 0 && Object.keys(actions.basket.failures).length > 0 ? (
+          <UiText variant="bodySmall" tone="muted" style={styles.keptSelection}>{copy.selectionKept}</UiText>
+        ) : null}
+      </HeroCard>
+      {!roundOpen ? <StatePanel kind="empty" title={copy.roundClosed} /> : null}
+      <RegistrationControls query={browse} onChange={(next) => { setBrowse(next); setVisibleGroups(PAGE_SIZE); }} />
+      <ScreenSpacer />
+      {roundOpen && groups.length === 0 ? <StatePanel kind="empty" title={copy.noSections} /> : null}
+      </AcademicShell>
   );
 }
 

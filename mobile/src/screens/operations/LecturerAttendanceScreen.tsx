@@ -168,17 +168,45 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
       error={queryError}
       warning={preview ? null : sectionsQuery.warning ?? sheetQuery.warning}
       onRetry={() => { void sectionsQuery.reload(); void sheetQuery.reload(); }}
+
+      list={{ data: shown, keyExtractor: (item, index) => String(item.studentId),
+        renderItem: ({ item: row }) => (
+                  <AttendanceRosterRow key={row.studentId} row={row} copy={copy} onChange={change} disabled={busy} />
+                ),
+        footer: <>{sections.length === 0 ? null : (<View>{rows.length === 0 ? null : (<View><View style={[styles.stack, { marginTop: 12 }]}>
+                {hasMore ? <Button label={copy.loadMore} variant="secondary" onPress={() => setPages((current) => current + 1)} /> : null}
+              </View>
+
+              <View style={styles.saveBar}>
+                {save.kind === 'error' ? <Notice tone="error" message={save.message} /> : null}
+                {save.kind === 'saved' ? <Notice tone="success" message={fillCopy(copy.saved, { n: save.count })} /> : null}
+                {changes > 0 ? (
+                  <UiText variant="bodySmall" tone="muted">
+                    {fillCopy(copy.unsaved, { n: changes })}
+                  </UiText>
+                ) : null}
+                <Button
+                  icon="content-save-outline"
+                  label={copy.save}
+                  loading={busy}
+                  disabled={preview || changes === 0 || remoteChanged}
+                  onPress={() => void saveAttendance()}
+                />
+                <CsvExport name={attendanceCsvFilename(section?.sectionNumber || sectionId, date)} build={buildCsv} rows={rows.length} />
+              </View>
+            </View>)}
+        </View>)}
+    </>,
+      }}
     >
       {sections.length === 0 ? (
         <StatePanel kind="empty" title={copy.emptySchedule} />
-      ) : (
-        <View>
+      ) : (<View>
           <SectionPicker sections={sections} value={sectionId} onChange={(next) => { setPicked(next); setSearch(''); }} />
           <DateField label={copy.date} value={date} max={today} required onChange={(next) => next && setDate(next)} />
           {rows.length === 0 ? (
             <StatePanel kind="empty" title={copy.rosterEmpty} />
-          ) : (
-            <View>
+          ) : (<View>
               <StatStrip
                 style={styles.stats}
                 items={[
@@ -205,33 +233,6 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
               />
               <View style={[styles.stack, { marginTop: 12 }]}>
                 {visible.length === 0 ? <StatePanel kind="empty" title={copy.noMatch} /> : null}
-                {shown.map((row) => (
-                  <AttendanceRosterRow key={row.studentId} row={row} copy={copy} onChange={change} disabled={busy} />
-                ))}
-                {hasMore ? <Button label={copy.loadMore} variant="secondary" onPress={() => setPages((current) => current + 1)} /> : null}
-              </View>
-
-              <View style={styles.saveBar}>
-                {save.kind === 'error' ? <Notice tone="error" message={save.message} /> : null}
-                {save.kind === 'saved' ? <Notice tone="success" message={fillCopy(copy.saved, { n: save.count })} /> : null}
-                {changes > 0 ? (
-                  <UiText variant="bodySmall" tone="muted">
-                    {fillCopy(copy.unsaved, { n: changes })}
-                  </UiText>
-                ) : null}
-                <Button
-                  icon="content-save-outline"
-                  label={copy.save}
-                  loading={busy}
-                  disabled={preview || changes === 0 || remoteChanged}
-                  onPress={() => void saveAttendance()}
-                />
-                <CsvExport name={attendanceCsvFilename(section?.sectionNumber || sectionId, date)} build={buildCsv} rows={rows.length} />
-              </View>
-            </View>
-          )}
-        </View>
-      )}
-    </OpsShell>
+                </View></View>)}</View>)}</OpsShell>
   );
 }

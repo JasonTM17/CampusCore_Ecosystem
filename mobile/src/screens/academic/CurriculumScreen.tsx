@@ -1,3 +1,5 @@
+import { groupedRows } from '../../components/perf/grouped-rows';
+import { GroupCard } from '../../components/perf/group-card';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -47,11 +49,47 @@ export function CurriculumScreen({ navigation }: MobileScreenProps) {
       error={preview ? null : query.error}
       warning={preview ? null : query.warning}
       onRetry={() => void query.reload()}
+
+      list={{ data: groupedRows(groups, (group) => group.key, (group) => group.courses, (item) => item.courseId), keyExtractor: (entry) => entry.key,
+        renderItem: ({ item: entry }) => { const group = entry.group;
+if (entry.kind === "header") return <GroupCard edge={entry.empty ? "single" : "start"} style={academicStyles.card}>
+              <View style={styles.termHeading}>
+                <IconChip icon="calendar-month-outline" size={32} />
+                <UiText accessibilityRole="header" variant="headlineSmall" style={styles.termTitle}>
+                  {fillCopy(copy.yearTerm, { year: group.year, term: group.term })}
+                </UiText>
+              </View>
+              </GroupCard>;
+const course = entry.item;
+return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.card}>{(
+                <View key={course.courseId} accessible accessibilityLabel={`${course.code} ${localizedName(course, locale, course.code)}, ${statusLabel(course.status)}`}>
+                  <Divider />
+                  <View style={styles.courseRow}>
+                    <IconChip icon="book-open-variant" size={32} tone="neutral" />
+                    <View style={academicStyles.rowCopy}>
+                      <StatusPill label={course.code} tone="primary" />
+                      <UiText variant="bodyMedium">{localizedName(course, locale, course.code)}</UiText>
+                      <UiText variant="meta" tone="muted">{fillCopy(copy.credits, { n: course.credits })}</UiText>
+                      {course.prerequisites && course.prerequisites.length > 0 ? (
+                        <UiText variant="meta" tone="muted">{fillCopy(copy.prerequisites, { list: course.prerequisites.join(', ') })}</UiText>
+                      ) : null}
+                    </View>
+                    <View style={styles.coursePills}>
+                      <StatusPill label={statusLabel(course.status)} tone={course.status === 'COMPLETED' ? 'success' : course.status === 'IN_PROGRESS' ? 'primary' : 'neutral'} />
+                      <StatusPill label={course.isMandatory ? copy.mandatory : copy.elective} tone="neutral" />
+                    </View>
+                  </View>
+                </View>
+              )}</GroupCard>; },
+        footer: <>{!data || data.courses.length === 0 ? null : (<View>
+          <Button label={copy.openRegistration} onPress={() => navigation.navigate('registration')} variant="secondary" />
+        </View>)}
+    </>,
+      }}
     >
       {!data || data.courses.length === 0 ? (
         <StatePanel kind="empty" title={copy.emptyCurriculum} />
-      ) : (
-        <View>
+      ) : (<View>
           <View style={academicStyles.metrics}>
             <MetricCard icon="book-check-outline" label={copy.creditsEarned} value={formatNumber(earned)} style={academicStyles.metric} />
             <MetricCard icon="book-open-outline" label={copy.creditsLabel} value={formatNumber(total)} style={academicStyles.metric} />
@@ -84,40 +122,7 @@ export function CurriculumScreen({ navigation }: MobileScreenProps) {
             ]}
           />
           {groups.length === 0 ? <StatePanel kind="empty" title={copy.emptyCurriculum} /> : null}
-          {groups.map((group) => (
-            <Card key={group.key} style={academicStyles.card}>
-              <View style={styles.termHeading}>
-                <IconChip icon="calendar-month-outline" size={32} />
-                <UiText accessibilityRole="header" variant="headlineSmall" style={styles.termTitle}>
-                  {fillCopy(copy.yearTerm, { year: group.year, term: group.term })}
-                </UiText>
-              </View>
-              {group.courses.map((course) => (
-                <View key={course.courseId} accessible accessibilityLabel={`${course.code} ${localizedName(course, locale, course.code)}, ${statusLabel(course.status)}`}>
-                  <Divider />
-                  <View style={styles.courseRow}>
-                    <IconChip icon="book-open-variant" size={32} tone="neutral" />
-                    <View style={academicStyles.rowCopy}>
-                      <StatusPill label={course.code} tone="primary" />
-                      <UiText variant="bodyMedium">{localizedName(course, locale, course.code)}</UiText>
-                      <UiText variant="meta" tone="muted">{fillCopy(copy.credits, { n: course.credits })}</UiText>
-                      {course.prerequisites && course.prerequisites.length > 0 ? (
-                        <UiText variant="meta" tone="muted">{fillCopy(copy.prerequisites, { list: course.prerequisites.join(', ') })}</UiText>
-                      ) : null}
-                    </View>
-                    <View style={styles.coursePills}>
-                      <StatusPill label={statusLabel(course.status)} tone={course.status === 'COMPLETED' ? 'success' : course.status === 'IN_PROGRESS' ? 'primary' : 'neutral'} />
-                      <StatusPill label={course.isMandatory ? copy.mandatory : copy.elective} tone="neutral" />
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </Card>
-          ))}
-          <Button label={copy.openRegistration} onPress={() => navigation.navigate('registration')} variant="secondary" />
-        </View>
-      )}
-    </AcademicShell>
+          </View>)}</AcademicShell>
   );
 }
 

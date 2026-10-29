@@ -8,6 +8,7 @@ import { BottomNavigation } from '../../src/components/BottomNavigation';
 import { MenuPanel } from '../../src/components/MenuPanel';
 import { NavigationRail } from '../../src/components/NavigationRail';
 import { useTheme } from '../../src/design/theme';
+import { useDashboardPrefetch } from '../../src/hooks/use-dashboard-prefetch';
 import {
   pathFor,
   resolveGuard,
@@ -28,6 +29,7 @@ export default function AppGroupLayout() {
   const router = useRouter();
   const session = useSession();
   const pathname = usePathname() ?? '/';
+  useDashboardPrefetch(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const { colors, window } = useTheme();
   const expanded = window.class === 'expanded';
