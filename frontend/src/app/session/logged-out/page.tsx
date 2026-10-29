@@ -1,17 +1,16 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
-
-export const metadata: Metadata = {
-  title: 'Đã đăng xuất — CampusUTE',
-  robots: { index: false },
-};
+import { getMessages } from '@/i18n/messages';
+import { getRequestLocale } from '@/i18n/server';
 
 /**
  * Post-logout landing owned by Next (docs/ecosystem/host-policy.md §3 —
  * the Java BFF only returns a probe; this static page is the real
  * destination the `id` host's /connect/logout redirects back to).
  */
-export default function LoggedOutPage() {
+export default async function LoggedOutPage() {
+  const messages = getMessages(await getRequestLocale());
+  const copy = messages.session.loggedOut;
+
   return (
     <main
       style={{
@@ -24,11 +23,10 @@ export default function LoggedOutPage() {
     >
       <div style={{ textAlign: 'center', maxWidth: 360 }}>
         <h1 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>
-          Bạn đã đăng xuất
+          {copy.title}
         </h1>
         <p style={{ color: '#555', marginBottom: '1.5rem' }}>
-          Phiên đăng nhập của bạn đã kết thúc trên mọi thiết bị liên kết
-          với tài khoản này.
+          {copy.body}
         </p>
         <Link
           href="/"
@@ -38,7 +36,7 @@ export default function LoggedOutPage() {
             fontWeight: 600,
           }}
         >
-          Về trang chủ
+          {copy.returnHome}
         </Link>
       </div>
     </main>

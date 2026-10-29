@@ -89,6 +89,20 @@ function getRouteMetadata(pathname: string, locale: Locale) {
     };
   }
 
+  const protectedSurface = [
+    { prefix: '/apply', metadata: messages.meta.apply },
+    { prefix: '/careers', metadata: messages.meta.careers },
+    { prefix: '/library', metadata: messages.meta.library },
+    { prefix: '/session', metadata: messages.meta.session },
+  ].find(({ prefix }) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  if (protectedSurface) {
+    return {
+      title: protectedSurface.metadata.title,
+      description: protectedSurface.metadata.description,
+      robots: { index: false, follow: false },
+    };
+  }
+
   if (pathname.startsWith('/attendance/checkin')) {
     return {
       title: messages.meta.checkinLanding.title,

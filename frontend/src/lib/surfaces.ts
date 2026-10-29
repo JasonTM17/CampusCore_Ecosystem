@@ -39,33 +39,67 @@ interface HostMapEntry {
   devHost?: string;
 }
 
-function envHostMap(): Map<string, string> | null {
+interface SurfaceRegistry {
+  hostMap: Map<string, string>;
+  surfaces: Map<string, Surface>;
+}
+
+const STATIC_SURFACE_REGISTRY: SurfaceRegistry = (() => {
+  const hostMap = new Map<string, string>();
+  const surfaces = new Map<string, Surface>();
+  for (const surface of SURFACES) {
+    surfaces.set(surface.id, surface);
+    hostMap.set(surface.host.toLowerCase(), surface.id);
+    hostMap.set(surface.devHost.toLowerCase(), surface.id);
+  }
+  return { hostMap, surfaces };
+})();
+
+function envHostOverrides(): HostMapEntry[] | null {
   const raw = process.env.NEXT_PUBLIC_SURFACE_HOSTS;
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as HostMapEntry[];
-    const map = new Map<string, string>();
+    if (!Array.isArray(parsed)) return null;
     for (const entry of parsed) {
-      if (!entry || typeof entry.surface !== 'string' || typeof entry.host !== 'string') {
+      if (
+        !entry
+        || typeof entry.surface !== 'string'
+        || typeof entry.host !== 'string'
+        || (entry.devHost !== undefined && typeof entry.devHost !== 'string')
+      ) {
         return null;
       }
-      map.set(entry.host.toLowerCase(), entry.surface);
-      if (entry.devHost) map.set(entry.devHost.toLowerCase(), entry.surface);
     }
-    return map;
+    return parsed;
   } catch {
     return null;
   }
 }
 
-const STATIC_HOST_MAP: Map<string, string> = (() => {
-  const map = new Map<string, string>();
-  for (const surface of SURFACES) {
-    map.set(surface.host.toLowerCase(), surface.id);
-    map.set(surface.devHost.toLowerCase(), surface.id);
+function effectiveSurfaceRegistry(): SurfaceRegistry {
+  const overrides = envHostOverrides();
+  if (!overrides) return STATIC_SURFACE_REGISTRY;
+
+  const registry: SurfaceRegistry = {
+    hostMap: new Map(STATIC_SURFACE_REGISTRY.hostMap),
+    surfaces: new Map(STATIC_SURFACE_REGISTRY.surfaces),
+  };
+  for (const entry of overrides) {
+    registry.hostMap.set(entry.host.toLowerCase(), entry.surface);
+    if (entry.devHost) registry.hostMap.set(entry.devHost.toLowerCase(), entry.surface);
+
+    const surface = registry.surfaces.get(entry.surface);
+    if (surface) {
+      registry.surfaces.set(entry.surface, {
+        ...surface,
+        host: entry.host,
+        devHost: entry.devHost || surface.devHost,
+      });
+    }
   }
-  return map;
-})();
+  return registry;
+}
 
 /** Strip a port suffix and lowercase — Host headers may carry :port. */
 function normalizeHost(host: string | null | undefined): string {
@@ -78,9 +112,9 @@ function normalizeHost(host: string | null | undefined): string {
 export function surfaceFromHost(host: string | null | undefined): Surface | null {
   const normalized = normalizeHost(host);
   if (!normalized) return null;
-  const map = envHostMap() ?? STATIC_HOST_MAP;
-  const id = map.get(normalized);
-  return id ? SURFACES.find((s) => s.id === id) ?? null : null;
+  const registry = effectiveSurfaceRegistry();
+  const id = registry.hostMap.get(normalized);
+  return id ? registry.surfaces.get(id) ?? null : null;
 }
 
 export function isKnownSurface(host: string | null | undefined): boolean {
@@ -89,12 +123,17 @@ export function isKnownSurface(host: string | null | undefined): boolean {
 
 /** Public base URL for a surface on the given scheme — no trailing slash. */
 export function baseFor(surface: Surface | string, dev = false): string {
-  const s = typeof surface === 'string'
-    ? SURFACES.find((entry) => entry.id === surface)
-    : surface;
-  if (!s) throw new Error(`unknown surface ${String(surface)}`);
+  const s = resolveSurface(surface);
   const host = dev ? s.devHost : s.host;
   return `${dev ? 'http' : 'https'}://${host}`;
+}
+
+function resolveSurface(surface: Surface | string): Surface {
+  const id = typeof surface === 'string' ? surface : surface.id;
+  const configured = effectiveSurfaceRegistry().surfaces.get(id);
+  const resolved = configured ?? (typeof surface === 'string' ? undefined : surface);
+  if (!resolved) throw new Error(`unknown surface ${String(surface)}`);
+  return resolved;
 }
 
 /**
@@ -108,10 +147,7 @@ export function devBaseFor(
   scheme: string,
   requestHost: string,
 ): string {
-  const s = typeof surface === 'string'
-    ? SURFACES.find((entry) => entry.id === surface)
-    : surface;
-  if (!s) throw new Error(`unknown surface ${String(surface)}`);
+  const s = resolveSurface(surface);
   const port = requestHost.split(':')[1];
   return `${scheme}://${s.devHost}${port ? `:${port}` : ''}`;
 }
