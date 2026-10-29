@@ -726,6 +726,7 @@ export default function DashboardLayout({
 
   const notificationEpochRef = useRef(0);
   const notificationRequestRef = useRef(0);
+  const notificationPollRequestRef = useRef(0);
   const notificationSessionRef = useRef({ userId: user?.id ?? null, isLoggingOut });
   notificationSessionRef.current = { userId: user?.id ?? null, isLoggingOut };
   const lastNotificationsFetchTimeRef = useRef(0);
@@ -791,15 +792,27 @@ export default function DashboardLayout({
       return;
     }
     const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible' && !notificationSessionRef.current.isLoggingOut) {
-        notificationsApi.unreadCount()
-          .then((count) => {
-            if (!notificationSessionRef.current.isLoggingOut) {
-              setUnreadCount(count);
-            }
-          })
-          .catch(() => {});
+      if (document.visibilityState !== 'visible' || notificationSessionRef.current.isLoggingOut) {
+        return;
       }
+      // The same stale-write guards reloadNotifications uses: a poll issued
+      // for the previous user that resolves after a logout→login swap must
+      // never write the old user's unread count onto the new user's bell.
+      const epoch = notificationEpochRef.current;
+      const sequence = ++notificationPollRequestRef.current;
+      const userId = notificationSessionRef.current.userId;
+      const isCurrent = () =>
+        notificationEpochRef.current === epoch
+        && notificationPollRequestRef.current === sequence
+        && notificationSessionRef.current.userId === userId
+        && !notificationSessionRef.current.isLoggingOut;
+      notificationsApi.unreadCount()
+        .then((count) => {
+          if (isCurrent()) {
+            setUnreadCount(count);
+          }
+        })
+        .catch(() => {});
     }, 180_000);
 
     return () => window.clearInterval(timer);
