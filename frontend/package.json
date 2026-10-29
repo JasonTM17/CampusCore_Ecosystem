@@ -42,8 +42,7 @@
     "tailwind-merge": "^2.4.0",
     "tailwindcss-animate": "^1.0.7",
     "tinymce": "^8.9.3",
-    "tinymce-i18n": "26.9.14",
-    "zod": "^3.25.76"
+    "tinymce-i18n": "26.9.14"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
