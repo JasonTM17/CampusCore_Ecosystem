@@ -54,6 +54,7 @@ public class AcademicAttendanceWriteService {
         }
 
         Instant normalizedDate = parseAndNormalizeDate(request.date());
+        repository.lockSectionForAttendance(normalizedSectionId);
         Instant maxAllowedDate = AttendanceDay.parse(Instant.now().toString());
         if (normalizedDate.isAfter(maxAllowedDate)) {
             throw new DomainException(HttpStatus.BAD_REQUEST, "INVALID_ATTENDANCE_DATE", "Attendance date cannot be in the future");
@@ -123,6 +124,29 @@ public class AcademicAttendanceWriteService {
                 insertRows.isEmpty()
                         ? "Attendance records cleared for " + targetStudentIds.size() + " students"
                         : "Attendance recorded successfully for " + insertRows.size() + " students");
+    }
+
+    /**
+     * Student path is insert-only: any existing record (including manual ABSENT)
+     * wins. The shared section lock closes the check-then-insert/manual reset race.
+     */
+    @Transactional
+    public String recordStudentCheckin(String sectionId, String studentId, String date,
+            String status, String checkinId, Instant now) {
+        if (!Set.of("PRESENT", "LATE").contains(status)) {
+            throw new DomainException(HttpStatus.BAD_REQUEST, "INVALID_ATTENDANCE_STATUS", "Invalid check-in attendance status");
+        }
+        repository.lockSectionForAttendance(sectionId);
+        if (!repository.findActiveEnrolledStudentIds(sectionId).contains(studentId)) {
+            throw new DomainException(HttpStatus.FORBIDDEN, "NOT_ENROLLED", "Student is not enrolled");
+        }
+        Instant day = parseAndNormalizeDate(date);
+        if (repository.attendanceExists(sectionId, studentId, day)) return "MANUAL_RECORD_PRESERVED";
+        String id = UUID.randomUUID().toString();
+        repository.insertAttendanceBatch(List.of(new AttendanceInsertRow(id,studentId,sectionId,day,status,
+                "Student geofenced check-in",now,now)));
+        repository.linkCheckin(id,checkinId);
+        return status;
     }
 
     /**
