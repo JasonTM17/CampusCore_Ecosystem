@@ -148,10 +148,13 @@ google-services.json
 GoogleService-Info.plist
 service-account*.json
 *-service-account*.json
+service_account*.json
 credentials.json
 client_secret*.json
 secrets.json
 secrets.*.json
+auth.json
+oauth*.json
 /secrets/
 /ops/secrets/*
 !/ops/secrets/README.md
@@ -164,11 +167,22 @@ eas.json.local
 *.dump.gz
 *.sql.gz
 *.sql.zip
+dump.sql
+*.rdb
+dump.rdb
 *.bak
 *.heapdump
 *.hprof
 hs_err_pid*.log
 replay_pid*.log
+ngrok.ya?ml
+ngrok.yml
+ngrok.yaml
+.ngrok2/
+cloudflared.ya?ml
+cloudflared.yml
+cloudflared.yaml
+.gcloud/
 
 # Cloud/CLI credential stores and token-bearing config (per-user on dev
 # machines; a copied store must never be committed)
