@@ -26,12 +26,15 @@ public final class AssistantRlsTransactionRunner {
             NamedParameterJdbcTemplate jdbc, boolean testMode) {
         this.transaction = new TransactionTemplate(transactionManager);
         this.isolatedTransaction = new TransactionTemplate(transactionManager);
-        // REQUIRES_NEW suspends the caller's transaction so a statement error
-        // inside isolated work cannot poison the caller's transaction — on
-        // Postgres a failed statement aborts the whole tx (25P02), which would
-        // otherwise defeat an in-request "degrade to SQL" fallback.
+        // A nested savepoint isolates failure on the caller's own connection:
+        // a statement error inside the work rolls back to the savepoint, so it
+        // cannot abort the caller's transaction (Postgres 25P02 would otherwise
+        // defeat an in-request "degrade to SQL" fallback). REQUIRES_NEW would
+        // suspend the caller while still holding its pooled connection and then
+        // wait on the same bounded pool for a second one — self-blocking on a
+        // capacity-one pool.
         this.isolatedTransaction.setPropagationBehavior(
-                org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+                org.springframework.transaction.TransactionDefinition.PROPAGATION_NESTED);
         this.jdbc = jdbc;
         this.testMode = testMode;
     }
@@ -41,7 +44,8 @@ public final class AssistantRlsTransactionRunner {
     }
 
     /**
-     * Same as {@link #execute} but on a suspended, independent transaction.
+     * Same as {@link #execute} but failure-isolated by a savepoint on the
+     * caller's transaction (a fresh transaction only when none is active).
      * Use for work whose failure must not abort the caller's transaction —
      * e.g. a cache-population probe that falls back to an in-tx query.
      */

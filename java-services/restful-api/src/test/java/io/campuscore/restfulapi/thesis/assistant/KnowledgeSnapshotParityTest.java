@@ -100,14 +100,15 @@ class KnowledgeSnapshotParityTest {
     }
 
     @Test
-    @DisplayName("with a transaction runner the snapshot load runs on a suspended transaction")
-    void snapshotLoadUsesIsolatedTransaction() {
+    @DisplayName("with a transaction runner the snapshot load isolates failure on the caller's connection")
+    void snapshotLoadIsolatesFailureWithANestedSavepoint() {
         org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate jdbc =
                 org.mockito.Mockito.mock(org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate.class);
-        // REQUIRES_NEW isolation: a failed statement inside the load must not
+        // Savepoint isolation: a failed statement inside the load must not
         // poison the caller's transaction — on Postgres it would abort with
-        // 25P02 and defeat the in-request SQL fallback entirely. The runner is
-        // final, so the propagation flag itself is what this pin captures.
+        // 25P02 and defeat the in-request SQL fallback entirely. Suspending
+        // for a second pooled connection instead would starve the bounded
+        // assistant pool, so the propagation flag is the load-bearing pin.
         org.springframework.transaction.PlatformTransactionManager txManager =
                 org.mockito.Mockito.mock(org.springframework.transaction.PlatformTransactionManager.class);
         org.mockito.Mockito.when(txManager.getTransaction(org.mockito.ArgumentMatchers.any()))
@@ -122,9 +123,90 @@ class KnowledgeSnapshotParityTest {
         org.mockito.ArgumentCaptor<org.springframework.transaction.TransactionDefinition> definition =
                 org.mockito.ArgumentCaptor.forClass(org.springframework.transaction.TransactionDefinition.class);
         org.mockito.Mockito.verify(txManager).getTransaction(definition.capture());
-        assertEquals(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW,
+        assertEquals(org.springframework.transaction.TransactionDefinition.PROPAGATION_NESTED,
                 definition.getValue().getPropagationBehavior(),
-                "the snapshot load must run on a suspended transaction so a failure cannot abort the caller's tx");
+                "the snapshot load must isolate failure with a savepoint on the caller's own connection");
+    }
+
+    @Test
+    @DisplayName("an expired snapshot is never served once the freshness bound passes")
+    void expiredSnapshotIsNotServedPastTheFreshnessBound() {
+        org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate jdbc =
+                org.mockito.Mockito.mock(org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate.class);
+        java.util.concurrent.atomic.AtomicLong nanos =
+                new java.util.concurrent.atomic.AtomicLong(java.util.concurrent.TimeUnit.MINUTES.toNanos(5));
+        SnapshotRow withdrawn = row("withdrawn-cert", "vi", "PUBLIC",
+                "Xin giấy xác nhận sinh viên", "Nội dung xin giấy xác nhận", 1);
+        org.mockito.Mockito.when(jdbc.query(org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<Object>>any()))
+                .thenReturn(List.of(withdrawn))
+                .thenThrow(new org.springframework.dao.DataAccessResourceFailureException("refresh cannot reach the database"));
+        // The scoped SQL answer is honest: the knowledge was withdrawn.
+        org.mockito.Mockito.when(jdbc.query(org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any(org.springframework.jdbc.core.namedparam.MapSqlParameterSource.class),
+                        org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<KnowledgeDocument>>any()))
+                .thenReturn(List.of());
+        ThesisAssistantKnowledgeRepository repository = new ThesisAssistantKnowledgeRepository(
+                jdbc, false, true, 30_000L, null, nanos::get);
+
+        assertEquals(List.of("withdrawn-cert"), slugs(repository.search("vi", List.of("giấy"), 5)));
+        // Inside the bound the resident snapshot remains authoritative — the
+        // loader has still run exactly once.
+        nanos.addAndGet(java.util.concurrent.TimeUnit.SECONDS.toNanos(29));
+        assertEquals(List.of("withdrawn-cert"), slugs(repository.search("vi", List.of("giấy"), 5)));
+        org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.times(1)).query(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<Object>>any());
+
+        // Past the bound the refresh fails: the expired row must not be
+        // served — the caller sees the scoped SQL answer instead.
+        nanos.addAndGet(java.util.concurrent.TimeUnit.SECONDS.toNanos(2));
+        assertTrue(repository.search("vi", List.of("giấy"), 5).isEmpty());
+        // The failure backoff keeps follow-up calls on the SQL path without
+        // another doomed load — and still never the expired snapshot.
+        assertTrue(repository.search("vi", List.of("giấy"), 5).isEmpty());
+        org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.times(2)).query(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<Object>>any());
+        org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.times(2)).query(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any(org.springframework.jdbc.core.namedparam.MapSqlParameterSource.class),
+                org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<KnowledgeDocument>>any());
+    }
+
+    @Test
+    @DisplayName("a refresh after the bound serves the republished corpus")
+    void snapshotRefreshAfterTheBoundServesTheRepublishedCorpus() {
+        org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate jdbc =
+                org.mockito.Mockito.mock(org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate.class);
+        java.util.concurrent.atomic.AtomicLong nanos =
+                new java.util.concurrent.atomic.AtomicLong(java.util.concurrent.TimeUnit.MINUTES.toNanos(5));
+        SnapshotRow superseded = row("superseded-cert", "vi", "PUBLIC",
+                "Xin giấy xác nhận sinh viên", "Nội dung xin giấy xác nhận", 1);
+        SnapshotRow corrected = row("corrected-cert", "vi", "PUBLIC",
+                "Xin giấy xác nhận sinh viên mới", "Nội dung giấy xác nhận đã sửa", 1);
+        org.mockito.Mockito.when(jdbc.query(org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<Object>>any()))
+                .thenReturn(List.of(superseded))
+                .thenReturn(List.of(corrected));
+        ThesisAssistantKnowledgeRepository repository = new ThesisAssistantKnowledgeRepository(
+                jdbc, false, true, 30_000L, null, nanos::get);
+
+        assertEquals(List.of("superseded-cert"), slugs(repository.search("vi", List.of("giấy"), 5)));
+        nanos.addAndGet(java.util.concurrent.TimeUnit.SECONDS.toNanos(29));
+        assertEquals(List.of("superseded-cert"), slugs(repository.search("vi", List.of("giấy"), 5)));
+
+        // Once the bound passes, the next search must reload — a republished
+        // correction is visible no later than the configured bound.
+        nanos.addAndGet(java.util.concurrent.TimeUnit.SECONDS.toNanos(2));
+        assertEquals(List.of("corrected-cert"), slugs(repository.search("vi", List.of("giấy"), 5)));
+        org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.times(2)).query(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<Object>>any());
+    }
+
+    private static List<String> slugs(List<KnowledgeDocument> documents) {
+        return documents.stream().map(KnowledgeDocument::slug).toList();
     }
 
     @Test

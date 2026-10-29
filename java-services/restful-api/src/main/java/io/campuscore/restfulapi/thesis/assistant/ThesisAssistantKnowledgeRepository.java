@@ -94,6 +94,7 @@ public class ThesisAssistantKnowledgeRepository {
     private final boolean allowLegacyFallback;
     private final boolean snapshotCacheEnabled;
     private final long snapshotCacheTtlNanos;
+    private final java.util.function.LongSupplier nanoTimeSource;
 
     public ThesisAssistantKnowledgeRepository(
             @org.springframework.beans.factory.annotation.Qualifier(AssistantDatabaseConfiguration.JDBC_TEMPLATE)
@@ -123,12 +124,21 @@ public class ThesisAssistantKnowledgeRepository {
             @Value("${assistant.knowledge.snapshot-cache.enabled:true}") boolean snapshotCacheEnabled,
             @Value("${assistant.knowledge.snapshot-cache.ttl-ms:" + DEFAULT_SNAPSHOT_TTL_MS + "}") long snapshotCacheTtlMs,
             AssistantRlsTransactionRunner transactions) {
+        this(jdbc, allowLegacyFallback, snapshotCacheEnabled, snapshotCacheTtlMs, transactions, System::nanoTime);
+    }
+
+    public ThesisAssistantKnowledgeRepository(
+            @org.springframework.beans.factory.annotation.Qualifier(AssistantDatabaseConfiguration.JDBC_TEMPLATE)
+            NamedParameterJdbcTemplate jdbc,
+            boolean allowLegacyFallback, boolean snapshotCacheEnabled, long snapshotCacheTtlMs,
+            AssistantRlsTransactionRunner transactions, java.util.function.LongSupplier nanoTimeSource) {
         this.jdbc = jdbc;
         this.allowLegacyFallback = allowLegacyFallback;
         this.snapshotCacheEnabled = snapshotCacheEnabled;
         this.snapshotCacheTtlNanos = java.util.concurrent.TimeUnit.MILLISECONDS
                 .toNanos(Math.max(1_000L, snapshotCacheTtlMs));
         this.transactions = transactions;
+        this.nanoTimeSource = nanoTimeSource == null ? System::nanoTime : nanoTimeSource;
     }
 
     /**
@@ -141,10 +151,10 @@ public class ThesisAssistantKnowledgeRepository {
      *
      * <p>Staleness bound: a republished release propagates within
      * {@code assistant.knowledge.snapshot-cache.ttl-ms} (default
-     * {@value #DEFAULT_SNAPSHOT_TTL_MS} ms). The load failure path returns
-     * {@code null} so callers degrade to the unchanged SQL query — a missing
-     * runtime projection or a database outage must never wedge search on the
-     * cache.
+     * {@value #DEFAULT_SNAPSHOT_TTL_MS} ms), and a snapshot past that bound is
+     * never served. The expiry and load failure paths return {@code null} so
+     * callers degrade to the unchanged SQL query — a missing runtime
+     * projection or a database outage must never wedge search on the cache.
      */
     private static final org.slf4j.Logger LOG =
             org.slf4j.LoggerFactory.getLogger(ThesisAssistantKnowledgeRepository.class);
@@ -197,32 +207,38 @@ public class ThesisAssistantKnowledgeRepository {
     }
 
     /**
-     * A fresh snapshot, or {@code null} when the cache must not be used. The
-     * load runs on a suspended REQUIRES_NEW transaction: on Postgres a failed
-     * statement aborts the whole transaction (25P02), so an in-tx probe would
-     * poison the caller's transaction and defeat the in-request SQL fallback
-     * below — isolation keeps the failure contained.
+     * A snapshot inside its freshness bound, or {@code null} when the cache
+     * must not be used. The load runs on a savepoint nested inside the caller's
+     * transaction: on Postgres a failed statement aborts the transaction it ran
+     * in (25P02), so rolling back to the savepoint keeps the failure contained
+     * and never wedges the caller — nor does it wait on the pool for a second
+     * connection.
+     *
+     * <p>The staleness bound is strict: a snapshot older than
+     * {@code assistant.knowledge.snapshot-cache.ttl-ms} is never served, not
+     * even while a failing refresh is backing off — corrected or withdrawn
+     * knowledge must not outlive the bound, so callers fall through to scoped
+     * SQL or the designed unavailable path.
      */
     private List<SnapshotRow> publishedSnapshot() {
-        long now = System.nanoTime();
+        long now = nanoTimeSource.getAsLong();
         List<SnapshotRow> cached = snapshotCache;
         if (cached != null && now - snapshotLoadedAtNanos < snapshotCacheTtlNanos) {
             return cached;
         }
         if (now - snapshotFailureAtNanos < SNAPSHOT_FAILURE_BACKOFF_NANOS) {
-            // Back off regardless of cache state: a persistently failing load
-            // must not serialise every search on a doomed round-trip. Serving
-            // the still-resident (stale) snapshot when present is strictly
-            // better availability than a hard degrade.
-            return cached;
+            // Back off a persistently failing load so every search does not
+            // serialise on a doomed round-trip — but never by serving the
+            // expired snapshot: the freshness bound has no failure exception.
+            return null;
         }
         synchronized (this) {
-            now = System.nanoTime();
+            now = nanoTimeSource.getAsLong();
             if (snapshotCache != null && now - snapshotLoadedAtNanos < snapshotCacheTtlNanos) {
                 return snapshotCache;
             }
             if (now - snapshotFailureAtNanos < SNAPSHOT_FAILURE_BACKOFF_NANOS) {
-                return snapshotCache;
+                return null;
             }
             try {
                 List<SnapshotRow> loaded = transactions == null
@@ -230,16 +246,13 @@ public class ThesisAssistantKnowledgeRepository {
                         : transactions.executeIsolatedUnchecked(
                                 AssistantRlsBoundary.Access.AUTO, this::loadPublishedSnapshot);
                 snapshotCache = loaded;
-                snapshotLoadedAtNanos = System.nanoTime();
+                snapshotLoadedAtNanos = nanoTimeSource.getAsLong();
                 return loaded;
             } catch (RuntimeException failure) {
                 LOG.warn("assistant knowledge snapshot load failed; falling back to per-request SQL; exceptionType={}",
                         SensitiveLogRedactor.exceptionType(failure));
                 snapshotFailureAtNanos = now;
-                // Stale-while-error: a cached copy that just expired is a
-                // better answer than no cache at all — publish cadence is
-                // minutes-to-days, so bounded staleness is safe.
-                return snapshotCache;
+                return null;
             }
         }
     }
