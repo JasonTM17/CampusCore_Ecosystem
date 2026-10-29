@@ -46,6 +46,12 @@ public class EventStudentService {
     private static final String REGISTRATION = EventService.REGISTRATION;
     private static final String AUDIT = EventService.AUDIT;
     private static final String IDEMPOTENCY = "events.\"Idempotency\"";
+    // Cancellation alone is not publication evidence; unknown history stays private.
+    private static final String PUBLISHED_VISIBILITY = "(e.\"status\" IN ('PUBLISHED', 'REGISTRATION_OPEN',"
+            + " 'REGISTRATION_CLOSED', 'COMPLETED') OR (e.\"status\" = 'CANCELLED'"
+            + " AND EXISTS (SELECT 1 FROM " + AUDIT + " publication"
+            + " WHERE publication.\"eventId\" = e.\"id\" AND publication.\"action\" = 'PUBLISHED'"
+            + " AND publication.\"registrationId\" IS NULL)))";
 
     private final NamedParameterJdbcTemplate jdbc;
     private final NotificationWriteRepository notifications;
@@ -70,24 +76,26 @@ public class EventStudentService {
     // Reads
     // ------------------------------------------------------------------
 
-    /** Public student catalog: everything visible after publish, incl. CANCELLED. */
+    /** Public student catalog: cancelled events require recorded publication. */
     public List<EventResponse> listPublished(String studentId) {
         return jdbc.query(
                 EventService.eventSelect(studentId)
-                        + " WHERE e.\"status\" IN ('PUBLISHED', 'REGISTRATION_OPEN',"
-                        + " 'REGISTRATION_CLOSED', 'COMPLETED', 'CANCELLED')"
+                        + " WHERE " + PUBLISHED_VISIBILITY
                         + " ORDER BY e.\"startsAt\"",
                 new MapSqlParameterSource().addValue("studentId", studentId),
                 (row, index) -> EventService.mapEvent(row, studentId));
     }
 
     public EventResponse detail(String studentId, String eventId) {
-        EventResponse event = events.findEvent(eventId, studentId);
-        if ("DRAFT".equals(event.status())) {
-            // DRAFT is staff-scope; students get an indistinguishable 404.
+        try {
+            return jdbc.queryForObject(
+                    EventService.eventSelect(studentId)
+                            + " WHERE e.\"id\" = :id AND " + PUBLISHED_VISIBILITY,
+                    new MapSqlParameterSource().addValue("id", eventId).addValue("studentId", studentId),
+                    (row, index) -> EventService.mapEvent(row, studentId));
+        } catch (EmptyResultDataAccessException exception) {
             throw EventService.problem(HttpStatus.NOT_FOUND, "EVENT_NOT_FOUND", "Event not found");
         }
-        return event;
     }
 
     /** Student registration history — includes cancelled rows (audit trail). */

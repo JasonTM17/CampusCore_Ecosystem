@@ -358,10 +358,10 @@ public class EventService {
         jdbc.update(
                 "UPDATE " + EVENT + " SET \"registeredCount\" = 0 WHERE \"id\" = :id",
                 new MapSqlParameterSource("id", eventId));
-        String title = "Sự kiện đã hủy: " + event.get("title");
-        String message = reason == null || reason.isBlank()
+        String title = capNotificationText("Sự kiện đã hủy: " + event.get("title"), 240);
+        String message = capNotificationText(reason == null || reason.isBlank()
                 ? "Sự kiện bạn đăng ký đã bị hủy."
-                : "Sự kiện bạn đăng ký đã bị hủy. Lý do: " + reason;
+                : "Sự kiện bạn đăng ký đã bị hủy. Lý do: " + reason, 2000);
         notifications.createBatch(registrants.stream()
                 .map(studentId -> new CreateNotificationCommand(
                         UUID.randomUUID().toString(), studentId, title, message,
@@ -370,6 +370,16 @@ public class EventService {
         audit(eventId, null, "CANCELLED", actorId,
                 reason == null || reason.isBlank() ? null : "reason=" + reason);
         return findEvent(eventId, null);
+    }
+
+    /** Fits notification columns in both supported databases without splitting surrogate pairs. */
+    private static String capNotificationText(String value, int maxLength) {
+        int end = Math.min(value.length(), maxLength);
+        if (end < value.length() && Character.isHighSurrogate(value.charAt(end - 1))
+                && Character.isLowSurrogate(value.charAt(end))) {
+            end--;
+        }
+        return value.substring(0, end);
     }
 
     // ------------------------------------------------------------------
