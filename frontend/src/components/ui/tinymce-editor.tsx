@@ -274,6 +274,13 @@ export interface TinyMceEditorProps {
   readOnly?: boolean;
   locale?: 'vi' | 'en';
   id?: string;
+  /**
+   * Resolved account id that owns this editor's autosave drafts. When set, the
+   * editor id gains an owner suffix so the autosave plugin's localStorage keys
+   * are namespaced per account: another user's recovery draft can neither
+   * hydrate nor be cleared inside this session.
+   */
+  draftOwnerId?: string;
   /** Document title used for the downloaded file name (K2). */
   documentTitle?: string;
   showTemplates?: boolean;
@@ -459,13 +466,14 @@ export function TinyMceEditor({
   readOnly = false,
   locale = 'vi',
   id,
+  draftOwnerId,
   documentTitle,
   showTemplates = true,
   showWordCount = true,
   onInit,
 }: TinyMceEditorProps) {
   const generatedId = useId();
-  const editorId = id || `tinymce-${generatedId.replace(/:/g, '')}`;
+  const editorId = `${id || `tinymce-${generatedId.replace(/:/g, '')}`}${draftOwnerId ? `-owner-${encodeURIComponent(draftOwnerId)}` : ''}`;
   const editorRef = useRef<any>(null);
   const [isDark, setIsDark] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
