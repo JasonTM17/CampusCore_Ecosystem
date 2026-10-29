@@ -38,6 +38,14 @@ public class AcademicAttendanceWriteRepository {
                 new MapSqlParameterSource("id", sectionId), String.class);
     }
 
+    /** Global lock order Student -> Section (shared with registration): target
+     * students lock in stable id order before the section lock is taken. */
+    public void lockStudentsForAttendance(List<String> studentIds) {
+        if (studentIds == null || studentIds.isEmpty()) return;
+        jdbc.queryForList("SELECT \"id\" FROM \"academic\".\"Student\" WHERE \"id\" IN (:ids) ORDER BY \"id\" FOR UPDATE",
+                new MapSqlParameterSource("ids", studentIds), String.class);
+    }
+
     public boolean attendanceExists(String sectionId, String studentId, Instant date) {
         Long count = jdbc.queryForObject("SELECT COUNT(*) FROM " + ATTENDANCE
                 + " WHERE \"sectionId\"=:section AND \"studentId\"=:student AND \"date\"=:date",

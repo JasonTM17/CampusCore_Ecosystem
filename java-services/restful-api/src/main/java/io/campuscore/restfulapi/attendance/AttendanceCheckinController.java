@@ -5,6 +5,8 @@ import io.campuscore.restfulapi.exception.ErrorResponse;
 import io.campuscore.restfulapi.security.RequestIdFilter;
 import io.campuscore.restfulapi.security.ratelimit.ClientIpResolver;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -36,13 +38,20 @@ public class AttendanceCheckinController {
     @PostMapping("/sessions/{id}/checkin")
     @PreAuthorize("hasRole('STUDENT')")
     @Operation(operationId="attendanceStudentCheckin",summary="Sinh viên xác nhận điểm danh tại khu vực cho phép")
-    @ApiResponses({@ApiResponse(responseCode="200",description="ACCEPTED hoặc PENDING_REVIEW"),
-        @ApiResponse(responseCode="400",description="INVALID_LOCATION"),
-        @ApiResponse(responseCode="403",description="NOT_ENROLLED hoặc CONSENT_REQUIRED"),
-        @ApiResponse(responseCode="409",description="ALREADY_CHECKED_IN"),
-        @ApiResponse(responseCode="410",description="SESSION_CLOSED"),
-        @ApiResponse(responseCode="422",description="BAD_CODE, OUTSIDE_AREA hoặc LOW_ACCURACY"),
-        @ApiResponse(responseCode="429",description="TOO_MANY_ATTEMPTS; Retry-After")})
+    @ApiResponses({@ApiResponse(responseCode="200",description="ACCEPTED hoặc PENDING_REVIEW",
+                content=@Content(schema=@Schema(implementation=CheckinResponse.class))),
+        @ApiResponse(responseCode="400",description="INVALID_LOCATION",
+                content=@Content(schema=@Schema(implementation=ErrorResponse.class))),
+        @ApiResponse(responseCode="403",description="NOT_ENROLLED hoặc CONSENT_REQUIRED",
+                content=@Content(schema=@Schema(implementation=ErrorResponse.class))),
+        @ApiResponse(responseCode="409",description="ALREADY_CHECKED_IN",
+                content=@Content(schema=@Schema(implementation=ErrorResponse.class))),
+        @ApiResponse(responseCode="410",description="SESSION_CLOSED",
+                content=@Content(schema=@Schema(implementation=ErrorResponse.class))),
+        @ApiResponse(responseCode="422",description="BAD_CODE, OUTSIDE_AREA hoặc LOW_ACCURACY",
+                content=@Content(schema=@Schema(implementation=ErrorResponse.class))),
+        @ApiResponse(responseCode="429",description="TOO_MANY_ATTEMPTS; Retry-After",
+                content=@Content(schema=@Schema(implementation=ErrorResponse.class)))})
     public CheckinResponse checkin(@AuthenticationPrincipal Jwt jwt,@PathVariable @Size(max=120) String id,
             @Valid @RequestBody CheckinRequest r,HttpServletRequest request) {
         return service.checkin(id,AttendanceSessionController.student(jwt),r,ips.resolve(request));

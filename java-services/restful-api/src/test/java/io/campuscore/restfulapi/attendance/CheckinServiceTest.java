@@ -30,7 +30,7 @@ class CheckinServiceTest {
         session=new AttendanceStore.Session("session","section",LocalDate.parse("2026-10-29"),"fence",now.minusSeconds(30),now.plusSeconds(600),10,true,"OPEN","encrypted");
         when(store.session(eq("session"),anyBoolean())).thenReturn(session);
         when(academic.findActiveEnrolledStudentIds("section")).thenReturn(java.util.Set.of("student"));
-        when(store.consent("student","1")).thenReturn(new ConsentResponse(true,"1",now));
+        when(store.consent("student","1")).thenReturn(new ConsentResponse(true,"1","1",now));
         when(store.geofence("fence",true)).thenReturn(new GeofenceResponse("fence","campus","UTE",10,106,150,true,null));
         when(codes.accepts(anyString(),anyString(),any())).thenReturn(true);
         when(attendance.recordStudentCheckin(anyString(),anyString(),anyString(),anyString(),anyString(),any())).thenReturn("PRESENT");
@@ -47,7 +47,7 @@ class CheckinServiceTest {
         error("NOT_ENROLLED",()->service.checkin("session","student",request(10,5),"ip"));
     }
     @Test void missingConsentRefusedAndAttemptAudited() {
-        when(store.consent("student","1")).thenReturn(new ConsentResponse(false,"1",null));
+        when(store.consent("student","1")).thenReturn(new ConsentResponse(false,"1",null,null));
         error("CONSENT_REQUIRED",()->service.checkin("session","student",request(10,5),"ip"));
     }
     @Test void nonexistentSessionRefusedWithoutForeignKeyReference() {
@@ -70,6 +70,26 @@ class CheckinServiceTest {
         var shortWindow=new AttendanceStore.Session("session","section",session.date(),"fence",now.minusSeconds(30),now.plusSeconds(10),0,true,"OPEN","encrypted");
         when(store.session(eq("session"),anyBoolean())).thenReturn(shortWindow);
         doAnswer(call->{time[0]=now.plusSeconds(11);return null;}).when(store).lockSection("section");
+        var queued=new CheckinService(store,sessions,academic,attendance,codes,new GeofenceVerifier(advancing),new RiskEvaluator(properties),
+                new RateLimiterService(advancing),properties,mock(AdminAuditRecorder.class),advancing);
+        assertThatThrownBy(()->queued.checkin("session","student",request(10,5),"ip"))
+                .isInstanceOfSatisfying(DomainException.class,e->assertThat(e.code()).isEqualTo("SESSION_CLOSED"));
+        verifyNoInteractions(attendance);
+        verify(store).close("session",now.plusSeconds(10));
+    }
+    @Test void geofenceLockWaitCannotExtendExpiredSessionWindow() {
+        Instant[] time={now};
+        Clock advancing=new Clock() {
+            public ZoneId getZone() { return ZoneOffset.UTC; }
+            public Clock withZone(ZoneId zone) { return this; }
+            public Instant instant() { return time[0]; }
+        };
+        var shortWindow=new AttendanceStore.Session("session","section",session.date(),"fence",now.minusSeconds(30),now.plusSeconds(10),0,true,"OPEN","encrypted");
+        when(store.session(eq("session"),anyBoolean())).thenReturn(shortWindow);
+        // The geofence FOR UPDATE is the last blocking lock: the window must be
+        // re-validated against a fresh timestamp once it is acquired.
+        doAnswer(call->{time[0]=now.plusSeconds(11);return new GeofenceResponse("fence","campus","UTE",10,106,150,true,null);})
+                .when(store).geofence("fence",true);
         var queued=new CheckinService(store,sessions,academic,attendance,codes,new GeofenceVerifier(advancing),new RiskEvaluator(properties),
                 new RateLimiterService(advancing),properties,mock(AdminAuditRecorder.class),advancing);
         assertThatThrownBy(()->queued.checkin("session","student",request(10,5),"ip"))

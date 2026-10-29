@@ -44,7 +44,10 @@ public final class AttendanceDtos {
     @Schema(name="AttendanceConsentRequest")
     public record ConsentRequest(@NotBlank @Size(max=40) String version) { }
     @Schema(name="AttendanceConsentResponse")
-    public record ConsentResponse(boolean accepted, String version, Instant acceptedAt) { }
+    public record ConsentResponse(boolean accepted,
+            @Schema(description="Currently required consent version; echo it in POST /location-consent") String version,
+            @Schema(description="Version the student actually accepted, if any") String acceptedVersion,
+            Instant acceptedAt) { }
     @Schema(name="AttendanceGeofenceRequest")
     public record GeofenceRequest(@NotBlank @Size(max=240) String name,
             @NotBlank @Size(max=60) String campusCode,

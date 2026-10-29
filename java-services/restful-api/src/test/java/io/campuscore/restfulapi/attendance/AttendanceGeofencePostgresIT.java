@@ -133,6 +133,130 @@ class AttendanceGeofencePostgresIT {
         for(int i=1;i<=4;i++) checkins.checkin(id,"student"+i,request("precision-device"+i,10.0000046),"ip");
         assertThat(store.checkins(id)).allMatch(c->c.decision().equals("PENDING_REVIEW") && c.reason().contains("IDENTICAL_COORDINATES"));
     }
+    @Test void productionForeignKeysRejectOrphanedWrites() {
+        // The PostgreSQL fixture is the FK authority: V144 plus the V8-parity
+        // Attendance constraints added in AttendanceTestSchema (the H2 mirror
+        // deliberately omits them, so these assertions run only here).
+        var orphanSession=new AttendanceStore.Session("orphan-session","section",LocalDate.parse("2026-10-29"),"missing-fence",
+                now,now.plusSeconds(60),10,false,"OPEN","x");
+        assertThatThrownBy(()->store.createSession(orphanSession,"admin",now)).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(()->store.insertCheckin(new AttendanceStore.Checkin("o1","missing-session","student1","0".repeat(64),
+                "ACCEPTED","INSIDE",0,5,10.0,106.0,false,now,now,null,null,null))).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(()->store.insertCheckin(new AttendanceStore.Checkin("o2",id,"missing-student","0".repeat(64),
+                "ACCEPTED","INSIDE",0,5,10.0,106.0,false,now,now,null,null,null))).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(()->store.saveConsent("missing-student","1",now)).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(()->store.attempt(id,"missing-student","X","1".repeat(64),null,now,true))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(()->jdbc.update("""
+                INSERT INTO academic."Attendance" ("id","studentId","sectionId","date","status","createdAt","updatedAt")
+                VALUES ('o3','missing-student','section',?,'PRESENT',?,?)""",AttendanceStore.ts(now),AttendanceStore.ts(now),AttendanceStore.ts(now)))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(()->jdbc.update("""
+                INSERT INTO academic."Attendance" ("id","studentId","sectionId","date","status","checkinId","createdAt","updatedAt")
+                VALUES ('o4','student1','section',?,'PRESENT','missing-checkin',?,?)""",AttendanceStore.ts(now),AttendanceStore.ts(now),AttendanceStore.ts(now)))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+    /** Mirrors RegistrationService's lock order: Student row first, then Section.
+     * The attendance path must acquire locks in the same global order
+     * (Student -> Section -> Session -> Geofence) or this schedule deadlocks. */
+    @Test void checkinAndRegistrationLockScheduleDoesNotDeadlock() throws Exception {
+        var studentHeld=new CountDownLatch(1);var waiterBlocked=new CountDownLatch(1);
+        try(var pool=Executors.newFixedThreadPool(2)) {
+            var registration=pool.submit(()->new TransactionTemplate(manager).executeWithoutResult(tx->{
+                jdbc.queryForList("SELECT \"id\" FROM academic.\"Student\" WHERE \"id\"='student1' FOR UPDATE",String.class);
+                studentHeld.countDown();
+                try { if(!waiterBlocked.await(15,TimeUnit.SECONDS)) throw new AssertionError("check-in never waited"); }
+                catch(InterruptedException e) { Thread.currentThread().interrupt();throw new AssertionError(e); }
+                jdbc.queryForList("SELECT \"id\" FROM academic.\"Section\" WHERE \"id\"='section' FOR UPDATE",String.class);
+            }));
+            assertThat(studentHeld.await(10,TimeUnit.SECONDS)).isTrue();
+            var checkin=pool.submit(()->{
+                try { return (Object)checkins.checkin(id,"student1",request("d",10),"ip").decision(); }
+                catch(RuntimeException e) { return e; }
+            });
+            waitForBlocked();waiterBlocked.countDown();
+            registration.get(20,TimeUnit.SECONDS);
+            assertThat(checkin.get(20,TimeUnit.SECONDS)).isEqualTo("ACCEPTED");
+        } finally { waiterBlocked.countDown(); }
+    }
+    @Test void manualAttendanceAndRegistrationLockScheduleDoesNotDeadlock() throws Exception {
+        var studentHeld=new CountDownLatch(1);var waiterBlocked=new CountDownLatch(1);
+        try(var pool=Executors.newFixedThreadPool(2)) {
+            var registration=pool.submit(()->new TransactionTemplate(manager).executeWithoutResult(tx->{
+                jdbc.queryForList("SELECT \"id\" FROM academic.\"Student\" WHERE \"id\"='student1' FOR UPDATE",String.class);
+                studentHeld.countDown();
+                try { if(!waiterBlocked.await(15,TimeUnit.SECONDS)) throw new AssertionError("manual write never waited"); }
+                catch(InterruptedException e) { Thread.currentThread().interrupt();throw new AssertionError(e); }
+                jdbc.queryForList("SELECT \"id\" FROM academic.\"Section\" WHERE \"id\"='section' FOR UPDATE",String.class);
+            }));
+            assertThat(studentHeld.await(10,TimeUnit.SECONDS)).isTrue();
+            var manual=pool.submit(()->{
+                try { attendance.recordSectionAttendance("section","lecturer",List.of("LECTURER"),
+                        new SectionAttendanceUpdateRequest("2026-10-29",List.of(new StudentAttendanceEntry("student1","PRESENT","manual"))));
+                    return (Object)"OK"; }
+                catch(RuntimeException e) { return e; }
+            });
+            waitForBlocked();waiterBlocked.countDown();
+            registration.get(20,TimeUnit.SECONDS);
+            assertThat(manual.get(20,TimeUnit.SECONDS)).isEqualTo("OK");
+            assertThat(jdbc.queryForObject("SELECT \"status\" FROM academic.\"Attendance\" WHERE \"studentId\"='student1'",String.class))
+                    .isEqualTo("PRESENT");
+        } finally { waiterBlocked.countDown(); }
+    }
+    @Test void sectionReassignmentDuringCloseWaitRevokesAuthority() throws Exception {
+        var result=duringSectionReassignment("section",()->{ sessions.close(id,"admin-user","lecturer",List.of("LECTURER")); return "CLOSED"; });
+        assertThat(result).isInstanceOfSatisfying(DomainException.class,e->assertThat(e.code()).isEqualTo("SECTION_FORBIDDEN"));
+        assertThat(store.session(id,false).status()).isEqualTo("OPEN");
+    }
+    @Test void sectionReassignmentDuringReviewWaitRevokesAuthority() throws Exception {
+        var pending=checkins.checkin(id,"student1",new CheckinRequest(null,10.0,106.0,75.0,now,false,"dev",null),"ip");
+        assertThat(pending.decision()).isEqualTo("PENDING_REVIEW");
+        String checkinId=store.checkins(id).getFirst().id();
+        var result=duringSectionReassignment("section",()->{
+            checkins.review(checkinId,new ReviewRequest("APPROVE","ok"),"admin-user","lecturer",List.of("LECTURER")); return "REVIEWED"; });
+        assertThat(result).isInstanceOfSatisfying(DomainException.class,e->assertThat(e.code()).isEqualTo("SECTION_FORBIDDEN"));
+        assertThat(store.findCheckin(checkinId).decision()).isEqualTo("PENDING_REVIEW");
+    }
+    @Test void sectionReassignmentDuringOpenWaitRevokesAuthority() throws Exception {
+        jdbc.update("INSERT INTO academic.\"Section\" (\"id\",\"lecturerId\",\"sectionNumber\") VALUES ('section2','lecturer','B')");
+        var request=new OpenSessionRequest("section2",LocalDate.parse("2026-10-29"),now.minusSeconds(30),now.plusSeconds(900),10,"ute-main-placeholder",false);
+        var result=duringSectionReassignment("section2",()->sessions.open(request,"admin-user","lecturer",List.of("LECTURER")));
+        assertThat(result).isInstanceOfSatisfying(DomainException.class,e->assertThat(e.code()).isEqualTo("SECTION_FORBIDDEN"));
+        assertThat(store.hasOpenSession("section2",LocalDate.parse("2026-10-29"))).isFalse();
+    }
+    @Test void sectionReassignmentDuringManualWriteWaitRevokesAuthority() throws Exception {
+        var result=duringSectionReassignment("section",()->attendance.recordSectionAttendance("section","lecturer",List.of("LECTURER"),
+                new SectionAttendanceUpdateRequest("2026-10-29",List.of(new StudentAttendanceEntry("student1","PRESENT","manual")))));
+        assertThat(result).isInstanceOfSatisfying(DomainException.class,e->assertThat(e.code()).isEqualTo("SECTION_FORBIDDEN"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM academic.\"Attendance\"",Integer.class)).isZero();
+    }
+    /** Holds the section row while reassigning its lecturer, lets the waiter block
+     * on the section lock, then commits the reassignment before the waiter resumes. */
+    private Object duringSectionReassignment(String section,Callable<Object> action) throws Exception {
+        var held=new CountDownLatch(1);var blocked=new CountDownLatch(1);
+        try(var pool=Executors.newFixedThreadPool(2)) {
+            var reassignment=pool.submit(()->new TransactionTemplate(manager).executeWithoutResult(tx->{
+                jdbc.update("UPDATE academic.\"Section\" SET \"lecturerId\"='reassigned-lecturer' WHERE \"id\"=?",section);
+                held.countDown();
+                try { if(!blocked.await(15,TimeUnit.SECONDS)) throw new AssertionError("mutation never waited"); }
+                catch(InterruptedException e) { Thread.currentThread().interrupt();throw new AssertionError(e); }
+            }));
+            assertThat(held.await(10,TimeUnit.SECONDS)).isTrue();
+            var waiter=pool.submit(()->{ try { return action.call(); } catch(RuntimeException e) { return e; } });
+            waitForBlocked();blocked.countDown();
+            reassignment.get(20,TimeUnit.SECONDS);
+            return waiter.get(20,TimeUnit.SECONDS);
+        } finally { blocked.countDown(); }
+    }
+    /** Database receipt that another backend is waiting on a row lock. */
+    private void waitForBlocked() throws InterruptedException {
+        long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(15);
+        while(System.nanoTime()<deadline) {
+            if(jdbc.queryForObject("SELECT COUNT(*) FROM pg_stat_activity WHERE datname=current_database() AND cardinality(pg_blocking_pids(pid))>0",Integer.class)>0) return;
+            Thread.sleep(10);
+        }
+        throw new AssertionError("no blocked backend observed");
+    }
     private List<String> race(Callable<CheckinResponse>a,Callable<CheckinResponse>b) throws Exception {
         var ready=new CountDownLatch(2);var start=new CountDownLatch(1);
         try(var pool=Executors.newFixedThreadPool(2)) {

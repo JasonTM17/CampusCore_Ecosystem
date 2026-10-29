@@ -208,6 +208,51 @@ class AttendanceGeofencePersistenceTest {
         assertThat(flagged.reviewedBy()).isEqualTo("admin-user");
         assertThat(jdbc.queryForObject("SELECT \"reason\" FROM academic.\"AttendanceCheckinAttempt\" WHERE \"sessionId\"=? AND \"studentId\"='student2'",String.class,id)).isEqualTo("SHARED_DEVICE");
     }
+    @Test void pendingSameDayFixCountsAsPreviousPositionForImpossibleSpeed() {
+        jdbc.update("INSERT INTO academic.\"Section\" (\"id\",\"lecturerId\",\"sectionNumber\") VALUES ('section2','lecturer','B')");
+        jdbc.update("INSERT INTO academic.\"Enrollment\" (\"id\",\"sectionId\",\"studentId\",\"status\") VALUES ('enroll-far','section2','student1','ENROLLED')");
+        jdbc.update("""
+                INSERT INTO academic."AttendanceGeofence" ("id","name","campusCode","centerLat","centerLng","radiusMeters","isActive","createdBy")
+                VALUES ('far-fence','Far campus','UTE-FAR',10.18,106,150,TRUE,'admin-user')
+                """);
+        var far=sessions.open(new OpenSessionRequest("section2",LocalDate.now(SessionService.CAMPUS_ZONE),null,null,10,"far-fence",false),
+                "admin-user",null,List.of("ADMIN"));
+        var session=store.session(id,false);
+        // First fix stays PENDING_REVIEW (accuracy 75 -> BORDERLINE): it is still a
+        // real submitted position and must feed the impossible-speed check (§3.5).
+        var first=checkins.checkin(id,"student1",
+                new CheckinRequest(codes.current(id,session.codeSecret()),10.0,106.0,75.0,Instant.now(),false,"device-a",null),"ip");
+        assertThat(first.decision()).isEqualTo("PENDING_REVIEW");
+        var second=checkins.checkin(far.id(),"student1",
+                new CheckinRequest(null,10.18,106.0,5.0,Instant.now(),false,"device-b",null),"ip");
+        assertThat(second.decision()).isEqualTo("PENDING_REVIEW");
+        assertThat(second.message()).contains("IMPOSSIBLE_SPEED");
+    }
+    @Test void outdatedConsentStillExposesCurrentRequiredVersion() throws Exception {
+        properties.setConsentVersion("2");
+        try {
+            mvc.perform(get("/api/v1/attendance/location-consent").with(student(1)))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.accepted").value(false))
+                    .andExpect(jsonPath("$.version").value("2")).andExpect(jsonPath("$.acceptedVersion").value("1"));
+            mvc.perform(post("/api/v1/attendance/location-consent").with(student(1)).contentType(MediaType.APPLICATION_JSON).content("{\"version\":\"1\"}"))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_CONSENT_VERSION"));
+            mvc.perform(post("/api/v1/attendance/location-consent").with(student(1)).contentType(MediaType.APPLICATION_JSON).content("{\"version\":\"2\"}"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.accepted").value(true))
+                    .andExpect(jsonPath("$.version").value("2")).andExpect(jsonPath("$.acceptedVersion").value("2"));
+            mvc.perform(post("/api/v1/attendance/sessions/"+id+"/checkin").with(student(1)).contentType(MediaType.APPLICATION_JSON).content(body("consent-device")))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.decision").value("ACCEPTED"));
+        } finally { properties.setConsentVersion("1"); }
+    }
+    @Test void wellFormedFabricatedFixIsAccepted_deviceEvidenceIsAdvisoryOnly() throws Exception {
+        // Spec §10 residual risk: a fabricated but well-formed payload (valid
+        // account + enrolment + in-room code + fresh accurate fix, mockProvider
+        // false) is indistinguishable from a real one in this release. Device and
+        // risk evidence is advisory until Phase 2 attestation; this pins the
+        // documented gap rather than claiming a control that does not exist.
+        mvc.perform(post("/api/v1/attendance/sessions/"+id+"/checkin").with(student(1))
+                .contentType(MediaType.APPLICATION_JSON).content(body("fabricated-device")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.decision").value("ACCEPTED"));
+    }
     @Test void duplicateOpenSessionAndInvalidGeofenceAreRejected() throws Exception {
         assertThatThrownBy(()->sessions.open(new OpenSessionRequest("section",LocalDate.now(SessionService.CAMPUS_ZONE),null,null,10,"ute-main-placeholder",true),"admin-user",null,List.of("ADMIN")))
                 .isInstanceOfSatisfying(DomainException.class,e->assertThat(e.code()).isEqualTo("SESSION_ALREADY_OPEN"));

@@ -2,6 +2,10 @@ package io.campuscore.restfulapi.attendance;
 
 import static io.campuscore.restfulapi.attendance.AttendanceDtos.*;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
@@ -27,6 +31,8 @@ public class AttendanceSessionController {
     @PostMapping("/sessions")
     @PreAuthorize("hasAnyRole('LECTURER','ADMIN','SUPER_ADMIN')")
     @Operation(operationId="attendanceOpenSession",summary="Mở phiên điểm danh theo vị trí")
+    @ApiResponses(@ApiResponse(responseCode="201",description="Phiên đã mở",
+            content=@Content(schema=@Schema(implementation=SessionResponse.class))))
     public ResponseEntity<SessionResponse> open(@AuthenticationPrincipal Jwt jwt,@Valid @RequestBody OpenSessionRequest r) {
         return ResponseEntity.status(201).body(sessions.open(r,jwt.getSubject(),jwt.getClaimAsString("lecturerId"),jwt.getClaimAsStringList("roles")));
     }
