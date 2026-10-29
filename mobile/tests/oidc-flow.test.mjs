@@ -76,7 +76,30 @@ test('callback parsing: state verified before code is accepted', () => {
     `${OIDC_REDIRECT_URI}?error=access_denied&error_description=suspended&state=S1`,
     'S1',
   );
-  assert.deepEqual(denied, { kind: 'blocked', reason: 'access_denied: suspended' });
+  assert.deepEqual(denied, { kind: 'blocked', reason: 'Authorization was rejected.' });
+});
+
+test('callback query is parsed separately from the fragment', () => {
+  assert.deepEqual(parseCallbackUrl(`${OIDC_REDIRECT_URI}?state=S1&code=abc#ignored`, 'S1'), { kind: 'code', code: 'abc' });
+  assert.deepEqual(parseCallbackUrl(`${OIDC_REDIRECT_URI}?code=abc&state=S1#ignored`, 'S1'), { kind: 'code', code: 'abc' });
+  assert.notEqual(parseCallbackUrl(`${OIDC_REDIRECT_URI}#?state=S1&code=abc`, 'S1').kind, 'code');
+});
+
+test('callback rejects ambiguous, malformed and control-bearing parameters', () => {
+  for (const query of [
+    'state=S1&state=S1&code=abc', 'state=S1&code=a&code=b',
+    'state=S1&code=', 'state=S1&code=%00abc', 'state=S1&code=abc%0d%0a',
+    'state=S1&code=%ZZ', 'state=S1&code=%C0%AF',
+    'state=S1&code=abc&error=access_denied',
+    'state=S1&error=a&error=b', 'state=S1&code=abc&extra=%7f',
+    'state=S1&code=abc\n',
+  ]) {
+    assert.notEqual(parseCallbackUrl(`${OIDC_REDIRECT_URI}?${query}`, 'S1').kind, 'code');
+  }
+  assert.equal(parseCallbackUrl(`${OIDC_REDIRECT_URI}?error=access_denied&state=wrong`, 'S1').kind, 'state-mismatch');
+  const result = parseCallbackUrl(`${OIDC_REDIRECT_URI}?state=S1&error=access_denied&error_description=private-detail`, 'S1');
+  assert.equal(result.kind, 'blocked');
+  assert.ok(!result.reason.includes('private-detail'));
 });
 
 test('token request body exchanges code + PKCE verifier as cu-mobile', () => {

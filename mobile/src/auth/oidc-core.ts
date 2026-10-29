@@ -127,20 +127,32 @@ export type CallbackParse =
  * plausible code (contract §7.6).
  */
 export function parseCallbackUrl(url: string, expectedState: string): CallbackParse {
-  const params = new URLSearchParams(url.split('?')[1] ?? '');
-  const errorParam = params.get('error');
-  if (errorParam) {
-    const detail = params.get('error_description');
-    return {
-      kind: 'blocked',
-      reason: detail ? `${errorParam}: ${detail}` : `Authorization error: ${errorParam}`,
-    };
+  const invalid: CallbackParse = { kind: 'blocked', reason: 'Invalid authorization response.' };
+  if (/[\u0000-\u001f\u007f-\u009f]/.test(url)) return invalid;
+  const query = url.split('#', 1)[0].split('?').slice(1).join('?');
+  // URLSearchParams tolerates malformed escapes. Reject them before decoding.
+  try {
+    decodeURIComponent(query.replace(/\+/g, ' '));
+  } catch {
+    return invalid;
   }
+  const params = new URLSearchParams(query);
+  for (const [key, value] of params) {
+    if (/[\u0000-\u001f\u007f-\u009f]/.test(key + value)) return invalid;
+  }
+  for (const key of ['state', 'code', 'error', 'error_description']) {
+    if (params.getAll(key).length > 1) return invalid;
+  }
+  if (!expectedState || !params.get('state')) return { kind: 'state-mismatch' };
   if (params.get('state') !== expectedState) {
     return { kind: 'state-mismatch' };
   }
+  if (params.has('error')) {
+    if (!params.get('error')?.trim() || params.has('code')) return invalid;
+    return { kind: 'blocked', reason: 'Authorization was rejected.' };
+  }
   const code = params.get('code');
-  if (!code) {
+  if (!code?.trim()) {
     return { kind: 'blocked', reason: 'The authorization response did not include a code.' };
   }
   return { kind: 'code', code };
