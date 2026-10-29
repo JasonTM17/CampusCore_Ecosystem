@@ -33,6 +33,11 @@ export default function robots(): MetadataRoute.Robots {
           '/reset-password',
           '/en/reset-password',
           '/vi/reset-password',
+          // Check-in deep links hand off to the CampusUTE app; session ids
+          // must never reach a search index.
+          '/attendance/checkin/',
+          '/en/attendance/checkin/',
+          '/vi/attendance/checkin/',
           '/api/',
           '/_next/',
         ],

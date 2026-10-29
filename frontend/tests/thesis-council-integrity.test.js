@@ -482,6 +482,7 @@ function loadMessages() {
     '@/i18n/messages-thesis-workflow': loadModule('src/i18n/messages-thesis-workflow.ts'),
     '@/i18n/messages-dean-overview': loadModule('src/i18n/messages-dean-overview.ts'),
     '@/i18n/messages-content': loadModule('src/i18n/messages-content.ts'),
+    '@/i18n/messages-attendance-geofence': loadModule('src/i18n/messages-attendance-geofence.ts'),
   }).en;
 }
 

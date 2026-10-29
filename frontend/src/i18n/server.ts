@@ -89,6 +89,15 @@ function getRouteMetadata(pathname: string, locale: Locale) {
     };
   }
 
+  if (pathname.startsWith('/attendance/checkin')) {
+    return {
+      title: messages.meta.checkinLanding.title,
+      description: messages.meta.checkinLanding.description,
+      // Deep-link landing: an app hand-off, not a destination for indexes.
+      robots: { index: false, follow: false, nocache: true },
+    };
+  }
+
   if (pathname.startsWith('/dashboard')) {
     return {
       title: messages.meta.dashboard.title,
