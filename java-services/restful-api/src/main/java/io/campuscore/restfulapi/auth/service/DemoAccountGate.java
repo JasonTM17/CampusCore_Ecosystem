@@ -63,10 +63,11 @@ public class DemoAccountGate implements ApplicationRunner {
      * than any pattern.
      *
      * <p>Covers the .edu showcase accounts (V50 plus the seeded thesis-team
-     * students) and the runbook-documented .demo accounts activated by V82 (the
+     * students), the two seeded applicant accounts locked by V145, and the
+     * runbook-documented .demo accounts activated by V82 (the
      * Four-Eyes second approver and the council examiners).
      * {@code DemoAccountGateRunbookParityTest} pins this list
-     * to V82's, so the migration and the gate cannot drift apart.
+     * to V82's and V145's, so the migrations and the gate cannot drift apart.
      */
     static final List<String> DEMO_EMAILS = List.of(
             "student@campuscore.edu",
@@ -75,6 +76,8 @@ public class DemoAccountGate implements ApplicationRunner {
             "student4@campuscore.edu",
             "lecturer@campuscore.edu",
             "admin@campuscore.edu",
+            "applicant@campuscore.edu",
+            "applicant2@campuscore.edu",
             "admin002@campuscore.demo",
             "truongkhoa@campuscore.demo",
             "truongbomon@campuscore.demo",
