@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native';
 
 import { ThemeProvider } from '../../src/design/theme';
 import { tokens } from '../../src/design/tokens';
+import { LocaleProvider } from '../../src/i18n/locale-provider';
 import {
   Toast,
   Notice,
@@ -14,6 +15,7 @@ import {
   EmptyState,
   InlineError,
   FormField,
+  Sheet,
   Button,
 } from '../../src/components/ui/index';
 
@@ -119,6 +121,70 @@ describe('FormField', () => {
   test('error shows alert', async () => {
     await render(<FormField label="Email" error="Sai định dạng" />);
     expect(screen.getByRole('alert', { name: 'Sai định dạng' })).toBeOnTheScreen();
+  });
+});
+
+describe('localized chrome strings (ux-m1-02)', () => {
+  test('Sheet close button localizes to english', async () => {
+    await render(
+      <LocaleProvider initialLocale="en">
+        <Sheet visible onClose={() => {}} title="Pick a course" />
+      </LocaleProvider>,
+    );
+    expect(screen.getByRole('button', { name: 'Close sheet' })).toBeOnTheScreen();
+    expect(screen.getByText('Close')).toBeOnTheScreen();
+  });
+
+  test('explicit Sheet labels still win over the locale', async () => {
+    await render(
+      <LocaleProvider initialLocale="en">
+        <Sheet visible onClose={() => {}} title="Chọn" closeLabel="Đóng nhanh" closeAccessibilityLabel="Đóng bảng nhanh" />
+      </LocaleProvider>,
+    );
+    expect(screen.getByRole('button', { name: 'Đóng bảng nhanh' })).toBeOnTheScreen();
+    expect(screen.getByText('Đóng nhanh')).toBeOnTheScreen();
+  });
+
+  test('Toast dismiss button localizes to english', async () => {
+    await render(
+      <LocaleProvider initialLocale="en">
+        <Toast visible message="Saved" onDismiss={() => {}} />
+      </LocaleProvider>,
+    );
+    expect(screen.getByRole('button', { name: 'Dismiss notification' })).toBeOnTheScreen();
+  });
+
+  test('SearchBar input fallback and clear button localize to english', async () => {
+    await render(
+      <LocaleProvider initialLocale="en">
+        <SearchBar value="abc" onChangeText={() => {}} />
+      </LocaleProvider>,
+    );
+    expect(screen.getByLabelText('Search')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Clear search' })).toBeOnTheScreen();
+  });
+
+  test('InlineError retry fallback localizes to english', async () => {
+    await render(
+      <LocaleProvider initialLocale="en">
+        <InlineError message="Could not load" onRetry={() => {}} />
+      </LocaleProvider>,
+    );
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeOnTheScreen();
+  });
+
+  test('FormField required hint stays vietnamese by default', async () => {
+    await render(<FormField label="Email" required />);
+    expect(screen.getByLabelText('Email').props.accessibilityHint).toBe('bắt buộc');
+  });
+
+  test('FormField required hint localizes to english', async () => {
+    await render(
+      <LocaleProvider initialLocale="en">
+        <FormField label="Student code" required />
+      </LocaleProvider>,
+    );
+    expect(screen.getByLabelText('Student code').props.accessibilityHint).toBe('required');
   });
 });
 
