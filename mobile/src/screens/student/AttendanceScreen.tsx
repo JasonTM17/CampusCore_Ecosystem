@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
-import { Badge, Card, Divider, MetricCard, ProgressBar, ScreenSpacer, SectionHeading, StatePanel, UiText } from '../../components/Ui';
+import { Card, Divider, IconChip, MetricCard, ProgressBar, ScreenSpacer, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -19,6 +19,7 @@ export function overallRate(rows: readonly AttendanceSummaryRow[]): number {
 }
 
 const tone = (status: string) => (status === 'PRESENT' ? 'success' : status === 'ABSENT' ? 'error' : 'warning');
+const rateTone = (rate: number) => (rate >= 80 ? 'success' : rate >= 60 ? 'warning' : 'error');
 
 export function AttendanceScreen(_props: MobileScreenProps) {
   const { copy, locale } = useAcademicCopy();
@@ -60,26 +61,32 @@ export function AttendanceScreen(_props: MobileScreenProps) {
             options={[{ value: '', label: copy.allCourses }, ...summary.map((row) => ({ value: row.sectionId, label: `${row.courseCode} · ${localizedName({ name: row.courseName, nameEn: row.courseNameEn, nameVi: row.courseNameVi }, locale)}` }))]}
           />
           <Card tone="primary">
-            <UiText variant="bodySmall" tone="muted">{copy.overall}</UiText>
-            <UiText variant="display" tone="primary">{overallRate(rows)}%</UiText>
-            <ProgressBar label={copy.overall} value={overallRate(rows)} tone="success" />
+            <View style={styles.summaryHeader}>
+              <IconChip icon="chart-donut" />
+              <View style={styles.summaryCopy}>
+                <UiText variant="label" tone="muted">{copy.overall}</UiText>
+                <UiText variant="display" tone="primary">{overallRate(rows)}%</UiText>
+              </View>
+            </View>
+            <ProgressBar label={copy.overall} value={overallRate(rows)} tone={overallRate(rows) >= 80 ? 'success' : 'warning'} />
           </Card>
           <ScreenSpacer />
           <View style={academicStyles.metrics}>
-            <MetricCard label={copy.present} value={formatNumber(sum('present'))} style={academicStyles.metric} />
-            <MetricCard label={copy.absent} value={formatNumber(sum('absent'))} style={academicStyles.metric} />
-            <MetricCard label={copy.late} value={formatNumber(sum('late'))} style={academicStyles.metric} />
-            <MetricCard label={copy.excused} value={formatNumber(sum('excused'))} style={academicStyles.metric} />
+            <MetricCard icon="check-circle-outline" label={copy.present} value={formatNumber(sum('present'))} style={academicStyles.metric} />
+            <MetricCard icon="close-circle-outline" label={copy.absent} value={formatNumber(sum('absent'))} style={academicStyles.metric} />
+            <MetricCard icon="clock-outline" label={copy.late} value={formatNumber(sum('late'))} style={academicStyles.metric} />
+            <MetricCard icon="email-check-outline" label={copy.excused} value={formatNumber(sum('excused'))} style={academicStyles.metric} />
           </View>
           <SectionHeading title={copy.byCourse} />
           {rows.map((row) => (
             <Card key={row.sectionId} style={academicStyles.card}>
-              <View style={academicStyles.row}>
+              <View style={styles.courseHeader}>
+                <IconChip icon="book-open-variant" size={32} />
                 <View style={academicStyles.rowCopy}>
-                  <UiText variant="label">{row.courseCode}</UiText>
-                  <UiText variant="bodySmall" tone="muted">{localizedName({ name: row.courseName, nameEn: row.courseNameEn, nameVi: row.courseNameVi }, locale)}</UiText>
+                  <StatusPill label={row.courseCode} tone="primary" />
+                  <UiText variant="bodyMedium">{localizedName({ name: row.courseName, nameEn: row.courseNameEn, nameVi: row.courseNameVi }, locale)}</UiText>
                 </View>
-                <UiText variant="headlineSmall" tone="success">{row.attendanceRate}%</UiText>
+                <StatusPill label={`${row.attendanceRate}%`} tone={rateTone(row.attendanceRate)} />
               </View>
               <ProgressBar value={row.attendanceRate} label={fillCopy(copy.presentOf, { present: row.present, total: row.total })} tone="success" />
             </Card>
@@ -98,7 +105,7 @@ export function AttendanceScreen(_props: MobileScreenProps) {
                       {record.section?.course?.code ? <UiText variant="bodySmall" tone="muted">{record.section.course.code}</UiText> : null}
                       {record.notes ? <UiText variant="meta" tone="muted">{record.notes}</UiText> : null}
                     </View>
-                    <Badge label={copy.attendanceStatus[record.status] ?? record.status} tone={tone(record.status)} />
+                    <StatusPill label={copy.attendanceStatus[record.status] ?? record.status} tone={tone(record.status)} />
                   </View>
                 </View>
               ))}
@@ -109,3 +116,9 @@ export function AttendanceScreen(_props: MobileScreenProps) {
     </AcademicShell>
   );
 }
+
+const styles = {
+  summaryHeader: { alignItems: 'center' as const, flexDirection: 'row' as const, gap: 12 },
+  summaryCopy: { flex: 1, minWidth: 0 },
+  courseHeader: { alignItems: 'flex-start' as const, flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
+};

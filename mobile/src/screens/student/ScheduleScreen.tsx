@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { Button, Card, ScreenSpacer, StatePanel, UiText } from '../../components/Ui';
+import { Button, Card, FilterChip, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -26,6 +28,7 @@ type View_ = 'week' | 'term';
 
 function SessionCard({ item, expanded, onToggle }: { item: AgendaItem; expanded: boolean; onToggle: () => void }) {
   const { copy } = useAcademicCopy();
+  const { colors } = useTheme();
   const summary = `${item.startTime} – ${item.endTime}`;
   return (
     <Pressable
@@ -36,11 +39,23 @@ function SessionCard({ item, expanded, onToggle }: { item: AgendaItem; expanded:
       style={{ minHeight: tokens.layout.touchTarget }}
     >
       <Card style={academicStyles.card}>
-        <View style={academicStyles.row}>
-          <View style={academicStyles.rowCopy}>
-            <UiText variant="label" tone="primary">{summary}</UiText>
-            <UiText variant="bodyMedium">{item.courseCode} · {item.courseName}</UiText>
-            {item.room ? <UiText variant="bodySmall" tone="muted">{copy.room} {item.room}</UiText> : null}
+        <View style={styles.sessionRow}>
+          <View style={[styles.timeRail, { borderRightColor: colors.outlineVariant }]}>
+            <UiText variant="label" tone="primary">{item.startTime}</UiText>
+            <View style={[styles.timeRule, { backgroundColor: colors.outlineVariant }]} />
+            <UiText variant="meta" tone="muted">{item.endTime}</UiText>
+          </View>
+          <View style={styles.sessionCopy}>
+            <View style={styles.courseLine}>
+              <StatusPill label={item.courseCode} tone="primary" />
+              <UiText variant="bodyMedium" style={styles.courseName}>{item.courseName}</UiText>
+            </View>
+            {item.room ? (
+              <View style={styles.roomLine}>
+                <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name="map-marker-outline" size={16} color={colors.textMuted} />
+                <UiText variant="bodySmall" tone="muted">{copy.room} {item.room}</UiText>
+              </View>
+            ) : null}
           </View>
         </View>
         {expanded ? (
@@ -57,12 +72,14 @@ function SessionCard({ item, expanded, onToggle }: { item: AgendaItem; expanded:
 
 export function ScheduleScreen(_props: MobileScreenProps) {
   const { copy, locale } = useAcademicCopy();
+  const { colors } = useTheme();
   const { formatDate } = useLocale();
   const preview = isPreviewMode();
   const enrollmentsQuery = useAcademicQuery('academic.enrollments', () => academicApi.enrollments(), copy);
   const semestersQuery = useAcademicQuery('academic.semesters', () => academicApi.semesters(), copy);
   const [view, setView] = useState<View_>('week');
   const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(() => (new Date().getDay() + 6) % 7);
   const [termChoice, setTermChoice] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -99,7 +116,7 @@ export function ScheduleScreen(_props: MobileScreenProps) {
         options={[{ value: 'week', label: copy.viewWeek }, { value: 'term', label: copy.viewTerm }]}
       />
       <ScreenSpacer />
-      {agenda.length === 0 ? <StatePanel kind="empty" title={copy.emptySchedule} /> : null}
+      {agenda.length === 0 && view === 'term' ? <StatePanel kind="empty" title={copy.emptySchedule} /> : null}
       {view === 'week' ? (
         <View>
           <View style={academicStyles.row}>
@@ -107,18 +124,36 @@ export function ScheduleScreen(_props: MobileScreenProps) {
             <UiText variant="label" accessibilityLiveRegion="polite">{weekLabel}</UiText>
             <Button accessibilityLabel={copy.nextWeek} label="›" onPress={() => setWeekOffset((value) => value + 1)} variant="text" />
           </View>
-          {days.map((date, index) => {
+          <View style={styles.dayStrip}>
+            {days.map((date, index) => (
+              <View key={civilKey(date)} testID={`day-${civilKey(date)}`} style={styles.dayChipWrap}>
+                <FilterChip
+                  label={copy.dayShort[index]}
+                  count={date.getDate()}
+                  selected={index === selectedDayIndex}
+                  onPress={() => { setSelectedDayIndex(index); setOpenId(null); }}
+                />
+              </View>
+            ))}
+          </View>
+          {(() => {
+            const date = days[selectedDayIndex];
             const items = agendaForDate(agenda, date, semester);
             return (
-              <View key={civilKey(date)} testID={`day-${civilKey(date)}`} style={{ marginTop: tokens.spacing.md }}>
-                <UiText accessibilityRole="header" variant="label" tone={civilKey(date) === civilKey(today) ? 'primary' : 'muted'} style={{ marginBottom: tokens.spacing.xs }}>
-                  {copy.dayShort[index]} · {formatDate(civilKey(date))}
+              <View style={styles.dayContent}>
+                <UiText accessibilityRole="header" variant="label" tone={civilKey(date) === civilKey(today) ? 'primary' : 'muted'} style={styles.dayHeading}>
+                  {copy.dayShort[selectedDayIndex]} · {formatDate(civilKey(date))}
                 </UiText>
-                {items.length === 0 ? <UiText variant="bodySmall" tone="muted">{copy.noSessions}</UiText> : null}
+                {items.length === 0 ? (
+                  <Card tone="low" style={styles.emptyDay}>
+                    <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name="calendar-blank-outline" size={20} color={colors.textMuted} />
+                    <UiText variant="bodySmall" tone="muted" style={styles.emptyDayText}>{copy.noSessions}</UiText>
+                  </Card>
+                ) : null}
                 {items.map((item) => <SessionCard key={item.id} item={item} expanded={openId === item.id} onToggle={() => toggle(item.id)} />)}
               </View>
             );
-          })}
+          })()}
         </View>
       ) : (
         <View>
@@ -139,3 +174,19 @@ export function ScheduleScreen(_props: MobileScreenProps) {
     </AcademicShell>
   );
 }
+
+const styles = StyleSheet.create({
+  sessionRow: { alignItems: 'stretch', flexDirection: 'row', gap: tokens.spacing.md },
+  timeRail: { alignItems: 'center', borderRightWidth: 1, justifyContent: 'center', minWidth: 64, paddingRight: tokens.spacing.sm },
+  timeRule: { height: tokens.spacing.md, marginVertical: tokens.spacing.xs, width: 1 },
+  sessionCopy: { flex: 1, gap: tokens.spacing.sm, minWidth: 0 },
+  courseLine: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
+  courseName: { flex: 1, minWidth: 120 },
+  roomLine: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
+  dayStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs, marginTop: tokens.spacing.sm },
+  dayChipWrap: { flexGrow: 1, minWidth: 40 },
+  dayContent: { marginTop: tokens.spacing.md },
+  dayHeading: { marginBottom: tokens.spacing.sm },
+  emptyDay: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
+  emptyDayText: { flex: 1 },
+});

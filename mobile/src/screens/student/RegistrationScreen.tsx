@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { Badge, Button, Card, ScreenSpacer, StatePanel, UiText } from '../../components/Ui';
+import { Button, Card, HeroCard, IconChip, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { Dialog, Notice } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileScreenProps } from '../../navigation/types';
@@ -97,38 +97,50 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
       onRetry={() => void query.reload()}
     >
       {actions.notice ? <Notice message={actions.notice.text} tone={actions.notice.tone} /> : null}
+      <HeroCard
+        icon="clipboard-list-outline"
+        eyebrow={copy.registrationTitle}
+        title={fillCopy(copy.basketTitle, { n: selectedCount })}
+        detail={eligibility?.creditLimit != null
+          ? fillCopy(copy.creditsUsed, { used: eligibility.creditsUsed ?? 0, limit: eligibility.creditLimit })
+          : undefined}
+      >
+        <View style={styles.heroActions}>
+          {roundOpen ? <StatusPill label={copy.availability.open} tone="success" /> : null}
+          {selectedCount > 0 ? (
+            <Button label={copy.registerSelected} onPress={() => void actions.registerSelected()} loading={actions.busy} disabled={preview} />
+          ) : null}
+        </View>
+        {selectedCount > 0 && Object.keys(actions.basket.failures).length > 0 ? (
+          <UiText variant="bodySmall" tone="muted" style={styles.keptSelection}>{copy.selectionKept}</UiText>
+        ) : null}
+      </HeroCard>
       {!roundOpen ? <StatePanel kind="empty" title={copy.roundClosed} /> : null}
-      {eligibility?.creditLimit != null ? (
-        <UiText variant="bodySmall" tone="muted">{fillCopy(copy.creditsUsed, { used: eligibility.creditsUsed ?? 0, limit: eligibility.creditLimit })}</UiText>
-      ) : null}
-      {selectedCount > 0 ? (
-        <Card tone="primary" style={academicStyles.card}>
-          <UiText accessibilityRole="header" variant="headlineSmall">{fillCopy(copy.basketTitle, { n: selectedCount })}</UiText>
-          {Object.keys(actions.basket.failures).length > 0 ? <UiText variant="bodySmall" tone="muted">{copy.selectionKept}</UiText> : null}
-          <Button label={copy.registerSelected} onPress={() => void actions.registerSelected()} loading={actions.busy} disabled={preview} />
-        </Card>
-      ) : null}
       <RegistrationControls query={browse} onChange={(next) => { setBrowse(next); setVisibleGroups(PAGE_SIZE); }} />
       <ScreenSpacer />
       {roundOpen && groups.length === 0 ? <StatePanel kind="empty" title={copy.noSections} /> : null}
       {groups.slice(0, visibleGroups).map((group) => (
         <View key={group.courseKey}>
-          <UiText accessibilityRole="header" variant="label" tone="primary">
-            {group.courseCode} · {group.courseName} · {fillCopy(copy.credits, { n: group.credits })}
-          </UiText>
+          <View style={styles.courseHeading}>
+            <IconChip icon="book-open-variant" size={32} />
+            <UiText accessibilityRole="header" variant="label" tone="primary" style={styles.courseHeadingText}>
+              {group.courseCode} · {group.courseName} · {fillCopy(copy.credits, { n: group.credits })}
+            </UiText>
+          </View>
           {group.sections.map((raw) => {
             const section = toView(raw);
             return (
               <Card key={section.id} style={academicStyles.card}>
-                <View style={academicStyles.row}>
-                  <View style={academicStyles.rowCopy}>
+                <View style={styles.sectionTop}>
+                  <IconChip icon="book-open-outline" size={32} tone="neutral" />
+                  <View style={styles.sectionCopy}>
                     <UiText variant="bodyMedium">{fillCopy(copy.section, { n: section.number })}</UiText>
                     {section.meetings ? <UiText variant="bodySmall" tone="muted">{section.meetings}</UiText> : null}
                   </View>
-                  <Badge label={section.seats} tone={section.seats === copy.seatsFull ? 'warning' : 'success'} />
+                  <StatusPill label={section.seats} tone={section.seats === copy.seatsFull ? 'warning' : 'success'} />
                 </View>
                 <View style={academicStyles.actions}>
-                  <Badge label={copy.availability[section.availability]} tone={availabilityTone(section.availability)} />
+                  <StatusPill label={copy.availability[section.availability]} tone={availabilityTone(section.availability)} />
                   {section.failure ? <UiText accessibilityRole="alert" variant="bodySmall" tone="error">{section.failure}</UiText> : null}
                   {section.enrollmentId ? (
                     <Button label={copy.dropSection} accessibilityLabel={`${copy.dropSection}: ${section.code}`} onPress={() => setDropTarget(section)} variant="secondary" disabled={preview || actions.busy} />
@@ -167,3 +179,12 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
     </AcademicShell>
   );
 }
+
+const styles = StyleSheet.create({
+  heroActions: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  keptSelection: { marginTop: 8 },
+  courseHeading: { alignItems: 'center', flexDirection: 'row', gap: 8, marginBottom: 8 },
+  courseHeadingText: { flex: 1, minWidth: 0 },
+  sectionTop: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  sectionCopy: { flex: 1, gap: 4, minWidth: 150 },
+});

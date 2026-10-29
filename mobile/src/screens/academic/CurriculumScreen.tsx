@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { Badge, Button, Card, Divider, ProgressBar, ScreenSpacer, StatePanel, UiText } from '../../components/Ui';
+import { Button, Card, Divider, IconChip, MetricCard, ProgressBar, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { ChoiceField } from '../../components/ui/choice-field';
+import { useLocale } from '../../i18n/locale-provider';
 import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi, type CurriculumCourse } from './academic-api';
@@ -25,6 +26,7 @@ function groupByTerm(courses: readonly CurriculumCourse[]): Array<{ key: string;
 
 export function CurriculumScreen({ navigation }: MobileScreenProps) {
   const { copy, locale } = useAcademicCopy();
+  const { formatNumber } = useLocale();
   const preview = isPreviewMode();
   const query = useAcademicQuery('academic.curriculum', () => academicApi.curriculum(), copy);
   const [filter, setFilter] = useState<StatusFilter>('ALL');
@@ -50,9 +52,18 @@ export function CurriculumScreen({ navigation }: MobileScreenProps) {
         <StatePanel kind="empty" title={copy.emptyCurriculum} />
       ) : (
         <View>
+          <View style={academicStyles.metrics}>
+            <MetricCard icon="book-check-outline" label={copy.creditsEarned} value={formatNumber(earned)} style={academicStyles.metric} />
+            <MetricCard icon="book-open-outline" label={copy.creditsLabel} value={formatNumber(total)} style={academicStyles.metric} />
+          </View>
           <Card tone="primary">
-            <UiText variant="meta" tone="primary">{data.curriculum.code}</UiText>
-            <UiText accessibilityRole="header" variant="headlineSmall">{localizedName(data.curriculum, locale, data.curriculum.code)}</UiText>
+            <View style={styles.curriculumTitle}>
+              <IconChip icon="school-outline" />
+              <View style={styles.curriculumCopy}>
+                <UiText variant="meta" tone="primary">{data.curriculum.code}</UiText>
+                <UiText accessibilityRole="header" variant="headlineSmall">{localizedName(data.curriculum, locale, data.curriculum.code)}</UiText>
+              </View>
+            </View>
             <ProgressBar
               label={fillCopy(copy.curriculumProgress, { earned, total })}
               value={total > 0 ? (earned / total) * 100 : 0}
@@ -75,25 +86,28 @@ export function CurriculumScreen({ navigation }: MobileScreenProps) {
           {groups.length === 0 ? <StatePanel kind="empty" title={copy.emptyCurriculum} /> : null}
           {groups.map((group) => (
             <Card key={group.key} style={academicStyles.card}>
-              <UiText accessibilityRole="header" variant="label" tone="primary">
-                {fillCopy(copy.yearTerm, { year: group.year, term: group.term })}
-              </UiText>
+              <View style={styles.termHeading}>
+                <IconChip icon="calendar-month-outline" size={32} />
+                <UiText accessibilityRole="header" variant="headlineSmall" style={styles.termTitle}>
+                  {fillCopy(copy.yearTerm, { year: group.year, term: group.term })}
+                </UiText>
+              </View>
               {group.courses.map((course) => (
                 <View key={course.courseId} accessible accessibilityLabel={`${course.code} ${localizedName(course, locale, course.code)}, ${statusLabel(course.status)}`}>
                   <Divider />
-                  <View style={academicStyles.row}>
+                  <View style={styles.courseRow}>
+                    <IconChip icon="book-open-variant" size={32} tone="neutral" />
                     <View style={academicStyles.rowCopy}>
-                      <UiText variant="label">{course.code}</UiText>
-                      <UiText variant="bodySmall" tone="muted">
-                        {localizedName(course, locale, course.code)} · {fillCopy(copy.credits, { n: course.credits })}
-                      </UiText>
+                      <StatusPill label={course.code} tone="primary" />
+                      <UiText variant="bodyMedium">{localizedName(course, locale, course.code)}</UiText>
+                      <UiText variant="meta" tone="muted">{fillCopy(copy.credits, { n: course.credits })}</UiText>
                       {course.prerequisites && course.prerequisites.length > 0 ? (
                         <UiText variant="meta" tone="muted">{fillCopy(copy.prerequisites, { list: course.prerequisites.join(', ') })}</UiText>
                       ) : null}
                     </View>
-                    <View>
-                      <Badge label={statusLabel(course.status)} tone={course.status === 'COMPLETED' ? 'success' : course.status === 'IN_PROGRESS' ? 'primary' : 'neutral'} />
-                      <Badge label={course.isMandatory ? copy.mandatory : copy.elective} tone="neutral" />
+                    <View style={styles.coursePills}>
+                      <StatusPill label={statusLabel(course.status)} tone={course.status === 'COMPLETED' ? 'success' : course.status === 'IN_PROGRESS' ? 'primary' : 'neutral'} />
+                      <StatusPill label={course.isMandatory ? copy.mandatory : copy.elective} tone="neutral" />
                     </View>
                   </View>
                 </View>
@@ -106,3 +120,12 @@ export function CurriculumScreen({ navigation }: MobileScreenProps) {
     </AcademicShell>
   );
 }
+
+const styles = StyleSheet.create({
+  curriculumTitle: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+  curriculumCopy: { flex: 1, gap: 4, minWidth: 0 },
+  termHeading: { alignItems: 'center', flexDirection: 'row', gap: 8, marginBottom: 8 },
+  termTitle: { flex: 1, minWidth: 0 },
+  courseRow: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 8 },
+  coursePills: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+});
