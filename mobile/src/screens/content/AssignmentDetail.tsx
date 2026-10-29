@@ -13,6 +13,7 @@ import { contentErrorMessage, errorCode } from './content-errors';
 import { deadlinePassed, hasSubmissionContent, joinMeta, submissionPhase } from './content-rules';
 import {
   AttachmentRow,
+  ContentHero,
   DetailFrame,
   FilePicker,
   FlashNotice,
@@ -155,13 +156,17 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
       <View style={{ gap: 12 }}>
         <FlashNotice flash={flash} />
         <Card>
-          <UiText accessibilityRole="header" variant="headlineMedium">{assignment.title}</UiText>
-          <View style={{ alignItems: 'flex-start', marginVertical: 8 }}>
-            <StatusChip code={submission?.status ?? assignment.mySubmissionStatus ?? assignment.status} labels={copy.statusLabels} />
-          </View>
-          {assignment.description ? <UiText variant="bodyMedium">{assignment.description}</UiText> : null}
+          <ContentHero
+            title={assignment.title}
+            icon="clipboard-text-outline"
+            detail={`${copy.deadline}: ${assignment.deadlineAt ? formatDateTime(assignment.deadlineAt) : copy.noDeadline}`}
+          >
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
+              <StatusChip code={submission?.status ?? assignment.mySubmissionStatus ?? assignment.status} labels={copy.statusLabels} />
+            </View>
+          </ContentHero>
+          {assignment.description ? <UiText variant="bodyLarge" style={{ marginTop: 16 }}>{assignment.description}</UiText> : null}
           <View style={{ gap: 4, marginTop: 8 }}>
-            <MetaRow label={copy.deadline} value={assignment.deadlineAt ? formatDateTime(assignment.deadlineAt) : copy.noDeadline} />
             <MetaRow label={copy.maxScore} value={assignment.maxScore != null ? formatNumber(assignment.maxScore) : null} />
           </View>
           {late && canWrite ? <UiText variant="bodySmall" tone="warning" style={{ marginTop: 8 }}>{copy.pastDeadline}</UiText> : null}

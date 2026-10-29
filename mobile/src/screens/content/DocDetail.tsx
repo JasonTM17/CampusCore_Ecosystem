@@ -1,17 +1,17 @@
 import { useState } from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, StatePanel, UiText } from '../../components/Ui';
-import { ChoiceField, Notice } from '../../components/ui/index';
+import { ChoiceField, Notice, StatusPill } from '../../components/ui/index';
 import type { MobilePublicDoc } from '../../api/client';
 import { campusMessages } from '../../i18n/campus-messages';
 import { fillCopy } from '../../i18n/academic-messages';
 import { contentApi } from './content-api';
 import { joinMeta } from './content-rules';
-import { DetailFrame, isPreviewMode, useContentCopy } from './content-ui';
+import { ContentHero, DetailFrame, isPreviewMode, useContentCopy } from './content-ui';
 import { previewDocs } from './preview-data';
 import { htmlToPlainText } from './rich-text';
-import { revisionNumbers, docBody, docTitle } from './docs-model';
+import { revisionNumbers, docBody, docCategoryLabel, docTitle } from './docs-model';
 import { useContentQuery } from './use-content-query';
 
 export interface DocDetailProps {
@@ -25,6 +25,7 @@ type DocRecord = MobilePublicDoc & { superseded?: boolean };
 export function DocDetail({ slug, onBack }: DocDetailProps) {
   const { locale, copy: shared, formatDateTime, t } = useContentCopy();
   const copy = campusMessages[locale];
+  const categoryLabels = copy.docCategoryLabels as Readonly<Record<string, string>>;
   const preview = isPreviewMode();
   const [revision, setRevision] = useState<number | null>(null);
 
@@ -63,16 +64,20 @@ export function DocDetail({ slug, onBack }: DocDetailProps) {
             />
           ) : null}
           <Card>
-            <UiText accessibilityRole="header" variant="headlineMedium">{docTitle(doc, locale)}</UiText>
-            <UiText variant="bodySmall" tone="muted" style={{ marginVertical: 8 }}>
-              {joinMeta([
-                shown !== null ? fillCopy(copy.revision, { n: shown }) : null,
+            <ContentHero
+              title={docTitle(doc, locale)}
+              icon="file-document-outline"
+              detail={joinMeta([
                 doc.publishedAt ? `${copy.publishedAt}: ${formatDateTime(doc.publishedAt)}` : null,
-                doc.categoryId ? `${copy.category}: ${doc.categoryId}` : null,
+                doc.categoryId ? `${copy.category}: ${docCategoryLabel(doc.categoryId, categoryLabels)}` : null,
                 (doc.tagIds ?? []).length > 0 ? `${copy.tags}: ${(doc.tagIds ?? []).join(', ')}` : null,
               ])}
-            </UiText>
-            <UiText variant="bodyMedium">{htmlToPlainText(docBody(doc, locale))}</UiText>
+            >
+              <View style={styles.heroPills}>
+                {shown !== null ? <StatusPill label={fillCopy(copy.revision, { n: shown })} tone="primary" /> : null}
+              </View>
+            </ContentHero>
+            <UiText variant="bodyLarge" style={styles.body}>{htmlToPlainText(docBody(doc, locale))}</UiText>
           </Card>
           {doc.publishedRevision > 1 ? (
             <ChoiceField
@@ -89,3 +94,8 @@ export function DocDetail({ slug, onBack }: DocDetailProps) {
     </DetailFrame>
   );
 }
+
+const styles = StyleSheet.create({
+  heroPills: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 },
+  body: { marginTop: 16 },
+});

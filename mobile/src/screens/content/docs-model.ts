@@ -18,6 +18,11 @@ export const docSummary = (doc: LocalizedDoc, locale: 'vi' | 'en'): string =>
 export const docBody = (doc: LocalizedDoc, locale: 'vi' | 'en'): string =>
   (locale === 'vi' ? doc.bodyVi : doc.bodyEn) ?? '';
 
+/** Use reviewed locale labels for known category codes and retain unknown server values. */
+export function docCategoryLabel(categoryId: string, labels: Readonly<Record<string, string>>): string {
+  return labels[categoryId.trim().toLowerCase()] ?? categoryId;
+}
+
 /** Revisions that resolve for readers: the published one and every earlier one, newest first. */
 export function revisionNumbers(published: number): number[] {
   if (!Number.isInteger(published) || published < 1) return [];
