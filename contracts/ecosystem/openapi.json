@@ -1087,7 +1087,12 @@
             "format": "date-time",
             "type": "string"
           },
+          "acceptedVersion": {
+            "description": "Version the student actually accepted, if any",
+            "type": "string"
+          },
           "version": {
+            "description": "Currently required consent version; echo it in POST /location-consent",
             "type": "string"
           }
         },
@@ -3208,6 +3213,43 @@
         },
         "type": "object"
       },
+      "ErrorResponse": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "fieldErrors": {
+            "items": {
+              "$ref": "#/components/schemas/FieldErrorItem"
+            },
+            "type": "array"
+          },
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "status": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "EventResponse": {
         "properties": {
           "capacity": {
@@ -3542,6 +3584,17 @@
           },
           "totals": {
             "$ref": "#/components/schemas/Totals"
+          }
+        },
+        "type": "object"
+      },
+      "FieldErrorItem": {
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -11920,7 +11973,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "*/*": {
                 "schema": {
@@ -11928,7 +11981,7 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Phiên đã mở"
           }
         },
         "summary": "Mở phiên điểm danh theo vị trí",
@@ -12034,7 +12087,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/AttendanceCheckinResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12044,7 +12097,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/AttendanceCheckinResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12054,7 +12107,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/AttendanceCheckinResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12064,7 +12117,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/AttendanceCheckinResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12074,7 +12127,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/AttendanceCheckinResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12084,7 +12137,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/AttendanceCheckinResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
