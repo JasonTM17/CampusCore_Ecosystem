@@ -25,6 +25,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RestController
 @Profile("persistence")
 @RequestMapping("/api/v1/notifications")
+@PreAuthorize("isAuthenticated()")
 public class NotificationReadController {
 
     private final NotificationReadService notifications;

@@ -1298,4 +1298,16 @@ class AcademicReadPersistenceTest {
     private static java.time.LocalDateTime localDateTime(Instant value) {
         return java.time.LocalDateTime.ofInstant(value, java.time.ZoneOffset.UTC);
     }
+
+    @Test
+    void catalogPolicyRejectsAnonymousWithoutRestrictingAuthenticatedRoles() throws Exception {
+        for (String resource : List.of("semesters", "academic-years", "courses", "curricula", "classrooms")) {
+            mvc.perform(get("/api/v1/" + resource)).andExpect(status().isUnauthorized());
+            mvc.perform(get("/api/v1/" + resource + "/unknown")).andExpect(status().isUnauthorized());
+            mvc.perform(get("/api/v1/" + resource).with(studentJwt())).andExpect(status().isOk());
+        }
+        // A class-wide authenticated policy must not override the existing student-only method.
+        mvc.perform(get("/api/v1/me/curriculum").with(adminJwt())).andExpect(status().isForbidden());
+    }
+
 }

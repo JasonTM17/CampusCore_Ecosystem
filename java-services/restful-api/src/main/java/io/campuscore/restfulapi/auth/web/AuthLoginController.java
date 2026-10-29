@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.auth.web;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import io.campuscore.restfulapi.auth.service.AuthLoginService;
 import io.campuscore.restfulapi.auth.service.AuthLoginService.LoginResult;
 import io.campuscore.restfulapi.auth.service.PasswordResetRequestDispatcher;
@@ -122,6 +123,7 @@ public class AuthLoginController {
     }
 
     @GetMapping("me")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Lấy hồ sơ tài khoản hiện tại", description = "Truy xuất thông tin người dùng, quyền hạn và vai trò liên kết với phiên đăng nhập hiện hành.")
     @ApiResponse(responseCode = "200", description = "Trả về hồ sơ tài khoản đang đăng nhập")
     public AuthUserResponse me(@AuthenticationPrincipal Jwt jwt) {
@@ -129,6 +131,7 @@ public class AuthLoginController {
     }
 
     @PutMapping("profile")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Cập nhật hồ sơ cá nhân", description = "Cập nhật thông tin họ tên hiển thị của tài khoản hiện tại.")
     @ApiResponse(responseCode = "200", description = "Hồ sơ đã được cập nhật thành công")
     public AuthUserResponse updateProfile(
@@ -138,6 +141,7 @@ public class AuthLoginController {
     }
 
     @PostMapping("change-password")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Đổi mật khẩu người dùng", description = "Thay đổi mật khẩu tài khoản bằng cách xác minh mật khẩu cũ và cung cấp mật khẩu mới.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Đổi mật khẩu thành công"),
@@ -177,6 +181,7 @@ public class AuthLoginController {
     }
 
     @PostMapping("logout")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Đăng xuất tài khoản", description = "Thu hồi Refresh Token và xóa toàn bộ cookie xác thực an toàn.")
     @ApiResponse(responseCode = "200", description = "Đăng xuất thành công")
     public Map<String, String> logout(

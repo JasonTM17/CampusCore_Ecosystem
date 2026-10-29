@@ -378,4 +378,17 @@ class ArticleTaxonomyV2PersistenceTest {
                 .andExpect(jsonPath("$.data[0].isPublic").doesNotExist())
                 .andExpect(jsonPath("$.meta.limit").value(200));
     }
+
+    @Test
+    void taxonomyPolicyKeepsOnlyTheCategoryFeedAnonymous() throws Exception {
+        for (String path : List.of("article-categories", "article-categories/example", "article-tags",
+                "article-tags/example", "article-media-galleries", "article-attachments",
+                "article-taxonomy/v2/categories/example", "article-taxonomy/v2/tags",
+                "article-taxonomy/v2/tags/example", "article-taxonomy/v2/media-galleries",
+                "article-taxonomy/v2/attachments")) {
+            mvc.perform(get("/api/v1/" + path)).andExpect(status().isUnauthorized());
+        }
+        mvc.perform(get("/api/v1/article-taxonomy/v2/categories")).andExpect(status().isOk());
+    }
+
 }

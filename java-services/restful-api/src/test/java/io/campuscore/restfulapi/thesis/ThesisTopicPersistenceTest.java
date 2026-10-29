@@ -1076,4 +1076,13 @@ class ThesisTopicPersistenceTest {
                 "CODE-" + studentId);
     }
 
+
+    @Test
+    void topicCatalogPolicyRejectsAnonymousOnListAndDetail() throws Exception {
+        mvc.perform(get("/api/v1/thesis/topics").param("roundId", UUID.randomUUID().toString()))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/thesis/topics/" + UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
+    }
+
 }

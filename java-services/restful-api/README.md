@@ -49,3 +49,28 @@ for the reproducible student demo. Configure non-empty values for
 Flyway is the only schema owner. The `persistence` profile is enabled by the
 Compose service and starts from an empty PostgreSQL database with deterministic
 course seed data.
+
+## Explicit authorization policy
+
+Every mapped `@RestController` method must have a method/class `@PreAuthorize`,
+an explicit filter-permitted path and HTTP verb from
+`SecurityConfig.publicEndpointMatchers()`, or `@ServiceEnforced("reason")`
+identifying the existing handler/service check. Method annotations override a
+class policy. The global authenticated fallback alone does not satisfy the
+inventory. `@ServiceEnforced` is documentation only; it grants no access and
+must name the enforcing code and caller/audience/ownership rule.
+
+`AuthorizationPolicyInventoryTest` scans compiled controller metadata across
+all profiles and conditional lanes without starting Spring or a database. It
+counts Java handler methods (aliases count once), prints policy totals, and
+fails with the unclassified mappings. The public allow-list is shared with the
+filter chain; public news/docs, sign-in/reset/2FA completion, contract, health
+and GET site appearance retain their current access. Filter-permitted BFF and
+internal RAG routes still enforce their session/shared-secret policies;
+readiness still requires its health key. Ownership denials retain their
+existing 403 or concealment 404 semantics.
+
+```powershell
+$env:JAVA_TOOL_OPTIONS='--enable-native-access=ALL-UNNAMED'
+mvn -q -f java-services/restful-api/pom.xml -Dtest=AuthorizationPolicyInventoryTest test
+```

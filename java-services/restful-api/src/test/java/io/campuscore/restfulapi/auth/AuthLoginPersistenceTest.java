@@ -1297,4 +1297,18 @@ class AuthLoginPersistenceTest {
             throw new IllegalStateException("SHA-256 is required", exception);
         }
     }
+
+    @Test
+    void accountPolicyRequiresAuthenticationForEveryPrivateMapping() throws Exception {
+        mvc.perform(get("/api/v1/auth/me")).andExpect(status().isUnauthorized());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/auth/profile")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isUnauthorized());
+        for (String action : java.util.List.of("change-password", "logout")) {
+            mvc.perform(post("/api/v1/auth/" + action)
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
 }

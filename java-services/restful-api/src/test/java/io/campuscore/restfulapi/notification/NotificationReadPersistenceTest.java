@@ -269,4 +269,11 @@ class NotificationReadPersistenceTest {
                         .claim("roles", List.of("STUDENT")), "STUDENT")
                 .authorities(new SimpleGrantedAuthority("ROLE_STUDENT"));
     }
+
+    @Test
+    void inboxReadPolicyRejectsAnonymous() throws Exception {
+        mvc.perform(get("/api/v1/notifications/my")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/notifications/my/unread-count")).andExpect(status().isUnauthorized());
+    }
+
 }

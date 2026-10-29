@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.web;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/me")
 @Tag(name = "Identity Claims", description = "Kiểm tra và truy xuất thông tin xác thực định danh (claims) đóng băng từ JWT")
+@PreAuthorize("isAuthenticated()")
 public class IdentityController {
 
     @GetMapping

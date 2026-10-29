@@ -108,6 +108,9 @@ public class AnnouncementReadController {
         @ApiResponse(responseCode = "403", description = "Thiếu thông tin phân quyền hợp lệ")
     })
     @GetMapping("my")
+    @io.campuscore.restfulapi.security.ServiceEnforced(
+            "requireIdentity/requireProfileClaims validate the caller; AnnouncementReadService.findForUser "
+                    + "restricts published announcements to the caller's roles and student/lecturer audience")
     public AnnouncementListResponse getMyAnnouncements(
             @AuthenticationPrincipal Jwt jwt,
             @Parameter(description = "Số trang phân trang (bắt đầu từ 1)") @RequestParam(defaultValue = "1") int page,

@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.auth.web;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import io.campuscore.restfulapi.auth.service.AuthLoginService;
 import io.campuscore.restfulapi.auth.service.AuthLoginService.LoginResult;
 import io.campuscore.restfulapi.auth.service.TwoFactorService;
@@ -54,6 +55,7 @@ public class TwoFactorController {
     }
 
     @GetMapping("me/two-factor")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Xem trạng thái xác thực hai yếu tố", description = "Kiểm tra tài khoản hiện tại đã bật xác thực hai yếu tố qua email hay chưa.")
     @ApiResponse(responseCode = "200", description = "Trả về trạng thái bật/tắt của tài khoản")
     public TwoFactorStatusResponse status(@AuthenticationPrincipal Jwt jwt) {
@@ -61,6 +63,7 @@ public class TwoFactorController {
     }
 
     @PostMapping("me/two-factor/enable")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Bật xác thực hai yếu tố", description = "Xác minh mật khẩu rồi gửi mã OTP 6 số về email của tài khoản; dùng challengeId trả về để gọi confirm.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Đã tạo thử thách xác thực và gửi mã qua email"),
@@ -76,6 +79,7 @@ public class TwoFactorController {
     }
 
     @PostMapping("me/two-factor/confirm")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Xác nhận bật xác thực hai yếu tố", description = "Nhập mã OTP 6 số đã nhận qua email để kích hoạt chính thức; sai mã quá 5 lần thử thách bị khoá.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Xác thực hai yếu tố đã được bật"),
@@ -96,6 +100,7 @@ public class TwoFactorController {
      * the emailed code confirms the unenrollment.
      */
     @PostMapping("me/two-factor/disable/challenge")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Bắt đầu tắt xác thực hai yếu tố", description = "Xác minh mật khẩu rồi gửi mã OTP tới email; dùng challengeId trả về để gọi confirm.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Đã gửi mã xác nhận tới email"),
@@ -111,6 +116,7 @@ public class TwoFactorController {
     }
 
     @PostMapping("me/two-factor/disable")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Xác nhận tắt xác thực hai yếu tố", description = "Xác minh mã OTP đã gửi qua email ở bước challenge rồi tắt xác thực hai yếu tố.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Xác thực hai yếu tố đã được tắt"),

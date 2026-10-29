@@ -39,6 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Profile("persistence")
 @RequestMapping("/api/v1")
 @Tag(name = "Academic Catalog", description = "Tra cứu danh mục học vụ: Khoa, Bộ môn, Học kỳ, Năm học, Học phần, Khung chương trình đào tạo và Phòng học")
+@PreAuthorize("isAuthenticated()")
 public class AcademicReadController {
 
     private final AcademicReadService academic;
