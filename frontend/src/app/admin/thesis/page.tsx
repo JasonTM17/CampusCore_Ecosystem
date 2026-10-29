@@ -94,6 +94,9 @@ export default function AdminThesisPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+  // Load failures get their own state so the retry control refetches rounds
+  // plus the expanded detail instead of shadowing action errors.
+  const [loadError, setLoadError] = useState('');
   const [success, setSuccess] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [expandedRoundId, setExpandedRoundId] = useState<string | null>(null);
@@ -147,12 +150,12 @@ export default function AdminThesisPage() {
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
-    setError('');
+    setLoadError('');
     try {
       const data = await thesisApi.listRounds();
       setRounds(data);
     } catch {
-      setError(messages.thesis.loadFailed);
+      setLoadError(messages.thesis.loadFailed);
     } finally {
       setIsLoading(false);
     }
@@ -203,10 +206,16 @@ export default function AdminThesisPage() {
         await loadLecturers();
       }
     } catch {
-      if (isCurrent()) setError(messages.thesis.loadFailed);
+      if (isCurrent()) setLoadError(messages.thesis.loadFailed);
     } finally {
       if (isCurrent()) setDetailLoading(false);
     }
+  };
+
+  const retryLoad = () => {
+    void loadData();
+    const roundId = expandedRoundRef.current;
+    if (roundId) void loadRoundDetail(roundId);
   };
 
   useEffect(() => () => {
@@ -669,6 +678,21 @@ export default function AdminThesisPage() {
         </Button>
       }
     >
+      {loadError ? (
+        <div
+          role="alert"
+          className="mb-6 flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+        >
+          <span>{loadError}</span>
+          <button
+            type="button"
+            onClick={retryLoad}
+            className="shrink-0 font-semibold underline underline-offset-4 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {messages.common.actions.retry}
+          </button>
+        </div>
+      ) : null}
       {error ? (
         <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           {error}

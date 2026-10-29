@@ -93,7 +93,7 @@ const CATEGORY_TABS: CategoryTab[] = [
 
 export function HomeNewsSection() {
   const { user } = useAuth();
-  const { locale } = useI18n();
+  const { locale, messages } = useI18n();
   const { categories } = useArticleTaxonomy();
   const [selectedNotice, setSelectedNotice] = useState<AnnouncementRecord | null>(null);
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('ALL');
@@ -104,7 +104,7 @@ export function HomeNewsSection() {
   // TanStack Query caches the campus feed across mounts and dedupes the
   // signed-in/anonymous variants; the old effect refetched 18 rows every time
   // the identity flipped with no way to cancel the in-flight request.
-  const { data: pagedItems, isLoading, isError } = useApiQuery<
+  const { data: pagedItems, isLoading, isError, refetch } = useApiQuery<
     { data?: AnnouncementRecord[] }
   >(
     ['home-news', user ? 'mine' : 'public'],
@@ -219,9 +219,16 @@ export function HomeNewsSection() {
             </h3>
             <p className="mt-1 text-sm text-muted-foreground max-w-md mx-auto">
               {isVi
-                ? 'Máy chủ thông báo đang không phản hồi. Vui lòng thử tải lại trang sau ít phút.'
-                : 'The announcements service is not responding right now. Please refresh the page in a few minutes.'}
+                ? 'Máy chủ thông báo đang không phản hồi. Vui lòng thử lại.'
+                : 'The announcements service is not responding right now. Please retry.'}
             </p>
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="mt-4 inline-flex min-h-10 items-center justify-center rounded-lg border border-border bg-card px-4 text-sm font-semibold text-foreground transition hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {messages.common.actions.retry}
+            </button>
           </div>
         )}
 

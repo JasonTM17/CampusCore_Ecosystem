@@ -81,6 +81,7 @@ export const contentEn = {
     publishedOn: 'Published {date}',
     notFoundTitle: 'Story unavailable',
     notFoundBody: 'This story is not published or no longer exists.',
+    loadErrorTitle: 'News feed unavailable',
     loadError: 'Could not load the news feed. Please retry.',
     priority: {
       LOW: 'Low',
@@ -103,6 +104,7 @@ export const contentEn = {
     supersededNote: 'You are viewing an older revision. The current published revision is {current}.',
     notFoundTitle: 'Document unavailable',
     notFoundBody: 'This document is not published or no longer exists.',
+    loadErrorTitle: 'Documents unavailable',
     loadError: 'Could not load documents. Please retry.',
     bodyLabel: 'Document content',
     allCategories: 'All categories',
@@ -208,6 +210,7 @@ export const contentVi: Widen<typeof contentEn> = {
     publishedOn: 'Xuất bản {date}',
     notFoundTitle: 'Bài viết không khả dụng',
     notFoundBody: 'Bài viết này chưa xuất bản hoặc không còn tồn tại.',
+    loadErrorTitle: 'Bảng tin chưa khả dụng',
     loadError: 'Không tải được bảng tin. Vui lòng thử lại.',
     priority: {
       LOW: 'Thấp',
@@ -230,6 +233,7 @@ export const contentVi: Widen<typeof contentEn> = {
     supersededNote: 'Bạn đang xem phiên bản cũ. Phiên bản đã xuất bản hiện tại là {current}.',
     notFoundTitle: 'Tài liệu không khả dụng',
     notFoundBody: 'Tài liệu này chưa xuất bản hoặc không còn tồn tại.',
+    loadErrorTitle: 'Tài liệu chưa khả dụng',
     loadError: 'Không tải được tài liệu. Vui lòng thử lại.',
     bodyLabel: 'Nội dung tài liệu',
     allCategories: 'Tất cả chuyên mục',

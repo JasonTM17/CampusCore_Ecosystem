@@ -11,7 +11,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
-import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
+import { EmptyState, ErrorState, ForbiddenState, LoadingState } from '@/components/ui/state-block';
+import { LinkButton } from '@/components/ui/link-button';
+import { campusErrorKind } from '@/lib/campus-error';
 import { statusToneClass, type StatusTone } from '@/components/ui/status';
 import { libraryMessages } from '@/i18n/library-messages';
 import { useI18n } from '@/i18n';
@@ -45,7 +47,7 @@ function friendlyError(copy: Copy, error: unknown): string {
  */
 export function LibraryDeskPage() {
   const { isLoading: authLoading } = useRequireAuth();
-  const { locale, formatDateTime } = useI18n();
+  const { locale, formatDateTime, messages } = useI18n();
   const copy = libraryMessages[locale];
   const [loans, setLoans] = useState<LoanRequest[]>([]);
   const [filter, setFilter] = useState<LoanStatus | ''>('');
@@ -53,14 +55,23 @@ export function LibraryDeskPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState('');
+  // The circulation desk is staff-only; a denied queue read gets its own
+  // state instead of a retryable error.
+  const [denied, setDenied] = useState(false);
 
   const load = useCallback(async (status?: LoanStatus | '') => {
     setIsLoading(true);
     setError('');
+    setDenied(false);
     try {
       setLoans(await libraryApi.queue(status || undefined));
     } catch (cause) {
-      setError(friendlyError(copy, cause));
+      const kind = campusErrorKind(cause);
+      if (kind === 'forbidden' || kind === 'unauthorized') {
+        setDenied(true);
+      } else {
+        setError(friendlyError(copy, cause));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -101,7 +112,18 @@ export function LibraryDeskPage() {
         {copy.simulatedBanner}
       </p>
 
-      {error ? <ErrorState title={copy.failed} description={error} /> : null}
+      {error ? <ErrorState title={copy.failed} description={error} onRetry={() => void load(filter)} /> : null}
+      {denied ? (
+        <ForbiddenState
+          title={copy.staffRequired}
+          description=""
+          action={(
+            <LinkButton href="/dashboard" variant="outline">
+              {messages.common.actions.openDashboard}
+            </LinkButton>
+          )}
+        />
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         {FILTERS.map((value) => (
@@ -125,9 +147,9 @@ export function LibraryDeskPage() {
 
       {isLoading ? <LoadingState /> : null}
 
-      {!isLoading && loans.length === 0 ? <EmptyState title={copy.queueEmpty} description="" /> : null}
+      {!isLoading && !error && !denied && loans.length === 0 ? <EmptyState title={copy.queueEmpty} description="" /> : null}
 
-      {!isLoading && loans.length > 0 ? (
+      {!isLoading && !error && !denied && loans.length > 0 ? (
         <section className="space-y-3" data-testid="library-queue">
           {loans.map((loan) => (
             <article key={loan.id} className="rounded-lg border p-4"

@@ -128,7 +128,7 @@ export function StudentLearningPage() {
   useEffect(() => { void loadSection(sectionId); }, [sectionId, loadSection]);
 
   if (authLoading || isLoading) return <LoadingState label={copy.loading} />;
-  if (error) return <ErrorState title={copy.failed} description={error} />;
+  if (error) return <ErrorState title={copy.failed} description={error} onRetry={() => void loadSections()} />;
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
@@ -499,7 +499,7 @@ export function LecturerLearningPage() {
   useEffect(() => { void loadSection(sectionId); }, [sectionId, loadSection]);
 
   if (authLoading || isLoading) return <LoadingState label={copy.loading} />;
-  if (error) return <ErrorState title={copy.failed} description={error} />;
+  if (error) return <ErrorState title={copy.failed} description={error} onRetry={() => void loadSections()} />;
 
   const lifecycle = (assignment: LearningAssignment) => (
     <div className="flex flex-wrap gap-1">
