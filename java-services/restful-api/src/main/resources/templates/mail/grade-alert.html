@@ -19,7 +19,7 @@
                 Kính gửi <span th:text="${studentName}">Nguyễn Tiến Sơn</span> <span aria-hidden="true">·</span> MSSV <span th:text="${studentId}">22110001</span>,
               </p>
               <p class="prose">
-                Phòng Đào tạo đã cập nhật kết quả của bạn cho <strong th:text="${semester}">Học kỳ 2 Năm học 2025-2026</strong>. Vui lòng kiểm tra các thông tin dưới đây và gửi yêu cầu phúc khảo trong thời hạn quy định nếu cần.
+                Phòng Đào tạo đã cập nhật kết quả của bạn cho <strong th:text="${semester != null ? semester : 'Chưa được cung cấp'}">Học kỳ 2 Năm học 2025-2026</strong>. Vui lòng kiểm tra các thông tin dưới đây và gửi yêu cầu phúc khảo trong thời hạn quy định nếu cần.
               </p>
 
               <table role="presentation" class="meta-panel" width="100%" cellpadding="0" cellspacing="0" border="0">
@@ -30,7 +30,7 @@
                   </td>
                   <td class="meta-cell">
                     <p class="meta-label">Học kỳ</p>
-                    <p class="meta-value" th:text="${semester}">Học kỳ 2 Năm học 2025-2026</p>
+                    <p class="meta-value" th:text="${semester != null ? semester : 'Chưa được cung cấp'}">Học kỳ 2 Năm học 2025-2026</p>
                   </td>
                 </tr>
               </table>
@@ -42,14 +42,14 @@
                     <p class="metric-value" th:text="${#numbers.formatDecimal(gpa4, 1, 2)}">3.85</p>
                     <p class="metric-note">Thang điểm 4</p>
                     <p class="metric-note">Thang 10: <strong th:text="${#numbers.formatDecimal(gpa10, 1, 2)}">9.20</strong></p>
-                    <p class="metric-note" th:text="${academicStanding != null ? academicStanding : 'Đang cập nhật'}">XUẤT SẮC</p>
+                    <p class="metric-note" th:text="${academicStanding != null ? academicStanding : 'Chưa được cung cấp'}">XUẤT SẮC</p>
                   </td>
                   <td class="metric-gap">&nbsp;</td>
                   <td class="metric-cell metric-cell-positive">
                     <p class="metric-label">Điểm rèn luyện</p>
                     <p class="metric-value metric-value-positive" th:text="${conductScore}">96</p>
                     <p class="metric-note">Thang điểm 100</p>
-                    <p class="metric-note" th:text="${conductRank != null ? conductRank : 'Đang cập nhật'}">XUẤT SẮC</p>
+                    <p class="metric-note" th:text="${conductRank != null ? conductRank : 'Chưa được cung cấp'}">XUẤT SẮC</p>
                   </td>
                 </tr>
               </table>
