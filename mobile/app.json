@@ -10,7 +10,10 @@
       "bundleIdentifier": "io.campuscore.mobile",
       "associatedDomains": [
         "applinks:www.campusute.io.vn"
-      ]
+      ],
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "CampusUTE uses your location once when you check in to verify class attendance."
+      }
     },
     "android": {
       "package": "io.campuscore.mobile",
@@ -56,7 +59,20 @@
       "expo-router",
       "expo-secure-store",
       "expo-web-browser",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "CampusUTE sử dụng vị trí một lần khi bạn điểm danh để xác minh bạn có mặt tại lớp. CampusUTE uses your location once when you check in to verify class attendance.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "motionUsagePermission": false,
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false,
+          "isAndroidMotionActivityEnabled": false
+        }
+      ]
     ]
   }
 }
