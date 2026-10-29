@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { ListPanel } from '../../components/perf/performance-list';
 
 import { Button, UiText } from '../../components/Ui';
 import { Sheet } from '../../components/ui/primitives';
@@ -30,8 +31,9 @@ export function ThesisRoundPicker({ rounds, current, onSelect, copy }: ThesisRou
       <ThesisStatusBadge status={current.status} copy={copy} />
       {rounds.length > 1 ? <Button label={copy.roundChange} variant="text" onPress={() => setOpen(true)} /> : null}
       <Sheet visible={open} onClose={() => setOpen(false)} title={copy.roundPickTitle}>
-        <ScrollView>
-          {rounds.map((round) => (
+        <ListPanel
+      list={{ data: rounds, keyExtractor: (item, index) => String(item.id),
+        renderItem: ({ item: round }) => (
             <Button
               key={round.id}
               label={round.name}
@@ -40,8 +42,12 @@ export function ThesisRoundPicker({ rounds, current, onSelect, copy }: ThesisRou
               onPress={() => { onSelect(round.id); setOpen(false); }}
               style={styles.option}
             />
-          ))}
-        </ScrollView>
+          ),
+        footer: <>{null}
+        </>,
+      }}
+    >
+          {null}</ListPanel>
       </Sheet>
     </View>
   );

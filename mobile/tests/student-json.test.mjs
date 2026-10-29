@@ -53,9 +53,8 @@ test('student screens key enrollment lists by semester and guard profile saves',
   const screens = readSources(mobileRoot,'src/screens/student',/^(StudentDashboard|Schedule|Courses|Grades|Attendance|Registration|Notifications|Profile)Screen\.tsx$|^shared\//);
 
   const screenSlice = (name) => {
-    const start = screens.indexOf(`export function ${name}`);
-    const end = screens.indexOf('export function', start + 1);
-    return end === -1 ? screens.slice(start) : screens.slice(start, end);
+    // Read the named module so memoized exports retain the same semantic checks.
+    return fs.readFileSync(path.join(mobileRoot, 'src/screens/student', `${name}.tsx`), 'utf8');
   };
   const dashboard = screenSlice('StudentDashboardScreen');
   const schedule = screenSlice('ScheduleScreen');

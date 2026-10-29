@@ -77,7 +77,7 @@ function FilterBar({ copy, children, onApply, onClear }: FilterBarProps) {
   );
 }
 
-interface PagedProps<T> {
+interface PagedProps<T extends { id?: string }> {
   title: string;
   copy: LanesCopy;
   filters: ReactNode;
@@ -91,20 +91,25 @@ interface PagedProps<T> {
 }
 
 /** Filtered, server-paged read-only list shared by the oversight lanes. */
-function PagedList<T>({ title, copy, filters, onApply, onClear, page, onPage, request, renderItem, footer }: PagedProps<T>) {
+function PagedList<T extends { id?: string }>({ title, copy, filters, onApply, onClear, page, onPage, request, renderItem, footer }: PagedProps<T>) {
   const data = request.data;
   return (
-    <LaneShell title={title} loading={request.loading && !data} error={request.error} onRetry={() => void request.reload()}>
-      <View>
-        <FilterBar copy={copy} onApply={onApply} onClear={onClear}>{filters}</FilterBar>
-        {data && data.items.length === 0 ? <StatePanel kind="empty" title={copy.noMatch} /> : null}
-        <View style={laneStyles.stack}>{(data?.items ?? []).map(renderItem)}</View>
+    <LaneShell title={title} loading={request.loading && !data} error={request.error} onRetry={() => void request.reload()}
+      list={{ data: (data?.items ?? []), keyExtractor: (item, index) => String(item.id ?? index),
+        renderItem: ({ item, index }) => <>{renderItem(item, index)}</>,
+        footer: <><View><View style={laneStyles.stack}></View>
         {data ? (
           <Pager copy={copy} page={page} totalPages={data.meta.totalPages} total={data.meta.total} onPage={onPage} disabled={request.loading} />
         ) : null}
         {footer}
       </View>
-    </LaneShell>
+    </>,
+      }}
+    >
+      <View>
+        <FilterBar copy={copy} onApply={onApply} onClear={onClear}>{filters}</FilterBar>
+        {data && data.items.length === 0 ? <StatePanel kind="empty" title={copy.noMatch} /> : null}
+        <View style={laneStyles.stack}></View></View></LaneShell>
   );
 }
 
@@ -278,12 +283,9 @@ export function AdminCreditLimitsScreen() {
   });
 
   return (
-    <LaneShell title={copy.titles['admin.creditLimits']} loading={request.loading} error={request.error} onRetry={() => void request.reload()} banner={runner.banner}>
-      <View>
-        <StatusFilter copy={copy} statuses={['PENDING', 'APPROVED', 'REJECTED']} value={status} onChange={setStatus} />
-        {items.length === 0 ? <StatePanel kind="empty" title={copy.empty} /> : null}
-        <View style={laneStyles.stack}>
-          {items.map((row) => (
+    <LaneShell title={copy.titles['admin.creditLimits']} loading={request.loading} error={request.error} onRetry={() => void request.reload()} banner={runner.banner}
+      list={{ data: items, keyExtractor: (item, index) => String(item.id),
+        renderItem: ({ item: row }) => (
             <QueueCard
               key={row.id}
               title={row.studentName ?? row.studentCode ?? row.id}
@@ -303,11 +305,19 @@ export function AdminCreditLimitsScreen() {
                 { key: 'reject', label: copy.reject, variant: 'destructive', onPress: () => runner.request(review(row, 'REJECTED')) },
               ] : []}
             />
-          ))}
+          ),
+        footer: <><View><View style={laneStyles.stack}>
         </View>
       </View>
       <ConfirmSheet runner={runner} copy={copy} />
-    </LaneShell>
+    </>,
+      }}
+    >
+      <View>
+        <StatusFilter copy={copy} statuses={['PENDING', 'APPROVED', 'REJECTED']} value={status} onChange={setStatus} />
+        {items.length === 0 ? <StatePanel kind="empty" title={copy.empty} /> : null}
+        <View style={laneStyles.stack}>
+          </View></View></LaneShell>
   );
 }
 
@@ -344,13 +354,9 @@ function EventRoster({ event, copy, onBack }: { event: StaffEvent; copy: LanesCo
   };
 
   return (
-    <LaneShell title={event.title ?? copy.rosterTitle} loading={roster.loading} error={roster.error} onRetry={() => void roster.reload()} banner={runner.banner}>
-      <View>
-        <Button label={copy.eventBack} variant="secondary" onPress={onBack} />
-        <SectionHeading title={copy.rosterTitle} />
-        {rows.length === 0 ? <StatePanel kind="empty" title={copy.rosterEmpty} /> : null}
-        <View style={laneStyles.stack}>
-          {rows.map((row, index) => {
+    <LaneShell title={event.title ?? copy.rosterTitle} loading={roster.loading} error={roster.error} onRetry={() => void roster.reload()} banner={runner.banner}
+      list={{ data: rows, keyExtractor: (item, index) => String(item.registrationId ?? item.studentId ?? item.email ?? index),
+        renderItem: ({ item: row, index: index }) => {
             const attended = mark(row, 'ATTENDED');
             const absent = mark(row, 'ABSENT');
             return (
@@ -366,11 +372,20 @@ function EventRoster({ event, copy, onBack }: { event: StaffEvent; copy: LanesCo
                 ] : []}
               />
             );
-          })}
+          },
+        footer: <><View><View style={laneStyles.stack}>
         </View>
       </View>
       <ConfirmSheet runner={runner} copy={copy} />
-    </LaneShell>
+    </>,
+      }}
+    >
+      <View>
+        <Button label={copy.eventBack} variant="secondary" onPress={onBack} />
+        <SectionHeading title={copy.rosterTitle} />
+        {rows.length === 0 ? <StatePanel kind="empty" title={copy.rosterEmpty} /> : null}
+        <View style={laneStyles.stack}>
+          </View></View></LaneShell>
   );
 }
 
@@ -393,11 +408,9 @@ export function AdminEventsScreen() {
   });
 
   return (
-    <LaneShell title={copy.titles['admin.events']} loading={request.loading} error={request.error} onRetry={() => void request.reload()} banner={runner.banner}>
-      <View>
-        {items.length === 0 ? <StatePanel kind="empty" title={copy.empty} /> : null}
-        <View style={laneStyles.stack}>
-          {items.map((event) => (
+    <LaneShell title={copy.titles['admin.events']} loading={request.loading} error={request.error} onRetry={() => void request.reload()} banner={runner.banner}
+      list={{ data: items, keyExtractor: (item, index) => String(item.id),
+        renderItem: ({ item: event }) => (
             <QueueCard
               key={event.id}
               title={event.title ?? event.id}
@@ -419,12 +432,19 @@ export function AdminEventsScreen() {
                 })),
               ]}
             />
-          ))}
+          ),
+        footer: <><View><View style={laneStyles.stack}>
         </View>
         <HandoffLink label={copy.openOnWeb} path="/admin/events" />
       </View>
       <ConfirmSheet runner={runner} copy={copy} />
-    </LaneShell>
+    </>,
+      }}
+    >
+      <View>
+        {items.length === 0 ? <StatePanel kind="empty" title={copy.empty} /> : null}
+        <View style={laneStyles.stack}>
+          </View></View></LaneShell>
   );
 }
 
@@ -492,6 +512,37 @@ export function AdminNotificationsScreen() {
       error={history.error}
       onRetry={() => void history.reload()}
       banner={state === 'sent' ? { tone: 'success', message: copy.notifSent } : state === 'unknown' ? { tone: 'warning', message: copy.notifUnknown } : null}
+
+      list={{ data: rows, keyExtractor: (item, index) => String(item.id ?? index),
+        renderItem: ({ item: row, index: index }) => (
+            <QueueCard
+              key={row.id ?? index}
+              title={row.title ?? ''}
+              status={row.type}
+              copy={copy}
+              lines={[row.type ? copy.notifTypes[row.type] ?? row.type : null, row.createdAt ? formatDateTime(row.createdAt) : null]}
+            />
+          ),
+        footer: <><View><View style={laneStyles.stack}>
+        </View>
+        {meta ? <Pager copy={copy} page={page} totalPages={meta.totalPages} total={meta.total} onPage={setPage} disabled={history.loading} /> : null}
+      </View>
+
+      {previewing ? (
+        <Sheet visible onClose={() => { if (!busy) setPreviewing(false); }} title={copy.notifPreviewTitle}>
+          <UiText variant="label">{draft.title.trim()}</UiText>
+          <UiText variant="bodySmall" tone="muted">{copy.notifTypes[draft.type] ?? draft.type}</UiText>
+          <UiText variant="bodyMedium">{draft.message.trim()}</UiText>
+          <UiText variant="bodySmall" tone="muted">{fillCopy(copy.notifSendBody, { to: draft.userId.trim() })}</UiText>
+          {sendError ? <UiText accessibilityRole="alert" variant="bodySmall" tone="error">{sendError}</UiText> : null}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+            <Button label={copy.notifBack} variant="secondary" onPress={() => setPreviewing(false)} disabled={busy} />
+            <Button label={copy.notifSend} loading={busy} onPress={() => void send()} />
+          </View>
+        </Sheet>
+      ) : null}
+    </>,
+      }}
     >
       <View>
         <FormField
@@ -531,32 +582,6 @@ export function AdminNotificationsScreen() {
         <SectionHeading title={copy.notifHistory} />
         {rows.length === 0 ? <StatePanel kind="empty" title={copy.empty} /> : null}
         <View style={laneStyles.stack}>
-          {rows.map((row, index) => (
-            <QueueCard
-              key={row.id ?? index}
-              title={row.title ?? ''}
-              status={row.type}
-              copy={copy}
-              lines={[row.type ? copy.notifTypes[row.type] ?? row.type : null, row.createdAt ? formatDateTime(row.createdAt) : null]}
-            />
-          ))}
-        </View>
-        {meta ? <Pager copy={copy} page={page} totalPages={meta.totalPages} total={meta.total} onPage={setPage} disabled={history.loading} /> : null}
-      </View>
-
-      {previewing ? (
-        <Sheet visible onClose={() => { if (!busy) setPreviewing(false); }} title={copy.notifPreviewTitle}>
-          <UiText variant="label">{draft.title.trim()}</UiText>
-          <UiText variant="bodySmall" tone="muted">{copy.notifTypes[draft.type] ?? draft.type}</UiText>
-          <UiText variant="bodyMedium">{draft.message.trim()}</UiText>
-          <UiText variant="bodySmall" tone="muted">{fillCopy(copy.notifSendBody, { to: draft.userId.trim() })}</UiText>
-          {sendError ? <UiText accessibilityRole="alert" variant="bodySmall" tone="error">{sendError}</UiText> : null}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
-            <Button label={copy.notifBack} variant="secondary" onPress={() => setPreviewing(false)} disabled={busy} />
-            <Button label={copy.notifSend} loading={busy} onPress={() => void send()} />
-          </View>
-        </Sheet>
-      ) : null}
-    </LaneShell>
+          </View></View></LaneShell>
   );
 }

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import {
@@ -23,7 +24,7 @@ import { upcomingClasses } from './shared/preview';
 import { tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 
-export function StudentDashboardScreen({ navigation }: MobileScreenProps) {
+export const StudentDashboardScreen = memo(function StudentDashboardScreen({ navigation }: MobileScreenProps) {
   const { window } = useTheme();
   const largeText = window.fontScale >= 1.3;
   const { locale } = useLocale();
@@ -126,7 +127,7 @@ export function StudentDashboardScreen({ navigation }: MobileScreenProps) {
       {dashboardClasses.length === 0 ? <StatePanel kind="empty" title={c.emptyTitle} description={c.emptyDetail} /> : null}
     </ScreenShell>
   );
-}
+});
 
 const styles = StyleSheet.create({
   stats: { marginTop: tokens.spacing.sm + tokens.spacing.xs },

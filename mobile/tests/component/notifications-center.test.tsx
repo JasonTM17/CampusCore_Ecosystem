@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Dimensions } from 'react-native';
 import type { ReactElement } from 'react';
 
@@ -39,7 +39,7 @@ jest.mock('../../src/screens/content/content-api', () => ({
 jest.mock('../../src/session/SessionContext', () => ({ useSession: () => mockSession.value }));
 jest.mock('../../src/hooks/useScreenQuery', () => ({
   useScreenQuery: (key: string) => ({
-    data: key === 'content.notifications.unread' ? 1 : mockQuery.value.data,
+    data: key === 'content.notifications.unread-count' ? 1 : mockQuery.value.data,
     error: mockQuery.value.error,
     warning: mockQuery.value.warning,
     errorStatus: mockQuery.value.errorStatus,
@@ -99,6 +99,30 @@ const vi = {
 };
 
 describe('notifications centre opens only allowlisted routes', () => {
+  test('optimistic mark-read rolls back the visible row after a rejected write', async () => {
+    let reject!: (error: unknown) => void;
+    jest.mocked(contentApi.markNotificationRead).mockImplementationOnce(() => new Promise((_yes, no) => { reject = no; }));
+    showRows([row('rollback-read', 'Rollback read', null)]);
+    await renderThemed(<NotificationsScreen {...props} />);
+    expect(rowButton('Rollback read').props.accessibilityLabel).toContain(recordsMessages.vi.unread);
+    await fireEvent.press(rowButton('Rollback read'));
+    expect(rowButton('Rollback read').props.accessibilityLabel).not.toContain(recordsMessages.vi.unread);
+    await act(async () => reject(new Error('write rejected')));
+    expect(rowButton('Rollback read').props.accessibilityLabel).toContain(recordsMessages.vi.unread);
+  });
+
+  test('optimistic delete restores the row on rejection', async () => {
+    let reject!: (error: unknown) => void;
+    jest.mocked(contentApi.deleteNotification).mockImplementationOnce(() => new Promise((_yes, no) => { reject = no; }));
+    showRows([row('rollback-delete', 'Rollback delete', null)]);
+    await renderThemed(<NotificationsScreen {...props} />);
+    await fireEvent.press(screen.getByRole('button', { name: `${recordsMessages.vi.deleteNotification}: Rollback delete` }));
+    await fireEvent.press(screen.getByRole('button', { name: new RegExp(`^${recordsMessages.vi.deleteNotification}$`) }));
+    expect(screen.queryByText('Rollback delete')).toBeNull();
+    await act(async () => reject(new Error('write rejected')));
+    expect(screen.getByText('Rollback delete')).toBeOnTheScreen();
+  });
+
   test('a producer link opens its mapped screen and marks the row read', async () => {
     setWidth(360);
     showRows([row('n1', 'Điểm đã công bố', '/dashboard/transcript')]);

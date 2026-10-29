@@ -164,39 +164,9 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
       error={queryError}
       warning={preview ? null : sectionsQuery.warning ?? gradesQuery.warning}
       onRetry={reload}
-    >
-      {sections.length === 0 ? (
-        <StatePanel kind="empty" title={copy.emptySchedule} />
-      ) : (
-        <View>
-          <SectionPicker sections={sections} value={sectionId} onChange={setPicked} />
-          <Card style={styles.gradingHero}>
-            <View style={styles.courseHeader}>
-              <View style={styles.topicCopy}>
-                <UiText variant="bodySmall" tone="muted">{copy.pendingScores}</UiText>
-                <UiText variant="display" tone="primary">{Math.max(enrolled - graded, 0)}</UiText>
-              </View>
-              <StatusPill
-                label={status === 'PUBLISHED' ? copy.published : copy.draft}
-                tone={status === 'PUBLISHED' ? 'success' : 'warning'}
-                icon={status === 'PUBLISHED' ? 'check-decagram' : 'file-document-edit-outline'}
-              />
-            </View>
-            <ProgressBar label={copy.gradedProgress} value={gradedPercent(graded, enrolled)} />
-          </Card>
-          {rows.length === 0 ? (
-            <StatePanel kind="empty" title={copy.rosterEmpty} />
-          ) : (
-            <View>
-              <SearchBar
-                value={search}
-                onChangeText={(value) => { setSearch(value); setPages(1); }}
-                placeholder={copy.searchStudents}
-                accessibilityLabel={copy.searchStudents}
-                style={styles.searchBar}
-              />
-              {visible.length === 0 ? <StatePanel kind="empty" title={copy.noMatch} /> : null}
-              {shown.map((row) => (
+
+      list={{ data: shown, keyExtractor: (item, index) => String(item.enrollmentId),
+        renderItem: ({ item: row }) => (
                 <GradeRowCard
                   key={row.enrollmentId}
                   row={row}
@@ -206,7 +176,8 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
                   onEdit={edit}
                   disabled={busy !== null}
                 />
-              ))}
+              ),
+        footer: <>{sections.length === 0 ? null : (<View>{rows.length === 0 ? null : (<View>
               {hasMore ? <Button label={copy.loadMore} variant="secondary" onPress={() => setPages((current) => current + 1)} /> : null}
 
               <View style={styles.saveBar}>
@@ -240,10 +211,8 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
                 <UiText variant="bodySmall" tone="muted">{copy.importPrintWeb}</UiText>
                 <HandoffButton label={copy.openOnWeb} path={`/dashboard/lecturer/grades/${encodeURIComponent(sectionId)}`} />
               </View>
-            </View>
-          )}
-        </View>
-      )}
+            </View>)}
+        </View>)}
       <Dialog
         visible={confirming}
         title={copy.publishTitle}
@@ -253,6 +222,38 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
         onConfirm={() => void publish()}
         onCancel={() => setConfirming(false)}
       />
-    </OpsShell>
+    </>,
+      }}
+    >
+      {sections.length === 0 ? (
+        <StatePanel kind="empty" title={copy.emptySchedule} />
+      ) : (<View>
+          <SectionPicker sections={sections} value={sectionId} onChange={setPicked} />
+          <Card style={styles.gradingHero}>
+            <View style={styles.courseHeader}>
+              <View style={styles.topicCopy}>
+                <UiText variant="bodySmall" tone="muted">{copy.pendingScores}</UiText>
+                <UiText variant="display" tone="primary">{Math.max(enrolled - graded, 0)}</UiText>
+              </View>
+              <StatusPill
+                label={status === 'PUBLISHED' ? copy.published : copy.draft}
+                tone={status === 'PUBLISHED' ? 'success' : 'warning'}
+                icon={status === 'PUBLISHED' ? 'check-decagram' : 'file-document-edit-outline'}
+              />
+            </View>
+            <ProgressBar label={copy.gradedProgress} value={gradedPercent(graded, enrolled)} />
+          </Card>
+          {rows.length === 0 ? (
+            <StatePanel kind="empty" title={copy.rosterEmpty} />
+          ) : (<View>
+              <SearchBar
+                value={search}
+                onChangeText={(value) => { setSearch(value); setPages(1); }}
+                placeholder={copy.searchStudents}
+                accessibilityLabel={copy.searchStudents}
+                style={styles.searchBar}
+              />
+              {visible.length === 0 ? <StatePanel kind="empty" title={copy.noMatch} /> : null}
+              </View>)}</View>)}</OpsShell>
   );
 }

@@ -3,11 +3,13 @@ import { StyleSheet, View } from 'react-native';
 
 import { Card, Divider, IconChip, MetricCard, ProgressBar, ScreenSpacer, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { ChartSummary } from '../../components/ui/chart-summary';
+import { groupedRows, type GroupedRow } from '../../components/perf/grouped-rows';
+import { GroupCard } from '../../components/perf/group-card';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi } from './academic-api';
-import { cumulativeTrend, isPublishedGrade, parseTranscript, type TranscriptTerm } from './gpa';
+import { cumulativeTrend, isPublishedGrade, parseTranscript, type TranscriptRecord, type TranscriptTerm } from './gpa';
 import {
   AcademicShell,
   GradeScale,
@@ -19,12 +21,13 @@ import {
   useGpaFormat,
 } from './academic-ui';
 
-function TermCard({ term }: { term: TranscriptTerm }) {
+function TermCard({ entry }: { entry: GroupedRow<TranscriptTerm, TranscriptRecord> }) {
+  const term = entry.group;
   const { copy } = useAcademicCopy();
   const { formatNumber } = useLocale();
   const gpa = useGpaFormat();
-  return (
-    <Card style={academicStyles.card}>
+  if (entry.kind === 'header') return (
+    <GroupCard edge={entry.empty ? 'single' : 'start'} style={academicStyles.card}>
       <View style={styles.termHeader}>
         <IconChip icon="calendar-month-outline" />
         <UiText accessibilityRole="header" variant="headlineSmall" style={styles.termName}>{term.name}</UiText>
@@ -37,12 +40,15 @@ function TermCard({ term }: { term: TranscriptTerm }) {
         value={term.creditsAttempted > 0 ? (term.creditsEarned / term.creditsAttempted) * 100 : 0}
         tone="success"
       />
-      {term.records.map((record) => {
+    </GroupCard>
+  );
+  const record = entry.item;
         const published = isPublishedGrade(record);
         const result = published && record.finalGrade != null
           ? `${formatNumber(record.finalGrade, { maximumFractionDigits: 1 })} · ${record.letterGrade ?? '—'}`
           : copy.gradeStatus[record.gradeStatus ?? 'NOT_GRADED'] ?? copy.noGrade;
         return (
+          <GroupCard edge={entry.last ? 'end' : 'middle'} style={academicStyles.card}>
           <View key={record.id} accessible accessibilityLabel={`${record.courseCode} ${record.courseName}, ${result}`}>
             <Divider />
             <View style={academicStyles.row}>
@@ -59,10 +65,8 @@ function TermCard({ term }: { term: TranscriptTerm }) {
               ) : <StatusPill label={result} tone="warning" />}
             </View>
           </View>
+          </GroupCard>
         );
-      })}
-    </Card>
-  );
 }
 
 /** Cumulative transcript only; current-term grades live on the grades screen. */
@@ -86,11 +90,21 @@ export function TranscriptScreen(_props: MobileScreenProps) {
       error={preview ? null : malformed ? copy.generic : query.error}
       warning={preview ? null : query.warning}
       onRetry={() => void query.reload()}
+
+      list={{ data: groupedRows(visibleTerms, (entry) => entry.semesterId, (entry) => entry.records, (record) => record.id), keyExtractor: (entry) => entry.key,
+        renderItem: ({ item: entry }) => <TermCard entry={entry} />,
+        footer: <>{!model || model.terms.length === 0 ? null : (<View>
+          <SectionHeading title={copy.scaleTitle} />
+          <GradeScale />
+          <ScreenSpacer />
+          <UiText variant="bodySmall" tone="muted">{copy.printOnWeb}</UiText>
+        </View>)}
+    </>,
+      }}
     >
       {!model || model.terms.length === 0 ? (
         <StatePanel kind="empty" title={copy.emptyTranscript} />
-      ) : (
-        <View>
+      ) : (<View>
           <View style={academicStyles.metrics}>
             <MetricCard icon="chart-donut" label={copy.cumulativeGpa} value={gpa(model.cumulativeGpa)} style={academicStyles.metric} />
             <MetricCard icon="book-check-outline" label={copy.creditsEarned} value={formatNumber(model.totalCreditsEarned)} style={academicStyles.metric} />
@@ -101,14 +115,7 @@ export function TranscriptScreen(_props: MobileScreenProps) {
           <ChartSummary title={copy.gpaTrend} series={trend} />
           <ScreenSpacer />
           <TermField options={model.terms.map((entry) => ({ value: entry.semesterId, label: entry.name }))} value={term} onChange={setTerm} />
-          {visibleTerms.map((entry) => <TermCard key={entry.semesterId} term={entry} />)}
-          <SectionHeading title={copy.scaleTitle} />
-          <GradeScale />
-          <ScreenSpacer />
-          <UiText variant="bodySmall" tone="muted">{copy.printOnWeb}</UiText>
-        </View>
-      )}
-    </AcademicShell>
+          </View>)}</AcademicShell>
   );
 }
 

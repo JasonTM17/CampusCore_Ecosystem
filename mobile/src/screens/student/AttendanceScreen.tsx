@@ -1,3 +1,4 @@
+import { cardRows, contentRows, renderVirtualRow } from '../../components/perf/virtual-rows';
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
@@ -47,12 +48,45 @@ export function AttendanceScreen(_props: MobileScreenProps) {
       error={preview ? null : summaryQuery.error}
       warning={preview ? null : summaryQuery.warning}
       onRetry={() => { void summaryQuery.reload(); void recordsQuery.reload(); }}
+
+      list={{ data: [...((summary.length === 0) ? [] : contentRows("section-1", rows, (item, index) => String(item.sectionId), (row) => (
+            <Card key={row.sectionId} style={academicStyles.card}>
+              <View style={styles.courseHeader}>
+                <IconChip icon="book-open-variant" size={32} />
+                <View style={academicStyles.rowCopy}>
+                  <StatusPill label={row.courseCode} tone="primary" />
+                  <UiText variant="bodyMedium">{localizedName({ name: row.courseName, nameEn: row.courseNameEn, nameVi: row.courseNameVi }, locale)}</UiText>
+                </View>
+                <StatusPill label={`${row.attendanceRate}%`} tone={rateTone(row.attendanceRate)} />
+              </View>
+              <ProgressBar value={row.attendanceRate} label={fillCopy(copy.presentOf, { present: row.present, total: row.total })} tone="success" />
+            </Card>
+          ))),
+{ key: "static-1", render: () => <>{summary.length === 0 ? null : (<><View>
+          <SectionHeading title={copy.recordsTitle} />
+          {visibleRecords.length === 0 ? (
+            <StatePanel kind="empty" title={copy.noRecords} />
+          ) : null}</View></>)}</> },
+...((summary.length === 0) ? [] : (visibleRecords.length === 0) ? [] : cardRows("section-2", visibleRecords, (item, index) => String(item.id ?? index), <>
+              </>, (record, index) => (
+                <View key={record.id} accessible accessibilityLabel={`${formatDate(record.date)}, ${copy.attendanceStatus[record.status] ?? record.status}`}>
+                  {index > 0 ? <Divider /> : null}
+                  <View style={academicStyles.row}>
+                    <View style={academicStyles.rowCopy}>
+                      <UiText variant="bodyMedium">{formatDate(record.date)}</UiText>
+                      {record.section?.course?.code ? <UiText variant="bodySmall" tone="muted">{record.section.course.code}</UiText> : null}
+                      {record.notes ? <UiText variant="meta" tone="muted">{record.notes}</UiText> : null}
+                    </View>
+                    <StatusPill label={copy.attendanceStatus[record.status] ?? record.status} tone={tone(record.status)} />
+                  </View>
+                </View>
+              ), {}))], keyExtractor: (row) => row.key, renderItem: renderVirtualRow, footer: <>
+    </> }}
     >
       {options.length > 0 ? <TermField options={options} value={term} onChange={(value) => { setTerm(value); setSectionId(''); }} /> : null}
       {summary.length === 0 ? (
         <StatePanel kind="empty" title={copy.emptyAttendance} />
-      ) : (
-        <View>
+      ) : (<><View>
           <ChoiceField
             label={copy.courseFilter}
             value={sectionId}
@@ -78,42 +112,7 @@ export function AttendanceScreen(_props: MobileScreenProps) {
             <MetricCard icon="email-check-outline" label={copy.excused} value={formatNumber(sum('excused'))} style={academicStyles.metric} />
           </View>
           <SectionHeading title={copy.byCourse} />
-          {rows.map((row) => (
-            <Card key={row.sectionId} style={academicStyles.card}>
-              <View style={styles.courseHeader}>
-                <IconChip icon="book-open-variant" size={32} />
-                <View style={academicStyles.rowCopy}>
-                  <StatusPill label={row.courseCode} tone="primary" />
-                  <UiText variant="bodyMedium">{localizedName({ name: row.courseName, nameEn: row.courseNameEn, nameVi: row.courseNameVi }, locale)}</UiText>
-                </View>
-                <StatusPill label={`${row.attendanceRate}%`} tone={rateTone(row.attendanceRate)} />
-              </View>
-              <ProgressBar value={row.attendanceRate} label={fillCopy(copy.presentOf, { present: row.present, total: row.total })} tone="success" />
-            </Card>
-          ))}
-          <SectionHeading title={copy.recordsTitle} />
-          {visibleRecords.length === 0 ? (
-            <StatePanel kind="empty" title={copy.noRecords} />
-          ) : (
-            <Card>
-              {visibleRecords.map((record, index) => (
-                <View key={record.id} accessible accessibilityLabel={`${formatDate(record.date)}, ${copy.attendanceStatus[record.status] ?? record.status}`}>
-                  {index > 0 ? <Divider /> : null}
-                  <View style={academicStyles.row}>
-                    <View style={academicStyles.rowCopy}>
-                      <UiText variant="bodyMedium">{formatDate(record.date)}</UiText>
-                      {record.section?.course?.code ? <UiText variant="bodySmall" tone="muted">{record.section.course.code}</UiText> : null}
-                      {record.notes ? <UiText variant="meta" tone="muted">{record.notes}</UiText> : null}
-                    </View>
-                    <StatusPill label={copy.attendanceStatus[record.status] ?? record.status} tone={tone(record.status)} />
-                  </View>
-                </View>
-              ))}
-            </Card>
-          )}
-        </View>
-      )}
-    </AcademicShell>
+          </View></>)}</AcademicShell>
   );
 }
 

@@ -1,3 +1,5 @@
+import { groupedRows } from '../../components/perf/grouped-rows';
+import { GroupCard } from '../../components/perf/group-card';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -71,22 +73,14 @@ export function GradesScreen({ navigation }: MobileScreenProps) {
       error={preview ? null : query.error}
       warning={preview ? null : query.warning}
       onRetry={() => void query.reload()}
-    >
-      <TermField options={options} value={term} onChange={setTerm} />
-      <View style={academicStyles.metrics}>
-        <MetricCard icon="chart-donut" label={term ? copy.termGpa : copy.listedGpa} value={gpa(computeGpa4(visible))} style={academicStyles.metric} />
-        <MetricCard icon="chart-line" label={copy.average10} value={formatNumber(computeAverage10(visible), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} style={academicStyles.metric} />
-        <MetricCard icon="book-check-outline" label={copy.records} value={formatNumber(visible.length)} style={academicStyles.metric} />
-        <MetricCard icon="book-open-outline" label={copy.creditsAttempted} value={formatNumber(credits)} style={academicStyles.metric} />
-      </View>
-      <SectionHeading title={copy.publishedGrades} />
-      {visible.length === 0 ? (
-        <StatePanel kind="empty" title={copy.emptyGrades} />
-      ) : (
-        grouped.map(([groupKey, group]) => (
-          <Card key={groupKey} style={academicStyles.card}>
+
+      list={{ data: groupedRows(grouped, (group) => group[0], (group) => group[1].records, (item) => item.id), keyExtractor: (entry) => entry.key,
+        renderItem: ({ item: entry }) => { const item = entry.group;  const [groupKey, group] = item;
+if (entry.kind === "header") return <GroupCard edge={entry.empty ? "single" : "start"} style={academicStyles.card}>
             <UiText accessibilityRole="header" variant="headlineSmall" style={styles.termTitle}>{group.label}</UiText>
-            {group.records.map((record, index) => (
+            </GroupCard>;
+const record = entry.item; const index = entry.index;
+return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.card}>{(
               <View
                 key={record.id}
                 accessible
@@ -115,15 +109,26 @@ export function GradesScreen({ navigation }: MobileScreenProps) {
                   </View>
                 </View>
               </View>
-            ))}
-          </Card>
-        ))
-      )}
+            )}</GroupCard>; },
+        footer: <>{visible.length === 0 ? null : (null)}
       <ScreenSpacer />
       <GradeScale />
       <ScreenSpacer />
       <Button label={copy.openTranscript} onPress={() => openRoute(navigation, 'transcript')} variant="secondary" />
-    </AcademicShell>
+    </>,
+      }}
+    >
+      <TermField options={options} value={term} onChange={setTerm} />
+      <View style={academicStyles.metrics}>
+        <MetricCard icon="chart-donut" label={term ? copy.termGpa : copy.listedGpa} value={gpa(computeGpa4(visible))} style={academicStyles.metric} />
+        <MetricCard icon="chart-line" label={copy.average10} value={formatNumber(computeAverage10(visible), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} style={academicStyles.metric} />
+        <MetricCard icon="book-check-outline" label={copy.records} value={formatNumber(visible.length)} style={academicStyles.metric} />
+        <MetricCard icon="book-open-outline" label={copy.creditsAttempted} value={formatNumber(credits)} style={academicStyles.metric} />
+      </View>
+      <SectionHeading title={copy.publishedGrades} />
+      {visible.length === 0 ? (
+        <StatePanel kind="empty" title={copy.emptyGrades} />
+      ) : (null)}</AcademicShell>
   );
 }
 

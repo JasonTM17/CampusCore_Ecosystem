@@ -62,26 +62,12 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
       error={error}
       warning={preview ? null : enrollmentsQuery.warning}
       onRetry={() => void enrollmentsQuery.reload()}
-    >
-      {selected ? (
-        <EnrollmentDetail enrollment={selected} onBack={() => setSelectedId(null)} />
-      ) : (
-        <View>
-          <TermField options={options} value={term} onChange={setTerm} />
-          <SegmentTabs
-            label={copy.tabLabel}
-            value={tab}
-            onChange={(value) => setTab(value as EnrollmentTab)}
-            options={[
-              { value: 'active', label: `${copy.tabActive} (${counts.active})` },
-              { value: 'past', label: `${copy.tabPast} (${counts.past})` },
-              { value: 'withdrawn', label: `${copy.tabWithdrawn} (${counts.withdrawn})` },
-            ]}
-          />
-          <View style={academicStyles.gap} />
-          {rows.length === 0 ? <StatePanel kind="empty" title={emptyTitle} /> : null}
-          <View testID="course-grid" style={gridStyle(windowClass, largeText)}>
-            {rows.map((item) => {
+
+      list={{ data: selected ? [] : rows, keyExtractor: (item) => `${item.semesterId}:${item.id}`,
+        testID: 'course-grid', style: gridStyle(windowClass, largeText),
+        numColumns: windowClass === 'compact' || largeText ? 1 : 2,
+        columnWrapperStyle: windowClass === 'compact' || largeText ? undefined : styles.columns,
+        renderItem: ({ item: item }) => {
               const code = enrollmentCourseCode(item);
               const name = enrollmentCourseName(item, locale);
               return (
@@ -110,16 +96,35 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
                   </Card>
                 </Pressable>
               );
-            })}
-          </View>
+            },
+        footer: <>{selected ? null : (<View>
           <Button label={copy.openRegistration} onPress={() => navigation.navigate('registration')} variant="secondary" />
-        </View>
-      )}
-    </AcademicShell>
+        </View>)}
+    </>,
+      }}
+    >
+      {selected ? (
+        <EnrollmentDetail enrollment={selected} onBack={() => setSelectedId(null)} />
+      ) : (<View>
+          <TermField options={options} value={term} onChange={setTerm} />
+          <SegmentTabs
+            label={copy.tabLabel}
+            value={tab}
+            onChange={(value) => setTab(value as EnrollmentTab)}
+            options={[
+              { value: 'active', label: `${copy.tabActive} (${counts.active})` },
+              { value: 'past', label: `${copy.tabPast} (${counts.past})` },
+              { value: 'withdrawn', label: `${copy.tabWithdrawn} (${counts.withdrawn})` },
+            ]}
+          />
+          <View style={academicStyles.gap} />
+          {rows.length === 0 ? <StatePanel kind="empty" title={emptyTitle} /> : null}
+        </View>)}</AcademicShell>
   );
 }
 
 const styles = StyleSheet.create({
+  columns: { justifyContent: 'space-between' },
   courseRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 },
   courseCopy: { flex: 1, gap: 4, minWidth: 0 },
   courseTags: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: 4 },

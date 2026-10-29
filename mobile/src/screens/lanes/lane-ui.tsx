@@ -2,7 +2,9 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { Button, Card, IconChip, Notice, ScreenShell, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Button, Card, IconChip, Notice, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { ScrollableScreenShell as ScreenShell } from '../../components/perf/list-screen-shell';
+import { ListGap, type PerformanceListProps } from '../../components/perf/performance-list';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { FormField, Sheet } from '../../components/ui/primitives';
 import { useTheme } from '../../design/theme';
@@ -79,7 +81,8 @@ export function useLaneRequest<T>(fetcher: () => Promise<T>, key: string, enable
   };
 }
 
-export interface LaneShellProps {
+export interface LaneShellProps<T = unknown> {
+  list?: PerformanceListProps<T>;
   title: string;
   loading?: boolean;
   error?: string | null;
@@ -89,10 +92,10 @@ export interface LaneShellProps {
 }
 
 /** Screen frame: loading, error (including denied) and an action-result banner. */
-export function LaneShell({ title, loading = false, error, onRetry, banner, children }: LaneShellProps) {
+export function LaneShell<T>({ title, loading = false, error, onRetry, banner, children, list }: LaneShellProps<T>) {
   const { copy } = useLanesCopy();
   return (
-    <ScreenShell title={title}>
+    <ScreenShell title={title} list={list && { ItemSeparatorComponent: ListGap, ...(loading || error ? { ...list, data: [], footer: null } : list) }}>
       {banner ? <Notice tone={banner.tone} message={banner.message} /> : null}
       {loading || error ? (
         <StatePanel
