@@ -42,6 +42,7 @@ import {
   WorkspaceMetricCard,
   WorkspacePanel,
 } from '@/components/dashboard/WorkspaceSurface';
+import { GeofenceCheckinPanel } from '@/components/lecturer/GeofenceCheckinPanel';
 import { metricToneClass } from '@/components/ui/status';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
@@ -486,6 +487,21 @@ export default function LecturerAttendancePage() {
           </div>
         </div>
       </WorkspacePanel>
+
+      {/* Geofenced app check-in (mobile-only flow; this panel opens the window) */}
+      {selectedSectionId ? (
+        <GeofenceCheckinPanel
+          sectionId={selectedSectionId}
+          sectionLabel={
+            selectedSection
+              ? `${selectedSection.courseCode} - ${getLocalizedFlatLabel(locale, selectedSection.courseName, selectedSection.courseNameEn, selectedSection.courseNameVi)} (${selectedSection.sectionNumber})`
+              : selectedSectionId
+          }
+          date={selectedDate}
+          roster={roster}
+          disabled={isLoadingSections || isLoadingRoster}
+        />
+      ) : null}
 
       {/* Metrics Row */}
       {selectedSectionId && (

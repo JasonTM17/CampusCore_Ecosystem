@@ -287,6 +287,7 @@ test('milestone 2: meta.defaults.keywords array length parity between en and vi'
     'messages-thesis-workflow': 'src/i18n/messages-thesis-workflow.ts',
     'messages-dean-overview': 'src/i18n/messages-dean-overview.ts',
     'messages-content': 'src/i18n/messages-content.ts',
+    'messages-attendance-geofence': 'src/i18n/messages-attendance-geofence.ts',
   };
   const customRequire = (id) => {
     const namespace = Object.keys(tsNamespaces).find((name) => id.includes(name));

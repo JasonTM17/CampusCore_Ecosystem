@@ -2214,8 +2214,11 @@ export const geofencedAttendanceApi = {
     return response.data;
   },
   getCurrentCode: async (sessionId: string): Promise<GeofencedAttendanceCodeResponse> => {
+    // Rotating classroom code: explicitly opt out of any intermediary cache —
+    // a cached response would replay a stale (and eventually wrong) code.
     const response = await api.get<GeofencedAttendanceCodeResponse>(
       `/attendance/sessions/${encodeURIComponent(sessionId)}/code`,
+      { headers: { 'Cache-Control': 'no-store' } },
     );
     return response.data;
   },

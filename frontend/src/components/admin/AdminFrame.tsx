@@ -19,6 +19,7 @@ import {
   GraduationCap,
   LayoutDashboard,
   LogOut,
+  MapPin,
   Menu,
   Palette,
   School,
@@ -182,6 +183,11 @@ export function AdminFrame({
 
   React.useEffect(() => {
     const media = window.matchMedia('(min-width: 1024px)');
+        {
+          href: '/admin/attendance-geofences',
+          icon: MapPin,
+          label: messages.adminShell.menuAttendanceGeofences,
+        },
     const syncDesktopState = () => setIsDesktopSidebar(media.matches);
 
     syncDesktopState();
