@@ -167,3 +167,43 @@ eas.json.local
 *.hprof
 hs_err_pid*.log
 replay_pid*.log
+
+# Cloud/CLI credential stores and token-bearing config (per-user on dev
+# machines; a copied store must never be committed)
+.aws/
+.azure/
+.ssh/
+.gnupg/
+.docker/
+.kube/
+.terraform/
+.npmrc
+*.tfvars
+*.tfstate
+*.tfstate.*
+*.kdbx
+*.ovpn
+*.gpg
+
+# SSH private-key basename families (covers variants such as id_rsa_old,
+# id_ed25519_sk, id_rsa.pub beyond the exact names listed above)
+id_rsa*
+id_dsa*
+id_ecdsa*
+id_ed25519*
+
+# Local dump/capture destinations that may embed data or credentials
+*.pgdump
+*.dmp
+*.har
+*.sql.bz2
+*.sql.xz
+
+# Shell/REPL history can record typed secrets
+.bash_history
+.bash_sessions/
+.zsh_history
+.zsh_sessions/
+.pshistory
+.node_repl_history
+.python_history
