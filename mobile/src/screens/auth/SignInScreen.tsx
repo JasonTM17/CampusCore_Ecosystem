@@ -230,7 +230,7 @@ function SignInNewsSection({ navigation }: { navigation: MobileScreenProps['navi
           <View style={[styles.skeletonBlock, styles.skeletonRow]} />
         </View>
       ) : list.error ? (
-        <View testID="signin-news-error">
+        <View accessible accessibilityLabel={list.error} accessibilityRole="alert" testID="signin-news-error">
           <StatePanel kind="error" title={list.error} actionLabel={copy.retry} onAction={() => void list.reload()} />
         </View>
       ) : !featured ? (

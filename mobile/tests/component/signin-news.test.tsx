@@ -149,6 +149,16 @@ describe('sign-in guest news feed', () => {
     expect(screen.getByRole('button', { name: 'Đăng nhập bằng CampusUTE ID' })).toBeOnTheScreen();
   });
 
+  test('error container announces the error, never the stale loading label (ux-m1-01)', async () => {
+    mockQuery.value = { data: undefined, error: 'Không thể tải dữ liệu', warning: null, isLoading: false, errorStatus: 500 };
+    await renderScreen();
+    const errorBox = screen.getByTestId('signin-news-error');
+    expect(errorBox.props.accessible).toBe(true);
+    expect(errorBox.props.accessibilityRole).toBe('alert');
+    expect(errorBox.props.accessibilityLabel).toBe('Không thể tải dữ liệu');
+    expect(errorBox.props.accessibilityLabel).not.toBe(shellMessages.vi.guest.loading);
+  });
+
   test('a failed revalidate keeps data visible with a stale banner', async () => {
     mockQuery.value = { data: paged(ITEMS.slice(0, 1)), error: null, warning: 'Không có kết nối mạng.', isLoading: false, errorStatus: 0 };
     await renderScreen();
