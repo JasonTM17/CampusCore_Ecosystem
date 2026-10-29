@@ -1,7 +1,8 @@
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { tokens } from '../design/tokens';
+import { chromeFor } from '../design/chrome';
 import { useThemedStyles, useTheme } from '../design/theme';
 import type { ThemeColors } from '../design/theme';
 import {
@@ -27,20 +28,22 @@ interface MenuPanelProps {
 
 export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole, allowRoleSwitch }: MenuPanelProps) {
   const styles = useThemedStyles(makeStyles);
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
+  const chrome = chromeFor(scheme);
   const { copy, screenTitle } = useShellCopy();
   return (
     <View style={styles.overlay}>
-      <Pressable accessibilityLabel={copy.closeMenu} accessibilityRole="button" onPress={onClose} style={styles.backdrop} />
+      <Pressable accessibilityLabel={copy.closeMenu} accessibilityRole="button" onPress={onClose} style={[styles.backdrop, { backgroundColor: chrome.scrim }]} />
       <View accessibilityViewIsModal importantForAccessibility="yes" style={styles.panel}>
-        <View style={styles.panelHeader}>
+        <View style={[styles.panelHeader, { backgroundColor: chrome.surface }]}>
+          <Image accessible={false} source={require('../../assets/hcmute-logo.png')} resizeMode="contain" style={styles.logo} />
           <View style={styles.headerCopy}>
-            <UiText variant="meta" tone="primary">
-              CAMPUSCORE
+            <UiText variant="meta" style={{ color: chrome.onSurfaceMuted }}>
+              CampusCore
             </UiText>
-            <UiText accessibilityRole="header" variant="headlineSmall">{copy.menuTitle}</UiText>
+            <UiText accessibilityRole="header" variant="headlineSmall" style={{ color: chrome.onSurface }}>{copy.menuTitle}</UiText>
           </View>
-          <Button label={copy.close} onPress={onClose} variant="text" />
+          <Button label={copy.close} onPress={onClose} variant="text" onBrand />
         </View>
 
         {allowRoleSwitch ? (
@@ -56,7 +59,7 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
               onPress={() => onSwitchRole(candidate)}
               style={[styles.roleButton, candidate === role ? styles.roleButtonActive : undefined]}
             >
-              <UiText variant="meta" tone={candidate === role ? 'onPrimary' : 'muted'}>
+              <UiText variant="label" tone={candidate === role ? 'onPrimary' : 'muted'} style={{ textAlign: 'center' }}>
                 {copy.roles[candidate]}
               </UiText>
             </Pressable>
@@ -91,16 +94,16 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
                       accessibilityRole="button"
                       accessibilityState={{ selected: active }}
                       onPress={() => onNavigate(screen.name)}
-                      style={[styles.menuItem, active ? styles.menuItemActive : undefined]}
+                      style={({ pressed }) => [styles.menuItem, active ? styles.menuItemActive : undefined, pressed ? { backgroundColor: colors.surfaceLow } : undefined]}
                     >
-                      <View style={styles.menuIcon}>
+                      <View style={[styles.menuIcon, { backgroundColor: active ? colors.primaryFixed : colors.surfaceLow }]}>
                         <MaterialCommunityIcons
                           color={active ? colors.primary : colors.textMuted}
                           name={screen.icon}
                           size={19}
                         />
                       </View>
-                      <UiText variant="bodySmall" style={styles.menuLabel}>
+                      <UiText variant="bodySmall" tone={active ? 'primary' : 'default'} style={styles.menuLabel}>
                         {screenTitle(screen.name)}
                       </UiText>
                       <MaterialCommunityIcons color={colors.textMuted} name="chevron-right" size={20} />
@@ -118,7 +121,7 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
 
 const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFill, justifyContent: 'flex-end', zIndex: 10 },
-  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(15, 27, 44, 0.52)' },
+  backdrop: { ...StyleSheet.absoluteFill },
   panel: {
     backgroundColor: colors.card,
     borderColor: colors.outlineVariant,
@@ -127,19 +130,20 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     borderTopRightRadius: tokens.radii.card,
     maxHeight: '86%',
     paddingHorizontal: tokens.layout.mobileGutter,
-    paddingTop: tokens.spacing.md,
+    overflow: 'hidden',
   },
-  panelHeader: { alignItems: 'center', borderBottomColor: colors.outlineVariant, borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.md, paddingBottom: tokens.spacing.sm },
+  panelHeader: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm + tokens.spacing.xs, marginHorizontal: -tokens.layout.mobileGutter, padding: tokens.spacing.md, marginBottom: tokens.spacing.md },
+  logo: { width: 36, height: 40, borderRadius: tokens.radii.control, backgroundColor: tokens.colors.card },
   headerCopy: { flex: 1 },
   roleLabel: { marginBottom: tokens.spacing.xs },
-  roleRow: { flexDirection: 'row', marginBottom: tokens.spacing.md },
-  roleButton: { alignItems: 'center', backgroundColor: colors.surfaceLow, borderColor: colors.outlineVariant, borderRadius: tokens.radii.control, borderWidth: 1, justifyContent: 'center', marginRight: tokens.spacing.sm, minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.md },
+  roleRow: { flexDirection: 'row', gap: tokens.spacing.sm, marginBottom: tokens.spacing.md },
+  roleButton: { flex: 1, minWidth: 0, alignItems: 'center', backgroundColor: colors.surfaceLow, borderColor: colors.outlineVariant, borderRadius: tokens.radii.control, borderWidth: 1, justifyContent: 'center', minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.sm },
   roleButtonActive: { backgroundColor: colors.primary },
   menuContent: { paddingBottom: tokens.spacing.xl },
   section: { marginBottom: tokens.spacing.lg },
-  sectionTitle: { marginBottom: tokens.spacing.xs },
-  menuItem: { alignItems: 'center', borderBottomColor: colors.outlineVariant, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
-  menuItemActive: { backgroundColor: colors.primaryFixed, borderLeftColor: colors.primary, borderLeftWidth: 3 },
-  menuIcon: { alignItems: 'center', width: 32 },
+  sectionTitle: { marginBottom: tokens.spacing.sm },
+  menuItem: { alignItems: 'center', borderBottomColor: colors.outlineVariant, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: tokens.radii.control, flexDirection: 'row', minHeight: 52, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.sm },
+  menuItemActive: { backgroundColor: colors.primaryFixed },
+  menuIcon: { alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: tokens.radii.control },
   menuLabel: { flex: 1, marginLeft: tokens.spacing.sm },
 });
