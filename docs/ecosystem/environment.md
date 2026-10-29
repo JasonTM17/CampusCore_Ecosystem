@@ -2,9 +2,10 @@
 
 Single inventory of every runtime variable referenced by
 `java-services/restful-api/src/main/resources/application.yml` (115 `${...}` names),
+`AttendanceCheckinProperties` + `PushProperties` (`@ConfigurationProperties` relaxed binding),
 `frontend/.env.example` + `frontend/next.config.mjs` + `process.env` usage,
 `mobile/` `EXPO_PUBLIC_*` usage, `docker-compose*.yml`, and `render.yaml`.
-Closes audit item AUD-27.
+Closes audit item AUD-27 and reconciles runtime variable discovery.
 
 ## Rules
 
@@ -19,9 +20,19 @@ Closes audit item AUD-27.
   compose), `render`, `vercel`, `mobile-build`, `e2e`, `sso-preview`.
 - **Default policy:** `safe default` | `required` (no usable default) |
   `forbidden in prod` (must stay off/absent publicly).
-- Indexed bindings (`IDENTITY_CLIENTS_*`, `IDENTITY_KEYS_*`,
-  `IDENTITY_BFF_SURFACES_*`, `SPRING_MAIL_PROPERTIES_MAIL_SMTP_*` overrides) are
-  relaxed-binding families — one row each below.
+- **Binding mechanisms:** Explicit placeholders (`${VAR:default}` in
+  `application.yml`) vs relaxed binding (`@ConfigurationProperties` and `@Value`
+  fields). Relaxed binding allows environment variables (in `UPPER_SNAKE_CASE`)
+  to configure bean properties directly even when not declared as explicit
+  `${...}` placeholders in `application.yml`.
+- **Indexed and relaxed-binding families:** Indexed bindings (`IDENTITY_CLIENTS_*`,
+  `IDENTITY_KEYS_*`, `IDENTITY_BFF_SURFACES_*`, `SPRING_MAIL_PROPERTIES_MAIL_SMTP_*`
+  overrides) and configuration property beans (`ATTENDANCE_CHECKIN_*`,
+  `APP_NOTIFICATIONS_PUSH_*`) are documented in dedicated sections below.
+- **Secret provisioning & owner policy:** Specific provisioning schedules,
+  vault integration, and key rotation strategies remain **owner policy unknown**.
+  No real secrets, synthetic provider keys, or example credentials are created
+  or committed in this documentation.
 
 ## 1. Runtime / server
 
@@ -165,9 +176,67 @@ Closes audit item AUD-27.
 | `E2E_CORE_API_IMAGE`, `E2E_API_HOST_PORT` | Image under test + e2e host port | config | e2e | required/safe default |
 | `SWAGGER_ENABLED`, `*_READ_ENABLED`, `*_WRITE_ENABLED`, `AUTH_LOGIN_ENABLED`, `THESIS_ASSISTANT_ENABLED`, `ACADEMIC_*_ENABLED`, `ENGAGEMENT_*_ENABLED`, `PEOPLE_READ_ENABLED`, `FINANCE_READ_ENABLED`, `ANALYTICS_READ_ENABLED`, `NOTIFICATIONS_READ_ENABLED`, `THESIS_READ_ENABLED`, `ACADEMIC_ENROLLMENT_READ_ENABLED`, `ACADEMIC_SCHEDULE_READ_ENABLED`, `ACADEMIC_WAITLIST_READ_ENABLED`, `ACADEMIC_ATTENDANCE_READ_ENABLED`, `ACADEMIC_SECTION_READ_ENABLED`, `ACADEMIC_CONTEXT_ENABLED` | E2E feature-gate matrix toggles | config | e2e | safe default |
 
-## AUD-27 reconciliation
+## 11. Attendance check-in & privacy (relaxed binding)
 
-The 68 names the audit found undocumented are all documented in the tables
+Bound via `@ConfigurationProperties(prefix = "attendance.checkin")` in
+`AttendanceCheckinProperties.java`. These properties have default values in code,
+so the application boots cleanly without them (this is **not a startup failure**).
+However, check-in operations **fail closed** at runtime when keys are unconfigured.
+
+| Variable | Purpose | Class | Required in | Default policy |
+| --- | --- | --- | --- | --- |
+| `ATTENDANCE_CHECKIN_PEPPER` | Domain-separated SHA-256 pepper for pseudonymizing student installation IDs and client IPs (requires >= 32 characters) | secret | prod (check-in active) | safe default `""` (fails closed at runtime with `503 CHECKIN_NOT_CONFIGURED` via `RiskEvaluator.hash()` when empty or < 32 chars; boots cleanly; owner policy unknown) |
+| `ATTENDANCE_CHECKIN_ENCRYPTION_KEY` | Symmetric encryption key for `DeterministicTokenCipher` encrypting attendance tokens | secret | prod (check-in active) | safe default `""` (fails closed at runtime with `503 CHECKIN_NOT_CONFIGURED` via `CodeService.cipher()` when unconfigured; boots cleanly; owner policy unknown) |
+| `ATTENDANCE_CHECKIN_CONSENT_VERSION` | Minimum required student privacy consent version for check-in | config | optional | safe default `"1"` |
+| `ATTENDANCE_CHECKIN_COORDINATE_RETENTION_DAYS` | GPS coordinate data retention window in days before automated purge (must be >= 1) | config | optional | safe default `30` |
+| `ATTENDANCE_CHECKIN_ATTEMPT_RETENTION_DAYS` | Check-in attempt audit log retention window in days before purge (must be >= 1) | config | optional | safe default `90` |
+
+### Attendance runtime fail-closed semantics
+
+1. **Startup behavior:** The server boots cleanly without any attendance environment
+   variables. Default values in `AttendanceCheckinProperties` satisfy initialization.
+   There is no startup crash or context failure.
+2. **Operation-time behavior:** When a student or lecturer triggers attendance code
+   generation or verification:
+   - `RiskEvaluator.hash(domain, value)` validates `pepper != null && pepper.length() >= 32`.
+     If invalid, it throws `DomainException(HttpStatus.SERVICE_UNAVAILABLE, "CHECKIN_NOT_CONFIGURED", "Attendance privacy pepper is not configured")`.
+   - `CodeService.cipher()` instantiates `DeterministicTokenCipher(properties.getEncryptionKey())`.
+     If empty, `IllegalStateException` is caught and rethrown as `DomainException(HttpStatus.SERVICE_UNAVAILABLE, "CHECKIN_NOT_CONFIGURED", "Attendance encryption is not configured")`.
+3. **Owner provisioning policy:** Production key generation and vault distribution
+   remain **owner policy unknown**; no secret values or synthetic keys are generated
+   or assumed here.
+
+## 12. Push notifications lane (relaxed binding)
+
+Bound via `@ConfigurationProperties(prefix = "app.notifications.push")` in
+`PushProperties.java` and literal defaults under `app.notifications.push` in
+`application.yml`. Spring Boot relaxed binding maps environment variables with
+the `APP_NOTIFICATIONS_PUSH_*` prefix.
+
+| Variable | Purpose | Class | Required in | Default policy |
+| --- | --- | --- | --- | --- |
+| `APP_NOTIFICATIONS_PUSH_ENABLED` | Feature switch for the additive push notification lane | config | optional | safe default `false` |
+| `APP_NOTIFICATIONS_PUSH_TOKEN_KEY` | 32-byte Base64 key for encrypting device push tokens at rest | secret | prod (push active) | safe default `""` (registration fails closed and no device token data is saved when empty; boots cleanly; owner policy unknown) |
+| `APP_NOTIFICATIONS_PUSH_DISPATCHER_ENABLED` | Background worker dispatcher switch for push queue polling | config | optional | safe default `false` |
+| `APP_NOTIFICATIONS_PUSH_BATCH_SIZE` | Maximum push notifications processed in a single batch | config | tuning | safe default `25` |
+| `APP_NOTIFICATIONS_PUSH_LEASE_SECONDS` | Processing lock lease duration in seconds for dispatched notifications | config | tuning | safe default `60` |
+| `APP_NOTIFICATIONS_PUSH_SEND_TIMEOUT_MS` | Outbound HTTP timeout in ms when sending to push gateways (must be > 0 and < `leaseSeconds * 1000` when enabled) | config | tuning | safe default `20000` |
+| `APP_NOTIFICATIONS_PUSH_MAX_ATTEMPTS` | Maximum retry attempts before marking notification failed | config | tuning | safe default `5` |
+| `APP_NOTIFICATIONS_PUSH_RETRY_INITIAL_MS` | Initial exponential backoff delay in ms | config | tuning | safe default `1000` |
+| `APP_NOTIFICATIONS_PUSH_RETRY_CAP_MS` | Backoff cap ceiling in ms | config | tuning | safe default `300000` |
+| `APP_NOTIFICATIONS_PUSH_RETRY_JITTER_RATIO` | Backoff randomization jitter ratio | config | tuning | safe default `0.2` |
+
+## 13. Additional relaxed-binding & field-injected controls
+
+| Variable | Purpose | Class | Required in | Default policy |
+| --- | --- | --- | --- | --- |
+| `CAMPUSCORE_LIBRARY_LOAN_DAYS` | Standard loan period in days for borrowed library items (field `@Value("${campuscore.library.loan-days:14}")`) | config | optional | safe default `14` |
+| `CAMPUSCORE_LIBRARY_RESERVATION_TTL_HOURS` | Hold-shelf reservation expiration window in hours (field `@Value("${campuscore.library.reservation-ttl-hours:48}")`) | config | optional | safe default `48` |
+| `ASSISTANT_LEGACY_RETRIEVAL_FALLBACK` | Toggle legacy retrieval fallback in assistant repository / release promoter (field `@Value("${assistant.legacy-retrieval-fallback:false}")`) | config | optional | safe default `false` |
+
+## AUD-27 and discovery reconciliation
+
+The historical 68 names closed under AUD-27 are documented in sections 1–7
 above: `ACADEMIC_ENROLLED_COUNT_*` (3), `ACCESS_TOKEN_COOKIE`,
 `APP_PUBLIC_BASE_URL`, `ASSISTANT_DB_*` (5: `URL`, `POOL_MAX`,
 `CONNECTION_TIMEOUT_MS`, `IDLE_TIMEOUT_MS`, `KEEPALIVE_TIME_MS`),
@@ -187,4 +256,28 @@ above: `ACADEMIC_ENROLLED_COUNT_*` (3), `ACCESS_TOKEN_COOKIE`,
 `SUPABASE_RELEASE_TABLE`, `THESIS_REPORT_STORAGE_TIMEOUT_MS`, `TOMCAT_*` (2).
 
 `java.io.tmpdir` in `application.yml` is a JVM property, not an env var —
-excluded by design. Remaining gaps: none; every discovered name is listed.
+excluded by design.
+
+### Reconciliation findings
+
+1. **Explicit placeholders vs relaxed binding:**
+   - A mechanical extraction of `application.yml` confirms 114 `${...}` placeholder
+     variables (plus the JVM property `${java.io.tmpdir}`). All 114 are documented
+     in sections 1 through 7 above.
+   - Initial audit reports hypothesized that "over 30 active ${VAR} properties in
+     application.yml were omitted". Exhaustive reconciliation proves that **zero**
+     explicit `${...}` placeholders were missing from the documentation tables.
+   - The genuine discovery gaps were unlisted `@ConfigurationProperties` and `@Value`
+     properties that bind via Spring Boot relaxed binding (`ATTENDANCE_CHECKIN_*`,
+     `APP_NOTIFICATIONS_PUSH_*`, `CAMPUSCORE_LIBRARY_*`).
+2. **Attendance fail-closed contract:**
+   - Attendance secrets (`ATTENDANCE_CHECKIN_PEPPER`, `ATTENDANCE_CHECKIN_ENCRYPTION_KEY`)
+     have safe empty defaults in Java code, so unconfigured environments experience
+     no boot-time crash.
+   - Operations fail closed on demand with HTTP 503 `CHECKIN_NOT_CONFIGURED`
+     domain exceptions when attendance operations are performed without valid
+     configuration.
+3. **Owner policy authority:**
+   - All secret generation, hosting tier assignments, and retention policies are
+     recorded as **owner policy unknown**. No developer or CI script creates
+     synthetic or real secrets.
