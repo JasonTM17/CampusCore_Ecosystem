@@ -50,7 +50,7 @@ import { LocalizedLink } from '@/components/LocalizedLink';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { BrandMark } from '@/components/BrandMark';
 import { ForcedPasswordRotationGate } from '@/components/auth/ForcedPasswordRotationGate';
-import { AssistantPanel } from '@/components/assistant/AssistantPanel';
+import { LazyAssistantPanel as AssistantPanel } from '@/components/assistant/lazy-assistant-panel';
 import { AssistantMascot } from '@/components/assistant/AssistantMascot';
 import { useDocumentTitle } from '@/lib/use-document-title';
 import { Button } from '@/components/ui/button';

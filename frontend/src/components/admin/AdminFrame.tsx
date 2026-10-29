@@ -31,7 +31,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { BrandMark } from '@/components/BrandMark';
 import { ForcedPasswordRotationGate } from '@/components/auth/ForcedPasswordRotationGate';
-import { AssistantPanel } from '@/components/assistant/AssistantPanel';
+import { LazyAssistantPanel as AssistantPanel } from '@/components/assistant/lazy-assistant-panel';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
