@@ -122,9 +122,9 @@ When an alert fires or a user reports an error:
 
 ## 6. Runbook References
 
-- Production Deployment & Operations: [PRODUCTION_RUNBOOK.md](file:///D:/CampusUTE_EcoSystem/docs/PRODUCTION_RUNBOOK.md)
-- Demo Environment Operations: [DEMO_RUNBOOK.md](file:///D:/CampusUTE_EcoSystem/docs/DEMO_RUNBOOK.md)
-- Assistant & RAG Operations: [deepseek-assistant.md](file:///D:/CampusUTE_EcoSystem/docs/integrations/deepseek-assistant.md)
-- Supabase Assistant Knowledge: [supabase-assistant.md](file:///D:/CampusUTE_EcoSystem/docs/integrations/supabase-assistant.md)
-- Observability & Telemetry Contract: [observability.md](file:///D:/CampusUTE_EcoSystem/docs/ecosystem/observability.md)
-- Host & Edge Policy: [host-policy.md](file:///D:/CampusUTE_EcoSystem/docs/ecosystem/host-policy.md)
+- Production Deployment & Operations: [PRODUCTION_RUNBOOK.md](../../docs/PRODUCTION_RUNBOOK.md)
+- Demo Environment Operations: [DEMO_RUNBOOK.md](../../docs/DEMO_RUNBOOK.md)
+- Assistant & RAG Operations: [deepseek-assistant.md](../../docs/integrations/deepseek-assistant.md)
+- Supabase Assistant Knowledge: [supabase-assistant.md](../../docs/integrations/supabase-assistant.md)
+- Observability & Telemetry Contract: [observability.md](../../docs/ecosystem/observability.md)
+- Host & Edge Policy: [host-policy.md](../../docs/ecosystem/host-policy.md)

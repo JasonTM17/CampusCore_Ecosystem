@@ -1,7 +1,7 @@
 # CampusCore Java RESTful API
 
 This is the only backend runtime for the course project. It is a Spring Boot
-3.5 / Java 21 modular monolith that owns `/api/v1`, persists to one PostgreSQL
+4.1 / Java 21 modular monolith that owns `/api/v1`, persists to one PostgreSQL
 database, and publishes its contract through OpenAPI.
 
 ## Included modules

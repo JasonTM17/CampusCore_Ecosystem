@@ -12,9 +12,9 @@ The geofenced attendance subsystem separates administrative boundary definition,
 
 | Role | Primary Interface & Route | Key Operations | Authorizations & Constraints | Verified Code References |
 | --- | --- | --- | --- | --- |
-| **System Admin** (`ADMIN`, `SUPER_ADMIN`) | Web Admin Console: `/admin/attendance-geofences` | Create, configure, audit, and activate campus geofence perimeters; inspect map markers; deactivate legacy perimeters. | Cannot open class sessions or alter student roll call marks. Must verify physical campus coordinates before activating any perimeter. Deactivates instead of deleting when referenced by sessions. | [`frontend/src/app/admin/attendance-geofences/page.tsx`](file:///D:/CampusUTE_EcoSystem/frontend/src/app/admin/attendance-geofences/page.tsx), [`contracts/ecosystem/domain-contracts.md`](file:///D:/CampusUTE_EcoSystem/contracts/ecosystem/domain-contracts.md#L5-L15) |
-| **Lecturer** (`LECTURER`) | Web Lecturer Portal: `/dashboard/lecturer/attendance` (`GeofenceCheckinPanel`, `ProjectorCodeOverlay`) | Open check-in session for assigned section/date; choose active geofence and window duration; display full-screen rotating code; monitor live counters; review flagged check-ins; manually override attendance. | Must be assigned to the class section (`LECT:<section>`). Retains ultimate academic authority: manual roll call entry always overrides student check-in. Rotating code secret never leaves the server. | [`frontend/src/app/dashboard/lecturer/attendance/page.tsx`](file:///D:/CampusUTE_EcoSystem/frontend/src/app/dashboard/lecturer/attendance/page.tsx), [`frontend/src/components/lecturer/GeofenceCheckinPanel.tsx`](file:///D:/CampusUTE_EcoSystem/frontend/src/components/lecturer/GeofenceCheckinPanel.tsx), [`frontend/src/components/lecturer/ProjectorCodeOverlay.tsx`](file:///D:/CampusUTE_EcoSystem/frontend/src/components/lecturer/ProjectorCodeOverlay.tsx) |
-| **Student** (`STUDENT`) | Mobile Native App (iOS/Android): Route `attendance.checkin` (`CheckinScreen`) | Accept location privacy consent notice; grant OS foreground location permission; open class session via dashboard or code-free link; submit GPS fix and 6-digit classroom code. | Must be actively enrolled in the section (`ENROLLED` or `CONFIRMED`). Single check-in per installation per session. Web browser check-in is disallowed. | [`mobile/src/screens/attendance-checkin/CheckinScreen.tsx`](file:///D:/CampusUTE_EcoSystem/mobile/src/screens/attendance-checkin/CheckinScreen.tsx), [`mobile/src/attendance-checkin/checkin-machine.ts`](file:///D:/CampusUTE_EcoSystem/mobile/src/attendance-checkin/checkin-machine.ts), [`docs/ecosystem/attendance-geofence-spec.md`](file:///D:/CampusUTE_EcoSystem/docs/ecosystem/attendance-geofence-spec.md#L71-L78) |
+| **System Admin** (`ADMIN`, `SUPER_ADMIN`) | Web Admin Console: `/admin/attendance-geofences` | Create, configure, audit, and activate campus geofence perimeters; inspect map markers; deactivate legacy perimeters. | Cannot open class sessions or alter student roll call marks. Must verify physical campus coordinates before activating any perimeter. Deactivates instead of deleting when referenced by sessions. | [`frontend/src/app/admin/attendance-geofences/page.tsx`](../../frontend/src/app/admin/attendance-geofences/page.tsx), [`contracts/ecosystem/domain-contracts.md`](../../contracts/ecosystem/domain-contracts.md#L5-L15) |
+| **Lecturer** (`LECTURER`) | Web Lecturer Portal: `/dashboard/lecturer/attendance` (`GeofenceCheckinPanel`, `ProjectorCodeOverlay`) | Open check-in session for assigned section/date; choose active geofence and window duration; display full-screen rotating code; monitor live counters; review flagged check-ins; manually override attendance. | Must be assigned to the class section (`LECT:<section>`). Retains ultimate academic authority: manual roll call entry always overrides student check-in. Rotating code secret never leaves the server. | [`frontend/src/app/dashboard/lecturer/attendance/page.tsx`](../../frontend/src/app/dashboard/lecturer/attendance/page.tsx), [`frontend/src/components/lecturer/GeofenceCheckinPanel.tsx`](../../frontend/src/components/lecturer/GeofenceCheckinPanel.tsx), [`frontend/src/components/lecturer/ProjectorCodeOverlay.tsx`](../../frontend/src/components/lecturer/ProjectorCodeOverlay.tsx) |
+| **Student** (`STUDENT`) | Mobile Native App (iOS/Android): Route `attendance.checkin` (`CheckinScreen`) | Accept location privacy consent notice; grant OS foreground location permission; open class session via dashboard or code-free link; submit GPS fix and 6-digit classroom code. | Must be actively enrolled in the section (`ENROLLED` or `CONFIRMED`). Single check-in per installation per session. Web browser check-in is disallowed. | [`mobile/src/screens/attendance-checkin/CheckinScreen.tsx`](../../mobile/src/screens/attendance-checkin/CheckinScreen.tsx), [`mobile/src/attendance-checkin/checkin-machine.ts`](../../mobile/src/attendance-checkin/checkin-machine.ts), [`docs/ecosystem/attendance-geofence-spec.md`](attendance-geofence-spec.md#L71-L78) |
 
 ---
 
@@ -56,14 +56,14 @@ Do not guess building coordinates. Real building coordinates must be determined 
 
 ### 2.4 Why the Seeded Placeholder Must NOT Be Used in Production
 
-In database migration [`V144__attendance_geofence.sql`](file:///D:/CampusUTE_EcoSystem/java-services/restful-api/src/main/resources/db/migration/V144__attendance_geofence.sql#L84-L88), the initial seed row is inserted as:
+In database migration [`V144__attendance_geofence.sql`](../../java-services/restful-api/src/main/resources/db/migration/V144__attendance_geofence.sql#L84-L88), the initial seed row is inserted as:
 - ID: `ute-main-placeholder`
 - Name: `HCM-UTE Vo Van Ngan (UNVERIFIED PLACEHOLDER)`
 - Note: `APPROXIMATE ONLY. Admin must verify campus coordinates and radius before enabling.`
 - Active: `FALSE`
 
 **Mandatory Rule**: This seed row is strictly an architectural placeholder. Its coordinates (`10.850600, 106.771900`) are rough approximations and do not correspond to any inspected classroom entrance.
-The web console [`frontend/src/app/admin/attendance-geofences/page.tsx`](file:///D:/CampusUTE_EcoSystem/frontend/src/app/admin/attendance-geofences/page.tsx#L200-L255) uses `isUnverifiedGeofence()` to detect rows containing `UNVERIFIED` or `APPROXIMATE`. It renders an explicit warning banner (`checkin-seeded-warning`) and requires affirmative confirmation before activation. Enabling this row in production without surveying will cause false `OUTSIDE_AREA` rejections for students in class and false acceptances for students off-campus.
+The web console [`frontend/src/app/admin/attendance-geofences/page.tsx`](../../frontend/src/app/admin/attendance-geofences/page.tsx#L200-L255) uses `isUnverifiedGeofence()` to detect rows containing `UNVERIFIED` or `APPROXIMATE`. It renders an explicit warning banner (`checkin-seeded-warning`) and requires affirmative confirmation before activation. Enabling this row in production without surveying will cause false `OUTSIDE_AREA` rejections for students in class and false acceptances for students off-campus.
 
 ### 2.5 Geofence Verification Checklist
 
@@ -102,7 +102,7 @@ Deep link: campuscore://attendance/checkin/<sessionId>
 ```
 
 > [!IMPORTANT]
-> **Code-Free Security Contract** ([`frontend/src/lib/attendance-checkin.ts`](file:///D:/CampusUTE_EcoSystem/frontend/src/lib/attendance-checkin.ts#L6-L10)):
+> **Code-Free Security Contract** ([`frontend/src/lib/attendance-checkin.ts`](../../frontend/src/lib/attendance-checkin.ts#L6-L10)):
 > The share link and deep link carry **only** the opaque session ID. By construction, the link **never** contains the rotating code, secret, or coordinates.
 > Forwarding this link via chat or social media to a student at home confers zero attendance authority. An absent student opening the link still faces:
 > 1. Requirement to enter the short-lived 6-digit code projected only on the physical classroom screen.
@@ -112,7 +112,7 @@ Deep link: campuscore://attendance/checkin/<sessionId>
 ### 3.3 Classroom Projector Code Overlay
 
 1. In `GeofenceCheckinPanel`, click **Projector Mode** (`Presentation` icon).
-2. The full-screen overlay [`ProjectorCodeOverlay.tsx`](file:///D:/CampusUTE_EcoSystem/frontend/src/components/lecturer/ProjectorCodeOverlay.tsx) launches:
+2. The full-screen overlay [`ProjectorCodeOverlay.tsx`](../../frontend/src/components/lecturer/ProjectorCodeOverlay.tsx) launches:
    - Displays a 6-digit code in massive high-contrast font (`text-[clamp(4rem,17vw,15rem)]`).
    - Fetches the live code via `GET /attendance/sessions/{id}/code` (`Cache-Control: no-store`).
    - The code is derived on the server from $\text{HMAC-SHA256}(\text{secret}, \lfloor\text{now} / 30\text{s}\rfloor)$. The secret never leaves backend memory.
@@ -144,7 +144,7 @@ Check-ins flagged as `PENDING_REVIEW` appear in the **Flagged Reviews** table. T
 
 ### 3.6 Manual Attendance Record Precedence
 
-Under [`docs/ecosystem/attendance-geofence-spec.md`](file:///D:/CampusUTE_EcoSystem/docs/ecosystem/attendance-geofence-spec.md#L53) and [`contracts/ecosystem/domain-contracts.md`](file:///D:/CampusUTE_EcoSystem/contracts/ecosystem/domain-contracts.md#L31-L34):
+Under [`docs/ecosystem/attendance-geofence-spec.md`](attendance-geofence-spec.md#L53) and [`contracts/ecosystem/domain-contracts.md`](../../contracts/ecosystem/domain-contracts.md#L31-L34):
 - **Manual Always Wins**: A lecturer's manual entry on the attendance sheet takes absolute precedence over any student check-in.
 - If a lecturer marks a student `ABSENT` or `PRESENT` manually, an automated check-in cannot overwrite it. The check-in returns status `MANUAL_RECORD_PRESERVED`.
 - When approving a flagged check-in from `PENDING_REVIEW`, the server evaluates `PRESENT` vs `LATE` using the **original client capture timestamp**, not the review time.
@@ -252,7 +252,7 @@ Execute each scenario in order and document results in the evidence file.
 
 ### 5.4 Evidence Recording Conventions
 
-Field-test results must be logged following the conventions of [`docs/ecosystem/device-evidence-template.md`](file:///D:/CampusUTE_EcoSystem/docs/ecosystem/device-evidence-template.md):
+Field-test results must be logged following the conventions of [`docs/ecosystem/device-evidence-template.md`](device-evidence-template.md):
 1. **Target Artifact**: Copy template to `artifacts/verification/devices/android-<buildId>.md` and `artifacts/verification/devices/ios-<buildId>.md`.
 2. **Mandatory Metadata Header**:
    - `OS + version`: e.g., `Android 14 (API 34)` / `iOS 18.1`
