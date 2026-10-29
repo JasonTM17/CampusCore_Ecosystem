@@ -69,7 +69,7 @@ test('screen query passes scope and age, and session expiry purges memory cache'
   const context = fs.readFileSync(path.join(mobileRoot, 'src/session/SessionContext.tsx'), 'utf8');
   const cacheSource = fs.readFileSync(path.join(mobileRoot, 'src/hooks/query-cache.ts'), 'utf8');
   assert.match(hook, /queryCacheKey\(session\.accountId, queryKey, \{[\s\S]*?\.\.\.options\.scope/);
-  assert.match(hook, /readQueryCache<T>\(cacheKey, options\.maxAge\)/);
+  assert.match(hook, /readQueryCache<T>\(cacheKey, optionsRef\.current\.maxAge\)/);
   assert.match(cacheSource, /export interface QueryCacheScope/);
 
   const expiryHandler = context.match(/setOnSessionExpired\(\(\) => \{([\s\S]*?)\n    \}\);/)?.[1];

@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { View } from 'react-native';
 
-import { Card, Field, UiText } from '../../components/Ui';
+import { Card, Field, StatusPill, UiText } from '../../components/Ui';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillCopy } from '../../i18n/academic-messages';
 import type { OperationsCopy } from '../../i18n/operations-messages';
@@ -36,19 +36,38 @@ function Row({ row, edit, problems, copy, onEdit, disabled = false }: GradeRowCa
     ? copy.noGradeYet
     : `${formatNumber(total, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · ${calculateGrade(total)}`;
 
+  const initials = (name ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(-2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || '?';
+
   return (
     <Card style={styles.gradeRow}>
       <View style={styles.rowBetween}>
-        <View style={styles.rowCopy}>
-          <UiText variant="label">{name}</UiText>
-          {row.studentCode ? <UiText variant="bodySmall" tone="muted">{row.studentCode}</UiText> : null}
+        <View style={styles.directoryRow}>
+          <View style={styles.avatar}>
+            <UiText style={styles.avatarText}>{initials}</UiText>
+          </View>
+          <View style={styles.rowCopy}>
+            <UiText variant="label">{name}</UiText>
+            {row.studentCode ? <UiText variant="bodySmall" tone="muted">{row.studentCode}</UiText> : null}
+          </View>
         </View>
-        <UiText variant="bodyMedium" tone="primary" accessibilityLabel={`${copy.total}: ${totalLabel}`}>{totalLabel}</UiText>
+        <StatusPill
+          label={totalLabel}
+          tone={total !== null ? (total >= 5 ? 'success' : 'error') : 'neutral'}
+        />
       </View>
       {locked ? (
-        <UiText variant="bodySmall" tone="muted">
-          {`${copy.process} ${processText || '—'} · ${copy.finalExam} ${finalText || '—'} · ${copy.lockedPublished}`}
-        </UiText>
+        <View style={{ marginTop: 8, gap: 4 }}>
+          <StatusPill label={copy.lockedPublished} tone="neutral" icon="lock-outline" />
+          <UiText variant="bodySmall" tone="muted">
+            {`${copy.process} ${processText || '—'} · ${copy.finalExam} ${finalText || '—'}`}
+          </UiText>
+        </View>
       ) : (
         <View style={styles.scoreFields}>
           <Field
