@@ -17,6 +17,7 @@ import {
 } from '../../components/Ui';
 import { apiClient, campusApi, type JsonObject, type MobileEnrollment } from '../../api/client';
 import { fillShellCopy, shellMessages } from '../../i18n/shell-messages';
+import { localizedName } from '../academic/academic-model';
 import { useLocale } from '../../i18n/locale-provider';
 import type { MobileScreenProps } from '../../navigation/types';
 import { useLiveResource } from './shared/useLiveResource';
@@ -45,6 +46,7 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
   const {
     data: liveAnnouncements,
     error: announcementsError,
+    isLoading: announcementsLoading,
   } = useLiveResource<JsonObject[]>(
     'announcements',
     [],
@@ -56,7 +58,7 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
     ? upcomingClasses
     : activeEnrollments.slice(0, 3).map((item) => ({
         code: item.section?.course?.code ?? item.section?.sectionNumber ?? c.course,
-        name: item.section?.course?.nameVi ?? item.section?.course?.name ?? c.course,
+        name: localizedName(item.section?.course, locale, c.course),
         time: item.section?.schedules?.[0]
           ? `${item.section.schedules[0].startTime} – ${item.section.schedules[0].endTime}`
           : c.schedulePending,
@@ -91,7 +93,7 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
         icon="school-outline"
         eyebrow={c.currentSemester}
         title={apiClient.mode === 'preview' ? c.previewSemester : fillShellCopy(c.activeSections, { n: activeEnrollments.length })}
-        detail={apiClient.mode === 'preview' ? undefined : announcementsError ?? fillShellCopy(c.announcements, { n: liveAnnouncements.length })}
+        detail={apiClient.mode === 'preview' ? undefined : announcementsError ?? (announcementsLoading ? undefined : fillShellCopy(c.announcements, { n: liveAnnouncements.length }))}
       >
         <Button icon="calendar-week-outline" label={c.openSchedule} onPress={() => navigation.navigate('schedule')} variant="secondary" onBrand />
       </HeroCard>
