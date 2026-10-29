@@ -64,6 +64,8 @@ class AdmissionContractPersistenceTest {
     private RequestPostProcessor staff2Jwt;
     private RequestPostProcessor adminJwt;
     private RequestPostProcessor outsiderJwt;
+    private RequestPostProcessor ungrantedStaffJwt;
+    private RequestPostProcessor applicantOnlyJwt;
 
     @BeforeEach
     void fixture() throws Exception {
@@ -96,6 +98,10 @@ class AdmissionContractPersistenceTest {
         staff2Jwt = CurrentAccountJwt.fixtureJwt(jdbc, "staff-2", "STUDENT");
         adminJwt = CurrentAccountJwt.fixtureJwt(jdbc, "admin-user", "ADMIN");
         outsiderJwt = CurrentAccountJwt.fixtureJwt(jdbc, "student-9", "STUDENT");
+        ungrantedStaffJwt = CurrentAccountJwt.fixtureJwt(jdbc, "staff-no-grant", "STUDENT");
+        // Admissions applicants are ordinary authenticated accounts here; no
+        // dedicated APPLICANT system role exists or is required for SELF access.
+        applicantOnlyJwt = CurrentAccountJwt.fixtureJwt(jdbc, "applicant-ungranted");
 
         // Staff grants are authority assignments — seeded per-test like the
         // events fixture (grant/revoke API itself is covered below).
@@ -354,6 +360,35 @@ class AdmissionContractPersistenceTest {
     // ---------------------------------------------------------------
     // Scoped staff authority (§1.1 — role alone never implies domain right)
     // ---------------------------------------------------------------
+
+    @Test
+    void grantListingAllowsAdminsAndOnlyGrantedStaff() throws Exception {
+        createDraft(applicantOnlyJwt, "grant-list-applicant");
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM admissions.\"StaffGrant\" WHERE \"userId\" = ?",
+                Integer.class, "admin-user")).isZero();
+
+        mvc.perform(get("/api/v1/admissions/staff/grants").with(adminJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.userId=='staff-1')].id").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.userId=='staff-1' && @.scope=='admissions')].grantedBy").isNotEmpty())
+                .andExpect(jsonPath("$[?(@.userId=='staff-1')].createdAt").isNotEmpty());
+        mvc.perform(get("/api/v1/admissions/staff/grants").with(staffJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].scope").value("admissions"));
+
+        mvc.perform(get("/api/v1/admissions/staff/grants").with(ungrantedStaffJwt))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ADMISSIONS_STAFF_REQUIRED"));
+        mvc.perform(get("/api/v1/admissions/staff/grants").with(outsiderJwt))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ADMISSIONS_STAFF_REQUIRED"));
+        mvc.perform(get("/api/v1/admissions/staff/grants").with(applicantOnlyJwt))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ADMISSIONS_STAFF_REQUIRED"));
+        mvc.perform(get("/api/v1/admissions/staff/grants"))
+                .andExpect(status().isUnauthorized());
+    }
 
     @Test
     void staffGrantIsTheAuthority() throws Exception {
