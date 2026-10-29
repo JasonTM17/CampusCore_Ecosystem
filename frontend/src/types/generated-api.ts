@@ -91,6 +91,16 @@ export interface paths {
      */
     post: operations["submit_4"];
   };
+  "/api/v1/admin/attendance/geofences": {
+    /** Danh sách vùng điểm danh */
+    get: operations["attendanceListGeofences"];
+    /** Tạo vùng điểm danh đã xác minh tọa độ */
+    post: operations["attendanceCreateGeofence"];
+  };
+  "/api/v1/admin/attendance/geofences/{id}": {
+    /** Cập nhật hoặc vô hiệu hóa vùng điểm danh */
+    put: operations["attendanceUpdateGeofence"];
+  };
   "/api/v1/admin/audit": {
     /**
      * Danh sách vết kiểm toán quản trị
@@ -484,12 +494,26 @@ export interface paths {
      */
     get: operations["getAttendance"];
   };
+  "/api/v1/attendance/checkins/{id}/review": {
+    /** Duyệt hoặc từ chối điểm danh nghi vấn */
+    post: operations["attendanceReviewCheckin"];
+  };
+  "/api/v1/attendance/geofences/active": {
+    /** List active geofences for session setup */
+    get: operations["attendanceListActiveGeofences"];
+  };
   "/api/v1/attendance/lecturer/my": {
     /**
      * Giảng viên tra cứu dữ liệu điểm danh lớp phụ trách
      * @description Truy vấn danh sách điểm danh các lớp do giảng viên đang giảng dạy
      */
     get: operations["getMySectionAttendance"];
+  };
+  "/api/v1/attendance/location-consent": {
+    /** Xem phiên bản đồng ý sử dụng vị trí */
+    get: operations["attendanceGetLocationConsent"];
+    /** Ghi nhận đồng ý sử dụng vị trí khi điểm danh */
+    post: operations["attendanceAcceptLocationConsent"];
   };
   "/api/v1/attendance/my": {
     /**
@@ -537,6 +561,40 @@ export interface paths {
      * @description Giảng viên phụ trách hoặc Quản trị viên cập nhật điểm danh hàng loạt cho sinh viên trong lớp
      */
     put: operations["recordSectionAttendance_1"];
+  };
+  "/api/v1/attendance/sessions": {
+    /** Mở phiên điểm danh theo vị trí */
+    post: operations["attendanceOpenSession"];
+  };
+  "/api/v1/attendance/sessions/open": {
+    /** Xem phiên điểm danh đang mở của sinh viên */
+    get: operations["attendanceOpenForStudent"];
+  };
+  "/api/v1/attendance/sessions/{id}": {
+    /** Xem phiên điểm danh và số lượng kết quả */
+    get: operations["attendanceGetSession"];
+  };
+  "/api/v1/attendance/sessions/{id}/checkin": {
+    /** Sinh viên xác nhận điểm danh tại khu vực cho phép */
+    post: operations["attendanceStudentCheckin"];
+  };
+  "/api/v1/attendance/sessions/{id}/checkins": {
+    /**
+     * Xem danh sách điểm danh cần kiểm tra
+     * @description Không trả tọa độ hoặc mã thiết bị của sinh viên.
+     */
+    get: operations["attendanceListCheckins"];
+  };
+  "/api/v1/attendance/sessions/{id}/close": {
+    /** Đóng phiên điểm danh */
+    post: operations["attendanceCloseSession"];
+  };
+  "/api/v1/attendance/sessions/{id}/code": {
+    /**
+     * Lấy mã điểm danh hiện tại
+     * @description Mã đổi mỗi 30 giây. Không lưu bộ nhớ đệm.
+     */
+    get: operations["attendanceGetCode"];
   };
   "/api/v1/attendance/{id}": {
     /**
@@ -2375,8 +2433,100 @@ export interface components {
       dataBase64?: string;
       fileName?: string;
     };
+    AttendanceActiveGeofenceResponse: {
+      campusCode?: string;
+      /** Format: double */
+      centerLat?: number;
+      /** Format: double */
+      centerLng?: number;
+      id?: string;
+      name?: string;
+      /** Format: int32 */
+      radiusMeters?: number;
+    };
     AttendanceBatchRequest: {
       marks?: components["schemas"]["AttendanceMarkRequest"][];
+    };
+    AttendanceCheckinRequest: {
+      /** Format: double */
+      accuracyMeters: number;
+      /** Format: date-time */
+      capturedAt: string;
+      code?: string;
+      installationId: string;
+      /** Format: double */
+      latitude: number;
+      /** Format: double */
+      longitude: number;
+      mockProvider: boolean;
+      /** @description Optional single-use random request nonce; legacy clients use a server-derived request fingerprint */
+      nonce?: string;
+    };
+    AttendanceCheckinResponse: {
+      decision?: string;
+      message?: string;
+      status?: string;
+    };
+    AttendanceCheckinView: {
+      /** Format: double */
+      accuracyMeters?: number;
+      /** Format: date-time */
+      capturedAt?: string;
+      /** Format: date-time */
+      createdAt?: string;
+      decision?: string;
+      /** Format: double */
+      distanceMeters?: number;
+      id?: string;
+      mockProvider?: boolean;
+      reason?: string;
+      reviewNote?: string;
+      /** Format: date-time */
+      reviewedAt?: string;
+      reviewedBy?: string;
+      sessionId?: string;
+      studentId?: string;
+    };
+    AttendanceCodeResponse: {
+      code?: string;
+      /** Format: date-time */
+      expiresAt?: string;
+      /** Format: int32 */
+      stepSeconds?: number;
+    };
+    AttendanceConsentRequest: {
+      version: string;
+    };
+    AttendanceConsentResponse: {
+      accepted?: boolean;
+      /** Format: date-time */
+      acceptedAt?: string;
+      version?: string;
+    };
+    AttendanceGeofenceRequest: {
+      campusCode: string;
+      /** Format: double */
+      centerLat: number;
+      /** Format: double */
+      centerLng: number;
+      isActive: boolean;
+      name: string;
+      note?: string;
+      /** Format: int32 */
+      radiusMeters: number;
+    };
+    AttendanceGeofenceResponse: {
+      campusCode?: string;
+      /** Format: double */
+      centerLat?: number;
+      /** Format: double */
+      centerLng?: number;
+      id?: string;
+      isActive?: boolean;
+      name?: string;
+      note?: string;
+      /** Format: int32 */
+      radiusMeters?: number;
     };
     AttendanceListResponse: {
       data?: components["schemas"]["AttendanceResponse"][];
@@ -2395,6 +2545,28 @@ export interface components {
       /** Format: int32 */
       updatedCount?: number;
     };
+    AttendanceOpenSessionRequest: {
+      /** Format: date-time */
+      closesAt?: string;
+      /** Format: date */
+      date: string;
+      geofenceId: string;
+      /** Format: int32 */
+      lateAfterMinutes?: number;
+      /** Format: date-time */
+      opensAt?: string;
+      requireCode?: boolean;
+      sectionId: string;
+    };
+    AttendanceOpenSessionResponse: {
+      /** Format: date-time */
+      closesAt?: string;
+      geofenceName?: string;
+      id?: string;
+      requireCode?: boolean;
+      sectionId?: string;
+      sectionLabel?: string;
+    };
     AttendanceResponse: {
       /** Format: date-time */
       createdAt?: string;
@@ -2408,6 +2580,10 @@ export interface components {
       student?: components["schemas"]["StudentSummary"];
       studentId?: string;
     };
+    AttendanceReviewRequest: {
+      decision: string;
+      note: string;
+    };
     AttendanceRosterEntry: {
       enrollmentStatus?: string;
       firstName?: string;
@@ -2415,6 +2591,29 @@ export interface components {
       studentCode?: string;
       studentEmail?: string;
       studentId?: string;
+    };
+    AttendanceSessionResponse: {
+      /** Format: int64 */
+      accepted?: number;
+      /** Format: date-time */
+      closesAt?: string;
+      /** Format: date */
+      date?: string;
+      /** Format: int64 */
+      enrolled?: number;
+      geofenceId?: string;
+      id?: string;
+      /** Format: int32 */
+      lateAfterMinutes?: number;
+      /** Format: date-time */
+      opensAt?: string;
+      /** Format: int64 */
+      pending?: number;
+      /** Format: int64 */
+      rejected?: number;
+      requireCode?: boolean;
+      sectionId?: string;
+      status?: string;
     };
     AuthUserResponse: {
       address?: string;
@@ -5048,6 +5247,54 @@ export interface operations {
       };
     };
   };
+  /** Danh sách vùng điểm danh */
+  attendanceListGeofences: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AttendanceGeofenceResponse"][];
+        };
+      };
+    };
+  };
+  /** Tạo vùng điểm danh đã xác minh tọa độ */
+  attendanceCreateGeofence: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AttendanceGeofenceRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AttendanceGeofenceResponse"];
+        };
+      };
+    };
+  };
+  /** Cập nhật hoặc vô hiệu hóa vùng điểm danh */
+  attendanceUpdateGeofence: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AttendanceGeofenceRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AttendanceGeofenceResponse"];
+        };
+      };
+    };
+  };
   /**
    * Danh sách vết kiểm toán quản trị
    * @description Truy vấn phân trang các bản ghi audit hệ thống, lọc theo hành động, loại/thực thể hoặc tác nhân.
@@ -6587,6 +6834,38 @@ export interface operations {
       };
     };
   };
+  /** Duyệt hoặc từ chối điểm danh nghi vấn */
+  attendanceReviewCheckin: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AttendanceReviewRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AttendanceCheckinView"];
+        };
+      };
+    };
+  };
+  /** List active geofences for session setup */
+  attendanceListActiveGeofences: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AttendanceActiveGeofenceResponse"][];
+        };
+      };
+    };
+  };
   /**
    * Giảng viên tra cứu dữ liệu điểm danh lớp phụ trách
    * @description Truy vấn danh sách điểm danh các lớp do giảng viên đang giảng dạy
@@ -6606,6 +6885,33 @@ export interface operations {
       200: {
         content: {
           "*/*": components["schemas"]["AttendanceResponse"][];
+        };
+      };
+    };
+  };
+  /** Xem phiên bản đồng ý sử dụng vị trí */
+  attendanceGetLocationConsent: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AttendanceConsentResponse"];
+        };
+      };
+    };
+  };
+  /** Ghi nhận đồng ý sử dụng vị trí khi điểm danh */
+  attendanceAcceptLocationConsent: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AttendanceConsentRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AttendanceConsentResponse"];
         };
       };
     };
@@ -6807,6 +7113,160 @@ export interface operations {
       404: {
         content: {
           "*/*": components["schemas"]["AttendanceMutationResponse"];
+        };
+      };
+    };
+  };
+  /** Mở phiên điểm danh theo vị trí */
+  attendanceOpenSession: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AttendanceOpenSessionRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AttendanceSessionResponse"];
+        };
+      };
+    };
+  };
+  /** Xem phiên điểm danh đang mở của sinh viên */
+  attendanceOpenForStudent: {
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AttendanceOpenSessionResponse"][];
+        };
+      };
+    };
+  };
+  /** Xem phiên điểm danh và số lượng kết quả */
+  attendanceGetSession: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AttendanceSessionResponse"];
+        };
+      };
+    };
+  };
+  /** Sinh viên xác nhận điểm danh tại khu vực cho phép */
+  attendanceStudentCheckin: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AttendanceCheckinRequest"];
+      };
+    };
+    responses: {
+      /** @description ACCEPTED hoặc PENDING_REVIEW */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AttendanceCheckinResponse"];
+        };
+      };
+      /** @description INVALID_LOCATION */
+      400: {
+        content: {
+          "*/*": components["schemas"]["AttendanceCheckinResponse"];
+        };
+      };
+      /** @description NOT_ENROLLED hoặc CONSENT_REQUIRED */
+      403: {
+        content: {
+          "*/*": components["schemas"]["AttendanceCheckinResponse"];
+        };
+      };
+      /** @description ALREADY_CHECKED_IN */
+      409: {
+        content: {
+          "*/*": components["schemas"]["AttendanceCheckinResponse"];
+        };
+      };
+      /** @description SESSION_CLOSED */
+      410: {
+        content: {
+          "*/*": components["schemas"]["AttendanceCheckinResponse"];
+        };
+      };
+      /** @description BAD_CODE, OUTSIDE_AREA hoặc LOW_ACCURACY */
+      422: {
+        content: {
+          "*/*": components["schemas"]["AttendanceCheckinResponse"];
+        };
+      };
+      /** @description TOO_MANY_ATTEMPTS; Retry-After */
+      429: {
+        content: {
+          "*/*": components["schemas"]["AttendanceCheckinResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Xem danh sách điểm danh cần kiểm tra
+   * @description Không trả tọa độ hoặc mã thiết bị của sinh viên.
+   */
+  attendanceListCheckins: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AttendanceCheckinView"][];
+        };
+      };
+    };
+  };
+  /** Đóng phiên điểm danh */
+  attendanceCloseSession: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AttendanceSessionResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Lấy mã điểm danh hiện tại
+   * @description Mã đổi mỗi 30 giây. Không lưu bộ nhớ đệm.
+   */
+  attendanceGetCode: {
+    parameters: {
+      path: {
+        id: string;
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AttendanceCodeResponse"];
         };
       };
     };

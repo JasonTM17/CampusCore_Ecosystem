@@ -10,9 +10,37 @@ import type {
   PushDeviceRegistrationResponse,
 } from './push-notifications';
 import type { DiskDownload, NativeFileRuntime, TransferProgress } from './native-file-adapter';
+import type { components as GeneratedApiComponents } from './generated-api';
 
 export type JsonObject = Record<string, unknown>;
 export type AssistantLocale = 'en' | 'vi';
+
+type GeofencedAttendanceOpenSessionRequest =
+  GeneratedApiComponents['schemas']['AttendanceOpenSessionRequest'];
+type GeofencedAttendanceSessionResponse =
+  GeneratedApiComponents['schemas']['AttendanceSessionResponse'];
+type GeofencedAttendanceCodeResponse =
+  GeneratedApiComponents['schemas']['AttendanceCodeResponse'];
+type GeofencedAttendanceCheckinRequest =
+  GeneratedApiComponents['schemas']['AttendanceCheckinRequest'];
+type GeofencedAttendanceCheckinResponse =
+  GeneratedApiComponents['schemas']['AttendanceCheckinResponse'];
+type GeofencedAttendanceCheckinView =
+  GeneratedApiComponents['schemas']['AttendanceCheckinView'];
+type GeofencedAttendanceOpenSessionResponse =
+  GeneratedApiComponents['schemas']['AttendanceOpenSessionResponse'];
+type GeofencedAttendanceReviewRequest =
+  GeneratedApiComponents['schemas']['AttendanceReviewRequest'];
+type GeofencedAttendanceConsentRequest =
+  GeneratedApiComponents['schemas']['AttendanceConsentRequest'];
+type GeofencedAttendanceConsentResponse =
+  GeneratedApiComponents['schemas']['AttendanceConsentResponse'];
+type GeofencedAttendanceGeofenceRequest =
+  GeneratedApiComponents['schemas']['AttendanceGeofenceRequest'];
+type GeofencedAttendanceGeofenceResponse =
+  GeneratedApiComponents['schemas']['AttendanceGeofenceResponse'];
+type GeofencedAttendanceActiveGeofenceResponse =
+  GeneratedApiComponents['schemas']['AttendanceActiveGeofenceResponse'];
 
 declare const process: {
   env: Record<string, string | undefined>;
@@ -96,6 +124,8 @@ export interface AuthUser {
   email: string;
   firstName?: string | null;
   lastName?: string | null;
+  /** Portrait photo (URL or data URL), from AuthUserResponse.avatar. */
+  avatar?: string | null;
   roles?: string[];
   permissions?: string[];
   studentId?: string | null;
@@ -1605,4 +1635,65 @@ export const campusApi = {
     apiClient.put<void>(`${apiRoutes.assistant.messages}/${encodeURIComponent(messageId)}/feedback`, { rating, ...(reason ? { reason } : {}) }),
   deleteAssistantFeedback: (messageId: string) =>
     apiClient.delete<void>(`${apiRoutes.assistant.messages}/${encodeURIComponent(messageId)}/feedback`),
+};
+
+export const geofencedAttendanceApi = {
+  openSession: (request: GeofencedAttendanceOpenSessionRequest): Promise<GeofencedAttendanceSessionResponse> =>
+    apiClient.post<GeofencedAttendanceSessionResponse>('/attendance/sessions', request),
+  getSession: (sessionId: string): Promise<GeofencedAttendanceSessionResponse> =>
+    apiClient.get<GeofencedAttendanceSessionResponse>(
+      `/attendance/sessions/${encodeURIComponent(sessionId)}`,
+    ),
+  getCurrentCode: (sessionId: string): Promise<GeofencedAttendanceCodeResponse> =>
+    apiClient.get<GeofencedAttendanceCodeResponse>(
+      `/attendance/sessions/${encodeURIComponent(sessionId)}/code`,
+    ),
+  closeSession: (sessionId: string): Promise<GeofencedAttendanceSessionResponse> =>
+    apiClient.post<GeofencedAttendanceSessionResponse>(
+      `/attendance/sessions/${encodeURIComponent(sessionId)}/close`,
+    ),
+  listSessionCheckins: (sessionId: string): Promise<GeofencedAttendanceCheckinView[]> =>
+    apiClient.get<GeofencedAttendanceCheckinView[]>(
+      `/attendance/sessions/${encodeURIComponent(sessionId)}/checkins`,
+    ),
+  listOpenSessionsForStudent: (): Promise<GeofencedAttendanceOpenSessionResponse[]> =>
+    apiClient.get<GeofencedAttendanceOpenSessionResponse[]>('/attendance/sessions/open'),
+  submitStudentCheckin: (
+    sessionId: string,
+    request: GeofencedAttendanceCheckinRequest,
+  ): Promise<GeofencedAttendanceCheckinResponse> =>
+    apiClient.post<GeofencedAttendanceCheckinResponse>(
+      `/attendance/sessions/${encodeURIComponent(sessionId)}/checkin`,
+      request,
+    ),
+  reviewCheckin: (
+    checkinId: string,
+    request: GeofencedAttendanceReviewRequest,
+  ): Promise<GeofencedAttendanceCheckinView> =>
+    apiClient.post<GeofencedAttendanceCheckinView>(
+      `/attendance/checkins/${encodeURIComponent(checkinId)}/review`,
+      request,
+    ),
+  getLocationConsent: (): Promise<GeofencedAttendanceConsentResponse> =>
+    apiClient.get<GeofencedAttendanceConsentResponse>('/attendance/location-consent'),
+  acceptLocationConsent: (
+    request: GeofencedAttendanceConsentRequest,
+  ): Promise<GeofencedAttendanceConsentResponse> =>
+    apiClient.post<GeofencedAttendanceConsentResponse>('/attendance/location-consent', request),
+  listAdminGeofences: (): Promise<GeofencedAttendanceGeofenceResponse[]> =>
+    apiClient.get<GeofencedAttendanceGeofenceResponse[]>('/admin/attendance/geofences'),
+  createAdminGeofence: (
+    request: GeofencedAttendanceGeofenceRequest,
+  ): Promise<GeofencedAttendanceGeofenceResponse> =>
+    apiClient.post<GeofencedAttendanceGeofenceResponse>('/admin/attendance/geofences', request),
+  updateAdminGeofence: (
+    geofenceId: string,
+    request: GeofencedAttendanceGeofenceRequest,
+  ): Promise<GeofencedAttendanceGeofenceResponse> =>
+    apiClient.put<GeofencedAttendanceGeofenceResponse>(
+      `/admin/attendance/geofences/${encodeURIComponent(geofenceId)}`,
+      request,
+    ),
+  listActiveGeofences: (): Promise<GeofencedAttendanceActiveGeofenceResponse[]> =>
+    apiClient.get<GeofencedAttendanceActiveGeofenceResponse[]>('/attendance/geofences/active'),
 };
