@@ -10,13 +10,16 @@ import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
@@ -29,25 +32,48 @@ public class EmailServiceImpl implements EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailServiceImpl.class);
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy");
+    private static final ZoneId CAMPUS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
     private final MailConfig mailConfig;
+    private final Clock displayClock;
 
+    @Autowired
     public EmailServiceImpl(
             JavaMailSender mailSender,
             TemplateEngine templateEngine,
             MailConfig mailConfig) {
+        this(mailSender, templateEngine, mailConfig, Clock.system(CAMPUS_ZONE));
+    }
+
+    EmailServiceImpl(
+            JavaMailSender mailSender,
+            TemplateEngine templateEngine,
+            MailConfig mailConfig,
+            Clock displayClock) {
         this.mailSender = mailSender;
         this.templateEngine = templateEngine;
         this.mailConfig = mailConfig;
+        this.displayClock = displayClock;
+    }
+
+    /**
+     * Raised when a dispatch is skipped because SMTP delivery is disabled, so
+     * callers can report the mail as not delivered instead of mistaking the
+     * skip for a successful send.
+     */
+    public static final class MailDeliverySkippedException extends RuntimeException {
+        public MailDeliverySkippedException(String message) {
+            super(message);
+        }
     }
 
     @Override
     public void sendHtmlEmail(String to, String subject, String templateName, Map<String, Object> variables) {
         if (!mailConfig.isEnabled()) {
             log.warn("Email service is disabled; skipping dispatch");
-            return;
+            throw new MailDeliverySkippedException("SMTP delivery is disabled");
         }
 
         try {
@@ -110,7 +136,7 @@ public class EmailServiceImpl implements EmailService {
         variables.put("statusBadge", "KẾT NỐI SMTP THÀNH CÔNG");
         variables.put("smtpProtocol", "Gmail SMTP (Port 587 - TLS)");
         variables.put("senderEmail", mailConfig.getFrom());
-        variables.put("timestamp", LocalDateTime.now().format(DATE_TIME_FORMATTER));
+        variables.put("timestamp", LocalDateTime.now(displayClock).format(DATE_TIME_FORMATTER));
         variables.put("actionUrl", "https://www.campusute.io.vn");
         variables.put("actionText", "Truy cập Cổng Đào tạo CampusUTE");
 
@@ -123,7 +149,7 @@ public class EmailServiceImpl implements EmailService {
         variables.put("category", request.category() != null ? request.category() : "THÔNG BÁO HỌC VỤ");
         variables.put("title", request.title());
         variables.put("author", request.author() != null ? request.author() : "Phòng Đào tạo");
-        variables.put("publishDate", LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+        variables.put("publishDate", LocalDateTime.now(displayClock).format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
         variables.put("recipientName", request.recipientName() != null ? request.recipientName() : "Sinh viên");
         variables.put("content", request.content());
         variables.put("highlights", request.highlights());
@@ -138,11 +164,11 @@ public class EmailServiceImpl implements EmailService {
     public void sendCourseRegistration(CourseRegistrationRequest request) {
         Map<String, Object> variables = new HashMap<>();
         variables.put("subject", "[CampusUTE] Xác nhận Đăng ký Học phần " + (request.semester() != null ? request.semester() : ""));
-        variables.put("semester", request.semester() != null ? request.semester() : "Học kỳ 1 Năm học 2026-2027");
+        variables.put("semester", request.semester());
         variables.put("studentName", request.studentName());
         variables.put("studentId", request.studentId());
-        variables.put("department", request.department() != null ? request.department() : "Khoa Công nghệ Thông tin");
-        variables.put("timestamp", LocalDateTime.now().format(DATE_TIME_FORMATTER));
+        variables.put("department", request.department());
+        variables.put("timestamp", LocalDateTime.now(displayClock).format(DATE_TIME_FORMATTER));
         variables.put("courses", request.courses());
         variables.put("totalCredits", request.totalCredits());
 
@@ -154,14 +180,14 @@ public class EmailServiceImpl implements EmailService {
     public void sendGradeAlert(GradeAlertRequest request) {
         Map<String, Object> variables = new HashMap<>();
         variables.put("subject", "[CampusUTE] Thông báo Bảng điểm & Điểm rèn luyện - " + request.studentId());
-        variables.put("semester", request.semester() != null ? request.semester() : "Học kỳ 1 Năm học 2026-2027");
+        variables.put("semester", request.semester());
         variables.put("studentName", request.studentName());
         variables.put("studentId", request.studentId());
         variables.put("gpa4", request.gpa4());
         variables.put("gpa10", request.gpa10());
-        variables.put("academicStanding", request.academicStanding() != null ? request.academicStanding() : "XUẤT SẮC");
+        variables.put("academicStanding", request.academicStanding());
         variables.put("conductScore", request.conductScore());
-        variables.put("conductRank", request.conductRank() != null ? request.conductRank() : "XUẤT SẮC");
+        variables.put("conductRank", request.conductRank());
         variables.put("grades", request.grades());
 
         String subject = "[CampusUTE] Thông báo Kết quả Học tập & Rèn luyện - " + request.studentId();
