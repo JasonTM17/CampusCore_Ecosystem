@@ -23,7 +23,25 @@ const routeMap = read('mobile/src/navigation/route-map.ts');
 // Detail permalinks stay in the browser (no detail-param resolution);
 // /events + /learning exist only as app-internal paths — no portal
 // root route — so they are never claimed.
-const LANES = ['/news', '/docs', '/careers', '/library', '/apply'];
+const LANES = ['/news', '/docs', '/careers', '/library', '/apply', '/attendance/checkin'];
+const AASA_PATH_OVERRIDES = {
+  // Shared attendance links carry the session id as a child path segment.
+  '/attendance/checkin': '/attendance/checkin/*',
+};
+const CHECKIN_WEB_ROUTES = [
+  {
+    path: '/attendance/checkin/<sessionId>',
+    file: 'frontend/src/app/attendance/checkin/[sessionId]/page.tsx',
+  },
+  {
+    path: '/en/attendance/checkin/<sessionId>',
+    file: 'frontend/src/app/[locale]/attendance/checkin/[sessionId]/page.tsx',
+  },
+  {
+    path: '/vi/attendance/checkin/<sessionId>',
+    file: 'frontend/src/app/[locale]/attendance/checkin/[sessionId]/page.tsx',
+  },
+];
 const FORBIDDEN = ['/session', '/api'];
 const SYNTH_APPID = /^SYNTH[A-Z0-9]+\.io\.campuscore\.mobile$/;
 const ZERO_FP = /^00(:00)+$/;
@@ -64,9 +82,10 @@ for (const prefix of FORBIDDEN) {
   );
 }
 const included = components.filter((c) => !c.exclude).map((c) => c['/']);
+const expectedAasaPaths = LANES.map((lane) => AASA_PATH_OVERRIDES[lane] ?? lane);
 assert.deepEqual(
-  [...included].sort(), [...LANES].sort(),
-  `AASA claimed lanes drifted — claim exactly ${LANES.join(', ')} (portal routes with a native screen)`,
+  [...included].sort(), [...expectedAasaPaths].sort(),
+  `AASA claimed lanes drifted — claim exactly ${expectedAasaPaths.join(', ')} (portal routes with a native screen)`,
 );
 
 // ── Android assetlinks: every entry targeting our package is swept ────
@@ -105,6 +124,15 @@ for (const f of verified) {
   }
 }
 assert.deepEqual([...claimedPaths].sort(), [...LANES].sort(), 'android claim set must mirror the AASA lanes');
+
+// The web handles the link when the app is unavailable; the shared locale
+// route serves both supported mirrors, /en and /vi.
+for (const route of CHECKIN_WEB_ROUTES) {
+  assert.ok(
+    fs.existsSync(path.join(root, route.file)),
+    `web route missing for ${route.path} (expected ${route.file})`,
+  );
+}
 
 // ── Claim → screen parity: every claimed lane resolves via pathByScreen
 for (const lane of LANES) {
