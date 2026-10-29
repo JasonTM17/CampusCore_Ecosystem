@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { Card, StatusPill, UiText } from '../../components/Ui';
+import { Avatar } from '../../components/ui/avatar';
 import { useTheme } from '../../design/theme';
 import { fillCopy } from '../../i18n/academic-messages';
 import type { OperationsCopy } from '../../i18n/operations-messages';
@@ -35,13 +36,6 @@ function Row({ row, copy, onChange, disabled = false }: AttendanceRosterRowProps
   const styles = useOpsStyles();
   const { colors } = useTheme();
   const current = row.status ? statusLabel(copy, row.status) : copy.unmarked;
-  const initials = (row.name ?? '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(-2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('') || '?';
 
   return (
     <Card style={styles.rosterCard}>
@@ -50,9 +44,7 @@ function Row({ row, copy, onChange, disabled = false }: AttendanceRosterRowProps
         accessibilityLabel={fillCopy(copy.statusOf, { name: row.name, status: current })}
         style={styles.directoryRow}
       >
-        <View style={styles.avatar}>
-          <UiText style={styles.avatarText}>{initials}</UiText>
-        </View>
+        <Avatar decorative name={row.name} size="sm" />
         <View style={styles.directoryCopy}>
           <UiText variant="label">{row.name}</UiText>
           {row.studentCode ? (
