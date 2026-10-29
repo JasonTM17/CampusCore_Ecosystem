@@ -31,6 +31,7 @@ jest.mock('../../src/hooks/useScreenQuery', () => ({
   }),
 }));
 
+jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({}) }));
 jest.mock('../../src/api/parity-api', () => ({
   parityApi: new Proxy({}, { get: () => jest.fn(async () => ({ items: [], hasMore: false })) }),
 }));

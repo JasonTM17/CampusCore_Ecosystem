@@ -3,6 +3,8 @@ import type { LaneScreenId, ScreenName, UserRole } from './routes';
 export interface MobileNavigationOptions {
   thesisTopicId?: string;
   sectionId?: string;
+  /** Public announcement id or slug the news screen opens directly (guest feed → detail). */
+  newsItem?: string;
 }
 
 export interface MobileNavigation {
