@@ -39,7 +39,7 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
           <Image accessible={false} source={require('../../assets/hcmute-logo.png')} resizeMode="contain" style={styles.logo} />
           <View style={styles.headerCopy}>
             <UiText variant="meta" style={{ color: chrome.onSurfaceMuted }}>
-              CampusCore
+              CampusUTE
             </UiText>
             <UiText accessibilityRole="header" variant="headlineSmall" style={{ color: chrome.onSurface }}>{copy.menuTitle}</UiText>
           </View>

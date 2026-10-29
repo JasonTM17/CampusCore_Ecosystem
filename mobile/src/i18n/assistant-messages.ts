@@ -47,7 +47,7 @@ export const assistantMessages = { en, vi };
 /* ---------- Chat screen copy (separate from the frozen status list above) ---------- */
 
 const chatVi = {
-  title: 'Trợ lý CampusCore',
+  title: 'Trợ lý CampusUTE',
   scopeLabel: 'Phạm vi trả lời',
   scopeAcademic: 'Học vụ',
   scopeSpecialized: 'Chuyên sâu',
@@ -64,7 +64,7 @@ const chatVi = {
   deleteTitle: 'Xoá cuộc trò chuyện?',
   deleteBody: 'Toàn bộ tin nhắn trong cuộc trò chuyện này sẽ bị xoá.',
   cancel: 'Huỷ',
-  conversationFallback: 'Cuộc trò chuyện CampusCore',
+  conversationFallback: 'Cuộc trò chuyện CampusUTE',
   composerLabel: 'Câu hỏi của bạn',
   composerPlaceholder: 'Nhập câu hỏi',
   send: 'Gửi câu hỏi',
@@ -113,7 +113,7 @@ const chatVi = {
 };
 
 const chatEn: typeof chatVi = {
-  title: 'CampusCore assistant',
+  title: 'CampusUTE assistant',
   scopeLabel: 'Answer scope',
   scopeAcademic: 'Academic',
   scopeSpecialized: 'Specialized',
@@ -130,7 +130,7 @@ const chatEn: typeof chatVi = {
   deleteTitle: 'Delete this conversation?',
   deleteBody: 'Every message in this conversation will be deleted.',
   cancel: 'Cancel',
-  conversationFallback: 'CampusCore conversation',
+  conversationFallback: 'CampusUTE conversation',
   composerLabel: 'Your question',
   composerPlaceholder: 'Type a question',
   send: 'Send question',

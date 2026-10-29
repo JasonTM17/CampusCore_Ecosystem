@@ -7,7 +7,7 @@ import type { MobileCareerOpportunity } from '../../api/client';
 import { careersMessages } from '../../i18n/careers-messages';
 import { DOCUMENT_POLICY } from './attachment-transfer';
 import { contentApi, type CareerApplicationView } from './content-api';
-import { isApplicationWithdrawable } from './content-rules';
+import { employmentTypeLabel, isApplicationWithdrawable } from './content-rules';
 import {
   AttachmentRow,
   ContentHero,
@@ -54,7 +54,7 @@ export function OpportunityDetail({ opportunity, alreadyApplied, busy, preview, 
           <View style={{ gap: 4, marginTop: 8 }}>
             <MetaRow label={copy.organization} value={opportunity.organizationName} />
             <MetaRow label={copy.location} value={opportunity.location} />
-            <MetaRow label={copy.employmentType} value={opportunity.employmentType} />
+            <MetaRow label={copy.employmentType} value={employmentTypeLabel(copy.employmentTypeLabels, opportunity.employmentType)} />
             <MetaRow label={copy.salary} value={opportunity.salaryText} />
             <MetaRow label={copy.postedAt} value={opportunity.publishedAt ? formatDate(opportunity.publishedAt) : null} />
           </View>

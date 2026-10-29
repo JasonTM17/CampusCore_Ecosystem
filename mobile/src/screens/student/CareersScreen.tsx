@@ -11,7 +11,7 @@ import { careersMessages } from '../../i18n/careers-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi, type CareerApplicationView } from '../content/content-api';
 import { contentErrorMessage, errorCode } from '../content/content-errors';
-import { activeOpportunityIds, joinMeta, isApplicationWithdrawable } from '../content/content-rules';
+import { activeOpportunityIds, employmentTypeLabel, joinMeta, isApplicationWithdrawable } from '../content/content-rules';
 import { ContentIconChip, ListFrame, StatusChip, useConfirm, useContentCopy, useFlash } from '../content/content-ui';
 import { ApplicationDetail, OpportunityDetail } from '../content/CareerDetail';
 import { previewCareerApplications, previewOpportunities } from '../content/preview-data';
@@ -172,7 +172,7 @@ export function CareersScreen(_props: MobileScreenProps) {
                 <ContentIconChip icon="briefcase-outline" />
                 <View style={styles.rowCopy}>
                   <UiText variant="label">{item.title}</UiText>
-                  <UiText variant="bodySmall" tone="muted">{joinMeta([item.organizationName, item.location, item.employmentType])}</UiText>
+                  <UiText variant="bodySmall" tone="muted">{joinMeta([item.organizationName, item.location, employmentTypeLabel(copy.employmentTypeLabels, item.employmentType)])}</UiText>
                   <View style={styles.chips}>
                     {liveIds.has(item.id) ? <StatusPill label={copy.alreadyApplied} tone="success" /> : null}
                   </View>
