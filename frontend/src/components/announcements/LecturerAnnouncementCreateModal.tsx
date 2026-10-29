@@ -575,6 +575,8 @@ export function LecturerAnnouncementCreateModal({
                     <img
                       src={banner.url}
                       alt={bannerTitle}
+                      width={banner.width}
+                      height={banner.height}
                       className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-105"
                     />
                     {isSelected ? (

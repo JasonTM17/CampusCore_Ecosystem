@@ -1553,6 +1553,7 @@ export default function AcademicEditorPage() {
                           checked={block.enabled}
                           onChange={() => handleToggleBlock(block.id)}
                           className="h-4 w-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                          aria-label={editorCopy.toggleBlockTitle}
                           title={editorCopy.toggleBlockTitle}
                         />
                         <div className="min-w-0">
@@ -1642,6 +1643,8 @@ export default function AcademicEditorPage() {
                         <img
                           src={banner.url}
                           alt={bannerTitle}
+                          width={banner.width}
+                          height={banner.height}
                           className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-105"
                         />
                         {isSelected ? (

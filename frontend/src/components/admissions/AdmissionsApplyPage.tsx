@@ -447,6 +447,7 @@ export function AdmissionsApplyPage() {
                         data-testid="admissions-file-input"
                         type="file"
                         className="text-sm"
+                        aria-label={copy.attachFile}
                       />
                       <Button size="sm" variant="outline" data-testid="admissions-upload" onClick={() => void upload()}>
                         {copy.attachFile}

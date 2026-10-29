@@ -116,6 +116,8 @@ export default function HomePage() {
               alt=""
               role="presentation"
               loading="eager"
+              width={1600}
+              height={900}
               className="col-span-full h-56 w-full rounded-2xl border border-border/60 object-cover shadow-sm sm:h-72 lg:h-80"
             />
           ) : null}

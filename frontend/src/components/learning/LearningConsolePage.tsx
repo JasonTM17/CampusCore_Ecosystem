@@ -368,11 +368,12 @@ function StudentWorkModal({
                   <label className="block text-xs font-medium">{copy.writeAnswer}</label>
                   <textarea
                     className="min-h-28 w-full rounded-lg border border-border bg-background p-2 text-sm"
+                    aria-label={copy.writeAnswer}
                     value={textBody}
                     onChange={(event) => setTextBody(event.target.value)}
                   />
                   <label className="block text-xs font-medium">{copy.attachFile}</label>
-                  <input ref={fileRef} type="file" className="block w-full text-xs" data-testid="learning-file-input" />
+                  <input ref={fileRef} type="file" className="block w-full text-xs" data-testid="learning-file-input" aria-label={copy.attachFile} />
                   <div className="flex flex-wrap gap-2">
                     {submission.status === 'DRAFT' ? (
                       <>
@@ -551,6 +552,7 @@ export function LecturerLearningPage() {
             <label className="text-sm font-medium">{copy.pickSection}</label>
             <select
               className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              aria-label={copy.pickSection}
               value={sectionId}
               onChange={(event) => setSectionId(event.target.value)}
               data-testid="learning-staff-section"
@@ -716,7 +718,7 @@ function MaterialModal({
         <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={copy.materialTitle} />
         <Input value={description} onChange={(event) => setDescription(event.target.value)} placeholder={copy.descriptionField} />
         <label className="block text-xs font-medium">{copy.materialFile}</label>
-        <input ref={fileRef} type="file" className="block w-full text-xs" data-testid="learning-material-file" />
+        <input ref={fileRef} type="file" className="block w-full text-xs" data-testid="learning-material-file" aria-label={copy.materialFile} />
         <Button onClick={() => void create()} disabled={busy || !title.trim()}>{copy.addMaterial}</Button>
       </div>
     </Modal>
@@ -770,6 +772,7 @@ function AssignmentModal({
         <input
           type="datetime-local"
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+          aria-label={copy.deadline}
           value={deadline}
           onChange={(event) => setDeadline(event.target.value)}
           data-testid="learning-assignment-deadline"
