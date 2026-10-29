@@ -268,6 +268,13 @@ export const en = {
       },
     },
   },
+  session: {
+    loggedOut: {
+      title: 'You have signed out',
+      body: 'Your sign-in session has ended on all devices linked to this account.',
+      returnHome: 'Return to the homepage',
+    },
+  },
   meta: {
     defaults: {
       siteName: 'CampusUTE',
@@ -313,6 +320,22 @@ export const en = {
     resetPassword: {
       title: 'Reset password | CampusUTE',
       description: 'Set a new CampusUTE password and return to the campus portal.',
+    },
+    apply: {
+      title: 'CampusUTE applications | CampusUTE',
+      description: 'Protected application services for CampusUTE students.',
+    },
+    careers: {
+      title: 'CampusUTE careers | CampusUTE',
+      description: 'Protected career services for the CampusUTE community.',
+    },
+    library: {
+      title: 'CampusUTE library | CampusUTE',
+      description: 'Protected library services for CampusUTE students.',
+    },
+    session: {
+      title: 'CampusUTE account session | CampusUTE',
+      description: 'CampusUTE account session and sign-out status.',
     },
     dashboard: {
       title: 'Campus portal | CampusUTE',
@@ -3260,6 +3283,13 @@ export const vi: I18nMessages = {
       },
     },
   },
+  session: {
+    loggedOut: {
+      title: 'Bạn đã đăng xuất',
+      body: 'Phiên đăng nhập của bạn đã kết thúc trên mọi thiết bị liên kết với tài khoản này.',
+      returnHome: 'Về trang chủ',
+    },
+  },
   meta: {
     defaults: {
       siteName: 'CampusUTE',
@@ -3305,6 +3335,22 @@ export const vi: I18nMessages = {
     resetPassword: {
       title: 'Đặt lại mật khẩu | CampusUTE',
       description: 'Tạo mật khẩu mới cho CampusUTE và quay lại cổng học vụ.',
+    },
+    apply: {
+      title: 'Dịch vụ đăng ký CampusUTE | CampusUTE',
+      description: 'Khu vực đăng ký được bảo vệ dành cho sinh viên CampusUTE.',
+    },
+    careers: {
+      title: 'Cơ hội nghề nghiệp CampusUTE | CampusUTE',
+      description: 'Khu vực dịch vụ nghề nghiệp dành cho cộng đồng CampusUTE.',
+    },
+    library: {
+      title: 'Thư viện CampusUTE | CampusUTE',
+      description: 'Khu vực dịch vụ thư viện được bảo vệ dành cho sinh viên CampusUTE.',
+    },
+    session: {
+      title: 'Phiên đăng nhập CampusUTE | CampusUTE',
+      description: 'Trạng thái phiên đăng nhập và đăng xuất khỏi CampusUTE.',
     },
     dashboard: {
       title: 'Bảng điều khiển học vụ | CampusUTE',
