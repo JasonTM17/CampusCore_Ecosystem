@@ -144,11 +144,13 @@ public class TwoFactorService {
     @Transactional(noRollbackFor = AppException.class)
     public void confirmEnable(String userId, String challengeId, String code) {
         String keepSessionId = resolveCurrentSessionId(userId);
+        users.lockUserRow(userId);
+        requireActiveUser(userId);
         ChallengeRecord challenge = requireUsableChallenge(
                 challengeId, TwoFactorChallengeRepository.PURPOSE_ENABLE, userId);
         verifyCode(challenge, code);
+        consumeOnce(challenge);
         users.setTwoFactorEnabled(userId, true);
-        challenges.consume(challenge.id(), clock.instant());
         // Round-3 ct-4: turning 2FA on is a security-posture change — the
         // trail records who and when, next to the password events.
         audit.record(userId, null, "TWO_FACTOR_ENABLED", "USER", userId,
@@ -189,11 +191,13 @@ public class TwoFactorService {
     @Transactional(noRollbackFor = AppException.class)
     public void confirmDisable(String userId, String challengeId, String code) {
         String keepSessionId = resolveCurrentSessionId(userId);
+        users.lockUserRow(userId);
+        requireActiveUser(userId);
         ChallengeRecord challenge = requireUsableChallenge(
                 challengeId, TwoFactorChallengeRepository.PURPOSE_DISABLE, userId);
         verifyCode(challenge, code);
+        consumeOnce(challenge);
         users.setTwoFactorEnabled(userId, false);
-        challenges.consume(challenge.id(), clock.instant());
         audit.record(userId, null, "TWO_FACTOR_DISABLED", "USER", userId,
                 "User disabled two-factor authentication after password and emailed-code verification");
         users.bumpCredentialVersion(userId);
@@ -299,6 +303,12 @@ public class TwoFactorService {
         verifyCode(challenge, code);
         challenges.consume(challenge.id(), clock.instant());
         return challenge.userId();
+    }
+
+    private void consumeOnce(ChallengeRecord challenge) {
+        if (challenges.consume(challenge.id(), clock.instant()) != 1) {
+            throw invalidChallenge();
+        }
     }
 
     private String createAndDeliverChallenge(String userId, String purpose) {
