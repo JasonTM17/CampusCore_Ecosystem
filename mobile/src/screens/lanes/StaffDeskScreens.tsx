@@ -121,7 +121,12 @@ export function ApplyReviewScreen() {
             row.submittedAt ? `${copy.submittedAt}: ${formatDateTime(row.submittedAt)}` : null,
             fillCopy(copy.attachments, { n: row.attachments?.length ?? 0 }),
           ]}
-          actions={admissionsActions(row.status).map((kind) => ({ key: kind, label: ACTION_LABEL(copy, kind), onPress: () => runner.request(run(kind, row)) }))}
+          actions={admissionsActions(row.status).map((kind) => ({
+            key: kind,
+            label: ACTION_LABEL(copy, kind),
+            variant: kind === 'accept' ? 'primary' : kind === 'reject' || kind === 'return' ? 'destructive' : 'secondary',
+            onPress: () => runner.request(run(kind, row)),
+          }))}
         />
       )}
     />
@@ -167,7 +172,12 @@ export function CareersDeskScreen() {
             row.submittedAt ? `${copy.submittedAt}: ${formatDateTime(row.submittedAt)}` : null,
             fillCopy(copy.attachments, { n: row.attachments?.length ?? 0 }),
           ]}
-          actions={careersActions(row.status).map((kind) => ({ key: kind, label: ACTION_LABEL(copy, kind), onPress: () => runner.request(run(kind, row)) }))}
+          actions={careersActions(row.status).map((kind) => ({
+            key: kind,
+            label: ACTION_LABEL(copy, kind),
+            variant: kind === 'toOffer' ? 'primary' : kind === 'reject' ? 'destructive' : 'secondary',
+            onPress: () => runner.request(run(kind, row)),
+          }))}
         />
       )}
     />
@@ -216,7 +226,12 @@ export function LibraryDeskScreen() {
             row.barcode,
             row.dueAt ? `${copy.dueAt}: ${formatDateTime(row.dueAt)}` : null,
           ]}
-          actions={libraryActions(row.status).map((kind) => ({ key: kind, label: ACTION_LABEL(copy, kind), onPress: () => runner.request(run(kind, row)) }))}
+          actions={libraryActions(row.status).map((kind) => ({
+            key: kind,
+            label: ACTION_LABEL(copy, kind),
+            variant: kind === 'approve' || kind === 'issue' ? 'primary' : kind === 'cancel' ? 'destructive' : 'secondary',
+            onPress: () => runner.request(run(kind, row)),
+          }))}
         />
       )}
     />

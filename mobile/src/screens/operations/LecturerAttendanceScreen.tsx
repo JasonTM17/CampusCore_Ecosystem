@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
-import { Button, MetricCard, Notice, StatePanel, UiText } from '../../components/Ui';
+import { Button, Notice, StatePanel, StatStrip, UiText } from '../../components/Ui';
 import { DateField } from '../../components/ui/date-field';
 import { SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -60,7 +60,7 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
     copy,
     Boolean(sectionId),
   );
-  // The hook keeps the previous key's data until the next fetch lands; only a sheet that carries this key is used.
+
   const sheet: AttendanceSheet | undefined = useMemo(() => {
     if (preview) return { sectionId, date, roster: previewRoster, marks: [] };
     const data = sheetQuery.data;
@@ -82,8 +82,6 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
     setRemoteChanged(false);
   };
 
-  // A new key loads fresh rows. A refetch of the same key replaces them only when nothing is unsaved;
-  // otherwise the lecturer keeps their marks and is told the server moved.
   useEffect(() => {
     if (!sheet) return;
     if (loadedKey !== sheetKey) {
@@ -96,7 +94,6 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
       if (attendanceChangeCount(rows, baseline) === 0) applySheet(sheet);
       else setRemoteChanged(true);
     }
-    // rows/baseline are read, not triggers: only a new server payload or key re-runs this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheet, sheetKey]);
 
@@ -117,7 +114,6 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
     setSave({ kind: 'idle' });
   };
 
-  // Discards the local marks for the latest server sheet; a fresher payload still in flight lands through the effect.
   const reloadSheet = () => {
     setSave({ kind: 'idle' });
     if (sheet) applySheet(sheet);
@@ -183,14 +179,16 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
             <StatePanel kind="empty" title={copy.rosterEmpty} />
           ) : (
             <View>
-              <View style={styles.metrics}>
-                <MetricCard label={copy.statusPresent} value={String(metrics.present)} style={styles.metric} />
-                <MetricCard label={copy.statusAbsent} value={String(metrics.absent)} style={styles.metric} />
-                <MetricCard label={copy.statusLate} value={String(metrics.late)} style={styles.metric} />
-                <MetricCard label={copy.rateLabel} value={`${metrics.rate.toFixed(0)}%`} style={styles.metric} />
-              </View>
+              <StatStrip
+                style={styles.stats}
+                items={[
+                  { icon: 'account-check-outline', label: copy.statusPresent, value: String(metrics.present) },
+                  { icon: 'account-remove-outline', label: copy.statusAbsent, value: String(metrics.absent) },
+                  { icon: 'clock-alert-outline', label: copy.statusLate, value: String(metrics.late) },
+                  { icon: 'percent-outline', label: copy.rateLabel, value: `${metrics.rate.toFixed(0)}%` },
+                ]}
+              />
               {remoteChanged ? <Notice tone="warning" message={copy.stale} actionLabel={copy.reload} onAction={reloadSheet} /> : null}
-              {changes > 0 ? <UiText variant="bodySmall" tone="muted">{fillCopy(copy.unsaved, { n: changes })}</UiText> : null}
               <SearchBar
                 value={search}
                 onChangeText={(value) => { setSearch(value); setPages(1); }}
@@ -198,24 +196,38 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
                 accessibilityLabel={copy.searchStudents}
                 style={styles.searchBar}
               />
-              <Button label={copy.markAllPresent} variant="secondary" onPress={markAll} disabled={busy || visible.length === 0} />
-              <View style={styles.stack}>
+              <Button
+                icon="check-all"
+                label={copy.markAllPresent}
+                variant="secondary"
+                onPress={markAll}
+                disabled={busy || visible.length === 0}
+              />
+              <View style={[styles.stack, { marginTop: 12 }]}>
                 {visible.length === 0 ? <StatePanel kind="empty" title={copy.noMatch} /> : null}
                 {shown.map((row) => (
                   <AttendanceRosterRow key={row.studentId} row={row} copy={copy} onChange={change} disabled={busy} />
                 ))}
                 {hasMore ? <Button label={copy.loadMore} variant="secondary" onPress={() => setPages((current) => current + 1)} /> : null}
               </View>
-              {save.kind === 'error' ? <Notice tone="error" message={save.message} /> : null}
-              {save.kind === 'saved' ? <Notice tone="success" message={fillCopy(copy.saved, { n: save.count })} /> : null}
-              <Button
-                label={copy.save}
-                loading={busy}
-                disabled={preview || changes === 0 || remoteChanged}
-                onPress={() => void saveAttendance()}
-                style={styles.topButton}
-              />
-              <CsvExport name={attendanceCsvFilename(section?.sectionNumber || sectionId, date)} build={buildCsv} rows={rows.length} />
+
+              <View style={styles.saveBar}>
+                {save.kind === 'error' ? <Notice tone="error" message={save.message} /> : null}
+                {save.kind === 'saved' ? <Notice tone="success" message={fillCopy(copy.saved, { n: save.count })} /> : null}
+                {changes > 0 ? (
+                  <UiText variant="bodySmall" tone="muted">
+                    {fillCopy(copy.unsaved, { n: changes })}
+                  </UiText>
+                ) : null}
+                <Button
+                  icon="content-save-outline"
+                  label={copy.save}
+                  loading={busy}
+                  disabled={preview || changes === 0 || remoteChanged}
+                  onPress={() => void saveAttendance()}
+                />
+                <CsvExport name={attendanceCsvFilename(section?.sectionNumber || sectionId, date)} build={buildCsv} rows={rows.length} />
+              </View>
             </View>
           )}
         </View>
