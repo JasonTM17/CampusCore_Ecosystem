@@ -7,13 +7,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.URL;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -52,12 +54,25 @@ public class BffApiProxyController {
             "transfer-encoding", "content-length", "connection", "set-cookie",
             "keep-alive", "te", "trailer", "upgrade",
             "www-authenticate", "proxy-authenticate", "authorization");
+    // The JDK transport reserves these names (it owns them per exchange);
+    // setting them manually throws, so they are dropped like the stripped
+    // hop-by-hop headers above. Nothing else the STRIP list misses may pass.
+    private static final List<String> JDK_RESTRICTED = List.of(
+            "connection", "content-length", "expect", "host", "upgrade");
 
     private final IdentityProperties properties;
     private final BffSurfaceRegistry registry;
     private final BffSessionService sessions;
     private final BffSessionController sessionEndpoints;
     private final int loopbackPort;
+    // Loopback-only transport: HTTP/1.1, no redirect chasing, and the same
+    // 5s connect / 30s response ceilings the previous per-request wiring had.
+    // Unlike HttpURLConnection it supports every verb (PATCH included).
+    private final HttpClient http = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .connectTimeout(Duration.ofMillis(5000))
+            .followRedirects(HttpClient.Redirect.NEVER)
+            .build();
 
     public BffApiProxyController(IdentityProperties properties,
             BffSurfaceRegistry registry, BffSessionService sessions,
@@ -120,32 +135,36 @@ public class BffApiProxyController {
     private ResponseEntity<byte[]> forward(HttpServletRequest request,
             String upstream, Surface surface, String accessToken)
             throws IOException {
-        URL url = URI.create("http://127.0.0.1:" + loopbackPort + upstream
-                + (request.getQueryString() == null ? "" : "?" + request.getQueryString()))
-                .toURL();
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod(request.getMethod());
-        conn.setInstanceFollowRedirects(false);
-        conn.setConnectTimeout(5000);
-        conn.setReadTimeout(30000);
+        String method = request.getMethod();
+        byte[] requestBody = "GET".equals(method) || "HEAD".equals(method)
+                ? null
+                : request.getInputStream().readAllBytes();
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create("http://127.0.0.1:" + loopbackPort + upstream
+                        + (request.getQueryString() == null ? "" : "?" + request.getQueryString())))
+                .timeout(Duration.ofMillis(30000))
+                .method(method, requestBody == null
+                        ? HttpRequest.BodyPublishers.noBody()
+                        : HttpRequest.BodyPublishers.ofByteArray(requestBody));
 
         Enumeration<String> names = request.getHeaderNames();
         while (names.hasMoreElements()) {
             String name = names.nextElement();
-            if (STRIP_REQUEST.contains(name.toLowerCase(java.util.Locale.ROOT))) {
+            String lower = name.toLowerCase(Locale.ROOT);
+            if (STRIP_REQUEST.contains(lower) || JDK_RESTRICTED.contains(lower)) {
                 continue;
             }
             Enumeration<String> values = request.getHeaders(name);
             while (values.hasMoreElements()) {
-                conn.addRequestProperty(name, values.nextElement());
+                builder.header(name, values.nextElement());
             }
         }
         if (accessToken != null) {
-            conn.setRequestProperty("Authorization", "Bearer " + accessToken);
+            builder.header("Authorization", "Bearer " + accessToken);
         }
-        conn.setRequestProperty(BffSurfaceRegistry.SURFACE_HEADER, surface.getId());
+        builder.header(BffSurfaceRegistry.SURFACE_HEADER, surface.getId());
         if (!surface.getProxySecret().isEmpty()) {
-            conn.setRequestProperty("X-Campuscore-Bff-Secret", surface.getProxySecret());
+            builder.header("X-Campuscore-Bff-Secret", surface.getProxySecret());
         }
         // The BFF is the edge for this lane: upstream rate-limit/audit must
         // see the real caller IP, not the loopback. The shared proxy token
@@ -158,30 +177,29 @@ public class BffApiProxyController {
                 ? request.getHeader("X-Campuscore-Client-Ip")
                 : request.getRemoteAddr();
         if (!registry.proxyToken().isEmpty()) {
-            conn.setRequestProperty(BffSurfaceRegistry.PROXY_TOKEN_HEADER,
+            builder.header(BffSurfaceRegistry.PROXY_TOKEN_HEADER,
                     registry.proxyToken());
         }
-        conn.setRequestProperty("X-Campuscore-Client-Ip", clientIp);
+        builder.header("X-Campuscore-Client-Ip", clientIp);
 
-        if (!"GET".equals(request.getMethod()) && !"HEAD".equals(request.getMethod())) {
-            conn.setDoOutput(true);
-            try (InputStream in = request.getInputStream();
-                    OutputStream out = conn.getOutputStream()) {
-                in.transferTo(out);
-            }
-        }
-
-        int status;
+        HttpResponse<InputStream> upstreamResponse;
         try {
-            status = conn.getResponseCode();
+            upstreamResponse = http.send(builder.build(),
+                    HttpResponse.BodyHandlers.ofInputStream());
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return json(HttpStatus.BAD_GATEWAY, "UPSTREAM_UNREACHABLE");
         } catch (IOException exception) {
             return json(HttpStatus.BAD_GATEWAY, "UPSTREAM_UNREACHABLE");
         }
-        InputStream body = status >= 400 ? conn.getErrorStream() : conn.getInputStream();
-        byte[] payload = body == null ? new byte[0] : body.readAllBytes();
+        int status = upstreamResponse.statusCode();
+        byte[] payload;
+        try (InputStream body = upstreamResponse.body()) {
+            payload = body == null ? new byte[0] : body.readAllBytes();
+        }
         org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-        conn.getHeaderFields().forEach((name, values) -> {
-            if (name == null || STRIP_RESPONSE.contains(name.toLowerCase(java.util.Locale.ROOT))) {
+        upstreamResponse.headers().map().forEach((name, values) -> {
+            if (name == null || STRIP_RESPONSE.contains(name.toLowerCase(Locale.ROOT))) {
                 return;
             }
             values.forEach(value -> headers.add(name, value));
