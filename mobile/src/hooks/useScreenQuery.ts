@@ -1,12 +1,15 @@
 import { getNetworkStateAsync } from 'expo-network';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { apiClient } from '../api/client';
+import { NO_CAPABILITIES } from '../auth/capabilities';
 import { sessionStore } from '../auth/mobile-session-store';
+import { useLocale } from '../i18n/locale-provider';
 import { useSession } from '../session/SessionContext';
 import {
+  evictQueryCache,
   queryCacheKey,
   readQueryCache,
   writeQueryCache,
@@ -16,7 +19,11 @@ import {
 export interface ScreenQueryOptions<T> {
   /** Defaults to live mode — preview sessions never fetch (KM-9). */
   enabled?: boolean;
-  /** Optional cache dimension for locale- or role-dependent read models. */
+  /**
+   * Extra cache dimensions (filter, page). The account, locale, role and
+   * capability grant always come from the session and cannot be overridden
+   * away: a read model never crosses any of them.
+   */
   scope?: QueryCacheScope;
   /** Expire cached memory data after this many milliseconds. */
   maxAge?: number;
@@ -71,8 +78,14 @@ export function useScreenQuery<T>(
   options: ScreenQueryOptions<T> = {},
 ): ScreenQueryResult<T> {
   const session = useSession();
+  const { locale } = useLocale();
   const enabled = options.enabled ?? apiClient.mode === 'live';
-  const cacheKey = queryCacheKey(session.accountId, queryKey, options.scope);
+  const cacheKey = queryCacheKey(session.accountId, queryKey, {
+    ...options.scope,
+    locale: options.scope?.locale ?? locale,
+    roleLane: options.scope?.roleLane ?? session.role,
+    grants: session.capabilities ?? NO_CAPABILITIES,
+  });
 
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
@@ -97,12 +110,19 @@ export function useScreenQuery<T>(
     mountedRef.current = false;
   }, []);
 
+  // Epoch the key was minted in: a write after a sign-out/sign-in cycle must
+  // not land under the old account's key.
+  const keyEpoch = useMemo(() => sessionStore.sessionEpoch(), [cacheKey]);
+
   const setData = useCallback((next: T) => {
+    if (keyEpoch !== sessionStore.sessionEpoch()) {
+      return;
+    }
     writeQueryCache(cacheKey, next);
     if (mountedRef.current) {
       setDataState(next);
     }
-  }, [cacheKey]);
+  }, [cacheKey, keyEpoch]);
 
   const reload = useCallback(async () => {
     if (!enabled || inFlightRef.current) {
@@ -160,6 +180,11 @@ export function useScreenQuery<T>(
       // Denied is always a full state (§5). Other failures degrade to a
       // stale-data banner when the screen already has something to show.
       if (status === 403 || readQueryCache<T>(cacheKey, optionsRef.current.maxAge) === undefined) {
+        if (status === 403) {
+          // A revoked grant must not keep showing what it used to allow.
+          evictQueryCache(cacheKey);
+          setDataState(undefined);
+        }
         setError(message);
         setErrorStatus(status);
       } else {

@@ -40,6 +40,10 @@ jest.mock('../../src/api/assistant-api', () => {
     },
   };
 });
+// The notification centre reads the session to resolve tap targets; preview is never a grant.
+jest.mock('../../src/session/SessionContext', () => ({
+  useSession: () => ({ kind: 'preview', role: 'student', capabilities: [] }),
+}));
 jest.mock('../../src/hooks/useScreenQuery', () => ({
   useScreenQuery: () => ({ data: undefined, error: null, warning: null, isLoading: false, reload: jest.fn(), setData: jest.fn() }),
 }));
