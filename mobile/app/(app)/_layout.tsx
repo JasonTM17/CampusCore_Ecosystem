@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBar } from '../../src/components/AppBar';
 import { AssistantFab } from '../../src/components/AssistantFab';
 import { BottomNavigation } from '../../src/components/BottomNavigation';
+import { ErrorBoundary } from '../../src/components/ErrorBoundary';
 import { MenuPanel } from '../../src/components/MenuPanel';
 import { NavigationRail } from '../../src/components/NavigationRail';
 import { NO_CAPABILITIES } from '../../src/auth/capabilities';
@@ -47,7 +48,7 @@ export default function AppGroupLayout() {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['bottom']}>
         <AppBar onSignIn={() => router.replace('/sign-in')} />
-        <View testID="app-route-content" style={styles.routeContent}><Slot /></View>
+        <View testID="app-route-content" style={styles.routeContent}><ErrorBoundary resetKey={pathname}><Slot /></ErrorBoundary></View>
       </SafeAreaView>
     );
   }
@@ -76,7 +77,7 @@ export default function AppGroupLayout() {
             />
           ) : null}
           <View testID="app-route-content" style={styles.routeContent}>
-            <Slot />
+            <ErrorBoundary resetKey={pathname}><Slot /></ErrorBoundary>
             <AssistantFab
               session={session.kind}
               role={session.role}

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Dimensions } from 'react-native';
+import { Dimensions, Linking } from 'react-native';
 import type { ReactElement } from 'react';
 
 import { ThemeProvider } from '../../src/design/theme';
@@ -36,6 +36,23 @@ jest.mock('../../src/screens/content/content-api', () => ({
     deleteNotification: jest.fn(async () => ({})),
   },
 }));
+const mockPushOptIn = { value: false };
+const mockPushPermission = {
+  value: { granted: false, canAskAgain: true } as { granted: boolean; canAskAgain?: boolean },
+};
+jest.mock('../../src/config/features', () => ({
+  get PUSH_OPT_IN_ENABLED() { return mockPushOptIn.value; },
+}));
+jest.mock('../../src/api/expo-push-platform', () => ({
+  expoPushPlatform: {
+    provider: 'EXPO',
+    platform: 'ANDROID',
+    getInstallationId: jest.fn(async () => 'install-1'),
+    getPermissionsAsync: jest.fn(async () => mockPushPermission.value),
+    requestPermissionsAsync: jest.fn(async () => mockPushPermission.value),
+    getPushToken: jest.fn(async () => 'token-1'),
+  },
+}));
 jest.mock('../../src/session/SessionContext', () => ({ useSession: () => mockSession.value }));
 jest.mock('../../src/hooks/useScreenQuery', () => ({
   useScreenQuery: (key: string) => ({
@@ -51,8 +68,11 @@ jest.mock('../../src/hooks/useScreenQuery', () => ({
 }));
 
 import { contentApi } from '../../src/screens/content/content-api';
+import { expoPushPlatform } from '../../src/api/expo-push-platform';
 import { NotificationsScreen } from '../../src/screens/student/NotificationsScreen';
+import { checkinMessages } from '../../src/i18n/checkin-messages';
 import { contentMessages } from '../../src/i18n/content-messages';
+import { uiMessages } from '../../src/i18n/locale';
 import { notificationsCenterMessages } from '../../src/i18n/notifications-center-messages';
 import { notificationsMessages } from '../../src/i18n/notifications-messages';
 import { recordsMessages } from '../../src/i18n/records-messages';
@@ -81,6 +101,8 @@ afterEach(() => {
   jest.restoreAllMocks();
   mockSession.value = { kind: 'authenticated', role: 'student', capabilities: [] };
   mockQuery.value = { data: undefined, warning: null, error: null, errorStatus: null };
+  mockPushOptIn.value = false;
+  mockPushPermission.value = { granted: false, canAskAgain: true };
 });
 
 /** The row's own button, not its delete button (whose label repeats the title). */
@@ -220,5 +242,51 @@ describe('notifications centre offline', () => {
   test('copy keys match in both locales', () => {
     expect(notificationsCenterMessages.en.offlineReadOnly).toMatch(/offline/i);
     expect(Object.keys(notificationsCenterMessages.en)).toEqual(Object.keys(notificationsCenterMessages.vi));
+  });
+});
+
+describe('push opt-in denial recovery', () => {
+  function showOptIn(permission: { granted: boolean; canAskAgain?: boolean }) {
+    mockPushOptIn.value = true;
+    mockPushPermission.value = permission;
+    showRows([]);
+  }
+
+  test('the opt-in card stays hidden while the feature flag is off', async () => {
+    showRows([]);
+    await renderThemed(<NotificationsScreen {...props} />);
+    expect(screen.queryByRole('button', { name: notificationsMessages.vi.enableAction })).toBeNull();
+  });
+
+  test('a denial the OS will still prompt for offers a retry, and a final denial swaps to settings', async () => {
+    showOptIn({ granted: false, canAskAgain: true });
+    await renderThemed(<NotificationsScreen {...props} />);
+    await fireEvent.press(screen.getByRole('button', { name: notificationsMessages.vi.enableAction }));
+    expect(await screen.findByText(notificationsMessages.vi.permissionDenied)).toBeOnTheScreen();
+    expect(jest.mocked(expoPushPlatform.requestPermissionsAsync)).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: checkinMessages.vi.openSettings })).toBeNull();
+
+    // The second denial comes back final: retry disappears, no prompt is re-issued.
+    mockPushPermission.value = { granted: false, canAskAgain: false };
+    await fireEvent.press(screen.getByRole('button', { name: uiMessages.vi.retry }));
+    expect(await screen.findByRole('button', { name: checkinMessages.vi.openSettings })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: uiMessages.vi.retry })).toBeNull();
+    expect(jest.mocked(expoPushPlatform.requestPermissionsAsync)).toHaveBeenCalledTimes(1);
+  });
+
+  test('a blocked denial offers settings, and a rejected open stays honestly denied', async () => {
+    showOptIn({ granted: false, canAskAgain: false });
+    const openSettings = jest.spyOn(Linking, 'openSettings').mockRejectedValue(new Error('no settings handler'));
+    await renderThemed(<NotificationsScreen {...props} />);
+    await fireEvent.press(screen.getByRole('button', { name: notificationsMessages.vi.enableAction }));
+    expect(await screen.findByText(notificationsMessages.vi.permissionDenied)).toBeOnTheScreen();
+    expect(jest.mocked(expoPushPlatform.requestPermissionsAsync)).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: uiMessages.vi.retry })).toBeNull();
+
+    await fireEvent.press(screen.getByRole('button', { name: checkinMessages.vi.openSettings }));
+    expect(openSettings).toHaveBeenCalledTimes(1);
+    // The rejection is not hidden and nothing pretends the grant succeeded.
+    expect(screen.getByText(notificationsMessages.vi.permissionDenied)).toBeOnTheScreen();
+    expect(jest.mocked(expoPushPlatform.getPushToken)).not.toHaveBeenCalled();
   });
 });

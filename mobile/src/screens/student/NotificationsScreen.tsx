@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Button, Card, StatePanel, UiText } from '../../components/Ui';
@@ -14,6 +14,7 @@ import { useTheme } from '../../design/theme';
 import { useOptimisticRows } from '../../hooks/use-optimistic-rows';
 import { evictQueryCache, queryCacheKey } from '../../hooks/query-cache';
 import { fillCopy } from '../../i18n/academic-messages';
+import { checkinMessages } from '../../i18n/checkin-messages';
 import { notificationsCenterMessages } from '../../i18n/notifications-center-messages';
 import { notificationsMessages } from '../../i18n/notifications-messages';
 import { recordsMessages } from '../../i18n/records-messages';
@@ -238,9 +239,11 @@ const styles = StyleSheet.create({
 type PushOptInStatus = 'idle' | 'registered' | 'denied' | 'unavailable' | 'failed';
 
 function PushOptInCard() {
-  const { locale } = useContentCopy();
+  const { locale, t } = useContentCopy();
   const pushMsg = notificationsMessages[locale];
+  const checkinCopy = checkinMessages[locale];
   const [status, setStatus] = useState<PushOptInStatus>('idle');
+  const [denialBlocked, setDenialBlocked] = useState(false);
   if (!PUSH_OPT_IN_ENABLED) return null;
 
   const onEnable = async () => {
@@ -256,15 +259,21 @@ function PushOptInCard() {
       },
       unregisterPushDevice: (installationId) => campusApi.unregisterPushDevice(installationId),
     };
-    // Dynamic imports keep the expo-notifications adapter out of app startup
+    // Lazy requires keep the expo-notifications adapter out of app startup
     // while the opt-in flag is off.
-    const [{ createPushNotificationClient }, { expoPushPlatform }] = await Promise.all([
-      import('../../api/push-notifications'),
-      import('../../api/expo-push-platform'),
-    ]);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createPushNotificationClient } = require('../../api/push-notifications') as typeof import('../../api/push-notifications');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { expoPushPlatform } = require('../../api/expo-push-platform') as typeof import('../../api/expo-push-platform');
     const result = await createPushNotificationClient(expoPushPlatform, api).register(true);
     if (result.status === 'registered') setStatus('registered');
-    else if (result.status === 'permission-denied') setStatus('denied');
+    else if (result.status === 'permission-denied') {
+      setStatus('denied');
+      // A denial the OS marked final (canAskAgain === false) can only be
+      // undone in device settings; anything else may still prompt.
+      const permission = await expoPushPlatform.getPermissionsAsync().catch(() => null);
+      setDenialBlocked(permission?.canAskAgain === false);
+    }
     else if (result.status === 'unavailable') setStatus('unavailable');
     else if (lastError instanceof ApiClientError && lastError.status === 503) setStatus('unavailable');
     else setStatus('failed');
@@ -283,5 +292,19 @@ function PushOptInCard() {
     : status === 'denied' ? pushMsg.permissionDenied
     : status === 'unavailable' ? pushMsg.unavailable
     : pushMsg.registrationFailed;
-  return <StatePanel kind={status === 'registered' ? 'empty' : 'error'} title={message} />;
+  const action = status === 'denied'
+    ? denialBlocked
+      ? { label: checkinCopy.openSettings, run: () => { void Linking.openSettings().catch(() => undefined); } }
+      : { label: t('retry'), run: () => { void onEnable(); } }
+    : status === 'failed'
+      ? { label: t('retry'), run: () => { void onEnable(); } }
+      : null;
+  return (
+    <StatePanel
+      kind={status === 'registered' ? 'empty' : 'error'}
+      title={message}
+      actionLabel={action?.label}
+      onAction={action?.run}
+    />
+  );
 }

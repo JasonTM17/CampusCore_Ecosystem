@@ -7,6 +7,7 @@ import { BeVietnamPro_500Medium } from '@expo-google-fonts/be-vietnam-pro/500Med
 import { BeVietnamPro_600SemiBold } from '@expo-google-fonts/be-vietnam-pro/600SemiBold';
 import { BeVietnamPro_700Bold } from '@expo-google-fonts/be-vietnam-pro/700Bold';
 
+import { ErrorBoundary } from '../src/components/ErrorBoundary';
 import { ThemeProvider, useTheme } from '../src/design/theme';
 import { LocaleProvider, useLocale } from '../src/i18n/locale-provider';
 import { NO_CAPABILITIES } from '../src/auth/capabilities';
@@ -42,13 +43,14 @@ export default function RootLayout() {
 function BootReady({ fontsReady }: { fontsReady: boolean }) {
   const { booted } = useSession();
   const { ready: localeReady } = useLocale();
+  const pathname = usePathname() ?? '/';
   const ready = fontsReady && booted && localeReady;
   useEffect(() => {
     if (!ready) return;
     const frame = requestAnimationFrame(() => { void SplashScreen.hideAsync().catch(() => undefined); });
     return () => cancelAnimationFrame(frame);
   }, [ready]);
-  return ready ? <RootNavigator /> : <View />;
+  return ready ? <ErrorBoundary resetKey={pathname}><RootNavigator /></ErrorBoundary> : <View />;
 }
 
 /** Status bar follows the active scheme (light content on dark surfaces). */
