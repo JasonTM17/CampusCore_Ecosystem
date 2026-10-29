@@ -43,7 +43,7 @@ import { useAssistantStream } from './useAssistantStream';
 // - Preserves thesisApi.chat(message, locale) fallback compatibility when stream disconnects.
 export { TRANSIENT_TERMINAL_CODES };
 
-export function AssistantPanel() {
+export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
   const { locale, messages, href } = useI18n();
   const router = useRouter();
   const { isLecturer, isFacultyHead, isAdmin, isSuperAdmin } = useAuth();
@@ -199,9 +199,11 @@ export function AssistantPanel() {
 
   useEffect(() => {
     const handleOpen = (event: Event) => {
-      triggerRef.current = document.activeElement as HTMLElement | null;
-      const requestedMode = (event as CustomEvent<{ mode?: 'academic' | 'specialized' }>)
-        .detail?.mode;
+      const detail = (event as CustomEvent<{
+        mode?: 'academic' | 'specialized'; trigger?: HTMLElement | null;
+      }>).detail;
+      triggerRef.current = detail?.trigger ?? document.activeElement as HTMLElement | null;
+      const requestedMode = detail?.mode;
       setMode(requestedMode === 'specialized' ? 'specialized' : 'academic');
       setOpen(true);
     };
@@ -560,6 +562,10 @@ export function AssistantPanel() {
   const authRequired = state.error === 'unauthorized';
   const goSignIn = () =>
     router.push(`${href('/login')}?reason=session-expired`);
+
+  // Notify the lazy shell only after all mount effects (including the open
+  // listener and route suppression) have run, before replaying the first open.
+  useEffect(() => { onReady?.(); }, [onReady]);
 
   return (
     <>
