@@ -59,6 +59,8 @@ export const en = {
       loadingMetrics: 'Loading metrics',
       loadingAnnouncements: 'Loading campus announcements',
       loadingThesisTopics: 'Loading thesis topics',
+      sectionErrorTitle: 'This section could not be displayed',
+      sectionErrorDescription: 'An unexpected error interrupted this part of the page. Retry to load it again without leaving the workspace.',
     },
     statuses: {
       OPEN: 'Open',
@@ -3072,6 +3074,8 @@ export const vi: I18nMessages = {
       IN_PROGRESS: 'Đang xử lý',
       NONE: 'Chưa có điểm',
       PARTIAL: 'Đã nhập một phần',
+      sectionErrorTitle: 'Không hiển thị được phần này',
+      sectionErrorDescription: 'Một lỗi không mong muốn đã làm gián đoạn phần này của trang. Hãy thử tải lại mà không rời khỏi không gian làm việc.',
       ALL_GRADED: 'Đã nhập đủ điểm',
       NOT_GRADED: 'Chưa chấm điểm',
       APPEALED: 'Đang xem xét',
