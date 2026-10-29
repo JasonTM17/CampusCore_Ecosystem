@@ -1,3 +1,51 @@
+# ==============================================================================
+# CI MATRIX AND GATE SEMANTICS
+# ------------------------------------------------------------------------------
+# Job -> Gate -> Merge Blocking vs Report-Only:
+#
+# 1. ecosystem-gates (BLOCKS MERGE):
+#    - Secret hygiene: git grep sk-* patterns, check-assistant-secrets.mjs,
+#      secret-hygiene.test.mjs (fail on 0 tests).
+#    - Documentation hygiene: check-doc-hygiene.mjs.
+#    - Design token drift: sync-tokens.mjs --check.
+#    - Lineage & migrations: check-migrations.mjs, flyway-lineage-check.mjs,
+#      flyway-lineage-check.test.mjs (fail on 0 tests).
+#    - Assistant offline eval: assistant-eval.test.mjs (fail on 0 tests).
+#    - Event collision guard: events-preview-collision.test.mjs (fail on 0 tests).
+#    - BFF host registry & static policy: host-registry-verify.mjs, static-policy-verify.mjs.
+#
+# 2. java-api (BLOCKS MERGE):
+#    - Java modular monolith compile and surefire verification.
+#    - Surefire zero-test assertion: fails if total tests run equals 0 across reports.
+#
+# 3. frontend (BLOCKS MERGE):
+#    - Web dependencies (npm ci), typecheck, lint, build.
+#    - Web unit tests (npm test) with assertion that > 0 tests executed.
+#
+# 4. portal-viewport (BLOCKS MERGE):
+#    - Portal shell responsiveness at 1440, 768, and 390 viewports (fail on 0 tests).
+#
+# 5. mobile (BLOCKS MERGE):
+#    - Expo mobile dependencies (npm ci), typecheck (tsc --noEmit).
+#    - Mobile unit tests (npm test) with assertion that > 0 tests executed.
+#    - Jest component, accessibility, and visual tests (--passWithNoTests=false, fail on 0 tests).
+#
+# 6. e2e (BLOCKS MERGE):
+#    - Official Playwright e2e suite against disposable container stack.
+#
+# 7. compose (BLOCKS MERGE):
+#    - Migration immutability check, docker compose config validation.
+#    - Database Flyway boundary, readiness, OpenAPI, multi-role auth, and RAG probes.
+#    - Supabase content & Assistant RLS tooling tests (fail on 0 tests).
+#
+# 8. web-supply-chain (BLOCKS MERGE):
+#    - Frontend npm audit (--omit=dev --audit-level=high); production tree is clean.
+#
+# 9. mobile-supply-chain-report (REPORT-ONLY, DOES NOT BLOCK MERGE):
+#    - Mobile npm audit (--omit=dev --audit-level=high): report-only while the upstream
+#      expo-router/metro/deepmerge advisories await the mobile dependency task.
+# ==============================================================================
+
 name: Course API and Client CI
 
 on:
@@ -14,6 +62,92 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  ecosystem-gates:
+    name: Ecosystem and supply chain gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13'
+      - name: Secret hygiene gate (masked secret scan and test)
+        shell: bash
+        run: |
+          set -o pipefail
+          if git grep -nE 'sk-[A-Za-z0-9]{20,}' -- . ':!plans' ':!scripts/run-course-e2e.mjs'; then
+            echo 'A provider-looking secret is tracked; refusing CI.'
+            exit 1
+          fi
+          node scripts/check-assistant-secrets.mjs
+          node --test scripts/secret-hygiene.test.mjs 2>&1 | tee /tmp/secret-hygiene.log
+          node -e '
+            const fs = require("fs");
+            const log = fs.readFileSync("/tmp/secret-hygiene.log", "utf8");
+            const m = log.match(/(?:#|ℹ)\s*tests\s+(\d+)/);
+            if (!m || parseInt(m[1], 10) === 0) {
+              console.error("FAIL: Zero secret hygiene tests executed!");
+              process.exit(1);
+            }
+            console.log(`PASS: Verified ${m[1]} secret hygiene tests executed.`);
+          '
+      - name: Documentation hygiene gate
+        run: node scripts/check-doc-hygiene.mjs
+      - name: Design tokens synchronization gate
+        run: node scripts/sync-tokens.mjs --check
+      - name: Migration well-formedness and Flyway lineage gate
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/check-migrations.mjs
+          node scripts/flyway-lineage-check.mjs
+          node --test scripts/flyway-lineage-check.test.mjs 2>&1 | tee /tmp/lineage-test.log
+          node -e '
+            const fs = require("fs");
+            const log = fs.readFileSync("/tmp/lineage-test.log", "utf8");
+            const m = log.match(/(?:#|ℹ)\s*tests\s+(\d+)/);
+            if (!m || parseInt(m[1], 10) === 0) {
+              console.error("FAIL: Zero migration lineage tests executed!");
+              process.exit(1);
+            }
+            console.log(`PASS: Verified ${m[1]} lineage tests executed.`);
+          '
+      - name: Offline assistant evaluation gate (AUD-16)
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test scripts/assistant-eval/assistant-eval.test.mjs 2>&1 | tee /tmp/assistant-eval.log
+          node -e '
+            const fs = require("fs");
+            const log = fs.readFileSync("/tmp/assistant-eval.log", "utf8");
+            const m = log.match(/(?:#|ℹ)\s*tests\s+(\d+)/);
+            if (!m || parseInt(m[1], 10) === 0) {
+              console.error("FAIL: Zero assistant eval tests executed!");
+              process.exit(1);
+            }
+            console.log(`PASS: Verified ${m[1]} assistant eval tests executed.`);
+          '
+      - name: Events preview collision guard
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test scripts/tests/events-preview-collision.test.mjs 2>&1 | tee /tmp/events-collision.log
+          node -e '
+            const fs = require("fs");
+            const log = fs.readFileSync("/tmp/events-collision.log", "utf8");
+            const m = log.match(/(?:#|ℹ)\s*tests\s+(\d+)/);
+            if (!m || parseInt(m[1], 10) === 0) {
+              console.error("FAIL: Zero events collision tests executed!");
+              process.exit(1);
+            }
+            console.log(`PASS: Verified ${m[1]} events collision tests executed.`);
+          '
+      - name: BFF host registry parity and static policy sentinels
+        run: |
+          node scripts/host-registry-verify.mjs
+          node scripts/static-policy-verify.mjs
+
   java-api:
     name: Java REST API
     runs-on: ubuntu-latest
@@ -33,6 +167,34 @@ jobs:
         run: python -m pip install --quiet pypdf
       - name: Verify Java API
         run: mvn -q -f java-services/pom.xml verify
+      - name: Assert Java tests ran and passed (fail on zero tests)
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs");
+            const path = require("path");
+            const reportDir = "java-services/restful-api/target/surefire-reports";
+            if (!fs.existsSync(reportDir)) {
+              console.error("FAIL: Surefire reports directory not found:", reportDir);
+              process.exit(1);
+            }
+            const files = fs.readdirSync(reportDir).filter(f => f.endsWith(".txt"));
+            if (files.length === 0) {
+              console.error("FAIL: No surefire test reports found");
+              process.exit(1);
+            }
+            let total = 0;
+            for (const f of files) {
+              const content = fs.readFileSync(path.join(reportDir, f), "utf8");
+              const m = content.match(/Tests run:\s*(\d+)/);
+              if (m) total += parseInt(m[1], 10);
+            }
+            if (total === 0) {
+              console.error("FAIL: Zero Java tests executed across surefire reports (Tests run: 0)");
+              process.exit(1);
+            }
+            console.log(`PASS: Verified ${total} Java tests executed across ${files.length} report files.`);
+          '
 
   frontend:
     name: Next.js web
@@ -49,7 +211,20 @@ jobs:
         run: npm ci
       - name: Test web
         working-directory: frontend
-        run: npm test
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/frontend-test.log
+          node -e '
+            const fs = require("fs");
+            const log = fs.readFileSync("/tmp/frontend-test.log", "utf8");
+            const m = log.match(/(?:#|ℹ)\s*tests\s+(\d+)/);
+            if (!m || parseInt(m[1], 10) === 0) {
+              console.error("FAIL: Zero web tests executed or summary count missing!");
+              process.exit(1);
+            }
+            console.log(`PASS: Verified ${m[1]} web tests executed.`);
+          '
       - name: Typecheck web
         working-directory: frontend
         run: npm run typecheck
@@ -89,7 +264,20 @@ jobs:
           exit 1
       - name: Test portal shell at 1440, 768, and 390
         working-directory: frontend
-        run: node --test tests/portal-shell.viewport.test.js
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test tests/portal-shell.viewport.test.js 2>&1 | tee /tmp/portal-viewport.log
+          node -e '
+            const fs = require("fs");
+            const log = fs.readFileSync("/tmp/portal-viewport.log", "utf8");
+            const m = log.match(/(?:#|ℹ)\s*tests\s+(\d+)/);
+            if (!m || parseInt(m[1], 10) === 0) {
+              console.error("FAIL: Zero viewport tests executed or summary count missing!");
+              process.exit(1);
+            }
+            console.log(`PASS: Verified ${m[1]} viewport tests executed.`);
+          '
 
   mobile:
     name: Expo mobile
@@ -107,13 +295,41 @@ jobs:
         run: npm ci
       - name: Test mobile
         working-directory: mobile
-        run: npm test
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/mobile-test.log
+          node -e '
+            const fs = require("fs");
+            const log = fs.readFileSync("/tmp/mobile-test.log", "utf8");
+            const m = log.match(/(?:#|ℹ)\s*tests\s+(\d+)/);
+            if (!m || parseInt(m[1], 10) === 0) {
+              console.error("FAIL: Zero mobile unit tests executed or summary count missing!");
+              process.exit(1);
+            }
+            console.log(`PASS: Verified ${m[1]} mobile unit tests executed.`);
+          '
       - name: Typecheck mobile
         working-directory: mobile
         run: npm run typecheck
       - name: Component, accessibility and structural visual tests
         working-directory: mobile
-        run: npm run test:component
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:component -- --passWithNoTests=false 2>&1 | tee /tmp/jest-component.log
+          node -e '
+            const fs = require("fs");
+            const log = fs.readFileSync("/tmp/jest-component.log", "utf8");
+            const m = log.match(/Tests:\s*.*?(?:,\s*|\s*)([0-9]+)\s+total/);
+            const passed = log.match(/Tests:\s*([0-9]+)\s+passed/);
+            const count = m ? parseInt(m[1], 10) : (passed ? parseInt(passed[1], 10) : 0);
+            if (count === 0) {
+              console.error("FAIL: Jest executed zero tests!");
+              process.exit(1);
+            }
+            console.log(`PASS: Verified ${count} Jest component tests executed.`);
+          '
 
   e2e:
     name: Official Playwright e2e
@@ -181,8 +397,11 @@ jobs:
               fi
             done <<< "$edited"
           fi
-      - name: Migration filenames and versions are well-formed
-        run: node scripts/check-migrations.mjs
+      - name: Migration filenames, versions and lineage
+        shell: bash
+        run: |
+          node scripts/check-migrations.mjs
+          node scripts/flyway-lineage-check.mjs
       - name: Validate Compose
         run: docker compose config
       - name: Secret hygiene
@@ -202,9 +421,35 @@ jobs:
       - name: BFF static policy sentinels
         run: node scripts/static-policy-verify.mjs
       - name: Supabase content tooling tests
-        run: node --test scripts/supabase/assistant-knowledge.test.mjs
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test scripts/supabase/assistant-knowledge.test.mjs 2>&1 | tee /tmp/supabase-tests.log
+          node -e '
+            const fs = require("fs");
+            const log = fs.readFileSync("/tmp/supabase-tests.log", "utf8");
+            const m = log.match(/(?:#|ℹ)\s*tests\s+(\d+)/);
+            if (!m || parseInt(m[1], 10) === 0) {
+              console.error("FAIL: Zero Supabase content tests executed!");
+              process.exit(1);
+            }
+            console.log(`PASS: Verified ${m[1]} Supabase content tests executed.`);
+          '
       - name: Assistant RLS provisioning script tests
-        run: node --test scripts/provision-assistant-runtime.test.mjs
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test scripts/provision-assistant-runtime.test.mjs 2>&1 | tee /tmp/provision-tests.log
+          node -e '
+            const fs = require("fs");
+            const log = fs.readFileSync("/tmp/provision-tests.log", "utf8");
+            const m = log.match(/(?:#|ℹ)\s*tests\s+(\d+)/);
+            if (!m || parseInt(m[1], 10) === 0) {
+              console.error("FAIL: Zero provisioning tests executed!");
+              process.exit(1);
+            }
+            console.log(`PASS: Verified ${m[1]} provisioning tests executed.`);
+          '
       - name: Build and start fresh course stack
         run: docker compose up -d --build --wait
       - name: Verify database image boundary
@@ -280,3 +525,41 @@ jobs:
       - name: Stop course stack
         if: always()
         run: docker compose down
+
+  web-supply-chain:
+    name: Web production dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install web dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Audit web production dependencies (fails on high or critical)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
+  mobile-supply-chain-report:
+    name: Mobile dependency vulnerability report (report-only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci
+      - name: Audit mobile dependencies (report-only)
+        working-directory: mobile
+        continue-on-error: true
+        # KNOWN BLOCKER: upstream expo-router/metro/deepmerge dependency tree; triage is the mobile
+        # dependency task. Report-only: does not block merge until that task lands.
+        run: npm audit --omit=dev --audit-level=high
