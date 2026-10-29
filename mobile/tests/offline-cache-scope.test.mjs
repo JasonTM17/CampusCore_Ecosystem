@@ -283,7 +283,9 @@ test('useScreenQuery keys every read by session account, locale, role and grants
   assert.match(hook, /grants: session\.capabilities \?\? NO_CAPABILITIES/);
   assert.match(hook, /evictQueryCache\(cacheKey\)/);
   // The reload dependency list stays stable (no fetch loop from a fresh options literal).
-  assert.match(hook, /\}, \[cacheKey, enabled\]\);/);
+  assert.match(hook, /\}, \[cacheKey, enabled, boundary, isCurrent, update\]\);/);
+  assert.match(hook, /activeBoundaryRef\.current === boundary/);
+  assert.match(hook, /boundary\.epoch === sessionStore\.sessionEpoch\(\)/);
 });
 
 // --- session lifecycle -------------------------------------------------------

@@ -66,6 +66,29 @@ function defaultError(error: unknown, fallback: string): string {
   return fallback;
 }
 
+interface QueryBoundary {
+  cacheKey: string;
+  epoch: number;
+  enabled: boolean;
+  inFlight: boolean;
+}
+
+interface QueryState<T> {
+  boundary: QueryBoundary;
+  data: T | undefined;
+  isLoading: boolean;
+  isStale: boolean;
+  error: string | null;
+  warning: string | null;
+  errorStatus: number | null;
+}
+
+function initialQueryState<T>(boundary: QueryBoundary, maxAge?: number): QueryState<T> {
+  const data = boundary.enabled ? readQueryCache<T>(boundary.cacheKey, maxAge) : undefined;
+  return { boundary, data, isLoading: boundary.enabled && data === undefined,
+    isStale: false, error: null, warning: null, errorStatus: null };
+}
+
 /**
  * Query lifecycle hook (mobile-policy §5): fetch on mount, refetch when the
  * screen regains focus and when the app returns to the foreground,
@@ -94,68 +117,57 @@ export function useScreenQuery<T>(
   // fetch→render→fetch loop.
   const optionsRef = useRef(options);
   optionsRef.current = options;
-  const inFlightRef = useRef(false);
   const mountedRef = useRef(true);
+  const epoch = sessionStore.sessionEpoch();
+  const boundary = useMemo<QueryBoundary>(() => ({ cacheKey, epoch, enabled, inFlight: false }),
+    [cacheKey, epoch, enabled]);
+  const activeBoundaryRef = useRef(boundary);
+  activeBoundaryRef.current = boundary;
+  const [state, setState] = useState<QueryState<T>>(() => initialQueryState<T>(boundary, options.maxAge));
+  // State belongs to its query identity. An effect-only reset would expose the
+  // old account/resource for one render before the reset effect can run.
+  const visible = state.boundary === boundary ? state : initialQueryState<T>(boundary, options.maxAge);
 
-  const [data, setDataState] = useState<T | undefined>(() =>
-    enabled ? readQueryCache<T>(cacheKey, options.maxAge) : undefined,
-  );
-  const [isLoading, setIsLoading] = useState(enabled && data === undefined);
-  const [isStale, setIsStale] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
-  const [errorStatus, setErrorStatus] = useState<number | null>(null);
-
-  useEffect(() => () => {
-    mountedRef.current = false;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
   }, []);
 
-  // Epoch the key was minted in: a write after a sign-out/sign-in cycle must
-  // not land under the old account's key.
-  const keyEpoch = useMemo(() => sessionStore.sessionEpoch(), [cacheKey]);
+  const isCurrent = useCallback(() => mountedRef.current
+    && activeBoundaryRef.current === boundary
+    && boundary.epoch === sessionStore.sessionEpoch(), [boundary]);
+
+  const update = useCallback((patch: Partial<QueryState<T>>) => {
+    if (!isCurrent()) return;
+    setState((previous) => ({
+      ...(previous.boundary === boundary ? previous : initialQueryState<T>(boundary, optionsRef.current.maxAge)),
+      ...patch,
+    }));
+  }, [boundary, isCurrent]);
 
   const setData = useCallback((next: T) => {
-    if (keyEpoch !== sessionStore.sessionEpoch()) {
-      return;
-    }
+    if (!enabled || !isCurrent()) return;
     writeQueryCache(cacheKey, next);
-    if (mountedRef.current) {
-      setDataState(next);
-    }
-  }, [cacheKey, keyEpoch]);
+    update({ data: next });
+  }, [cacheKey, enabled, isCurrent, update]);
 
   const reload = useCallback(async () => {
-    if (!enabled || inFlightRef.current) {
+    if (!enabled || boundary.inFlight || !isCurrent()) {
       return;
     }
-    inFlightRef.current = true;
-    // Stale-lane writeback guard (review R1, KM-16): a fetch that resolves
-    // after a sign-out/sign-in cycle rode a newer session's token — its
-    // payload must never be written under the OLD account key.
-    const fetchEpoch = sessionStore.sessionEpoch();
+    // Dedupe only this identity. A pending old resource must not suppress the
+    // first request for the newly selected resource/account/locale/grants.
+    boundary.inFlight = true;
     const cached = readQueryCache<T>(cacheKey, optionsRef.current.maxAge);
-    if (cached === undefined) {
-      setIsLoading(true);
-    } else {
-      setDataState(cached);
-      setIsStale(true);
-    }
-    setError(null);
-    setWarning(null);
-    setErrorStatus(null);
+    update({ data: cached, isLoading: cached === undefined, isStale: cached !== undefined,
+      error: null, warning: null, errorStatus: null });
     try {
       const next = await fetcherRef.current();
-      if (fetchEpoch !== sessionStore.sessionEpoch()) {
-        return;
-      }
+      if (!isCurrent()) return;
       writeQueryCache(cacheKey, next);
-      if (mountedRef.current) {
-        setDataState(next);
-      }
+      update({ data: next });
     } catch (nextError) {
-      if (!mountedRef.current) {
-        return;
-      }
+      if (!isCurrent()) return;
       const opts = optionsRef.current;
       const message = (opts.mapError ?? defaultError)(nextError, opts.errorMessage ?? 'This data is unavailable.');
       let status = typeof (nextError as { status?: number })?.status === 'number'
@@ -174,31 +186,23 @@ export function useScreenQuery<T>(
           // already fell back to the fetch-failure signal.
         }
       }
-      if (!mountedRef.current) {
-        return;
-      }
+      if (!isCurrent()) return;
       // Denied is always a full state (§5). Other failures degrade to a
       // stale-data banner when the screen already has something to show.
       if (status === 403 || readQueryCache<T>(cacheKey, optionsRef.current.maxAge) === undefined) {
         if (status === 403) {
           // A revoked grant must not keep showing what it used to allow.
           evictQueryCache(cacheKey);
-          setDataState(undefined);
         }
-        setError(message);
-        setErrorStatus(status);
+        update({ data: undefined, error: message, errorStatus: status });
       } else {
-        setWarning(message);
-        setErrorStatus(status);
+        update({ warning: message, errorStatus: status });
       }
     } finally {
-      if (mountedRef.current) {
-        setIsLoading(false);
-        setIsStale(false);
-      }
-      inFlightRef.current = false;
+      update({ isLoading: false, isStale: false });
+      boundary.inFlight = false;
     }
-  }, [cacheKey, enabled]);
+  }, [cacheKey, enabled, boundary, isCurrent, update]);
 
   useEffect(() => {
     void reload();
@@ -224,5 +228,6 @@ export function useScreenQuery<T>(
     return () => subscription.remove();
   }, [enabled, reload]);
 
-  return { data, isLoading, isStale, error, warning, errorStatus, reload, setData };
+  return { data: visible.data, isLoading: visible.isLoading, isStale: visible.isStale,
+    error: visible.error, warning: visible.warning, errorStatus: visible.errorStatus, reload, setData };
 }

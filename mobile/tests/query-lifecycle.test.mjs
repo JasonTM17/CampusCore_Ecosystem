@@ -15,7 +15,7 @@ test('query lifecycle hook covers mount/focus/foreground/SWR/bounded-retry (§5)
   assert.match(hook, /useFocusEffect/);
   assert.match(hook, /AppState\.addEventListener\('change'/);
   assert.match(hook, /readQueryCache[\s\S]*?writeQueryCache/);
-  assert.match(hook, /setIsStale\(true\)/);
+  assert.match(hook, /isStale: cached !== undefined/);
   assert.match(hook, /errorStatus/);
   assert.match(cache, /\$\{accountId \?\? 'anonymous'\}:\$\{queryKey\}/);
   assert.match(cache, /clearQueryCache/);
@@ -23,7 +23,7 @@ test('query lifecycle hook covers mount/focus/foreground/SWR/bounded-retry (§5)
   assert.match(hook, /queryCacheKey\(session\.accountId/);
   // Loop guard (review F1): `reload` must depend only on stable inputs —
   // a fresh `options` literal per render can never land in the dep array.
-  assert.match(hook, /\}, \[cacheKey, enabled\]\);/);
+  assert.match(hook, /\}, \[cacheKey, enabled, boundary, isCurrent, update\]\);/);
   assert.match(hook, /optionsRef\.current = options/);
 });
 
