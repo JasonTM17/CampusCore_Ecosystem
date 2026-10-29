@@ -242,9 +242,12 @@ public class AdmissionApplicantService {
         if (request == null) {
             throw problem(HttpStatus.BAD_REQUEST, "ATTACHMENT_DATA_REQUIRED", "dataBase64 is required");
         }
-        // Decode + checksum before claiming so the request hash binds the
-        // actual bytes — a same-key retry with different bytes conflicts.
-        byte[] bytes = decode(request.dataBase64(), request.fileName());
+        String fileName = request.fileName() == null ? null : request.fileName().trim();
+        String contentType = request.contentType() == null
+                ? "application/octet-stream" : request.contentType();
+        // Decode + checksum before claiming so a same-key retry binds bytes
+        // and the normalized metadata that will be persisted.
+        byte[] bytes = decode(request.dataBase64(), fileName);
         String checksum = sha256(bytes);
         if (request.checksum() != null && !request.checksum().isBlank()
                 && !checksum.equalsIgnoreCase(request.checksum().trim())) {
@@ -252,7 +255,7 @@ public class AdmissionApplicantService {
                     "Declared checksum does not match the uploaded bytes");
         }
         Map<String, Object> claimed = claimIdempotency(applicantId, idempotencyKey,
-                "attach:" + applicationId + ":" + checksum);
+                attachmentRequestHash(applicationId, checksum, fileName, contentType));
         if (claimed != null) {
             return replayResponse(claimed);
         }
@@ -273,8 +276,7 @@ public class AdmissionApplicantService {
                         + " VALUES (:key, :contentType, :size, :sha, :data)",
                 new MapSqlParameterSource()
                         .addValue("key", fileKey)
-                        .addValue("contentType", request.contentType() == null
-                                ? "application/octet-stream" : request.contentType())
+                        .addValue("contentType", contentType)
                         .addValue("size", (long) bytes.length)
                         .addValue("sha", checksum)
                         .addValue("data", bytes));
@@ -287,9 +289,8 @@ public class AdmissionApplicantService {
                         .addValue("id", UUID.randomUUID().toString())
                         .addValue("appId", applicationId)
                         .addValue("fileKey", fileKey)
-                        .addValue("fileName", request.fileName())
-                        .addValue("contentType", request.contentType() == null
-                                ? "application/octet-stream" : request.contentType())
+                        .addValue("fileName", fileName)
+                        .addValue("contentType", contentType)
                         .addValue("size", (long) bytes.length)
                         .addValue("sha", checksum));
         jdbc.update(
@@ -298,7 +299,7 @@ public class AdmissionApplicantService {
                         + " WHERE \"id\" = :id",
                 new MapSqlParameterSource("id", applicationId));
         staff.audit(applicationId, applicantId, "ATTACHMENT_ADDED", status, status,
-                request.fileName());
+                fileName);
         ApplicationResponse response = myApplication(applicantId, applicationId);
         completeIdempotency(applicantId, idempotencyKey, applicationId, response);
         return response;
@@ -427,6 +428,21 @@ public class AdmissionApplicantService {
         } catch (java.security.NoSuchAlgorithmException exception) {
             throw new IllegalStateException(exception);
         }
+    }
+
+    /**
+     * Fingerprint over every persisted intent field — the byte checksum plus
+     * the normalized metadata. A key first claimed under the narrower
+     * application-and-bytes hash no longer matches, so its retry conflicts
+     * instead of replaying a changed request.
+     */
+    private static String attachmentRequestHash(String applicationId, String checksum,
+            String fileName, String contentType) {
+        String intent = applicationId.length() + ":" + applicationId
+                + checksum.length() + ":" + checksum
+                + fileName.length() + ":" + fileName
+                + contentType.length() + ":" + contentType;
+        return "attach:" + sha256(intent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     // ------------------------------------------------------------------

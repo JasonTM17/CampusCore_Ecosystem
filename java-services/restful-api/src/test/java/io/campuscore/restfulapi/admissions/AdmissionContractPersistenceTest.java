@@ -585,6 +585,16 @@ class AdmissionContractPersistenceTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("FILE_CHECKSUM_MISMATCH"));
 
+        // A missing fileName is rejected before any claim or write — never a
+        // server error and never an idempotency row.
+        mvc.perform(post("/api/v1/admissions/applications/" + id + "/attachments")
+                        .with(applicantJwt).header("Idempotency-Key", "att-noname")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"contentType\":\"application/pdf\","
+                                + "\"dataBase64\":\"" + b64(payload) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ATTACHMENT_NAME_REQUIRED"));
+
         MvcResult uploaded = mvc.perform(post("/api/v1/admissions/applications/" + id + "/attachments")
                         .with(applicantJwt).header("Idempotency-Key", "att-upload")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -608,6 +618,40 @@ class AdmissionContractPersistenceTest {
                                 + "\"checksum\":\"" + expectedSha + "\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.attachments.length()").value(1));
+
+        MvcResult changedName = mvc.perform(post("/api/v1/admissions/applications/" + id + "/attachments")
+                        .with(applicantJwt).header("Idempotency-Key", "att-upload")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"renamed.pdf\",\"contentType\":\"application/pdf\","
+                                + "\"dataBase64\":\"" + b64(payload) + "\","
+                                + "\"checksum\":\"" + expectedSha + "\"}"))
+                .andReturn();
+        MvcResult changedType = mvc.perform(post("/api/v1/admissions/applications/" + id + "/attachments")
+                        .with(applicantJwt).header("Idempotency-Key", "att-upload")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"hoc-ba.pdf\",\"contentType\":\"application/x-transcript\","
+                                + "\"dataBase64\":\"" + b64(payload) + "\","
+                                + "\"checksum\":\"" + expectedSha + "\"}"))
+                .andReturn();
+        assertThat(changedName.getResponse().getStatus()).isEqualTo(409);
+        assertThat(objectMapper.readTree(changedName.getResponse().getContentAsString())
+                .get("code").asText()).isEqualTo("IDEMPOTENCY_CONFLICT");
+        assertThat(changedType.getResponse().getStatus()).isEqualTo(409);
+        assertThat(objectMapper.readTree(changedType.getResponse().getContentAsString())
+                .get("code").asText()).isEqualTo("IDEMPOTENCY_CONFLICT");
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM admissions.\"Attachment\" WHERE \"applicationId\" = ?",
+                Integer.class, id)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM admissions.\"FileObject\" WHERE \"key\" LIKE ?",
+                Integer.class, "admissions/" + id + "/%")).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM admissions.\"Audit\" WHERE \"applicationId\" = ?"
+                        + " AND \"action\" = 'ATTACHMENT_ADDED'",
+                Integer.class, id)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT \"version\" FROM admissions.\"Application\" WHERE \"id\" = ?",
+                Integer.class, id)).isEqualTo(2);
 
         // Owner download returns the exact bytes.
         MvcResult file = mvc.perform(get("/api/v1/admissions/applications/" + id
