@@ -373,6 +373,7 @@ export default R;`,
   'jsx-runtime': `import { createRequire } from 'node:module';
 const J = createRequire(${pkgJson})('react/jsx-runtime');
 export const { jsx, jsxs, Fragment } = J;`,
+  'react-native': `export const AppState = { addEventListener: () => ({ remove() {} }) };`,
   client: `export const apiClient = { mode: 'live', setOnSessionExpired() {} };
 export const campusApi = {};`,
   push: 'export async function unregisterPushBestEffort() {}',
@@ -400,6 +401,7 @@ async function mountSession(laneEnv) {
       map: {
         react: url('stub-react'),
         'react/jsx-runtime': url('stub-jsx-runtime'),
+        'react-native': url('stub-react-native'),
         '../api/client': url('stub-client'),
         '../api/push-notifications': url('stub-push'),
         '../auth/capabilities': url('capabilities'),
@@ -427,6 +429,7 @@ async function withSession(laneEnv, accessToken, signOut, body) {
     loadBootstrap: async () => ({ refreshToken: null }),
     refreshAccessToken: async () => ({ accessToken: null }),
     getAccessToken: () => accessToken,
+    sessionEpoch: () => 0,
     signOut,
   };
   const { SessionProvider, useSession } = await mountSession(laneEnv);
