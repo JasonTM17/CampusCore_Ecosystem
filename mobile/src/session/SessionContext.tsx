@@ -18,9 +18,8 @@ import {
 } from '../auth/capabilities';
 import { decodeJwtPayload, roleFromClaims } from '../auth/oidc-session';
 import { sessionStore } from '../auth/mobile-session-store';
-import { PUSH_OPT_IN_ENABLED } from '../config/features';
 import { LANE_FLAGS } from '../config/lane-flags';
-import { clearQueryCache } from '../hooks/query-cache';
+import { clearQueryCache, queryCacheIdentity, syncQueryCacheIdentity } from '../hooks/query-cache';
 import type { SessionKind } from '../navigation/route-map';
 import type { UserRole } from '../navigation/routes';
 
@@ -85,12 +84,38 @@ function capabilitiesOf(accessToken: string | null): CapabilitySet {
   return resolveCapabilities({ claims: claimsOf(accessToken), lanes: LANE_FLAGS });
 }
 
+/**
+ * F4: drop this device's push registration on sign-out whatever the opt-in
+ * flag says now (it may have been on when the device registered). The access
+ * token is the caller's pre-wipe snapshot; nothing here is awaited by sign-out
+ * and no failure can reach it.
+ */
+function scheduleDevicePushUnregister(accessTokenSnapshot: string | null): void {
+  if (!accessTokenSnapshot) return;
+  try {
+    void import('../api/expo-push-platform')
+      .then(({ expoPushPlatform }) => expoPushPlatform.getInstallationId())
+      .then((installationId) => unregisterPushBestEffort(campusApi, installationId, accessTokenSnapshot))
+      .catch(() => undefined);
+  } catch {
+    // Local session teardown must not depend on the push adapter loading.
+  }
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SessionState>(initialState);
   const [epoch, setEpoch] = useState(0);
   const [booted, setBooted] = useState(false);
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  // Account, role or grant changes drop every cached read model; the cache
+  // keys carry the same dimensions, so this is the memory-hygiene half.
+  useEffect(() => {
+    syncQueryCacheIdentity(
+      queryCacheIdentity(state.kind, state.accountId, state.role, state.capabilities ?? NO_CAPABILITIES),
+    );
+  }, [state.kind, state.accountId, state.role, state.capabilities]);
 
   // KM-17 boot: marker-check (may wipe cu.refresh) → loadBootstrap → one
   // silent refresh → session state → only then render children so no guard
@@ -199,15 +224,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setState(initialState);
       return;
     }
-    if (PUSH_OPT_IN_ENABLED) {
-      // Best effort and never awaited: the access token is captured before the
-      // wipe so the server can drop this device's registration (R23).
-      const accessTokenSnapshot = sessionStore.getAccessToken();
-      void import('../api/expo-push-platform')
-        .then(({ expoPushPlatform }) => expoPushPlatform.getInstallationId())
-        .then((installationId) => unregisterPushBestEffort(campusApi, installationId, accessTokenSnapshot))
-        .catch(() => undefined);
+    // Captured before the wipe so the server can drop this device's registration.
+    let accessTokenSnapshot: string | null = null;
+    try {
+      accessTokenSnapshot = sessionStore.getAccessToken();
+    } catch {
+      accessTokenSnapshot = null;
     }
+    scheduleDevicePushUnregister(accessTokenSnapshot);
+    // Local wipe first: it must not wait on, or depend on, the store call below.
+    clearQueryCache();
     try {
       await sessionStore.signOut();
     } finally {

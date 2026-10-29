@@ -27,6 +27,10 @@ jest.mock('../../src/api/client', () => ({
   ApiClientError: class ApiClientError extends Error {},
 }));
 
+// The notification centre reads the session to resolve tap targets; preview is never a grant.
+jest.mock('../../src/session/SessionContext', () => ({
+  useSession: () => ({ kind: 'preview', role: 'student', capabilities: [] }),
+}));
 jest.mock('../../src/hooks/useScreenQuery', () => ({
   useScreenQuery: () => ({
     data: undefined,

@@ -2,16 +2,19 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button, Card, StatePanel, UiText } from '../../components/Ui';
-import { SegmentedControl } from '../../components/ui/index';
+import { Notice, SegmentedControl } from '../../components/ui/index';
 import { ApiClientError, apiClient, campusApi } from '../../api/client';
 import type { MobileNotification } from '../../api/client';
 import type { PushApi } from '../../api/push-notifications';
+import { resolveNotificationRoute } from '../../api/push-routes';
 import { PUSH_OPT_IN_ENABLED } from '../../config/features';
 import { tokens } from '../../design/tokens';
 import { fillCopy } from '../../i18n/academic-messages';
+import { notificationsCenterMessages } from '../../i18n/notifications-center-messages';
 import { notificationsMessages } from '../../i18n/notifications-messages';
 import { recordsMessages } from '../../i18n/records-messages';
 import type { MobileScreenProps } from '../../navigation/types';
+import { useSession, type SessionValue } from '../../session/SessionContext';
 import { contentApi } from '../content/content-api';
 import { contentErrorMessage } from '../content/content-errors';
 import { countUnread, joinMeta, notificationReadParam, type NotificationTab } from '../content/content-rules';
@@ -20,17 +23,36 @@ import { previewNotifications } from '../content/preview-data';
 import { useContentQuery } from '../content/use-content-query';
 import { usePagedList } from '../content/use-paged-list';
 
-/** Notification centre: paged, unread filter, mark read, mark all and delete with confirmation. */
-export function NotificationsScreen(_props: MobileScreenProps) {
+/** Inbox row as the API returns it: the producer link rides along with the typed fields. */
+type InboxNotification = MobileNotification & { link?: unknown };
+
+/** Session read that yields null outside a provider instead of throwing (same hook order either way). */
+function useOptionalSession(): SessionValue | null {
+  try {
+    return useSession();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Notification centre: paged, unread filter, mark read, mark all and delete with confirmation.
+ * A row that names a target opens it only through the route allowlist; offline the cached
+ * rows stay readable and every mutation is blocked.
+ */
+export function NotificationsScreen({ navigation, role }: MobileScreenProps) {
   const { locale, copy: shared, formatDateTime, t } = useContentCopy();
   const copy = recordsMessages[locale];
+  const center = notificationsCenterMessages[locale];
+  const pushMsg = notificationsMessages[locale];
+  const session = useOptionalSession();
   const [tab, setTab] = useState<NotificationTab>('all');
   const [busy, setBusy] = useState(false);
   const { flash, success, fail } = useFlash();
   const { ask, dialog } = useConfirm();
 
   const preview = useMemo(() => previewNotifications(locale), [locale]);
-  const list = usePagedList<MobileNotification>({
+  const list = usePagedList<InboxNotification>({
     key: `content.notifications.${tab}`,
     fetchPage: (page, limit, signal) => contentApi.notifications({ page, limit, signal, isRead: notificationReadParam(tab) }),
     keyOf: (item) => item.id,
@@ -38,29 +60,50 @@ export function NotificationsScreen(_props: MobileScreenProps) {
   });
   const unread = useContentQuery<number>('content.notifications.unread', () => contentApi.unreadCount());
   const unreadTotal = apiClient.mode === 'live' ? unread.data ?? countUnread(list.items) : countUnread(preview);
+  const offline = apiClient.mode === 'live' && list.errorStatus === 0;
 
-  const run = useCallback(async (action: () => Promise<unknown>, apply: () => void, ok: string) => {
-    if (busy || apiClient.mode !== 'live') return;
+  const run = useCallback(async (action: () => Promise<unknown>, apply: () => void, ok: string | null) => {
+    if (busy || offline || apiClient.mode !== 'live') return;
     setBusy(true);
     try {
       await action();
       apply();
-      success(ok);
+      if (ok) success(ok);
       void unread.reload();
     } catch (error) {
       fail(contentErrorMessage(shared, error, copy.updateFailed));
     } finally {
       setBusy(false);
     }
-  }, [busy, copy.updateFailed, fail, shared, success, unread]);
+  }, [busy, copy.updateFailed, fail, offline, shared, success, unread]);
 
-  const markRead = (item: MobileNotification) => {
+  const markRead = (item: MobileNotification, announce = true) => {
     if (item.isRead) return;
     void run(
       () => contentApi.markNotificationRead(item.id),
       () => list.patch((row) => (row.id !== item.id ? row : tab === 'unread' ? null : { ...row, isRead: true })),
-      copy.markRead,
+      announce ? copy.markRead : null,
     );
+  };
+
+  const openItem = (item: InboxNotification) => {
+    if (typeof item.link !== 'string' || item.link.length === 0) {
+      markRead(item);
+      return;
+    }
+    const decision = resolveNotificationRoute(item.link, {
+      kind: session?.kind ?? 'signedOut',
+      role: session?.role ?? role,
+      capabilities: session?.capabilities,
+    });
+    markRead(item, false);
+    if (decision.action === 'refuse') {
+      fail(pushMsg.openFailed);
+    } else if (decision.lane) {
+      navigation.navigateLane?.(decision.lane);
+    } else if (decision.screen) {
+      navigation.navigate(decision.screen, decision.topicId ? { thesisTopicId: decision.topicId } : undefined);
+    }
   };
 
   const remove = (item: MobileNotification) => ask({
@@ -103,27 +146,30 @@ export function NotificationsScreen(_props: MobileScreenProps) {
               onChange={(value) => setTab(value as NotificationTab)}
               options={[{ value: 'all', label: copy.tabAll }, { value: 'unread', label: copy.tabUnread }]}
             />
+            {offline ? <Notice tone="info" message={center.offlineReadOnly} /> : null}
             <View style={styles.summary}>
               <UiText variant="label" tone="primary" accessibilityLiveRegion="polite">{fillCopy(copy.unreadCount, { n: unreadTotal })}</UiText>
               <Button
                 label={copy.markAllRead}
                 variant="secondary"
                 loading={busy}
-                disabled={busy || list.preview || unreadTotal === 0}
+                disabled={busy || offline || list.preview || unreadTotal === 0}
                 onPress={markAll}
               />
             </View>
             {PUSH_OPT_IN_ENABLED ? <PushOptInCard /> : null}
           </View>
         )}
-        renderItem={(item) => (
+        renderItem={(item) => {
+          const hasLink = typeof item.link === 'string' && item.link.length > 0;
+          return (
           <Card tone={item.isRead ? 'card' : 'low'}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={joinMeta([item.isRead ? null : copy.unread, item.title, item.message, formatDateTime(item.createdAt)])}
-              accessibilityHint={item.isRead ? undefined : copy.markRead}
-              disabled={item.isRead || busy || list.preview}
-              onPress={() => markRead(item)}
+              accessibilityHint={hasLink ? center.openHint : item.isRead ? undefined : copy.markRead}
+              disabled={list.preview || (!hasLink && (item.isRead || busy || offline))}
+              onPress={() => openItem(item)}
               style={styles.rowMain}
             >
               <View style={styles.titleRow}>
@@ -137,11 +183,12 @@ export function NotificationsScreen(_props: MobileScreenProps) {
               label={copy.deleteNotification}
               accessibilityLabel={`${copy.deleteNotification}: ${item.title}`}
               variant="text"
-              disabled={busy || list.preview}
+              disabled={busy || offline || list.preview}
               onPress={() => remove(item)}
             />
           </Card>
-        )}
+          );
+        }}
       />
       {dialog}
     </>

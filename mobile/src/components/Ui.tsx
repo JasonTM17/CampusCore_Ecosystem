@@ -11,6 +11,7 @@ import {
 
 import { tokens } from '../design/tokens';
 import { useTheme } from '../design/theme';
+import { useShellCopy } from '../i18n/use-shell-copy';
 import type { ThemeColors } from '../design/theme';
 import { UiText } from './ui/UiText';
 import type { TextTone } from './ui/UiText';
@@ -240,8 +241,9 @@ export interface ListRowProps {
 
 export function ListRow({ title, subtitle, meta, leading, trailing, onPress, unread = false }: ListRowProps) {
   const styles = useUiStyles();
+  const { copy } = useShellCopy();
   const accessibilityLabel = [
-    unread ? 'Unread' : null,
+    unread ? copy.unread : null,
     title,
     subtitle,
     meta,
@@ -266,12 +268,12 @@ export function ListRow({ title, subtitle, meta, leading, trailing, onPress, unr
           </UiText>
           {unread ? (
             <UiText variant="meta" tone="primary" style={styles.unreadLabel}>
-              Unread
+              {copy.unread}
             </UiText>
           ) : null}
         </View>
         {subtitle ? (
-          <UiText variant="bodySmall" tone="muted" numberOfLines={2}>
+          <UiText variant="bodySmall" tone="muted" numberOfLines={3}>
             {subtitle}
           </UiText>
         ) : null}

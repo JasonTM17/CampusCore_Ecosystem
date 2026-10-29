@@ -111,6 +111,8 @@ export function unregisterPushBestEffort(
 
 export interface NotificationTargetRecord {
   targetPath?: unknown;
+  /** Inbox column `notifications.notification.link`; resolved by `push-routes.ts`. */
+  link?: unknown;
 }
 
 /** Fetch the authenticated inbox record and return only an injected safe path. */

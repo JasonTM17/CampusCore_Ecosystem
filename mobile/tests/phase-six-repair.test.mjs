@@ -35,8 +35,8 @@ test('shared mobile primitives announce headings, progress, and unread state', (
   assert.match(ui, /accessibilityRole="header" variant="headlineSmall"/);
   assert.match(ui, /accessibilityRole="progressbar"/);
   assert.match(ui, /accessibilityValue=\{\{ min: 0, max: 100, now: Math\.round\(boundedValue\) \}\}/);
-  assert.match(ui, /unread \? 'Unread' : null/);
-  assert.match(ui, />\s*Unread\s*</);
+  assert.match(ui, /unread \? copy\.unread : null/);
+  assert.match(ui, /\{copy\.unread\}/);
   assert.match(notifications, /accessibilityLiveRegion="polite"/);
 });
 

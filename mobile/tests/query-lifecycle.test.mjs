@@ -29,7 +29,7 @@ test('query lifecycle hook covers mount/focus/foreground/SWR/bounded-retry (§5)
 
 test('session teardown wipes the per-account cache', () => {
   const context = read('src/session/SessionContext.tsx');
-  assert.match(context, /import \{ clearQueryCache \} from '\.\.\/hooks\/query-cache'/);
+  assert.match(context, /import \{[^}]*\bclearQueryCache\b[^}]*\} from '\.\.\/hooks\/query-cache'/);
   assert.match(context, /clearQueryCache\(\)/);
 });
 
