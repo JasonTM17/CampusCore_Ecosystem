@@ -309,18 +309,26 @@ class EcosystemIdentityContractTest {
         Cookie access = login();
         JsonNode tokens = exchangeCode(access, pkceVerifier(), "nonce-e");
         String rawRefresh = tokens.get("refresh_token").asText();
-        String stored = jdbc.queryForObject(
+        // Earlier tests leave their own authorizations for the same principal, so
+        // assert over every stored row instead of assuming a single one.
+        java.util.List<String> stored = jdbc.queryForList(
                 "SELECT refresh_token_value FROM campuscore_identity.oauth2_authorization"
-                        + " WHERE principal_name = 'student-user'",
+                        + " WHERE principal_name = 'student-user' AND refresh_token_value IS NOT NULL",
                 String.class);
-        assertThat(stored).isNotNull();
-        assertThat(stored).doesNotContain(rawRefresh);
-        // Round-trip through the same deterministic AEAD proves it is the
+        assertThat(stored).isNotEmpty();
+        assertThat(stored).noneMatch(value -> value.contains(rawRefresh));
+        // Round-trip through the same deterministic AEAD proves one row is the
         // ciphertext of the presented token, not a lossy transform.
         DeterministicTokenCipher cipher = new DeterministicTokenCipher(
                 "dGVzdC1rZXktMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY=");
-        assertThat(cipher.decrypt(stored, LockingIdentityAuthorizationService.TOKEN_AAD))
-                .isEqualTo(rawRefresh);
+        assertThat(stored).anyMatch(value -> {
+            try {
+                return cipher.decrypt(value, LockingIdentityAuthorizationService.TOKEN_AAD)
+                        .equals(rawRefresh);
+            } catch (RuntimeException notThisRow) {
+                return false;
+            }
+        });
     }
 
     // ---- decoder dispatch (pure unit inside the same context) ----------------
