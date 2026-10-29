@@ -239,7 +239,7 @@ export function AdmissionsApplyPage() {
         )}
       />
 
-      <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200" data-testid="admissions-simulated-banner">
+      <div className="mt-4 rounded-xl border border-status-warning/40 bg-status-warning/10 px-4 py-3 text-sm text-status-warning-foreground" data-testid="admissions-simulated-banner">
         {copy.simulatedBanner}
       </div>
 
