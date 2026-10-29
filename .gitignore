@@ -18,6 +18,9 @@ target/
 .env.production.local
 .env.production
 .env.vercel*
+.env.*
+!.env.example
+!.env.*.example
 
 # Logs
 logs
@@ -125,6 +128,7 @@ scratch/
 # Sensitive material (never commit): signing keys, certificates, cloud and
 # mobile credentials, tokens, private keys, local secret stores, DB dumps.
 *.key
+*.pem
 *.p12
 *.pfx
 *.p8
