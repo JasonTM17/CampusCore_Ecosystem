@@ -16,10 +16,12 @@ import org.junit.jupiter.api.Test;
  *
  * <p>V82 activates exactly the runbook-documented .demo accounts, and the gate
  * re-applies ACTIVE/LOCKED to the same population on every boot depending on
- * {@code DEMO_ACCOUNTS_ENABLED}. If a future seeded account is added to one
- * side and forgotten on the other, the migration and the runtime gate would
- * disagree about who may log in — on a public host that disagreement is an
- * open admin login, so this parity is a security invariant, not cosmetics.
+ * {@code DEMO_ACCOUNTS_ENABLED}. The seeded applicant pair from the admissions
+ * migration belongs to the same locked-by-default population. If a future
+ * seeded account is added to one side and forgotten on the other, the
+ * migration and the runtime gate would disagree about who may log in — on a
+ * public host that disagreement is an open demo login, so this parity is a
+ * security invariant, not cosmetics.
  */
 class DemoAccountGateRunbookParityTest {
 
@@ -33,6 +35,8 @@ class DemoAccountGateRunbookParityTest {
             Path.of("src/main/resources/db/migration/V124__reconcile_demo_role_accounts_and_hygiene.sql");
     private static final Path V125 =
             Path.of("src/main/resources/db/migration/V125__revoke_reconciled_demo_sessions.sql");
+    private static final Path V145 =
+            Path.of("src/main/resources/db/migration/V145__lock_applicant_demo_accounts.sql");
     private static final Pattern EMAIL = Pattern.compile("'([A-Za-z0-9._-]+@campuscore\\.(?:demo|edu))'");
 
     @Test
@@ -78,6 +82,17 @@ class DemoAccountGateRunbookParityTest {
                 .contains("\"credentialVersion\" = \"credentialVersion\" + 1")
                 .contains("DELETE FROM campuscore_auth.\"Session\"")
                 .contains("UPDATE campuscore_auth.\"TwoFactorChallenge\"");
+    }
+
+    @Test
+    void gateCoversExactlyTheApplicantPairTheLockMigrationTargets() throws Exception {
+        // The admissions seed ships two applicant accounts ACTIVE under the
+        // published demo credential; the lock migration must name exactly
+        // that pair and the gate must cover both on every boot.
+        Set<String> locked = quotedEmails(V145);
+        assertThat(locked).containsExactlyInAnyOrder(
+                "applicant@campuscore.edu", "applicant2@campuscore.edu");
+        assertThat(locked).allMatch(DemoAccountGate.DEMO_EMAILS::contains);
     }
 
     private static Set<String> quotedEmails(Path migration) throws Exception {
