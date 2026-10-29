@@ -79,15 +79,46 @@ class AttendanceGeofencePersistenceTest {
         mvc.perform(post("/api/v1/attendance/sessions/"+id+"/checkin").with(lecturer(false)).contentType(MediaType.APPLICATION_JSON).content(body("d"))).andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/admin/attendance/geofences").with(lecturer(false))).andExpect(status().isForbidden());
     }
-    @Test void allThirteenOperationsRequireAuthenticationAndStudentCannotManageSessionsOrGeofences() throws Exception {
+    @Test void activeGeofenceOptionsAreLecturerSafeAndOnlyListEnabledFences() throws Exception {
+        String route="/api/v1/attendance/geofences/active";
+        jdbc.update("UPDATE academic.\"AttendanceGeofence\" SET \"isActive\"=FALSE WHERE \"id\"='ute-main-placeholder'");
+        jdbc.update("""
+                INSERT INTO academic."AttendanceGeofence" ("id","name","campusCode","centerLat","centerLng","radiusMeters","isActive","note","createdBy")
+                VALUES ('active-verified','Verified campus','UTE-VERIFIED',10.25,106.5,120,TRUE,'admin-only note','admin-user')
+                """);
+        jdbc.update("""
+                INSERT INTO academic."AttendanceGeofence" ("id","name","campusCode","centerLat","centerLng","radiusMeters","isActive","note","createdBy")
+                VALUES ('inactive-campus','Inactive campus','UTE-OLD',10.5,106.75,150,FALSE,'inactive note','admin-user')
+                """);
+
+        mvc.perform(get(route)).andExpect(status().isUnauthorized());
+        mvc.perform(get(route).with(student(1))).andExpect(status().isForbidden());
+        for (var role : List.of(lecturer(false),admin())) {
+            mvc.perform(get(route).with(role)).andExpect(status().isOk())
+                    .andExpect(jsonPath("$[0].id").value("active-verified"))
+                    .andExpect(jsonPath("$[1]").doesNotExist())
+                    .andExpect(jsonPath("$[0].name").value("Verified campus"))
+                    .andExpect(jsonPath("$[0].campusCode").value("UTE-VERIFIED"))
+                    .andExpect(jsonPath("$[0].centerLat").value(10.25))
+                    .andExpect(jsonPath("$[0].centerLng").value(106.5))
+                    .andExpect(jsonPath("$[0].radiusMeters").value(120))
+                    .andExpect(jsonPath("$[0].isActive").doesNotExist())
+                    .andExpect(jsonPath("$[0].note").doesNotExist())
+                    .andExpect(jsonPath("$[0].createdBy").doesNotExist())
+                    .andExpect(jsonPath("$[0].createdAt").doesNotExist())
+                    .andExpect(jsonPath("$[0].updatedAt").doesNotExist())
+                    .andExpect(header().doesNotExist("ETag"));
+        }
+    }
+    @Test void allAttendanceRoutesRequireAuthenticationAndStudentCannotManageSessionsOrGeofences() throws Exception {
         String base="/api/v1/attendance",geo="/api/v1/admin/attendance/geofences";
         var anonymous=List.of(post(base+"/sessions"),get(base+"/sessions/"+id),get(base+"/sessions/"+id+"/code"),
                 post(base+"/sessions/"+id+"/close"),get(base+"/sessions/"+id+"/checkins"),post(base+"/checkins/missing/review"),
                 get(base+"/sessions/open"),post(base+"/sessions/"+id+"/checkin"),post(base+"/location-consent"),
-                get(base+"/location-consent"),get(geo),post(geo),put(geo+"/ute-main-placeholder"));
+                get(base+"/location-consent"),get(base+"/geofences/active"),get(geo),post(geo),put(geo+"/ute-main-placeholder"));
         for(var request:anonymous) mvc.perform(request.contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isUnauthorized());
-        for(var request:List.of(get(base+"/sessions/"+id+"/code"),post(base+"/sessions/"+id+"/close"),get(base+"/sessions/"+id+"/checkins"),get(geo)))
+        for(var request:List.of(get(base+"/sessions/"+id+"/code"),post(base+"/sessions/"+id+"/close"),get(base+"/sessions/"+id+"/checkins"),get(base+"/geofences/active"),get(geo)))
             mvc.perform(request.with(student(1))).andExpect(status().isForbidden());
         mvc.perform(post(base+"/checkins/missing/review").with(student(1)).contentType(MediaType.APPLICATION_JSON).content("{\"decision\":\"APPROVE\",\"note\":\"test\"}"))
                 .andExpect(status().isForbidden());

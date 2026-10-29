@@ -61,6 +61,13 @@ public class AttendanceStore {
     public List<GeofenceResponse> geofences() {
         return jdbc.query("SELECT * FROM academic.\"AttendanceGeofence\" ORDER BY \"name\",\"id\"", (rs,n) -> geofence(rs));
     }
+    public List<ActiveGeofenceResponse> activeGeofences() {
+        return jdbc.query("""
+                SELECT "id","name","campusCode","centerLat","centerLng","radiusMeters"
+                FROM academic."AttendanceGeofence" WHERE "isActive"=TRUE ORDER BY "name","id"
+                """, (rs,n) -> new ActiveGeofenceResponse(rs.getString("id"),rs.getString("name"),rs.getString("campusCode"),
+                        rs.getDouble("centerLat"),rs.getDouble("centerLng"),rs.getInt("radiusMeters")));
+    }
     public void saveGeofence(String id, GeofenceRequest r, String actor, boolean create, Instant now) {
         if (create) jdbc.update("""
                 INSERT INTO academic."AttendanceGeofence" ("id","name","campusCode","centerLat","centerLng","radiusMeters","isActive","note","createdBy","createdAt","updatedAt")

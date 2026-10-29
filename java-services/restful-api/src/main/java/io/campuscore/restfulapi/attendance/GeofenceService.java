@@ -21,6 +21,8 @@ public class GeofenceService {
     }
     @Transactional(readOnly=true)
     public List<GeofenceResponse> list() { return store.geofences(); }
+    @Transactional(readOnly=true)
+    public List<ActiveGeofenceResponse> listActive() { return store.activeGeofences(); }
     @Transactional
     public GeofenceResponse save(String id,GeofenceRequest r,String actor) {
         if(!GeofenceVerifier.coordinate(r.centerLat(),r.centerLng()) || r.radiusMeters()<30 || r.radiusMeters()>1000)
