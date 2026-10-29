@@ -23,6 +23,42 @@
           }
         },
         {
+          "id": "dependency-baseline-test",
+          "required": true,
+          "targets": [
+            "local",
+            "preview",
+            "demo"
+          ],
+          "description": "Static dependency lane and H2 exception regressions.",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "--test",
+              "scripts/dependency-baseline.test.mjs"
+            ],
+            "timeoutMs": 60000
+          }
+        },
+        {
+          "id": "dependency-baseline-check",
+          "required": true,
+          "targets": [
+            "local",
+            "preview",
+            "demo"
+          ],
+          "description": "Compare local runtime and dependency surfaces with the committed baseline.",
+          "run": {
+            "cmd": "node",
+            "args": [
+              "scripts/dependency-baseline.mjs",
+              "--check"
+            ],
+            "timeoutMs": 60000
+          }
+        },
+        {
           "id": "frontend-npm-ci",
           "required": true,
           "targets": [
