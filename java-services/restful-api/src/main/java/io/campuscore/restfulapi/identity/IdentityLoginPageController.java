@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.identity;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,16 @@ import org.springframework.web.bind.annotation.RestController;
 @ConditionalOnProperty(prefix = "identity.oidc", name = "enabled", havingValue = "true")
 public class IdentityLoginPageController {
 
+    private final String page;
+
+    public IdentityLoginPageController(
+            @Value("${security.csrf-cookie:cc_csrf}") String csrfCookie,
+            @Value("${security.csrf-header:X-CSRF-Token}") String csrfHeader) {
+        this.page = PAGE
+                .replace("__CSRF_COOKIE__", csrfCookie)
+                .replace("__CSRF_HEADER__", csrfHeader);
+    }
+
     private static final String PAGE = """
             <!doctype html>
             <html lang="vi"><head><meta charset="utf-8">
@@ -36,7 +47,6 @@ public class IdentityLoginPageController {
               button{width:100%;margin-top:1rem;padding:.55rem;border:0;border-radius:4px;
                      background:#1d4ed8;color:#fff;font-size:.95rem;cursor:pointer}
               #err{color:#b91c1c;font-size:.85rem;min-height:1.2em;margin-top:.7rem}
-              #otp,#otpBtn{display:none}
             </style></head><body>
             <form id="f">
               <h1>Đăng nhập CampusUTE</h1>
@@ -66,13 +76,34 @@ public class IdentityLoginPageController {
               var form = document.getElementById('f');
               var err = document.getElementById('err');
               var otpWrap = document.getElementById('otpWrap');
+              // Cookie-authenticated POSTs must echo the readable
+              // double-submit hint — a revisit carrying the central auth
+              // cookies (or a refresh-only jar) is CSRF-checked too.
+              function readCookie(name) {
+                var parts = document.cookie.split(';');
+                for (var i = 0; i < parts.length; i++) {
+                  var part = parts[i].trim();
+                  if (part.indexOf(name + '=') === 0) {
+                    return part.substring(name.length + 1);
+                  }
+                }
+                return null;
+              }
+              function jsonHeaders() {
+                var headers = {'Content-Type': 'application/json'};
+                var csrf = readCookie('__CSRF_COOKIE__');
+                if (csrf !== null && csrf !== '') {
+                  headers['__CSRF_HEADER__'] = decodeURIComponent(csrf);
+                }
+                return headers;
+              }
               form.addEventListener('submit', function (e) {
                 e.preventDefault();
                 err.textContent = '';
                 if (challengeId === null) {
                   fetch('/api/v1/auth/login', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: jsonHeaders(),
                     body: JSON.stringify({
                       email: document.getElementById('email').value,
                       password: document.getElementById('pw').value
@@ -94,7 +125,7 @@ public class IdentityLoginPageController {
                 } else {
                   fetch('/api/v1/auth/two-factor/verify', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: jsonHeaders(),
                     body: JSON.stringify({
                       challengeId: challengeId,
                       code: document.getElementById('otp').value
@@ -126,6 +157,6 @@ public class IdentityLoginPageController {
                         "default-src 'none'; script-src 'unsafe-inline';"
                         + " style-src 'unsafe-inline'; connect-src 'self';"
                         + " base-uri 'none'; frame-ancestors 'none'")
-                .body(PAGE);
+                .body(page);
     }
 }
