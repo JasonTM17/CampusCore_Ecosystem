@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { Card, Divider, MetricCard, ScreenSpacer, SectionHeading, StatePanel, UiText } from '../../components/Ui';
+import { Card, Divider, IconChip, MetricCard, ProgressBar, ScreenSpacer, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { ChartSummary } from '../../components/ui/chart-summary';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -25,10 +25,18 @@ function TermCard({ term }: { term: TranscriptTerm }) {
   const gpa = useGpaFormat();
   return (
     <Card style={academicStyles.card}>
-      <UiText accessibilityRole="header" variant="headlineSmall">{term.name}</UiText>
+      <View style={styles.termHeader}>
+        <IconChip icon="calendar-month-outline" />
+        <UiText accessibilityRole="header" variant="headlineSmall" style={styles.termName}>{term.name}</UiText>
+      </View>
       <UiText variant="bodySmall" tone="muted">
         {fillCopy(copy.termResult, { gpa: gpa(term.gpa), earned: formatNumber(term.creditsEarned), attempted: formatNumber(term.creditsAttempted) })}
       </UiText>
+      <ProgressBar
+        label={`${copy.creditsEarned} / ${copy.creditsAttempted}`}
+        value={term.creditsAttempted > 0 ? (term.creditsEarned / term.creditsAttempted) * 100 : 0}
+        tone="success"
+      />
       {term.records.map((record) => {
         const published = isPublishedGrade(record);
         const result = published && record.finalGrade != null
@@ -39,10 +47,16 @@ function TermCard({ term }: { term: TranscriptTerm }) {
             <Divider />
             <View style={academicStyles.row}>
               <View style={academicStyles.rowCopy}>
-                <UiText variant="label">{record.courseCode}</UiText>
-                <UiText variant="bodySmall" tone="muted">{record.courseName} · {fillCopy(copy.credits, { n: record.credits })}</UiText>
+                <StatusPill label={record.courseCode} tone="primary" />
+                <UiText variant="bodyMedium">{record.courseName}</UiText>
+                <UiText variant="meta" tone="muted">{fillCopy(copy.credits, { n: record.credits })}</UiText>
               </View>
-              <UiText variant="bodyMedium" tone="primary">{result}</UiText>
+              {published && record.finalGrade != null ? (
+                <View style={styles.gradeResult}>
+                  <UiText variant="headlineSmall" tone="primary">{formatNumber(record.finalGrade, { maximumFractionDigits: 1 })}</UiText>
+                  <StatusPill label={record.letterGrade ?? '—'} tone="success" />
+                </View>
+              ) : <StatusPill label={result} tone="warning" />}
             </View>
           </View>
         );
@@ -78,9 +92,9 @@ export function TranscriptScreen(_props: MobileScreenProps) {
       ) : (
         <View>
           <View style={academicStyles.metrics}>
-            <MetricCard label={copy.cumulativeGpa} value={gpa(model.cumulativeGpa)} style={academicStyles.metric} />
-            <MetricCard label={copy.creditsEarned} value={formatNumber(model.totalCreditsEarned)} style={academicStyles.metric} />
-            <MetricCard label={copy.creditsAttempted} value={formatNumber(model.totalCreditsAttempted)} style={academicStyles.metric} />
+            <MetricCard icon="chart-donut" label={copy.cumulativeGpa} value={gpa(model.cumulativeGpa)} style={academicStyles.metric} />
+            <MetricCard icon="book-check-outline" label={copy.creditsEarned} value={formatNumber(model.totalCreditsEarned)} style={academicStyles.metric} />
+            <MetricCard icon="book-open-outline" label={copy.creditsAttempted} value={formatNumber(model.totalCreditsAttempted)} style={academicStyles.metric} />
           </View>
           {model.basisNote ? <UiText variant="bodySmall" tone="muted">{model.basisNote}</UiText> : null}
           <ScreenSpacer />
@@ -97,3 +111,9 @@ export function TranscriptScreen(_props: MobileScreenProps) {
     </AcademicShell>
   );
 }
+
+const styles = StyleSheet.create({
+  termHeader: { alignItems: 'center', flexDirection: 'row', gap: 8, marginBottom: 4 },
+  termName: { flex: 1, minWidth: 0 },
+  gradeResult: { alignItems: 'flex-start', gap: 4, maxWidth: '100%' },
+});

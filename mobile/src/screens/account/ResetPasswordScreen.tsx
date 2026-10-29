@@ -64,6 +64,7 @@ export function ResetPasswordScreen({ navigation, initialToken = null }: ResetPa
           <UiText variant="bodyMedium">{copy.reset.invalidBody}</UiText>
         </Card>
         <Button
+          icon="refresh"
           label={copy.reset.requestNewLink}
           onPress={() => navigation.navigate(accountScreen('forgotPassword'))}
         />
@@ -85,7 +86,11 @@ export function ResetPasswordScreen({ navigation, initialToken = null }: ResetPa
             <UiText variant="bodyMedium">{copy.reset.doneBody}</UiText>
           </View>
         </Card>
-        <Button label={copy.reset.goToSignIn} onPress={() => navigation.navigate('auth.signIn')} />
+        <Button
+          icon="login"
+          label={copy.reset.goToSignIn}
+          onPress={() => navigation.navigate('auth.signIn')}
+        />
       </AccountFrame>
     );
   }
@@ -135,6 +140,7 @@ export function ResetPasswordScreen({ navigation, initialToken = null }: ResetPa
         ))}
       </View>
       <Button
+        icon="lock-check-outline"
         label={submitting ? copy.reset.saving : copy.reset.submit}
         loading={submitting}
         onPress={() => void submit()}
