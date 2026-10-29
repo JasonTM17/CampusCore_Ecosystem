@@ -374,3 +374,168 @@ test('milestone 2: a11y keyboard focus indicators and accessible names', () => {
   );
   assert.ok(matches && matches.length >= 2, 'both featured and standard share buttons must have focus rings');
 });
+
+// ---------------------------------------------------------------------------
+// UX-W2-06 / UX-W2-08 — the thesis catalog/detail hero banners carried inline
+// institutional strings (English-only badges, inline vi/en ternaries) and a
+// 10 px hero radius where the card contract is 8 px. Strings now come from the
+// shared thesis dictionary and the hero is rounded-xl (= 8 px under the
+// project Tailwind radius scale).
+// ---------------------------------------------------------------------------
+
+test('thesis hero banners read institutional copy from the shared dictionary', () => {
+  const catalog = read('src/components/dashboard/thesis/ThesisTopicCatalogPage.tsx');
+  const detail = read('src/components/dashboard/thesis/ThesisTopicDetailPage.tsx');
+  const messages = read('src/i18n/messages.ts');
+
+  for (const key of [
+    'catalogBannerBadge',
+    'catalogBannerImageAlt',
+    'catalogBannerImageCaption',
+    'topicCountLabel',
+  ]) {
+    assert.match(catalog, new RegExp(`messages\\.thesis\\.${key}`), `catalog page must read ${key} from the dictionary`);
+    assert.match(messages, new RegExp(`${key}:`), `messages must define ${key}`);
+  }
+  for (const key of [
+    'topicDetailBannerBadge',
+    'topicDetailBannerImageAlt',
+    'topicDetailBannerImageCaption',
+  ]) {
+    assert.match(detail, new RegExp(`messages\\.thesis\\.${key}`), `detail page must read ${key} from the dictionary`);
+    assert.match(messages, new RegExp(`${key}:`), `messages must define ${key}`);
+  }
+
+  for (const literal of [
+    'HCMUTE Academic Engineering & Technology',
+    'HCMUTE Academic Defense Council',
+    'HCMUTE Faculty of Engineering Hall',
+    'HCMUTE Thesis Defense Hall & Faculty Committee',
+    'Hội đồng Đánh giá Khóa luận HCMUTE',
+    'Khoa Kỹ thuật HCMUTE',
+  ]) {
+    assert.ok(!catalog.includes(`'${literal}'`), `catalog keeps an inline literal: ${literal}`);
+    assert.ok(!detail.includes(`'${literal}'`), `detail keeps an inline literal: ${literal}`);
+    assert.ok(!catalog.includes(`"${literal}"`), `catalog keeps an inline literal: ${literal}`);
+    assert.ok(!detail.includes(`"${literal}"`), `detail keeps an inline literal: ${literal}`);
+  }
+  assert.doesNotMatch(catalog, /'đề tài' : 'topics'|'topics' : 'đề tài'/, 'catalog still forks the result-count suffix inline');
+});
+
+test('thesis hero cards use the 8 px card radius from the token contract', () => {
+  const catalog = read('src/components/dashboard/thesis/ThesisTopicCatalogPage.tsx');
+  const detail = read('src/components/dashboard/thesis/ThesisTopicDetailPage.tsx');
+
+  for (const [name, source] of [['catalog', catalog], ['detail', detail]]) {
+    const hero = source.slice(source.indexOf('Banner */'), source.indexOf('Banner */') + 400);
+    assert.match(hero, /rounded-xl/, `${name} hero card must use rounded-xl (8 px in the project scale)`);
+    assert.doesNotMatch(hero, /rounded-2xl/, `${name} hero card still exceeds the 8 px card radius`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// UX-W2-09 — both schedule pages forked visible and accessible strings through
+// inline locale ternaries instead of the shared catalog. They now read the
+// schedule message group, so the tablist name, room label, print letterhead
+// and signature block share one locale source.
+// ---------------------------------------------------------------------------
+
+test('schedule pages read shared catalog keys instead of inline locale literals', () => {
+  const student = read('src/app/dashboard/schedule/page.tsx');
+  const lecturer = read('src/app/dashboard/lecturer/schedule/page.tsx');
+  const messages = read('src/i18n/messages.ts');
+
+  for (const [name, source, viewKey] of [
+    ['student schedule', student, 'studentViewModeLabel'],
+    ['lecturer schedule', lecturer, 'lecturerViewModeLabel'],
+  ]) {
+    assert.match(source, new RegExp(`messages\\.schedule\\.${viewKey}`), `${name} must read the tablist label from the catalog`);
+    assert.match(source, /messages\.schedule\.roomLabel/, `${name} must read the room label from the catalog`);
+    assert.match(source, /messages\.schedule\.printUniversity/, `${name} must read the print letterhead from the catalog`);
+    assert.doesNotMatch(
+      source,
+      /locale === 'vi' \? 'Phòng' : 'Room'|'Room' : 'Phòng'/,
+      `${name} still forks the room label inline`,
+    );
+    assert.doesNotMatch(
+      source,
+      /'Chế độ xem (thời khóa biểu|lịch giảng dạy)'/,
+      `${name} still hard-codes the tablist aria-label`,
+    );
+    assert.doesNotMatch(
+      source,
+      /TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT/,
+      `${name} still hard-codes the print letterhead`,
+    );
+  }
+  assert.match(student, /messages\.schedule\.printStudentIdLabel/, 'student schedule must read the MSSV label from the catalog');
+  assert.match(student, /messages\.schedule\.studentFiltersLoadFailed/, 'student schedule must read the load error from the catalog');
+  assert.match(lecturer, /messages\.schedule\.printLecturerLabel/, 'lecturer schedule must read the lecturer label from the catalog');
+  assert.match(lecturer, /messages\.schedule\.lecturerLoadFailed/, 'lecturer schedule must read the load error from the catalog');
+  assert.match(lecturer, /messages\.schedule\.studentsSuffix/, 'lecturer schedule must read the students suffix from the catalog');
+  assert.match(lecturer, /messages\.schedule\.printSignatureHint/, 'lecturer schedule must read the signature hint from the catalog');
+  assert.doesNotMatch(student, /'MSSV:' : 'Student ID:'|'Student ID:' : 'MSSV:'/, 'student schedule still forks the MSSV label inline');
+  assert.doesNotMatch(lecturer, /'sinh viên' : 'students'|'students' : 'sinh viên'/, 'lecturer schedule still forks the students suffix inline');
+  assert.match(messages, /schedule: \{/);
+});
+
+test('the schedule message group carries both locales with the audited strings', () => {
+  const ts = require('typescript');
+  const source = read('src/i18n/messages.ts');
+  const output = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const tsNamespaces = {
+    'messages-thesis-workflow': 'src/i18n/messages-thesis-workflow.ts',
+    'messages-dean-overview': 'src/i18n/messages-dean-overview.ts',
+    'messages-content': 'src/i18n/messages-content.ts',
+    'messages-attendance-geofence': 'src/i18n/messages-attendance-geofence.ts',
+  };
+  const customRequire = (id) => {
+    const namespace = Object.keys(tsNamespaces).find((name) => id.includes(name));
+    if (namespace) {
+      const target = path.join(root, tsNamespaces[namespace]);
+      const modSource = fs.readFileSync(target, 'utf8');
+      const modOutput = ts.transpileModule(modSource, {
+        compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+      }).outputText;
+      const rec = { exports: {} };
+      Function('module', 'exports', modOutput)(rec, rec.exports);
+      return rec.exports;
+    }
+    return require(id);
+  };
+  const moduleRecord = { exports: {} };
+  Function('module', 'exports', 'require', output)(moduleRecord, moduleRecord.exports, customRequire);
+  const { en, vi } = moduleRecord.exports;
+
+  // Locale parity: identical key sets on both sides of the group.
+  assert.deepEqual(
+    Object.keys(vi.schedule).sort(),
+    Object.keys(en.schedule).sort(),
+    'en and vi schedule groups must expose the same keys',
+  );
+  // The audited literals must render exactly as before through the catalog.
+  assert.equal(en.schedule.roomLabel, 'Room');
+  assert.equal(vi.schedule.roomLabel, 'Phòng');
+  assert.equal(en.schedule.studentViewModeLabel, 'Schedule view mode');
+  assert.equal(vi.schedule.studentViewModeLabel, 'Chế độ xem thời khóa biểu');
+  assert.equal(en.schedule.lecturerViewModeLabel, 'Schedule view mode');
+  assert.equal(vi.schedule.lecturerViewModeLabel, 'Chế độ xem lịch giảng dạy');
+  assert.equal(en.schedule.printStudentIdLabel, 'Student ID:');
+  assert.equal(vi.schedule.printStudentIdLabel, 'MSSV:');
+  assert.equal(en.schedule.studentsSuffix, 'students');
+  assert.equal(vi.schedule.studentsSuffix, 'sinh viên');
+  // English hero copy stays identical; Vietnamese is now translated.
+  assert.equal(en.thesis.catalogBannerBadge, 'HCMUTE Academic Engineering & Technology');
+  assert.equal(en.thesis.topicDetailBannerBadge, 'HCMUTE Academic Defense Council');
+  assert.equal(en.thesis.catalogBannerImageCaption, 'HCMUTE Faculty of Engineering');
+  assert.equal(vi.thesis.catalogBannerImageCaption, 'Khoa Kỹ thuật HCMUTE');
+  assert.equal(vi.thesis.topicDetailBannerImageCaption, 'Hội đồng Đánh giá Khóa luận HCMUTE');
+  assert.equal(en.thesis.topicCountLabel, 'topics');
+  assert.equal(vi.thesis.topicCountLabel, 'đề tài');
+  const VI = /[ăâêôơưđáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹ]/i;
+  for (const key of ['catalogBannerBadge', 'topicDetailBannerBadge']) {
+    assert.ok(VI.test(vi.thesis[key]), `vi.thesis.${key} must be Vietnamese, got: ${vi.thesis[key]}`);
+  }
+});

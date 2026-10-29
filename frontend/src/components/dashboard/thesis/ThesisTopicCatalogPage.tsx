@@ -170,7 +170,7 @@ export default function ThesisTopicCatalogPage() {
       />
 
       {/* Executive Thesis Catalog Hero Banner */}
-      <div className="overflow-hidden rounded-2xl border border-border/80 bg-card text-card-foreground shadow-xs">
+      <div className="overflow-hidden rounded-xl border border-border/80 bg-card text-card-foreground shadow-xs">
         <div className="grid grid-cols-1 lg:grid-cols-12">
           <div className="flex flex-col justify-center p-6 lg:col-span-8 space-y-2.5">
             <div className="flex flex-wrap items-center gap-2">
@@ -178,7 +178,7 @@ export default function ThesisTopicCatalogPage() {
                 {messages.thesis.navigation.catalog}
               </span>
               <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                HCMUTE Academic Engineering & Technology
+                {messages.thesis.catalogBannerBadge}
               </span>
             </div>
             <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
@@ -192,14 +192,14 @@ export default function ThesisTopicCatalogPage() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/images/banners/faculty_engineering_hall.jpg"
-              alt="HCMUTE Faculty of Engineering Hall"
+              alt={messages.thesis.catalogBannerImageAlt}
               width={1376}
               height={768}
               className="h-full w-full object-cover object-center transition duration-500 hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent lg:hidden" />
             <div className="absolute bottom-2 left-3 rounded-md bg-background/85 px-2 py-0.5 text-[11px] font-semibold text-foreground backdrop-blur-xs">
-              {locale === 'vi' ? 'Khoa Kỹ thuật HCMUTE' : 'HCMUTE Faculty of Engineering'}
+              {messages.thesis.catalogBannerImageCaption}
             </div>
           </div>
         </div>
@@ -328,7 +328,7 @@ export default function ThesisTopicCatalogPage() {
                 <CardDescription>{messages.thesis.topicsDescription}</CardDescription>
               </div>
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {matchingTopics.length} {locale === 'vi' ? 'đề tài' : 'topics'}
+                {matchingTopics.length} {messages.thesis.topicCountLabel}
               </span>
             </div>
           </CardHeader>
