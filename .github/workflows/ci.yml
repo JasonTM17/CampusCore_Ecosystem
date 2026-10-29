@@ -76,13 +76,19 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          if git grep -nE 'sk-[A-Za-z0-9]{20,}' -- . ':!plans' ':!scripts/run-course-e2e.mjs'; then
+          if git grep --quiet -E 'sk-[A-Za-z0-9]{20,}' -- . ':!plans' ':!scripts/run-course-e2e.mjs'; then
             echo 'A provider-looking secret is tracked; refusing CI.'
             exit 1
           fi
           node scripts/check-assistant-secrets.mjs
           node --test scripts/secret-hygiene.test.mjs 2>&1 | tee /tmp/secret-hygiene.log
           node -e '
+          else
+            grep_status=$?
+            if [ "$grep_status" -ne 1 ]; then
+              echo 'Secret sentinel scanner failed; refusing CI.'
+              exit "$grep_status"
+            fi
             const fs = require("fs");
             const log = fs.readFileSync("/tmp/secret-hygiene.log", "utf8");
             const m = log.match(/(?:#|ℹ)\s*tests\s+(\d+)/);
@@ -407,7 +413,7 @@ jobs:
       - name: Secret hygiene
         shell: bash
         run: |
-          if git grep -nE 'sk-[A-Za-z0-9]{20,}' -- . ':!plans' ':!scripts/run-course-e2e.mjs'; then
+          if git grep --quiet -E 'sk-[A-Za-z0-9]{20,}' -- . ':!plans' ':!scripts/run-course-e2e.mjs'; then
             echo 'A provider-looking secret is tracked; refusing CI.'
             exit 1
           fi
@@ -563,3 +569,9 @@ jobs:
         # KNOWN BLOCKER: upstream expo-router/metro/deepmerge dependency tree; triage is the mobile
         # dependency task. Report-only: does not block merge until that task lands.
         run: npm audit --omit=dev --audit-level=high
+          else
+            grep_status=$?
+            if [ "$grep_status" -ne 1 ]; then
+              echo 'Secret sentinel scanner failed; refusing CI.'
+              exit "$grep_status"
+            fi
