@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.academic.service;
 
+import io.campuscore.restfulapi.exception.SensitiveLogRedactor;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -94,7 +95,8 @@ public class EnrolledCountReconcileJob {
                 log.warn("enrolledCount repair corrected {} section counter(s)", repaired);
             }
         } catch (Exception failure) {
-            log.warn("Failed to reconcile section enrolledCount: {}", failure.getMessage(), failure);
+            log.warn("Failed to reconcile section enrolledCount; exceptionType={}",
+                    SensitiveLogRedactor.exceptionType(failure));
         }
     }
 

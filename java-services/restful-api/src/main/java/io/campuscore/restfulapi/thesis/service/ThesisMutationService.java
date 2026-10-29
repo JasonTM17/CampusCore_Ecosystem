@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.thesis.service;
 
+import io.campuscore.restfulapi.exception.SensitiveLogRedactor;
 import io.campuscore.restfulapi.audit.AdminAuditRecorder;
 import io.campuscore.restfulapi.thesis.domain.ApprovalStatus;
 import io.campuscore.restfulapi.thesis.domain.GroupStatus;
@@ -1034,7 +1035,8 @@ public class ThesisMutationService {
                 try {
                     notifier.notifyTopicAssigned(groupId, topicId);
                 } catch (RuntimeException exception) {
-                    log.warn("Thesis topic-assigned notification fan-out failed for group {}", groupId, exception);
+                    log.warn("Thesis topic-assigned notification fan-out failed for group {} exceptionType={}",
+                            groupId, SensitiveLogRedactor.exceptionType(exception));
                 }
             });
         }
@@ -1179,7 +1181,8 @@ public class ThesisMutationService {
                 try {
                     notifier.notifyGroupDecision(groupId, true, null);
                 } catch (RuntimeException exception) {
-                    log.warn("Thesis group-approval notification fan-out failed for group {}", groupId, exception);
+                    log.warn("Thesis group-approval notification fan-out failed for group {} exceptionType={}",
+                            groupId, SensitiveLogRedactor.exceptionType(exception));
                 }
             });
         }
@@ -1222,7 +1225,8 @@ public class ThesisMutationService {
                 try {
                     notifier.notifyGroupDecision(groupId, false, notifyReason);
                 } catch (RuntimeException exception) {
-                    log.warn("Thesis group-rejection notification fan-out failed for group {}", groupId, exception);
+                    log.warn("Thesis group-rejection notification fan-out failed for group {} exceptionType={}",
+                            groupId, SensitiveLogRedactor.exceptionType(exception));
                 }
             });
         }
