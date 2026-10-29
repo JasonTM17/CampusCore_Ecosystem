@@ -32,6 +32,11 @@ Inactive fences fail check-in as 410 `SESSION_CLOSED`. A pre-existing attendance
 entry is preserved (response status `MANUAL_RECORD_PRESERVED`); review uses the
 original persisted server check-in time to determine PRESENT/LATE. Only geofence-generated
 attendance is withdrawn when later risk signals send an earlier check-in to review.
+`POST /attendance/sessions` returns 201. Check-in success (200) is
+`AttendanceCheckinResponse`; every check-in error status (400/403/409/410/422/429)
+is `ErrorResponse`. `GET /attendance/location-consent` always exposes the current
+required `version` plus the stored `acceptedVersion` and whether it is current;
+`POST` accepts exactly the current version, otherwise 400 `INVALID_CONSENT_VERSION`.
 
 Pha: P03 step 1 · Owner: controller · Review: Kongming + tester contract
 Nguồn state machine: `plans/261021-2123-campusute-ecosystem/selected-design.md`
