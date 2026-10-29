@@ -305,3 +305,10 @@ Recovery: unpublish = audited `→ARCHIVED`; all public reads are
 `no-store` so stale content disappears immediately; re-publish of an
 archived item requires restore→DRAFT→IN_REVIEW→PUBLISHED (fresh
 independent review). Private knowledge history is never mutated.
+
+## 9. Static media provenance and publication gate
+
+Static media under `frontend/public/images/banners` and `frontend/public/images/events` are tracked in `frontend/public/images/asset-manifest.json` with SHA-256 digests, byte counts, component reference sites, alt text, and provenance metadata (`source`, `rights`, `depiction`, `verifiedBy`, `verifiedOn`).
+Assets with unconfirmed origins retain explicit `UNVERIFIED` markings and must never be assigned inferred licenses.
+The verification script `scripts/check-public-image-provenance.mjs` validates schema completeness and digest parity, and supports a `--require-verified` flag that rejects any unverified asset.
+Enforcement of the `--require-verified` gate and appointment of the authoritative rights owner are pending an owner decision before production publication.
