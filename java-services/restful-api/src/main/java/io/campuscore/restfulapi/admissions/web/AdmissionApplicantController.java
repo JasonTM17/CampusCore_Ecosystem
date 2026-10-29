@@ -8,6 +8,7 @@ import io.campuscore.restfulapi.admissions.web.AdmissionDtos.SaveApplicationRequ
 import io.campuscore.restfulapi.admissions.web.AdmissionDtos.TransitionRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import org.springframework.context.annotation.Profile;
@@ -64,7 +65,7 @@ public class AdmissionApplicantController {
     @PreAuthorize("isAuthenticated()")
     public ApplicationResponse create(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestBody CreateApplicationRequest request,
+            @Valid @RequestBody CreateApplicationRequest request,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         return admissions.create(applicant(jwt), request, idempotencyKey);
     }
@@ -84,7 +85,7 @@ public class AdmissionApplicantController {
     public ApplicationResponse save(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String applicationId,
-            @RequestBody SaveApplicationRequest request) {
+            @Valid @RequestBody SaveApplicationRequest request) {
         return admissions.save(applicant(jwt), applicationId, request);
     }
 

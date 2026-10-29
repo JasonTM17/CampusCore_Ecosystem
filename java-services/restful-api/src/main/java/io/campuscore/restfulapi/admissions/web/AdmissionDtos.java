@@ -2,6 +2,8 @@ package io.campuscore.restfulapi.admissions.web;
 
 import java.time.Instant;
 import java.util.List;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 /** P10 admissions contracts (domain-contracts §7). */
 public final class AdmissionDtos {
@@ -13,14 +15,18 @@ public final class AdmissionDtos {
     // Requests
     // ------------------------------------------------------------------
 
-    public record CreateApplicationRequest(String cycle) {
+    public record CreateApplicationRequest(@NotBlank @Size(max = 60) String cycle) {
     }
 
     /** Draft form fields; expectedVersion drives optimistic conflict. */
     public record SaveApplicationRequest(
+            @Size(max = 240)
             String fullName,
+            @Size(max = 20) @ValidIsoLocalDate
             String dateOfBirth,
+            @Size(max = 300)
             String schoolName,
+            @Size(max = 200)
             String intendedMajor,
             String essay,
             Integer expectedVersion) {

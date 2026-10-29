@@ -2,6 +2,7 @@ package io.campuscore.restfulapi.engagement.web;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
@@ -33,8 +34,8 @@ public final class AnnouncementWriteDtos {
     }
 
     public record CreateAnnouncementRequest(
-            @NotNull String title,
-            @NotNull String content,
+            @NotBlank String title,
+            @NotBlank String content,
             String priority,
             List<?> targetRoles,
             List<?> targetYears,
@@ -48,9 +49,20 @@ public final class AnnouncementWriteDtos {
         public static CreateAnnouncementRequest from(JsonNode body) {
             ObjectNode object = objectBody(body);
             ensureAllowedFields(object);
+            String title = stringValue(object, "title", false);
+            if (title == null || title.isBlank()) {
+                throw new IllegalArgumentException("title is required");
+            }
+            String content = stringValue(object, "content", false);
+            if (content == null || content.isBlank()) {
+                throw new IllegalArgumentException("content is required");
+            }
+            if (title.codePointCount(0, title.length()) > 240) {
+                throw new IllegalArgumentException("title must contain at most 240 characters");
+            }
             return new CreateAnnouncementRequest(
-                    stringValue(object, "title", false),
-                    stringValue(object, "content", false),
+                    title,
+                    content,
                     stringValue(object, "priority", false),
                     listValue(object, "targetRoles"),
                     listValue(object, "targetYears"),
