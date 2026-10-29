@@ -919,20 +919,23 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   const getAccessToken = options.getAccessToken ?? (() => accessToken);
   const setAccessTokenExternal = options.setAccessToken;
   let onSessionExpired = options.onSessionExpired;
-  // All transports share one refresh promise: the issuer rotates refresh tokens
-  // on every refresh, so concurrent independent refreshes race and log the user
-  // out even though one rotation succeeded.
-  let sessionRefreshPromise: Promise<boolean> | null = null;
+  // All transports in one session epoch share a refresh: the issuer rotates
+  // refresh tokens, but a replacement session must never join the old flight.
+  let sessionRefreshFlight: { epoch: number | undefined; promise: Promise<boolean> } | null = null;
 
-  function refreshSessionOnce(): Promise<boolean> {
-    if (!sessionRefreshPromise) {
-      sessionRefreshPromise = Promise.resolve()
-        .then(() => options.refreshSession?.() ?? false)
+  function refreshSessionOnce(requestEpoch: number | undefined): Promise<boolean> {
+    if (epochChanged(requestEpoch)) return Promise.resolve(false);
+    if (!sessionRefreshFlight || sessionRefreshFlight.epoch !== requestEpoch) {
+      const flight = { epoch: requestEpoch, promise: Promise.resolve(false) };
+      flight.promise = Promise.resolve()
+        .then(() => epochChanged(requestEpoch) ? false : options.refreshSession?.() ?? false)
         .finally(() => {
-          sessionRefreshPromise = null;
+          // A late old flight cannot clear the replacement session's flight.
+          if (sessionRefreshFlight === flight) sessionRefreshFlight = null;
         });
+      sessionRefreshFlight = flight;
     }
-    return sessionRefreshPromise;
+    return sessionRefreshFlight.promise;
   }
 
   type TransferMode = 'json' | 'download' | 'upload';
@@ -1080,7 +1083,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       let body = await readBody(response);
 
       if (!isPublic && sameOrigin && shouldRefreshAfterUnauthorized(path, response.status) && options.refreshSession) {
-        const refreshed = await refreshSessionOnce();
+        const refreshed = await refreshSessionOnce(requestEpoch);
         const rotated = getAccessToken();
         // A stale lane (request predates the current epoch) is skipped so a
         // previous account's dying request can never evict the session that
@@ -1096,7 +1099,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
           if (!staleLane) {
             onSessionExpired?.();
           }
-        } else {
+        } else if (!staleLane) {
           headers.set('Authorization', `Bearer ${rotated}`);
           ({ response, sameOrigin } = await send(url, fetchInit, headers, transfer));
           body = await readBody(response);

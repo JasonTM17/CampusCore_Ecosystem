@@ -90,6 +90,153 @@ function makeSession(initialToken = 'old-token') {
 
 const authorizedWith = (token) => (call) => call.headers.get('authorization') === `Bearer ${token}`;
 
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+// Drain fetch/body/refresh microtasks while deliberately held promises stay pending.
+const drainRequests = () => new Promise((resolve) => setImmediate(resolve));
+const lanes = ['json', 'download', 'upload'];
+function requestLane(client, lane, account) {
+  const route = `/${account}/${lane}`;
+  if (lane === 'download') return client.download(route);
+  if (lane === 'upload') return client.upload(route, new FormData());
+  return client.get(route);
+}
+
+for (const lane of lanes) {
+  test(`pending account A refresh cannot satisfy or expire account B's ${lane} lane`, async () => {
+    const { state, options } = makeSession('account-a');
+    const aRefresh = deferred();
+    const bRefresh = deferred();
+    const refreshEpochs = [];
+    const pending = [];
+    let bSettled = 0;
+    const client = createApiClient({
+      ...options,
+      epochPollMs: 60_000,
+      refreshSession: async () => {
+        const epoch = state.epoch;
+        refreshEpochs.push(epoch);
+        if (epoch === 1) return aRefresh.promise;
+        await bRefresh.promise;
+        state.token = 'account-b-refreshed';
+        return true;
+      },
+    });
+    const net = installFetch((call) => {
+      if (!authorizedWith('account-b-refreshed')(call)) return json(401, { message: 'expired' });
+      assert.ok(call.url.includes('/account-b/'), 'an old request must not replay under account B');
+      return call.url.endsWith('/download')
+        ? new Response(new Uint8Array([1]))
+        : json(200, { ok: true });
+    });
+    const track = (request, isB = false) => {
+      const result = request.then(
+        (value) => ({ value }),
+        (error) => ({ error }),
+      ).then((result) => { if (isB) bSettled += 1; return result; });
+      pending.push(result);
+      return result;
+    };
+    try {
+      const old = track(requestLane(client, lane, 'account-a'));
+      await drainRequests();
+      assert.deepEqual(refreshEpochs, [1]);
+
+      // Sign out, then sign in as B while A's issuer request is still held.
+      state.epoch += 1;
+      state.token = undefined;
+      state.epoch += 1;
+      state.token = 'account-b';
+      const replacement = track(requestLane(client, lane, 'account-b'), true);
+      await drainRequests();
+      const beforeASettled = [...refreshEpochs];
+      aRefresh.resolve(false); // Store's stale-epoch result; it never writes B's token.
+      const oldResult = await old;
+      await drainRequests();
+
+      assert.equal(state.expired, 0, 'A\'s stale refresh must never expire B');
+      assert.equal(bSettled, 0, 'B must wait for its own refresh result');
+      assert.deepEqual(beforeASettled, [1, 3], 'B starts its own flight before A settles');
+      assert.equal(oldResult.error?.[lane === 'json' ? 'status' : 'code'], lane === 'json' ? 401 : 'SESSION_CHANGED');
+
+      // A's finalizer must not clear B's flight: all other B lanes still join it.
+      const others = lanes.filter((other) => other !== lane)
+        .map((other) => track(requestLane(client, other, 'account-b'), true));
+      await drainRequests();
+      assert.deepEqual(refreshEpochs, [1, 3], 'all three B lanes share exactly one refresh');
+      assert.equal(bSettled, 0);
+      bRefresh.resolve();
+      const results = await Promise.all([replacement, ...others]);
+      assert.ok(results.every((result) => !result.error));
+      assert.deepEqual(results.map(({ value }) => value.data ? value.data.byteLength : value),
+        [lane, ...lanes.filter((other) => other !== lane)].map((other) => other === 'download' ? 1 : { ok: true }));
+      assert.equal(state.token, 'account-b-refreshed');
+      assert.equal(state.expired, 0);
+      assert.equal(net.calls.length, 7, 'A is not replayed; each B request retries once');
+    } finally {
+      aRefresh.resolve(false);
+      bRefresh.resolve();
+      await Promise.all(pending);
+      net.restore();
+    }
+  });
+}
+
+for (const lane of lanes) {
+  test(`a delayed account A ${lane} 401 cannot start account B's refresh`, async () => {
+    const { state, options } = makeSession('account-a');
+    const response = deferred();
+    const client = createApiClient({ ...options, epochPollMs: 60_000,
+      refreshSession: async () => { state.refreshCalls += 1; return true; },
+    });
+    const net = installFetch(() => response.promise);
+    let pending;
+    try {
+      pending = requestLane(client, lane, 'account-a').catch((error) => error);
+      state.epoch += 2;
+      state.token = 'account-b';
+      response.resolve(json(401, { message: 'expired' }));
+      const error = await pending;
+      assert.equal(state.refreshCalls, 0, 'an old 401 must not refresh the current session');
+      assert.equal(error[lane === 'json' ? 'status' : 'code'], lane === 'json' ? 401 : 'SESSION_CHANGED');
+      assert.equal(net.calls.length, 1, 'an old request must not replay under account B');
+      assert.equal(state.expired, 0);
+      assert.equal(state.token, 'account-b');
+    } finally {
+      response.resolve(json(401, {}));
+      await pending;
+      net.restore();
+    }
+  });
+}
+
+test('a successful old JSON refresh cannot replay with the replacement account token', async () => {
+  const { state, options } = makeSession('account-a');
+  const refresh = deferred();
+  const client = createApiClient({ ...options, refreshSession: () => refresh.promise });
+  const net = installFetch((_call, index) => index === 1 ? json(401, {}) : json(200, { ok: true }));
+  let pending;
+  try {
+    pending = client.get('/account-a/json').catch((error) => error);
+    await drainRequests();
+    state.epoch += 2;
+    state.token = 'account-b';
+    refresh.resolve(true);
+    const error = await pending;
+    assert.equal(net.calls.length, 1, 'no old JSON replay using B\'s token');
+    assert.equal(error.status, 401);
+    assert.equal(state.expired, 0);
+  } finally {
+    refresh.resolve(false);
+    await pending;
+    net.restore();
+  }
+});
+
 test('concurrent 401s share one refresh across JSON, download and upload lanes', async () => {
   const { state, options } = makeSession();
   const client = createApiClient(options);
