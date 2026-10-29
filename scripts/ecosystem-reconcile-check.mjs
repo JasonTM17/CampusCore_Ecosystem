@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { localeKeys } from './ecosystem-locale-keys.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -33,19 +34,6 @@ for (const id of cited) {
 // locale object → key set (handles `vi:`, `"vi":`, `'vi':` decl styles and
 // hyphenated/dotted keys). A *-messages.ts file that yields no vi/en pair
 // is drift, not a skip — silence would mask a renamed locale block.
-function localeKeys(source, locale) {
-  const m = source.match(new RegExp(`(?:["']?${locale}["']?\\s*:|(?:const|let)\\s+${locale}\\s*=)\\s*\\{`));
-  if (!m) return null;
-  let depth = 1; let i = m.index + m[0].length;
-  const start = i;
-  while (i < source.length && depth > 0) {
-    if (source[i] === '{') depth += 1;
-    else if (source[i] === '}') depth -= 1;
-    i += 1;
-  }
-  const body = source.slice(start, i - 1);
-  return new Set([...body.matchAll(/\n\s*['"]?([a-zA-Z0-9_.-]+)['"]?\s*:/g)].map((k) => k[1]));
-}
 const i18nDirs = ['mobile/src/i18n', 'frontend/src/i18n'];
 let i18nFiles = 0;
 const i18nSkipped = [];
