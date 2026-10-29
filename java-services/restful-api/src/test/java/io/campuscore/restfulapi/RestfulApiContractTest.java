@@ -73,4 +73,19 @@ class RestfulApiContractTest {
                 .andExpect(jsonPath("$.openapi").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/health/liveness']").exists());
     }
+
+    @Test
+    void contractPingRequiresAuthenticationAndRemainsAvailableToAnyAuthenticatedRole() throws Exception {
+        var body = "{\"message\":\"policy probe\"}";
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/contract/ping")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/contract/ping")
+                .with(fixtureJwt(jdbc, "policy-guest", "GUEST"))
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.echo").value("policy probe"));
+        mvc.perform(get("/api/v1/me").with(fixtureJwt(jdbc, "policy-guest", "GUEST")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.subject").value("policy-guest"));
+    }
+
 }

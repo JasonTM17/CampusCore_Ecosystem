@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.thesis.web;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.thesis.domain.TopicStatus;
 import io.campuscore.restfulapi.thesis.service.ThesisTopicService;
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @Profile("persistence")
 @RequestMapping("/api/v1/thesis/topics")
+@PreAuthorize("isAuthenticated()")
 public class ThesisTopicController {
 
     private final ThesisTopicService topics;

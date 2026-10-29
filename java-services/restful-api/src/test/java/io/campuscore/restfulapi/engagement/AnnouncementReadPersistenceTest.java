@@ -678,4 +678,13 @@ class AnnouncementReadPersistenceTest {
                     courseName, lecturerId, lecturerDisplayName, createdAt);
         }
     }
+
+    @Test
+    void audiencePolicyRejectsAnonymousAndStudentAccessToStaffListing() throws Exception {
+        mvc.perform(get("/api/v1/announcements/my")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/announcements").with(
+                io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt(jdbc, "policy-student", "STUDENT")))
+                .andExpect(status().isForbidden());
+    }
+
 }

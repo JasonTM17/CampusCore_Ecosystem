@@ -1075,4 +1075,15 @@ class TwoFactorLoginPersistenceTest {
     private static LocalDateTime localDateTime(Instant value) {
         return value == null ? null : LocalDateTime.ofInstant(value, ZoneOffset.UTC);
     }
+
+    @Test
+    void managementPolicyRequiresAuthenticationForEveryMapping() throws Exception {
+        mvc.perform(get("/api/v1/me/two-factor")).andExpect(status().isUnauthorized());
+        for (String action : java.util.List.of("enable", "confirm", "disable/challenge", "disable")) {
+            mvc.perform(post("/api/v1/me/two-factor/" + action)
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
 }

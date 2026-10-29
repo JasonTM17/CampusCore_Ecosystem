@@ -587,4 +587,14 @@ class NotificationPushContractPersistenceTest {
         @Override public Clock withZone(ZoneId zone) { return this; }
         @Override public Instant instant() { return instant; }
     }
+
+    @Test
+    void devicePolicyRejectsAnonymousRegistrationAndRevocation() throws Exception {
+        mvc.perform(put("/api/v1/notifications/my/devices/anonymous-install")
+                .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(delete("/api/v1/notifications/my/devices/anonymous-install"))
+                .andExpect(status().isUnauthorized());
+    }
+
 }

@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.web;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,6 +32,7 @@ public class ContractController {
     }
 
     @PostMapping("/ping")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Ping kiểm tra phản hồi API", description = "Gửi thông điệp kiểm tra và nhận lại phản hồi dội lại (echo) từ dịch vụ.")
     @ApiResponse(responseCode = "200", description = "Dội lại thông điệp thành công")
     public ResponseEntity<Map<String, Object>> ping(@Valid @RequestBody PingRequest request) {
