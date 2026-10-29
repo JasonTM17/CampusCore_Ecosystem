@@ -10,9 +10,15 @@ import { baseFor, devBaseFor, surfaceFromHost } from '@/lib/surfaces';
 const LOCALE_COOKIE = 'cc_locale';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
-// Legacy session cookie names: on a BFF surface host these must be deleted
-// host-only so a stale cc_* can never shadow the opaque lane (§2 contract).
-const LEGACY_COOKIE_PREFIX = 'cc_';
+// Legacy session cookie names minted by the direct lane's SessionCookieService:
+// on a surface host these stale tokens must be deleted host-only so they can
+// never shadow the opaque BFF lane (§2 contract). The list is an explicit
+// allowlist, not a cc_ prefix match — the BFF callback mints cc_csrf as its
+// session hint and cc_locale is a locale preference, so neither may be swept.
+const LEGACY_SESSION_COOKIES = new Set([
+  'cc_access_token',
+  'cc_refresh_token',
+]);
 
 interface HostRouting {
   /** Terminal response (not-found rewrite or apex redirect) — skip the rest. */
@@ -62,12 +68,11 @@ function routeByHost(request: NextRequest): HostRouting {
   return { surface };
 }
 
-/** Delete each legacy cc_* cookie on this surface host — host-only delete. */
+/** Delete each stale legacy session cookie on this surface host — host-only delete. */
 function expireLegacyCookies(request: NextRequest, response: NextResponse) {
   const seen = new Set<string>();
   for (const cookie of request.cookies.getAll()) {
-    if (cookie.name.startsWith(LEGACY_COOKIE_PREFIX) && cookie.name !== LOCALE_COOKIE
-        && !seen.has(cookie.name)) {
+    if (LEGACY_SESSION_COOKIES.has(cookie.name) && !seen.has(cookie.name)) {
       seen.add(cookie.name);
       response.cookies.set(cookie.name, '', { path: '/', maxAge: 0 });
     }
