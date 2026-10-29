@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { ListPanel } from '../../components/perf/performance-list';
 
 import { Button, StatePanel } from '../../components/Ui';
 import { Dialog, Sheet } from '../../components/ui/primitives';
@@ -25,15 +26,9 @@ export function AssistantHistorySheet({ chat, copy }: AssistantHistorySheetProps
   return (
     <>
       <Sheet visible={history.open} onClose={() => chat.setHistoryOpen(false)} title={copy.historyTitle}>
-        <ScrollView>
-          {history.loading ? <StatePanel kind="loading" title={copy.historyLoading} /> : null}
-          {history.error ? (
-            <StatePanel kind="error" title={copy.historyError} actionLabel={copy.retry} onAction={chat.reloadHistory} />
-          ) : null}
-          {!history.loading && !history.error && history.items.length === 0 ? (
-            <StatePanel kind="empty" title={copy.historyEmpty} />
-          ) : null}
-          {history.items.map((conversation) => (
+        <ListPanel
+      list={{ data: history.items, keyExtractor: (item, index) => String(item.id),
+        renderItem: ({ item: conversation }) => (
             <View key={conversation.id} style={styles.row}>
               <Button
                 label={title(conversation)}
@@ -49,13 +44,24 @@ export function AssistantHistorySheet({ chat, copy }: AssistantHistorySheetProps
                 variant="text"
               />
             </View>
-          ))}
+          ),
+        footer: <>{null}
           {history.nextCursor ? (
             <View style={styles.more}>
               <Button label={copy.loadMoreHistory} loading={history.loadingMore} onPress={chat.loadMoreHistory} variant="secondary" />
             </View>
           ) : null}
-        </ScrollView>
+        </>,
+      }}
+    >
+          {history.loading ? <StatePanel kind="loading" title={copy.historyLoading} /> : null}
+          {history.error ? (
+            <StatePanel kind="error" title={copy.historyError} actionLabel={copy.retry} onAction={chat.reloadHistory} />
+          ) : null}
+          {!history.loading && !history.error && history.items.length === 0 ? (
+            <StatePanel kind="empty" title={copy.historyEmpty} />
+          ) : null}
+          {null}</ListPanel>
       </Sheet>
       <Dialog
         visible={pendingDelete !== null}

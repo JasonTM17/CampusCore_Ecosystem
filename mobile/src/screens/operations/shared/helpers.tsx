@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { Linking } from 'react-native';
 
-import { Button, Card, ScreenShell, UiText } from '../../../components/Ui';
+import { Button, Card, UiText } from '../../../components/Ui';
+import { ScrollableScreenShell as ScreenShell } from '../../../components/perf/list-screen-shell';
+import { ListGap, type PerformanceListProps } from '../../../components/perf/performance-list';
 import { useLocale } from '../../../i18n/locale-provider';
 import { fillCopy } from '../../../i18n/academic-messages';
 import { operationsMessages, type OperationsCopy } from '../../../i18n/operations-messages';
@@ -35,7 +37,8 @@ export function opsErrorMessage(copy: OperationsCopy, error: unknown, fallback: 
   return fallback;
 }
 
-export interface WebOnlyPanelProps {
+export interface WebOnlyPanelProps<T = unknown> {
+  list?: PerformanceListProps<T>;
   title: string;
   /** Portal route that owns the work. */
   path: string;
@@ -43,11 +46,11 @@ export interface WebOnlyPanelProps {
 }
 
 /** Honest hand-off for work that stays on the web; shows no data of its own. */
-export function WebOnlyPanel({ title, path, children }: WebOnlyPanelProps) {
+export function WebOnlyPanel<T>({ title, path, children, list }: WebOnlyPanelProps<T>) {
   const styles = useOpsStyles();
   const { copy } = useOpsCopy();
   return (
-    <ScreenShell title={title}>
+    <ScreenShell title={title} list={list && { ItemSeparatorComponent: ListGap, ...list }}>
       <Card tone="primary" style={styles.webOnlyCard}>
         <UiText variant="headlineSmall">{fillCopy(copy.webOnlyTitle, { title })}</UiText>
         <UiText variant="bodySmall" tone="muted" style={styles.webOnlyCopy}>{copy.webOnlyBody}</UiText>

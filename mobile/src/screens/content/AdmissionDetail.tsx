@@ -1,3 +1,4 @@
+import { cardRows, renderVirtualRow } from '../../components/perf/virtual-rows';
 import { useState } from 'react';
 import { View } from 'react-native';
 
@@ -47,7 +48,45 @@ export function AdmissionDetail(props: AdmissionDetailProps) {
   const filesLocked = !canChangeAttachments(phase);
 
   return (
-    <DetailFrame title={copy.title} onBack={onBack}>
+    <DetailFrame title={copy.title} onBack={onBack}
+      list={{ data: [...(cardRows("section-1", attachments, (item, index) => String(item.id ?? index), <>
+          <UiText accessibilityRole="header" variant="headlineSmall">{shared.attachments}</UiText>
+          {attachments.length === 0 ? <UiText variant="bodySmall" tone="muted">{shared.noAttachments}</UiText> : null}
+          </>, (file) => (
+            <AttachmentRow
+              key={file.id}
+              name={file.fileName ?? file.id}
+              sizeBytes={file.sizeBytes}
+              fetchBytes={() => contentApi.admissionsDownload(application.id, file.id)}
+              extraActions={filesLocked || preview ? [] : [{ key: 'delete', label: copy.deleteFile, onPress: () => onDeleteFile(file), disabled: busy }]}
+            />
+          ), {footer: <>
+          {!filesLocked && !preview ? (
+            <UploadPicker
+              intent={`admissions:${application.id}`}
+              policy={DOCUMENT_POLICY}
+              disabled={busy}
+              upload={(part, key) => contentApi.admissionsUpload(application.id, part, key)}
+              onUploaded={onUploaded}
+            />
+          ) : null}
+        </>})),
+...(cardRows("section-2", application.reviews, (item, index) => String(item.id ?? index), <>
+          <UiText accessibilityRole="header" variant="headlineSmall">{copy.reviews}</UiText>
+          {application.reviews.length === 0 ? <UiText variant="bodySmall" tone="muted">{copy.emptyReviews}</UiText> : null}
+          </>, (review) => (
+            <View key={review.id} accessible style={{ gap: 2, minHeight: 44, justifyContent: 'center' }}>
+              <UiText variant="label">{`${copy.reviewActions[review.action] ?? review.action} · ${formatDateTime(review.createdAt)}`}</UiText>
+              {review.note ? <UiText variant="bodySmall">{review.note}</UiText> : null}
+            </View>
+          ), {}))], keyExtractor: (row) => row.key, renderItem: renderVirtualRow, footer: <><View style={{ gap: 12 }}>
+
+        {!(phase === 'terminal') ? (
+          <Button label={copy.withdraw} variant="secondary" disabled={busy || preview} onPress={onWithdraw} />
+        ) : null}
+      </View>
+    </> }}
+    >
       <View style={{ gap: 12 }}>
         <DataNotice message={copy.simulatedBanner} />
         <FlashNotice flash={flash} />
@@ -88,45 +127,7 @@ export function AdmissionDetail(props: AdmissionDetailProps) {
           </Card>
         )}
 
-        <Card>
-          <UiText accessibilityRole="header" variant="headlineSmall">{shared.attachments}</UiText>
-          {attachments.length === 0 ? <UiText variant="bodySmall" tone="muted">{shared.noAttachments}</UiText> : null}
-          {attachments.map((file) => (
-            <AttachmentRow
-              key={file.id}
-              name={file.fileName ?? file.id}
-              sizeBytes={file.sizeBytes}
-              fetchBytes={() => contentApi.admissionsDownload(application.id, file.id)}
-              extraActions={filesLocked || preview ? [] : [{ key: 'delete', label: copy.deleteFile, onPress: () => onDeleteFile(file), disabled: busy }]}
-            />
-          ))}
-          {!filesLocked && !preview ? (
-            <UploadPicker
-              intent={`admissions:${application.id}`}
-              policy={DOCUMENT_POLICY}
-              disabled={busy}
-              upload={(part, key) => contentApi.admissionsUpload(application.id, part, key)}
-              onUploaded={onUploaded}
-            />
-          ) : null}
-        </Card>
-
-        <Card>
-          <UiText accessibilityRole="header" variant="headlineSmall">{copy.reviews}</UiText>
-          {application.reviews.length === 0 ? <UiText variant="bodySmall" tone="muted">{copy.emptyReviews}</UiText> : null}
-          {application.reviews.map((review) => (
-            <View key={review.id} accessible style={{ gap: 2, minHeight: 44, justifyContent: 'center' }}>
-              <UiText variant="label">{`${copy.reviewActions[review.action] ?? review.action} · ${formatDateTime(review.createdAt)}`}</UiText>
-              {review.note ? <UiText variant="bodySmall">{review.note}</UiText> : null}
-            </View>
-          ))}
-        </Card>
-
-        {!(phase === 'terminal') ? (
-          <Button label={copy.withdraw} variant="secondary" disabled={busy || preview} onPress={onWithdraw} />
-        ) : null}
-      </View>
-    </DetailFrame>
+        </View></DetailFrame>
   );
 }
 

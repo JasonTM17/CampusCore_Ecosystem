@@ -1,7 +1,9 @@
+import { cardRows, contentRows, renderVirtualRow } from '../../components/perf/virtual-rows';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { Card, DataNotice, Divider, MetricCard, ProgressBar, ScreenShell, SectionHeading, StatePanel, UiText } from '../../components/Ui';
+import { Card, DataNotice, Divider, MetricCard, ProgressBar, SectionHeading, StatePanel, UiText } from '../../components/Ui';
+import { ScrollableScreenShell as ScreenShell } from '../../components/perf/list-screen-shell';
 import { ChartSummary } from '../../components/ui/chart-summary';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { tokens } from '../../design/tokens';
@@ -31,34 +33,8 @@ export function ConductScreen(_props: MobileScreenProps) {
   const failure = preview ? null : malformed ? copy.conductMalformed : query.error;
 
   return (
-    <ScreenShell title={copy.conductTitle}>
-      {preview ? <DataNotice message={shared.previewNotice} /> : null}
-      {query.warning && !preview ? <DataNotice message={query.warning} /> : null}
-      {!preview && query.isLoading ? (
-        <StatePanel kind="loading" title={t('loading')} />
-      ) : failure ? (
-        <StatePanel kind="error" title={shared.errorTitle} description={failure} actionLabel={t('retry')} onAction={() => void query.reload()} />
-      ) : !model || (model.terms.length === 0 && model.cumulativeAverage === null) ? (
-        <StatePanel kind="empty" title={copy.conductEmpty} />
-      ) : (
-        <View style={styles.stack}>
-          <MetricCard
-            label={copy.conductCumulative}
-            value={formatNumber(model.cumulativeAverage, { maximumFractionDigits: 1 })}
-            detail={model.cumulativeClassificationVi ?? undefined}
-          />
-          {trend.length > 1 ? <ChartSummary title={copy.conductHistory} series={trend} /> : null}
-          {model.terms.length > 0 ? (
-            <ChoiceField
-              label={copy.conductTerm}
-              display="sheet"
-              value={term?.id ?? ''}
-              options={model.terms.map((entry) => ({ value: entry.id, label: entry.semesterName }))}
-              onChange={setTermId}
-            />
-          ) : null}
-          {term ? (
-            <Card>
+    <ScreenShell title={copy.conductTitle}
+      list={{ data: [...((!preview && query.isLoading) ? [] : (failure) ? [] : (!model || (model.terms.length === 0 && model.cumulativeAverage === null)) ? [] : (term) ? cardRows("section-1", (term.activities.length === 0) ? [] : term.activities, (item, index) => String(item.id ?? index), <>
               <UiText accessibilityRole="header" variant="headlineSmall">{term.semesterName}</UiText>
               <UiText variant="bodyMedium" tone="primary">
                 {joinMeta([
@@ -86,7 +62,7 @@ export function ConductScreen(_props: MobileScreenProps) {
               <SectionHeading title={copy.conductActivities} />
               {term.activities.length === 0 ? (
                 <UiText variant="bodySmall" tone="muted">{copy.conductNoActivities}</UiText>
-              ) : term.activities.map((activity) => (
+              ) : null}</>, (activity) => (
                 <View
                   key={activity.id}
                   accessible
@@ -98,12 +74,34 @@ export function ConductScreen(_props: MobileScreenProps) {
                     {joinMeta([activity.category, activity.organizer, activity.activityDate ? formatDate(activity.activityDate) : null, activity.points != null ? fillCopy(copy.conductPoints, { n: formatNumber(activity.points) }) : null])}
                   </UiText>
                 </View>
-              ))}
-            </Card>
+              ), {}) : [])], keyExtractor: (row) => row.key, renderItem: renderVirtualRow, footer: <>
+    </> }}
+    >
+      {preview ? <DataNotice message={shared.previewNotice} /> : null}
+      {query.warning && !preview ? <DataNotice message={query.warning} /> : null}
+      {!preview && query.isLoading ? (
+        <StatePanel kind="loading" title={t('loading')} />
+      ) : (<>{failure ? (
+        <StatePanel kind="error" title={shared.errorTitle} description={failure} actionLabel={t('retry')} onAction={() => void query.reload()} />
+      ) : (<>{!model || (model.terms.length === 0 && model.cumulativeAverage === null) ? (
+        <StatePanel kind="empty" title={copy.conductEmpty} />
+      ) : (<><View style={styles.stack}>
+          <MetricCard
+            label={copy.conductCumulative}
+            value={formatNumber(model.cumulativeAverage, { maximumFractionDigits: 1 })}
+            detail={model.cumulativeClassificationVi ?? undefined}
+          />
+          {trend.length > 1 ? <ChartSummary title={copy.conductHistory} series={trend} /> : null}
+          {model.terms.length > 0 ? (
+            <ChoiceField
+              label={copy.conductTerm}
+              display="sheet"
+              value={term?.id ?? ''}
+              options={model.terms.map((entry) => ({ value: entry.id, label: entry.semesterName }))}
+              onChange={setTermId}
+            />
           ) : null}
-        </View>
-      )}
-    </ScreenShell>
+          {term ? null : null}</View></>)}</>)}</>)}</ScreenShell>
   );
 }
 

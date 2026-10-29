@@ -10,11 +10,13 @@ import { useLocale } from '../i18n/locale-provider';
 import { useSession } from '../session/SessionContext';
 import {
   evictQueryCache,
+  isQueryCacheFresh,
   queryCacheKey,
   readQueryCache,
   writeQueryCache,
   type QueryCacheScope,
 } from './query-cache';
+import { canRevalidate, coalesceQueryRequest, resourceStaleTime, type ResourceClass } from './query-performance';
 
 export interface ScreenQueryOptions<T> {
   /** Defaults to live mode — preview sessions never fetch (KM-9). */
@@ -27,6 +29,9 @@ export interface ScreenQueryOptions<T> {
   scope?: QueryCacheScope;
   /** Expire cached memory data after this many milliseconds. */
   maxAge?: number;
+  /** Automatic focus/foreground reads skip fresh data; explicit reload always refreshes. */
+  staleTime?: number;
+  resourceClass?: ResourceClass;
   /** Friendly fallback for the error state (denied/offline copy is caller's). */
   errorMessage?: string;
   mapError?: (error: unknown) => string;
@@ -118,6 +123,7 @@ export function useScreenQuery<T>(
   const optionsRef = useRef(options);
   optionsRef.current = options;
   const mountedRef = useRef(true);
+  const focusedRef = useRef(false);
   const epoch = sessionStore.sessionEpoch();
   const boundary = useMemo<QueryBoundary>(() => ({ cacheKey, epoch, enabled, inFlight: false }),
     [cacheKey, epoch, enabled]);
@@ -152,7 +158,7 @@ export function useScreenQuery<T>(
   }, [cacheKey, enabled, isCurrent, update]);
 
   const reload = useCallback(async () => {
-    if (!enabled || boundary.inFlight || !isCurrent()) {
+    if (!enabled || boundary.inFlight || !isCurrent() || !canRevalidate(AppState.currentState)) {
       return;
     }
     // Dedupe only this identity. A pending old resource must not suppress the
@@ -162,7 +168,7 @@ export function useScreenQuery<T>(
     update({ data: cached, isLoading: cached === undefined, isStale: cached !== undefined,
       error: null, warning: null, errorStatus: null });
     try {
-      const next = await fetcherRef.current();
+      const next = await coalesceQueryRequest(JSON.stringify([cacheKey, boundary.epoch]), () => fetcherRef.current());
       if (!isCurrent()) return;
       writeQueryCache(cacheKey, next);
       update({ data: next });
@@ -204,15 +210,25 @@ export function useScreenQuery<T>(
     }
   }, [cacheKey, enabled, boundary, isCurrent, update]);
 
-  useEffect(() => {
+  const revalidate = useCallback(() => {
+    const opts = optionsRef.current;
+    // maxAge remains an explicit retention override; it cannot be bypassed by freshness.
+    if (readQueryCache(cacheKey, opts.maxAge) !== undefined
+      && isQueryCacheFresh(cacheKey, opts.staleTime ?? resourceStaleTime(queryKey, opts.resourceClass))) return;
     void reload();
-  }, [reload]);
+  }, [cacheKey, queryKey, reload]);
+
+  useEffect(() => {
+    revalidate();
+  }, [revalidate]);
 
   // Focus refetch — re-entering a screen revalidates through SWR.
   useFocusEffect(
     useCallback(() => {
-      void reload();
-    }, [reload]),
+      focusedRef.current = true;
+      revalidate();
+      return () => { focusedRef.current = false; };
+    }, [revalidate]),
   );
 
   // Foreground refetch — the app becoming active revalidates the surface.
@@ -221,12 +237,12 @@ export function useScreenQuery<T>(
       return;
     }
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        void reload();
+      if (canRevalidate(state, focusedRef.current)) {
+        revalidate();
       }
     });
     return () => subscription.remove();
-  }, [enabled, reload]);
+  }, [enabled, revalidate]);
 
   return { data: visible.data, isLoading: visible.isLoading, isStale: visible.isStale,
     error: visible.error, warning: visible.warning, errorStatus: visible.errorStatus, reload, setData };

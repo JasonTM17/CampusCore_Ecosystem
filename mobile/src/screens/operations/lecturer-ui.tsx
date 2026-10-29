@@ -3,7 +3,9 @@ import { View } from 'react-native';
 
 import { apiClient } from '../../api/client';
 import type { LecturerScheduleEntry } from '../../api/client';
-import { Button, DataNotice, ScreenShell, StatePanel, UiText } from '../../components/Ui';
+import { Button, DataNotice, StatePanel, UiText } from '../../components/Ui';
+import { ScrollableScreenShell as ScreenShell } from '../../components/perf/list-screen-shell';
+import type { PerformanceListProps } from '../../components/perf/performance-list';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { FileRow, type FileRowStatus } from '../../components/ui/file-row';
 import { useScreenQuery } from '../../hooks/useScreenQuery';
@@ -25,7 +27,8 @@ export function useOpsQuery<T>(key: string, fetcher: () => Promise<T>, copy: Ope
   });
 }
 
-export interface OpsShellProps {
+export interface OpsShellProps<T = unknown> {
+  list?: PerformanceListProps<T>;
   title: string;
   eyebrow?: string;
   subtitle?: string;
@@ -37,10 +40,10 @@ export interface OpsShellProps {
 }
 
 /** Screen frame with the loading, error, stale-data and preview states in one place. */
-export function OpsShell({ title, eyebrow, subtitle, loading = false, error, warning, onRetry, children }: OpsShellProps) {
+export function OpsShell<T>({ title, eyebrow, subtitle, loading = false, error, warning, onRetry, children, list }: OpsShellProps<T>) {
   const { copy } = useOpsCopy();
   return (
-    <ScreenShell title={title} eyebrow={eyebrow} subtitle={subtitle}>
+    <ScreenShell title={title} eyebrow={eyebrow} subtitle={subtitle} list={list && (loading || error ? { ...list, data: [], footer: null } : list)}>
       {isOpsPreview() ? <DataNotice message={copy.previewNotice} /> : null}
       {warning ? <DataNotice message={warning} /> : null}
       {loading || error ? (

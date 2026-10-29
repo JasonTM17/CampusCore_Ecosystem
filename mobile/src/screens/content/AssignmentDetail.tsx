@@ -1,3 +1,4 @@
+import { cardRows, renderVirtualRow } from '../../components/perf/virtual-rows';
 import { useCallback, useState } from 'react';
 import { View } from 'react-native';
 
@@ -152,7 +153,31 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
   };
 
   return (
-    <DetailFrame title={copy.title} onBack={onBack}>
+    <DetailFrame title={copy.title} onBack={onBack}
+      list={{ data: [...((submissionId !== null) ? cardRows("section-1", revisions, (item, index) => String(item.id ?? index), <>
+              <UiText accessibilityRole="header" variant="headlineSmall">{copy.revisions}</UiText>
+              {revisions.length === 0 ? <UiText variant="bodySmall" tone="muted">{copy.emptyRevisions}</UiText> : null}
+              </>, (revision) => (
+                <View key={revision.id} style={{ gap: 4, marginTop: 8 }}>
+                  <UiText variant="label">{joinMeta([fillCopy(copy.revision, { n: revision.revisionNo }), formatDateTime(revision.submittedAt)])}</UiText>
+                  {revision.textBody ? <UiText variant="bodyMedium">{revision.textBody}</UiText> : null}
+                  {revision.fileName ? (
+                    <AttachmentRow name={revision.fileName} fetchBytes={() => contentApi.learningDownloadRevision(revision.id)} />
+                  ) : null}
+                </View>
+              ), {}) : []),
+...((submissionId !== null) ? cardRows("section-2", feedback, (item, index) => String(item.id ?? index), <>
+              <UiText accessibilityRole="header" variant="headlineSmall">{copy.feedback}</UiText>
+              {feedback.length === 0 ? <UiText variant="bodySmall" tone="muted">{copy.emptyFeedback}</UiText> : null}
+              </>, (entry) => (
+                <View key={entry.id} accessible style={{ gap: 2, marginTop: 8 }}>
+                  <UiText variant="label">{joinMeta([entry.score != null ? `${copy.score}: ${formatNumber(entry.score)}` : null, formatDateTime(entry.createdAt)])}</UiText>
+                  {entry.comment ? <UiText variant="bodyMedium">{entry.comment}</UiText> : null}
+                </View>
+              ), {}) : [])], keyExtractor: (row) => row.key, renderItem: renderVirtualRow, footer: <>
+      {dialog}
+    </> }}
+    >
       <View style={{ gap: 12 }}>
         <FlashNotice flash={flash} />
         <Card>
@@ -203,35 +228,6 @@ export function AssignmentDetail({ assignment, onBack, onChanged }: AssignmentDe
           </Card>
         ) : null}
 
-        {submissionId !== null ? (
-          <>
-            <Card>
-              <UiText accessibilityRole="header" variant="headlineSmall">{copy.revisions}</UiText>
-              {revisions.length === 0 ? <UiText variant="bodySmall" tone="muted">{copy.emptyRevisions}</UiText> : null}
-              {revisions.map((revision) => (
-                <View key={revision.id} style={{ gap: 4, marginTop: 8 }}>
-                  <UiText variant="label">{joinMeta([fillCopy(copy.revision, { n: revision.revisionNo }), formatDateTime(revision.submittedAt)])}</UiText>
-                  {revision.textBody ? <UiText variant="bodyMedium">{revision.textBody}</UiText> : null}
-                  {revision.fileName ? (
-                    <AttachmentRow name={revision.fileName} fetchBytes={() => contentApi.learningDownloadRevision(revision.id)} />
-                  ) : null}
-                </View>
-              ))}
-            </Card>
-            <Card>
-              <UiText accessibilityRole="header" variant="headlineSmall">{copy.feedback}</UiText>
-              {feedback.length === 0 ? <UiText variant="bodySmall" tone="muted">{copy.emptyFeedback}</UiText> : null}
-              {feedback.map((entry) => (
-                <View key={entry.id} accessible style={{ gap: 2, marginTop: 8 }}>
-                  <UiText variant="label">{joinMeta([entry.score != null ? `${copy.score}: ${formatNumber(entry.score)}` : null, formatDateTime(entry.createdAt)])}</UiText>
-                  {entry.comment ? <UiText variant="bodyMedium">{entry.comment}</UiText> : null}
-                </View>
-              ))}
-            </Card>
-          </>
-        ) : null}
-      </View>
-      {dialog}
-    </DetailFrame>
+        {submissionId !== null ? null : null}</View></DetailFrame>
   );
 }

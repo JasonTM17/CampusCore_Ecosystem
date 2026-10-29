@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { Button, ScreenShell, StatePanel, UiText } from '../../components/Ui';
+import { Button, StatePanel, UiText } from '../../components/Ui';
+import { ScrollableScreenShell as ScreenShell } from '../../components/perf/list-screen-shell';
 import { SearchBar, SegmentedControl } from '../../components/ui/primitives';
 import { tokens } from '../../design/tokens';
 import { fillThesisCopy, type ThesisCopy } from '../../i18n/thesis-messages';
@@ -38,11 +39,36 @@ export function ThesisTopicsScreen({ navigation }: MobileScreenProps) {
     <ScreenShell
       title={copy.topicsTitle}
       headerAction={<Button label={copy.myGroup} onPress={() => navigation.navigate('thesis.progress')} variant="text" />}
+
+      list={{ data: active.round && view === "topics" ? visible : [], keyExtractor: (item, index) => String(item.id),
+        renderItem: ({ item: topic }) => (
+                <TopicCard
+                  key={topic.id}
+                  topic={topic}
+                  copy={copy}
+                  onOpen={() => navigation.navigate('thesis.detail', { thesisTopicId: topic.id })}
+                />
+              ),
+        footer: <>{active.round ? (<>{view === 'topics' ? (<>{null}
+              {topics.loadMoreError ? (
+                <StatePanel kind="error" title={topics.loadMoreError} actionLabel={copy.retry} onAction={topics.loadMore} />
+              ) : null}
+              {topics.hasMore && !topics.loadMoreError ? (
+                <Button
+                  label={topics.loadingMore ? copy.loadingMore : copy.loadMore}
+                  loading={topics.loadingMore}
+                  onPress={topics.loadMore}
+                  variant="secondary"
+                />
+              ) : null}
+            </>) : null}
+        </>) : null}
+    </>,
+      }}
     >
       <QueryNotices state={active} copy={copy} />
       {!active.loading && !active.error && !active.round ? <NoRounds copy={copy} /> : null}
-      {active.round ? (
-        <>
+      {active.round ? (<>
           <ThesisRoundPicker rounds={active.rounds} current={active.round} onSelect={active.select} copy={copy} />
           <View style={styles.segment}>
             <SegmentedControl
@@ -59,8 +85,7 @@ export function ThesisTopicsScreen({ navigation }: MobileScreenProps) {
 
           {view === 'round' ? <RoundCard round={active.round} copy={copy} formatDate={locale.formatDate} /> : null}
           {view === 'advisors' ? <ThesisAdvisorsView roundId={roundId} copy={copy} /> : null}
-          {view === 'topics' ? (
-            <>
+          {view === 'topics' ? (<>
               <SearchBar
                 value={query}
                 onChangeText={setQuery}
@@ -78,30 +103,7 @@ export function ThesisTopicsScreen({ navigation }: MobileScreenProps) {
               {topicsIdle && visible.length === 0 ? (
                 <StatePanel kind="empty" title={searching ? copy.emptyTopicsFiltered : copy.emptyTopics} />
               ) : null}
-              {visible.map((topic) => (
-                <TopicCard
-                  key={topic.id}
-                  topic={topic}
-                  copy={copy}
-                  onOpen={() => navigation.navigate('thesis.detail', { thesisTopicId: topic.id })}
-                />
-              ))}
-              {topics.loadMoreError ? (
-                <StatePanel kind="error" title={topics.loadMoreError} actionLabel={copy.retry} onAction={topics.loadMore} />
-              ) : null}
-              {topics.hasMore && !topics.loadMoreError ? (
-                <Button
-                  label={topics.loadingMore ? copy.loadingMore : copy.loadMore}
-                  loading={topics.loadingMore}
-                  onPress={topics.loadMore}
-                  variant="secondary"
-                />
-              ) : null}
-            </>
-          ) : null}
-        </>
-      ) : null}
-    </ScreenShell>
+              {null}</>) : null}</>) : null}</ScreenShell>
   );
 }
 

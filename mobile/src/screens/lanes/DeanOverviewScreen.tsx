@@ -33,11 +33,46 @@ export function DeanOverviewScreen() {
       loading={loading}
       error={error}
       onRetry={() => { void rounds.reload(); void overview.reload(); }}
+
+      list={{ data: roundList.length ? [
+        ...(overview.data?.supervisors ?? []).map((row) => ({ kind: 'supervisor' as const, row })),
+        { kind: 'groupsHeading' as const },
+        ...shown.map((group) => ({ kind: 'group' as const, group })),
+      ] : [],
+        keyExtractor: (entry, index) => entry.kind === 'supervisor' ? `supervisor:${entry.row.lecturerId ?? index}`
+          : entry.kind === 'group' ? `group:${entry.group.id ?? index}` : 'groupsHeading',
+        renderItem: ({ item: entry, index }) => {
+          if (entry.kind === 'groupsHeading') return <><SectionHeading title={copy.deanGroups} />{groups.length === 0 ? <StatePanel kind="empty" title={copy.empty} /> : null}</>;
+          if (entry.kind === 'supervisor') { const row = entry.row; return <QueueCard
+            title={row.displayName ?? row.lecturerId ?? ''}
+            count={row.supervisedGroups ? `${row.supervisedGroups} nhóm` : undefined}
+            lines={[row.departmentName, fillCopy(copy.deanSupervised, { groups: row.supervisedGroups ?? 0, topics: row.supervisedTopics ?? 0 })]}
+            copy={copy}
+          />; }
+          const group = entry.group;
+          return (
+              <QueueCard
+                key={group.id ?? index}
+                title={group.topicTitle || copy.deanNoTitle}
+                status={group.approvalStatus}
+                lines={[
+                  group.departmentName,
+                  fillCopy(copy.deanMembers, { n: group.members?.length ?? 0 }),
+                  (group.supervisors ?? []).map((supervisor) => supervisor.displayName).filter(Boolean).join(', '),
+                ]}
+                copy={copy}
+              />
+            ); },
+        footer: <>{roundList.length === 0 ? null : (<View><View style={laneStyles.stack}>{null}
+          </View>
+          {groups.length > shown.length ? <Button label={copy.loadMore} variant="secondary" onPress={() => setPages((current) => current + 1)} /> : null}
+        </View>)}
+    </>,
+      }}
     >
       {roundList.length === 0 ? (
         <StatePanel kind="empty" title={copy.deanNoRounds} />
-      ) : (
-        <View>
+      ) : (<View>
           {roundList.length > 1 ? (
             <ChoiceField
               label={copy.deanRound}
@@ -68,38 +103,6 @@ export function DeanOverviewScreen() {
           />
 
           <SectionHeading title={copy.deanSupervisors} />
-          <View style={laneStyles.stack}>
-            {(overview.data?.supervisors ?? []).map((row, index) => (
-              <QueueCard
-                key={row.lecturerId ?? index}
-                title={row.displayName ?? row.lecturerId ?? ''}
-                count={row.supervisedGroups ? `${row.supervisedGroups} nhóm` : undefined}
-                lines={[row.departmentName, fillCopy(copy.deanSupervised, { groups: row.supervisedGroups ?? 0, topics: row.supervisedTopics ?? 0 })]}
-                copy={copy}
-              />
-            ))}
-          </View>
-
-          <SectionHeading title={copy.deanGroups} />
-          {groups.length === 0 ? <StatePanel kind="empty" title={copy.empty} /> : null}
-          <View style={laneStyles.stack}>
-            {shown.map((group, index) => (
-              <QueueCard
-                key={group.id ?? index}
-                title={group.topicTitle || copy.deanNoTitle}
-                status={group.approvalStatus}
-                lines={[
-                  group.departmentName,
-                  fillCopy(copy.deanMembers, { n: group.members?.length ?? 0 }),
-                  (group.supervisors ?? []).map((supervisor) => supervisor.displayName).filter(Boolean).join(', '),
-                ]}
-                copy={copy}
-              />
-            ))}
-          </View>
-          {groups.length > shown.length ? <Button label={copy.loadMore} variant="secondary" onPress={() => setPages((current) => current + 1)} /> : null}
-        </View>
-      )}
-    </LaneShell>
+          </View>)}</LaneShell>
   );
 }

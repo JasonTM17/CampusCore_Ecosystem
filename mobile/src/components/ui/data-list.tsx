@@ -1,4 +1,4 @@
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, StyleSheet, View } from 'react-native';
 import type { ReactElement } from 'react';
 
 import { tokens } from '../../design/tokens';
@@ -7,6 +7,7 @@ import { useLocale } from '../../i18n/locale-provider';
 import { Button } from './Button';
 import { EmptyState, InlineError, Skeleton } from './primitives';
 import { UiText } from './UiText';
+import { PerformanceList, ListGap, useListRenderer } from '../perf/performance-list';
 
 export interface DataListProps<T> {
   data: readonly T[];
@@ -53,6 +54,7 @@ export function DataList<T>({
   const { t } = useLocale();
   const empty = data.length === 0;
   const canLoadMore = hasMore && !loadingMore && !error && Boolean(onLoadMore);
+  const renderRow = useListRenderer(renderItem);
 
   const errorBanner = error ? <InlineError message={error} onRetry={onRetry} retryLabel={t('retry')} /> : null;
 
@@ -83,25 +85,24 @@ export function DataList<T>({
   ) : null;
 
   return (
-    <FlatList
+    <PerformanceList
       testID={testID}
       accessibilityLabel={accessibilityLabel}
       data={data}
       keyExtractor={keyExtractor}
-      renderItem={({ item, index }) => renderItem(item, index)}
-      ListHeaderComponent={
+      renderItem={renderRow}
+      header={
         <>
           {header}
           {!empty && errorBanner ? <View style={{ marginBottom: spacing.sm }}>{errorBanner}</View> : null}
         </>
       }
-      ListEmptyComponent={emptyComponent}
-      ListFooterComponent={footer}
-      ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+      empty={emptyComponent}
+      footer={footer}
+      ItemSeparatorComponent={ListGap}
       onEndReached={canLoadMore ? onLoadMore : undefined}
       onEndReachedThreshold={0.4}
       refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} /> : undefined}
-      contentContainerStyle={{ padding: spacing.md }}
     />
   );
 }
