@@ -12,6 +12,7 @@ import { WorkspacePanel } from '@/components/dashboard/WorkspaceSurface';
 import { useI18n } from '@/i18n';
 import { isDemoUser, loginHref, portalFromUser } from '@/lib/login-portal';
 import { campusCodeMessage, type CampusErrorCopy } from '@/lib/campus-error';
+import { civilDateInputValue } from '@/lib/civil-date';
 import { checkPasswordPolicy } from '@/lib/password-policy';
 import { maskEmail, normalizeOtpCode } from '@/lib/two-factor';
 import { cn } from '@/lib/utils';
@@ -83,28 +84,16 @@ function roleLabel(
   return labels.student;
 }
 
-/** Local-calendar date input value (toISOString shifts the day for UTC+7). */
-function localDateInput(value: string | undefined): string {
-  if (!value) return '';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return '';
-  const month = `${parsed.getMonth() + 1}`.padStart(2, '0');
-  const day = `${parsed.getDate()}`.padStart(2, '0');
-  return `${parsed.getFullYear()}-${month}-${day}`;
-}
-
 function profileFormState(user: {
   firstName?: string;
   lastName?: string;
   phone?: string;
-  dateOfBirth?: string;
   address?: string;
 } | null | undefined) {
   return {
     firstName: user?.firstName || '',
     lastName: user?.lastName || '',
     phone: user?.phone || '',
-    dateOfBirth: localDateInput(user?.dateOfBirth),
     address: user?.address || '',
   };
 }
@@ -423,11 +412,10 @@ export default function ProfilePage() {
     setIsLoading(true);
 
     try {
-      // The full name is school-managed (see the update endpoint), so it is
-      // deliberately not part of the self-service payload.
+      // The full name and date of birth are school-managed (see the update
+      // endpoint), so they are not part of the self-service payload.
       await authApi.updateProfile({
         phone: formData.phone.trim(),
-        dateOfBirth: formData.dateOfBirth || undefined,
         address: formData.address.trim(),
         avatar: avatarPreview,
       });
@@ -655,10 +643,8 @@ export default function ProfilePage() {
                   <Input
                     id="profile-date-of-birth"
                     type="date"
-                    value={formData.dateOfBirth}
-                    onChange={(e) =>
-                      setFormData((current) => ({ ...current, dateOfBirth: e.target.value }))
-                    }
+                    value={civilDateInputValue(user?.dateOfBirth)}
+                    disabled
                     icon={<Calendar className="h-4 w-4" />}
                   />
                 </div>

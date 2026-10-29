@@ -16,6 +16,7 @@ import {
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { useRequireAuth } from '@/context/AuthContext';
 import { sectionsApi, semestersApi } from '@/lib/api';
+import { useCampusDayOfWeek } from '@/lib/campus-day';
 import {
   getLocalizedCourseLabel,
   getLocalizedFlatLabel,
@@ -63,11 +64,9 @@ export default function LecturerSchedulePage() {
   const [viewMode, setViewMode] = useState<'grid' | 'day' | 'list'>('grid');
   const viewModeTabs = useRovingTabs(LECTURER_VIEW_MODES, viewMode, setViewMode);
 
-  // Today indicator: 1 = Sunday, 2 = Monday ... 7 = Saturday
-  const todayDow = useMemo(() => {
-    const jsDay = new Date().getDay();
-    return jsDay === 0 ? 1 : jsDay + 1;
-  }, []);
+  // Today indicator follows the campus calendar (1 = Sunday ... 7 = Saturday)
+  // and rolls over at campus midnight, not the viewer's zone or mount instant.
+  const todayDow = useCampusDayOfWeek();
 
   const [selectedDayTab, setSelectedDayTab] = useState<number>(todayDow);
 

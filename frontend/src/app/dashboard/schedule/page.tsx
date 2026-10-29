@@ -24,6 +24,7 @@ import { LinkButton } from '@/components/ui/link-button';
 import { statusToneClass } from '@/components/ui/status';
 import { useRequireAuth } from '@/context/AuthContext';
 import { enrollmentsApi, semestersApi } from '@/lib/api';
+import { useCampusDayOfWeek } from '@/lib/campus-day';
 import { getLocalizedCourseLabel, getLocalizedName } from '@/lib/academic-content';
 import { isActiveEnrollment } from '@/lib/enrollment-status';
 import { displayLabel } from '@/lib/format-display';
@@ -95,11 +96,9 @@ export default function SchedulePage() {
 
   const [semestersLoaded, setSemestersLoaded] = useState(false);
 
-  // Today indicator
-  const todayDow = useMemo(() => {
-    const jsDay = new Date().getDay();
-    return jsDay === 0 ? 1 : jsDay + 1; // 1 = Sunday, 2 = Monday...
-  }, []);
+  // Today indicator follows the campus calendar (1 = Sunday ... 7 = Saturday)
+  // and rolls over at campus midnight, not the viewer's zone or mount instant.
+  const todayDow = useCampusDayOfWeek();
 
   const [selectedDayTab, setSelectedDayTab] = useState<number>(todayDow);
 
