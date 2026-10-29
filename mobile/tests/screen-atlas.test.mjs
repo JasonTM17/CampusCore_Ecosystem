@@ -64,7 +64,7 @@ test('native API seam fails closed until live mode is explicitly enabled', () =>
   // (the comment naming them in the source is intentional provenance).
   assert.match(client, /return status === 401;/);
   assert.doesNotMatch(client, /normalizedPath\.startsWith\('\/auth\//);
-  assert.match(client, /refreshSessionOnce\(\)/);
+  assert.match(client, /refreshSessionOnce\(requestEpoch\)/);
   assert.match(client, /options\.refreshSession\?\.\(\)/);
   assert.match(client, /shouldRefreshAfterUnauthorized\(path, response\.status\) && options\.refreshSession/);
   assert.match(client, /headers\.set\('Authorization', `Bearer \$\{rotated\}`\)/);
