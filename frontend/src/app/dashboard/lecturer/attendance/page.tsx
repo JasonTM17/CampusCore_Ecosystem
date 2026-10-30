@@ -489,19 +489,17 @@ export default function LecturerAttendancePage() {
       </WorkspacePanel>
 
       {/* Geofenced app check-in (mobile-only flow; this panel opens the window) */}
-      {selectedSectionId ? (
-        <GeofenceCheckinPanel
-          sectionId={selectedSectionId}
-          sectionLabel={
-            selectedSection
-              ? `${selectedSection.courseCode} - ${getLocalizedFlatLabel(locale, selectedSection.courseName, selectedSection.courseNameEn, selectedSection.courseNameVi)} (${selectedSection.sectionNumber})`
-              : selectedSectionId
-          }
-          date={selectedDate}
-          roster={roster}
-          disabled={isLoadingSections || isLoadingRoster}
-        />
-      ) : null}
+      <GeofenceCheckinPanel
+        sectionId={selectedSectionId}
+        sectionLabel={
+          selectedSection
+            ? `${selectedSection.courseCode} - ${getLocalizedFlatLabel(locale, selectedSection.courseName, selectedSection.courseNameEn, selectedSection.courseNameVi)} (${selectedSection.sectionNumber})`
+            : selectedSectionId || copy.noSectionsTitle
+        }
+        date={selectedDate}
+        roster={roster}
+        disabled={isLoadingSections || isLoadingRoster}
+      />
 
       {/* Metrics Row */}
       {selectedSectionId && (
