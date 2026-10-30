@@ -10,16 +10,37 @@ recorded with the exact OS/build/runtime/hash fields from
 | Item | Source | Status |
 | --- | --- | --- |
 | EAS account + project id | Expo dashboard; `eas init` on the operator machine | BLOCKED_CAPABILITY |
-| Android signing fingerprint (SHA-256) | Play console / EAS credentials — injected into `frontend/public/.well-known/assetlinks.json` at release, never committed | BLOCKED_CAPABILITY |
-| Apple TeamID | Apple Developer account — replaces `SYNTH00000` in `apple-app-site-association` at release | BLOCKED_CAPABILITY |
-| Physical Android device (API 30+) or emulator | Operator hardware | BLOCKED_CAPABILITY |
+| Android signing fingerprint (SHA-256) | Local release keystore `mobile/android/campusute-release.keystore` (gitignored, operator-held); fingerprint committed in `assetlinks.json` | RESOLVED (local keystore; replace when Play/EAS issues the production cert) |
+| Apple TeamID | Apple Developer account — replaces `SYNTH00000` in `apple-app-site-association` at release | BLOCKED_CAPABILITY — see proposal below |
+| Physical Android device (API 30+) or emulator | Operator hardware | emulator-5554 PASS (release install + journeys); physical still NOT_RUN |
 | Physical iOS device + provisioning | Mac/EAS — iOS acceptance must run on a signed physical device per phase | BLOCKED_CAPABILITY |
 
-The committed `.well-known` files carry **synthetic placeholders** so the
-association-document shape, host scope and path policy are reviewable.
-The all-zero fingerprint and `SYNTH00000` TeamID must be replaced by the
-real values at signing time — a signed build that still carries the
-placeholders is a gate FAIL, not a cosmetic fix.
+The committed `.well-known` files now carry the **local release-keystore
+fingerprint** for Android (`0A:0B:8C:…:89:0E:AB`) and the `SYNTH00000`
+placeholder TeamID for iOS. The iOS TeamID must be replaced by the real
+value at signing time — a shipped AASA that still carries the placeholder
+is a gate FAIL, not a cosmetic fix. When Play Console or EAS issues the
+production signing identity, regenerate its SHA-256 and replace the
+`assetlinks.json` fingerprint in the same release.
+
+### Apple path proposal (no Apple hardware/account available)
+
+Recommended order of operations when the owner picks this up:
+
+1. Enroll in the **Apple Developer Program** ($99/yr, needs an Apple ID +
+   2FA on a phone; enrollment works from any browser — no Mac required to
+   *enroll*, though a Mac or EAS is required to *build*).
+2. Copy the 10-char **Team ID** from developer.apple.com/account →
+   Membership details into `apple-app-site-association` `appIDs` as
+   `<TEAMID>.io.campuscore.mobile`.
+3. Build the iOS app via **EAS Build** (cloud, no Mac hardware needed) —
+   `eas build --profile preview --platform ios` produces a signed
+   internal device build; credentials are EAS-managed.
+4. Physical iOS acceptance can then run on any iPhone via TestFlight
+   distribution.
+
+Until step 2 lands, iOS universal links remain honestly NOT_RUN — the
+AASA file shape is verified, the identity is not.
 
 ## 1. Exact commands
 
