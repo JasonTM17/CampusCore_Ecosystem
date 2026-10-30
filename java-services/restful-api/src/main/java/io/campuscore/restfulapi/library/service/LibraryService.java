@@ -70,6 +70,7 @@ public class LibraryService {
     private final NotificationWriteRepository notifications;
     private final long reservationTtlHours;
     private final int loanDays;
+    private final boolean postgres;
 
     public LibraryService(NamedParameterJdbcTemplate jdbc,
             NotificationWriteRepository notifications,
@@ -79,6 +80,8 @@ public class LibraryService {
         this.notifications = notifications;
         this.reservationTtlHours = reservationTtlHours;
         this.loanDays = loanDays;
+        this.postgres = jdbc.getJdbcOperations().execute((org.springframework.jdbc.core.ConnectionCallback<Boolean>) connection ->
+                "PostgreSQL".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName()));
     }
 
     long reservationTtlHours() {
@@ -142,27 +145,36 @@ public class LibraryService {
             throw problem(HttpStatus.NOT_FOUND, "LIBRARY_USER_NOT_FOUND", "Grant target user not found");
         }
         String grantId = UUID.randomUUID().toString();
-        int inserted = jdbc.update(
-                "INSERT INTO " + STAFF_GRANT
-                        + " (\"id\", \"userId\", \"scope\", \"grantedBy\")"
-                        + " SELECT :id, :userId, :scope, :grantedBy"
-                        + " WHERE NOT EXISTS (SELECT 1 FROM " + STAFF_GRANT + " g"
-                        + " WHERE g.\"userId\" = :userId AND g.\"scope\" = :scope)",
-                new MapSqlParameterSource()
-                        .addValue("id", grantId)
-                        .addValue("userId", userId)
-                        .addValue("scope", SCOPE)
-                        .addValue("grantedBy", actorId));
-        if (inserted == 0) {
-            return jdbc.queryForObject(
-                    "SELECT \"id\", \"userId\", \"scope\", \"grantedBy\", \"createdAt\" FROM " + STAFF_GRANT
-                            + " WHERE \"userId\" = :userId AND \"scope\" = :scope",
-                    new MapSqlParameterSource("userId", userId).addValue("scope", SCOPE),
-                    (row, index) -> mapGrant(row));
+        // Two admins can grant the same target concurrently. ON CONFLICT
+        // DO NOTHING keeps the loser's transaction valid on PostgreSQL,
+        // where a plain unique violation would abort it and poison the
+        // re-read below.
+        String insert = "INSERT INTO " + STAFF_GRANT
+                + " (\"id\", \"userId\", \"scope\", \"grantedBy\")"
+                + " VALUES (:id, :userId, :scope, :grantedBy)"
+                + (postgres ? " ON CONFLICT (\"userId\", \"scope\") DO NOTHING" : "");
+        int inserted;
+        try {
+            inserted = jdbc.update(insert,
+                    new MapSqlParameterSource()
+                            .addValue("id", grantId)
+                            .addValue("userId", userId)
+                            .addValue("scope", SCOPE)
+                            .addValue("grantedBy", actorId));
+        } catch (org.springframework.dao.DuplicateKeyException duplicate) {
+            // Only the non-PostgreSQL mirror raises here; the re-read below
+            // returns the row the racing request created.
+            inserted = 0;
         }
-        audit("GRANT", grantId, actorId, "STAFF_GRANTED", null, null,
-                "scope=" + SCOPE + " user=" + userId);
-        return new StaffGrantResponse(grantId, userId, SCOPE, actorId, Instant.now());
+        if (inserted > 0) {
+            audit("GRANT", grantId, actorId, "STAFF_GRANTED", null, null,
+                    "scope=" + SCOPE + " user=" + userId);
+        }
+        return jdbc.queryForObject(
+                "SELECT \"id\", \"userId\", \"scope\", \"grantedBy\", \"createdAt\" FROM " + STAFF_GRANT
+                        + " WHERE \"userId\" = :userId AND \"scope\" = :scope",
+                new MapSqlParameterSource("userId", userId).addValue("scope", SCOPE),
+                (row, index) -> mapGrant(row));
     }
 
     @Transactional

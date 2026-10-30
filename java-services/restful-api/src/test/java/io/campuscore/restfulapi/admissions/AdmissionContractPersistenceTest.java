@@ -12,6 +12,7 @@ import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import tools.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -442,6 +443,35 @@ class AdmissionContractPersistenceTest {
                         .content("{\"userId\":\"student-9\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ADMISSIONS_ADMIN_REQUIRED"));
+    }
+
+    @Test
+    void repeatedGrantReplaysStoredProvenance() throws Exception {
+        RequestPostProcessor secondAdmin = CurrentAccountJwt.fixtureJwt(jdbc, "admin-user-2", "ADMIN");
+        MvcResult first = mvc.perform(post("/api/v1/admissions/staff/grants")
+                        .with(adminJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"student-9\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        MvcResult repeat = mvc.perform(post("/api/v1/admissions/staff/grants")
+                        .with(secondAdmin).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"student-9\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        JsonNode firstGrant = objectMapper.readTree(first.getResponse().getContentAsString());
+        JsonNode repeatGrant = objectMapper.readTree(repeat.getResponse().getContentAsString());
+        // A repeat replays the stored row — original grantor and grant
+        // instant — never the repeating admin's identity or a fresh clock.
+        assertThat(repeatGrant.get("id").asText()).isEqualTo(firstGrant.get("id").asText());
+        assertThat(repeatGrant.get("grantedBy").asText()).isEqualTo("admin-user");
+        assertThat(repeatGrant.get("createdAt").asText()).isEqualTo(firstGrant.get("createdAt").asText());
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM admissions.\"StaffGrant\" WHERE \"userId\" = 'student-9'",
+                Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM admissions.\"Audit\" WHERE \"action\" = 'STAFF_GRANTED'"
+                        + " AND \"detail\" LIKE '%student-9%'",
+                Integer.class)).isEqualTo(1);
     }
 
     @Test

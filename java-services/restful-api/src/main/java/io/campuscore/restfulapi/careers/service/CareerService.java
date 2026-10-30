@@ -75,11 +75,14 @@ public class CareerService {
 
     private final NamedParameterJdbcTemplate jdbc;
     private final NotificationWriteRepository notifications;
+    private final boolean postgres;
 
     public CareerService(NamedParameterJdbcTemplate jdbc,
             NotificationWriteRepository notifications) {
         this.jdbc = jdbc;
         this.notifications = notifications;
+        this.postgres = jdbc.getJdbcOperations().execute((org.springframework.jdbc.core.ConnectionCallback<Boolean>) connection ->
+                "PostgreSQL".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName()));
     }
 
     // ------------------------------------------------------------------
@@ -225,34 +228,42 @@ public class CareerService {
             }
         }
         String grantId = UUID.randomUUID().toString();
-        int inserted = jdbc.update(
-                "INSERT INTO " + STAFF_GRANT
-                        + " (\"id\", \"userId\", \"scope\", \"organizationId\", \"grantedBy\")"
-                        + " SELECT :id, :userId, :scope, :org, :actor"
-                        + " WHERE NOT EXISTS (SELECT 1 FROM " + STAFF_GRANT
-                        + " WHERE \"userId\" = :userId AND \"scope\" = :scope"
-                        + " AND \"organizationId\" = :org)",
-                new MapSqlParameterSource()
-                        .addValue("id", grantId)
-                        .addValue("userId", userId)
-                        .addValue("scope", SCOPE)
-                        .addValue("org", org)
-                        .addValue("actor", actorId));
-        if (inserted == 0) {
-            Map<String, Object> existing = jdbc.queryForMap(
-                    "SELECT \"id\" FROM " + STAFF_GRANT
-                            + " WHERE \"userId\" = :userId AND \"scope\" = :scope"
-                            + " AND \"organizationId\" = :org",
+        // Two admins can grant the same target concurrently. ON CONFLICT
+        // DO NOTHING keeps the loser's transaction valid on PostgreSQL,
+        // where a plain unique violation would abort it and poison the
+        // re-read below.
+        String insert = "INSERT INTO " + STAFF_GRANT
+                + " (\"id\", \"userId\", \"scope\", \"organizationId\", \"grantedBy\")"
+                + " VALUES (:id, :userId, :scope, :org, :actor)"
+                + (postgres ? " ON CONFLICT (\"userId\", \"scope\", \"organizationId\") DO NOTHING" : "");
+        int inserted;
+        try {
+            inserted = jdbc.update(insert,
                     new MapSqlParameterSource()
+                            .addValue("id", grantId)
                             .addValue("userId", userId)
                             .addValue("scope", SCOPE)
-                            .addValue("org", org));
-            grantId = String.valueOf(existing.get("id"));
-        } else {
+                            .addValue("org", org)
+                            .addValue("actor", actorId));
+        } catch (org.springframework.dao.DuplicateKeyException duplicate) {
+            // Only the non-PostgreSQL mirror raises here; the re-read below
+            // returns the row the racing request created.
+            inserted = 0;
+        }
+        if (inserted > 0) {
             audit("GRANT", grantId, actorId, "STAFF_GRANTED", null,
                     org.isEmpty() ? "REVIEWER" : "ORG:" + org, "user=" + userId);
         }
-        return new StaffGrantResponse(grantId, userId, SCOPE, org, actorId, Instant.now());
+        return jdbc.queryForObject(
+                "SELECT \"id\", \"userId\", \"scope\", \"organizationId\", \"grantedBy\", \"createdAt\""
+                        + " FROM " + STAFF_GRANT
+                        + " WHERE \"userId\" = :userId AND \"scope\" = :scope"
+                        + " AND \"organizationId\" = :org",
+                new MapSqlParameterSource()
+                        .addValue("userId", userId)
+                        .addValue("scope", SCOPE)
+                        .addValue("org", org),
+                (row, index) -> mapGrant(row));
     }
 
     @Transactional

@@ -21,6 +21,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -347,6 +348,56 @@ class CareerContractPersistenceTest {
                 .andExpect(jsonPath("$.organizationId").value("org-alpha"));
         mvc.perform(get("/api/v1/careers/staff/opportunities").with(candidate2))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void repeatedGrantsReplayStoredProvenance() throws Exception {
+        RequestPostProcessor secondAdmin = CurrentAccountJwt.fixtureJwt(jdbc, "admin-user-2", "ADMIN");
+        MvcResult first = mvc.perform(post("/api/v1/careers/staff/grants")
+                        .with(adminJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"candidate-2\",\"organizationId\":\"org-alpha\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        MvcResult repeat = mvc.perform(post("/api/v1/careers/staff/grants")
+                        .with(secondAdmin).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"candidate-2\",\"organizationId\":\"org-alpha\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        JsonNode firstGrant = objectMapper.readTree(first.getResponse().getContentAsString());
+        JsonNode repeatGrant = objectMapper.readTree(repeat.getResponse().getContentAsString());
+        // A repeat replays the stored row — original grantor and grant
+        // instant — never the repeating admin's identity or a fresh clock.
+        assertThat(repeatGrant.get("id").asText()).isEqualTo(firstGrant.get("id").asText());
+        assertThat(repeatGrant.get("grantedBy").asText()).isEqualTo("admin-user");
+        assertThat(repeatGrant.get("organizationId").asText()).isEqualTo("org-alpha");
+        assertThat(repeatGrant.get("createdAt").asText()).isEqualTo(firstGrant.get("createdAt").asText());
+
+        // The reviewer grant (organizationId omitted) follows the same rule.
+        MvcResult reviewerFirst = mvc.perform(post("/api/v1/careers/staff/grants")
+                        .with(adminJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"candidate-2\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        MvcResult reviewerRepeat = mvc.perform(post("/api/v1/careers/staff/grants")
+                        .with(secondAdmin).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"candidate-2\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        JsonNode reviewerRepeatGrant = objectMapper.readTree(
+                reviewerRepeat.getResponse().getContentAsString());
+        assertThat(reviewerRepeatGrant.get("id").asText())
+                .isEqualTo(objectMapper.readTree(reviewerFirst.getResponse().getContentAsString())
+                        .get("id").asText());
+        assertThat(reviewerRepeatGrant.get("grantedBy").asText()).isEqualTo("admin-user");
+        assertThat(reviewerRepeatGrant.get("organizationId").asText()).isEmpty();
+
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM careers.\"StaffGrant\" WHERE \"userId\" = 'candidate-2'",
+                Integer.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM careers.\"Audit\" WHERE \"action\" = 'STAFF_GRANTED'"
+                        + " AND \"detail\" LIKE '%candidate-2%'",
+                Integer.class)).isEqualTo(2);
     }
 
     @Test
