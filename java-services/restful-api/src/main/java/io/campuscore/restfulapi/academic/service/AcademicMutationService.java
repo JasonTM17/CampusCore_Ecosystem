@@ -292,9 +292,8 @@ public class AcademicMutationService {
     }
 
     /**
-     * Saves draft grades. When an ADMIN (not the owning lecturer) performs the
-     * save, an AdminAudit row records the actor and section (audit S3-quick);
-     * the permission model itself is unchanged.
+     * Saves draft grades and records each enrollment's before/after values in
+     * the existing audit transaction when the caller supplies an actor.
      */
     @Transactional
     public void updateGrades(
@@ -322,7 +321,7 @@ public class AcademicMutationService {
         List<String> enrollmentIds = List.copyOf(mergedGrades.keySet());
         List<Map<String, Object>> enrollmentRows = jdbc.queryForList(
                 "SELECT \"id\", \"studentId\" AS student_id, \"sectionId\" AS section_id, \"status\","
-                        + " \"gradeStatus\" AS grade_status"
+                        + " \"gradeStatus\" AS grade_status, \"finalGrade\" AS final_grade, \"letterGrade\" AS letter_grade"
                         + " FROM " + ENROLLMENT + " WHERE \"id\" IN (:ids) ORDER BY \"id\" FOR UPDATE",
                 new MapSqlParameterSource("ids", enrollmentIds));
 
@@ -394,6 +393,12 @@ public class AcademicMutationService {
                     .addValue("id", grade.enrollmentId()));
         }
 
+        // Read the two components being replaced once for the whole batch, after
+        // validation and while the section/enrollment locks protect the snapshot.
+        boolean audited = actorId != null && !actorId.isBlank();
+        Map<String, Map<String, Object>> beforeStates = audited
+                ? draftAuditStates(enrollmentRows, enrollmentIds, processItemId, finalItemId) : Map.of();
+
         // Batch delete existing grade components for targeted enrollments and canonical items
         jdbc.update(
                 "DELETE FROM " + STUDENT_GRADE + " WHERE \"enrollmentId\" IN (:enrollmentIds) AND \"gradeItemId\" IN (:itemIds)",
@@ -414,15 +419,25 @@ public class AcademicMutationService {
                         + " \"gradeStatus\" = :gradeStatus, \"updatedAt\" = CURRENT_TIMESTAMP WHERE \"id\" = :id",
                 enrollmentBatch.toArray(new MapSqlParameterSource[0]));
 
-        // Component scores are delete+inserted per save with no per-row
-        // history, so the audit row is the only trace that a grade write
-        // happened. Record it for both caller kinds — the routine lecturer
-        // save used to leave no trace at all (admin-only audit).
-        if (actorId != null && !actorId.isBlank()) {
-            audit.record(actorId, null, admin ? "GRADE_UPDATE_BY_ADMIN" : "GRADE_UPDATE",
-                    "SECTION", sectionId,
-                    (admin ? "Admin " : "Lecturer ") + actorId + " saved draft grades for "
-                            + effectiveGrades.size() + " enrollment(s) in section " + sectionId);
+        // One fixed-shape state pair per enrollment avoids a section-sized audit
+        // payload. Scores stay in the authorized store, never in summaries/logs.
+        if (audited) {
+            // Read stored component precision rather than echoing arbitrarily
+            // precise request decimals into the audit history.
+            Map<String, Map<String, Object>> afterStates =
+                    draftAuditStates(enrollmentRows, enrollmentIds, processItemId, finalItemId);
+            for (int i = 0; i < effectiveGrades.size(); i++) {
+                GradeUpdate grade = effectiveGrades.get(i);
+                MapSqlParameterSource accepted = enrollmentBatch.get(i);
+                Map<String, Object> before = beforeStates.get(grade.enrollmentId());
+                Map<String, Object> after = afterStates.get(grade.enrollmentId());
+                after.put("finalGrade", accepted.getValue("finalGrade"));
+                after.put("letterGrade", accepted.getValue("letterGrade"));
+                after.put("gradeStatus", accepted.getValue("gradeStatus"));
+                after.put("reason", "NOT_GRADED".equals(accepted.getValue("gradeStatus")) ? "DRAFT_CLEAR" : "DRAFT_SAVE");
+                audit.record(actorId, null, admin ? "GRADE_UPDATE_BY_ADMIN" : "GRADE_UPDATE",
+                        "SECTION", sectionId, "Draft grade saved", before, after);
+            }
         }
     }
 
@@ -433,9 +448,8 @@ public class AcademicMutationService {
     }
 
     /**
-     * Publishes grades officially. When an ADMIN (not the owning lecturer)
-     * publishes, an AdminAudit row records the actor and section (audit
-     * S3-quick); the permission model itself is unchanged.
+     * Publishes grades officially and audits the values and status transition
+     * for each affected enrollment when the caller supplies an actor.
      */
     @Transactional
     public void publishGrades(String sectionId, String lecturerId, boolean admin, String actorId) {
@@ -470,6 +484,16 @@ public class AcademicMutationService {
         // Capture only the rows this publication transitions, while the section
         // lock serializes competing saves/publications. Send after commit so a
         // rolled-back publication cannot leave a false official-grade message.
+        List<Map<String, Object>> beforeRows = actorId == null || actorId.isBlank() ? List.of() : jdbc.queryForList(
+                "SELECT \"id\", \"status\", \"gradeStatus\" AS grade_status,"
+                        + " \"finalGrade\" AS final_grade, \"letterGrade\" AS letter_grade"
+                        + " FROM " + ENROLLMENT + " WHERE \"sectionId\" = :sectionId"
+                        + " AND \"status\" IN (:gradeableStatuses)"
+                        + " AND \"gradeStatus\" IS DISTINCT FROM 'PUBLISHED'"
+                        + " AND \"finalGrade\" IS NOT NULL AND \"letterGrade\" IS NOT NULL"
+                        + " ORDER BY \"id\" FOR UPDATE",
+                new MapSqlParameterSource("sectionId", sectionId)
+                        .addValue("gradeableStatuses", GRADEABLE_STATUSES));
         List<String> audience = publishAudience(sectionId);
         String sectionLabel = sectionLabel(sectionId);
         int updated = jdbc.update(
@@ -489,11 +513,14 @@ public class AcademicMutationService {
             // (dropped/cancelled) enrollment that publish must not resurrect.
             throw problem(HttpStatus.CONFLICT, "GRADES_EMPTY", "No complete grades are ready to publish");
         }
-        if (actorId != null && !actorId.isBlank()) {
+        for (Map<String, Object> row : beforeRows) {
+            Map<String, Object> before = gradeAuditState(row);
+            Map<String, Object> after = new LinkedHashMap<>(before);
+            after.put("gradeStatus", "PUBLISHED");
+            after.put("enrollmentStatus", "COMPLETED");
+            after.put("reason", "PUBLISH");
             audit.record(actorId, null, admin ? "GRADE_PUBLISH_BY_ADMIN" : "GRADE_PUBLISH",
-                    "SECTION", sectionId,
-                    (admin ? "Admin " : "Lecturer ") + actorId + " published official grades for section "
-                            + sectionId + " (" + updated + " enrollment(s))");
+                    "SECTION", sectionId, "Official grade published", before, after);
         }
         if (gradeNotifier != null && !audience.isEmpty()) {
             if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -508,6 +535,39 @@ public class AcademicMutationService {
                 sendPublishedGradeNotification(sectionId, sectionLabel, audience);
             }
         }
+    }
+
+    private Map<String, Map<String, Object>> draftAuditStates(
+            List<Map<String, Object>> enrollmentRows, List<String> enrollmentIds,
+            String processItemId, String finalItemId) {
+        Map<String, Map<String, Object>> states = new HashMap<>();
+        for (Map<String, Object> row : enrollmentRows) {
+            Map<String, Object> state = gradeAuditState(row);
+            state.put("processScore", null);
+            state.put("finalExamScore", null);
+            states.put(String.valueOf(row.get("id")), state);
+        }
+        for (Map<String, Object> component : jdbc.queryForList(
+                "SELECT \"enrollmentId\" AS enrollment_id, \"gradeItemId\" AS item_id, \"score\""
+                        + " FROM " + STUDENT_GRADE
+                        + " WHERE \"enrollmentId\" IN (:ids) AND \"gradeItemId\" IN (:itemIds)",
+                new MapSqlParameterSource("ids", enrollmentIds)
+                        .addValue("itemIds", List.of(processItemId, finalItemId)))) {
+            states.get(String.valueOf(component.get("enrollment_id")))
+                    .put(processItemId.equals(component.get("item_id")) ? "processScore" : "finalExamScore",
+                            component.get("score"));
+        }
+        return states;
+    }
+
+    private static Map<String, Object> gradeAuditState(Map<String, Object> enrollment) {
+        Map<String, Object> state = new LinkedHashMap<>();
+        state.put("enrollmentId", enrollment.get("id"));
+        state.put("enrollmentStatus", enrollment.get("status"));
+        state.put("gradeStatus", enrollment.get("grade_status"));
+        state.put("finalGrade", enrollment.get("final_grade"));
+        state.put("letterGrade", enrollment.get("letter_grade"));
+        return state;
     }
 
     private void sendPublishedGradeNotification(String sectionId, String sectionLabel, List<String> audience) {
