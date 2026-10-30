@@ -85,11 +85,14 @@ public final class ThesisAssistantDtos {
             UUID requestId,
             UUID clientRequestId,
             UUID turnId,
-            boolean replayed,
+            Boolean replayed,
             String terminalStatus,
             String conversationId,
             String messageId,
             java.time.Instant resetAt) {
+        public ChatResponse {
+            replayed = replayed != null && replayed;
+        }
         public ChatResponse(String answer, String model, boolean degraded, String reasonCode,
                 String locale, List<Citation> citations) {
             this(answer, model, degraded, reasonCode, locale, citations,

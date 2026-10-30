@@ -1,16 +1,83 @@
 {
   "expo": {
-    "name": "CampusCore Mobile",
+    "name": "CampusUTE",
     "slug": "campuscore-mobile",
     "version": "0.1.0",
-    "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
     "scheme": "campuscore",
     "ios": {
-      "bundleIdentifier": "io.campuscore.mobile"
+      "bundleIdentifier": "io.campuscore.mobile",
+      "associatedDomains": [
+        "applinks:www.campusute.io.vn"
+      ],
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "CampusUTE uses your location once when you check in to verify class attendance."
+      }
     },
     "android": {
-      "package": "io.campuscore.mobile"
-    }
+      "package": "io.campuscore.mobile",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "www.campusute.io.vn",
+              "path": "/news"
+            },
+            {
+              "scheme": "https",
+              "host": "www.campusute.io.vn",
+              "path": "/docs"
+            },
+            {
+              "scheme": "https",
+              "host": "www.campusute.io.vn",
+              "path": "/careers"
+            },
+            {
+              "scheme": "https",
+              "host": "www.campusute.io.vn",
+              "path": "/library"
+            },
+            {
+              "scheme": "https",
+              "host": "www.campusute.io.vn",
+              "path": "/apply"
+            },
+            {
+              "scheme": "https",
+              "host": "www.campusute.io.vn",
+              "pathPrefix": "/attendance/checkin"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-splash-screen",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "CampusUTE sử dụng vị trí một lần khi bạn điểm danh để xác minh bạn có mặt tại lớp. CampusUTE uses your location once when you check in to verify class attendance.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "motionUsagePermission": false,
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false,
+          "isAndroidMotionActivityEnabled": false
+        }
+      ]
+    ]
   }
 }

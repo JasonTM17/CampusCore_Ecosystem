@@ -8,6 +8,7 @@ import {
   Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { civilDateInputValue, CIVIL_DATE_TIME_ZONE } from '@/lib/civil-date';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import { authApi } from '@/lib/api';
@@ -116,8 +117,10 @@ export function StudentUteProfileGradeView({
     // exactly as it arrived instead of being replaced by a guess.
     const dateOfBirth = (() => {
       if (!user?.dateOfBirth) return empty;
-      const parsed = new Date(user.dateOfBirth);
-      return Number.isNaN(parsed.getTime()) ? String(user.dateOfBirth) : formatDate(parsed);
+      const civil = civilDateInputValue(user.dateOfBirth);
+      return civil
+        ? formatDate(civil, { timeZone: CIVIL_DATE_TIME_ZONE })
+        : String(user.dateOfBirth);
     })();
 
     // The gender column stores an enum (MALE/FEMALE/OTHER). It must render as
@@ -246,6 +249,8 @@ export function StudentUteProfileGradeView({
                   <img
                     src={avatarPreview || user?.avatar || ''}
                     alt={studentInfo.name}
+                    width={256}
+                    height={256}
                     className="w-full h-full object-cover"
                   />
                 ) : (

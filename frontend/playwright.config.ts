@@ -2,6 +2,10 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
+  // The ecosystem lane specs drive the HTTPS multi-host preview stack that the
+  // scripts/ecosystem-*-verify.mjs runners start and describe through
+  // SSO_PORTAL_BASE; the official single-host suite has no such stack.
+  testIgnore: process.env.SSO_PORTAL_BASE ? undefined : ['**/ecosystem-*.spec.ts'],
   fullyParallel: false,
   workers: 1,
   retries: 0,

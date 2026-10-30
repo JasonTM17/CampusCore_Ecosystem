@@ -1,0 +1,485 @@
+# Run: promtool test rules ops/monitoring/alert-tests.yml
+# Fixtures only until promtool runs; no live collection or routing is implied.
+rule_files:
+- alerts-api-slo.yml
+- alerts-infrastructure.yml
+- alerts-assistant.yml
+evaluation_interval: 1m
+tests:
+- name: absent-series-do-not-imply-a-breach-or-health
+  interval: 1m
+  input_series: []
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing"}) or vector(0)
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+- name: zero-traffic-and-healthy-gauges
+  interval: 1m
+  input_series:
+  - series: http_server_requests_seconds_count{uri="/api/v1/auth/login",method="POST",status="200"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_count{uri="/api/v1/auth/login",method="POST",status="500"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_count{uri="/api/v1/auth/login",method="POST",status="429"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/auth/login",method="POST",le="0.1"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/auth/login",method="POST",le="2"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/auth/login",method="POST",le="+Inf"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_count{uri="/api/v1/academic/me/enrollments",method="POST",status="200"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_count{uri="/api/v1/academic/me/enrollments",method="POST",status="500"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_count{uri="/api/v1/academic/me/enrollments",method="POST",status="429"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/academic/me/enrollments",method="POST",le="0.1"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/academic/me/enrollments",method="POST",le="2"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/academic/me/enrollments",method="POST",le="+Inf"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_count{uri="/api/v1/attendance/sessions/{id}/checkin",method="POST",status="200"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_count{uri="/api/v1/attendance/sessions/{id}/checkin",method="POST",status="500"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_count{uri="/api/v1/attendance/sessions/{id}/checkin",method="POST",status="429"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/attendance/sessions/{id}/checkin",method="POST",le="0.1"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/attendance/sessions/{id}/checkin",method="POST",le="2"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/attendance/sessions/{id}/checkin",method="POST",le="+Inf"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_count{uri="/api/v1/enrollments/my/grades",method="GET",status="200"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_count{uri="/api/v1/enrollments/my/grades",method="GET",status="500"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_count{uri="/api/v1/enrollments/my/grades",method="GET",status="429"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/enrollments/my/grades",method="GET",le="0.1"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/enrollments/my/grades",method="GET",le="2"}
+    values: 0+0x80
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/enrollments/my/grades",method="GET",le="+Inf"}
+    values: 0+0x80
+  - series: hikaricp_connections_active{pool="primary"}
+    values: 0+0x80
+  - series: hikaricp_connections_max{pool="primary"}
+    values: 10+0x80
+  - series: hikaricp_connections_pending{pool="primary"}
+    values: 0+0x80
+  - series: hikaricp_connections_timeout_total{pool="primary"}
+    values: 0+0x80
+  - series: probe_success{job="blackbox-http",instance="down",endpoint="/api/v1/health/liveness"}
+    values: 1+0x80
+  - series: probe_success{job="blackbox-http",instance="down",endpoint="/api/v1/health/readiness"}
+    values: 1+0x80
+  - series: probe_success{job="blackbox-http",instance="cold",endpoint="/api/v1/health/liveness"}
+    values: 1+0x80
+  - series: probe_success{job="blackbox-http",instance="cold",endpoint="/api/v1/health/readiness"}
+    values: 1+0x80
+  - series: probe_success{job="blackbox-http",instance="web",endpoint="/health",service="frontend"}
+    values: 1+0x80
+  - series: campuscore_assistant_requests_total{degraded="true"}
+    values: 0+0x80
+  - series: campuscore_assistant_requests_total{degraded="false"}
+    values: 0+0x80
+  - series: campuscore_assistant_quota_consumed_daily
+    values: 0+0x80
+  - series: campuscore_assistant_rls_verified
+    values: 1+0x80
+  - series: campuscore_assistant_turn_stale_recovered_total
+    values: 0+0x80
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing"}) or vector(0)
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+- name: all-alerts-fire-survive-counter-reset-and-recover
+  interval: 1m
+  input_series:
+  - series: http_server_requests_seconds_count{uri="/api/v1/auth/login",method="POST",status="200"}
+    values: 0+100x20 0+100x20 2000+0x40
+  - series: http_server_requests_seconds_count{uri="/api/v1/auth/login",method="POST",status="500"}
+    values: 0+10x20 0+10x20 200+0x40
+  - series: http_server_requests_seconds_count{uri="/api/v1/auth/login",method="POST",status="429"}
+    values: 0+100x20 0+100x20 2000+0x40
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/auth/login",method="POST",le="0.1"}
+    values: 0+0x20 0+0x20 0+0x40
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/auth/login",method="POST",le="2"}
+    values: 0+210x20 0+210x20 4200+0x40
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/auth/login",method="POST",le="+Inf"}
+    values: 0+210x20 0+210x20 4200+0x40
+  - series: http_server_requests_seconds_count{uri="/api/v1/academic/me/enrollments",method="POST",status="200"}
+    values: 0+100x20 0+100x20 2000+0x40
+  - series: http_server_requests_seconds_count{uri="/api/v1/academic/me/enrollments",method="POST",status="500"}
+    values: 0+10x20 0+10x20 200+0x40
+  - series: http_server_requests_seconds_count{uri="/api/v1/academic/me/enrollments",method="POST",status="429"}
+    values: 0+100x20 0+100x20 2000+0x40
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/academic/me/enrollments",method="POST",le="0.1"}
+    values: 0+0x20 0+0x20 0+0x40
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/academic/me/enrollments",method="POST",le="2"}
+    values: 0+210x20 0+210x20 4200+0x40
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/academic/me/enrollments",method="POST",le="+Inf"}
+    values: 0+210x20 0+210x20 4200+0x40
+  - series: http_server_requests_seconds_count{uri="/api/v1/attendance/sessions/{id}/checkin",method="POST",status="200"}
+    values: 0+100x20 0+100x20 2000+0x40
+  - series: http_server_requests_seconds_count{uri="/api/v1/attendance/sessions/{id}/checkin",method="POST",status="500"}
+    values: 0+10x20 0+10x20 200+0x40
+  - series: http_server_requests_seconds_count{uri="/api/v1/attendance/sessions/{id}/checkin",method="POST",status="429"}
+    values: 0+100x20 0+100x20 2000+0x40
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/attendance/sessions/{id}/checkin",method="POST",le="0.1"}
+    values: 0+0x20 0+0x20 0+0x40
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/attendance/sessions/{id}/checkin",method="POST",le="2"}
+    values: 0+210x20 0+210x20 4200+0x40
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/attendance/sessions/{id}/checkin",method="POST",le="+Inf"}
+    values: 0+210x20 0+210x20 4200+0x40
+  - series: http_server_requests_seconds_count{uri="/api/v1/enrollments/my/grades",method="GET",status="200"}
+    values: 0+100x20 0+100x20 2000+0x40
+  - series: http_server_requests_seconds_count{uri="/api/v1/enrollments/my/grades",method="GET",status="500"}
+    values: 0+10x20 0+10x20 200+0x40
+  - series: http_server_requests_seconds_count{uri="/api/v1/enrollments/my/grades",method="GET",status="429"}
+    values: 0+100x20 0+100x20 2000+0x40
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/enrollments/my/grades",method="GET",le="0.1"}
+    values: 0+0x20 0+0x20 0+0x40
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/enrollments/my/grades",method="GET",le="2"}
+    values: 0+210x20 0+210x20 4200+0x40
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/enrollments/my/grades",method="GET",le="+Inf"}
+    values: 0+210x20 0+210x20 4200+0x40
+  - series: hikaricp_connections_active{pool="primary"}
+    values: 10+0x40 0+0x40
+  - series: hikaricp_connections_max{pool="primary"}
+    values: 10+0x40 10+0x40
+  - series: hikaricp_connections_pending{pool="primary"}
+    values: 3+0x40 0+0x40
+  - series: hikaricp_connections_timeout_total{pool="primary"}
+    values: 0+1x20 0+1x20 20+0x40
+  - series: probe_success{job="blackbox-http",instance="down",endpoint="/api/v1/health/liveness"}
+    values: 0+0x40 1+0x40
+  - series: probe_success{job="blackbox-http",instance="down",endpoint="/api/v1/health/readiness"}
+    values: 0+0x40 1+0x40
+  - series: probe_success{job="blackbox-http",instance="cold",endpoint="/api/v1/health/liveness"}
+    values: 1+0x80
+  - series: probe_success{job="blackbox-http",instance="cold",endpoint="/api/v1/health/readiness"}
+    values: 0+0x40 1+0x40
+  - series: probe_success{job="blackbox-http",instance="web",endpoint="/health",service="frontend"}
+    values: 0+0x40 1+0x40
+  - series: campuscore_assistant_requests_total{degraded="true"}
+    values: 0+80x20 0+80x20 1600+0x40
+  - series: campuscore_assistant_requests_total{degraded="false"}
+    values: 0+20x20 0+20x20 400+0x40
+  - series: campuscore_assistant_quota_consumed_daily
+    values: 190+0x40 0+0x40
+  - series: campuscore_assistant_rls_verified
+    values: 0+0x40 1+0x40
+  - series: campuscore_assistant_turn_stale_recovered_total
+    values: 0+10x20 0+10x20 200+0x40
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="ApiHighServerErrorRate"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="SignInLatencyP95Breached"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="SignInServerErrorRateHigh"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="RegistrationLatencyP95Breached"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="RegistrationServerErrorRateHigh"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="AttendanceCheckinLatencyP95Breached"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="AttendanceCheckinServerErrorRateHigh"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="GradesReadLatencyP95Breached"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="GradesReadServerErrorRateHigh"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="RateLimitSurgeDetected"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="RateLimitLoginBruteForceSpike"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="DatabaseConnectionPoolSaturationWarning"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="DatabaseConnectionPoolSaturationCritical"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="DatabaseConnectionAcquisitionTimeout"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="ServiceLivenessFailed"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="ServiceReadinessFailed"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 2
+  - expr: count(ALERTS{alertstate="firing",alertname="ProlongedColdStartUnready"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="WebFrontendHealthFailed"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="AssistantHighDegradedRate"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="AssistantGlobalQuotaExhaustionRisk"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="AssistantRlsStateDegraded"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="AssistantStaleLeaseRecoverySurge"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="ApiHighServerErrorRate"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="SignInLatencyP95Breached"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="SignInServerErrorRateHigh"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="RegistrationLatencyP95Breached"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="RegistrationServerErrorRateHigh"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="AttendanceCheckinLatencyP95Breached"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="AttendanceCheckinServerErrorRateHigh"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="GradesReadLatencyP95Breached"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="GradesReadServerErrorRateHigh"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="RateLimitSurgeDetected"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="RateLimitLoginBruteForceSpike"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="DatabaseConnectionPoolSaturationWarning"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="DatabaseConnectionPoolSaturationCritical"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="DatabaseConnectionAcquisitionTimeout"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="ServiceLivenessFailed"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="ServiceReadinessFailed"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 2
+  - expr: count(ALERTS{alertstate="firing",alertname="ProlongedColdStartUnready"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="WebFrontendHealthFailed"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="AssistantHighDegradedRate"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="AssistantGlobalQuotaExhaustionRisk"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="AssistantRlsStateDegraded"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="AssistantStaleLeaseRecoverySurge"})
+    eval_time: 40m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing"}) or vector(0)
+    eval_time: 65m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+- name: quota-replicas-observe-one-shared-persisted-bucket
+  interval: 1m
+  input_series:
+  - series: campuscore_assistant_quota_consumed_daily{instance="a"}
+    values: 100+0x20
+  - series: campuscore_assistant_quota_consumed_daily{instance="b"}
+    values: 100+0x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing"}) or vector(0)
+    eval_time: 10m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+- name: quota-exact-threshold-is-not-above-threshold
+  interval: 1m
+  input_series:
+  - series: campuscore_assistant_quota_consumed_daily
+    values: 180+0x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing"}) or vector(0)
+    eval_time: 10m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+- name: journey-alerts-match-live-route-templates
+  interval: 1m
+  input_series:
+  - series: http_server_requests_seconds_count{uri="/api/v1/me/enrollments",method="POST",status="200"}
+    values: 0+100x20
+  - series: http_server_requests_seconds_count{uri="/api/v1/me/enrollments",method="POST",status="500"}
+    values: 0+10x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/me/enrollments",method="POST",le="0.1"}
+    values: 0+0x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/me/enrollments",method="POST",le="2"}
+    values: 0+210x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/me/enrollments",method="POST",le="+Inf"}
+    values: 0+210x20
+  - series: http_server_requests_seconds_count{uri="/api/v1/me/enrollments/{id}/drop",method="POST",status="200"}
+    values: 0+100x20
+  - series: http_server_requests_seconds_count{uri="/api/v1/me/enrollments/{id}/drop",method="POST",status="500"}
+    values: 0+10x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/me/enrollments/{id}/drop",method="POST",le="0.1"}
+    values: 0+0x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/me/enrollments/{id}/drop",method="POST",le="2"}
+    values: 0+210x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/me/enrollments/{id}/drop",method="POST",le="+Inf"}
+    values: 0+210x20
+  - series: http_server_requests_seconds_count{uri="/api/v1/sections/{id}/grades",method="GET",status="200"}
+    values: 0+100x20
+  - series: http_server_requests_seconds_count{uri="/api/v1/sections/{id}/grades",method="GET",status="500"}
+    values: 0+10x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/sections/{id}/grades",method="GET",le="0.1"}
+    values: 0+0x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/sections/{id}/grades",method="GET",le="2"}
+    values: 0+210x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/sections/{id}/grades",method="GET",le="+Inf"}
+    values: 0+210x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="RegistrationLatencyP95Breached"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="RegistrationServerErrorRateHigh"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="GradesReadLatencyP95Breached"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="GradesReadServerErrorRateHigh"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1

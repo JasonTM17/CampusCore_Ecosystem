@@ -57,9 +57,10 @@ $env:BASE_URL="http://localhost:3100"; node scripts/prod-smoke.mjs   # stack loc
 ### B. Bảng tài khoản trải nghiệm đã seed sẵn trong CSDL
 
 > **Điều kiện tiên quyết — đọc trước khi demo.** Các tài khoản dưới đây bị **KHOÁ** ở trạng thái seed
-> (`V48`), và `DemoAccountGate` **áp lại trạng thái đó ở mỗi lần khởi động** theo công tắc
-> `DEMO_ACCOUNTS_ENABLED`. `V82` sau đó kích hoạt đúng bộ tài khoản được runbook nêu (Quản trị viên 2
-> và `lecturer002–012`) nên công tắc dưới đây là **đủ** cho toàn bộ bảng tài khoản. Quyết định của chủ
+> (`V48` cho học vụ, `V145` cho tuyển sinh applicant), và `DemoAccountGate` **áp lại trạng thái đó ở
+> mỗi lần khởi động** theo công tắc `DEMO_ACCOUNTS_ENABLED`. `V82` sau đó kích hoạt đúng bộ tài khoản
+> được runbook nêu (Quản trị viên 2 và `lecturer002–012`); tài khoản applicant mở khoá đồng thời khi
+> công tắc bật nên công tắc dưới đây là **đủ** cho toàn bộ bảng tài khoản. Quyết định của chủ
 > sở hữu (25/09/2026): **production giữ `DEMO_ACCOUNTS_ENABLED=true`** (`render.yaml`) để khách truy cập
 > trải nghiệm đầy đủ bằng đúng bộ tài khoản công khai — rủi ro tài khoản demo admin công khai đã được
 > chấp nhận và ghi chú ngay trong `render.yaml`; cần thu hẹp phạm vi mà không chỉnh secret thì đặt
@@ -83,6 +84,8 @@ $env:BASE_URL="http://localhost:3100"; node scripts/prod-smoke.mjs   # stack loc
 | **Trưởng khoa CNTT** | `truongkhoa@campuscore.demo` | `password123` | Giảng viên kiêm Trưởng khoa (`LECTURER` + `TRUONG_KHOA`) — tổng quan khoa (`/dashboard/dean`) và điều hành đợt/hội đồng/đề tài trong phạm vi khoa |
 | **Quản trị viên 1** | `admin@campuscore.edu` | `password123` | Điều hành toàn trường (`ADMIN`), mở lớp học phần, quản lý người dùng, tạo bản thảo tri thức RAG |
 | **Quản trị viên 2** | `admin002@campuscore.demo` | `password123` | Dùng để thực hiện nguyên tắc Four-Eyes duyệt bản nháp tri thức của Admin 1 |
+| **Thí sinh xét tuyển** | `applicant@campuscore.edu` | `password123` | Tài khoản applicant (seed `V140`, khoá `V145`) — cổng `/apply`: soạn/nộp/rút hồ sơ xét tuyển mô phỏng bằng capability `admissions:self`, không chạm quyền học vụ |
+| **Thí sinh 2** | `applicant2@campuscore.edu` | `password123` | Tài khoản applicant thứ hai — kiểm thử cô lập hồ sơ giữa hai thí sinh |
 
 *Danh bạ giảng viên phụ `lecturer002@campuscore.demo` đến `lecturer012@campuscore.demo` cũng được seed sẵn để lịch dạy và hội đồng phản ánh quy mô trường thực tế.*
 
@@ -179,7 +182,7 @@ riêng của giảng viên mang chức danh (demo: `truongkhoa@campuscore.demo`)
 gắn cho tài khoản Admin. Giảng viên/Sinh viên dùng tài khoản demo mặc định.
 
 **Cảnh báo trước khi demo**:
-- Dùng **một tab duy nhất** (đa tab có thể gặp race refresh gây đăng xuất nhầm).
+- Khuyến nghị dùng **một tab duy nhất** trong buổi trình diễn để giao diện đồng bộ trực quan (OIDC refresh hiện được bảo vệ nguyên tử dưới account row lock — race refresh giữa các tab đã được loại bỏ).
 - **Tạo đợt mới**, không dùng lại đợt seed cũ (đợt legacy không có hạn GVPB).
 - **Công thức thời gian cửa sổ** (guards dùng giờ hệ thống — nếu nhập sai, bước sau sẽ
   dừng giữa buổi): cửa sổ GV `[giờ demo, +10 phút]`, cửa sổ SV `[+10 phút, 23:59 hôm nay]`,

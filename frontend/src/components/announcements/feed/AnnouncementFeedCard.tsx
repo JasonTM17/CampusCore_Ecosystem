@@ -137,6 +137,8 @@ export function AnnouncementFeedCard({
             <img
               src={coverImage}
               alt={announcement.title}
+              width={1600}
+              height={900}
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
               loading="lazy"
             />
@@ -273,6 +275,8 @@ export function AnnouncementFeedCard({
           <img
             src={coverImage}
             alt={announcement.title}
+            width={1600}
+            height={900}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
             loading="lazy"
           />

@@ -1,8 +1,8 @@
 package io.campuscore.restfulapi.engagement.repository;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.NullNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.NullNode;
 import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.AnnouncementHistoryResponse;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -65,7 +65,7 @@ public class AnnouncementAuditRepository {
                 "SELECT \"id\", \"announcementId\", \"action\", \"actorId\", \"actorLabel\", \"reason\", "
                         + "\"version\", \"beforeState\", \"afterState\", \"createdAt\" FROM " + TABLE
                         + " WHERE \"announcementId\" = :announcementId"
-                        + " ORDER BY \"createdAt\" DESC, \"id\" DESC"
+                        + " ORDER BY \"createdAt\" DESC, \"version\" DESC, \"id\" DESC"
                         + " LIMIT :limit OFFSET :offset",
                 new MapSqlParameterSource()
                         .addValue("announcementId", announcementId)

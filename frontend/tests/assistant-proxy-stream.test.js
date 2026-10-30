@@ -15,7 +15,11 @@ function loadProxy(upstream, onFetch = () => {}, environment = {}) {
     fetch: async (url, options) => { onFetch(url, options); return upstream; },
   });
   vm.runInContext(`(function(require,module,exports){${output}\n})`, context)(
-    () => ({ buildApiProxyUrl: (origin, segments, query) => `${origin}/api/v1/${segments.join('/')}${query}` }),
+    () => ({
+      buildApiProxyUrl: (origin, segments, query) => `${origin}/api/v1/${segments.join('/')}${query}`,
+      // Test hosts are unmapped, so the proxy stays on the plain bearer lane.
+      surfaceFromHost: () => null,
+    }),
     record, record.exports,
   );
   return record.exports.POST;

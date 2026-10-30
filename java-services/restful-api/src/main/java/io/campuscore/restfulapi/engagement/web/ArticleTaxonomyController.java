@@ -1,12 +1,13 @@
 package io.campuscore.restfulapi.engagement.web;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import io.campuscore.restfulapi.engagement.domain.ArticleAttachment;
 import io.campuscore.restfulapi.engagement.domain.ArticleCategory;
 import io.campuscore.restfulapi.engagement.domain.ArticleMediaGallery;
 import io.campuscore.restfulapi.engagement.domain.ArticleTag;
-import io.campuscore.restfulapi.engagement.repository.ArticleAttachmentRepository;
+import io.campuscore.restfulapi.engagement.repository.ArticleAssetReadRepository;
+import io.campuscore.restfulapi.engagement.repository.ArticleAssetReadRepository.AssetVisibility;
 import io.campuscore.restfulapi.engagement.repository.ArticleCategoryRepository;
-import io.campuscore.restfulapi.engagement.repository.ArticleMediaGalleryRepository;
 import io.campuscore.restfulapi.engagement.repository.ArticleTagRepository;
 import io.campuscore.restfulapi.engagement.web.ArticleTaxonomyDtos.AttachmentDto;
 import io.campuscore.restfulapi.engagement.web.ArticleTaxonomyDtos.AttachmentListResponse;
@@ -20,11 +21,16 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.math.BigInteger;
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import org.springframework.context.annotation.Profile;
-import org.springframework.data.domain.Page;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -62,26 +68,22 @@ public class ArticleTaxonomyController {
 
     private final ArticleCategoryRepository categoryRepository;
     private final ArticleTagRepository tagRepository;
-    private final ArticleMediaGalleryRepository mediaGalleryRepository;
-    private final ArticleAttachmentRepository attachmentRepository;
+    private final ArticleAssetReadRepository assetReads;
 
     /**
-     * Wires the controller to the four taxonomy repositories.
-     *
-     * @param categoryRepository reader of article categories
-     * @param tagRepository reader of article tags
-     * @param mediaGalleryRepository reader of article media items
-     * @param attachmentRepository reader of article attachments
+     * Wires the controller to the taxonomy repositories. Media-gallery and
+     * attachment reads go through the gated repository: every route joins the
+     * parent announcement and applies the caller-visible predicate of
+     * publication-policy §4 — a draft parent's assets never reach students,
+     * and a missing or invisible parent answers an indistinguishable 404.
      */
     public ArticleTaxonomyController(
             ArticleCategoryRepository categoryRepository,
             ArticleTagRepository tagRepository,
-            ArticleMediaGalleryRepository mediaGalleryRepository,
-            ArticleAttachmentRepository attachmentRepository) {
+            ArticleAssetReadRepository assetReads) {
         this.categoryRepository = categoryRepository;
         this.tagRepository = tagRepository;
-        this.mediaGalleryRepository = mediaGalleryRepository;
-        this.attachmentRepository = attachmentRepository;
+        this.assetReads = assetReads;
     }
 
     /**
@@ -94,6 +96,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "200", description = "Truy xuất danh mục thành công")
     })
     @GetMapping("/article-categories")
+    @PreAuthorize("isAuthenticated()")
     public List<ArticleCategory> getCategories() {
         return categoryRepository.findByIsActiveTrueOrderByDisplayOrderAsc();
     }
@@ -111,6 +114,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "404", description = "Không tìm thấy chuyên mục với slug tương ứng")
     })
     @GetMapping("/article-categories/{slug}")
+    @PreAuthorize("isAuthenticated()")
     public ArticleCategory getCategoryBySlug(
             @Parameter(description = "Slug chuyên mục (vd: nghien-cuu-cong-nghe, hoc-bong-khen-thuong)", required = true)
             @PathVariable String slug) {
@@ -129,6 +133,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "200", description = "Truy xuất danh sách thẻ thành công")
     })
     @GetMapping("/article-tags")
+    @PreAuthorize("isAuthenticated()")
     public List<ArticleTag> getTags() {
         return tagRepository.findTop20ByOrderByUsageCountDesc();
     }
@@ -146,6 +151,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "404", description = "Không tìm thấy thẻ bài viết với slug tương ứng")
     })
     @GetMapping("/article-tags/{slug}")
+    @PreAuthorize("isAuthenticated()")
     public ArticleTag getTagBySlug(
             @Parameter(description = "Slug thẻ bài viết (vd: ai, robotics, kltn)", required = true)
             @PathVariable String slug) {
@@ -166,17 +172,19 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "200", description = "Truy xuất danh sách media thành công")
     })
     @GetMapping("/article-media-galleries")
+    @PreAuthorize("isAuthenticated()")
     public List<ArticleMediaGallery> getMediaGalleries(
             @Parameter(description = "Mã bài viết/thông báo để lọc gallery tương ứng (tùy chọn)")
-            @RequestParam(required = false) String announcementId) {
-        if (announcementId != null && !announcementId.isBlank()) {
-            return mediaGalleryRepository.findByAnnouncementIdOrderByDisplayOrderAsc(announcementId);
+            @RequestParam(required = false) String announcementId,
+            @AuthenticationPrincipal Jwt jwt) {
+        AssetVisibility visibility = visibility(jwt);
+        String parent = normalize(announcementId);
+        if (parent != null) {
+            requireVisibleParent(parent, visibility);
         }
-        // Legacy feed stays list-shaped but bounded: unbounded findAll dumps the
-        // whole table to any authenticated caller (same bound the v2 route uses).
-        return mediaGalleryRepository
-                .findAll(PageRequest.of(0, MAX_PAGE_SIZE, Sort.by("displayOrder").ascending()))
-                .getContent();
+        // Legacy feed stays list-shaped but bounded by the same cap the v2
+        // route uses, now additionally gated by the parent's visibility tier.
+        return assetReads.findGalleries(parent, visibility, 0, MAX_PAGE_SIZE);
     }
 
     /**
@@ -191,14 +199,20 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "200", description = "Truy xuất danh sách tài liệu đính kèm thành công")
     })
     @GetMapping("/article-attachments")
+    @PreAuthorize("isAuthenticated()")
     public List<ArticleTaxonomyDtos.AttachmentDto> getAttachments(
             @Parameter(description = "Mã bài viết/thông báo để lọc tệp đính kèm (tùy chọn)")
-            @RequestParam(required = false) String announcementId) {
-        List<ArticleAttachment> rows = (announcementId != null && !announcementId.isBlank())
-                ? attachmentRepository.findByAnnouncementIdAndIsPublicTrue(announcementId)
-                : attachmentRepository.findByIsPublicTrue(PageRequest.of(0, MAX_PAGE_SIZE)).getContent();
+            @RequestParam(required = false) String announcementId,
+            @AuthenticationPrincipal Jwt jwt) {
+        AssetVisibility visibility = visibility(jwt);
+        String parent = normalize(announcementId);
+        if (parent != null) {
+            requireVisibleParent(parent, visibility);
+        }
         // Same projection as v2: checksum, access flag, and audit columns stay server-side.
-        return rows.stream().map(ArticleTaxonomyDtos.AttachmentDto::from).toList();
+        return assetReads.findAttachments(parent, visibility, 0, MAX_PAGE_SIZE).stream()
+                .map(ArticleTaxonomyDtos.AttachmentDto::from)
+                .toList();
     }
 
     /**
@@ -231,6 +245,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "404", description = "Không tìm thấy chuyên mục với slug tương ứng")
     })
     @GetMapping("/article-taxonomy/v2/categories/{slug}")
+    @PreAuthorize("isAuthenticated()")
     public CategoryDto getCategoryBySlugV2(
             @Parameter(description = "Slug chuyên mục (vd: nghien-cuu-cong-nghe, hoc-bong-khen-thuong)", required = true)
             @PathVariable String slug) {
@@ -249,6 +264,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "200", description = "Truy xuất danh sách thẻ thành công")
     })
     @GetMapping("/article-taxonomy/v2/tags")
+    @PreAuthorize("isAuthenticated()")
     public List<TagDto> getTagsV2() {
         return tagRepository.findTop20ByOrderByUsageCountDesc().stream()
                 .map(TagDto::from)
@@ -268,6 +284,7 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "404", description = "Không tìm thấy thẻ bài viết với slug tương ứng")
     })
     @GetMapping("/article-taxonomy/v2/tags/{slug}")
+    @PreAuthorize("isAuthenticated()")
     public TagDto getTagBySlugV2(
             @Parameter(description = "Slug thẻ bài viết (vd: ai, robotics, kltn)", required = true)
             @PathVariable String slug) {
@@ -292,20 +309,30 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "200", description = "Truy xuất danh sách media thành công")
     })
     @GetMapping("/article-taxonomy/v2/media-galleries")
+    @PreAuthorize("isAuthenticated()")
     public MediaGalleryListResponse getMediaGalleriesV2(
             @Parameter(description = "Mã bài viết/thông báo để lọc gallery tương ứng (tùy chọn)")
             @RequestParam(required = false) String announcementId,
             @Parameter(description = "Số trang phân trang (bắt đầu từ 1)")
             @RequestParam(defaultValue = DEFAULT_PAGE) int page,
             @Parameter(description = "Số lượng mục trên một trang (tối đa 200)")
-            @RequestParam(defaultValue = DEFAULT_PAGE_SIZE_TEXT) int limit) {
-        PageRequest pageRequest = pageRequest(page, limit, "displayOrder");
-        Page<ArticleMediaGallery> result = announcementId == null || announcementId.isBlank()
-                ? mediaGalleryRepository.findAll(pageRequest)
-                : mediaGalleryRepository.findByAnnouncementId(announcementId, pageRequest);
-        return new MediaGalleryListResponse(
-                result.map(MediaGalleryDto::from).getContent(),
-                pageMeta(result));
+            @RequestParam(defaultValue = DEFAULT_PAGE_SIZE_TEXT) int limit,
+            @AuthenticationPrincipal Jwt jwt) {
+        AssetVisibility visibility = visibility(jwt);
+        String parent = normalize(announcementId);
+        if (parent != null) {
+            requireVisibleParent(parent, visibility);
+        }
+        int appliedPage = Math.max(page, 1);
+        int appliedLimit = appliedLimit(limit);
+        long offset = (long) (appliedPage - 1) * appliedLimit;
+        List<MediaGalleryDto> data = assetReads
+                .findGalleries(parent, visibility, offset, appliedLimit)
+                .stream()
+                .map(MediaGalleryDto::from)
+                .toList();
+        long total = assetReads.countGalleries(parent, visibility);
+        return new MediaGalleryListResponse(data, pageMeta(total, appliedPage, appliedLimit));
     }
 
     /**
@@ -325,52 +352,126 @@ public class ArticleTaxonomyController {
         @ApiResponse(responseCode = "200", description = "Truy xuất danh sách tài liệu đính kèm thành công")
     })
     @GetMapping("/article-taxonomy/v2/attachments")
+    @PreAuthorize("isAuthenticated()")
     public AttachmentListResponse getAttachmentsV2(
             @Parameter(description = "Mã bài viết/thông báo để lọc tệp đính kèm (tùy chọn)")
             @RequestParam(required = false) String announcementId,
             @Parameter(description = "Số trang phân trang (bắt đầu từ 1)")
             @RequestParam(defaultValue = DEFAULT_PAGE) int page,
             @Parameter(description = "Số lượng tệp trên một trang (tối đa 200)")
-            @RequestParam(defaultValue = DEFAULT_PAGE_SIZE_TEXT) int limit) {
-        PageRequest pageRequest = pageRequest(page, limit, "createdAt");
-        Page<ArticleAttachment> result = announcementId == null || announcementId.isBlank()
-                ? attachmentRepository.findByIsPublicTrue(pageRequest)
-                : attachmentRepository.findByAnnouncementIdAndIsPublicTrue(announcementId, pageRequest);
-        return new AttachmentListResponse(
-                result.map(AttachmentDto::from).getContent(),
-                pageMeta(result));
+            @RequestParam(defaultValue = DEFAULT_PAGE_SIZE_TEXT) int limit,
+            @AuthenticationPrincipal Jwt jwt) {
+        AssetVisibility visibility = visibility(jwt);
+        String parent = normalize(announcementId);
+        if (parent != null) {
+            requireVisibleParent(parent, visibility);
+        }
+        int appliedPage = Math.max(page, 1);
+        int appliedLimit = appliedLimit(limit);
+        long offset = (long) (appliedPage - 1) * appliedLimit;
+        List<AttachmentDto> data = assetReads
+                .findAttachments(parent, visibility, offset, appliedLimit)
+                .stream()
+                .map(AttachmentDto::from)
+                .toList();
+        long total = assetReads.countAttachments(parent, visibility);
+        return new AttachmentListResponse(data, pageMeta(total, appliedPage, appliedLimit));
     }
 
     /**
-     * Builds the Spring Data paging request shared by the v2 collection routes. Out-of-range
-     * paging is clamped rather than rejected: unlike the announcement routes, these routes only
-     * replace an unbounded full-table scan, so a too-large request must stay bounded instead of
-     * turning into a client error.
-     *
-     * @param page one-based page index supplied by the caller, values below one become one
-     * @param limit requested page size; values below one fall back to the
-     * {@value #DEFAULT_PAGE_SIZE}-row default and anything above {@value #MAX_PAGE_SIZE} is capped
-     * @param sortProperty entity property the page is ordered by, ascending
-     * @return the zero-based {@link PageRequest} understood by the repositories
+     * Clamps a requested page size the same way the retired Spring Data path
+     * did: values below one fall back to the {@value #DEFAULT_PAGE_SIZE}-row
+     * default and anything above {@value #MAX_PAGE_SIZE} is capped — a too-large
+     * request stays bounded instead of turning into a client error.
      */
-    private static PageRequest pageRequest(int page, int limit, String sortProperty) {
-        int safePage = Math.max(page, 1);
-        int safeLimit = Math.min(limit < 1 ? DEFAULT_PAGE_SIZE : limit, MAX_PAGE_SIZE);
-        return PageRequest.of(safePage - 1, safeLimit, Sort.by(Sort.Order.asc(sortProperty)));
+    private static int appliedLimit(int limit) {
+        return Math.min(limit < 1 ? DEFAULT_PAGE_SIZE : limit, MAX_PAGE_SIZE);
+    }
+
+    /** House {@code meta} envelope for the gated paged routes. */
+    private static PageMeta pageMeta(long total, int page, int limit) {
+        int totalPages = total == 0 ? 0 : (int) (((total - 1) / limit) + 1);
+        return new PageMeta(total, page, limit, totalPages);
     }
 
     /**
-     * Converts a Spring Data page into the house {@code meta} block used by every paginated
-     * read route, reporting the page index back as one-based and the size actually applied.
-     *
-     * @param page repository page whose totals are projected onto the response envelope
-     * @return pagination metadata matching the served page
+     * The parent-visibility gate behind {@code announcementId}-scoped routes:
+     * a missing parent and a parent the caller may not see are the same 404 —
+     * the scoped list can never become an existence oracle (policy §4).
      */
-    private static PageMeta pageMeta(Page<?> page) {
-        return new PageMeta(
-                page.getTotalElements(),
-                page.getNumber() + 1,
-                page.getSize(),
-                page.getTotalPages());
+    private void requireVisibleParent(String announcementId, AssetVisibility visibility) {
+        if (!assetReads.isParentVisible(announcementId, visibility)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Announcement not found");
+        }
+    }
+
+    /** Maps the bearer JWT onto the visibility context the asset gate needs. */
+    private static AssetVisibility visibility(Jwt jwt) {
+        List<String> roles = requireIdentity(jwt);
+        String studentId = stringClaim(jwt, "studentId");
+        Integer studentYear = studentYear(jwt);
+        String lecturerId = stringClaim(jwt, "lecturerId");
+        if (roles.contains("STUDENT") && (studentId == null || studentYear == null)) {
+            throw new AccessDeniedException("Student profile claims are required");
+        }
+        if (roles.contains("LECTURER") && lecturerId == null) {
+            throw new AccessDeniedException("Lecturer profile claim is required");
+        }
+        return new AssetVisibility(
+                roles, jwt.getSubject(), studentId, studentYear, lecturerId, Instant.now());
+    }
+
+    private static List<String> requireIdentity(Jwt jwt) {
+        if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isBlank()) {
+            throw new BadCredentialsException("Invalid JWT claims");
+        }
+        Object claim = jwt.getClaims().get("roles");
+        if (claim == null) {
+            return List.of();
+        }
+        if (!(claim instanceof java.util.Collection<?> values)) {
+            throw new BadCredentialsException("Invalid roles claim");
+        }
+        return values.stream()
+                .map(value -> {
+                    if (!(value instanceof String text) || text.isBlank()) {
+                        throw new BadCredentialsException("Invalid roles claim");
+                    }
+                    return text;
+                })
+                .toList();
+    }
+
+    private static String stringClaim(Jwt jwt, String claimName) {
+        Object value = jwt.getClaims().get(claimName);
+        if (!(value instanceof String text)) {
+            return null;
+        }
+        return text.isEmpty() ? null : text;
+    }
+
+    private static Integer studentYear(Jwt jwt) {
+        if (!(jwt.getClaims().get("student") instanceof Map<?, ?> student)) {
+            return null;
+        }
+        Object year = student.get("year");
+        if (year instanceof Byte || year instanceof Short || year instanceof Integer) {
+            return ((Number) year).intValue();
+        }
+        if (year instanceof Long longYear
+                && longYear >= Integer.MIN_VALUE
+                && longYear <= Integer.MAX_VALUE) {
+            return longYear.intValue();
+        }
+        if (year instanceof BigInteger bigYear
+                && bigYear.compareTo(BigInteger.valueOf(Integer.MIN_VALUE)) >= 0
+                && bigYear.compareTo(BigInteger.valueOf(Integer.MAX_VALUE)) <= 0) {
+            return bigYear.intValue();
+        }
+        return null;
+    }
+
+    private static String normalize(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 }

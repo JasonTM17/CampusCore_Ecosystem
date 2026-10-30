@@ -1,6 +1,7 @@
 'use client';
 
 import { FileCheck } from 'lucide-react';
+import { useNow } from '@/lib/use-now';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -39,10 +40,15 @@ export default function GvpbReviewPanel({
   onCommentDraftChange,
   onSubmit,
 }: GvpbReviewPanelProps) {
+  // Live clock: a cached render-time Date.now() would keep the deadline open
+  // (or closed) until an unrelated re-render. useNow ticks so the boundary
+  // flips on time; 0 pre-mount reads as "not passed", which stays permissive
+  // because the server remains the write gate.
+  const now = useNow();
   if (reviewTopics.length === 0) return null;
   const copy = messages.thesis.review;
   const deadline = round?.gvpbDeadline ?? null;
-  const deadlinePassed = deadline != null && Date.parse(deadline) < Date.now();
+  const deadlinePassed = deadline != null && Date.parse(deadline) < now;
   // A terminal round freezes every counter-review, deadline or not — the
   // server rejects late writes the same way.
   const roundTerminal = round?.status === 'CANCELLED'

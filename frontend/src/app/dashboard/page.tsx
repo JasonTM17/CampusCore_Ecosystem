@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { useRequireAuth } from '@/context/AuthContext';
 import { enrollmentsApi, registrationApi, semestersApi } from '@/lib/api';
+import { campusErrorCode } from '@/lib/campus-error';
+import { useCampusDayOfWeek } from '@/lib/campus-day';
 import { STATIC_STALE_TIME_MS, useApiQuery } from '@/lib/query';
 import { hasCsrfSessionHint } from '@/lib/session-hint';
 import { isActiveEnrollment } from '@/lib/enrollment-status';
@@ -143,6 +145,9 @@ export default function DashboardPage() {
   // the session turns out dead, the API 401 walks the same refresh/redirect
   // path a failed /auth/me would.
   const canLoad = hasAccess || hasCsrfSessionHint();
+  // Timetable "today" follows the campus calendar and rolls over at campus
+  // midnight, not the viewer's zone or the mount instant.
+  const campusTodayDow = useCampusDayOfWeek();
 
   const semestersQuery = useApiQuery(
     ['dashboard', 'semesters'],
@@ -163,9 +168,18 @@ export default function DashboardPage() {
     () => enrollmentsApi.getMyEnrollments(currentSemester || undefined),
     { enabled: hasAccess && Boolean(currentSemester), staleTime: 5 * 60_000 },
   );
+  // A closed registration round is the only "no credit cap" answer; every
+  // other summary failure surfaces as an error instead of silently dropping
+  // the limit and reading as an unbounded term.
   const summaryQuery = useApiQuery(
     ['registration', 'summary', currentSemester],
-    () => registrationApi.summary(currentSemester).catch(() => null),
+    () =>
+      registrationApi.summary(currentSemester).catch((error: unknown) => {
+        if (campusErrorCode(error) === 'WINDOW_CLOSED') {
+          return null;
+        }
+        throw error;
+      }),
     { enabled: canLoad && Boolean(currentSemester), staleTime: 5 * 60_000 },
   );
 
@@ -175,7 +189,7 @@ export default function DashboardPage() {
     semestersQuery.isPending ||
     (Boolean(currentSemester) && (enrollmentsQuery.isPending || summaryQuery.isPending));
   const error =
-    semestersQuery.isError || enrollmentsQuery.isError
+    semestersQuery.isError || enrollmentsQuery.isError || summaryQuery.isError
       ? messages.studentDashboard.errors.loadFailed
       : '';
   const refetchData = () => {
@@ -269,8 +283,7 @@ export default function DashboardPage() {
   // Next class meetings derived from active sections.
   // DB schedule.dayOfWeek: 1=Sunday, 2=Monday, ..., 7=Saturday (0=Sunday).
   // Normalize to ISO standard: 1=Monday .. 7=Sunday so daysUntil sorts from today.
-  const jsDay = new Date().getDay(); // 0 = Sun, 1 = Mon ... 6 = Sat
-  const todayDow = jsDay === 0 ? 7 : jsDay; // 1 = Monday ... 7 = Sunday
+  const todayDow = campusTodayDow === 1 ? 7 : campusTodayDow - 1; // 1 = Monday ... 7 = Sunday
   const upcomingMeetings: UpcomingMeeting[] = [];
   activeCourses.forEach((enrollment) => {
     const section = enrollment.section;

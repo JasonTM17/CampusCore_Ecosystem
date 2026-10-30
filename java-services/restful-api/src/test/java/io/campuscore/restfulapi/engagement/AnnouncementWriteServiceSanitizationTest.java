@@ -9,7 +9,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.campuscore.restfulapi.engagement.repository.AnnouncementAuditRepository;
 import io.campuscore.restfulapi.engagement.repository.AnnouncementAuditRepository.AuditCommand;
 import io.campuscore.restfulapi.engagement.repository.AnnouncementWriteRepository;
@@ -121,7 +121,9 @@ class AnnouncementWriteServiceSanitizationTest {
         Instant now = Instant.parse("2026-09-10T00:00:00Z");
         return new AnnouncementResponse("notice-1", "Notice", "Content", "NORMAL", List.of("STUDENT"),
                 List.of(), false, null, null, "user-1", null, null, "section-1",
-                null, null, null, null, null, now, now, 0, null, null, null, null, null);
+                null, null, null, null, null, now, now, 0, null, null,
+                "DRAFT", "user-1", null, null, null, null,
+                null, null, null);
     }
 
     private static final class Fixture {

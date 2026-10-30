@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "io.campuscore.mobile",
+      "sha256_cert_fingerprints": [
+        "0A:0B:8C:E2:E0:83:DF:8A:34:8E:29:43:47:A2:4E:AC:9A:1F:36:F9:E2:AA:BA:27:43:F4:2D:6C:98:89:0E:AB"
+      ]
+    }
+  }
+]

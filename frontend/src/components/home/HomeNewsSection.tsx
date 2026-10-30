@@ -93,7 +93,7 @@ const CATEGORY_TABS: CategoryTab[] = [
 
 export function HomeNewsSection() {
   const { user } = useAuth();
-  const { locale } = useI18n();
+  const { locale, messages } = useI18n();
   const { categories } = useArticleTaxonomy();
   const [selectedNotice, setSelectedNotice] = useState<AnnouncementRecord | null>(null);
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('ALL');
@@ -104,7 +104,7 @@ export function HomeNewsSection() {
   // TanStack Query caches the campus feed across mounts and dedupes the
   // signed-in/anonymous variants; the old effect refetched 18 rows every time
   // the identity flipped with no way to cancel the in-flight request.
-  const { data: pagedItems, isLoading, isError } = useApiQuery<
+  const { data: pagedItems, isLoading, isError, refetch } = useApiQuery<
     { data?: AnnouncementRecord[] }
   >(
     ['home-news', user ? 'mine' : 'public'],
@@ -186,7 +186,7 @@ export function HomeNewsSection() {
                   setIsExpanded(false);
                 }}
                 className={cn(
-                  'inline-flex items-center gap-2 rounded-md px-4 py-2 text-xs font-semibold transition-all shadow-2xs cursor-pointer border',
+                  'inline-flex min-h-11 items-center gap-2 rounded-md px-4 py-2 text-xs font-semibold transition-all shadow-2xs cursor-pointer border',
                   isActive
                     ? 'bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/20'
                     : 'bg-card text-muted-foreground border-border/80 hover:bg-accent hover:text-foreground',
@@ -219,9 +219,16 @@ export function HomeNewsSection() {
             </h3>
             <p className="mt-1 text-sm text-muted-foreground max-w-md mx-auto">
               {isVi
-                ? 'Máy chủ thông báo đang không phản hồi. Vui lòng thử tải lại trang sau ít phút.'
-                : 'The announcements service is not responding right now. Please refresh the page in a few minutes.'}
+                ? 'Máy chủ thông báo đang không phản hồi. Vui lòng thử lại.'
+                : 'The announcements service is not responding right now. Please retry.'}
             </p>
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="mt-4 inline-flex min-h-10 items-center justify-center rounded-lg border border-border bg-card px-4 text-sm font-semibold text-foreground transition hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {messages.common.actions.retry}
+            </button>
           </div>
         )}
 
@@ -308,6 +315,8 @@ export function HomeNewsSection() {
                         src={cover}
                         alt={ann.title}
                         loading="lazy"
+                        width={1600}
+                        height={900}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                       <div className="absolute top-2.5 left-2.5 z-10">

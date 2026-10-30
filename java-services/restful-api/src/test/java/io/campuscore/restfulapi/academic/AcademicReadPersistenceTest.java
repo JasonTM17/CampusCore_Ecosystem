@@ -14,7 +14,7 @@ import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.jdbc.core.ConnectionCallback;
@@ -1298,4 +1298,16 @@ class AcademicReadPersistenceTest {
     private static java.time.LocalDateTime localDateTime(Instant value) {
         return java.time.LocalDateTime.ofInstant(value, java.time.ZoneOffset.UTC);
     }
+
+    @Test
+    void catalogPolicyRejectsAnonymousWithoutRestrictingAuthenticatedRoles() throws Exception {
+        for (String resource : List.of("semesters", "academic-years", "courses", "curricula", "classrooms")) {
+            mvc.perform(get("/api/v1/" + resource)).andExpect(status().isUnauthorized());
+            mvc.perform(get("/api/v1/" + resource + "/unknown")).andExpect(status().isUnauthorized());
+            mvc.perform(get("/api/v1/" + resource).with(studentJwt())).andExpect(status().isOk());
+        }
+        // A class-wide authenticated policy must not override the existing student-only method.
+        mvc.perform(get("/api/v1/me/curriculum").with(adminJwt())).andExpect(status().isForbidden());
+    }
+
 }

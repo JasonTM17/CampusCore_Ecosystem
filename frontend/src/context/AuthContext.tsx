@@ -104,7 +104,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!hasCsrfSessionHint()) {
       refreshInFlightRef.current = false;
       if (isCurrent()) {
-        clearSessionState();
+        // A user who never signed in has no private cache to wipe — a blanket
+        // clear() here destroys the anonymous public queries (news/docs) that
+        // mount during bootstrap and leaves their observers pending forever.
+        // Only a dropped signed-in identity warrants the wipe.
+        if (lastKnownUserIdRef.current) {
+          clearSessionState();
+        } else {
+          setUserIdentity(null);
+        }
       }
       return;
     }

@@ -1,6 +1,11 @@
 import type { Locale } from '@/i18n/config';
 import { thesisWorkflowEn, thesisWorkflowVi } from '@/i18n/messages-thesis-workflow';
 import { deanOverviewEn, deanOverviewVi } from '@/i18n/messages-dean-overview';
+import { contentEn, contentVi } from '@/i18n/messages-content';
+import {
+  attendanceGeofenceEn,
+  attendanceGeofenceVi,
+} from '@/i18n/messages-attendance-geofence';
 
 export const en = {
   common: {
@@ -54,6 +59,8 @@ export const en = {
       loadingMetrics: 'Loading metrics',
       loadingAnnouncements: 'Loading campus announcements',
       loadingThesisTopics: 'Loading thesis topics',
+      sectionErrorTitle: 'This section could not be displayed',
+      sectionErrorDescription: 'An unexpected error interrupted this part of the page. Retry to load it again without leaving the workspace.',
     },
     statuses: {
       OPEN: 'Open',
@@ -261,6 +268,13 @@ export const en = {
       },
     },
   },
+  session: {
+    loggedOut: {
+      title: 'You have signed out',
+      body: 'Your sign-in session has ended on all devices linked to this account.',
+      returnHome: 'Return to the homepage',
+    },
+  },
   meta: {
     defaults: {
       siteName: 'CampusUTE',
@@ -307,6 +321,22 @@ export const en = {
       title: 'Reset password | CampusUTE',
       description: 'Set a new CampusUTE password and return to the campus portal.',
     },
+    apply: {
+      title: 'CampusUTE applications | CampusUTE',
+      description: 'Protected application services for CampusUTE students.',
+    },
+    careers: {
+      title: 'CampusUTE careers | CampusUTE',
+      description: 'Protected career services for the CampusUTE community.',
+    },
+    library: {
+      title: 'CampusUTE library | CampusUTE',
+      description: 'Protected library services for CampusUTE students.',
+    },
+    session: {
+      title: 'CampusUTE account session | CampusUTE',
+      description: 'CampusUTE account session and sign-out status.',
+    },
     dashboard: {
       title: 'Campus portal | CampusUTE',
       description:
@@ -315,6 +345,15 @@ export const en = {
     admin: {
       title: 'Admin portal | CampusUTE',
       description: 'Protected administration routes for CampusUTE.',
+    },
+    checkinLanding: {
+      title: 'Check in with the CampusUTE app | CampusUTE',
+      description:
+        'Open this check-in link in the CampusUTE app to mark attendance.',
+    },
+    staff: {
+      title: 'Staff desks | CampusUTE',
+      description: 'Protected staff desk services for CampusUTE staff.',
     },
     socialImage: {
       eyebrow: 'CampusUTE · HCMUTE',
@@ -1056,6 +1095,8 @@ export const en = {
     backToDashboard: 'Back to admin dashboard',
     mobileNavigation: 'Admin navigation on mobile',
     menuAttendance: 'Attendance',
+    menuAttendanceGeofences: 'Attendance geofences',
+    menuEvents: 'Events & union activities',
     menuSiteEditor: 'Site Editor & CMS',
     menuSystemNotifications: 'System notifications',
     menuAuditTrail: 'Audit trail',
@@ -1474,6 +1515,8 @@ export const en = {
       gradeManagement: 'Grade management',
       mailCompose: 'Academic email',
       deanOverview: 'Faculty thesis overview',
+      events: 'Events & union activities',
+      learning: 'Materials & assignments',
       profileSettings: 'Profile settings',
       profile: 'Profile',
       settings: 'Settings',
@@ -2343,8 +2386,15 @@ export const en = {
     },
     catalogTitle: 'Published topic catalog',
     catalogDescription: 'Scan published topics, then open details before choosing.',
+    catalogBannerBadge: 'HCMUTE Academic Engineering & Technology',
+    catalogBannerImageAlt: 'HCMUTE Faculty of Engineering Hall',
+    catalogBannerImageCaption: 'HCMUTE Faculty of Engineering',
     topicDetailTitle: 'Topic detail',
     topicDetailDescription: 'Review the brief, capacity, department, and selection state.',
+    topicDetailBannerBadge: 'HCMUTE Academic Defense Council',
+    topicDetailBannerImageAlt: 'HCMUTE Thesis Defense Hall & Faculty Committee',
+    topicDetailBannerImageCaption: 'HCMUTE Thesis Evaluation Council',
+    topicCountLabel: 'topics',
     progressTitle: 'Thesis progress',
     progressDescription: 'Follow evidence-backed milestones for your selected round.',
     progressCurrentStage: 'Current stage',
@@ -2826,6 +2876,8 @@ export const en = {
   },
   thesisWorkflow: thesisWorkflowEn,
   deanOverview: deanOverviewEn,
+  content: contentEn,
+  attendanceGeofence: attendanceGeofenceEn,
   attendance: {
     eyebrow: 'Student area',
     title: 'Attendance',
@@ -2923,6 +2975,45 @@ export const en = {
     statSessionsHeldSuffix: 'sessions held',
     sheetTitle: 'Class section attendance sheet',
   },
+  schedule: {
+    roomLabel: 'Room',
+    studentsSuffix: 'students',
+    studentViewModeLabel: 'Schedule view mode',
+    lecturerViewModeLabel: 'Schedule view mode',
+    studentAllSemestersFallback: 'all terms',
+    lecturerAllSemestersFallback: 'all semesters',
+    studentFiltersLoadFailed: 'Schedule filters could not be loaded.',
+    studentDataLoadFailed: 'Schedule data could not be loaded.',
+    lecturerLoadFailed: 'Teaching assignments could not be loaded.',
+    printUniversity: 'HO CHI MINH CITY UNIVERSITY OF TECHNOLOGY AND ENGINEERING',
+    printOffice: 'ACADEMIC AFFAIRS OFFICE — CAMPUSUTE SYSTEM',
+    printStudentTitle: 'OFFICIAL SEMESTER TIMETABLE',
+    printLecturerTitle: 'OFFICIAL TEACHING TIMETABLE',
+    printSemesterLabel: 'Semester:',
+    printStudentLabel: 'Student:',
+    printStudentIdLabel: 'Student ID:',
+    printLecturerLabel: 'Lecturer:',
+    printDeanLabel: 'DEAN / DEPARTMENT HEAD',
+    printInstructorLabel: 'COURSE INSTRUCTOR',
+    printSignatureHint: '(Signature & Full name)',
+  },
+  ui: {
+    state: {
+      loading: 'Loading…',
+      empty: 'No data found',
+      error: 'We could not complete that action. Please try again.',
+      denied: 'You do not have access to this action.',
+      offline:
+        'CampusUTE could not reach the campus portal right now. Try again in a moment.',
+      offlineReadWarning: 'You are offline — showing the last synced content.',
+    },
+    action: {
+      retry: 'Try again',
+    },
+    session: {
+      expired: 'Your session has expired. Please sign in again.',
+    },
+  },
 } as const;
 
 type DeepWiden<T> = T extends string
@@ -2987,6 +3078,8 @@ export const vi: I18nMessages = {
       loadingMetrics: 'Đang tải số liệu',
       loadingAnnouncements: 'Đang tải thông báo trường',
       loadingThesisTopics: 'Đang tải đề tài',
+      sectionErrorTitle: 'Không hiển thị được phần này',
+      sectionErrorDescription: 'Một lỗi không mong muốn đã làm gián đoạn phần này của trang. Hãy thử tải lại mà không rời khỏi không gian làm việc.',
     },
     statuses: {
       OPEN: 'Đang mở',
@@ -3194,6 +3287,13 @@ export const vi: I18nMessages = {
       },
     },
   },
+  session: {
+    loggedOut: {
+      title: 'Bạn đã đăng xuất',
+      body: 'Phiên đăng nhập của bạn đã kết thúc trên mọi thiết bị liên kết với tài khoản này.',
+      returnHome: 'Về trang chủ',
+    },
+  },
   meta: {
     defaults: {
       siteName: 'CampusUTE',
@@ -3240,6 +3340,22 @@ export const vi: I18nMessages = {
       title: 'Đặt lại mật khẩu | CampusUTE',
       description: 'Tạo mật khẩu mới cho CampusUTE và quay lại cổng học vụ.',
     },
+    apply: {
+      title: 'Dịch vụ đăng ký CampusUTE | CampusUTE',
+      description: 'Khu vực đăng ký được bảo vệ dành cho sinh viên CampusUTE.',
+    },
+    careers: {
+      title: 'Cơ hội nghề nghiệp CampusUTE | CampusUTE',
+      description: 'Khu vực dịch vụ nghề nghiệp dành cho cộng đồng CampusUTE.',
+    },
+    library: {
+      title: 'Thư viện CampusUTE | CampusUTE',
+      description: 'Khu vực dịch vụ thư viện được bảo vệ dành cho sinh viên CampusUTE.',
+    },
+    session: {
+      title: 'Phiên đăng nhập CampusUTE | CampusUTE',
+      description: 'Trạng thái phiên đăng nhập và đăng xuất khỏi CampusUTE.',
+    },
     dashboard: {
       title: 'Bảng điều khiển học vụ | CampusUTE',
       description:
@@ -3248,6 +3364,15 @@ export const vi: I18nMessages = {
     admin: {
       title: 'Cổng quản trị học vụ | CampusUTE',
       description: 'Khu vực quản trị đào tạo và cấu hình hệ thống CampusUTE.',
+    },
+    checkinLanding: {
+      title: 'Điểm danh bằng ứng dụng CampusUTE | CampusUTE',
+      description:
+        'Mở liên kết điểm danh này trong ứng dụng CampusUTE để xác nhận có mặt.',
+    },
+    staff: {
+      title: 'Bàn làm việc cán bộ | CampusUTE',
+      description: 'Khu vực bàn làm việc cán bộ được bảo vệ của CampusUTE.',
     },
     socialImage: {
       eyebrow: 'CampusUTE · HCMUTE',
@@ -3988,6 +4113,8 @@ export const vi: I18nMessages = {
     backToDashboard: 'Quay lại tổng quan quản trị',
     mobileNavigation: 'Điều hướng quản trị trên điện thoại',
     menuAttendance: 'Điểm danh',
+    menuAttendanceGeofences: 'Khu vực điểm danh',
+    menuEvents: 'Sự kiện & hoạt động Đoàn–Hội',
     menuSiteEditor: 'Trình soạn thảo website',
     menuSystemNotifications: 'Thông báo hệ thống',
     menuAuditTrail: 'Nhật ký kiểm toán',
@@ -4402,6 +4529,8 @@ export const vi: I18nMessages = {
       gradeManagement: 'Quản lý điểm',
       mailCompose: 'Email học vụ',
       deanOverview: 'Quan sát khóa luận khoa',
+      events: 'Sự kiện & hoạt động Đoàn–Hội',
+      learning: 'Học liệu & bài tập',
       profileSettings: 'Cài đặt hồ sơ',
       profile: 'Hồ sơ',
       settings: 'Cài đặt',
@@ -5270,8 +5399,15 @@ export const vi: I18nMessages = {
     },
     catalogTitle: 'Danh mục đề tài đã công bố',
     catalogDescription: 'Xem đề tài đã công bố, rồi mở chi tiết trước khi chọn.',
+    catalogBannerBadge: 'Khoa Kỹ thuật & Công nghệ HCMUTE',
+    catalogBannerImageAlt: 'Hội trường Khoa Kỹ thuật HCMUTE',
+    catalogBannerImageCaption: 'Khoa Kỹ thuật HCMUTE',
     topicDetailTitle: 'Chi tiết đề tài',
     topicDetailDescription: 'Xem mô tả, số nhóm, bộ môn và trạng thái chọn.',
+    topicDetailBannerBadge: 'Hội đồng Bảo vệ Khóa luận HCMUTE',
+    topicDetailBannerImageAlt: 'Hội trường Bảo vệ Khóa luận & Hội đồng Khoa HCMUTE',
+    topicDetailBannerImageCaption: 'Hội đồng Đánh giá Khóa luận HCMUTE',
+    topicCountLabel: 'đề tài',
     progressTitle: 'Tiến độ luận văn',
     progressDescription: 'Theo dõi các mốc có bằng chứng của đợt đã chọn.',
     progressCurrentStage: 'Giai đoạn hiện tại',
@@ -5753,6 +5889,8 @@ export const vi: I18nMessages = {
   },
   thesisWorkflow: thesisWorkflowVi,
   deanOverview: deanOverviewVi,
+  content: contentVi,
+  attendanceGeofence: attendanceGeofenceVi,
   attendance: {
     eyebrow: 'Khu vực Sinh viên',
     title: 'Điểm danh',
@@ -5849,6 +5987,45 @@ export const vi: I18nMessages = {
     statExcusedSuffix: 'có phép',
     statSessionsHeldSuffix: 'buổi đã học',
     sheetTitle: 'Bảng điểm danh lớp học phần',
+  },
+  schedule: {
+    roomLabel: 'Phòng',
+    studentsSuffix: 'sinh viên',
+    studentViewModeLabel: 'Chế độ xem thời khóa biểu',
+    lecturerViewModeLabel: 'Chế độ xem lịch giảng dạy',
+    studentAllSemestersFallback: 'tất cả học kỳ',
+    lecturerAllSemestersFallback: 'tất cả học kỳ',
+    studentFiltersLoadFailed: 'Hiện chưa thể tải bộ lọc thời khóa biểu.',
+    studentDataLoadFailed: 'Hiện chưa thể tải dữ liệu thời khóa biểu.',
+    lecturerLoadFailed: 'Hiện chưa thể tải phân công giảng dạy.',
+    printUniversity: 'TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM',
+    printOffice: 'PHÒNG ĐÀO TẠO — HỆ THỐNG QUẢN LÝ ĐÀO TẠO CAMPUSUTE',
+    printStudentTitle: 'THỜI KHÓA BIỂU HỌC KỲ',
+    printLecturerTitle: 'LỊCH GIẢNG DẠY HỌC KỲ',
+    printSemesterLabel: 'Học kỳ:',
+    printStudentLabel: 'Sinh viên:',
+    printStudentIdLabel: 'MSSV:',
+    printLecturerLabel: 'Giảng viên:',
+    printDeanLabel: 'TRƯỞNG KHOA / BỘ MÔN',
+    printInstructorLabel: 'GIẢNG VIÊN GIẢNG DẠY',
+    printSignatureHint: '(Ký và ghi rõ họ tên)',
+  },
+  ui: {
+    state: {
+      loading: 'Đang tải…',
+      empty: 'Không có dữ liệu',
+      error: 'Không thể hoàn tất thao tác. Vui lòng thử lại.',
+      denied: 'Bạn không có quyền thực hiện thao tác này.',
+      offline:
+        'CampusUTE hiện không kết nối được cổng thông tin. Vui lòng thử lại sau ít phút.',
+      offlineReadWarning: 'Bạn đang ngoại tuyến — hiển thị nội dung đã đồng bộ lần cuối.',
+    },
+    action: {
+      retry: 'Thử lại',
+    },
+    session: {
+      expired: 'Lần đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
+    },
   },
 };
 

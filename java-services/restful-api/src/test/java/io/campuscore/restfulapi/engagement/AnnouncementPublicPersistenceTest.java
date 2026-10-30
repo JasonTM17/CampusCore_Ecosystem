@@ -12,7 +12,7 @@ import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -96,6 +96,11 @@ class AnnouncementPublicPersistenceTest {
                     "archivedBy" VARCHAR(120),
                     "categoryId" VARCHAR(60),
                     "status" VARCHAR(30) NOT NULL DEFAULT 'PUBLISHED',
+                    "authorId" VARCHAR(120),
+                    "reviewerId" VARCHAR(120),
+                    "reviewedAt" TIMESTAMP WITH TIME ZONE,
+                    "reviewNote" VARCHAR(500),
+                    "publishedRevision" INTEGER,
                     "coverImageUrl" VARCHAR(500),
                     "summary" VARCHAR(500),
                     "slug" VARCHAR(240),

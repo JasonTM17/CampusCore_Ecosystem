@@ -17,7 +17,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -448,4 +448,12 @@ class NotificationWritePersistenceTest {
                         .claim("roles", List.of("ADMIN")), "ADMIN")
                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
+
+    @Test
+    void inboxWritePolicyRejectsAnonymousForEveryPersonalMutation() throws Exception {
+        mvc.perform(patch("/api/v1/notifications/my/unknown/read")).andExpect(status().isUnauthorized());
+        mvc.perform(patch("/api/v1/notifications/my/read-all")).andExpect(status().isUnauthorized());
+        mvc.perform(delete("/api/v1/notifications/my/unknown")).andExpect(status().isUnauthorized());
+    }
+
 }

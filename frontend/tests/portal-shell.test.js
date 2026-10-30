@@ -202,6 +202,72 @@ test('admin routes use the same fixed sidebar and retained route inventory', () 
   assert.doesNotMatch(frame, /\/admin\/thesis\/(councils|evaluation|reviews)/);
 });
 
+// ---------------------------------------------------------------------------
+// UX-W2-02 — the admin mobile sidebar opened as a modal dialog but let Tab walk
+// straight out into the inert page behind it. It now runs the same focus loop
+// the dashboard shell and the shared Modal already implement.
+// ---------------------------------------------------------------------------
+
+test('admin mobile sidebar loops Tab inside the drawer like the dashboard shell', () => {
+  const frame = read('src/components/admin/AdminFrame.tsx');
+  const layout = read('src/app/dashboard/layout.tsx');
+
+  for (const [name, source] of [['AdminFrame', frame], ['dashboard layout', layout]]) {
+    assert.match(source, /sidebarRef/, `${name} must hold a ref to the drawer root`);
+    assert.match(source, /ref=\{sidebarRef\}/, `${name} must attach the ref to the <aside>`);
+    assert.match(
+      source,
+      /event\.key !== 'Tab'\) return;/,
+      `${name} must short-circuit non-Tab keys`,
+    );
+    // The loop wraps both directions: Shift+Tab on the first item jumps to the
+    // last, Tab on the last jumps to the first.
+    assert.match(source, /event\.shiftKey && activeIndex === 0/, `${name} must wrap Shift+Tab on the first focusable`);
+    assert.match(source, /!event\.shiftKey && activeIndex === focusable\.length - 1/, `${name} must wrap Tab on the last focusable`);
+    // A nested modal keeps its own trap — the sidebar handler must step aside.
+    assert.match(source, /\[role="dialog"\]\[aria-modal="true"\]/, `${name} must defer to nested modal dialogs`);
+    // Escape still closes and hands focus back to the hamburger button.
+    assert.match(
+      source,
+      /openSidebarButtonRef\.current\?\.focus\(\)/,
+      `${name} must restore focus to the sidebar opener`,
+    );
+  }
+  assert.match(frame, /tabIndex=\{-1\}/, 'the admin drawer root must be programmatically focusable');
+});
+
+// ---------------------------------------------------------------------------
+// UX-W2-03 — both profile dropdowns advertise role="menu"/menuitem but ignored
+// every menu keyboard binding. The shells now implement the advertised model:
+// Arrow keys rove between menuitems, Home/End jump, opening moves focus into
+// the menu, Escape returns focus to the trigger, Tab/blur-out closes. The menu
+// roles stay because the Playwright specs select entries by role=menuitem.
+// ---------------------------------------------------------------------------
+
+test('shell profile menus implement the keyboard model their roles advertise', () => {
+  const frame = read('src/components/admin/AdminFrame.tsx');
+  const layout = read('src/app/dashboard/layout.tsx');
+
+  for (const [name, source] of [['AdminFrame', frame], ['dashboard layout', layout]]) {
+    assert.match(source, /role="menu"/, `${name} keeps the menu role the e2e specs query`);
+    assert.match(source, /role="menuitem"/, `${name} keeps menuitem roles`);
+    assert.match(source, /querySelectorAll<HTMLElement>\('\[role="menuitem"\]'\)/, `${name} must enumerate its menuitems`);
+    // Roving focus inside the open menu.
+    assert.match(source, /event\.key === 'ArrowDown' \|\| event\.key === 'ArrowUp'/, `${name} must rove with Arrow keys`);
+    assert.match(source, /event\.key === 'Home'/, `${name} must jump to the first item on Home`);
+    assert.match(source, /event\.key === 'End'/, `${name} must jump to the last item on End`);
+    // Opening the menu moves focus into it (last item when opened with ArrowUp).
+    assert.match(source, /profileFocusLastRef/, `${name} must track ArrowUp-triggered opening`);
+    assert.match(source, /target\.focus\(\)/, `${name} must focus a menuitem on open`);
+    // Escape closes and returns focus to the trigger.
+    assert.match(source, /profileTriggerRef\.current\?\.focus\(\)/, `${name} must return focus to the trigger on Escape`);
+    // The trigger itself opens the menu on ArrowDown/ArrowUp.
+    assert.match(source, /aria-haspopup="menu"/, `${name} keeps the trigger menu affordance`);
+    // Focus leaving the menu (Tab) closes it.
+    assert.match(source, /onBlur=\{\(event\) => \{[\s\S]{0,200}setProfileOpen\(false\)/, `${name} must close when focus leaves the menu`);
+  }
+});
+
 test('status primitives use semantic tokens instead of raw Tailwind palettes', () => {
   const globals = read('src/app/globals.css');
   const status = read('src/components/ui/status.ts');
@@ -299,6 +365,30 @@ test('shared states and notification tabs preserve keyboard and feedback semanti
   assert.match(notifications, /min-h-11/);
   assert.match(button, /icon: 'h-11 w-11'/);
   assert.match(input, /text-base[\s\S]*sm:text-sm/);
+});
+
+test('public recovery and control surfaces keep landmarks and the 44px floor', () => {
+  const notFound = read('src/app/not-found.tsx');
+  const languageToggle = read('src/components/LanguageToggle.tsx');
+  const homeNews = read('src/components/home/HomeNewsSection.tsx');
+
+  // A missing route must still give keyboard and screen-reader users a way
+  // back: a skip link, a real <main> landmark and a recovery <nav>. The
+  // recovery action is a public control, so it keeps the 44 px touch target
+  // instead of the old 40 px link.
+  assert.match(notFound, /portal-skip-link/);
+  assert.match(notFound, /<main[\s\S]*?id="main-content"/);
+  assert.match(notFound, /<nav/);
+  assert.doesNotMatch(notFound, /(?<![-\w])h-10\b/);
+  assert.match(notFound, /min-h-11/);
+
+  // The inverse chrome chips render on the public header; they share the
+  // default chips' 44 px floor rather than a compact variant below it.
+  assert.doesNotMatch(languageToggle, /min-h-9/);
+  assert.match(languageToggle, /min-h-11/);
+
+  // The public news category filters resolved to ~34 px with no floor.
+  assert.match(homeNews, /CATEGORY_TABS\.map[\s\S]*?min-h-11/);
 });
 
 test('registration page diagnostics oracle permits academic course names but blocks internals', () => {

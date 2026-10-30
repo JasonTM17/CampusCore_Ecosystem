@@ -258,11 +258,14 @@ public class AuthUserRepository {
         invalidateLoginChallenges(userId);
     }
 
-    /** Called under the credential writer's User lock and transaction. */
+    /**
+     * Called under the credential writer's User lock and transaction. Retire
+     * posture challenges too: their password check predates this credential change.
+     */
     public void invalidateLoginChallenges(String userId) {
         jdbc.update("UPDATE " + SCHEMA + "\"TwoFactorChallenge\""
                         + " SET \"consumedAt\" = CURRENT_TIMESTAMP"
-                        + " WHERE \"userId\" = :id AND \"purpose\" = 'LOGIN' AND \"consumedAt\" IS NULL",
+                        + " WHERE \"userId\" = :id AND \"consumedAt\" IS NULL",
                 new MapSqlParameterSource("id", userId));
     }
 

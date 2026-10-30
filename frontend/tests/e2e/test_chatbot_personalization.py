@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import tempfile
 
 if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8')
@@ -8,7 +9,7 @@ if sys.platform == 'win32':
 
 from playwright.sync_api import sync_playwright
 
-ARTIFACT_DIR = r"C:\Users\Admin\.gemini\antigravity\brain\32baa29e-0b4a-488d-8978-7fca7b16587f"
+ARTIFACT_DIR = os.environ.get("ARTIFACT_DIR", tempfile.gettempdir())
 FRONTEND_URL = "http://127.0.0.1:3100"
 
 def wait_for_assistant_reply(page, min_messages=2, timeout=20000):

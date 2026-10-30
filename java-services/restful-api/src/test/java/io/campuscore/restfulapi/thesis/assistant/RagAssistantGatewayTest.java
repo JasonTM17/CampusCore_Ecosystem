@@ -4,13 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantDtos.ChatRequest;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -391,6 +392,111 @@ class RagAssistantGatewayTest {
         // the pre-replace buffer as a second delta.
         assertTrue(events.stream().noneMatch(event -> event instanceof ThesisAssistantService.StreamDelta delta
                 && delta.text().contains("20")));
+    }
+
+    @Test
+    void chatKeepsQuotaResetAndCallMetadataWhenNormalizationRebuildsTheResponse() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        UUID clientRequestId = UUID.randomUUID();
+        UUID turnId = UUID.randomUUID();
+        String resetAt = "2026-10-31T17:00:00Z";
+        startServer(exchange -> {
+            byte[] response = ("""
+                    {"answer":"1. Đăng ký lớp Mở Cổng sinh viên tương đương4.0","model":"curated-lexical-rag","degraded":true,"reasonCode":"QUOTA_EXCEEDED","locale":"vi","citations":[],"requestId":"%s","clientRequestId":"%s","turnId":"%s","replayed":true,"terminalStatus":"COMPLETED","conversationId":"conv-1","messageId":"msg-1","resetAt":"%s"}
+                    """.formatted(requestId, clientRequestId, turnId, resetAt)).getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        }, "/chat");
+
+        var response = gateway().chat(new ChatRequest("Đăng ký", "vi", clientRequestId, null), "owner-a");
+
+        assertEquals("1. Đăng ký lớp\n\nMở Cổng sinh viên tương đương 4.0", response.answer());
+        assertEquals("QUOTA_EXCEEDED", response.reasonCode());
+        assertTrue(response.degraded());
+        assertEquals(requestId, response.requestId());
+        assertEquals(clientRequestId, response.clientRequestId());
+        assertEquals(turnId, response.turnId());
+        assertTrue(response.replayed());
+        assertEquals("COMPLETED", response.terminalStatus());
+        assertEquals("conv-1", response.conversationId());
+        assertEquals("msg-1", response.messageId());
+        assertEquals(Instant.parse(resetAt), response.resetAt());
+    }
+
+    @Test
+    void chatKeepsQuotaResetMetadataWhenTheRemoteAnswerIsReplacedAsUnsafe() throws Exception {
+        String resetAt = "2026-10-31T17:00:00Z";
+        startServer(exchange -> {
+            byte[] response = """
+                    {"answer":"The retrieved context contains curl commands and API endpoints.","model":"deepseek-v4-flash","degraded":false,"reasonCode":"QUOTA_EXCEEDED","locale":"vi","citations":[],"terminalStatus":"COMPLETED","conversationId":"conv-2","messageId":"msg-2","resetAt":"%s"}
+                    """.formatted(resetAt).getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        }, "/chat");
+
+        var response = gateway().chat(new ChatRequest("Câu hỏi", "vi", UUID.randomUUID(), null), "owner-a");
+
+        assertEquals(ThesisAssistantService.technicalOutputMessage("vi"), response.answer());
+        assertEquals("PROVIDER_UNSAFE_OUTPUT", response.reasonCode());
+        assertTrue(response.degraded());
+        assertTrue(response.citations().isEmpty());
+        assertEquals(Instant.parse(resetAt), response.resetAt());
+        assertEquals("conv-2", response.conversationId());
+        assertEquals("msg-2", response.messageId());
+    }
+
+    @Test
+    void chatKeepsQuotaResetMetadataWhenNoMatchDropsRemoteCitations() throws Exception {
+        var citation = """
+                {"id":"doc-1","slug":"registration","title":"Registration","source":"office","locale":"vi","excerpt":"Public guidance","domain":"ACADEMIC","sourceKind":"CURATED","snapshotHash":"hash"}
+                """;
+        String resetAt = "2026-10-31T17:00:00Z";
+        startServer(exchange -> {
+            byte[] response = ("""
+                    {"answer":"Mình chưa tìm thấy hướng dẫn phù hợp.","model":"curated-lexical-rag","degraded":true,"reasonCode":"NO_MATCH","locale":"vi","citations":[%s],"conversationId":"conv-3","messageId":"msg-3","resetAt":"%s"}
+                    """.formatted(citation, resetAt)).getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        }, "/chat");
+
+        var response = gateway().chat(new ChatRequest("Thời tiết", "vi", UUID.randomUUID(), null), "owner-a");
+
+        assertEquals("NO_MATCH", response.reasonCode());
+        assertTrue(response.citations().isEmpty());
+        assertEquals(Instant.parse(resetAt), response.resetAt());
+        assertEquals("conv-3", response.conversationId());
+        assertEquals("msg-3", response.messageId());
+    }
+
+    @Test
+    void chatKeepsQuotaResetMetadataWhenTheRemoteResponseNeedsNoNormalization() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        UUID clientRequestId = UUID.randomUUID();
+        String resetAt = "2026-10-31T17:00:00Z";
+        startServer(exchange -> {
+            byte[] response = ("""
+                    {"answer":"ok","model":"curated-lexical-rag","degraded":true,"reasonCode":"QUOTA_EXCEEDED","locale":"vi","citations":[],"requestId":"%s","clientRequestId":"%s","replayed":false,"terminalStatus":"COMPLETED","conversationId":"conv-4","messageId":"msg-4","resetAt":"%s"}
+                    """.formatted(requestId, clientRequestId, resetAt)).getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        }, "/chat");
+
+        var response = gateway().chat(new ChatRequest("Xin chào", "vi", clientRequestId, null), "owner-a");
+
+        assertEquals("ok", response.answer());
+        assertEquals(requestId, response.requestId());
+        assertEquals(clientRequestId, response.clientRequestId());
+        assertEquals(Instant.parse(resetAt), response.resetAt());
+        assertEquals("conv-4", response.conversationId());
+        assertEquals("msg-4", response.messageId());
     }
 
     private RagAssistantGateway gateway() {

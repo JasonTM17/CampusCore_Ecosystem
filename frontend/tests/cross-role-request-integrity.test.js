@@ -116,6 +116,14 @@ function loadEnrollmentsApi(getImpl) {
     '@/lib/public-api-url': { resolvePublicApiBaseUrl: () => '/api/v1' },
     '@/lib/session-hint': { CSRF_COOKIE_NAME: 'cc_csrf', isLogoutInProgress: () => false },
     '@/lib/session-sync': { publishSessionChange: noop },
+    '@/lib/surfaces': { surfaceFromHost: () => null },
+    '@/lib/observability': {
+      REQUEST_ID_HEADER: 'X-Request-Id',
+      newRequestId: () => 'test-request-id',
+      pathOf: (url) => (url ?? '').split('?')[0],
+      pathTemplate: (url) => (url ?? '').split('?')[0],
+      recordApiMetric: noop,
+    },
   }).enrollmentsApi;
 }
 

@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.academic.web;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import io.campuscore.restfulapi.academic.service.AcademicScheduleReadService;
 import io.campuscore.restfulapi.academic.web.AcademicScheduleReadDtos.ScheduleListResponse;
 import io.campuscore.restfulapi.academic.web.AcademicScheduleReadDtos.ScheduleResponse;
@@ -25,6 +26,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RestController
 @Profile("persistence")
 @RequestMapping("/api/v1/schedules")
+@PreAuthorize("isAuthenticated()")
 public class AcademicScheduleReadController {
 
     private final AcademicScheduleReadService academic;

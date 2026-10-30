@@ -9,7 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.campuscore.restfulapi.engagement.repository.AnnouncementAuditRepository;
 import io.campuscore.restfulapi.engagement.repository.AnnouncementWriteRepository;
 import io.campuscore.restfulapi.engagement.service.AnnouncementStudentNotifier;
@@ -34,19 +34,23 @@ class ScheduledAnnouncementNotifyTest {
     private static final Instant NOW = Instant.now();
 
     @Test
-    void createStampsNotifiedOnlyWhenVisibleNow() throws Exception {
+    void approveStampsNotifiedOnlyWhenVisibleNow() throws Exception {
+        // The fan-out trigger moved to approve: create lands DRAFT and never
+        // notifies; approval of an immediate row (publishAt NULL) fires it.
         AnnouncementWriteRepository announcements = mock(AnnouncementWriteRepository.class);
         AnnouncementStudentNotifier notifier = mock(AnnouncementStudentNotifier.class);
         AnnouncementWriteService service = service(announcements, notifier);
-        when(announcements.create(any())).thenReturn(announcement(null));
+        when(announcements.findByIdForUpdate("notice-1")).thenReturn(Optional.of(inReview()));
+        when(announcements.approveForPublication(eq("notice-1"), eq(0), eq("admin-2"), any())).thenReturn(1);
+        when(announcements.findById("notice-1")).thenReturn(Optional.of(announcement(null)));
 
-        service.create("admin-1", "Admin", List.of("ADMIN"), null, createRequest(null));
+        service.approve("admin-2", "Admin Two", List.of("ADMIN"), "notice-1");
 
         verify(notifier).notifyAfterPublication("notice-1");
     }
 
     @Test
-    void createScheduledLeavesMarkerNullForTheJob() throws Exception {
+    void createNeverNotifiesBeforeReview() throws Exception {
         AnnouncementWriteRepository announcements = mock(AnnouncementWriteRepository.class);
         AnnouncementStudentNotifier notifier = mock(AnnouncementStudentNotifier.class);
         AnnouncementWriteService service = service(announcements, notifier);
@@ -55,6 +59,7 @@ class ScheduledAnnouncementNotifyTest {
 
         service.create("admin-1", "Admin", List.of("ADMIN"), null, createRequest(future));
 
+        verify(notifier, never()).notifyAfterPublication(any());
         verify(announcements, never()).markNotified(any(), any());
     }
 
@@ -63,10 +68,12 @@ class ScheduledAnnouncementNotifyTest {
         AnnouncementWriteRepository announcements = mock(AnnouncementWriteRepository.class);
         AnnouncementStudentNotifier notifier = mock(AnnouncementStudentNotifier.class);
         AnnouncementWriteService service = service(announcements, notifier);
-        when(announcements.create(any())).thenReturn(announcement(null));
+        when(announcements.findByIdForUpdate("notice-1")).thenReturn(Optional.of(inReview()));
+        when(announcements.approveForPublication(eq("notice-1"), eq(0), eq("admin-2"), any())).thenReturn(1);
+        when(announcements.findById("notice-1")).thenReturn(Optional.of(announcement(null)));
         when(notifier.notifyAfterPublication(any())).thenThrow(new RuntimeException("inbox down"));
 
-        service.create("admin-1", "Admin", List.of("ADMIN"), null, createRequest(null));
+        service.approve("admin-2", "Admin Two", List.of("ADMIN"), "notice-1");
 
         // Claim and inbox write are owned by the notifier's one new transaction.
         // Its rollback/retry eligibility is checked by the persistence test.
@@ -78,7 +85,7 @@ class ScheduledAnnouncementNotifyTest {
     void reschedulingPublishAtIntoFutureReArmsTheMarker() throws Exception {
         AnnouncementWriteRepository announcements = mock(AnnouncementWriteRepository.class);
         AnnouncementWriteService service = service(announcements, mock(AnnouncementStudentNotifier.class));
-        AnnouncementResponse existing = announcement(null);
+        AnnouncementResponse existing = draft();
         when(announcements.findByIdForUpdate("notice-1")).thenReturn(Optional.of(existing));
         when(announcements.findById("notice-1")).thenReturn(Optional.of(existing));
         when(announcements.update(any())).thenReturn(1);
@@ -175,6 +182,30 @@ class ScheduledAnnouncementNotifyTest {
                 List.of("STUDENT"), List.of(1), false,
                 publishAt, null, "publisher-1",
                 null, null, null, null, null, null, null, null,
-                NOW, NOW, 0, null, null, null, null, null);
+                NOW, NOW, 0, null, null,
+                "PUBLISHED", "publisher-1", "reviewer-1", NOW, null, 1,
+                null, null, null);
+    }
+
+    private static AnnouncementResponse draft() {
+        return new AnnouncementResponse(
+                "notice-1", "Title", "Content", "NORMAL",
+                List.of("STUDENT"), List.of(1), false,
+                null, null, "publisher-1",
+                null, null, null, null, null, null, null, null,
+                NOW, NOW, 0, null, null,
+                "DRAFT", "publisher-1", null, null, null, null,
+                null, null, null);
+    }
+
+    private static AnnouncementResponse inReview() {
+        return new AnnouncementResponse(
+                "notice-1", "Title", "Content", "NORMAL",
+                List.of("STUDENT"), List.of(1), false,
+                null, null, "publisher-1",
+                null, null, null, null, null, null, null, null,
+                NOW, NOW, 0, null, null,
+                "IN_REVIEW", "admin-1", null, null, null, null,
+                null, null, null);
     }
 }
