@@ -16,6 +16,9 @@ const retiredPollers = [
   'wait-prod-v131.mjs',
   'wait-prod-section-search.mjs',
 ];
+const fetchDiagnostics = [
+  'prod-deep-audit.mjs',
+];
 
 const readScript = (name) => readFileSync(resolve(scriptsDirectory, name), 'utf8');
 
@@ -91,7 +94,7 @@ test('diagnostic logs omit URL queries and unknown option values', () => {
 });
 
 test('role diagnostics require named environment credentials', () => {
-  for (const name of ['benchmark-all-roles.mjs', 'audit-prod-browser.mjs']) {
+  for (const name of ['benchmark-all-roles.mjs', 'audit-prod-browser.mjs', 'diagnose-login.mjs']) {
     const source = readScript(name);
     assert.ok(source.includes('CAMPUS_DIAGNOSTIC_'), `${name} must name its credential environment variables`);
     assert.ok(source.includes('process.env'), `${name} must read credentials from the environment`);
@@ -126,6 +129,18 @@ test('role diagnostics reject missing environment credentials before browser sta
   }
 });
 
+test('login diagnostic rejects missing environment credentials before browser startup', () => {
+  const env = { ...process.env };
+  env.CAMPUS_DIAGNOSTIC_STUDENT_EMAIL = '';
+  env.CAMPUS_DIAGNOSTIC_STUDENT_PASSWORD = '';
+  const result = spawnSync(process.execPath, [resolve(scriptsDirectory, 'diagnose-login.mjs'), '--target', 'http://127.0.0.1:3000'], {
+    encoding: 'utf8',
+    timeout: 5000,
+    env,
+  });
+  assert.equal(result.status, 2, 'diagnose-login.mjs must refuse to run without configured credentials');
+});
+
 test('login diagnostic writes screenshots only under the ignored artifact tree', () => {
   const source = readScript('diagnose-login.mjs');
   assert.ok(source.includes('artifacts/verification/diagnostics/'), 'screenshot output must stay under artifacts');
@@ -143,6 +158,49 @@ test('historical deployment pollers are retired without requests', () => {
     const defaultRun = spawnSync(process.execPath, [resolve(scriptsDirectory, name)], { encoding: 'utf8', timeout: 5000 });
     assert.equal(help.status, 0, `${name} help must exit cleanly`);
     assert.equal(defaultRun.status, 2, `${name} must fail closed without network access`);
+  }
+});
+
+test('fetch diagnostics validate an explicit target before issuing requests', () => {
+  for (const name of fetchDiagnostics) {
+    const source = readScript(name);
+    const validation = source.indexOf('parseTargetOptions(process.argv.slice(2))');
+    const firstRequest = source.indexOf('fetch(');
+
+    assert.ok(source.includes('--target'), `${name} must document an explicit target`);
+    assert.ok(source.includes('--allow-network'), `${name} must require network opt-in for remote targets`);
+    assert.ok(validation >= 0 && firstRequest > validation, `${name} must validate its target before any request helper exists`);
+    assert.ok(/if\s*\(\s*!isLoopback\(url\.hostname\)\s*&&\s*!allowNetwork\s*\)/.test(source), `${name} must reject remote targets without opt-in`);
+    assert.ok(!/https:\/\/(?:www\.)?campusute\.io\.vn|https:\/\/campuscore-backend-p4em\.onrender\.com/i.test(source), `${name} must not embed a remote target`);
+  }
+});
+
+test('fetch diagnostics reject bad targets and unknown options before any request', () => {
+  for (const name of fetchDiagnostics) {
+    const invalidTarget = spawnSync(process.execPath, [resolve(scriptsDirectory, name), '--target', 'file:///invalid-target'], {
+      encoding: 'utf8',
+      timeout: 5000,
+    });
+    assert.equal(invalidTarget.status, 2, `${name} must reject non-HTTP targets`);
+
+    const missingTarget = spawnSync(process.execPath, [resolve(scriptsDirectory, name)], {
+      encoding: 'utf8',
+      timeout: 5000,
+    });
+    assert.equal(missingTarget.status, 2, `${name} must fail closed without an explicit target`);
+
+    const help = spawnSync(process.execPath, [resolve(scriptsDirectory, name), '--help'], {
+      encoding: 'utf8',
+      timeout: 5000,
+    });
+    assert.equal(help.status, 0, `${name} help must exit cleanly`);
+
+    const unknown = spawnSync(process.execPath, [resolve(scriptsDirectory, name), '--unrecognized-option=probe'], {
+      encoding: 'utf8',
+      timeout: 5000,
+    });
+    assert.equal(unknown.status, 2, `${name} must reject unknown options`);
+    assert.ok(!unknown.stderr.includes('--unrecognized-option=probe'), `${name} must not echo the rejected option`);
   }
 });
 
