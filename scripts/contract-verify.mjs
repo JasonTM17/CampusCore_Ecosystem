@@ -146,6 +146,7 @@ async function caseProbes(args, log) {
 
   const results = { generator: null, headers: [], requestId: [], logRedaction: null };
   let failed = false;
+  let stackStarted = false;
   const teardown = () => {
     run("docker", [...compose, "down", "-v", "--remove-orphans"], { env, timeout: 120000 });
   };
@@ -158,8 +159,16 @@ async function caseProbes(args, log) {
       throw new Error(`port ${API_HOST_PORT} already serves an API — stop it before contract probes`);
     }
 
+    // `up` adopts containers of a pre-existing project with the same -p name,
+    // so prove the project empty before starting or ever tearing anything down.
+    const existing = run("docker", [...compose, "ps", "-aq"], { env, timeout: 60000 });
+    if (existing.status !== 0 || existing.stdout.trim() !== "") {
+      throw new Error(`compose project ${project} is not empty or cannot be inspected — refusing to mutate or tear it down`);
+    }
+
     log(`up ${project} pg:${pgPort} api:${API_HOST_PORT}`);
     const up = run("docker", [...compose, "up", "-d", "--build"], { env, timeout: 900000 });
+    stackStarted = true;
     if (up.status !== 0) throw new Error(`compose up failed: ${up.stderr.slice(-800)}`);
 
     const healthy = await waitHealth(`http://127.0.0.1:${API_HOST_PORT}/api/v1/health/liveness`, 240000);
@@ -250,7 +259,7 @@ async function caseProbes(args, log) {
     evidence.verdict = "FAIL";
     log(`ERROR ${evidence.error}`);
   } finally {
-    teardown();
+    if (stackStarted) teardown();
   }
   return { evidence, failed };
 }

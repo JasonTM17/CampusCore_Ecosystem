@@ -88,7 +88,8 @@ childProcess.spawnSync = (command, args, options) => {
     E2E_API_HOST_PORT: options?.env?.E2E_API_HOST_PORT,
   } }) + '\\n');
   const invalid = args.includes('config') && process.env.CONTRACT_OPTIONS_TEST_INVALID === '1';
-  return { status: invalid ? 1 : 0, stdout: args.includes('logs') ? 'synthetic container log' : '{}', stderr: '' };
+  const stdout = args.includes('logs') ? 'synthetic container log' : (args.includes('ps') ? '' : '{}');
+  return { status: invalid ? 1 : 0, stdout, stderr: '' };
 };
 syncBuiltinESMExports();
 let firstHealth = true;
@@ -133,7 +134,7 @@ test('up, logs and down use the same validated overlay and interpolation environ
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const docker = calls.filter((call) => call.command === 'docker');
   const prefix = composeArgs('campuscore-options-test', overlay);
-  assert.deepEqual(docker.map((call) => call.args[prefix.length]), ['config', 'up', 'logs', 'down']);
+  assert.deepEqual(docker.map((call) => call.args[prefix.length]), ['config', 'ps', 'up', 'logs', 'down']);
   for (const call of docker) {
     assert.deepEqual(call.args.slice(0, prefix.length), prefix);
     assert.deepEqual(call.env, docker[0].env);
@@ -156,7 +157,7 @@ test('the actual CLI without an overlay retains the single-file up/logs/down flo
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const docker = calls.filter((call) => call.command === 'docker');
   const prefix = composeArgs('campuscore-options-test');
-  assert.deepEqual(docker.map((call) => call.args[prefix.length]), ['up', 'logs', 'down']);
+  assert.deepEqual(docker.map((call) => call.args[prefix.length]), ['ps', 'up', 'logs', 'down']);
   for (const call of docker) assert.deepEqual(call.args.slice(0, prefix.length), prefix);
   const receipt = JSON.parse(fs.readFileSync(path.join(evidence, 'contract-probes.json'), 'utf8'));
   assert.equal(receipt.composeOverlay, undefined);
