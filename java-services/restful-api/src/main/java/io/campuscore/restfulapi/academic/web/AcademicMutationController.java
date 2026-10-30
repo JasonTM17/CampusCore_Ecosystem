@@ -106,7 +106,8 @@ public class AcademicMutationController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Xuất file CSV thành công"),
         @ApiResponse(responseCode = "413", description = "Vượt quá giới hạn số hàng xuất được hỗ trợ",
-                content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+                content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                        schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping(value = "enrollments/export/csv", produces = "text/csv")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
