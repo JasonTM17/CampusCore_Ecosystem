@@ -78,6 +78,16 @@ Cần DNS + hosting credentials + store/signing. Khi có:
 5. Rollback drill: restore backup hiện tại → attachment parity → delta
    check trước reopen. DNS rollback theo record thực — TTL không tức thì.
 
+### Provider checklist còn thiếu (measured 2026-10-30, all probed)
+
+| Item | Probe result | Owner action |
+| --- | --- | --- |
+| `id.campusute.io.vn` (OIDC issuer) | NXDOMAIN | DNS CNAME → Render custom domain; issuer env `IDENTITY_ISSUER` phải khớp |
+| `api.campusute.io.vn` | NXDOMAIN | DNS CNAME → Render service (hoặc giữ Vercel `/api/v1` proxy và bỏ host này khỏi registry) |
+| `/.well-known/assetlinks.json` | 404 trên www | Deploy frontend ≥ commit `4471465a`; fingerprint đã bind keystore release local (`0A:0B:8C:…`, xem `device-runbook.md`) |
+| `/.well-known/apple-app-site-association` | 404 trên www | Cùng deploy; TeamID còn `SYNTH00000` — điền khi enroll Apple Developer (proposal trong `device-runbook.md`) |
+| Physical device acceptance | NOT_RUN | Emulator pass là mức chứng minh hiện có; không thay physical |
+
 ## 6. Recovery
 
 - Data corrupt → fence writer → `ops/backup/restore-postgres.sh` vào
