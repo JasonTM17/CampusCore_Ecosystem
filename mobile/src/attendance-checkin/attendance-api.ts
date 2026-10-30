@@ -15,10 +15,10 @@ export interface CheckinResult {
   status: string | null;
   message: string;
 }
-export type AttendanceErrorCode = 'INVALID_LOCATION' | 'NOT_ENROLLED' | 'CONSENT_REQUIRED'
+export type AttendanceErrorCode = 'INVALID_LOCATION' | 'NOT_ENROLLED' | 'CONSENT_REQUIRED' | 'INVALID_CONSENT_VERSION' | 'AUTH_RECOVERY'
   | 'ALREADY_CHECKED_IN' | 'SESSION_CLOSED' | 'BAD_CODE' | 'OUTSIDE_AREA' | 'LOW_ACCURACY'
   | 'TOO_MANY_ATTEMPTS' | 'NETWORK_ERROR' | 'UNKNOWN';
-const SERVER_CODES = new Set<string>(['INVALID_LOCATION', 'NOT_ENROLLED', 'CONSENT_REQUIRED',
+const SERVER_CODES = new Set<string>(['INVALID_LOCATION', 'NOT_ENROLLED', 'CONSENT_REQUIRED', 'INVALID_CONSENT_VERSION',
   'ALREADY_CHECKED_IN', 'SESSION_CLOSED', 'BAD_CODE', 'OUTSIDE_AREA', 'LOW_ACCURACY', 'TOO_MANY_ATTEMPTS']);
 
 export class AttendanceApiError extends Error {
@@ -37,7 +37,7 @@ export function normalizeAttendanceError(error: unknown): AttendanceApiError {
   if (error instanceof AttendanceApiError) return error;
   const shape = error as { code?: unknown; status?: unknown; headers?: Headers; retryAfterSeconds?: unknown } | null;
   const status = typeof shape?.status === 'number' ? shape.status : 0;
-  const code: AttendanceErrorCode = typeof shape?.code === 'string' && SERVER_CODES.has(shape.code)
+  const code: AttendanceErrorCode = status === 401 ? 'AUTH_RECOVERY' : typeof shape?.code === 'string' && SERVER_CODES.has(shape.code)
     ? shape.code as AttendanceErrorCode : status === 429 ? 'TOO_MANY_ATTEMPTS'
       : status === 0 && (error instanceof TypeError || shape?.code === 'NETWORK_ERROR') ? 'NETWORK_ERROR' : 'UNKNOWN';
   const retryAfter = typeof shape?.retryAfterSeconds === 'number' && Number.isFinite(shape.retryAfterSeconds)
@@ -78,11 +78,12 @@ export function createAttendanceApi(client: Pick<ApiClient, 'request'>,
 export function createSingleAttemptRequest(options: {
   baseUrl: string; getAccessToken(): string | null; sessionEpoch(): number;
   fetchImpl?: typeof fetch;
+  recoverUnauthorized?(signal: AbortSignal): Promise<unknown>;
 }): AttendanceRequest {
   return async <T>(path: string, init?: ApiRequestInit): Promise<T> => {
     const epoch = options.sessionEpoch();
     const token = options.getAccessToken();
-    if (!token) throw new AttendanceApiError('UNKNOWN', 401);
+    if (!token) throw new AttendanceApiError('AUTH_RECOVERY', 401);
     const controller = new AbortController();
     const epochWatch = setInterval(() => { if (options.sessionEpoch() !== epoch) controller.abort(); }, 100);
     const deadline = setTimeout(() => controller.abort(), 15000);
@@ -94,14 +95,21 @@ export function createSingleAttemptRequest(options: {
       if (options.sessionEpoch() !== epoch) throw new AttendanceApiError('UNKNOWN');
       let body: unknown;
       try { body = await response.json(); } catch { body = null; }
+      if (options.sessionEpoch() !== epoch) throw new AttendanceApiError('UNKNOWN');
       if (!response.ok) {
+        if (response.status === 401) {
+          // A safe read joins shared refresh/expiry handling; the POST is never replayed.
+          try { await options.recoverUnauthorized?.(controller.signal); } catch { /* Preserve explicit auth recovery. */ }
+          throw normalizeAttendanceError({ status: 401, headers: response.headers });
+        }
         const code = body && typeof body === 'object' && 'code' in body ? body.code : undefined;
         throw normalizeAttendanceError({ status: response.status, code, headers: response.headers });
       }
       if (options.sessionEpoch() !== epoch) throw new AttendanceApiError('UNKNOWN');
       return body as T;
     } catch (error) {
-      if (controller.signal.aborted && options.sessionEpoch() === epoch) {
+      if (controller.signal.aborted && options.sessionEpoch() === epoch
+        && !(error instanceof AttendanceApiError && error.status === 401)) {
         throw new AttendanceApiError('NETWORK_ERROR', 0, true);
       }
       throw normalizeAttendanceError(error);
@@ -113,7 +121,8 @@ export function createNativeAttendanceApi(): AttendanceApi {
   const { apiClient } = require('../api/client') as typeof import('../api/client');
   const { sessionStore } = require('../auth/mobile-session-store') as typeof import('../auth/mobile-session-store');
   const submit = createSingleAttemptRequest({ baseUrl: apiClient.baseUrl,
-    getAccessToken: () => sessionStore.getAccessToken(), sessionEpoch: () => sessionStore.sessionEpoch() });
+    getAccessToken: () => sessionStore.getAccessToken(), sessionEpoch: () => sessionStore.sessionEpoch(),
+    recoverUnauthorized: (signal) => apiClient.request('/auth/me', { method: 'GET', cache: 'no-store', signal }) });
   const api = createAttendanceApi(apiClient, submit);
   return {
     ...api,
