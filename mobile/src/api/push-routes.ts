@@ -84,7 +84,9 @@ function refuse(
   return {
     action: 'refuse',
     reason,
-    fallbackHref: context.kind === 'signedOut' ? '/sign-in' : roleHomePath(context.role),
+    fallbackHref: context.kind === 'signedOut'
+      ? '/sign-in'
+      : roleHomePath(context.role, context.capabilities ?? NO_CAPABILITIES),
   };
 }
 
