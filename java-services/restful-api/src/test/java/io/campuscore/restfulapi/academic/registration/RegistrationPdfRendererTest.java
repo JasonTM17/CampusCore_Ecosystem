@@ -146,4 +146,76 @@ class RegistrationPdfRendererTest {
             java.nio.file.Files.deleteIfExists(tempFile);
         }
     }
+
+    @Test
+    void rendersAllCoursesAcrossPagesAndTotalsAllCredits() throws Exception {
+        java.util.List<RegistrationPdfRenderer.CourseItem> courses = java.util.stream.IntStream.rangeClosed(1, 13)
+                .mapToObj(index -> new RegistrationPdfRenderer.CourseItem(
+                        "COURSE-" + index,
+                        "Course " + index,
+                        String.format("%02d", index),
+                        1,
+                        "enr-" + index,
+                        "sec-" + index))
+                .toList();
+
+        byte[] pdfBytes = renderer.renderEnriched(
+                "student-13",
+                "22110013",
+                "Student Thirteen",
+                "sem-2026-1",
+                "Semester 1",
+                "enr-1",
+                "sec-1",
+                courses);
+
+        String pdfString = new String(pdfBytes, StandardCharsets.ISO_8859_1);
+        for (int index = 1; index <= 13; index++) {
+            assertThat(pdfString).contains("COURSE-" + index);
+        }
+        assertThat(pdfString).contains("Tong so tin chi dang ky: 13 TC");
+        assertThat(pdfString).contains("/Count 2");
+        assertThat(pdfString.split("/Type/Page/Parent", -1)).hasSize(3);
+        assertXrefOffsetsAreValid(pdfString);
+
+        java.nio.file.Path tempFile = java.nio.file.Files.createTempFile("multi-page-slip-test", ".pdf");
+        try {
+            java.nio.file.Files.write(tempFile, pdfBytes);
+            Process process = new ProcessBuilder("python", "-c",
+                    "import pypdf; reader = pypdf.PdfReader('" + tempFile.toString().replace("\\", "/") + "'); "
+                            + "assert len(reader.pages) == 2; "
+                            + "text = ' '.join(page.extract_text() or '' for page in reader.pages); "
+                            + "assert 'COURSE-13' in text; "
+                            + "assert '13 TC' in text; "
+                            + "print('Parsed two-page registration slip successfully!')")
+                    .redirectErrorStream(true)
+                    .start();
+            assertThat(process.waitFor()).isEqualTo(0);
+        } finally {
+            java.nio.file.Files.deleteIfExists(tempFile);
+        }
+    }
+
+    private static void assertXrefOffsetsAreValid(String pdfString) {
+        String startXrefMarker = "startxref\r\n";
+        int startXrefValue = pdfString.indexOf(startXrefMarker) + startXrefMarker.length();
+        int endXrefValue = pdfString.indexOf("\r\n%%EOF", startXrefValue);
+        int xrefOffset = Integer.parseInt(pdfString.substring(startXrefValue, endXrefValue));
+        String xrefHeader = "xref\r\n0 ";
+        assertThat(pdfString.substring(xrefOffset)).startsWith(xrefHeader);
+
+        int countStart = xrefOffset + xrefHeader.length();
+        int countEnd = pdfString.indexOf("\r\n", countStart);
+        int objectCount = Integer.parseInt(pdfString.substring(countStart, countEnd));
+        int entriesStart = countEnd + 2;
+        assertThat(pdfString.substring(entriesStart, entriesStart + 20)).isEqualTo("0000000000 65535 f\r\n");
+
+        for (int objectNumber = 1; objectNumber < objectCount; objectNumber++) {
+            int entryStart = entriesStart + objectNumber * 20;
+            int objectOffset = Integer.parseInt(pdfString.substring(entryStart, entryStart + 10));
+            assertThat(pdfString.substring(objectOffset)).startsWith(objectNumber + " 0 obj\n");
+        }
+        assertThat(pdfString).contains("trailer\r\n<</Size " + objectCount + "/Root 1 0 R>>\r\n");
+        assertThat(pdfString).endsWith("%%EOF\r\n");
+    }
 }
