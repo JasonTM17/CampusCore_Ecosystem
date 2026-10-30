@@ -354,6 +354,12 @@ public class RegistrationService {
 
     @Transactional
     public SlipPayload slip(String studentId, String semesterId) {
+        // Regeneration writes the same cache that enroll/drop invalidate. Hold
+        // their Student lock before reading either cache or roster, through
+        // rendering and persistence, so a drop cannot retire a snapshot and
+        // then have this request reinsert it. No Section/Enrollment lock is
+        // acquired first: the established writer order stays unchanged.
+        lockStudent(studentId);
         MapSqlParameterSource parameters = new MapSqlParameterSource("studentId", studentId);
         String sql = "SELECT \"semesterId\", \"sha256\", \"payload\" FROM " + SLIP + " WHERE \"studentId\" = :studentId";
         if (semesterId != null && !semesterId.isBlank()) {
@@ -371,14 +377,23 @@ public class RegistrationService {
                 String cachedSemesterId = String.valueOf(row.get("semesterId")).trim();
                 List<Map<String, Object>> cachedRoster = activeEnrollments(studentId, cachedSemesterId);
                 if (cachedRoster.isEmpty()) {
-                    // A completed historical term can still have a valid slip even
-                    // though it no longer appears in the active registration set.
-                    return new SlipPayload(String.valueOf(row.get("sha256")).trim(), payload);
-                }
-                RenderedSlip expected = renderActiveRoster(studentId, cachedSemesterId, cachedRoster);
-                String storedDigest = String.valueOf(row.get("sha256")).trim();
-                if (expected.sha256().equals(storedDigest) && expected.sha256().equals(sha256(payload))) {
-                    return new SlipPayload(storedDigest, payload);
+                    // Only completed history justifies an empty active roster;
+                    // an all-dropped term must not certify a retired snapshot.
+                    Integer completed = jdbc.queryForObject(
+                            "SELECT COUNT(*) FROM " + ENROLLMENT
+                                    + " WHERE \"studentId\" = :studentId AND \"semesterId\" = :semesterId"
+                                    + " AND \"status\" = 'COMPLETED'",
+                            new MapSqlParameterSource("studentId", studentId)
+                                    .addValue("semesterId", cachedSemesterId), Integer.class);
+                    if (completed != null && completed > 0) {
+                        return new SlipPayload(String.valueOf(row.get("sha256")).trim(), payload);
+                    }
+                } else {
+                    RenderedSlip expected = renderActiveRoster(studentId, cachedSemesterId, cachedRoster);
+                    String storedDigest = String.valueOf(row.get("sha256")).trim();
+                    if (expected.sha256().equals(storedDigest) && expected.sha256().equals(sha256(payload))) {
+                        return new SlipPayload(storedDigest, payload);
+                    }
                 }
                 // A valid PDF is not proof that it represents the current roster.
                 targetSemesterId = cachedSemesterId;
