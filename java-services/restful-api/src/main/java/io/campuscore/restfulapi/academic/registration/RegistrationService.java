@@ -35,6 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Profile("persistence")
@@ -322,16 +323,8 @@ public class RegistrationService {
             throw problem(HttpStatus.FORBIDDEN, "STUDENT_PROFILE_REQUIRED", "Student profile is required");
         }
         String hash = sha256("ENROLL|" + sectionId);
-        EnrollmentResponse response = transactions.execute(status -> {
-            EnrollmentResponse enrolled =
-                    enrollLocked(studentId, sectionId, roles, idempotencyKey, hash);
-            if (enrolled == null) {
-                throw problem(HttpStatus.INTERNAL_SERVER_ERROR, "ENROLLMENT_FAILED",
-                        "Enrollment transaction returned no result");
-            }
-            persistSlip(studentId, enrolled);
-            return enrolled;
-        });
+        EnrollmentResponse response = transactions.execute(status ->
+                enrollLocked(studentId, sectionId, roles, idempotencyKey, hash));
         if (response == null) {
             throw problem(HttpStatus.INTERNAL_SERVER_ERROR, "ENROLLMENT_FAILED", "Enrollment transaction returned no result");
         }
@@ -508,7 +501,7 @@ public class RegistrationService {
             String hash) {
         Map<String, Object> replay = claimIdempotency(studentId, idempotencyKey, hash);
         if (replay != null) {
-            return reads.findEnrollment(String.valueOf(replay.get("enrollment_id")), roles, studentId);
+            return replayedEnrollment(replay, roles, studentId);
         }
         Map<String, Object> student = lockStudent(studentId);
         Map<String, Object> section = lockSection(sectionId);
@@ -576,7 +569,43 @@ public class RegistrationService {
                         .addValue("actorId", studentId)
                         .addValue("hash", hash));
         completeIdempotency(studentId, idempotencyKey, enrollmentId, hash);
-        return reads.findEnrollment(enrollmentId, roles, studentId);
+        EnrollmentResponse response = reads.findEnrollment(enrollmentId, roles, studentId);
+        // Document/lifecycle side effects belong to the first execution only:
+        // a replay must not resurrect a slip that a drop has already retired.
+        persistSlip(studentId, response);
+        return response;
+    }
+
+    /**
+     * Replay of a completed enroll claim. A recorded target that still
+     * resolves answers with its live row — a dropped enrollment honestly
+     * reports DROPPED rather than certifying a stale success. A hard-deleted
+     * or never-recorded target answers the stable conflict tombstone the
+     * other idempotent services use, instead of a fabricated result or a
+     * server error.
+     */
+    private EnrollmentResponse replayedEnrollment(
+            Map<String, Object> replay,
+            List<String> roles,
+            String studentId) {
+        Object recorded = replay.get("enrollment_id");
+        String enrollmentId = recorded == null ? null : String.valueOf(recorded).trim();
+        if (enrollmentId == null || enrollmentId.isEmpty()) {
+            throw replayTombstone();
+        }
+        try {
+            return reads.findEnrollment(enrollmentId, roles, studentId);
+        } catch (ResponseStatusException exception) {
+            if (HttpStatus.NOT_FOUND.equals(exception.getStatusCode())) {
+                throw replayTombstone();
+            }
+            throw exception;
+        }
+    }
+
+    private static DomainException replayTombstone() {
+        return problem(HttpStatus.CONFLICT, "IDEMPOTENCY_RESPONSE_UNAVAILABLE",
+                "The recorded enrollment result is unavailable; query the current enrollment state");
     }
 
     private void dropLocked(
