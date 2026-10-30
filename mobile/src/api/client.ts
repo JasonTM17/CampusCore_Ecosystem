@@ -693,6 +693,22 @@ export interface ApiDownload {
   release?: () => void;
 }
 
+/**
+ * Session-scoped authority for transports that run outside dispatch():
+ * the epoch reader plus the shared single-flight refresh a streaming request
+ * joins instead of running its own grant.
+ */
+export interface ApiSessionAuthority {
+  /** Current session epoch; undefined when the session lane is not tracked. */
+  epoch(): number | undefined;
+  /**
+   * Joins the shared single-flight refresh for a request that started under
+   * `requestEpoch`; resolves false for a dead or superseded session so a stale
+   * lane can never grant against the session that replaced it.
+   */
+  refresh(requestEpoch: number | undefined): Promise<boolean>;
+}
+
 export interface ApiClient {
   readonly baseUrl: string;
   readonly mode: ApiMode;
@@ -710,6 +726,8 @@ export interface ApiClient {
   download(path: string, init?: ApiTransferInit): Promise<ApiDownload>;
   /** Multipart upload through the same refresh, epoch and abort authority as JSON calls. */
   upload<TResponse>(path: string, form: FormData, init?: ApiUploadInit): Promise<TResponse>;
+  /** Shared epoch and single-flight refresh for streaming transports outside dispatch(). */
+  readonly session: ApiSessionAuthority;
 }
 
 export type ApiErrorKind =
@@ -1253,6 +1271,11 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
 
     delete<TResponse>(path: string, init: ApiRequestInit = {}) {
       return client.request<TResponse>(path, { ...init, method: 'DELETE' });
+    },
+
+    session: {
+      epoch: () => options.sessionEpoch?.(),
+      refresh: (requestEpoch) => refreshSessionOnce(requestEpoch),
     },
   };
 

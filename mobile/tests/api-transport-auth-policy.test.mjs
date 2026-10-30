@@ -656,6 +656,36 @@ test('legacy bytes consumer uses the bounded native disk lane then releases the 
   assert.equal(released, 1);
 });
 
+test('the session authority shares one refresh flight and refuses stale epochs', async () => {
+  const { state, options } = makeSession();
+  const client = createApiClient(options);
+  const net = installFetch((call) => (authorizedWith('new-token')(call)
+    ? json(200, { ok: true })
+    : json(401, { message: 'expired' })));
+  try {
+    assert.equal(client.session.epoch(), 1);
+    assert.equal(createApiClient({ baseUrl: BASE, mode: 'live' }).session.epoch(), undefined);
+
+    const [body, joined] = await Promise.all([
+      client.get('/a'),
+      client.session.refresh(1),
+    ]);
+    assert.deepEqual(body, { ok: true });
+    assert.equal(joined, true, 'a streaming lane joins the same single-flight refresh');
+    assert.equal(state.refreshCalls, 1, 'JSON and streaming lanes share exactly one grant');
+    assert.equal(net.calls.length, 2, 'the JSON lane replayed once with the rotated token');
+    assert.equal(net.calls[1].headers.get('authorization'), 'Bearer new-token');
+
+    state.epoch += 1;
+    assert.equal(await client.session.refresh(1), false, 'a stale epoch never starts a grant');
+    assert.equal(state.refreshCalls, 1);
+    assert.equal(await client.session.refresh(2), true, 'the current epoch still refreshes');
+    assert.equal(state.refreshCalls, 2);
+  } finally {
+    net.restore();
+  }
+});
+
 test('native multipart is prepared once and replays the prepared body/key after refresh', async () => {
   const { options, state } = makeSession();
   const sent = [];

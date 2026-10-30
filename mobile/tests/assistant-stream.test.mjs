@@ -77,7 +77,11 @@ test('the four contract fixture scenarios emit exactly their wire events', async
       .filter((row) => row.scenario === scenario && row.event !== 'comment')
       .map((row) => row.event);
     const bytes = new TextEncoder().encode(fixtureWire(scenario));
-    const actual = await collect(transportFor(responseForBytes(bytes)).stream(request));
+    const scenarioRequest = {
+      ...request,
+      clientRequestId: fixture.find((row) => row.scenario === scenario && row.event === 'meta').data.clientRequestId,
+    };
+    const actual = await collect(transportFor(responseForBytes(bytes)).stream(scenarioRequest));
     assert.deepEqual(actual.map((event) => event.type), expected, scenario);
   }
   assert.equal(streamModule.STREAMING_PARITY_VERIFIED, false);
@@ -301,6 +305,44 @@ test('the shared validator rejects repeated or decreasing delta sequences', () =
     );
   }
   validator.accept({ type: 'delta', sequence: 4, text: 'c', sourceIds: [] });
+});
+
+test('the shared validator binds meta to the request identity', () => {
+  const metaData = fixture.find((row) => row.scenario === 'normal' && row.event === 'meta').data;
+  const bound = new streamModule.AssistantEventValidator('ffffffff-ffff-4fff-8fff-ffffffffffff');
+  assert.throws(
+    () => bound.accept(metaData),
+    (error) => error.code === 'STREAM_REQUEST_MISMATCH',
+  );
+
+  const unbound = new streamModule.AssistantEventValidator();
+  unbound.accept(metaData);
+  unbound.accept({ type: 'delta', sequence: 0, text: 'x', sourceIds: [] });
+  unbound.accept({
+    type: 'done', messageId: 'm', reasonCode: 'ANSWERED', degraded: false, terminalStatus: 'COMPLETED', resetAt: null,
+  });
+  assert.throws(
+    () => unbound.finish('ffffffff-ffff-4fff-8fff-ffffffffffff'),
+    (error) => error.code === 'STREAM_REQUEST_MISMATCH',
+  );
+  unbound.finish(metaData.clientRequestId);
+});
+
+test('a stream bound to another clientRequestId fails before content reaches the caller', async () => {
+  const metaData = fixture.find((row) => row.scenario === 'normal' && row.event === 'meta').data;
+  const wire = (event, data) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  const bytes = new TextEncoder().encode(
+    wire('meta', { ...metaData, clientRequestId: 'ffffffff-ffff-4fff-8fff-ffffffffffff' })
+      + wire('delta', { type: 'delta', sequence: 0, text: 'leaked', sourceIds: [] })
+      + wire('done', fixture.find((row) => row.scenario === 'normal' && row.event === 'done').data),
+  );
+  await assert.rejects(
+    collect(transportFor(responseForBytes(bytes)).stream(request)),
+    (error) => {
+      assert.equal(error.code, 'STREAM_REQUEST_MISMATCH');
+      return true;
+    },
+  );
 });
 
 // ---- turn orchestrator ------------------------------------------------------
