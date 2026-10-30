@@ -204,6 +204,9 @@ export class AssistantEventValidator {
   private bodySeen = false;
   private citationSeen = false;
   private terminalSeen = false;
+  private metaClientRequestId: string | undefined;
+
+  constructor(private readonly expectedClientRequestId?: string) {}
 
   accept(value: unknown, eventName?: string): AssistantStreamEvent {
     if (!isObject(value) || typeof value.type !== 'string') {
@@ -227,7 +230,14 @@ export class AssistantEventValidator {
         ) {
           throw new AssistantStreamError('STREAM_EVENT_ORDER_INVALID');
         }
+        if (
+          this.expectedClientRequestId !== undefined
+          && event.clientRequestId !== this.expectedClientRequestId
+        ) {
+          throw new AssistantStreamError('STREAM_REQUEST_MISMATCH');
+        }
         this.metaSeen = true;
+        this.metaClientRequestId = event.clientRequestId;
         break;
       case 'delta':
         if (
@@ -286,7 +296,9 @@ export class AssistantEventValidator {
         connectionLost: true,
       });
     }
-    void clientRequestId;
+    if (this.metaClientRequestId !== undefined && this.metaClientRequestId !== clientRequestId) {
+      throw new AssistantStreamError('STREAM_REQUEST_MISMATCH');
+    }
   }
 }
 
@@ -376,7 +388,7 @@ export function createSseTransport(options: SseTransportOptions): AssistantTrans
 
       let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
       let terminal = false;
-      const validator = new AssistantEventValidator();
+      const validator = new AssistantEventValidator(request.clientRequestId);
       const parser = new SseFrameParser();
       const decoder = new TextDecoder();
 

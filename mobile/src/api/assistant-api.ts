@@ -19,6 +19,7 @@ import {
   parseAssistantTransportKind,
   selectAssistantTransport,
   type AssistantTransportKind,
+  type XhrSessionAuthority,
 } from './assistant-xhr-transport';
 import { ASSISTANT_CONVERSATION_PAGE_SIZE, ASSISTANT_MESSAGE_PAGE_SIZE } from './assistant-limits';
 
@@ -124,6 +125,8 @@ export interface AssistantRuntimeOptions {
   kind?: AssistantTransportKind;
   baseUrl?: string;
   getAccessToken?: () => string | undefined;
+  /** Session lane the XHR stream joins for refresh and epoch fencing; defaults to the shared client. */
+  session?: XhrSessionAuthority;
   /** Sees every JSON reply, for fields the stream events do not carry (`resetAt`). */
   onReply?: (request: AssistantChatRequest, reply: AssistantChatReply) => void;
 }
@@ -155,6 +158,7 @@ export function createAssistantRuntime(options: AssistantRuntimeOptions = {}): A
       baseUrl: options.baseUrl ?? apiClient.baseUrl,
       getAccessToken: options.getAccessToken ?? readAccessToken,
       cancelRequest: (clientRequestId) => api.cancel(clientRequestId),
+      session: options.session ?? apiClient.session,
     }),
   });
   return { transport, kind, chat: (request, init) => chat(request, init) };

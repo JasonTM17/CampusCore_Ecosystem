@@ -97,11 +97,11 @@ function harness(extra = {}) {
     clock,
     ...extra,
   });
-  const run = (signal) => {
+  const run = (signal, req = request) => {
     const events = [];
     const settled = (async () => {
       try {
-        for await (const event of transport.stream(request, { signal })) events.push(event);
+        for await (const event of transport.stream(req, { signal })) events.push(event);
         return { events };
       } catch (error) {
         return { events, error };
@@ -113,6 +113,29 @@ function harness(extra = {}) {
 }
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+const deferred = () => {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+};
+
+/** A session lane whose epoch rotates and whose shared refresh swaps the token once. */
+function sessionHarness({ token = 'stale-token', epoch = 1, refreshResult = true, ...extra } = {}) {
+  const state = { token, epoch, refreshCalls: 0, refreshEpochs: [], refreshGate: undefined, refreshResult };
+  const session = {
+    epoch: () => state.epoch,
+    refresh: async (requestEpoch) => {
+      state.refreshCalls += 1;
+      state.refreshEpochs.push(requestEpoch);
+      await state.refreshGate;
+      if (state.refreshResult) state.token = 'rotated-token';
+      return state.refreshResult;
+    },
+  };
+  const rig = harness({ session, getAccessToken: () => state.token, ...extra });
+  return { state, session, ...rig };
+}
 
 test('request carries bearer auth, JSON body and no watchdog leak after the terminal frame', async () => {
   const { run, clock } = harness();
@@ -135,7 +158,8 @@ test('contract scenarios survive 3-byte chunks that split frames and Vietnamese 
   for (const scenario of ['normal', 'error-mid-stream', 'cancelled', 'heartbeat']) {
     const expected = fixture.filter((item) => item.scenario === scenario && item.event !== 'comment').map((item) => item.event);
     const { run } = harness();
-    const { xhr, settled } = run();
+    const scenarioRequest = { ...request, clientRequestId: row(scenario, 'meta').clientRequestId };
+    const { xhr, settled } = run(undefined, scenarioRequest);
     xhr.respond();
     const bytes = new TextEncoder().encode(fixtureWire(scenario));
     for (let index = 0; index < bytes.length; index += 3) {
@@ -315,6 +339,116 @@ test('cancel aborts the live stream locally and forwards the same request id', a
   assert.deepEqual(cancelled, [request.clientRequestId]);
   assert.equal(result.error, undefined);
   assert.equal(xhr.abortCalls, 1);
+});
+
+test('a pre-frame 401 joins the session refresh once and replays the same logical request', async () => {
+  const { state, run, created } = sessionHarness();
+  const { settled } = run();
+  const first = created[0];
+  assert.equal(first.requestHeaders.Authorization, 'Bearer stale-token');
+  first.respond(401);
+  first.complete();
+  for (let flush = 0; flush < 3; flush += 1) await tick();
+  const second = created[1];
+  assert.ok(second, 'one retry attempt is sent after the shared refresh');
+  assert.equal(second.requestHeaders.Authorization, 'Bearer rotated-token');
+  assert.equal(second.body, first.body, 'the retry is the same logical request');
+  assert.equal(second.requestHeaders['X-Request-Id'], first.requestHeaders['X-Request-Id']);
+  second.respond();
+  second.text(frame('meta', meta) + frame('delta', delta(0)) + frame('done', done));
+  const result = await settled;
+  assert.equal(result.error, undefined);
+  assert.deepEqual(result.events.map((event) => event.type), ['meta', 'delta', 'done']);
+  assert.equal(state.refreshCalls, 1);
+  assert.deepEqual(state.refreshEpochs, [1], 'the retry joins the refresh for the epoch it started under');
+});
+
+test('a repeated 401 stays a single retry and surfaces the original failure', async () => {
+  const { state, run, created } = sessionHarness();
+  const { settled } = run();
+  created[0].respond(401);
+  created[0].complete();
+  for (let flush = 0; flush < 3; flush += 1) await tick();
+  const second = created[1];
+  assert.ok(second, 'exactly one retry attempt');
+  second.respond(401, { 'retry-after': '4' });
+  second.complete();
+  const result = await settled;
+  assert.equal(result.error.code, 'UNAUTHORIZED');
+  assert.equal(result.error.status, 401);
+  assert.equal(result.error.retryAfter, '4');
+  assert.equal(created.length, 2, 'exactly one retry was sent');
+  assert.equal(state.refreshCalls, 1);
+});
+
+test('a failed refresh keeps the first 401 and sends nothing further', async () => {
+  const { state, run, created } = sessionHarness({ refreshResult: false });
+  const { settled } = run();
+  created[0].respond(401);
+  created[0].complete();
+  const result = await settled;
+  assert.equal(result.error.code, 'UNAUTHORIZED');
+  assert.equal(result.error.status, 401);
+  assert.equal(created.length, 1);
+  assert.equal(state.refreshCalls, 1);
+});
+
+test('an epoch switch during the refresh wait aborts instead of replaying into the new session', async () => {
+  const gate = deferred();
+  const { state, run, created } = sessionHarness();
+  state.refreshGate = gate.promise;
+  const { settled } = run();
+  created[0].respond(401);
+  created[0].complete();
+  for (let flush = 0; flush < 3; flush += 1) await tick();
+  assert.equal(state.refreshCalls, 1);
+  state.epoch = 2;
+  gate.resolve();
+  const result = await settled;
+  assert.equal(created.length, 1, 'no replay is sent under the replacement session');
+  assert.equal(result.error, undefined);
+  assert.deepEqual(result.events.at(-1), { type: 'error', code: 'SESSION_CHANGED', retryable: false });
+});
+
+test('frames arriving after an epoch switch never leak into the replacement session', async () => {
+  const { state, run } = sessionHarness();
+  const { xhr, settled } = run();
+  xhr.respond();
+  xhr.text(frame('meta', meta) + frame('delta', delta(0)));
+  await tick();
+  state.epoch = 2;
+  xhr.text(frame('delta', delta(1)));
+  xhr.complete();
+  const result = await settled;
+  assert.deepEqual(result.events.map((event) => event.type), ['meta', 'delta', 'error']);
+  assert.deepEqual(result.events.at(-1), { type: 'error', code: 'SESSION_CHANGED', retryable: false });
+});
+
+test('the epoch watch aborts a quiet stream once the session is replaced', async () => {
+  const { state, run, clock } = sessionHarness();
+  const { xhr, settled } = run();
+  xhr.respond();
+  xhr.text(frame('meta', meta));
+  await tick();
+  state.epoch = 2;
+  clock.advance(250);
+  xhr.text(frame('delta', delta(0)));
+  xhr.complete();
+  const result = await settled;
+  assert.deepEqual(result.events.at(-1), { type: 'error', code: 'SESSION_CHANGED', retryable: false });
+  assert.equal(result.events.length, 2, 'the settled stream stayed closed');
+});
+
+test('a meta clientRequestId that differs from the request is rejected before any delta', async () => {
+  const { run } = harness();
+  const { xhr, settled } = run();
+  xhr.respond();
+  xhr.text(frame('meta', { ...meta, clientRequestId: 'ffffffff-ffff-4fff-8fff-ffffffffffff' })
+    + frame('delta', delta(0)) + frame('done', done));
+  xhr.complete();
+  const result = await settled;
+  assert.equal(result.error?.code, 'STREAM_REQUEST_MISMATCH');
+  assert.equal(result.events.length, 0, 'mismatched content never reaches the caller');
 });
 
 test('the transport is chosen only by the explicit kind and the parity constant stays false', () => {
