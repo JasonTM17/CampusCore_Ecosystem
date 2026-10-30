@@ -40,7 +40,7 @@ jobs:
       sha: ${{ steps.identity.outputs.sha }}
     steps:
       - name: Checkout exact candidate
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.commit_sha }}
           fetch-depth: 0
@@ -106,22 +106,22 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ needs.release-gate.outputs.sha }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -234,7 +234,7 @@ jobs:
 
       - name: Generate metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.package }}
@@ -286,7 +286,7 @@ jobs:
 
       - name: Build and stage candidate image
         if: steps.immutability.outputs.release_state == 'promote' && steps.immutability.outputs.source_digest == '' && steps.candidate.outputs.present != 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -360,7 +360,7 @@ jobs:
 
       - name: Scan staged image for high and critical vulnerabilities
         if: success() && steps.immutability.outcome == 'success'
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:
           # Explicit credentials apply only when the scan source lives in
           # GHCR; a Docker Hub source falls back to the docker login config
@@ -509,7 +509,7 @@ jobs:
 
       - name: Upload per-image release evidence
         if: success() && steps.immutability.outcome == 'success'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-evidence-${{ matrix.package }}
           path: |
@@ -525,7 +525,7 @@ jobs:
     if: needs.publish.result == 'success'
     steps:
       - name: Download per-image evidence
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: release-evidence-*
           merge-multiple: true
@@ -572,7 +572,7 @@ jobs:
           PY
 
       - name: Upload immutable release manifest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: campuscore-release-manifest-${{ needs.release-gate.outputs.sha }}
           path: release-manifest.json
