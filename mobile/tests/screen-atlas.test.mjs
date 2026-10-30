@@ -38,7 +38,7 @@ test('native registry keeps the Stitch mobile atlas above the 20-screen requirem
   ]) {
     assert.match(routes, new RegExp(`name: '${requiredRoute.replace('.', '\\.')}'`));
   }
-  assert.match(readme, /37 navigable screens/);
+  assert.match(readme, /59 verified native screens/);
 });
 
 test('native tokens preserve the institutional portal contract', () => {
