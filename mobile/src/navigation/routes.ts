@@ -1,7 +1,12 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 
-import { hasCapability, type Capability, type CapabilitySet } from '../auth/capabilities';
+import {
+  NO_CAPABILITIES,
+  hasCapability,
+  type Capability,
+  type CapabilitySet,
+} from '../auth/capabilities';
 import type { LaneFlags } from '../config/lane-flags';
 
 export type NavigationIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -278,7 +283,21 @@ export function getScreenDefinition(route: ScreenName) {
   return screenRegistry.find((screen) => screen.name === route);
 }
 
-export function canAccessScreen(role: UserRole, route: ScreenName) {
+/**
+ * Registry-screen access. An applicant-surface session — a roleless
+ * authenticated account carrying the `admissions:self` grant — reaches the
+ * SELF admissions screen and nothing else, whatever UI selector it renders
+ * under. Every other session keeps the role check unchanged; callers that
+ * pass no capability set see exactly the historical behavior.
+ */
+export function canAccessScreen(
+  role: UserRole,
+  route: ScreenName,
+  capabilities: CapabilitySet = NO_CAPABILITIES,
+) {
+  if (hasCapability(capabilities, 'applicant.surface')) {
+    return route === 'admissions';
+  }
   return getScreenDefinition(route)?.roles.includes(role) ?? false;
 }
 

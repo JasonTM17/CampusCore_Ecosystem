@@ -28,6 +28,15 @@ import org.springframework.stereotype.Service;
 @Service
 public class AuthTokenService {
 
+    /**
+     * Account-scoped (not role-scoped) grants on the access token.
+     * {@code admissions:self} marks the SELF admissions surface; it is
+     * minted only while the account itself is grant-eligible (ACTIVE), so
+     * an applicant with no academic role stays distinguishable from a
+     * rejected sign-in and a locked account never receives it.
+     */
+    private static final List<String> SELF_CAPABILITIES = List.of("admissions:self");
+
     private final JwtEncoder jwtEncoder;
     private final JwtEncoder refreshJwtEncoder;
     private final JwtDecoder refreshJwtDecoder;
@@ -101,6 +110,9 @@ public class AuthTokenService {
         claimIfPresent(claims, "firstName", principal.firstName());
         claimIfPresent(claims, "lastName", principal.lastName());
         claimIfPresent(claims, "status", principal.status());
+        if ("ACTIVE".equals(principal.status())) {
+            claims.claim("capabilities", SELF_CAPABILITIES);
+        }
         claimIfPresent(claims, "studentId", principal.studentId());
         claimIfPresent(claims, "lecturerId", principal.lecturerId());
         if (principal.studentYear() != null) {

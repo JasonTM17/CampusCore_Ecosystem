@@ -94,6 +94,30 @@ export function roleFromClaims(claims: readonly string[]): UserRole | null {
   return null;
 }
 
+/**
+ * Session entry selection (mobile-policy §3): which surface a fresh
+ * authenticated account lands on. A recognized academic/admin claim picks
+ * its UI role exactly like before; a roleless account is admitted only
+ * when the issuer-minted `capabilities` claim carries `admissions:self`
+ * (the applicant surface) — without it, sign-in stays blocked as today.
+ * The claim is never inferred from the username or from an existing
+ * application row.
+ */
+export type SessionEntry =
+  | { kind: 'role'; role: UserRole }
+  | { kind: 'applicant' };
+
+export function sessionEntryFromClaims(
+  roleClaims: readonly string[],
+  capabilityClaims: readonly string[],
+): SessionEntry | null {
+  const role = roleFromClaims(roleClaims);
+  if (role !== null) {
+    return { kind: 'role', role };
+  }
+  return capabilityClaims.includes('admissions:self') ? { kind: 'applicant' } : null;
+}
+
 export interface AuthorizeRequest {
   issuer: string;
   codeChallenge: string;
