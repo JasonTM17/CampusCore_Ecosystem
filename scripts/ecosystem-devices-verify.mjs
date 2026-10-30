@@ -134,6 +134,20 @@ for (const route of CHECKIN_WEB_ROUTES) {
   );
 }
 
+// ── Producer inventory: notification links resolve in-app through the
+// deep-link guard. At OS level only approved lanes may be claimed; the
+// dashboard-prefixed producer links keep the browser handoff until a
+// domain approval grants new claims.
+const pushRoutes = read('mobile/src/api/push-routes.ts');
+const producerLinks = [...pushRoutes.matchAll(/link: '([^']+)'/g)].map((m) => m[1]);
+assert.ok(producerLinks.length > 0, 'producer link inventory empty');
+for (const link of producerLinks) {
+  assert.ok(
+    LANES.includes(link) || link.startsWith('/dashboard/'),
+    `producer link ${link} is neither an approved claimed lane nor a preserved browser path`,
+  );
+}
+
 // ── Claim → screen parity: every claimed lane resolves via pathByScreen
 for (const lane of LANES) {
   assert.match(routeMap, new RegExp(`: '${lane}'`), `claimed lane ${lane} has no pathByScreen entry`);
