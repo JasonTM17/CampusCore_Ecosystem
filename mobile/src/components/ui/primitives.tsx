@@ -5,6 +5,7 @@ import {
   Animated,
   Modal,
   Pressable,
+  ScrollView,
   StyleProp,
   StyleSheet,
   TextInput,
@@ -27,12 +28,16 @@ export interface SheetProps {
   onClose: () => void;
   title?: string;
   children?: ReactNode;
+  /** Wraps the body in a ScrollView that shrinks inside the 85% panel so long content stays scrollable. */
+  scroll?: boolean;
+  /** Pinned below the (possibly scrolling) body so primary actions never scroll out of reach. */
+  footer?: ReactNode;
   accessibilityLabel?: string;
   closeLabel?: string;
   closeAccessibilityLabel?: string;
 }
 
-export function Sheet({ visible, onClose, title, children, accessibilityLabel, closeLabel, closeAccessibilityLabel }: SheetProps) {
+export function Sheet({ visible, onClose, title, children, scroll = false, footer, accessibilityLabel, closeLabel, closeAccessibilityLabel }: SheetProps) {
   const { colors, spacing, radii, scheme, reducedMotion } = useTheme();
   const { t } = useLocale();
   return (
@@ -51,7 +56,14 @@ export function Sheet({ visible, onClose, title, children, accessibilityLabel, c
             ) : null}
             <Button label={closeLabel ?? t('close')} onPress={onClose} variant="text" accessibilityLabel={closeAccessibilityLabel ?? t('closeSheet')} />
           </View>
-          {children}
+          {scroll ? (
+            <ScrollView style={sheetStyles.scrollBody} keyboardShouldPersistTaps="handled">
+              {children}
+            </ScrollView>
+          ) : (
+            children
+          )}
+          {footer ? <View style={sheetStyles.footer}>{footer}</View> : null}
         </View>
       </View>
     </Modal>
@@ -61,6 +73,8 @@ export function Sheet({ visible, onClose, title, children, accessibilityLabel, c
 const sheetStyles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end' },
   panel: { maxHeight: '85%' },
+  scrollBody: { flexShrink: 1 },
+  footer: { flexShrink: 0, marginTop: tokens.spacing.xs },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
   title: { flex: 1, paddingRight: tokens.spacing.sm },
 });

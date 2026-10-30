@@ -2,27 +2,28 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import {
-  Button,
   Card,
+  DataNotice,
   Divider,
   FilterChip,
   IconChip,
   ListRow,
-  ScreenShell,
   ScreenSpacer,
   SectionCard,
   SectionHeading,
   Sheet,
   SheetHeader,
   StatStrip,
+  StatePanel,
   StatusPill,
   UiText,
 } from '../../components/Ui';
 import { Avatar } from '../../components/ui/avatar';
 import { SearchBar } from '../../components/ui/primitives';
+import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { LaneEntries } from '../lanes/LaneEntries';
-import { HandoffButton } from './lecturer-ui';
+import { HandoffButton, isOpsPreview } from './lecturer-ui';
 import { useOpsCopy, WebOnlyPanel } from './shared/helpers';
 import { useOpsStyles } from './shared/styles';
 
@@ -173,23 +174,29 @@ const SAMPLE_LECTURERS: LecturerDirectoryItem[] = [
 export function AdminDashboardScreen({ navigation }: MobileScreenProps) {
   const styles = useOpsStyles();
   const { copy } = useOpsCopy();
+  const preview = isOpsPreview();
 
   return (
     <WebOnlyPanel title={copy.adminDashboardTitle} path="/admin">
-      <StatStrip
-        style={styles.stats}
-        items={[
-          { icon: 'school-outline', label: copy.adminStudentsTitle, value: '18,420' },
-          { icon: 'account-tie-outline', label: copy.adminLecturersTitle, value: '940' },
-          { icon: 'book-open-page-variant-outline', label: copy.metricSections, value: '1,250' },
-        ]}
-      />
+      {preview ? (
+        <View>
+          <DataNotice message={copy.previewNotice} />
+          <StatStrip
+            style={styles.stats}
+            items={[
+              { icon: 'school-outline', label: copy.adminStudentsTitle, value: '18,420' },
+              { icon: 'account-tie-outline', label: copy.adminLecturersTitle, value: '940' },
+              { icon: 'book-open-page-variant-outline', label: copy.metricSections, value: '1,250' },
+            ]}
+          />
+        </View>
+      ) : null}
 
       <SectionCard icon="folder-account-outline" title={copy.shortcutsTitle}>
         <ListRow
           icon="school-outline"
           title={copy.adminStudentsTitle}
-          subtitle="18,420 sinh viên · Tra cứu & hồ sơ"
+          subtitle={copy.adminStudentsHint}
           onPress={() => navigation.navigate('admin.students')}
           trailing={<UiText variant="bodyMedium" tone="muted">›</UiText>}
         />
@@ -197,7 +204,7 @@ export function AdminDashboardScreen({ navigation }: MobileScreenProps) {
         <ListRow
           icon="account-tie-outline"
           title={copy.adminLecturersTitle}
-          subtitle="940 giảng viên · Danh bạ & phân công"
+          subtitle={copy.adminLecturersHint}
           onPress={() => navigation.navigate('admin.lecturers')}
           trailing={<UiText variant="bodyMedium" tone="muted">›</UiText>}
         />
@@ -216,6 +223,7 @@ export function AdminDashboardScreen({ navigation }: MobileScreenProps) {
 export function AdminStudentsScreen() {
   const styles = useOpsStyles();
   const { copy } = useOpsCopy();
+  const preview = isOpsPreview();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedStudent, setSelectedStudent] = useState<StudentDirectoryItem | null>(null);
@@ -234,7 +242,8 @@ export function AdminStudentsScreen() {
 
   return (
     <WebOnlyPanel title={copy.adminStudentsTitle} path="/admin/users"
-      list={{ data: filtered, keyExtractor: (item, index) => String(item.id),
+      list={preview ? { data: filtered, keyExtractor: (item, index) => String(item.id),
+        empty: <StatePanel kind="empty" title={copy.noMatch} />,
         renderItem: ({ item: student }) => (
           <Card key={student.id} style={styles.rosterCard}>
             <Pressable
@@ -329,57 +338,56 @@ export function AdminStudentsScreen() {
               <UiText variant="label" style={styles.detailLabel}>GPA</UiText>
               <UiText variant="bodyMedium" style={styles.detailValue}>{selectedStudent.gpa.toFixed(2)}</UiText>
             </View>
-            <Button
-              icon="open-in-new"
-              label={copy.openOnWeb}
-              variant="secondary"
-              onPress={() => setSelectedStudent(null)}
-            />
+            <HandoffButton label={copy.openOnWeb} path="/admin/users" />
           </View>
         </Sheet>
       ) : null}
     </>,
-      }}
+      } : undefined}
     >
-      <SearchBar
-        value={search}
-        onChangeText={setSearch}
-        placeholder={copy.searchStudents}
-        accessibilityLabel={copy.searchStudents}
-        style={styles.searchBar}
-      />
+      {preview ? (
+        <View>
+          <DataNotice message={copy.previewNotice} />
+          <SearchBar
+            value={search}
+            onChangeText={setSearch}
+            placeholder={copy.searchStudents}
+            accessibilityLabel={copy.searchStudents}
+            style={styles.searchBar}
+          />
 
-      <View style={styles.filterChipsRow}>
-        <FilterChip
-          label={copy.filterAll}
-          selected={statusFilter === 'ALL'}
-          onPress={() => setStatusFilter('ALL')}
-        />
-        <FilterChip
-          label={copy.filterActive}
-          selected={statusFilter === 'ACTIVE'}
-          onPress={() => setStatusFilter('ACTIVE')}
-        />
-        <FilterChip
-          label={copy.filterSuspended}
-          selected={statusFilter === 'SUSPENDED'}
-          onPress={() => setStatusFilter('SUSPENDED')}
-        />
-        <FilterChip
-          label={copy.filterGraduated}
-          selected={statusFilter === 'GRADUATED'}
-          onPress={() => setStatusFilter('GRADUATED')}
-        />
-      </View>
-
-      <View style={styles.stack}>
-        </View></WebOnlyPanel>
+          <View style={styles.filterChipsRow}>
+            <FilterChip
+              label={copy.filterAll}
+              selected={statusFilter === 'ALL'}
+              onPress={() => setStatusFilter('ALL')}
+            />
+            <FilterChip
+              label={copy.filterActive}
+              selected={statusFilter === 'ACTIVE'}
+              onPress={() => setStatusFilter('ACTIVE')}
+            />
+            <FilterChip
+              label={copy.filterSuspended}
+              selected={statusFilter === 'SUSPENDED'}
+              onPress={() => setStatusFilter('SUSPENDED')}
+            />
+            <FilterChip
+              label={copy.filterGraduated}
+              selected={statusFilter === 'GRADUATED'}
+              onPress={() => setStatusFilter('GRADUATED')}
+            />
+          </View>
+        </View>
+      ) : null}
+    </WebOnlyPanel>
   );
 }
 
 export function AdminLecturersScreen() {
   const styles = useOpsStyles();
   const { copy } = useOpsCopy();
+  const preview = isOpsPreview();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'ALL' | 'AVAILABLE'>('ALL');
   const [selectedLecturer, setSelectedLecturer] = useState<LecturerDirectoryItem | null>(null);
@@ -397,7 +405,8 @@ export function AdminLecturersScreen() {
 
   return (
     <WebOnlyPanel title={copy.adminLecturersTitle} path="/admin/lecturers"
-      list={{ data: filtered, keyExtractor: (item, index) => String(item.id),
+      list={preview ? { data: filtered, keyExtractor: (item, index) => String(item.id),
+        empty: <StatePanel kind="empty" title={copy.noMatch} />,
         renderItem: ({ item: lecturer }) => (
           <Card key={lecturer.id} style={styles.scheduleCard}>
             <Pressable
@@ -411,7 +420,7 @@ export function AdminLecturersScreen() {
                 <View style={styles.directoryTop}>
                   <UiText variant="label">{`${lecturer.title} ${lecturer.name}`}</UiText>
                   <StatusPill
-                    label={lecturer.status === 'AVAILABLE' ? copy.filterAvailable : 'Đủ chỉ tiêu'}
+                    label={lecturer.status === 'AVAILABLE' ? copy.filterAvailable : copy.statusFull}
                     tone={lecturer.status === 'AVAILABLE' ? 'success' : 'warning'}
                   />
                 </View>
@@ -421,7 +430,7 @@ export function AdminLecturersScreen() {
                 <View style={styles.slotRow}>
                   <IconChip icon="account-group-outline" size={32} tone="neutral" />
                   <UiText variant="bodySmall" tone="muted" style={{ flex: 1 }}>
-                    {`${copy.supervising}: ${lecturer.groupsCount} nhóm · ${lecturer.studentsCount}/${lecturer.maxStudents} SV`}
+                    {`${copy.supervising}: ${fillCopy(copy.groupsCount, { n: lecturer.groupsCount })} · ${fillCopy(copy.studentsQuota, { current: lecturer.studentsCount, max: lecturer.maxStudents })}`}
                   </UiText>
                 </View>
               </View>
@@ -466,47 +475,45 @@ export function AdminLecturersScreen() {
             <View style={styles.detailRow}>
               <UiText variant="label" style={styles.detailLabel}>{copy.supervising}</UiText>
               <UiText variant="bodyMedium" style={styles.detailValue}>
-                {`${selectedLecturer.groupsCount} nhóm · ${selectedLecturer.studentsCount}/${selectedLecturer.maxStudents} SV`}
+                {`${fillCopy(copy.groupsCount, { n: selectedLecturer.groupsCount })} · ${fillCopy(copy.studentsQuota, { current: selectedLecturer.studentsCount, max: selectedLecturer.maxStudents })}`}
               </UiText>
             </View>
             <View style={styles.detailRow}>
-              <UiText variant="label" style={styles.detailLabel}>Nghiên cứu</UiText>
+              <UiText variant="label" style={styles.detailLabel}>{copy.research}</UiText>
               <UiText variant="bodyMedium" style={styles.detailValue}>{selectedLecturer.researchAreas}</UiText>
             </View>
-            <Button
-              icon="open-in-new"
-              label={copy.openOnWeb}
-              variant="secondary"
-              onPress={() => setSelectedLecturer(null)}
-            />
+            <HandoffButton label={copy.openOnWeb} path="/admin/lecturers" />
           </View>
         </Sheet>
       ) : null}
     </>,
-      }}
+      } : undefined}
     >
-      <SearchBar
-        value={search}
-        onChangeText={setSearch}
-        placeholder={copy.searchSections}
-        accessibilityLabel={copy.searchSections}
-        style={styles.searchBar}
-      />
+      {preview ? (
+        <View>
+          <DataNotice message={copy.previewNotice} />
+          <SearchBar
+            value={search}
+            onChangeText={setSearch}
+            placeholder={copy.searchLecturers}
+            accessibilityLabel={copy.searchLecturers}
+            style={styles.searchBar}
+          />
 
-      <View style={styles.filterChipsRow}>
-        <FilterChip
-          label={copy.filterAll}
-          selected={filter === 'ALL'}
-          onPress={() => setFilter('ALL')}
-        />
-        <FilterChip
-          label={copy.filterAvailable}
-          selected={filter === 'AVAILABLE'}
-          onPress={() => setFilter('AVAILABLE')}
-        />
-      </View>
-
-      <View style={styles.stack}>
-        </View></WebOnlyPanel>
+          <View style={styles.filterChipsRow}>
+            <FilterChip
+              label={copy.filterAll}
+              selected={filter === 'ALL'}
+              onPress={() => setFilter('ALL')}
+            />
+            <FilterChip
+              label={copy.filterAvailable}
+              selected={filter === 'AVAILABLE'}
+              onPress={() => setFilter('AVAILABLE')}
+            />
+          </View>
+        </View>
+      ) : null}
+    </WebOnlyPanel>
   );
 }
