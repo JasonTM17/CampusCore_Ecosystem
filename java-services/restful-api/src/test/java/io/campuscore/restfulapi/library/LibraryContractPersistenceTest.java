@@ -380,11 +380,20 @@ class LibraryContractPersistenceTest {
         String requestId = requestCopy(borrowerJwt, "copy-1", "lc-exp-1");
         assertThat(copyStatus("copy-1")).isEqualTo("RESERVED");
 
-        // Push the hold deadline into the past — the sweep runs on reads.
+        // Push the hold deadline into the past; patron reads remain read-only.
         jdbc.update("UPDATE library.\"LoanRequest\" SET \"expiresAt\" = TIMESTAMP '2000-01-01 00:00:00'"
                 + " WHERE \"id\" = '" + requestId + "'");
 
-        // Patron read triggers the sweep: request → CANCELLED, copy freed.
+        mvc.perform(get("/api/v1/library/requests/" + requestId).with(borrowerJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REQUESTED"))
+                .andExpect(jsonPath("$.expiresAt").isNotEmpty())
+                .andExpect(jsonPath("$.cancelledAt").doesNotExist())
+                .andExpect(jsonPath("$.version").value(1));
+        assertThat(copyStatus("copy-1")).isEqualTo("RESERVED");
+        // The existing staff maintenance lane durably cancels and releases it.
+        mvc.perform(get("/api/v1/library/staff/requests").with(staffJwt))
+                .andExpect(status().isOk());
         mvc.perform(get("/api/v1/library/requests/" + requestId).with(borrowerJwt))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED"))
@@ -395,19 +404,14 @@ class LibraryContractPersistenceTest {
         String request2 = requestCopy(borrowerJwt, "copy-1", "lc-exp-2");
         jdbc.update("UPDATE library.\"LoanRequest\" SET \"expiresAt\" = TIMESTAMP '2000-01-01 00:00:00'"
                 + " WHERE \"id\" = '" + request2 + "'");
-        // A queue read first would expire it; go straight to approve which
-        // sweeps then rejects — the request ends CANCELLED either way.
+        // Direct approval rejects the deadline without claiming cleanup committed.
         mvc.perform(post("/api/v1/library/staff/requests/" + request2 + "/approve")
                         .with(staffJwt).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"expectedVersion\":1}"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value(org.hamcrest.Matchers
-                        .anyOf(org.hamcrest.Matchers.is("RESERVATION_EXPIRED"),
-                                org.hamcrest.Matchers.is("REQUEST_TERMINAL"),
-                                org.hamcrest.Matchers.is("REQUEST_STATE_INVALID"))));
+                .andExpect(jsonPath("$.code").value("RESERVATION_EXPIRED"));
 
-        // Wukong (d)/Kongming F1: an expired APPROVED hold can never be
-        // issued — issue checks the same server-clock window as approve,
+        // An expired APPROVED hold can never be issued; issue checks the same window as approve,
         // so the denial is deterministic regardless of sweep timing.
         String request3 = requestCopy(borrowerJwt, "copy-1", "lc-exp-3");
         mvc.perform(post("/api/v1/library/staff/requests/" + request3 + "/approve")
@@ -436,8 +440,7 @@ class LibraryContractPersistenceTest {
                 String.class);
         assertThat(status3).isEqualTo("CANCELLED");
 
-        // Wukong (d) leg 2: a dead hold no longer blocks the copy — the
-        // patron request lane sweeps it before the availability flip, so a
+        // A dead hold no longer blocks its copy: the request lane expires only that copy before the flip, so a
         // fresh hold on the freed stock succeeds without any read path.
         String request4 = requestCopy(borrowerJwt, "copy-2", "lc-exp-4");
         jdbc.update("UPDATE library.\"LoanRequest\" SET \"expiresAt\" = TIMESTAMP '2000-01-01 00:00:00'"

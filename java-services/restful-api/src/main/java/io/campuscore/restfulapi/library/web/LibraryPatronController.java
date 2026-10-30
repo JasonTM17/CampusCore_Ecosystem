@@ -58,8 +58,10 @@ public class LibraryPatronController {
             @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
             @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
         ListPaging.Window window = ListPaging.Window.of(page, limit);
-        return ListPaging.respond(library.catalogue(patron(jwt), query), window,
-                TitleResponse::title, TitleResponse::id);
+        var result = library.catalogue(patron(jwt), query, window);
+        return window == null ? ResponseEntity.ok(result.items()) : ResponseEntity.ok()
+                .header(ListPaging.TOTAL_COUNT_HEADER, String.valueOf(result.total()))
+                .body(result.items());
     }
 
     @Operation(summary = "Chi tiết đầu sách + tình trạng các bản sao")
