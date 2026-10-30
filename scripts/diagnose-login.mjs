@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 function printUsage() {
   console.log('Usage: node scripts/diagnose-login.mjs --target <origin> [--allow-network]');
   console.log('Use a loopback target for local runs. Non-loopback requests require --allow-network.');
+  console.log('Set CAMPUS_DIAGNOSTIC_STUDENT_EMAIL and CAMPUS_DIAGNOSTIC_STUDENT_PASSWORD for the login probe.');
 }
 
 function isLoopback(hostname) {
@@ -83,6 +84,13 @@ function parseTargetOptions(args) {
 
 const targetOptions = parseTargetOptions(process.argv.slice(2));
 const BASE = targetOptions.baseUrl;
+const emailName = 'CAMPUS_DIAGNOSTIC_STUDENT_EMAIL';
+const passwordName = 'CAMPUS_DIAGNOSTIC_STUDENT_PASSWORD';
+const credentials = { email: process.env[emailName], password: process.env[passwordName] };
+if (!credentials.email || !credentials.password) {
+  console.error(`Missing required environment variables: ${emailName}, ${passwordName}`);
+  process.exit(2);
+}
 const require = createRequire(new URL('../frontend/package.json', import.meta.url));
 const { chromium } = require('playwright');
 const artifactDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '../artifacts/verification/diagnostics');
@@ -127,7 +135,9 @@ async function run() {
     // Wait for the form to be visible and filled
     await page.waitForSelector('button[type="submit"]');
 
-    console.log('2. Clicking submit...');
+    console.log('2. Filling credentials and submitting...');
+    await page.fill('#email', credentials.email);
+    await page.fill('#password', credentials.password);
     const tSubmit = performance.now();
     await page.click('button[type="submit"]');
 
