@@ -98,6 +98,7 @@ jobs:
           set -o pipefail
           node --test \
             scripts/alert-uri-policy.test.mjs \
+            scripts/check-mobile-parity.test.mjs \
             scripts/ci-secret-output.test.mjs \
             scripts/ci-timing-report.test.mjs \
             scripts/ci-workflow-replay.test.mjs \
