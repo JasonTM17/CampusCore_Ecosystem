@@ -35,6 +35,7 @@ export function AppBar({ role, onProfile, onSignIn }: AppBarProps) {
   const { copy } = useShellCopy();
   const roleLabel = role ? copy.roles[role] : null;
   const preview = apiClient.mode === 'preview';
+  const brandVariant = window.fontScale >= 1.3 ? 'meta' : 'headlineSmall';
 
   return (
     <View
@@ -53,7 +54,7 @@ export function AppBar({ role, onProfile, onSignIn }: AppBarProps) {
           />
         </View>
         <View style={styles.copy}>
-          <UiText variant="headlineSmall" style={{ color: chrome.onSurface }}>
+          <UiText variant={brandVariant} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ color: chrome.onSurface }}>
             CampusUTE
           </UiText>
           {roleLabel && window.fontScale >= 1.3 ? <UiText variant="meta" style={{ color: chrome.onSurfaceMuted }}>{roleLabel}</UiText> : null}
