@@ -3,6 +3,7 @@ package io.campuscore.restfulapi.events.service;
 import io.campuscore.restfulapi.events.web.EventDtos.EventResponse;
 import io.campuscore.restfulapi.events.web.EventDtos.MyRegistrationResponse;
 import io.campuscore.restfulapi.events.web.EventDtos.RegistrationResponse;
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository.CreateNotificationCommand;
 import io.campuscore.restfulapi.web.DomainException;
@@ -78,12 +79,27 @@ public class EventStudentService {
 
     /** Public student catalog: cancelled events require recorded publication. */
     public List<EventResponse> listPublished(String studentId) {
-        return jdbc.query(
-                EventService.eventSelect(studentId)
-                        + " WHERE " + PUBLISHED_VISIBILITY
-                        + " ORDER BY e.\"startsAt\"",
-                new MapSqlParameterSource().addValue("studentId", studentId),
+        return listPublished(studentId, null).items();
+    }
+
+    public ListPaging.Result<EventResponse> listPublished(String studentId, ListPaging.Window window) {
+        MapSqlParameterSource params = new MapSqlParameterSource().addValue("studentId", studentId);
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject("SELECT COUNT(*) FROM " + EVENT + " e WHERE "
+                            + PUBLISHED_VISIBILITY,
+                    params, Long.class);
+        }
+        String sql = EventService.eventSelect(studentId)
+                + " WHERE " + PUBLISHED_VISIBILITY
+                + " ORDER BY e.\"startsAt\"";
+        if (window != null) {
+            sql += ", e.\"id\" LIMIT :limit OFFSET :offset";
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        List<EventResponse> items = jdbc.query(sql, params,
                 (row, index) -> EventService.mapEvent(row, studentId));
+        return new ListPaging.Result<>(items, total);
     }
 
     public EventResponse detail(String studentId, String eventId) {
@@ -100,7 +116,19 @@ public class EventStudentService {
 
     /** Student registration history — includes cancelled rows (audit trail). */
     public List<MyRegistrationResponse> myRegistrations(String studentId) {
-        return jdbc.query(
+        return myRegistrations(studentId, null).items();
+    }
+
+    public ListPaging.Result<MyRegistrationResponse> myRegistrations(
+            String studentId, ListPaging.Window window) {
+        MapSqlParameterSource params = new MapSqlParameterSource().addValue("studentId", studentId);
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject("SELECT COUNT(*) FROM " + REGISTRATION + " r JOIN " + EVENT
+                            + " e ON e.\"id\" = r.\"eventId\" WHERE r.\"studentId\" = :studentId",
+                    params, Long.class);
+        }
+        String sql =
                 "SELECT r.\"id\" AS registration_id, r.\"status\" AS registration_status,"
                         + " r.\"attendanceStatus\" AS attendance_status,"
                         + " r.\"registeredAt\" AS registered_at, r.\"cancelledAt\" AS cancelled_at,"
@@ -114,8 +142,12 @@ public class EventStudentService {
                         + " FROM " + REGISTRATION + " r"
                         + " JOIN " + EVENT + " e ON e.\"id\" = r.\"eventId\""
                         + " WHERE r.\"studentId\" = :studentId"
-                        + " ORDER BY r.\"registeredAt\" DESC",
-                new MapSqlParameterSource().addValue("studentId", studentId),
+                        + " ORDER BY r.\"registeredAt\" DESC";
+        if (window != null) {
+            sql += ", r.\"id\" LIMIT :limit OFFSET :offset";
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        List<MyRegistrationResponse> items = jdbc.query(sql, params,
                 (row, index) -> new MyRegistrationResponse(
                         row.getString("registration_id"),
                         row.getString("registration_status"),
@@ -146,6 +178,7 @@ public class EventStudentService {
                                 row.getString("registration_id"),
                                 row.getString("registration_status"),
                                 row.getString("attendance_status"))));
+        return new ListPaging.Result<>(items, total);
     }
 
     // ------------------------------------------------------------------

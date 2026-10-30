@@ -8,6 +8,7 @@ import io.campuscore.restfulapi.careers.web.CareerDtos.OpportunityResponse;
 import io.campuscore.restfulapi.careers.web.CareerDtos.OrganizationResponse;
 import io.campuscore.restfulapi.careers.web.CareerDtos.StaffGrantResponse;
 import io.campuscore.restfulapi.careers.web.CareerDtos.TransitionRequest;
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository.CreateNotificationCommand;
 import io.campuscore.restfulapi.web.DomainException;
@@ -15,12 +16,15 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -187,15 +191,30 @@ public class CareerService {
     // ------------------------------------------------------------------
 
     public List<StaffGrantResponse> listGrants(String actorId) {
+        return listGrants(actorId, null).items();
+    }
+
+    public ListPaging.Result<StaffGrantResponse> listGrants(String actorId,
+            ListPaging.Window window) {
         if (!hasAnyStaffGrant(actorId) && !isReviewer(actorId)) {
             throw problem(HttpStatus.FORBIDDEN, "CAREERS_STAFF_REQUIRED",
                     "A careers grant is required to list grants");
         }
-        return jdbc.query(
-                "SELECT \"id\", \"userId\", \"scope\", \"organizationId\", \"grantedBy\", \"createdAt\""
-                        + " FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope ORDER BY \"createdAt\"",
-                new MapSqlParameterSource("scope", SCOPE),
-                (row, index) -> mapGrant(row));
+        MapSqlParameterSource params = new MapSqlParameterSource("scope", SCOPE);
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope",
+                    params, Long.class);
+        }
+        String sql = "SELECT \"id\", \"userId\", \"scope\", \"organizationId\", \"grantedBy\", \"createdAt\""
+                + " FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope ORDER BY \"createdAt\"";
+        if (window != null) {
+            sql += ", \"id\" LIMIT :limit OFFSET :offset";
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        return new ListPaging.Result<>(
+                jdbc.query(sql, params, (row, index) -> mapGrant(row)), total);
     }
 
     @Transactional
@@ -290,21 +309,50 @@ public class CareerService {
     // ------------------------------------------------------------------
 
     public List<OrganizationResponse> organizations() {
-        return jdbc.query(
-                "SELECT \"id\", \"name\", \"description\", \"version\" FROM " + ORGANIZATION
-                        + " ORDER BY \"name\"",
-                new MapSqlParameterSource(), (row, index) -> mapOrganization(row));
+        return organizations(null).items();
+    }
+
+    public ListPaging.Result<OrganizationResponse> organizations(ListPaging.Window window) {
+        MapSqlParameterSource params = new MapSqlParameterSource();
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM " + ORGANIZATION, params, Long.class);
+        }
+        String sql = "SELECT \"id\", \"name\", \"description\", \"version\" FROM " + ORGANIZATION
+                + " ORDER BY \"name\"";
+        if (window != null) {
+            sql += ", \"id\" LIMIT :limit OFFSET :offset";
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        return new ListPaging.Result<>(
+                jdbc.query(sql, params, (row, index) -> mapOrganization(row)), total);
     }
 
     /** The organizations this staff actor is granted for — the desk scope. */
     public List<OrganizationResponse> myOrganizations(String actorId) {
+        return myOrganizations(actorId, null).items();
+    }
+
+    public ListPaging.Result<OrganizationResponse> myOrganizations(String actorId,
+            ListPaging.Window window) {
         requireAnyOrgGrant(actorId);
         List<String> orgs = grantedOrganizations(actorId);
-        return jdbc.query(
-                "SELECT \"id\", \"name\", \"description\", \"version\" FROM " + ORGANIZATION
-                        + " WHERE \"id\" IN (:orgs) ORDER BY \"name\"",
-                new MapSqlParameterSource("orgs", orgs),
-                (row, index) -> mapOrganization(row));
+        MapSqlParameterSource params = new MapSqlParameterSource("orgs", orgs);
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM " + ORGANIZATION + " WHERE \"id\" IN (:orgs)",
+                    params, Long.class);
+        }
+        String sql = "SELECT \"id\", \"name\", \"description\", \"version\" FROM " + ORGANIZATION
+                + " WHERE \"id\" IN (:orgs) ORDER BY \"name\"";
+        if (window != null) {
+            sql += ", \"id\" LIMIT :limit OFFSET :offset";
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        return new ListPaging.Result<>(
+                jdbc.query(sql, params, (row, index) -> mapOrganization(row)), total);
     }
 
     Map<String, Object> findOrganization(String organizationId) {
@@ -334,16 +382,32 @@ public class CareerService {
     /** Org-scoped opportunity queue — only granted orgs are visible. */
     @Transactional
     public List<OpportunityResponse> opportunityQueue(String actorId, String status) {
+        return opportunityQueue(actorId, status, null).items();
+    }
+
+    @Transactional
+    public ListPaging.Result<OpportunityResponse> opportunityQueue(String actorId,
+            String status, ListPaging.Window window) {
         requireAnyOrgGrant(actorId);
         List<String> orgs = grantedOrganizations(actorId);
         MapSqlParameterSource params = new MapSqlParameterSource("orgs", orgs);
-        String sql = opportunitySelect() + " WHERE o.\"organizationId\" IN (:orgs)";
+        String where = " WHERE o.\"organizationId\" IN (:orgs)";
         if (status != null && !status.isBlank()) {
-            sql += " AND o.\"status\" = :status";
+            where += " AND o.\"status\" = :status";
             params.addValue("status", status);
         }
-        sql += " ORDER BY o.\"createdAt\" DESC";
-        return jdbc.query(sql, params, (row, index) -> mapOpportunity(row));
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM " + OPPORTUNITY + " o" + where, params, Long.class);
+        }
+        String sql = opportunitySelect() + where + " ORDER BY o.\"createdAt\" DESC";
+        if (window != null) {
+            sql += ", o.\"id\" LIMIT :limit OFFSET :offset";
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        return new ListPaging.Result<>(
+                jdbc.query(sql, params, (row, index) -> mapOpportunity(row)), total);
     }
 
     /** Create a posting inside the actor's org — starts DRAFT (CAR-T01). */
@@ -485,10 +549,28 @@ public class CareerService {
     /** IN_REVIEW queue — only platform reviewers see the moderation list. */
     @Transactional
     public List<OpportunityResponse> reviewQueue(String actorId) {
+        return reviewQueue(actorId, null).items();
+    }
+
+    @Transactional
+    public ListPaging.Result<OpportunityResponse> reviewQueue(String actorId,
+            ListPaging.Window window) {
         requireReviewerGrant(actorId);
-        return jdbc.query(
-                opportunitySelect() + " WHERE o.\"status\" = 'IN_REVIEW' ORDER BY o.\"createdAt\"",
-                new MapSqlParameterSource(), (row, index) -> mapOpportunity(row));
+        MapSqlParameterSource params = new MapSqlParameterSource();
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM " + OPPORTUNITY + " o WHERE o.\"status\" = 'IN_REVIEW'",
+                    params, Long.class);
+        }
+        String sql = opportunitySelect() + " WHERE o.\"status\" = 'IN_REVIEW'"
+                + " ORDER BY o.\"createdAt\"";
+        if (window != null) {
+            sql += ", o.\"id\" LIMIT :limit OFFSET :offset";
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        return new ListPaging.Result<>(
+                jdbc.query(sql, params, (row, index) -> mapOpportunity(row)), total);
     }
 
     /** IN_REVIEW → PUBLISHED: reviewer != submitter (CAR-T02). */
@@ -585,20 +667,48 @@ public class CareerService {
     @Transactional
     public List<ApplicationResponse> applicationQueue(String actorId,
             String opportunityId, String status) {
+        return applicationQueue(actorId, opportunityId, status, null).items();
+    }
+
+    @Transactional
+    public ListPaging.Result<ApplicationResponse> applicationQueue(String actorId,
+            String opportunityId, String status, ListPaging.Window window) {
         requireAnyOrgGrant(actorId);
         List<String> orgs = grantedOrganizations(actorId);
         MapSqlParameterSource params = new MapSqlParameterSource("orgs", orgs);
-        String sql = applicationSelect() + " WHERE o.\"organizationId\" IN (:orgs)";
+        String where = " WHERE o.\"organizationId\" IN (:orgs)";
         if (opportunityId != null && !opportunityId.isBlank()) {
-            sql += " AND a.\"opportunityId\" = :opp";
+            where += " AND a.\"opportunityId\" = :opp";
             params.addValue("opp", opportunityId);
         }
         if (status != null && !status.isBlank()) {
-            sql += " AND a.\"status\" = :status";
+            where += " AND a.\"status\" = :status";
             params.addValue("status", status);
         }
-        sql += " ORDER BY a.\"submittedAt\" DESC";
-        return jdbc.query(sql, params, (row, index) -> mapApplication(row));
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM " + APPLICATION + " a"
+                            + " JOIN " + OPPORTUNITY + " o ON o.\"id\" = a.\"opportunityId\"" + where,
+                    params, Long.class);
+        }
+        String sql = applicationSelect() + where + " ORDER BY a.\"submittedAt\" DESC";
+        if (window != null) {
+            sql += ", a.\"id\" LIMIT :limit OFFSET :offset";
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        List<Map<String, Object>> rows = jdbc.query(sql, params,
+                (row, index) -> rowToMap(row));
+        List<String> applicationIds = rows.stream()
+                .map(row -> String.valueOf(row.get("id")))
+                .toList();
+        Map<String, List<AttachmentResponse>> attachments =
+                attachmentsByApplication(applicationIds);
+        List<ApplicationResponse> items = rows.stream()
+                .map(row -> mapApplication(row, attachments.getOrDefault(
+                        String.valueOf(row.get("id")), List.of())))
+                .toList();
+        return new ListPaging.Result<>(items, total);
     }
 
     /** Org-scoped application detail — foreign org applications answer 403 scope-deny. */
@@ -767,6 +877,28 @@ public class CareerService {
                 (row, index) -> mapAttachment(row));
     }
 
+    /** One grouped read per 100 parents — list lanes never fan out a query per row. */
+    Map<String, List<AttachmentResponse>> attachmentsByApplication(List<String> applicationIds) {
+        if (applicationIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<AttachmentResponse>> grouped = new HashMap<>();
+        for (int from = 0; from < applicationIds.size(); from += ListPaging.MAX_LIMIT) {
+            List<String> batch = applicationIds.subList(from,
+                    Math.min(applicationIds.size(), from + ListPaging.MAX_LIMIT));
+            jdbc.query(
+                    "SELECT \"applicationId\", \"id\", \"fileName\", \"contentType\", \"checksum\","
+                            + " \"createdAt\" FROM " + ATTACHMENT
+                            + " WHERE \"applicationId\" IN (:applicationIds)"
+                            + " ORDER BY \"applicationId\", \"createdAt\", \"id\"",
+                    new MapSqlParameterSource("applicationIds", batch),
+                    (RowCallbackHandler) row -> grouped.computeIfAbsent(
+                            row.getString("applicationId"), ignored -> new ArrayList<>())
+                            .add(mapAttachment(row)));
+        }
+        return grouped;
+    }
+
     void requireOpportunityTerminalGuard(Map<String, Object> opportunity) {
         String status = String.valueOf(opportunity.get("status"));
         if (TERMINAL_OPPORTUNITY_STATUSES.contains(status)) {
@@ -874,6 +1006,11 @@ public class CareerService {
     }
 
     ApplicationResponse mapApplication(Map<String, Object> row) {
+        return mapApplication(row, attachmentsOf(String.valueOf(row.get("id"))));
+    }
+
+    ApplicationResponse mapApplication(Map<String, Object> row,
+            List<AttachmentResponse> attachments) {
         return new ApplicationResponse(
                 String.valueOf(row.get("id")),
                 String.valueOf(row.get("opportunityId")),
@@ -890,19 +1027,7 @@ public class CareerService {
                 row.get("moderationReason") == null ? null : String.valueOf(row.get("moderationReason")),
                 ((Number) row.get("version")).intValue(),
                 toInstant(row.get("createdAt")),
-                attachmentsOf(String.valueOf(row.get("id"))));
-    }
-
-    private ApplicationResponse mapApplication(ResultSet row) throws SQLException {
-        return new ApplicationResponse(
-                row.getString("id"), row.getString("opportunityId"), row.getString("opp_title"),
-                row.getString("organizationId"), row.getString("org_name"),
-                row.getString("candidateUserId"), row.getString("candidate_email"),
-                row.getString("status"), row.getString("coverLetter"),
-                toInstant(row.getTimestamp("submittedAt")), row.getString("statusChangedBy"),
-                toInstant(row.getTimestamp("statusChangedAt")), row.getString("moderationReason"),
-                row.getInt("version"), toInstant(row.getTimestamp("createdAt")),
-                attachmentsOf(row.getString("id")));
+                attachments);
     }
 
     private AttachmentResponse mapAttachment(ResultSet row) throws SQLException {
@@ -916,6 +1041,15 @@ public class CareerService {
                 row.getString("id"), row.getString("userId"), row.getString("scope"),
                 row.getString("organizationId"), row.getString("grantedBy"),
                 toInstant(row.getTimestamp("createdAt")));
+    }
+
+    private static Map<String, Object> rowToMap(ResultSet row) throws SQLException {
+        var meta = row.getMetaData();
+        var map = new java.util.HashMap<String, Object>();
+        for (int i = 1; i <= meta.getColumnCount(); i++) {
+            map.put(meta.getColumnLabel(i), row.getObject(i));
+        }
+        return map;
     }
 
     static Instant toInstant(Object value) {

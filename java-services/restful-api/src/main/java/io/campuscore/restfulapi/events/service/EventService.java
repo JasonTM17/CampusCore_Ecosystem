@@ -8,6 +8,7 @@ import io.campuscore.restfulapi.events.web.EventDtos.OpenRegistrationRequest;
 import io.campuscore.restfulapi.events.web.EventDtos.RosterEntry;
 import io.campuscore.restfulapi.events.web.EventDtos.StaffGrantResponse;
 import io.campuscore.restfulapi.events.web.EventDtos.UpdateEventRequest;
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository.CreateNotificationCommand;
 import io.campuscore.restfulapi.web.DomainException;
@@ -96,17 +97,33 @@ public class EventService {
     }
 
     public List<StaffGrantResponse> listGrants(String actorId) {
+        return listGrants(actorId, null).items();
+    }
+
+    public ListPaging.Result<StaffGrantResponse> listGrants(String actorId,
+            ListPaging.Window window) {
         requireStaffGrant(actorId);
-        return jdbc.query(
-                "SELECT \"id\", \"userId\", \"scope\", \"grantedBy\", \"createdAt\""
-                        + " FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope ORDER BY \"createdAt\"",
-                new MapSqlParameterSource("scope", EVENT_SCOPE),
+        MapSqlParameterSource params = new MapSqlParameterSource("scope", EVENT_SCOPE);
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope",
+                    params, Long.class);
+        }
+        String sql = "SELECT \"id\", \"userId\", \"scope\", \"grantedBy\", \"createdAt\""
+                + " FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope ORDER BY \"createdAt\"";
+        if (window != null) {
+            sql += ", \"id\" LIMIT :limit OFFSET :offset";
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        List<StaffGrantResponse> items = jdbc.query(sql, params,
                 (row, index) -> new StaffGrantResponse(
                         row.getString("id"),
                         row.getString("userId"),
                         row.getString("scope"),
                         row.getString("grantedBy"),
                         row.getTimestamp("createdAt").toInstant()));
+        return new ListPaging.Result<>(items, total);
     }
 
     /**
@@ -396,9 +413,21 @@ public class EventService {
 
     /** Roster is staff-scope only; students never see other registrants. */
     public List<RosterEntry> roster(String actorId, String eventId) {
+        return roster(actorId, eventId, null).items();
+    }
+
+    public ListPaging.Result<RosterEntry> roster(String actorId, String eventId,
+            ListPaging.Window window) {
         requireStaffGrant(actorId);
         requireEventOwner(actorId, findEvent(eventId, null).ownerId());
-        return jdbc.query(
+        MapSqlParameterSource params = new MapSqlParameterSource("eventId", eventId);
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM " + REGISTRATION + " r WHERE r.\"eventId\" = :eventId",
+                    params, Long.class);
+        }
+        String sql =
                 "SELECT r.\"id\" AS registration_id, r.\"version\" AS version, r.\"studentId\" AS student_id,"
                         + " u.\"firstName\" AS first_name, u.\"lastName\" AS last_name, u.\"email\" AS email,"
                         + " r.\"status\" AS status, r.\"attendanceStatus\" AS attendance_status,"
@@ -407,8 +436,12 @@ public class EventService {
                         + " FROM " + REGISTRATION + " r"
                         + " JOIN " + AUTH_USER + " u ON u.\"id\" = r.\"studentId\""
                         + " WHERE r.\"eventId\" = :eventId"
-                        + " ORDER BY r.\"registeredAt\"",
-                new MapSqlParameterSource("eventId", eventId),
+                        + " ORDER BY r.\"registeredAt\"";
+        if (window != null) {
+            sql += ", r.\"id\" LIMIT :limit OFFSET :offset";
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        List<RosterEntry> items = jdbc.query(sql, params,
                 (row, index) -> new RosterEntry(
                         row.getString("registration_id"),
                         row.getInt("version"),
@@ -421,6 +454,7 @@ public class EventService {
                         row.getString("marked_by"),
                         row.getTimestamp("marked_at") == null ? null : row.getTimestamp("marked_at").toInstant(),
                         row.getTimestamp("registered_at").toInstant()));
+        return new ListPaging.Result<>(items, total);
     }
 
     /**
@@ -492,11 +526,28 @@ public class EventService {
 
     /** Staff list includes drafts; students never receive DRAFT rows. */
     public List<EventResponse> listStaffEvents(String actorId) {
+        return listStaffEvents(actorId, null).items();
+    }
+
+    public ListPaging.Result<EventResponse> listStaffEvents(String actorId,
+            ListPaging.Window window) {
         requireStaffGrant(actorId);
-        return jdbc.query(
-                eventSelect(null) + " WHERE e.\"ownerId\" = :ownerId ORDER BY e.\"startsAt\" DESC",
-                new MapSqlParameterSource().addValue("studentId", null).addValue("ownerId", actorId),
-                (row, index) -> mapEvent(row, null));
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("studentId", null).addValue("ownerId", actorId);
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM " + EVENT + " e WHERE e.\"ownerId\" = :ownerId",
+                    params, Long.class);
+        }
+        String sql = eventSelect(null) + " WHERE e.\"ownerId\" = :ownerId"
+                + " ORDER BY e.\"startsAt\" DESC";
+        if (window != null) {
+            sql += ", e.\"id\" LIMIT :limit OFFSET :offset";
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        return new ListPaging.Result<>(
+                jdbc.query(sql, params, (row, index) -> mapEvent(row, null)), total);
     }
 
     public EventResponse staffEvent(String actorId, String eventId) {

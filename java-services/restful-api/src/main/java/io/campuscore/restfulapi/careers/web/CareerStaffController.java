@@ -9,8 +9,14 @@ import io.campuscore.restfulapi.careers.web.CareerDtos.OpportunityResponse;
 import io.campuscore.restfulapi.careers.web.CareerDtos.OrganizationResponse;
 import io.campuscore.restfulapi.careers.web.CareerDtos.StaffGrantResponse;
 import io.campuscore.restfulapi.careers.web.CareerDtos.TransitionRequest;
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
@@ -60,10 +66,18 @@ public class CareerStaffController {
     // ------------------------- grants ---------------------------------
 
     @Operation(summary = "Danh sách grants careers (org/reviewer)")
+    @ApiResponse(responseCode = "200", description = "Danh sách grants careers", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping("/grants")
     @PreAuthorize("isAuthenticated()")
-    public List<StaffGrantResponse> grants(@AuthenticationPrincipal Jwt jwt) {
-        return careers.listGrants(staff(jwt));
+    public ResponseEntity<List<StaffGrantResponse>> grants(
+            @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(careers.listGrants(staff(jwt), window));
     }
 
     @Operation(summary = "Cấp grant theo tổ chức hoặc reviewer (admin)")
@@ -91,21 +105,36 @@ public class CareerStaffController {
     // ------------------------- organizations --------------------------
 
     @Operation(summary = "Tổ chức tôi được gán recruiter")
+    @ApiResponse(responseCode = "200", description = "Tổ chức tôi được gán recruiter", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping("/organizations/my")
     @PreAuthorize("isAuthenticated()")
-    public List<OrganizationResponse> myOrganizations(@AuthenticationPrincipal Jwt jwt) {
-        return careers.myOrganizations(staff(jwt));
+    public ResponseEntity<List<OrganizationResponse>> myOrganizations(
+            @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(careers.myOrganizations(staff(jwt), window));
     }
 
     // ------------------------- opportunities --------------------------
 
     @Operation(summary = "Hàng đợi tin tuyển dụng của các tổ chức tôi quản")
+    @ApiResponse(responseCode = "200", description = "Hàng đợi tin tuyển dụng", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping("/opportunities")
     @PreAuthorize("isAuthenticated()")
-    public List<OpportunityResponse> opportunityQueue(
+    public ResponseEntity<List<OpportunityResponse>> opportunityQueue(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestParam(required = false) String status) {
-        return careers.opportunityQueue(staff(jwt), status);
+            HttpServletRequest request,
+            @RequestParam(required = false) String status,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(careers.opportunityQueue(staff(jwt), status, window));
     }
 
     @Operation(summary = "Tạo tin DRAFT trong tổ chức tôi quản")
@@ -172,10 +201,18 @@ public class CareerStaffController {
     // ------------------------- reviewer moderation --------------------
 
     @Operation(summary = "Hàng đợi IN_REVIEW (chỉ reviewer)")
+    @ApiResponse(responseCode = "200", description = "Hàng đợi IN_REVIEW", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping("/review-queue")
     @PreAuthorize("isAuthenticated()")
-    public List<OpportunityResponse> reviewQueue(@AuthenticationPrincipal Jwt jwt) {
-        return careers.reviewQueue(staff(jwt));
+    public ResponseEntity<List<OpportunityResponse>> reviewQueue(
+            @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(careers.reviewQueue(staff(jwt), window));
     }
 
     @Operation(summary = "IN_REVIEW → PUBLISHED (reviewer ≠ người nộp)")
@@ -202,13 +239,20 @@ public class CareerStaffController {
     // ------------------------- applications ---------------------------
 
     @Operation(summary = "Hàng đợi hồ sơ trong các tổ chức tôi quản")
+    @ApiResponse(responseCode = "200", description = "Hàng đợi hồ sơ", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping("/applications")
     @PreAuthorize("isAuthenticated()")
-    public List<ApplicationResponse> applicationQueue(
+    public ResponseEntity<List<ApplicationResponse>> applicationQueue(
             @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request,
             @RequestParam(required = false) String opportunityId,
-            @RequestParam(required = false) String status) {
-        return careers.applicationQueue(staff(jwt), opportunityId, status);
+            @RequestParam(required = false) String status,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(careers.applicationQueue(staff(jwt), opportunityId, status, window));
     }
 
     @Operation(summary = "Chi tiết hồ sơ trong phạm vi tổ chức")

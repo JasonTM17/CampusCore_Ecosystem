@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 import org.springframework.context.annotation.Profile;
@@ -58,10 +59,17 @@ public class CareerCandidateController {
     }
 
     @Operation(summary = "Danh mục tổ chức tuyển dụng")
+    @ApiResponse(responseCode = "200", description = "Danh mục tổ chức tuyển dụng", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping("/organizations")
     @PreAuthorize("isAuthenticated()")
-    public List<OrganizationResponse> organizations() {
-        return careers.organizations();
+    public ResponseEntity<List<OrganizationResponse>> organizations(
+            HttpServletRequest request,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(careers.organizations(window));
     }
 
     @Operation(summary = "Tin tuyển dụng đang đăng (PUBLISHED)")
@@ -72,11 +80,11 @@ public class CareerCandidateController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<OpportunityResponse>> opportunities(
             @RequestParam(required = false) String query,
+            HttpServletRequest request,
             @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
             @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
-        ListPaging.Window window = ListPaging.Window.of(page, limit);
-        return ListPaging.respond(candidates.browse(query), window,
-                OpportunityResponse::publishedAt, OpportunityResponse::id);
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(candidates.browse(query, window));
     }
 
     @Operation(summary = "Chi tiết tin đang đăng")
@@ -87,10 +95,18 @@ public class CareerCandidateController {
     }
 
     @Operation(summary = "Hồ sơ ứng tuyển của tôi")
+    @ApiResponse(responseCode = "200", description = "Hồ sơ ứng tuyển của tôi", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping("/applications/my")
     @PreAuthorize("isAuthenticated()")
-    public List<ApplicationResponse> myApplications(@AuthenticationPrincipal Jwt jwt) {
-        return candidates.myApplications(candidate(jwt));
+    public ResponseEntity<List<ApplicationResponse>> myApplications(
+            @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(candidates.myApplications(candidate(jwt), window));
     }
 
     @Operation(summary = "Chi tiết hồ sơ của tôi (chủ sở hữu)")

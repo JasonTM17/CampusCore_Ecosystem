@@ -83,7 +83,8 @@ class AuthorizationPolicyInventoryTest {
     @Test
     void admissionsGrantListingRetainsItsReviewedServiceAuthorityPolicy() throws Exception {
         Class<?> controller = io.campuscore.restfulapi.admissions.web.AdmissionStaffController.class;
-        Method method = controller.getDeclaredMethod("grants", org.springframework.security.oauth2.jwt.Jwt.class);
+        Method method = controller.getDeclaredMethod("grants", org.springframework.security.oauth2.jwt.Jwt.class,
+                jakarta.servlet.http.HttpServletRequest.class, Integer.class, Integer.class);
         RequestMappingInfo mapping = new DeclaredMappings().forMethod(method, controller);
         String handler = controller.getName() + "#" + method.getName();
         PreAuthorize annotation = AnnotatedElementUtils.findMergedAnnotation(method, PreAuthorize.class);

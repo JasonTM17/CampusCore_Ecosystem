@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -48,6 +49,36 @@ public final class ListPaging {
             }
             return new Window(pageIndex, limit);
         }
+
+        /** Rejects ambiguous repeated query parameters before any data is read. */
+        public static Window of(Integer page, Integer limit, HttpServletRequest request) {
+            if (request != null && (repeated(request, "page") || repeated(request, "limit"))) {
+                throw invalid("page and limit may be specified only once");
+            }
+            return of(page, limit);
+        }
+
+        public long offset() {
+            return (long) page * limit;
+        }
+
+        private static boolean repeated(HttpServletRequest request, String name) {
+            String[] values = request.getParameterValues(name);
+            return values != null && values.length > 1;
+        }
+    }
+
+    /** Database-read list and its pre-page total; total is absent for legacy unpaged calls. */
+    public record Result<T>(List<T> items, Long total) {
+    }
+
+    /** Returns database-paged rows with their total, preserving the bare-array response body. */
+    public static <T> ResponseEntity<List<T>> respond(Result<T> result) {
+        ResponseEntity.BodyBuilder response = ResponseEntity.ok();
+        if (result.total() != null) {
+            response.header(TOTAL_COUNT_HEADER, String.valueOf(result.total()));
+        }
+        return response.body(result.items());
     }
 
     /** Whole list when {@code window} is null, otherwise the requested slice plus the total header. */
