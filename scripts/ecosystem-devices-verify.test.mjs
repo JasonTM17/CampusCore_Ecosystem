@@ -11,7 +11,7 @@ const verifierSource = fs.readFileSync(path.join(scriptDir, 'ecosystem-devices-v
 const LANES = ['/news', '/docs', '/careers', '/library', '/apply', '/attendance/checkin'];
 const CHECKIN_AASA_PATH = '/attendance/checkin/*';
 
-function createFixture({ missingAasa = false, missingAndroid = false, missingWebRoute = null } = {}) {
+function createFixture({ missingAasa = false, missingAndroid = false, missingWebRoute = null, extraProducerLink = null } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'campus-devices-verify-'));
   const fixturePath = (relativePath) => path.join(root, relativePath);
   const writeJson = (relativePath, value) => {
@@ -70,6 +70,27 @@ function createFixture({ missingAasa = false, missingAndroid = false, missingWeb
   const routeMapPath = fixturePath('mobile/src/navigation/route-map.ts');
   fs.mkdirSync(path.dirname(routeMapPath), { recursive: true });
   fs.writeFileSync(routeMapPath, `// auth/callback is ABSENT from screen routes.\nconst pathByScreen = {\n${routeEntries}\n};\n`);
+
+  const producerRows = [
+    { link: '/apply', route: '/apply' },
+    { link: '/careers', route: '/careers' },
+    { link: '/library', route: '/library' },
+    { link: '/dashboard/announcements', route: '/announcements' },
+    { link: '/dashboard/transcript', route: '/transcript' },
+    { link: '/dashboard/events', route: '/events' },
+    { link: '/dashboard/learn', route: '/learning' },
+    { link: '/dashboard/thesis', route: '/thesis' },
+    { link: '/dashboard/lecturer/thesis', route: null },
+    ...(extraProducerLink ? [{ link: extraProducerLink, route: '/fixture' }] : []),
+  ];
+  const pushRoutesPath = fixturePath('mobile/src/api/push-routes.ts');
+  fs.mkdirSync(path.dirname(pushRoutesPath), { recursive: true });
+  fs.writeFileSync(
+    pushRoutesPath,
+    `const NOTIFICATION_PRODUCER_ROUTES = [\n${producerRows
+      .map((row) => `  { link: '${row.link}', route: ${row.route === null ? 'null' : `'${row.route}'`} },`)
+      .join('\n')}\n];\n`,
+  );
 
   const webRouteFiles = [
     ['frontend/src/app/attendance/checkin/[sessionId]/page.tsx', 'default'],
@@ -132,6 +153,13 @@ test('rejects a missing /en and /vi attendance check-in web route mirror', () =>
   withFixture({ missingWebRoute: 'locale' }, (result) => {
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /web route missing.*\/(en|vi)\/attendance\/checkin/);
+  });
+});
+
+test('rejects a producer link outside the approved lanes and preserved browser namespace', () => {
+  withFixture({ extraProducerLink: '/portal-only' }, (result) => {
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /producer link.*neither an approved claimed lane/);
   });
 });
 
