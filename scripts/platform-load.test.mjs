@@ -65,6 +65,35 @@ test('run entry rejects a tampered target before fetch (no load)', async () => {
   } finally { globalThis.fetch = originalFetch; }
 });
 
+test('requests aborted by the run deadline are not transport failures', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp38-load-'));
+  const originalFetch = globalThis.fetch;
+  // Answer the first requests normally, then hang — what a healthy run looks
+  // like when its last in-flight batch is aborted by the deadline.
+  let calls = 0;
+  globalThis.fetch = (_url, options) => {
+    if (++calls <= 12) return Promise.resolve(new Response('ok', { status: 200 }));
+    return new Promise((_, reject) => {
+      options.signal.addEventListener('abort', () => reject(new DOMException('The operation was aborted', 'AbortError')));
+    });
+  };
+  try {
+    const config = parseLoadArgs(replacing('--out', outDir).map((arg, i, a) => a[i - 1] === '--duration-seconds' ? '1' : arg));
+    const exitCode = await runLoad(config);
+    const report = JSON.parse(fs.readFileSync(path.join(outDir, 'platform-load.json'), 'utf8'));
+    const totals = Object.values(report.routeClasses).reduce((acc, route) => ({
+      requests: acc.requests + route.requests, errors: acc.errors + route.errors,
+      transportErrors: acc.transportErrors + route.transportErrors,
+    }), { requests: 0, errors: 0, transportErrors: 0 });
+    assert.ok(totals.requests > 0);
+    assert.equal(totals.transportErrors, 0);
+    assert.equal(totals.errors, 0);
+    assert.equal(exitCode, 4); // INCOMPLETE — no invariant hook, but zero errors.
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 const ownedEnv = { ECO_DRILL_CONTAINER: 'campusute-drill-mp38-postgres', ECO_DRILL_DB: 'campusute_drill_mp38', ECO_DRILL_DISPOSABLE: '1' };
 for (const overrides of [
   { ECO_DRILL_CONTAINER: undefined }, { ECO_DRILL_DB: undefined }, { ECO_DRILL_DISPOSABLE: undefined },
