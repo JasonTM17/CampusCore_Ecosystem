@@ -58,6 +58,7 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | `CSRF_COOKIE`, `CSRF_HEADER` | CSRF cookie/header names | config | optional | safe default |
 | `COOKIE_SECURE` | `Secure` flag on cookies | config | all | safe default dev; must be `true` behind HTTPS |
 | `HEALTH_READINESS_KEY` | Bearer key for `X-Health-Key` readiness probe | secret | all | required |
+| `METRICS_SCRAPE_KEY` | Bearer key for `X-Metrics-Key` header on `GET /actuator/prometheus` | secret | when metrics scraping is enabled | safe default `""` (endpoint fails closed with 403 when unset; boots cleanly) |
 | `INTERNAL_SERVICE_TOKEN` | Internal service-to-service auth token | secret | e2e | required when used |
 
 ## 3. Databases & pools
