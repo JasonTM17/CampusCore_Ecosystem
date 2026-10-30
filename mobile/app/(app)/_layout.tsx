@@ -104,7 +104,7 @@ export default function AppGroupLayout() {
             onSwitchRole={(role) => {
               session.switchRole(role);
               setMenuOpen(false);
-              router.replace(roleHomePath(role));
+              router.replace(roleHomePath(role, session.capabilities));
             }}
             allowRoleSwitch={session.kind === 'preview'}
           />

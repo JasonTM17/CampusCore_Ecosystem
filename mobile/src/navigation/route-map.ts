@@ -1,4 +1,9 @@
-import { NO_CAPABILITIES, normalizeDeepLink, type CapabilitySet } from '../auth/capabilities';
+import {
+  NO_CAPABILITIES,
+  hasApplicantSurface,
+  normalizeDeepLink,
+  type CapabilitySet,
+} from '../auth/capabilities';
 import type { LaneFlags } from '../config/lane-flags';
 import {
   canAccessLaneScreen,
@@ -40,6 +45,14 @@ const roleHomeScreen: Record<UserRole, ScreenName> = {
   lecturer: 'lecturer.dashboard',
   admin: 'admin.dashboard',
 };
+
+/**
+ * Session home screen. An applicant-surface session — a roleless account whose
+ * token carries the SELF grant — lands on admissions, the one screen its
+ * capability set unlocks; the UI role it borrows never widens the surface.
+ */
+const sessionHomeScreen = (role: UserRole, capabilities: CapabilitySet): ScreenName =>
+  hasApplicantSurface(capabilities) ? 'admissions' : roleHomeScreen[role];
 
 const pathByScreen: Record<ScreenName, string> = {
   'auth.signIn': '/sign-in',
@@ -188,8 +201,8 @@ export function screenForPath(pathname: string): ScreenName | null {
   return null;
 }
 
-export function roleHomePath(role: UserRole): string {
-  return pathByScreen[roleHomeScreen[role]];
+export function roleHomePath(role: UserRole, capabilities: CapabilitySet = NO_CAPABILITIES): string {
+  return pathByScreen[sessionHomeScreen(role, capabilities)];
 }
 
 export interface GuardDecision {
@@ -208,8 +221,11 @@ export interface GuardDecision {
  * Pure session+role guard for the (app) group (KM-13a — unit-tested
  * directly, not just via source scan):
  * - signedOut: only the sign-in family renders; anything else → /sign-in.
- * - preview/authenticated: sign-in paths bounce to role home; registry paths
- *   need role access (else role home); unknown paths → role home.
+ * - preview/authenticated: sign-in paths bounce to the session home; registry
+ *   paths need role+capability access (else session home); unknown paths →
+ *   session home. The session home is the role home, except an
+ *   applicant-surface session, whose home and only reachable screen is
+ *   admissions — every other path redirects there.
  * - lane routes (flag-gated) are allowed only for an authenticated session
  *   whose capability set grants them; the default empty set refuses every one
  *   (preview is never an authorization substitute, so it gets no lane —
@@ -237,6 +253,7 @@ export function resolveGuard(
       ? { action: 'allow' }
       : { action: 'redirect', to: 'auth.signIn' };
   }
+  const home = sessionHomeScreen(role, capabilities);
   const lane = laneScreenForPath(clean);
   if (lane !== null) {
     const granted = session === 'authenticated'
@@ -244,21 +261,21 @@ export function resolveGuard(
       : session === 'preview' && flags !== undefined && canPreviewLaneScreen(role, flags, lane);
     return granted
       ? { action: 'allow' }
-      : { action: 'redirect', to: roleHomeScreen[role], reason: 'lane-unavailable' };
+      : { action: 'redirect', to: home, reason: 'lane-unavailable' };
   }
   const screen = screenForPath(clean);
   if (clean === '/') {
-    return { action: 'redirect', to: roleHomeScreen[role] };
+    return { action: 'redirect', to: home };
   }
   if (screen !== null && screen.startsWith('auth.')) {
-    return { action: 'redirect', to: roleHomeScreen[role] };
+    return { action: 'redirect', to: home };
   }
   if (screen === null) {
-    return { action: 'redirect', to: roleHomeScreen[role] };
+    return { action: 'redirect', to: home };
   }
-  return canAccessScreen(role, screen)
+  return canAccessScreen(role, screen, capabilities)
     ? { action: 'allow' }
-    : { action: 'redirect', to: roleHomeScreen[role] };
+    : { action: 'redirect', to: home };
 }
 
 /**
@@ -272,7 +289,7 @@ export function resolveDeepLink(
   role: UserRole,
   capabilities: CapabilitySet = NO_CAPABILITIES,
 ): { action: 'open' | 'redirect'; href: string } {
-  const fallback = session === 'signedOut' ? '/sign-in' : roleHomePath(role);
+  const fallback = session === 'signedOut' ? '/sign-in' : roleHomePath(role, capabilities);
   const path = normalizeDeepLink(url);
   if (path === null) {
     return { action: 'redirect', href: fallback };

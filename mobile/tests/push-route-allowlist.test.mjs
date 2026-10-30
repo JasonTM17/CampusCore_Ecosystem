@@ -45,12 +45,20 @@ const {
   resolveNotificationRoute,
   resolveNotificationTap,
 } = await import(url('push-routes'));
+const { resolveDeepLink, resolveGuard, roleHomePath } = await import(url('route-map'));
 
 const student = { kind: 'authenticated', role: 'student', capabilities: [] };
 const lecturer = { kind: 'authenticated', role: 'lecturer', capabilities: [] };
 const admin = { kind: 'authenticated', role: 'admin', capabilities: [] };
 const adminGranted = { kind: 'authenticated', role: 'admin', capabilities: ['admin.oversight'] };
 const signedOut = { kind: 'signedOut', role: 'student', capabilities: [] };
+// A roleless account whose token carries the SELF grant: the UI selector says
+// 'student' but the surface marker scopes it to admissions only.
+const applicant = {
+  kind: 'authenticated',
+  role: 'student',
+  capabilities: ['admissions.self', 'applicant.surface'],
+};
 
 // --- producer table ----------------------------------------------------------
 
@@ -240,6 +248,66 @@ test('a preview session may open registry routes but not a lane', () => {
   const preview = { kind: 'preview', role: 'student', capabilities: [] };
   assert.equal(resolveNotificationRoute('/dashboard/transcript', preview).action, 'open');
   assert.equal(resolveNotificationRoute('/admin/audit', preview).action, 'refuse');
+});
+
+// --- applicant surface --------------------------------------------------------
+
+test('an applicant session lands on admissions and cannot leave it', () => {
+  // Role home resolves to the SELF admissions surface, not the student dashboard.
+  assert.equal(roleHomePath('student', applicant.capabilities), '/apply');
+  assert.deepEqual(resolveGuard('authenticated', 'student', '/', applicant.capabilities), {
+    action: 'redirect',
+    to: 'admissions',
+  });
+  // Every deep link to another surface collapses onto admissions.
+  for (const target of ['/dashboard', '/schedule', '/transcript', '/admin/dashboard', '/thesis/x']) {
+    assert.deepEqual(
+      resolveDeepLink(target, 'authenticated', 'student', applicant.capabilities),
+      { action: 'redirect', href: '/apply' },
+      target,
+    );
+  }
+  // Admissions itself stays open, and the notification resolver agrees.
+  assert.deepEqual(
+    resolveDeepLink('/apply', 'authenticated', 'student', applicant.capabilities),
+    { action: 'open', href: '/apply' },
+  );
+  assert.deepEqual(resolveNotificationRoute('/apply', applicant), {
+    action: 'open',
+    href: '/apply',
+    screen: 'admissions',
+    lane: null,
+  });
+  // A notification link to any other surface is refused to the applicant home.
+  assert.deepEqual(resolveNotificationRoute('/dashboard/transcript', applicant), {
+    action: 'refuse',
+    reason: 'blocked',
+    fallbackHref: '/apply',
+  });
+});
+
+test('sessions without the applicant marker keep their role surfaces', () => {
+  // The grant alone never shrinks the surface — only the marker does.
+  assert.equal(roleHomePath('student', ['admissions.self']), '/dashboard');
+  for (const [role, home] of [
+    ['student', '/dashboard'],
+    ['lecturer', '/lecturer/dashboard'],
+    ['admin', '/admin/dashboard'],
+  ]) {
+    assert.equal(roleHomePath(role), home);
+    assert.equal(roleHomePath(role, []), home);
+    assert.equal(roleHomePath(role, ['admissions.self']), home);
+  }
+  assert.deepEqual(resolveDeepLink('/dashboard', 'authenticated', 'student', []), {
+    action: 'open',
+    href: '/dashboard',
+  });
+  assert.deepEqual(resolveNotificationRoute('/dashboard/transcript', student), {
+    action: 'open',
+    href: '/transcript',
+    screen: 'transcript',
+    lane: null,
+  });
 });
 
 // --- tap resolution ----------------------------------------------------------
