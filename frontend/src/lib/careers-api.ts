@@ -112,7 +112,9 @@ export const careersApi = {
     });
     const headerValue = response.headers?.['x-total-count']
       ?? response.headers?.['X-Total-Count'];
-    const parsedTotal = headerValue == null ? Number.NaN : Number(headerValue);
+    const parsedTotal = typeof headerValue === 'string' && /^\d+$/.test(headerValue)
+      ? Number(headerValue)
+      : Number.NaN;
     const total = Number.isSafeInteger(parsedTotal) && parsedTotal >= 0 ? parsedTotal : null;
     return { items: response.data, total };
   },
