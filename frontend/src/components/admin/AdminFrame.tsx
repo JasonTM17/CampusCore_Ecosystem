@@ -19,17 +19,19 @@ import {
   GraduationCap,
   LayoutDashboard,
   LogOut,
+  MapPin,
   Menu,
   Palette,
   School,
   ScrollText,
+  TicketCheck,
   Users,
   X,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { BrandMark } from '@/components/BrandMark';
 import { ForcedPasswordRotationGate } from '@/components/auth/ForcedPasswordRotationGate';
-import { AssistantPanel } from '@/components/assistant/AssistantPanel';
+import { LazyAssistantPanel as AssistantPanel } from '@/components/assistant/lazy-assistant-panel';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
@@ -74,12 +76,17 @@ export function AdminFrame({
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const [isDesktopSidebar, setIsDesktopSidebar] = React.useState(false);
   const sidebarCloseRef = React.useRef<HTMLButtonElement>(null);
+  const sidebarRef = React.useRef<HTMLElement>(null);
   const openSidebarButtonRef = React.useRef<HTMLButtonElement>(null);
   const mainRef = React.useRef<HTMLElement>(null);
   const previousPathnameRef = React.useRef(pathname);
   const navRef = React.useRef<HTMLElement | null>(null);
   const [profileOpen, setProfileOpen] = React.useState(false);
   const profileRef = React.useRef<HTMLDivElement>(null);
+  const profileMenuRef = React.useRef<HTMLDivElement>(null);
+  const profileTriggerRef = React.useRef<HTMLButtonElement>(null);
+  // Set by the trigger's ArrowUp so the open effect focuses the last item.
+  const profileFocusLastRef = React.useRef(false);
 
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -90,6 +97,7 @@ export function AdminFrame({
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setProfileOpen(false);
+        profileTriggerRef.current?.focus();
       }
     }
     if (profileOpen) {
@@ -101,6 +109,47 @@ export function AdminFrame({
       };
     }
   }, [profileOpen]);
+
+  // The role="menu" contract: opening moves focus into the menu (first item,
+  // or the last when opened with ArrowUp from the trigger).
+  React.useEffect(() => {
+    if (!profileOpen) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      const items = profileMenuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
+      if (!items?.length) {
+        return;
+      }
+      const target = profileFocusLastRef.current ? items[items.length - 1] : items[0];
+      profileFocusLastRef.current = false;
+      target.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [profileOpen]);
+
+  const handleProfileMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const items = Array.from(
+      profileMenuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+    );
+    if (items.length === 0) {
+      return;
+    }
+    const current = items.indexOf(document.activeElement as HTMLElement);
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const next = event.key === 'ArrowDown'
+        ? (current + 1) % items.length
+        : (current + items.length - 1) % items.length;
+      items[next]?.focus();
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      items[0]?.focus();
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      items[items.length - 1]?.focus();
+    }
+  };
 
   useDocumentTitle(title);
 
@@ -134,6 +183,11 @@ export function AdminFrame({
           icon: CalendarCheck,
           label: messages.adminShell.menuAttendance,
         },
+        {
+          href: '/admin/attendance-geofences',
+          icon: MapPin,
+          label: messages.adminShell.menuAttendanceGeofences,
+        },
         { href: '/admin/semesters', icon: GraduationCap, label: messages.admin.menuItems[6]?.[0] },
         { href: '/admin/academic-years', icon: CalendarRange, label: messages.adminShell.academicYears },
         { href: '/admin/departments', icon: Building2, label: messages.admin.menuItems[7]?.[0] },
@@ -147,6 +201,11 @@ export function AdminFrame({
         { href: '/admin/thesis', icon: GraduationCap, label: messages.admin.menuItems[0]?.[0] },
         { href: '/dashboard/editor', icon: FileEdit, label: messages.adminShell.menuSiteEditor },
         { href: '/admin/announcements', icon: Megaphone, label: messages.admin.menuItems[9]?.[0] },
+        {
+          href: '/admin/events',
+          icon: TicketCheck,
+          label: messages.adminShell.menuEvents,
+        },
         {
           href: '/admin/notifications',
           icon: Bell,
@@ -215,7 +274,55 @@ export function AdminFrame({
     }
 
     const frame = window.requestAnimationFrame(() => sidebarCloseRef.current?.focus());
-    return () => window.cancelAnimationFrame(frame);
+    const getFocusable = () => {
+      const root = sidebarRef.current;
+      if (!root) return [];
+      return Array.from(
+        root.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.getClientRects().length > 0);
+    };
+
+    const handleTab = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+      const root = sidebarRef.current;
+      if (!root) return;
+
+      const activeModal = document.activeElement?.closest(
+        '[role="dialog"][aria-modal="true"]',
+      );
+      if (activeModal && activeModal !== root) return;
+
+      const focusable = getFocusable();
+      if (focusable.length === 0) {
+        event.preventDefault();
+        root.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      const activeIndex = active ? focusable.indexOf(active) : -1;
+
+      if (!root.contains(active) || activeIndex === -1) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && activeIndex === 0) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && activeIndex === focusable.length - 1) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleTab);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', handleTab);
+    };
   }, [isDesktopSidebar, sidebarOpen]);
 
   React.useEffect(() => {
@@ -264,11 +371,13 @@ export function AdminFrame({
 
       <aside
         id="admin-sidebar"
+        ref={sidebarRef}
         aria-label={messages.adminShell.sidebarNavigation}
         role={!isDesktopSidebar ? 'dialog' : undefined}
         aria-modal={!isDesktopSidebar && sidebarOpen ? true : undefined}
         aria-hidden={!isDesktopSidebar && !sidebarOpen}
         inert={!isDesktopSidebar && !sidebarOpen ? true : undefined}
+        tabIndex={-1}
         className={cn(
           'portal-sidebar fixed inset-y-0 left-0 z-50 flex w-[var(--portal-sidebar-width)] max-w-[calc(100vw-3rem)] flex-col border-r border-white/10 shadow-xl transition-transform duration-200 [transition-timing-function:var(--portal-ease)] lg:translate-x-0',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
@@ -427,8 +536,16 @@ export function AdminFrame({
               {/* Profile Card Frame matching Student & Lecturer dashboards */}
               <div className="relative" ref={profileRef}>
                 <button
+                  ref={profileTriggerRef}
                   type="button"
                   onClick={() => setProfileOpen((current) => !current)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                      event.preventDefault();
+                      profileFocusLastRef.current = event.key === 'ArrowUp';
+                      setProfileOpen(true);
+                    }
+                  }}
                   className="flex min-h-11 items-center gap-3 rounded-md border border-border/70 bg-card px-1.5 py-1 transition-[background-color,border-color] duration-150 hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:px-3"
                   aria-label={messages.adminShell.toggleProfile}
                   aria-expanded={profileOpen}
@@ -456,7 +573,14 @@ export function AdminFrame({
                 {profileOpen ? (
                   <div
                     id="admin-profile-menu"
+                    ref={profileMenuRef}
                     role="menu"
+                    onKeyDown={handleProfileMenuKeyDown}
+                    onBlur={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+                        setProfileOpen(false);
+                      }
+                    }}
                     className="absolute right-0 mt-2 w-[min(19rem,calc(100vw-2rem))] rounded-md border border-border/80 bg-card shadow-2xl z-50"
                   >
                     <div className="flex items-center gap-3 border-b border-border/70 px-4 py-4">

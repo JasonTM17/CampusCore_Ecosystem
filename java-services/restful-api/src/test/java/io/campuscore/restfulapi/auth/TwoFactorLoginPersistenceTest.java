@@ -18,8 +18,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import io.campuscore.restfulapi.mail.service.EmailService;
 import jakarta.servlet.http.Cookie;
 import java.nio.charset.StandardCharsets;
@@ -35,7 +35,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -1075,4 +1075,15 @@ class TwoFactorLoginPersistenceTest {
     private static LocalDateTime localDateTime(Instant value) {
         return value == null ? null : LocalDateTime.ofInstant(value, ZoneOffset.UTC);
     }
+
+    @Test
+    void managementPolicyRequiresAuthenticationForEveryMapping() throws Exception {
+        mvc.perform(get("/api/v1/me/two-factor")).andExpect(status().isUnauthorized());
+        for (String action : java.util.List.of("enable", "confirm", "disable/challenge", "disable")) {
+            mvc.perform(post("/api/v1/me/two-factor/" + action)
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
 }

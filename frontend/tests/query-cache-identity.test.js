@@ -968,6 +968,14 @@ function loadApiModule() {
     '@/lib/session-sync': {
       publishSessionChange: (kind) => sessionSyncPublished.push(kind),
     },
+    '@/lib/surfaces': { surfaceFromHost: () => null },
+    '@/lib/observability': {
+      REQUEST_ID_HEADER: 'X-Request-Id',
+      newRequestId: () => 'test-request-id',
+      pathOf: (url) => (url ?? '').split('?')[0],
+      pathTemplate: (url) => (url ?? '').split('?')[0],
+      recordApiMetric: () => {},
+    },
   };
   const source = readSource('src/lib/api.ts');
   const { outputText } = ts.transpileModule(source, {
@@ -3172,4 +3180,90 @@ test('session sync: a retried sign-in response publishes its cookie arrival even
     ['changed', 'changed'],
     'every cookie-bearing login response publishes, including the retry',
   );
+});
+
+// --- P03 hardening: mechanism-level proofs, not just "clear() was called" ---
+
+test('real QueryClient.clear() evicts every cached entry', () => {
+  // The real package, not a stub: proves the mechanism the identity guard
+  // relies on actually drops data, so a second account cannot see it.
+  const { QueryClient } = require('@tanstack/react-query');
+  const client = new QueryClient();
+  client.setQueryData(['me'], { id: 'user-a' });
+  client.setQueryData(['announcements'], [{ id: 'a1' }]);
+  client.setQueryData(['sections', 'u-a'], { enrolled: true });
+  client.clear();
+  assert.equal(client.getQueryData(['me']), undefined);
+  assert.equal(client.getQueryData(['announcements']), undefined);
+  assert.equal(client.getQueryData(['sections', 'u-a']), undefined);
+  assert.equal(client.getQueryCache().getAll().length, 0);
+});
+
+function loadMobileClientModule() {
+  const mobileClientPath = path.resolve(root, '..', 'mobile', 'src', 'api', 'client.ts');
+  const source = fs.readFileSync(mobileClientPath, 'utf8');
+  const { outputText } = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    fileName: 'client.ts',
+  });
+  const requireStub = (spec) => {
+    if (spec === 'react-native') return { Platform: { OS: 'android' } };
+    if (spec === './observability') {
+      return { recordApiMetric: () => {}, pathTemplate: (p) => p };
+    }
+    if (spec === '../auth/mobile-session-store') {
+      return { sessionStore: {} };
+    }
+    if (spec === './assistant-stream') {
+      return { createSseTransport: () => ({}) };
+    }
+    throw new Error(`unexpected import in mobile client.ts: ${spec}`);
+  };
+  const mod = { exports: {} };
+  new Function('require', 'module', 'exports', outputText)(requireStub, mod, mod.exports);
+  return { exports: mod.exports };
+}
+
+test('mobile sessionEpoch keeps a stale lane from evicting the newer session', async () => {
+  const { exports: mobileApi } = loadMobileClientModule();
+  const unauthorized = () => Promise.resolve(new Response(JSON.stringify({ message: 'unauthorized' }), {
+    status: 401,
+    headers: { 'Content-Type': 'application/json' },
+  }));
+  const originalFetch = global.fetch;
+  global.fetch = unauthorized;
+  try {
+    for (const [bumpEpoch, expectedExpired] of [[true, 0], [false, 1]]) {
+      let epoch = 1;
+      let expired = 0;
+      let releaseRefresh;
+      const client = mobileApi.createApiClient({
+        baseUrl: 'http://example.test',
+        mode: 'live',
+        getAccessToken: () => 'access-a',
+        setAccessToken: () => {},
+        refreshSession: () => new Promise((resolve) => { releaseRefresh = resolve; }),
+        sessionEpoch: () => epoch,
+        onSessionExpired: () => { expired += 1; },
+      });
+      const pending = client.requestWithMeta('/me').then(
+        () => ({ ok: true }),
+        (err) => ({ ok: false, err }),
+      );
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+      if (bumpEpoch) epoch += 1; // a newer sign-in replaced the lane
+      releaseRefresh(false);
+      await pending;
+      assert.equal(
+        expired,
+        expectedExpired,
+        bumpEpoch
+          ? 'a request from a superseded epoch must never sign the new session out'
+          : 'a dead refresh in the current epoch must bridge back to sign-in',
+      );
+    }
+  } finally {
+    global.fetch = originalFetch;
+  }
 });

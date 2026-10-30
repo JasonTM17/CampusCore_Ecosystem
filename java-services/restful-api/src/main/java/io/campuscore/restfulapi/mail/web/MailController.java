@@ -3,6 +3,7 @@ package io.campuscore.restfulapi.mail.web;
 import io.campuscore.restfulapi.mail.repository.MailRecipientScopeRepository;
 import io.campuscore.restfulapi.mail.repository.MailRecipientScopeRepository.ScopedRecipient;
 import io.campuscore.restfulapi.mail.service.EmailService;
+import io.campuscore.restfulapi.mail.service.EmailServiceImpl.MailDeliverySkippedException;
 import io.campuscore.restfulapi.mail.web.MailDtos.AcademicNoticeRequest;
 import io.campuscore.restfulapi.mail.web.MailDtos.CourseItem;
 import io.campuscore.restfulapi.mail.web.MailDtos.CourseRegistrationRequest;
@@ -15,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
@@ -60,7 +62,11 @@ public class MailController {
                 : "Quản trị viên CampusUTE";
         String intro = (request != null) ? request.introMessage() : null;
 
-        emailService.sendTestEmail(to, name, intro);
+        try {
+            emailService.sendTestEmail(to, name, intro);
+        } catch (MailDeliverySkippedException skipped) {
+            return ResponseEntity.ok(MailDispatchResponse.notDelivered(to, "test-verification"));
+        }
 
         return ResponseEntity.ok(new MailDispatchResponse(
                 true,
@@ -77,7 +83,11 @@ public class MailController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody AcademicNoticeRequest request) {
         AcademicNoticeRequest effective = scopeNoticeRecipient(jwt, request);
-        emailService.sendAcademicNotice(effective);
+        try {
+            emailService.sendAcademicNotice(effective);
+        } catch (MailDeliverySkippedException skipped) {
+            return ResponseEntity.ok(MailDispatchResponse.notDelivered(effective.to(), "academic-announcement"));
+        }
         return ResponseEntity.ok(new MailDispatchResponse(
                 true,
                 "Thông báo học vụ đã được gửi thành công!",
@@ -93,7 +103,11 @@ public class MailController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody CourseRegistrationRequest request) {
         CourseRegistrationRequest effective = scopeStudentRecipient(jwt, request);
-        emailService.sendCourseRegistration(effective);
+        try {
+            emailService.sendCourseRegistration(effective);
+        } catch (MailDeliverySkippedException skipped) {
+            return ResponseEntity.ok(MailDispatchResponse.notDelivered(effective.to(), "course-registration"));
+        }
         return ResponseEntity.ok(new MailDispatchResponse(
                 true,
                 "Xác nhận đăng ký học phần đã được gửi thành công!",
@@ -109,7 +123,11 @@ public class MailController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody GradeAlertRequest request) {
         GradeAlertRequest effective = scopeStudentRecipient(jwt, request);
-        emailService.sendGradeAlert(effective);
+        try {
+            emailService.sendGradeAlert(effective);
+        } catch (MailDeliverySkippedException skipped) {
+            return ResponseEntity.ok(MailDispatchResponse.notDelivered(effective.to(), "grade-alert"));
+        }
         return ResponseEntity.ok(new MailDispatchResponse(
                 true,
                 "Báo cáo kết quả học tập & rèn luyện đã được gửi thành công!",
@@ -223,11 +241,13 @@ public class MailController {
     private static final java.util.Set<String> PREVIEW_TEMPLATES =
             java.util.Set.of("test-verification", "academic-announcement", "course-registration", "grade-alert",
                     "two-factor-code");
+    private static final ZoneId CAMPUS_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private Map<String, Object> buildSampleData(String templateName) {
         Map<String, Object> data = new HashMap<>();
-        String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy"));
-        String dateStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        LocalDateTime campusNow = LocalDateTime.now(CAMPUS_ZONE);
+        String nowStr = campusNow.format(DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy"));
+        String dateStr = campusNow.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
 
         switch (templateName) {
             case "test-verification" -> {

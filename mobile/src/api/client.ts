@@ -1,7 +1,46 @@
 import { Platform } from 'react-native';
+import { sessionStore } from '../auth/mobile-session-store';
+import {
+  createSseTransport,
+  type AssistantTransport,
+} from './assistant-stream';
+import { recordApiMetric, pathTemplate } from './observability';
+import type {
+  PushDeviceRegistrationBody,
+  PushDeviceRegistrationResponse,
+} from './push-notifications';
+import type { DiskDownload, NativeFileRuntime, TransferProgress } from './native-file-adapter';
+import type { components as GeneratedApiComponents } from './generated-api';
 
 export type JsonObject = Record<string, unknown>;
 export type AssistantLocale = 'en' | 'vi';
+
+type GeofencedAttendanceOpenSessionRequest =
+  GeneratedApiComponents['schemas']['AttendanceOpenSessionRequest'];
+type GeofencedAttendanceSessionResponse =
+  GeneratedApiComponents['schemas']['AttendanceSessionResponse'];
+type GeofencedAttendanceCodeResponse =
+  GeneratedApiComponents['schemas']['AttendanceCodeResponse'];
+type GeofencedAttendanceCheckinRequest =
+  GeneratedApiComponents['schemas']['AttendanceCheckinRequest'];
+type GeofencedAttendanceCheckinResponse =
+  GeneratedApiComponents['schemas']['AttendanceCheckinResponse'];
+type GeofencedAttendanceCheckinView =
+  GeneratedApiComponents['schemas']['AttendanceCheckinView'];
+type GeofencedAttendanceOpenSessionResponse =
+  GeneratedApiComponents['schemas']['AttendanceOpenSessionResponse'];
+type GeofencedAttendanceReviewRequest =
+  GeneratedApiComponents['schemas']['AttendanceReviewRequest'];
+type GeofencedAttendanceConsentRequest =
+  GeneratedApiComponents['schemas']['AttendanceConsentRequest'];
+type GeofencedAttendanceConsentResponse =
+  GeneratedApiComponents['schemas']['AttendanceConsentResponse'];
+type GeofencedAttendanceGeofenceRequest =
+  GeneratedApiComponents['schemas']['AttendanceGeofenceRequest'];
+type GeofencedAttendanceGeofenceResponse =
+  GeneratedApiComponents['schemas']['AttendanceGeofenceResponse'];
+type GeofencedAttendanceActiveGeofenceResponse =
+  GeneratedApiComponents['schemas']['AttendanceActiveGeofenceResponse'];
 
 declare const process: {
   env: Record<string, string | undefined>;
@@ -85,16 +124,12 @@ export interface AuthUser {
   email: string;
   firstName?: string | null;
   lastName?: string | null;
+  /** Portrait photo (URL or data URL), from AuthUserResponse.avatar. */
+  avatar?: string | null;
   roles?: string[];
   permissions?: string[];
   studentId?: string | null;
   lecturerId?: string | null;
-}
-
-export interface LoginResponse {
-  user: AuthUser;
-  accessToken: string;
-  refreshToken: string;
 }
 
 export interface MobileSection {
@@ -194,36 +229,539 @@ export interface MobileNotification {
   createdAt: string;
 }
 
+/** D4 events contract (P08): student register/cancel/history surface. */
+export type MobileEventStatus =
+  | 'DRAFT'
+  | 'PUBLISHED'
+  | 'REGISTRATION_OPEN'
+  | 'REGISTRATION_CLOSED'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export interface MobileEvent {
+  id: string;
+  title: string;
+  description?: string | null;
+  location?: string | null;
+  organizer: string;
+  status: MobileEventStatus;
+  capacity: number;
+  registeredCount: number;
+  seatsRemaining: number;
+  startsAt: string;
+  endsAt: string;
+  registrationOpensAt?: string | null;
+  registrationClosesAt?: string | null;
+  myRegistrationId?: string | null;
+  myRegistrationStatus?: 'REGISTERED' | 'CANCELLED' | null;
+  myAttendanceStatus?: 'ABSENT' | 'ATTENDED' | null;
+}
+
+export interface MobileEventRegistration {
+  registrationId: string;
+  registrationStatus: 'REGISTERED' | 'CANCELLED';
+  attendanceStatus: 'ABSENT' | 'ATTENDED';
+  registeredAt: string;
+  cancelledAt?: string | null;
+  event: MobileEvent;
+}
+
+/** D5 learning contract (P09): enrolled-section read-through, materials,
+ * assignments and the draft→submit→resubmit lifecycle with immutable
+ * revisions. Staff lanes are intentionally absent on native — section
+ * authority is lecturer-only and the native surface is the student lane. */
+export type MobileAssignmentStatus = 'DRAFT' | 'PUBLISHED' | 'CLOSED' | 'ARCHIVED';
+export type MobileSubmissionStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'RETURNED'
+  | 'RESUBMITTED'
+  | 'REVIEWED';
+
+export interface MobileLearningSection {
+  sectionId: string;
+  sectionNumber: string;
+  courseCode: string;
+  courseName: string;
+  enrollmentStatus: string;
+  materialCount: number;
+  assignmentCount: number;
+}
+
+export interface MobileLearningMaterial {
+  id: string;
+  sectionId: string;
+  title: string;
+  description?: string | null;
+  fileName?: string | null;
+  contentType?: string | null;
+  sizeBytes?: number | null;
+  version: number;
+}
+
+export interface MobileLearningAssignment {
+  id: string;
+  sectionId: string;
+  title: string;
+  description?: string | null;
+  deadlineAt?: string | null;
+  maxScore?: number | null;
+  status: MobileAssignmentStatus;
+  version: number;
+  mySubmissionId?: string | null;
+  mySubmissionStatus?: MobileSubmissionStatus | null;
+}
+
+export interface MobileLearningSubmission {
+  id: string;
+  assignmentId: string;
+  status: MobileSubmissionStatus;
+  currentRevisionId?: string | null;
+  submittedAt?: string | null;
+  returnedAt?: string | null;
+  reviewedAt?: string | null;
+  version: number;
+}
+
+export interface MobileLearningRevision {
+  id: string;
+  revisionNo: number;
+  fileName?: string | null;
+  textBody?: string | null;
+  submittedAt: string;
+}
+
+export interface MobileLearningFeedback {
+  id: string;
+  comment?: string | null;
+  score?: number | null;
+  createdAt: string;
+}
+
+/** §7 admissions contract (P10): applicant lane only on native — draft,
+ * save, submit, withdraw and status/review history. Attachments and the
+ * staff queue stay web lanes; every decision carries the SIMULATED label
+ * and never creates an academic Student record. */
+export type MobileApplicationStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'IN_REVIEW'
+  | 'RETURNED'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'WITHDRAWN';
+
+export interface MobileAdmissionReview {
+  id: string;
+  action: 'CLAIM' | 'RETURN' | 'DECISION';
+  checklist?: string | null;
+  note?: string | null;
+  decision?: 'ACCEPTED' | 'REJECTED' | null;
+  createdAt: string;
+}
+
+export interface MobileAdmissionApplication {
+  id: string;
+  applicantUserId: string;
+  cycle: string;
+  status: MobileApplicationStatus;
+  fullName?: string | null;
+  dateOfBirth?: string | null;
+  schoolName?: string | null;
+  intendedMajor?: string | null;
+  essay?: string | null;
+  submittedAt?: string | null;
+  decision?: 'ACCEPTED' | 'REJECTED' | null;
+  decisionLabel?: 'SIMULATED' | null;
+  decisionAt?: string | null;
+  version: number;
+  createdAt: string;
+  reviews: MobileAdmissionReview[];
+}
+
+export interface MobileAdmissionForm {
+  fullName: string;
+  dateOfBirth: string;
+  schoolName: string;
+  intendedMajor: string;
+  essay: string;
+}
+
+/** §8 library circulation (P11): patron catalogue/loan shapes. */
+export type MobileLibraryCopyStatus = 'AVAILABLE' | 'RESERVED' | 'ON_LOAN' | 'RETIRED';
+export type MobileLibraryLoanStatus =
+  | 'REQUESTED'
+  | 'APPROVED'
+  | 'ISSUED'
+  | 'RETURNED'
+  | 'CANCELLED';
+
+export interface MobileLibraryCopy {
+  id: string;
+  titleId: string;
+  barcode: string;
+  status: MobileLibraryCopyStatus;
+  version: number;
+}
+
+export interface MobileLibraryTitle {
+  id: string;
+  title: string;
+  author?: string | null;
+  isbn?: string | null;
+  category?: string | null;
+  publisher?: string | null;
+  publishedYear?: number | null;
+  description?: string | null;
+  totalCopies: number;
+  availableCopies: number;
+  version: number;
+  copies?: MobileLibraryCopy[] | null;
+}
+
+export interface MobileLibraryLoan {
+  id: string;
+  copyId: string;
+  barcode?: string | null;
+  titleId?: string | null;
+  title?: string | null;
+  borrowerUserId: string;
+  borrowerEmail?: string | null;
+  status: MobileLibraryLoanStatus;
+  requestedAt: string;
+  expiresAt?: string | null;
+  issuedAt?: string | null;
+  dueAt?: string | null;
+  returnedAt?: string | null;
+  cancelledAt?: string | null;
+  cancelReason?: string | null;
+  version: number;
+  createdAt: string;
+}
+
+/** §9 careers contract (P12): candidate lane only on native — browse
+ * published postings, apply, own application history, withdraw. The
+ * recruiter/reviewer lanes and attachment uploads stay on the web
+ * surface; every decision carries a visible moderation reason. */
+export type MobileCareerOpportunityStatus =
+  | 'DRAFT'
+  | 'IN_REVIEW'
+  | 'PUBLISHED'
+  | 'PAUSED'
+  | 'CLOSED'
+  | 'REJECTED';
+
+export type MobileCareerApplicationStatus =
+  | 'SUBMITTED'
+  | 'REVIEWING'
+  | 'INTERVIEW'
+  | 'OFFER'
+  | 'REJECTED'
+  | 'WITHDRAWN';
+
+export interface MobileCareerOpportunity {
+  id: string;
+  organizationId: string;
+  organizationName?: string | null;
+  title: string;
+  description?: string | null;
+  location?: string | null;
+  employmentType?: string | null;
+  salaryText?: string | null;
+  status: MobileCareerOpportunityStatus;
+  publishedAt?: string | null;
+  closedAt?: string | null;
+  version: number;
+  createdAt: string;
+}
+
+export interface MobileCareerApplication {
+  id: string;
+  opportunityId: string;
+  opportunityTitle?: string | null;
+  organizationId: string;
+  organizationName?: string | null;
+  candidateUserId: string;
+  candidateEmail?: string | null;
+  status: MobileCareerApplicationStatus;
+  coverLetter?: string | null;
+  submittedAt?: string | null;
+  statusChangedBy?: string | null;
+  statusChangedAt?: string | null;
+  moderationReason?: string | null;
+  version: number;
+  createdAt: string;
+}
+
+/** §5 public content lanes (P13): the anonymous news feed and public
+ * documentation read/search — the same PUBLISHED rows the public hub
+ * serves; audience-scoping metadata never leaves the server. */
+export interface MobilePublicAnnouncement {
+  id: string;
+  title: string;
+  content?: string | null;
+  summary?: string | null;
+  coverImageUrl?: string | null;
+  priority?: string | null;
+  categoryId?: string | null;
+  slug?: string | null;
+  publishAt?: string | null;
+  expiresAt?: string | null;
+  createdAt?: string | null;
+  publishedBy?: string | null;
+  lecturerDisplayName?: string | null;
+  semesterName?: string | null;
+}
+
+export interface MobilePublicDoc {
+  slug: string;
+  categoryId?: string | null;
+  publishedRevision: number;
+  titleVi: string;
+  titleEn: string;
+  summaryVi?: string | null;
+  summaryEn?: string | null;
+  bodyVi?: string | null;
+  bodyEn?: string | null;
+  publishedAt?: string | null;
+  tagIds?: string[];
+}
+
+export interface MobilePageMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface LecturerScheduleEntry {
+  sectionId: string;
+  sectionNumber?: string;
+  courseCode?: string;
+  courseName?: string;
+  courseNameEn?: string;
+  courseNameVi?: string;
+  semesterId?: string;
+  semesterName?: string;
+  enrolledCount?: number;
+  capacity?: number;
+  schedules?: Array<{
+    id?: string;
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    classroom?: { building?: string; roomNumber?: string };
+  }>;
+}
+
+export interface LecturerGradingSection {
+  sectionId: string;
+  sectionNumber?: string;
+  courseCode?: string;
+  courseName?: string;
+  courseNameEn?: string;
+  courseNameVi?: string;
+  semesterId?: string;
+  enrolledCount: number;
+  gradedCount: number;
+  publishedCount: number;
+  gradeStatus?: string;
+  canPublish?: boolean;
+}
+
+export interface AttendanceRosterEntry {
+  studentId: string;
+  studentCode?: string;
+  firstName?: string;
+  lastName?: string;
+  studentEmail?: string;
+  enrollmentStatus?: string;
+}
+
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'RESET';
+
+export interface AttendanceRecord {
+  id?: string;
+  studentId: string;
+  status: string;
+  date?: string;
+  notes?: string;
+}
+
+/** GET /sections/{id}/grades — SectionGradesResponse.enrollments item. */
+export interface SectionGradeEnrollment {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentCode: string;
+  email?: string;
+  processScore?: number | null;
+  finalExamScore?: number | null;
+  finalGrade?: number | null;
+  letterGrade?: string | null;
+  gradeStatus?: string;
+  enrollmentStatus?: string;
+}
+
+interface SectionGradesResponse {
+  sectionId: string;
+  enrollments: SectionGradeEnrollment[];
+}
+
+export interface StudentGradeRow {
+  enrollmentId: string;
+  studentId?: string;
+  studentCode?: string;
+  studentName?: string;
+  calculatedTotal?: number;
+  finalGrade?: number | null;
+  letterGrade?: string | null;
+  gradeStatus?: string;
+  processScore?: number | null;
+  finalExamScore?: number | null;
+  grades?: Array<{
+    gradeItemId?: string;
+    gradeItemName?: string;
+    gradeItemType?: string;
+    score?: number;
+    maxScore?: number;
+    weight?: number;
+  }>;
+}
+
 export interface ApiClientOptions {
   baseUrl?: string;
   mode?: ApiMode;
   getAccessToken?: () => string | undefined;
+  setAccessToken?: (token: string | undefined) => void;
+  /**
+   * Delegated session refresh (mobile-policy §3, KM-7): the apiClient owns the
+   * shared single-flight promise; the actual grant lives in session-store so
+   * refresh material never enters client memory.
+   */
+  refreshSession?: () => Promise<boolean>;
   onSessionExpired?: () => void;
+  /**
+   * Session epoch reader (mobile-policy §3): a request that started under an
+   * older epoch and fails after a sign-out/sign-in cycle must not kick the
+   * NEW session out — its 401 belongs to a dead lane (review F4).
+   */
+  sessionEpoch?: () => number;
+  /**
+   * How often a pending download/upload compares the session epoch with the
+   * one it started under; a sign-out or account switch aborts the transfer.
+   */
+  epochPollMs?: number;
+  /** Injectable native boundary; null deliberately keeps byte-only transport. */
+  nativeFiles?: NativeFileRuntime | null;
 }
 
 export type ApiMode = 'preview' | 'live';
+
+/**
+ * `protected` (default) sends the Bearer token and joins the single-flight
+ * refresh on 401. `public` is anonymous: no Authorization header is ever sent
+ * and a 401 never triggers a refresh or a session-expired bridge.
+ */
+export type ApiAuthPolicy = 'protected' | 'public';
+
+export interface ApiRequestInit extends RequestInit {
+  auth?: ApiAuthPolicy;
+}
+
+export interface ApiTransferInit extends Omit<ApiRequestInit, 'body' | 'method'> {
+  /** Sent as `Idempotency-Key`; replays of the same call (refresh or caller retry) must reuse it. */
+  idempotencyKey?: string;
+  /** Stream to an owned cache file on native; byte-only callers remain compatible. */
+  nativeFile?: boolean;
+  onProgress?: TransferProgress;
+}
+
+export interface ApiUploadInit extends Omit<ApiTransferInit, 'nativeFile' | 'onProgress'> {
+  method?: 'POST' | 'PUT' | 'PATCH';
+}
+
+export interface ApiDownload {
+  data: ArrayBuffer;
+  contentType: string | null;
+  /** Server-suggested name reduced to a safe single path segment. */
+  fileName: string | null;
+  headers: Headers;
+  requestId: string;
+  /** Present only for an explicitly requested native disk download. */
+  localUri?: string;
+  release?: () => void;
+}
+
+/**
+ * Session-scoped authority for transports that run outside dispatch():
+ * the epoch reader plus the shared single-flight refresh a streaming request
+ * joins instead of running its own grant.
+ */
+export interface ApiSessionAuthority {
+  /** Current session epoch; undefined when the session lane is not tracked. */
+  epoch(): number | undefined;
+  /**
+   * Joins the shared single-flight refresh for a request that started under
+   * `requestEpoch`; resolves false for a dead or superseded session so a stale
+   * lane can never grant against the session that replaced it.
+   */
+  refresh(requestEpoch: number | undefined): Promise<boolean>;
+}
 
 export interface ApiClient {
   readonly baseUrl: string;
   readonly mode: ApiMode;
   setAccessToken(token: string | undefined): void;
-  setSessionTokens(accessToken: string | undefined, refreshToken: string | undefined): void;
-  getRefreshToken(): string | undefined;
   setOnSessionExpired(handler: (() => void) | undefined): void;
   clearAccessToken(): void;
-  request<TResponse>(path: string, init?: RequestInit): Promise<TResponse>;
-  requestWithMeta<TResponse>(path: string, init?: RequestInit): Promise<{ data: TResponse; headers: Headers; requestId: string }>;
-  get<TResponse>(path: string, init?: RequestInit): Promise<TResponse>;
-  post<TResponse>(path: string, body?: unknown, init?: RequestInit): Promise<TResponse>;
-  put<TResponse>(path: string, body?: unknown, init?: RequestInit): Promise<TResponse>;
-  patch<TResponse>(path: string, body?: unknown, init?: RequestInit): Promise<TResponse>;
-  delete<TResponse>(path: string, init?: RequestInit): Promise<TResponse>;
+  request<TResponse>(path: string, init?: ApiRequestInit): Promise<TResponse>;
+  requestWithMeta<TResponse>(path: string, init?: ApiRequestInit): Promise<{ data: TResponse; headers: Headers; requestId: string }>;
+  get<TResponse>(path: string, init?: ApiRequestInit): Promise<TResponse>;
+  post<TResponse>(path: string, body?: unknown, init?: ApiRequestInit): Promise<TResponse>;
+  put<TResponse>(path: string, body?: unknown, init?: ApiRequestInit): Promise<TResponse>;
+  patch<TResponse>(path: string, body?: unknown, init?: ApiRequestInit): Promise<TResponse>;
+  delete<TResponse>(path: string, init?: ApiRequestInit): Promise<TResponse>;
+  /** Binary GET through the same refresh, epoch and abort authority as JSON calls. */
+  download(path: string, init?: ApiTransferInit): Promise<ApiDownload>;
+  /** Multipart upload through the same refresh, epoch and abort authority as JSON calls. */
+  upload<TResponse>(path: string, form: FormData, init?: ApiUploadInit): Promise<TResponse>;
+  /** Shared epoch and single-flight refresh for streaming transports outside dispatch(). */
+  readonly session: ApiSessionAuthority;
+}
+
+export type ApiErrorKind =
+  | 'unauthorized'
+  | 'denied'
+  | 'not_found'
+  | 'conflict'
+  | 'invalid'
+  | 'rate_limited'
+  | 'server'
+  | 'network'
+  | 'aborted'
+  | 'unknown';
+
+const ABORT_CODES = new Set(['REQUEST_ABORTED', 'SESSION_CHANGED']);
+
+export function classifyApiError(status: number, code?: string): ApiErrorKind {
+  if (code !== undefined && ABORT_CODES.has(code)) return 'aborted';
+  if (code === 'NETWORK_ERROR') return 'network';
+  if (status === 401) return 'unauthorized';
+  if (status === 403) return 'denied';
+  if (status === 404) return 'not_found';
+  if (status === 409 || status === 412) return 'conflict';
+  if (status === 400 || status === 413 || status === 415 || status === 422) return 'invalid';
+  if (status === 429) return 'rate_limited';
+  if (status >= 500) return 'server';
+  return 'unknown';
 }
 
 export class ApiClientError extends Error {
   readonly status: number;
   readonly code?: string;
   readonly requestId: string;
+  readonly kind: ApiErrorKind;
 
   constructor(message: string, status: number, requestId: string, code?: string) {
     super(message);
@@ -231,7 +769,42 @@ export class ApiClientError extends Error {
     this.status = status;
     this.requestId = requestId;
     this.code = code;
+    this.kind = classifyApiError(status, code);
   }
+
+  /** A retry of the same intent may succeed; callers must still reuse the idempotency key. */
+  get retryable() {
+    return this.kind === 'network' || this.kind === 'server' || this.kind === 'rate_limited';
+  }
+}
+
+export interface NormalizedApiError {
+  kind: ApiErrorKind;
+  status: number;
+  code?: string;
+  message: string;
+  requestId?: string;
+  retryable: boolean;
+}
+
+/** One UI-facing shape for any failure a facade call can raise. */
+export function normalizeApiError(error: unknown): NormalizedApiError {
+  if (error instanceof ApiClientError) {
+    return {
+      kind: error.kind,
+      status: error.status,
+      code: error.code,
+      message: error.message,
+      requestId: error.requestId,
+      retryable: error.retryable,
+    };
+  }
+  const name = (error as { name?: string } | null)?.name;
+  const message = error instanceof Error ? error.message : 'The API request failed';
+  if (name === 'AbortError') {
+    return { kind: 'aborted', status: 0, code: 'REQUEST_ABORTED', message, retryable: false };
+  }
+  return { kind: 'network', status: 0, code: 'NETWORK_ERROR', message, retryable: true };
 }
 
 export const DEFAULT_API_BASE_URL = Platform.OS === 'android'
@@ -293,161 +866,281 @@ function getErrorDetails(body: unknown) {
   };
 }
 
-function shouldRefreshAfterUnauthorized(path: string, status: number) {
-  const normalizedPath = normalizePath(path);
-  return (
-    status === 401 &&
-    !normalizedPath.startsWith('/auth/login') &&
-    !normalizedPath.startsWith('/auth/refresh') &&
-    !normalizedPath.startsWith('/auth/logout')
-  );
+const DEFAULT_EPOCH_POLL_MS = 250;
+
+function withIdempotencyKey(headers: HeadersInit | undefined, idempotencyKey: string | undefined) {
+  if (!idempotencyKey) return headers;
+  const merged = new Headers(headers);
+  merged.set('Idempotency-Key', idempotencyKey);
+  return merged;
+}
+const MAX_TRANSFER_REDIRECTS = 3;
+
+function originOf(url: string) {
+  const match = /^([a-z][a-z0-9+.-]*:\/\/[^/?#]+)/i.exec(url);
+  return match ? match[1].toLowerCase() : '';
+}
+
+function resolveLocation(current: string, location: string) {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(location)) return location;
+  const origin = originOf(current);
+  if (location.startsWith('//')) return `${origin.slice(0, origin.indexOf(':') + 1)}${location}`;
+  if (location.startsWith('/')) return `${origin}${location}`;
+  const directory = current.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
+  return `${directory}${location}`;
+}
+
+function isFormData(body: unknown): boolean {
+  return typeof FormData !== 'undefined' && body instanceof FormData;
+}
+
+/** Single safe path segment from a Content-Disposition header, or null. */
+export function safeDownloadFileName(disposition: string | null | undefined): string | null {
+  if (!disposition) return null;
+  let raw: string | undefined;
+  const extended = /filename\*\s*=\s*(?:[^']*)'[^']*'([^;]+)/i.exec(disposition);
+  if (extended) {
+    try {
+      raw = decodeURIComponent(extended[1].trim());
+    } catch {
+      raw = undefined;
+    }
+  }
+  if (raw === undefined) {
+    const plain = /filename\s*=\s*(?:"((?:[^"\\]|\\.)*)"|([^;]+))/i.exec(disposition);
+    raw = (plain?.[1] ?? plain?.[2] ?? '').trim();
+  }
+  // eslint-disable-next-line no-control-regex
+  const segment = (raw.split(/[\\/]/).pop() ?? '').replace(/[\u0000-\u001f\u007f<>:"|?*]/g, '').trim().replace(/^\.+/, '');
+  if (!segment || /^\.+$/.test(segment)) return null;
+  return segment.slice(0, 200);
+}
+
+function shouldRefreshAfterUnauthorized(_path: string, status: number) {
+  // Legacy /auth/login|refresh|logout excludes are gone with the OIDC lane —
+  // any 401 on the API host is a refresh candidate (issuer calls never
+  // reach this client; they run through session-store on the issuer host).
+  return status === 401;
 }
 
 export function createApiClient(options: ApiClientOptions = {}): ApiClient {
+  let nativeFiles = options.nativeFiles ?? undefined;
+  if (options.nativeFiles === undefined) {
+    try { nativeFiles = (require('./native-file-adapter') as typeof import('./native-file-adapter')).getNativeFileRuntime(); }
+    catch { /* Web/node or an older native binary keeps the existing bytes lane. */ }
+  }
   const baseUrl = normalizeBaseUrl(
     options.baseUrl ?? configuredApiBaseUrl ?? DEFAULT_API_BASE_URL,
   );
-  const mode = options.mode ?? configuredApiMode;
+  const apiMode = options.mode ?? configuredApiMode;
   let accessToken: string | undefined;
-  let refreshToken: string | undefined;
   const getAccessToken = options.getAccessToken ?? (() => accessToken);
+  const setAccessTokenExternal = options.setAccessToken;
   let onSessionExpired = options.onSessionExpired;
-  // All transports share one refresh promise: the backend rotates refresh tokens
-  // on every refresh, so concurrent independent refreshes race and log the user
-  // out even though one rotation succeeded.
-  let sessionRefreshPromise: Promise<boolean> | null = null;
-  // Bumped whenever the app replaces or clears the session; an in-flight refresh
-  // must not apply rotated tokens over a newer sign-in or sign-out.
-  let sessionEpoch = 0;
+  // All transports in one session epoch share a refresh: the issuer rotates
+  // refresh tokens, but a replacement session must never join the old flight.
+  let sessionRefreshFlight: { epoch: number | undefined; promise: Promise<boolean> } | null = null;
 
-  async function refreshMobileSession(requestId: string) {
-    if (!refreshToken) {
-      return false;
+  function refreshSessionOnce(requestEpoch: number | undefined): Promise<boolean> {
+    if (epochChanged(requestEpoch)) return Promise.resolve(false);
+    if (!sessionRefreshFlight || sessionRefreshFlight.epoch !== requestEpoch) {
+      const flight = { epoch: requestEpoch, promise: Promise.resolve(false) };
+      flight.promise = Promise.resolve()
+        .then(() => epochChanged(requestEpoch) ? false : options.refreshSession?.() ?? false)
+        .finally(() => {
+          // A late old flight cannot clear the replacement session's flight.
+          if (sessionRefreshFlight === flight) sessionRefreshFlight = null;
+        });
+      sessionRefreshFlight = flight;
     }
-    const epoch = sessionEpoch;
-
-    const response = await fetch(`${baseUrl}${apiRoutes.auth.refresh}`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'X-Request-Id': `${requestId}-refresh`,
-      },
-      body: JSON.stringify({ refreshToken }),
-    });
-    const body = await readResponseBody(response);
-
-    if (epoch !== sessionEpoch) {
-      return false;
-    }
-
-    if (!response.ok) {
-      accessToken = undefined;
-      refreshToken = undefined;
-      onSessionExpired?.();
-      const details = getErrorDetails(body);
-      throw new ApiClientError(
-        details.message,
-        response.status,
-        requestId,
-        details.code,
-      );
-    }
-
-    const nextSession = body as LoginResponse;
-    if (!nextSession?.accessToken || !nextSession.refreshToken) {
-      accessToken = undefined;
-      refreshToken = undefined;
-      onSessionExpired?.();
-      throw new ApiClientError(
-        'The Java auth refresh response did not include rotated tokens',
-        401,
-        requestId,
-        'INVALID_REFRESH_RESPONSE',
-      );
-    }
-
-    accessToken = nextSession.accessToken;
-    refreshToken = nextSession.refreshToken;
-    return true;
+    return sessionRefreshFlight.promise;
   }
 
-  function refreshSessionOnce(requestId: string): Promise<boolean> {
-    if (!sessionRefreshPromise) {
-      sessionRefreshPromise = refreshMobileSession(requestId).finally(() => {
-        sessionRefreshPromise = null;
-      });
-    }
-    return sessionRefreshPromise;
+  type TransferMode = 'json' | 'download' | 'upload';
+
+  function epochChanged(requestEpoch: number | undefined) {
+    return requestEpoch !== undefined
+      && options.sessionEpoch !== undefined
+      && options.sessionEpoch() !== requestEpoch;
   }
 
-  const client: ApiClient = {
-    baseUrl,
-    mode,
-
-    setAccessToken(token) {
-      accessToken = token;
-    },
-
-    setSessionTokens(nextAccessToken, nextRefreshToken) {
-      sessionEpoch += 1;
-      accessToken = nextAccessToken;
-      refreshToken = nextRefreshToken;
-    },
-
-    getRefreshToken() {
-      return refreshToken;
-    },
-
-    setOnSessionExpired(handler) {
-      onSessionExpired = handler;
-    },
-
-    clearAccessToken() {
-      sessionEpoch += 1;
-      accessToken = undefined;
-      refreshToken = undefined;
-    },
-
-    async requestWithMeta<TResponse>(path: string, init: RequestInit = {}) {
-      const requestId = createRequestId();
-      if (mode !== 'live') {
-        throw new ApiClientError(
-          'Live mobile API mode is disabled for this preview build',
-          0,
-          requestId,
-          'MOBILE_API_PREVIEW',
-        );
+  /**
+   * One lane for JSON, download and upload. Transfers follow redirects by hand
+   * so a hop to another origin is re-sent without Authorization and never
+   * joins the refresh path.
+   */
+  async function send(
+    url: string,
+    fetchInit: RequestInit,
+    headers: Headers,
+    transfer: boolean,
+  ): Promise<{ response: Response; sameOrigin: boolean }> {
+    if (!transfer) {
+      return { response: await fetch(url, { ...fetchInit, headers }), sameOrigin: true };
+    }
+    const apiOrigin = originOf(baseUrl);
+    const requestId = headers.get('X-Request-Id') ?? '';
+    let currentUrl = url;
+    let currentInit: RequestInit = { ...fetchInit, redirect: 'manual' };
+    let currentHeaders = headers;
+    let sameOrigin = true;
+    for (let hop = 0; ; hop += 1) {
+      const response = await (nativeFiles?.fetch ?? fetch)(currentUrl, { ...currentInit, headers: currentHeaders });
+      if (response.type === 'opaqueredirect') {
+        throw new ApiClientError('The server redirect could not be followed', 0, requestId, 'REDIRECT_UNSUPPORTED');
       }
-      const headers = new Headers(init.headers);
-      const token = getAccessToken();
-
-      headers.set('Accept', 'application/json');
-      headers.set('X-Request-Id', requestId);
-      if (init.body && !headers.has('Content-Type')) {
-        headers.set('Content-Type', 'application/json');
+      const location = response.headers.get('location');
+      if (![301, 302, 303, 307, 308].includes(response.status) || !location) {
+        return { response, sameOrigin };
       }
-      if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
+      if (hop >= MAX_TRANSFER_REDIRECTS) {
+        await response.body?.cancel().catch(() => {});
+        throw new ApiClientError('Too many redirects', 0, requestId, 'REDIRECT_LIMIT');
       }
+      await response.body?.cancel().catch(() => {});
+      currentUrl = resolveLocation(currentUrl, location);
+      if (originOf(currentUrl) !== apiOrigin) {
+        sameOrigin = false;
+        currentHeaders = new Headers(currentHeaders);
+        currentHeaders.delete('Authorization');
+      }
+      if (response.status !== 307 && response.status !== 308) {
+        const { body: _body, ...rest } = currentInit;
+        currentInit = { ...rest, method: 'GET' };
+        currentHeaders = new Headers(currentHeaders);
+        currentHeaders.delete('Content-Type');
+        currentHeaders.delete('Idempotency-Key');
+      }
+    }
+  }
 
-      let response = await fetch(`${baseUrl}${normalizePath(path)}`, {
-        ...init,
-        headers,
-      });
-      let body = await readResponseBody(response);
+  async function dispatch(path: string, init: ApiRequestInit, mode: TransferMode, transferOptions: ApiTransferInit = {}) {
+    const requestId = createRequestId();
+    const startedAt = Date.now();
+    const { auth = 'protected', ...fetchInit } = init;
+    const method = (init.method ?? 'GET').toUpperCase();
+    const requestEpoch = options.sessionEpoch?.();
+    if (apiMode !== 'live') {
+      throw new ApiClientError(
+        'Live mobile API mode is disabled for this preview build',
+        0,
+        requestId,
+        'MOBILE_API_PREVIEW',
+      );
+    }
+    const transfer = mode !== 'json';
+    const isPublic = auth === 'public';
+    const headers = new Headers(init.headers);
+    const token = isPublic ? undefined : getAccessToken();
 
-      if (shouldRefreshAfterUnauthorized(path, response.status) && refreshToken) {
-        const refreshed = await refreshSessionOnce(requestId);
-        if (refreshed && accessToken) {
-          headers.set('Authorization', `Bearer ${accessToken}`);
-          response = await fetch(`${baseUrl}${normalizePath(path)}`, {
-            ...init,
-            headers,
-          });
-          body = await readResponseBody(response);
+    headers.set('Accept', mode === 'download' ? '*/*' : 'application/json');
+    headers.set('X-Request-Id', requestId);
+    if (init.body && !headers.has('Content-Type') && !isFormData(init.body)) {
+      headers.set('Content-Type', 'application/json');
+    }
+    if (isPublic) {
+      headers.delete('Authorization');
+    } else if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    const url = `${baseUrl}${normalizePath(path)}`;
+    let diskDownload: DiskDownload | undefined;
+    const readBody = async (response: Response): Promise<unknown> => {
+      if (mode !== 'download' || !response.ok) return readResponseBody(response);
+      const report = /^\/thesis\/groups\/[^/]+\/report\/file$/.test(path);
+      if (nativeFiles && (transferOptions.nativeFile || /^\/(admissions|careers|learning)\//.test(path) || report)) {
+        diskDownload = await nativeFiles.streamDownload(response, fetchInit.signal, transferOptions.onProgress,
+          report ? 20 * 1024 * 1024 : undefined,
+          report ? ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'] : undefined);
+        if (transferOptions.nativeFile) return diskDownload;
+        // Compatibility consumers require bytes. Keep that bounded lane until
+        // their owner opts into localUri; networking still streams to cache.
+        const bytes = await nativeFiles.readDiskDownload(diskDownload);
+        diskDownload.release();
+        diskDownload = undefined;
+        return bytes;
+      }
+      return response.arrayBuffer();
+    };
+
+    // Transfers run under their own controller: the caller's signal and a
+    // session-epoch change (sign-out or account switch) both abort it.
+    const controller = transfer ? new AbortController() : undefined;
+    const callerSignal = fetchInit.signal ?? undefined;
+    let sessionChanged = false;
+    let stopWatching = () => {};
+    if (controller) {
+      const abortFromCaller = () => controller.abort();
+      if (callerSignal?.aborted) {
+        controller.abort();
+      } else {
+        callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
+      }
+      const timer = options.sessionEpoch
+        ? setInterval(() => {
+          if (epochChanged(requestEpoch)) {
+            sessionChanged = true;
+            controller.abort();
+          }
+        }, options.epochPollMs ?? DEFAULT_EPOCH_POLL_MS)
+        : undefined;
+      stopWatching = () => {
+        if (timer !== undefined) clearInterval(timer);
+        callerSignal?.removeEventListener('abort', abortFromCaller);
+      };
+      fetchInit.signal = controller.signal;
+    }
+
+    try {
+      if (mode === 'upload' && nativeFiles && isFormData(fetchInit.body)
+        && (/^\/(admissions|careers|learning)\//.test(path) || /^\/thesis\/groups\/[^/]+\/report\/file$/.test(path))) {
+        fetchInit.body = nativeFiles.prepareUpload(fetchInit.body as FormData, path);
+      }
+      let { response, sameOrigin } = await send(url, fetchInit, headers, transfer);
+      let body = await readBody(response);
+
+      if (!isPublic && sameOrigin && shouldRefreshAfterUnauthorized(path, response.status) && options.refreshSession) {
+        const refreshed = await refreshSessionOnce(requestEpoch);
+        const rotated = getAccessToken();
+        // A stale lane (request predates the current epoch) is skipped so a
+        // previous account's dying request can never evict the session that
+        // replaced it.
+        const staleLane = epochChanged(requestEpoch);
+        if (transfer && staleLane) {
+          sessionChanged = true;
+          throw new ApiClientError('The session changed during the transfer', 0, requestId, 'SESSION_CHANGED');
+        }
+        if (!refreshed || !rotated) {
+          // Failed refresh = dead session: the store already wiped; bridge
+          // back to sign-in instead of leaving screens in a dead end.
+          if (!staleLane) {
+            onSessionExpired?.();
+          }
+        } else if (!staleLane) {
+          headers.set('Authorization', `Bearer ${rotated}`);
+          ({ response, sameOrigin } = await send(url, fetchInit, headers, transfer));
+          body = await readBody(response);
         }
       }
+
+      if (transfer && epochChanged(requestEpoch)) {
+        sessionChanged = true;
+        throw new ApiClientError('The session changed during the transfer', 0, requestId, 'SESSION_CHANGED');
+      }
+
+      recordApiMetric({
+        method,
+        path: pathTemplate(normalizePath(path)),
+        status: response.status,
+        durationMs: Date.now() - startedAt,
+        requestId,
+        at: startedAt,
+        // §6 envelope tags — surface + client so mobile traffic is
+        // distinguishable in the metric ring without leaking identity.
+        surface: 'native',
+        clientId: 'cu-mobile',
+      });
 
       if (!response.ok) {
         const details = getErrorDetails(body);
@@ -459,19 +1152,100 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         );
       }
 
-      return { data: body as TResponse, headers: response.headers, requestId };
+      return { body, headers: response.headers, requestId };
+    } catch (error) {
+      diskDownload?.release();
+      if (!transfer || error instanceof ApiClientError) throw error;
+      if (sessionChanged) {
+        throw new ApiClientError('The session changed during the transfer', 0, requestId, 'SESSION_CHANGED');
+      }
+      if (controller?.signal.aborted) {
+        throw new ApiClientError('The transfer was aborted', 0, requestId, 'REQUEST_ABORTED');
+      }
+      const nativeCode = (error as { name?: string; code?: string } | null);
+      if (nativeCode?.name === 'NativeFileError') {
+        throw new ApiClientError('The file transfer failed', 0, requestId, nativeCode.code);
+      }
+      throw new ApiClientError(
+        'The network request failed',
+        0,
+        requestId,
+        'NETWORK_ERROR',
+      );
+    } finally {
+      stopWatching();
+    }
+  }
+
+  const client: ApiClient = {
+    baseUrl,
+    mode: apiMode,
+
+    setAccessToken(token) {
+      if (setAccessTokenExternal) {
+        setAccessTokenExternal(token);
+      } else {
+        accessToken = token;
+      }
     },
 
-    async request<TResponse>(path: string, init: RequestInit = {}) {
+    setOnSessionExpired(handler) {
+      onSessionExpired = handler;
+    },
+
+    clearAccessToken() {
+      if (setAccessTokenExternal) {
+        setAccessTokenExternal(undefined);
+      } else {
+        accessToken = undefined;
+      }
+    },
+
+    async requestWithMeta<TResponse>(path: string, init: ApiRequestInit = {}) {
+      const result = await dispatch(path, init, 'json');
+      return { data: result.body as TResponse, headers: result.headers, requestId: result.requestId };
+    },
+
+    async download(path: string, init: ApiTransferInit = {}) {
+      const { idempotencyKey, nativeFile, onProgress, ...rest } = init;
+      const result = await dispatch(
+        path,
+        { ...rest, method: 'GET', headers: withIdempotencyKey(rest.headers, idempotencyKey) },
+        'download',
+        { nativeFile, onProgress },
+      );
+      const data = result.body instanceof ArrayBuffer ? result.body : new ArrayBuffer(0);
+      return {
+        data,
+        contentType: result.headers.get('content-type'),
+        fileName: safeDownloadFileName(result.headers.get('content-disposition')),
+        headers: result.headers,
+        requestId: result.requestId,
+        ...(result.body && typeof result.body === 'object' && 'localUri' in result.body
+          ? result.body as DiskDownload : {}),
+      };
+    },
+
+    async upload<TResponse>(path: string, form: FormData, init: ApiUploadInit = {}) {
+      const { idempotencyKey, method = 'POST', ...rest } = init;
+      const result = await dispatch(
+        path,
+        { ...rest, method, body: form, headers: withIdempotencyKey(rest.headers, idempotencyKey) },
+        'upload',
+      );
+      return result.body as TResponse;
+    },
+
+    async request<TResponse>(path: string, init: ApiRequestInit = {}) {
       const result = await client.requestWithMeta<TResponse>(path, init);
       return result.data;
     },
 
-    get<TResponse>(path: string, init: RequestInit = {}) {
+    get<TResponse>(path: string, init: ApiRequestInit = {}) {
       return client.request<TResponse>(path, { ...init, method: 'GET' });
     },
 
-    post<TResponse>(path: string, body: unknown = undefined, init: RequestInit = {}) {
+    post<TResponse>(path: string, body: unknown = undefined, init: ApiRequestInit = {}) {
       return client.request<TResponse>(path, {
         ...init,
         method: 'POST',
@@ -479,7 +1253,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       });
     },
 
-    put<TResponse>(path: string, body: unknown = undefined, init: RequestInit = {}) {
+    put<TResponse>(path: string, body: unknown = undefined, init: ApiRequestInit = {}) {
       return client.request<TResponse>(path, {
         ...init,
         method: 'PUT',
@@ -487,7 +1261,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       });
     },
 
-    patch<TResponse>(path: string, body: unknown = undefined, init: RequestInit = {}) {
+    patch<TResponse>(path: string, body: unknown = undefined, init: ApiRequestInit = {}) {
       return client.request<TResponse>(path, {
         ...init,
         method: 'PATCH',
@@ -495,23 +1269,41 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       });
     },
 
-    delete<TResponse>(path: string, init: RequestInit = {}) {
+    delete<TResponse>(path: string, init: ApiRequestInit = {}) {
       return client.request<TResponse>(path, { ...init, method: 'DELETE' });
+    },
+
+    session: {
+      epoch: () => options.sessionEpoch?.(),
+      refresh: (requestEpoch) => refreshSessionOnce(requestEpoch),
     },
   };
 
   return client;
 }
 
-export const apiClient = createApiClient();
+export const apiClient = createApiClient({
+  getAccessToken: () => sessionStore.getAccessToken() ?? undefined,
+  setAccessToken: (token) => sessionStore.setAccessToken(token ?? null),
+  refreshSession: async () =>
+    (await sessionStore.refreshAccessToken()).accessToken !== null,
+  sessionEpoch: () => sessionStore.sessionEpoch(),
+});
+
+// API startup is the native composition root. Keep the public file boundary
+// dependency-free for web/node and preserve an explicitly registered adapter.
+try {
+  const nativeFiles = (require('./native-file-adapter') as typeof import('./native-file-adapter')).getNativeFileRuntime();
+  const registry = require('../files/file-adapter') as typeof import('../files/file-adapter');
+  const current = registry.getFileAdapter();
+  const capability = current.capability('pick');
+  if (nativeFiles && !capability.available && capability.reason === registry.FILE_UNAVAILABLE_REASON
+    && !current.capability('save').available && !current.capability('share').available) {
+    registry.setFileAdapter(nativeFiles.adapter);
+  }
+} catch { /* Missing modules retain the existing localized unavailable lane. */ }
 
 export const apiRoutes = {
-  auth: {
-    login: '/auth/login',
-    refresh: '/auth/refresh',
-    logout: '/auth/logout',
-    me: '/auth/me',
-  },
   identity: '/me',
   health: '/health/liveness',
   contract: '/contract',
@@ -533,23 +1325,18 @@ export const apiRoutes = {
   attendanceSummary: '/attendance/my/summary',
 } as const;
 
+const assistantSseTransport: AssistantTransport = createSseTransport({
+  fetchImpl: fetch,
+  baseUrl: apiClient.baseUrl,
+  getAccessToken: () => sessionStore.getAccessToken() ?? undefined,
+  cancelRequest: (clientRequestId) => campusApi.cancelAssistantRequest(clientRequestId),
+});
+
 export const campusApi = {
   health: () => apiClient.get<JsonObject>(apiRoutes.health),
   contract: () => apiClient.get<JsonObject>(apiRoutes.contract),
   me: () => apiClient.get<JsonObject>(apiRoutes.identity),
-  account: () => apiClient.get<AuthUser>(apiRoutes.auth.me),
-  login: (email: string, password: string) =>
-    apiClient.post<LoginResponse>(apiRoutes.auth.login, { email, password }),
-  refresh: async () => {
-    const response = await apiClient.post<LoginResponse>(
-      apiRoutes.auth.refresh,
-      { refreshToken: apiClient.getRefreshToken() },
-    );
-    apiClient.setSessionTokens(response.accessToken, response.refreshToken);
-    return response;
-  },
-  logout: () =>
-    apiClient.post<void>(apiRoutes.auth.logout, { refreshToken: apiClient.getRefreshToken() }),
+  profile: () => apiClient.get<AuthUser>('/auth/me'),
   sections: (semesterId?: string) =>
     apiClient.get<{ data: MobileSection[] }>(
       apiRoutes.sections + (semesterId ? `?semesterId=${encodeURIComponent(semesterId)}` : ''),
@@ -588,6 +1375,18 @@ export const campusApi = {
       apiRoutes.attendanceSummary + (semesterId ? `?semesterId=${encodeURIComponent(semesterId)}` : ''),
     ),
   notifications: () => apiClient.get<{ data: MobileNotification[] }>(apiRoutes.notifications),
+  registerPushDevice: (installationId: string, body: PushDeviceRegistrationBody) =>
+    apiClient.put<PushDeviceRegistrationResponse>(
+      `${apiRoutes.notifications}/devices/${encodeURIComponent(installationId)}`,
+      body,
+    ),
+  unregisterPushDevice: (installationId: string, accessToken?: string) =>
+    apiClient.delete<void>(
+      `${apiRoutes.notifications}/devices/${encodeURIComponent(installationId)}`,
+      accessToken
+        ? { headers: { Authorization: `Bearer ${accessToken}` } }
+        : undefined,
+    ),
   markNotificationRead: (id: string) =>
     apiClient.patch<JsonObject>(`/notifications/my/${id}/read`, {}),
   markAllNotificationsRead: () =>
@@ -601,6 +1400,213 @@ export const campusApi = {
     apiClient.get<MobileThesisGroup[]>(
       `${apiRoutes.thesis.groups}?roundId=${encodeURIComponent(roundId)}`,
     ),
+  lecturerSchedule: () =>
+    apiClient.get<LecturerScheduleEntry[]>('/sections/my/schedule'),
+  lecturerGradingSections: () =>
+    apiClient.get<LecturerGradingSection[]>('/sections/my/grading'),
+  attendanceRoster: (sectionId: string) =>
+    apiClient.get<AttendanceRosterEntry[]>(
+      `/attendance/section/${encodeURIComponent(sectionId)}/roster`,
+    ),
+  sectionAttendance: (sectionId: string, date?: string) =>
+    apiClient.get<AttendanceRecord[]>(
+      `/attendance/section/${encodeURIComponent(sectionId)}`
+        + (date ? `?date=${encodeURIComponent(date)}` : ''),
+    ),
+  saveSectionAttendance: (sectionId: string, date: string, records: AttendanceRecord[]) =>
+    apiClient.put<{ updatedCount?: number; message?: string }>(
+      `/attendance/section/${encodeURIComponent(sectionId)}`,
+      { date, records: records.map((r) => ({ studentId: r.studentId, status: r.status, ...(r.notes ? { notes: r.notes } : {}) })) },
+    ),
+  /**
+   * Gradebook editor source — GET /sections/{id}/grades returns the draft
+   * process/final scores per enrollment (`SectionGradeEnrollmentResponse`).
+   * `/grades/student-grades/section/{id}` is the itemised read model and
+   * does NOT carry editable scores — saving rows built from it would wipe
+   * every draft (review F2).
+   */
+  sectionGrades: async (sectionId: string): Promise<StudentGradeRow[]> => {
+    const response = await apiClient.get<SectionGradesResponse>(
+      `/sections/${encodeURIComponent(sectionId)}/grades`,
+    );
+    return response.enrollments.map((entry) => ({
+      enrollmentId: entry.id,
+      studentId: entry.studentId,
+      studentCode: entry.studentCode,
+      studentName: entry.studentName,
+      processScore: entry.processScore,
+      finalExamScore: entry.finalExamScore,
+      finalGrade: entry.finalGrade,
+      letterGrade: entry.letterGrade,
+      gradeStatus: entry.gradeStatus,
+    }));
+  },
+  saveSectionGrades: (
+    sectionId: string,
+    grades: Array<{ enrollmentId: string; processScore?: number | null; finalExamScore?: number | null }>,
+  ) =>
+    apiClient.put<JsonObject>(
+      `/sections/${encodeURIComponent(sectionId)}/grades`,
+      { grades },
+    ),
+  publishSectionGrades: (sectionId: string) =>
+    apiClient.post<JsonObject>(
+      `/sections/${encodeURIComponent(sectionId)}/grades/publish`,
+      {},
+    ),
+  // Events (D4): published catalog, self register/cancel with
+  // Idempotency-Key, and the student's own registration history.
+  events: () => apiClient.get<MobileEvent[]>('/events'),
+  myEventRegistrations: () =>
+    apiClient.get<MobileEventRegistration[]>('/events/my/registrations'),
+  registerEvent: (eventId: string) =>
+    apiClient.post<JsonObject>(
+      `/events/${encodeURIComponent(eventId)}/register`,
+      {},
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  cancelEventRegistration: (registrationId: string) =>
+    apiClient.post<JsonObject>(
+      `/events/registrations/${encodeURIComponent(registrationId)}/cancel`,
+      {},
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  // Learning (D5): student read-through + draft/submit/resubmit lifecycle.
+  // Text answers only on native — the file-picking matrix is P13 scope; the
+  // server still enforces deadline/immutability/authority server-side.
+  learningSections: () =>
+    apiClient.get<MobileLearningSection[]>('/learning/sections'),
+  learningMaterials: (sectionId: string) =>
+    apiClient.get<MobileLearningMaterial[]>(
+      `/learning/sections/${encodeURIComponent(sectionId)}/materials`,
+    ),
+  learningAssignments: (sectionId: string) =>
+    apiClient.get<MobileLearningAssignment[]>(
+      `/learning/sections/${encodeURIComponent(sectionId)}/assignments`,
+    ),
+  learningOpenDraft: (assignmentId: string) =>
+    apiClient.post<MobileLearningSubmission>(
+      `/learning/assignments/${encodeURIComponent(assignmentId)}/draft`,
+      {},
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  learningSaveDraft: (submissionId: string, textBody: string) =>
+    apiClient.put<MobileLearningSubmission>(
+      `/learning/submissions/${encodeURIComponent(submissionId)}/draft`,
+      { textBody },
+    ),
+  learningSubmit: (assignmentId: string) =>
+    apiClient.post<MobileLearningSubmission>(
+      `/learning/assignments/${encodeURIComponent(assignmentId)}/submit`,
+      {},
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  learningResubmit: (assignmentId: string, textBody: string) =>
+    apiClient.post<MobileLearningSubmission>(
+      `/learning/assignments/${encodeURIComponent(assignmentId)}/resubmit`,
+      { textBody },
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  learningRevisions: (submissionId: string) =>
+    apiClient.get<MobileLearningRevision[]>(
+      `/learning/submissions/${encodeURIComponent(submissionId)}/revisions`,
+    ),
+  learningFeedback: (submissionId: string) =>
+    apiClient.get<MobileLearningFeedback[]>(
+      `/learning/submissions/${encodeURIComponent(submissionId)}/feedback`,
+    ),
+  // Admissions (§7): applicant lane — draft/save/submit/withdraw/status.
+  // Attachments stay the web lane; decisions are SIMULATED by contract.
+  admissionsMy: () =>
+    apiClient.get<MobileAdmissionApplication[]>('/admissions/applications/my'),
+  admissionsCreate: (cycle: string) =>
+    apiClient.post<MobileAdmissionApplication>(
+      '/admissions/applications',
+      { cycle },
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  admissionsSave: (applicationId: string, form: MobileAdmissionForm, expectedVersion: number) =>
+    apiClient.put<MobileAdmissionApplication>(
+      `/admissions/applications/${encodeURIComponent(applicationId)}`,
+      { ...form, expectedVersion },
+    ),
+  admissionsSubmit: (applicationId: string, expectedVersion: number) =>
+    apiClient.post<MobileAdmissionApplication>(
+      `/admissions/applications/${encodeURIComponent(applicationId)}/submit`,
+      { expectedVersion },
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  admissionsWithdraw: (applicationId: string, expectedVersion: number) =>
+    apiClient.post<MobileAdmissionApplication>(
+      `/admissions/applications/${encodeURIComponent(applicationId)}/withdraw`,
+      { expectedVersion },
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  // Library (§8): patron lane — catalogue/search, hold a copy, own
+  // history, owner cancel. Staff issue/return stays the web lane; every
+  // mutation carries Idempotency-Key and availability is server-owned.
+  libraryCatalogue: (query?: string) =>
+    apiClient.get<MobileLibraryTitle[]>(
+      `/library/catalogue${query ? `?query=${encodeURIComponent(query)}` : ''}`,
+    ),
+  libraryTitle: (titleId: string) =>
+    apiClient.get<MobileLibraryTitle>(
+      `/library/catalogue/${encodeURIComponent(titleId)}`,
+    ),
+  libraryMyLoans: () =>
+    apiClient.get<MobileLibraryLoan[]>('/library/requests/my'),
+  libraryRequest: (copyId: string) =>
+    apiClient.post<MobileLibraryLoan>(
+      '/library/requests',
+      { copyId },
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  libraryCancel: (requestId: string, expectedVersion: number) =>
+    apiClient.post<MobileLibraryLoan>(
+      `/library/requests/${encodeURIComponent(requestId)}/cancel`,
+      { expectedVersion },
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  // Careers (§9): candidate lane — browse published postings, apply,
+  // own history, owner withdraw. Recruiter/reviewer moderation and
+  // attachment uploads stay the web lane; mutations carry Idempotency-Key.
+  careersOpportunities: (query?: string) =>
+    apiClient.get<MobileCareerOpportunity[]>(
+      `/careers/opportunities${query ? `?query=${encodeURIComponent(query)}` : ''}`,
+    ),
+  careersMyApplications: () =>
+    apiClient.get<MobileCareerApplication[]>('/careers/applications/my'),
+  careersApply: (opportunityId: string, coverLetter?: string) =>
+    apiClient.post<MobileCareerApplication>(
+      '/careers/applications',
+      { opportunityId, coverLetter },
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  careersWithdraw: (applicationId: string, expectedVersion: number) =>
+    apiClient.post<MobileCareerApplication>(
+      `/careers/applications/${encodeURIComponent(applicationId)}/withdraw`,
+      { expectedVersion },
+      { headers: { 'Idempotency-Key': createAssistantClientRequestId() } },
+    ),
+  // Public content (P13): anonymous news + public docs search — the
+  // server restricts these lanes to PUBLISHED, globally-visible rows.
+  publicAnnouncements: (page = 1, limit = 20) =>
+    apiClient.get<{ data: MobilePublicAnnouncement[]; meta: MobilePageMeta }>(
+      `/announcements/public?page=${page}&limit=${limit}`,
+    ),
+  publicAnnouncement: (idOrSlug: string) =>
+    apiClient.get<MobilePublicAnnouncement>(
+      `/announcements/public/${encodeURIComponent(idOrSlug)}`,
+    ),
+  publicDocs: (search?: string, page = 1, limit = 20) => {
+    const query = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (search) query.set('search', search);
+    return apiClient.get<{ data: MobilePublicDoc[]; meta: MobilePageMeta }>(
+      `/public/docs?${query.toString()}`,
+    );
+  },
+  publicDoc: (slug: string) =>
+    apiClient.get<MobilePublicDoc>(`/public/docs/${encodeURIComponent(slug)}`),
   createThesisGroup: (roundId: string) =>
     apiClient.post<MobileThesisGroup>(apiRoutes.thesis.groups, { roundId }),
   assignThesisTopic: (groupId: string, topicId: string) =>
@@ -650,8 +1656,70 @@ export const campusApi = {
     ),
   cancelAssistantRequest: (clientRequestId: string) =>
     apiClient.post<void>(`${apiRoutes.assistant.requests}/${encodeURIComponent(clientRequestId)}/cancel`, {}),
+  assistantStream: () => assistantSseTransport,
   putAssistantFeedback: (messageId: string, rating: AssistantFeedbackRating, reason?: AssistantFeedbackReason) =>
     apiClient.put<void>(`${apiRoutes.assistant.messages}/${encodeURIComponent(messageId)}/feedback`, { rating, ...(reason ? { reason } : {}) }),
   deleteAssistantFeedback: (messageId: string) =>
     apiClient.delete<void>(`${apiRoutes.assistant.messages}/${encodeURIComponent(messageId)}/feedback`),
+};
+
+export const geofencedAttendanceApi = {
+  openSession: (request: GeofencedAttendanceOpenSessionRequest): Promise<GeofencedAttendanceSessionResponse> =>
+    apiClient.post<GeofencedAttendanceSessionResponse>('/attendance/sessions', request),
+  getSession: (sessionId: string): Promise<GeofencedAttendanceSessionResponse> =>
+    apiClient.get<GeofencedAttendanceSessionResponse>(
+      `/attendance/sessions/${encodeURIComponent(sessionId)}`,
+    ),
+  getCurrentCode: (sessionId: string): Promise<GeofencedAttendanceCodeResponse> =>
+    apiClient.get<GeofencedAttendanceCodeResponse>(
+      `/attendance/sessions/${encodeURIComponent(sessionId)}/code`,
+    ),
+  closeSession: (sessionId: string): Promise<GeofencedAttendanceSessionResponse> =>
+    apiClient.post<GeofencedAttendanceSessionResponse>(
+      `/attendance/sessions/${encodeURIComponent(sessionId)}/close`,
+    ),
+  listSessionCheckins: (sessionId: string): Promise<GeofencedAttendanceCheckinView[]> =>
+    apiClient.get<GeofencedAttendanceCheckinView[]>(
+      `/attendance/sessions/${encodeURIComponent(sessionId)}/checkins`,
+    ),
+  listOpenSessionsForStudent: (): Promise<GeofencedAttendanceOpenSessionResponse[]> =>
+    apiClient.get<GeofencedAttendanceOpenSessionResponse[]>('/attendance/sessions/open'),
+  submitStudentCheckin: (
+    sessionId: string,
+    request: GeofencedAttendanceCheckinRequest,
+  ): Promise<GeofencedAttendanceCheckinResponse> =>
+    apiClient.post<GeofencedAttendanceCheckinResponse>(
+      `/attendance/sessions/${encodeURIComponent(sessionId)}/checkin`,
+      request,
+    ),
+  reviewCheckin: (
+    checkinId: string,
+    request: GeofencedAttendanceReviewRequest,
+  ): Promise<GeofencedAttendanceCheckinView> =>
+    apiClient.post<GeofencedAttendanceCheckinView>(
+      `/attendance/checkins/${encodeURIComponent(checkinId)}/review`,
+      request,
+    ),
+  getLocationConsent: (): Promise<GeofencedAttendanceConsentResponse> =>
+    apiClient.get<GeofencedAttendanceConsentResponse>('/attendance/location-consent'),
+  acceptLocationConsent: (
+    request: GeofencedAttendanceConsentRequest,
+  ): Promise<GeofencedAttendanceConsentResponse> =>
+    apiClient.post<GeofencedAttendanceConsentResponse>('/attendance/location-consent', request),
+  listAdminGeofences: (): Promise<GeofencedAttendanceGeofenceResponse[]> =>
+    apiClient.get<GeofencedAttendanceGeofenceResponse[]>('/admin/attendance/geofences'),
+  createAdminGeofence: (
+    request: GeofencedAttendanceGeofenceRequest,
+  ): Promise<GeofencedAttendanceGeofenceResponse> =>
+    apiClient.post<GeofencedAttendanceGeofenceResponse>('/admin/attendance/geofences', request),
+  updateAdminGeofence: (
+    geofenceId: string,
+    request: GeofencedAttendanceGeofenceRequest,
+  ): Promise<GeofencedAttendanceGeofenceResponse> =>
+    apiClient.put<GeofencedAttendanceGeofenceResponse>(
+      `/admin/attendance/geofences/${encodeURIComponent(geofenceId)}`,
+      request,
+    ),
+  listActiveGeofences: (): Promise<GeofencedAttendanceActiveGeofenceResponse[]> =>
+    apiClient.get<GeofencedAttendanceActiveGeofenceResponse[]>('/attendance/geofences/active'),
 };

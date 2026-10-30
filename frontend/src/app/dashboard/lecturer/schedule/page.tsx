@@ -16,6 +16,7 @@ import {
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { useRequireAuth } from '@/context/AuthContext';
 import { sectionsApi, semestersApi } from '@/lib/api';
+import { useCampusDayOfWeek } from '@/lib/campus-day';
 import {
   getLocalizedCourseLabel,
   getLocalizedFlatLabel,
@@ -51,7 +52,7 @@ type LecturerAgendaItem = WeeklyGridAgendaItem;
 
 export default function LecturerSchedulePage() {
   const { user, hasAccess, isLoading: authLoading } = useRequireAuth(['LECTURER']);
-  const { locale, formatNumber } = useI18n();
+  const { locale, formatNumber, messages } = useI18n();
   const [sections, setSections] = useState<LecturerSection[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [selectedSemester, setSelectedSemester] = useState('');
@@ -63,11 +64,9 @@ export default function LecturerSchedulePage() {
   const [viewMode, setViewMode] = useState<'grid' | 'day' | 'list'>('grid');
   const viewModeTabs = useRovingTabs(LECTURER_VIEW_MODES, viewMode, setViewMode);
 
-  // Today indicator: 1 = Sunday, 2 = Monday ... 7 = Saturday
-  const todayDow = useMemo(() => {
-    const jsDay = new Date().getDay();
-    return jsDay === 0 ? 1 : jsDay + 1;
-  }, []);
+  // Today indicator follows the campus calendar (1 = Sunday ... 7 = Saturday)
+  // and rolls over at campus midnight, not the viewer's zone or mount instant.
+  const todayDow = useCampusDayOfWeek();
 
   const [selectedDayTab, setSelectedDayTab] = useState<number>(todayDow);
 
@@ -96,17 +95,13 @@ export default function LecturerSchedulePage() {
       setSections(data);
     } catch {
       if (scheduleGenerationRef.current !== generation) return;
-      setError(
-        locale === 'vi'
-          ? 'Hiện chưa thể tải phân công giảng dạy.'
-          : 'Teaching assignments could not be loaded.',
-      );
+      setError(messages.schedule.lecturerLoadFailed);
     } finally {
       if (scheduleGenerationRef.current === generation) {
         setIsLoading(false);
       }
     }
-  }, [locale, selectedSemester]);
+  }, [messages, selectedSemester]);
 
   useEffect(() => {
     if (hasAccess) {
@@ -199,11 +194,11 @@ export default function LecturerSchedulePage() {
       getLocalizedName(
         locale,
         semesters.find((semester) => semester.id === selectedSemester),
-        locale === 'vi' ? 'tất cả học kỳ' : 'all semesters',
+        messages.schedule.lecturerAllSemestersFallback,
       ) ??
-      (locale === 'vi' ? 'tất cả học kỳ' : 'all semesters')
+      messages.schedule.lecturerAllSemestersFallback
     );
-  }, [locale, selectedSemester, semesters]);
+  }, [locale, messages, selectedSemester, semesters]);
 
   const handlePrint = () => {
     window.print();
@@ -338,23 +333,19 @@ export default function LecturerSchedulePage() {
       {/* Official University Letterhead for Print */}
       <div className="hidden print:block text-center border-b-2 border-primary pb-4 mb-6">
         <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {locale === 'vi'
-            ? 'TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM'
-            : 'HO CHI MINH CITY UNIVERSITY OF TECHNOLOGY AND ENGINEERING'}
+          {messages.schedule.printUniversity}
         </div>
         <div className="text-sm font-extrabold text-foreground">
-          {locale === 'vi'
-            ? 'PHÒNG ĐÀO TẠO — HỆ THỐNG QUẢN LÝ ĐÀO TẠO CAMPUSUTE'
-            : 'ACADEMIC AFFAIRS OFFICE — CAMPUSUTE SYSTEM'}
+          {messages.schedule.printOffice}
         </div>
         <h1 className="text-xl font-black text-primary mt-2 uppercase tracking-wide">
-          {locale === 'vi' ? 'LỊCH GIẢNG DẠY HỌC KỲ' : 'OFFICIAL TEACHING TIMETABLE'}
+          {messages.schedule.printLecturerTitle}
         </h1>
         <div className="flex flex-wrap justify-center gap-6 mt-3 text-xs text-foreground font-medium">
-          <span><strong>{locale === 'vi' ? 'Học kỳ:' : 'Semester:'}</strong> {selectedSemesterName}</span>
+          <span><strong>{messages.schedule.printSemesterLabel}</strong> {selectedSemesterName}</span>
           {user ? (
             <>
-              <span><strong>{locale === 'vi' ? 'Giảng viên:' : 'Lecturer:'}</strong> {user.lastName} {user.firstName}</span>
+              <span><strong>{messages.schedule.printLecturerLabel}</strong> {user.lastName} {user.firstName}</span>
               <span><strong>Email:</strong> {user.email}</span>
             </>
           ) : null}
@@ -385,7 +376,7 @@ export default function LecturerSchedulePage() {
             {/* View Mode Tabs */}
             <div
               role="tablist"
-              aria-label={locale === 'vi' ? 'Chế độ xem lịch giảng dạy' : 'Schedule view mode'}
+              aria-label={messages.schedule.lecturerViewModeLabel}
               className="flex items-center gap-1 rounded-lg bg-secondary/60 p-1"
             >
               <Button
@@ -617,7 +608,7 @@ export default function LecturerSchedulePage() {
                               <div className="flex items-center gap-2">
                                 <MapPin className="h-3.5 w-3.5 text-primary" />
                                 <span className="font-medium text-foreground">
-                                  {locale === 'vi' ? 'Phòng' : 'Room'}: {item.building ? `${item.building}-` : ''}
+                                  {messages.schedule.roomLabel}: {item.building ? `${item.building}-` : ''}
                                   {item.roomNumber}
                                 </span>
                               </div>
@@ -625,7 +616,7 @@ export default function LecturerSchedulePage() {
                             {item.enrolledCount !== undefined ? (
                               <div className="flex items-center gap-2">
                                 <Users className="h-3.5 w-3.5 text-primary" />
-                                <span>{item.enrolledCount} {locale === 'vi' ? 'sinh viên' : 'students'}</span>
+                                <span>{item.enrolledCount} {messages.schedule.studentsSuffix}</span>
                               </div>
                             ) : null}
                           </div>
@@ -753,13 +744,13 @@ export default function LecturerSchedulePage() {
           {/* Official Signatures for Print View */}
           <div className="hidden print:grid grid-cols-2 gap-8 pt-8 mt-6 border-t border-border/80 text-center text-xs">
             <div>
-              <p className="font-semibold">{locale === 'vi' ? 'TRƯỞNG KHOA / BỘ MÔN' : 'DEAN / DEPARTMENT HEAD'}</p>
-              <p className="text-muted-foreground mt-1">{locale === 'vi' ? '(Ký và ghi rõ họ tên)' : '(Signature & Full name)'}</p>
+              <p className="font-semibold">{messages.schedule.printDeanLabel}</p>
+              <p className="text-muted-foreground mt-1">{messages.schedule.printSignatureHint}</p>
               <div className="h-16" />
             </div>
             <div>
-              <p className="font-semibold">{locale === 'vi' ? 'GIẢNG VIÊN GIẢNG DẠY' : 'COURSE INSTRUCTOR'}</p>
-              <p className="text-muted-foreground mt-1">{locale === 'vi' ? '(Ký và ghi rõ họ tên)' : '(Signature & Full name)'}</p>
+              <p className="font-semibold">{messages.schedule.printInstructorLabel}</p>
+              <p className="text-muted-foreground mt-1">{messages.schedule.printSignatureHint}</p>
               <div className="h-16" />
               {user ? <p className="font-medium text-foreground">{user.lastName} {user.firstName}</p> : null}
             </div>

@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.thesis.assistant;
 
+import io.campuscore.restfulapi.exception.SensitiveLogRedactor;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -182,8 +183,8 @@ public class AssistantRlsRuntimeVerifier implements SmartInitializingSingleton {
                     ? stateFailure.getMessage()
                     : "Assistant RLS runtime database verification failed: "
                             + failure.getClass().getSimpleName();
-            LOG.error("{}; assistant chat endpoints will answer 503 {} until provisioning is repaired",
-                    reason, UnavailableAssistantDataSource.UNAVAILABLE_REASON, failure);
+            LOG.error("Assistant RLS verification failed; exceptionType={}",
+                    SensitiveLogRedactor.exceptionType(failure));
             state.markDegraded(reason);
         }
     }

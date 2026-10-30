@@ -1,13 +1,18 @@
-import type { ScreenName, UserRole } from './routes';
+import type { LaneScreenId, ScreenName, UserRole } from './routes';
 
 export interface MobileNavigationOptions {
   thesisTopicId?: string;
+  sectionId?: string;
+  /** Public announcement id or slug the news screen opens directly (guest feed → detail). */
+  newsItem?: string;
 }
 
 export interface MobileNavigation {
   navigate(route: ScreenName, options?: MobileNavigationOptions): void;
+  /** Flag-gated lane entry; refused lanes fall back to the role home. */
+  navigateLane?(id: LaneScreenId): void;
   enterPreview(): void;
-  completeSignIn(role: UserRole): void;
+  completeSignIn(role: UserRole, accountId?: string | null): void;
   goBack(): void;
   signOut(): void;
   switchRole(role: UserRole): void;

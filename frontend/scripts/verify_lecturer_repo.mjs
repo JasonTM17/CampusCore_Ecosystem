@@ -1,7 +1,10 @@
 import { chromium } from 'playwright';
 import path from 'path';
+import os from 'os';
+import fs from 'fs';
 
-const artifactsDir = 'C:\\Users\\Admin\\.gemini\\antigravity\\brain\\149f1b30-2f42-4e2f-890c-021712bdeaf1';
+const artifactsDir = process.env.ARTIFACT_DIR ?? path.join(os.tmpdir(), 'campusute-artifacts');
+fs.mkdirSync(artifactsDir, { recursive: true });
 
 async function run() {
   const browser = await chromium.launch({

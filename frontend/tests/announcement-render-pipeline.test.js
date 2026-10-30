@@ -231,7 +231,25 @@ test('RT-P3-f the HTML render computation is cached on the content string', () =
   const renderer = loadRenderer();
   const first = renderer.renderHtmlDocument(HTML_ARTICLE);
   assert.equal(renderer.renderHtmlDocument(HTML_ARTICLE), first);
-  assert.equal(first, renderer.annotateHtmlHeadingIds(sanitizer.sanitizeAnnouncementHtml(HTML_ARTICLE)));
+  assert.equal(
+    first,
+    renderer.annotateHtmlHeadingIds(
+      renderer.addBannerWebpSources(sanitizer.sanitizeAnnouncementHtml(HTML_ARTICLE)),
+    ),
+  );
+});
+
+test('banner images in HTML readers use WebP with the sized JPEG fallback', () => {
+  const renderer = loadRenderer();
+  const markup = renderer.renderHtmlDocument(
+    '<figure><img src="/images/banners/campus_academic_banner.jpg" alt="Campus" width="1376" height="768"></figure>',
+  );
+
+  assert.match(markup, /<picture class="block w-full"><source srcset="\/images\/banners\/campus_academic_banner\.webp" type="image\/webp"><img[^>]*src="\/images\/banners\/campus_academic_banner\.jpg"[^>]*alt="Campus"[^>]*width="1376"[^>]*height="768"[^>]*><\/picture>/);
+  assert.doesNotMatch(
+    renderer.renderHtmlDocument('<img src="/images/news/story.jpg" alt="Story">'),
+    /<picture class="block w-full">/,
+  );
 });
 
 test('RT-P3-f scroll progress is re-measured when a reading preference reflows the article', () => {

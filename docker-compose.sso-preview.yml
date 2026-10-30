@@ -1,0 +1,86 @@
+# P05 browser-SSO HTTPS preview overlay — merged over docker-compose.e2e.yml
+# by scripts/ecosystem-sso-verify.mjs. It switches the disposable API into
+# the BFF lane on the documented surface registry (docs/ecosystem/
+# host-policy.md §1) with dev *.localhost hosts. All secrets are disposable
+# dev-only values for an isolated stack — never reused elsewhere.
+services:
+  restful-api:
+    environment:
+      # OIDC lane on: the SAS issuer is the public id host (TLS terminator
+      # in front), while the BFF's loopback token calls stay inside the
+      # container on the plain HTTP port.
+      IDENTITY_OIDC_ENABLED: "true"
+      IDENTITY_DEV_KEYGEN: "true"
+      IDENTITY_ISSUER_URI: ${IDENTITY_ISSUER_URI:-https://id.localhost:4443}
+      IDENTITY_TOKEN_ENCRYPTION_KEY: ${IDENTITY_TOKEN_ENCRYPTION_KEY:-dGVzdC1rZXktMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY=}
+      # Native OIDC client (mobile-policy.md §3): public client + PKCE, the
+      # exact campuscore:// callback, and the native-refresh allowlist that
+      # lets the minted grant carry a refresh token for SecureStore.
+      IDENTITY_CLIENTS_0_CLIENTID: cu-mobile
+      IDENTITY_CLIENTS_0_PUBLICCLIENT: "true"
+      IDENTITY_CLIENTS_0_REDIRECTURIS_0: campuscore://auth/callback
+      IDENTITY_CLIENTS_0_SCOPES_0: openid
+      IDENTITY_CLIENTS_0_SCOPES_1: profile
+      IDENTITY_CLIENTS_0_SCOPES_2: email
+      IDENTITY_CLIENTS_0_SCOPES_3: offline_access
+      IDENTITY_CLIENTS_0_ACCESSTOKENTTL: PT15M
+      IDENTITY_CLIENTS_0_REFRESHTOKENTTL: P7D
+      IDENTITY_OIDC_NATIVE_REFRESH_CLIENT_IDS_0: cu-mobile
+      IDENTITY_BFF_ENABLED: "true"
+      IDENTITY_BFF_DEV_HTTP: "false"
+      IDENTITY_BFF_ISSUER_LOOPBACK: http://127.0.0.1:4100
+      IDENTITY_BFF_ISSUER_PUBLIC: ${IDENTITY_ISSUER_URI:-https://id.localhost:4443}
+      # Shared edge token — the Next route handlers stamp it and the BFF
+      # trust gate requires it before honoring x-campuscore-* headers.
+      # Java binds it via app.rate-limit.proxy-token; Next via
+      # CAMPUSCORE_PROXY_TOKEN — both sides must carry the same value.
+      RATE_LIMIT_PROXY_TOKEN: ${SSO_PREVIEW_PROXY_TOKEN:-sso-preview-proxy-token-0123456789}
+      # Surface registry — portal/learn/apply are BFF lanes on the same
+      # HTTPS preview port; the apex redirects to portal. Hosts carry the
+      # preview port because the registry matches Host verbatim.
+      IDENTITY_BFF_SURFACES_0_ID: portal
+      IDENTITY_BFF_SURFACES_0_MODE: BFF
+      IDENTITY_BFF_SURFACES_0_CLIENTID: cu-portal
+      IDENTITY_BFF_SURFACES_0_CLIENTSECRET: sso-preview-portal-secret-0123456789ab
+      IDENTITY_BFF_SURFACES_0_PROXYSECRET: sso-preview-portal-proxy-0123456789abcd
+      IDENTITY_BFF_SURFACES_0_PUBLICBASEURL: ${SSO_PREVIEW_PORTAL_BASE:-https://portal.localhost:3102}
+      IDENTITY_BFF_SURFACES_0_HOSTS_0: portal.localhost
+      IDENTITY_BFF_SURFACES_0_RETURNPREFIXES_0: /
+      IDENTITY_BFF_SURFACES_1_ID: learn
+      IDENTITY_BFF_SURFACES_1_MODE: BFF
+      IDENTITY_BFF_SURFACES_1_CLIENTID: cu-learn
+      IDENTITY_BFF_SURFACES_1_CLIENTSECRET: sso-preview-learn-secret-0123456789abc
+      IDENTITY_BFF_SURFACES_1_PROXYSECRET: sso-preview-learn-proxy-0123456789abcde
+      IDENTITY_BFF_SURFACES_1_PUBLICBASEURL: ${SSO_PREVIEW_LEARN_BASE:-https://learn.localhost:3102}
+      IDENTITY_BFF_SURFACES_1_HOSTS_0: learn.localhost
+      IDENTITY_BFF_SURFACES_1_RETURNPREFIXES_0: /
+      IDENTITY_BFF_SURFACES_2_ID: apply
+      IDENTITY_BFF_SURFACES_2_MODE: BFF
+      IDENTITY_BFF_SURFACES_2_CLIENTID: cu-apply
+      IDENTITY_BFF_SURFACES_2_CLIENTSECRET: sso-preview-apply-secret-0123456789abd
+      IDENTITY_BFF_SURFACES_2_PROXYSECRET: sso-preview-apply-proxy-0123456789abcdef
+      IDENTITY_BFF_SURFACES_2_PUBLICBASEURL: ${SSO_PREVIEW_APPLY_BASE:-https://apply.localhost:3102}
+      IDENTITY_BFF_SURFACES_2_HOSTS_0: apply.localhost
+      IDENTITY_BFF_SURFACES_2_RETURNPREFIXES_0: /
+      IDENTITY_BFF_SURFACES_3_ID: apex
+      IDENTITY_BFF_SURFACES_3_MODE: REDIRECT
+      IDENTITY_BFF_SURFACES_3_HOSTS_0: apex.localhost
+      IDENTITY_BFF_SURFACES_3_REDIRECTTARGET: ${SSO_PREVIEW_PORTAL_BASE:-https://portal.localhost:3102}
+      # Java sees every surface request as cross-origin: the edge hop makes
+      # the inbound request URL the internal loopback while the browser
+      # sends the public Origin — CorsUtils therefore consults this list on
+      # EVERY credentialed BFF call that carries Origin (all browser POSTs).
+      # The surface isolation itself is enforced INSIDE the BFF layer by
+      # the origin/CSRF guards comparing Origin against the resolved surface
+      # base (host-policy §4): a sibling's credentialed fetch reaches the
+      # guard and dies with ORIGIN_SURFACE_MISMATCH, while the generic CORS
+      # filter only gates which origins may reach the app at all. Removing
+      # a surface origin here is not hardening — it 403s that surface's
+      # legitimate same-origin POSTs before the guard can even run. The id
+      # origin is required for the same reason (TLS terminator scheme
+      # downgrade on the /api/v1/auth/* login lane).
+      APP_CORS_ALLOWED_ORIGIN_PATTERNS: >-
+        http://127.0.0.1:3101,http://localhost:3101,
+        https://id.localhost:4443,
+        https://portal.localhost:3102,https://learn.localhost:3102,
+        https://apply.localhost:3102

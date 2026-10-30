@@ -1,7 +1,7 @@
 package io.campuscore.restfulapi.engagement.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import io.campuscore.restfulapi.engagement.repository.AnnouncementAuditRepository;
 import io.campuscore.restfulapi.engagement.repository.AnnouncementAuditRepository.AuditCommand;
 import io.campuscore.restfulapi.engagement.repository.AnnouncementWriteRepository;
@@ -19,7 +19,9 @@ import io.campuscore.restfulapi.engagement.web.AnnouncementWriteDtos.LifecycleRe
 import io.campuscore.restfulapi.engagement.web.AnnouncementWriteDtos.UpdateAnnouncementRequest;
 import io.campuscore.restfulapi.web.DomainException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -47,7 +49,9 @@ public class AnnouncementWriteService {
     private final AnnouncementAuditRepository audits;
     private final AnnouncementStudentNotifier studentNotifier;
     private final ObjectMapper objectMapper;
-    private final Clock clock = Clock.systemUTC();
+    // Microsecond ticks match the column precision: the database rounds finer
+    // values up, which would leave a stored publishAt ahead of a later "now".
+    private final Clock clock = Clock.tick(Clock.systemUTC(), Duration.ofNanos(1000));
 
     public AnnouncementWriteService(
             AnnouncementWriteRepository announcements,
@@ -96,15 +100,17 @@ public class AnnouncementWriteService {
                 targetRoles,
                 targetYears,
                 Boolean.TRUE.equals(request.isGlobal()),
-                request.publishAt(),
-                request.expiresAt(),
+                toMicros(request.publishAt()),
+                toMicros(request.expiresAt()),
                 publisher,
                 request.semesterId(),
                 request.sectionId(),
                 lecturer ? lecturerId : request.lecturerId(),
-                now));
+                now,
+                publisher));
         appendAudit("CREATED", publisher, actorLabel, "Announcement created", null, created, now);
-        notifyActiveStudents(created);
+        // Drafts never fan out — the student notification trigger lives on the
+        // approve transition (publication-policy §3).
         return created;
     }
 
@@ -168,6 +174,10 @@ public class AnnouncementWriteService {
         int expectedVersion = requireVersion(request.expectedVersion());
         AnnouncementResponse before = requireAnnouncementForUpdate(id);
         requireActive(before);
+        if (!"DRAFT".equals(before.status())) {
+            throw conflict("ANNOUNCEMENT_NOT_DRAFT",
+                    "Only draft announcements can be edited; published content is immutable");
+        }
         boolean lecturer = isLecturerOnly(roles);
         if (lecturer) {
             if (lecturerId == null || lecturerId.isBlank() || !lecturerId.equals(before.lecturerId())) {
@@ -203,8 +213,8 @@ public class AnnouncementWriteService {
                         "targetYears",
                         request.has("targetYears") ? immutableYears(request.targetYears()) : null),
                 patch(request, "isGlobal", request.isGlobal()),
-                patch(request, "publishAt", request.publishAt()),
-                patch(request, "expiresAt", request.expiresAt()),
+                patch(request, "publishAt", toMicros(request.publishAt())),
+                patch(request, "expiresAt", toMicros(request.expiresAt())),
                 patch(request, "semesterId", request.semesterId()),
                 patch(request, "sectionId", request.sectionId()),
                 lecturer ? PatchValue.present(lecturerId) : patch(request, "lecturerId", request.lecturerId()),
@@ -214,7 +224,7 @@ public class AnnouncementWriteService {
             throw conflict("ANNOUNCEMENT_VERSION_CONFLICT", "Announcement was changed by another administrator");
         }
         if (request.has("publishAt") && request.publishAt() != null
-                && request.publishAt().isAfter(now)) {
+                && toMicros(request.publishAt()).isAfter(now)) {
             // Re-scheduling into the future re-arms the notification marker:
             // ScheduledAnnouncementNotifyJob refires when the new publish
             // time arrives. A publishAt moved to the past with a NULL marker
@@ -260,6 +270,104 @@ public class AnnouncementWriteService {
     private static DomainException forbiddenLecturer() {
         return new DomainException(HttpStatus.FORBIDDEN, "LECTURER_ANNOUNCEMENT_FORBIDDEN",
                 "Lecturers may only manage student announcements for their own sections");
+    }
+
+    /**
+     * DRAFT {@literal ->} IN_REVIEW. The author submits their own draft;
+     * ADMIN/SUPER_ADMIN may adopt a stranded draft (legacy-unknown or disabled
+     * author) so it is never permanently unsubmittable.
+     */
+    @Transactional
+    public AnnouncementResponse submit(
+            String actorId,
+            String actorLabel,
+            List<String> roles,
+            String announcementId) {
+        String actor = requireText(actorId, "actor");
+        String label = requireActorLabel(actorLabel, "actorLabel");
+        String id = requireText(announcementId, "announcement id");
+        AnnouncementResponse before = requireAnnouncementForUpdate(id);
+        if (!"DRAFT".equals(before.status())) {
+            throw invalidState();
+        }
+        if (!actor.equals(before.authorId()) && !isGovernanceRole(roles)) {
+            throw new DomainException(HttpStatus.FORBIDDEN, "ANNOUNCEMENT_NOT_AUTHOR",
+                    "Only the author may submit a draft for review");
+        }
+        Instant now = Instant.now(clock);
+        if (announcements.submitForReview(id, before.version(), now) != 1) {
+            throw conflict("ANNOUNCEMENT_VERSION_CONFLICT", "Announcement was changed by another administrator");
+        }
+        AnnouncementResponse after = requireAnnouncement(id);
+        appendAudit("SUBMITTED", actor, label, "Submitted for review", before, after, now);
+        return after;
+    }
+
+    /**
+     * IN_REVIEW {@literal ->} PUBLISHED — the only path that makes content
+     * live. The reviewer must be a writer-set member other than the author;
+     * the approve binds the current version as {@code publishedRevision} and
+     * is the notification trigger.
+     */
+    @Transactional
+    public AnnouncementResponse approve(
+            String actorId,
+            String actorLabel,
+            List<String> roles,
+            String announcementId) {
+        String actor = requireText(actorId, "actor");
+        String label = requireActorLabel(actorLabel, "actorLabel");
+        String id = requireText(announcementId, "announcement id");
+        AnnouncementResponse before = requireAnnouncementForUpdate(id);
+        if (!"IN_REVIEW".equals(before.status())) {
+            throw invalidState();
+        }
+        if (actor.equals(before.authorId())) {
+            throw conflict("REVIEWER_EQUALS_AUTHOR",
+                    "The author cannot approve their own announcement");
+        }
+        Instant now = Instant.now(clock);
+        if (before.expiresAt() != null && !before.expiresAt().isAfter(now)) {
+            throw conflict("ANNOUNCEMENT_ALREADY_EXPIRED",
+                    "The publication window already closed; return the draft and fix expiresAt");
+        }
+        if (announcements.approveForPublication(id, before.version(), actor, now) != 1) {
+            throw conflict("ANNOUNCEMENT_VERSION_CONFLICT", "Announcement was changed by another administrator");
+        }
+        AnnouncementResponse after = requireAnnouncement(id);
+        appendAudit("APPROVED", actor, label, "Approved for publication", before, after, now);
+        notifyActiveStudents(after);
+        return after;
+    }
+
+    /** IN_REVIEW {@literal ->} DRAFT with the mandatory reviewer note. */
+    @Transactional
+    public AnnouncementResponse returnForRework(
+            String actorId,
+            String actorLabel,
+            List<String> roles,
+            String announcementId,
+            LifecycleRequest request) {
+        String actor = requireText(actorId, "actor");
+        String label = requireActorLabel(actorLabel, "actorLabel");
+        String id = requireText(announcementId, "announcement id");
+        String reason = requireReason(request.reason());
+        AnnouncementResponse before = requireAnnouncementForUpdate(id);
+        if (!"IN_REVIEW".equals(before.status())) {
+            throw invalidState();
+        }
+        Instant now = Instant.now(clock);
+        if (announcements.returnForRework(id, before.version(), actor, reason, now) != 1) {
+            throw conflict("ANNOUNCEMENT_VERSION_CONFLICT", "Announcement was changed by another administrator");
+        }
+        AnnouncementResponse after = requireAnnouncement(id);
+        appendAudit("RETURNED", actor, label, reason, before, after, now);
+        return after;
+    }
+
+    private static DomainException invalidState() {
+        return conflict("ANNOUNCEMENT_INVALID_STATE",
+                "The announcement is not in the required lifecycle state for this transition");
     }
 
     @Transactional
@@ -319,7 +427,7 @@ public class AnnouncementWriteService {
         String id = requireText(announcementId, "announcement id");
         AnnouncementResponse before = requireAnnouncementForUpdate(id);
         requireAnnouncementOwner(roles, lecturerId, before);
-        if (before.archivedAt() != null) {
+        if (before.archivedAt() != null || "ARCHIVED".equals(before.status())) {
             return new DeleteAnnouncementResponse("Announcement deleted successfully");
         }
         Instant now = Instant.now(clock);
@@ -437,13 +545,16 @@ public class AnnouncementWriteService {
         int expectedVersion = requireVersion(request.expectedVersion());
         AnnouncementResponse before = requireAnnouncementForUpdate(id);
         requireAnnouncementOwner(roles, lecturerId, before);
-        if (archive && before.archivedAt() != null) {
+        if (archive && "ARCHIVED".equals(before.status())) {
             throw conflict("ANNOUNCEMENT_ALREADY_ARCHIVED", "Announcement is already archived");
         }
-        if (!archive && before.archivedAt() == null) {
+        if (!archive && !"ARCHIVED".equals(before.status())) {
             throw conflict("ANNOUNCEMENT_NOT_ARCHIVED", "Announcement is not archived");
         }
         Instant now = Instant.now(clock);
+        // Restore lands on DRAFT, not the pre-archive status — stricter than
+        // the old restore-to-live and forces a fresh review cycle
+        // (publication-policy §2). preArchiveStatus stays as audit metadata.
         TransitionCommand command = new TransitionCommand(
                 id,
                 expectedVersion,
@@ -457,6 +568,9 @@ public class AnnouncementWriteService {
             throw conflict("ANNOUNCEMENT_VERSION_CONFLICT", "Announcement was changed by another administrator");
         }
         AnnouncementResponse after = requireAnnouncement(id);
+        // The audit action vocabulary stays {ARCHIVED, RESTORED}; the
+        // before/after snapshots carry the exact from/to statuses, which is
+        // what distinguishes unpublish (PUBLISHED->ARCHIVED) from withdraw.
         appendAudit(archive ? "ARCHIVED" : "RESTORED", actor, label, reason, before, after, now);
         return after;
     }
@@ -475,6 +589,11 @@ public class AnnouncementWriteService {
         if (announcement.archivedAt() != null) {
             throw conflict("ANNOUNCEMENT_ARCHIVED", "Archived announcements must be restored before editing");
         }
+    }
+
+    /** Client instants are cut to the column precision so the stored value equals the compared one. */
+    private static Instant toMicros(Instant value) {
+        return value == null ? null : value.truncatedTo(ChronoUnit.MICROS);
     }
 
     private void appendAudit(
@@ -504,7 +623,7 @@ public class AnnouncementWriteService {
         }
         try {
             return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
+        } catch (JacksonException exception) {
             throw new IllegalStateException("Announcement audit snapshot could not be serialized", exception);
         }
     }

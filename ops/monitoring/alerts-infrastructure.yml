@@ -1,0 +1,144 @@
+# Portable Prometheus Alert Rules: Infrastructure, DB Connection Pool, and Health Probes
+# Collection/routing NOT_RUN against a live Prometheus instance.
+# Missing input series produce no alert; zero traffic yields no ratio/latency breach.
+# Scrape/exporter absence requires the deployment monitoring availability policy.
+# Cross-reference: docs/ecosystem/observability.md, docs/PRODUCTION_RUNBOOK.md
+groups:
+  - name: campuscore-infrastructure
+    rules:
+      # -----------------------------------------------------------------------
+      # 1. Database Connection Pool Saturation (HikariCP)
+      # RESTful API default pool size: 8 (DB_POOL_MAX: 8)
+      # Assistant default pool size: 4 (ASSISTANT_DB_POOL_MAX: 4)
+      # -----------------------------------------------------------------------
+      - alert: DatabaseConnectionPoolSaturationWarning
+        expr: >-
+          (hikaricp_connections_active / clamp_min(hikaricp_connections_max, 1)) > 0.80
+        for: 3m
+        labels:
+          severity: warning
+          service: restful-api
+          component: postgresql-pool
+        annotations:
+          summary: "HikariCP connection pool usage exceeds 80%"
+          description: >-
+            Database connection pool is {{ $value | humanizePercentage }} utilized for pool
+            {{ $labels.pool }} on instance {{ $labels.instance }}. High connection utilization
+            precedes connection acquisition timeout errors.
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#render--neon-operating-notes"
+          instrumentation_status: "INSTRUMENTED (actual Hikari pools; identity shares the primary pool)"
+
+      - alert: DatabaseConnectionPoolSaturationCritical
+        expr: >-
+          (hikaricp_connections_active / clamp_min(hikaricp_connections_max, 1)) >= 0.95
+          or
+          hikaricp_connections_pending > 2
+        for: 1m
+        labels:
+          severity: critical
+          service: restful-api
+          component: postgresql-pool
+        annotations:
+          summary: "HikariCP connection pool near exhaustion (>=95% or pending requests)"
+          description: >-
+            Database connection pool {{ $labels.pool }} is saturated; inspect active/max and pending gauges.
+            Incoming API requests will block and fail after connection-timeout (15000ms).
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#render--neon-operating-notes"
+          instrumentation_status: "INSTRUMENTED (actual Hikari pools; identity shares the primary pool)"
+
+      - alert: DatabaseConnectionAcquisitionTimeout
+        expr: >-
+          increase(hikaricp_connections_timeout_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          service: restful-api
+          component: postgresql-pool
+        annotations:
+          summary: "HikariCP connection acquisition timeouts observed"
+          description: >-
+            Connection requests timed out waiting for a free database connection in pool {{ $labels.pool }}.
+            This causes HTTP 500 errors to end users. Immediate investigation required.
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#render--neon-operating-notes"
+          instrumentation_status: "INSTRUMENTED (actual Hikari pools; identity shares the primary pool)"
+
+      # -----------------------------------------------------------------------
+      # 2. Service Liveness vs Readiness (Health Probes)
+      # Health must NOT be mistaken for readiness!
+      # Liveness: JVM alive (/api/v1/health/liveness or /actuator/health/liveness)
+      # Readiness: primary DB check (/api/v1/health/readiness); Actuator readiness is a separate availability signal
+      # -----------------------------------------------------------------------
+      - alert: ServiceLivenessFailed
+        expr: >-
+          probe_success{job="blackbox-http",endpoint=~"/api/v1/health/liveness|/actuator/health/liveness"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: restful-api
+          probe_type: liveness
+        annotations:
+          summary: "Service liveness probe failed (process hung or crashed)"
+          description: >-
+            Liveness probe on {{ $labels.instance }} has failed for > 30s.
+            Container is non-responsive and must be restarted by orchestrator.
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#start-and-smoke"
+          instrumentation_status: "EXTERNAL_EXPORTER_REQUIRED; endpoint exists (HealthController.java line 43 & Actuator probes)"
+
+      - alert: ServiceReadinessFailed
+        expr: >-
+          probe_success{job="blackbox-http",endpoint="/api/v1/health/readiness"} == 0
+        for: 1m
+        labels:
+          severity: warning
+          service: restful-api
+          probe_type: readiness
+        annotations:
+          summary: "Service readiness probe failed (dependency or database unready)"
+          description: >-
+            Readiness probe on {{ $labels.instance }} has failed. The process is alive
+            but its primary PostgreSQL connection is unavailable. Assistant degradation alone does not fail this probe.
+            Ingress traffic must be detached; do NOT restart container immediately.
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#start-and-smoke"
+          instrumentation_status: "EXTERNAL_EXPORTER_REQUIRED; endpoint exists (HealthController.java line 53, requires X-Health-Key)"
+
+      # -----------------------------------------------------------------------
+      # 3. Cold-Start Mitigation & Prolonged Unready State
+      # -----------------------------------------------------------------------
+      - alert: ProlongedColdStartUnready
+        expr: >-
+          (probe_success{job="blackbox-http",endpoint="/api/v1/health/liveness"} == 1)
+          and on (job, instance)
+          (probe_success{job="blackbox-http",endpoint="/api/v1/health/readiness"} == 0)
+        for: 90s
+        labels:
+          severity: warning
+          service: restful-api
+          lifecycle: cold-start
+        annotations:
+          summary: "Service instance unready for > 90s after startup"
+          description: >-
+            Instance {{ $labels.instance }} is alive but not ready after 90 seconds.
+            Render free-tier cold-starts typically finish in 15-40s. A 90s delay indicates
+            database lock contention, slow Flyway migration, or pool exhaustion.
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#render-cold-start-mitigation"
+          instrumentation_status: "EXTERNAL_EXPORTER_REQUIRED; endpoint exists (HealthController.java probes)"
+
+      # -----------------------------------------------------------------------
+      # 4. Web Frontend Health Route
+      # Route: GET /health (proxies to /api/v1/health/liveness)
+      # -----------------------------------------------------------------------
+      - alert: WebFrontendHealthFailed
+        expr: >-
+          probe_success{job="blackbox-http",endpoint="/health",service="frontend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: frontend
+          probe_type: edge-health
+        annotations:
+          summary: "Web frontend health check (/health) failed"
+          description: >-
+            Next.js web frontend /health route returned non-200 or timed out.
+            Web tier is unable to proxy to restful-api or SSR server is down.
+          runbook_url: "docs/PRODUCTION_RUNBOOK.md#start-and-smoke"
+          instrumentation_status: "EXTERNAL_EXPORTER_REQUIRED; endpoint exists (frontend/src/app/health/route.ts)"

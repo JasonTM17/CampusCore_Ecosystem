@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.auth.service;
 
+import io.campuscore.restfulapi.exception.SensitiveLogRedactor;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -13,6 +14,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -61,10 +63,11 @@ public class DemoAccountGate implements ApplicationRunner {
      * than any pattern.
      *
      * <p>Covers the .edu showcase accounts (V50 plus the seeded thesis-team
-     * students) and the runbook-documented .demo accounts activated by V82 (the
+     * students), the two seeded applicant accounts locked by V145, and the
+     * runbook-documented .demo accounts activated by V82 (the
      * Four-Eyes second approver and the council examiners).
      * {@code DemoAccountGateRunbookParityTest} pins this list
-     * to V82's, so the migration and the gate cannot drift apart.
+     * to V82's and V145's, so the migrations and the gate cannot drift apart.
      */
     static final List<String> DEMO_EMAILS = List.of(
             "student@campuscore.edu",
@@ -73,6 +76,8 @@ public class DemoAccountGate implements ApplicationRunner {
             "student4@campuscore.edu",
             "lecturer@campuscore.edu",
             "admin@campuscore.edu",
+            "applicant@campuscore.edu",
+            "applicant2@campuscore.edu",
             "admin002@campuscore.demo",
             "truongkhoa@campuscore.demo",
             "truongbomon@campuscore.demo",
@@ -184,8 +189,10 @@ public class DemoAccountGate implements ApplicationRunner {
             // values — then abort startup so the deployment cannot run with an
             // unenforced demo policy.
             log.warn("Demo account gate could not apply the configured demo policy; aborting startup: {}",
-                    ex.getMessage());
-            throw ex;
+                    SensitiveLogRedactor.exceptionType(ex));
+            throw new DataAccessResourceFailureException(
+                    "Demo account policy could not be applied; originalExceptionType="
+                            + SensitiveLogRedactor.exceptionType(ex));
         }
     }
 

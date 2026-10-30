@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.thesis.assistant;
 
+import io.campuscore.restfulapi.exception.SensitiveLogRedactor;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -88,8 +89,8 @@ public class PrerequisiteMapSyncJob {
             }
         } catch (Exception exception) {
             // Telemetry job: a failed sync must never break the assistant.
-            log.warn("PREREQUISITE_MAP_SYNC failed: {}: {}",
-                    exception.getClass().getSimpleName(), exception.getMessage());
+            log.warn("PREREQUISITE_MAP_SYNC failed; exceptionType={}",
+                    SensitiveLogRedactor.exceptionType(exception));
         }
     }
 

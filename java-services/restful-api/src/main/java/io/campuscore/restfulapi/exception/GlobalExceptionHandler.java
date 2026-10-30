@@ -183,7 +183,7 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(
                 HttpStatus.BAD_REQUEST,
                 ErrorCode.INVALID_REQUEST.name(),
-                exception.getMessage(),
+                "Request contains an invalid value",
                 request,
                 Map.of());
     }
@@ -192,7 +192,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(
             DataIntegrityViolationException exception,
             HttpServletRequest request) {
-        LOGGER.warn("Database constraint conflict at {}: {}", request.getRequestURI(), exception.getMessage());
+        LOGGER.warn("requestId={} code={} exceptionType={}",
+                SensitiveLogRedactor.requestId(request.getAttribute(
+                        io.campuscore.restfulapi.security.RequestIdFilter.ATTRIBUTE)),
+                ErrorCode.CONFLICT.name(),
+                SensitiveLogRedactor.exceptionType(exception));
         return buildErrorResponse(
                 HttpStatus.CONFLICT,
                 ErrorCode.CONFLICT.name(),
@@ -215,9 +219,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnhandledException(Exception exception, HttpServletRequest request) {
-        Object requestId = request.getAttribute(io.campuscore.restfulapi.security.RequestIdFilter.ATTRIBUTE);
-        LOGGER.error("Unhandled internal server exception at {} (requestId: {})",
-                request.getRequestURI(), requestId, exception);
+        LOGGER.error("requestId={} code={} exceptionType={}",
+                SensitiveLogRedactor.requestId(request.getAttribute(
+                        io.campuscore.restfulapi.security.RequestIdFilter.ATTRIBUTE)),
+                "INTERNAL_ERROR",
+                SensitiveLogRedactor.exceptionType(exception));
         return buildErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "INTERNAL_ERROR",
@@ -239,7 +245,7 @@ public class GlobalExceptionHandler {
                 code,
                 message,
                 request.getRequestURI(),
-                requestId == null ? null : requestId.toString(),
+                requestId == null ? null : SensitiveLogRedactor.requestId(requestId),
                 fields);
         return ResponseEntity.status(status).body(body);
     }

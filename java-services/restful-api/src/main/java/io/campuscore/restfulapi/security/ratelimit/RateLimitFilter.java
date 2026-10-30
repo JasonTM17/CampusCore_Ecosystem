@@ -1,11 +1,14 @@
 package io.campuscore.restfulapi.security.ratelimit;
 
+import io.campuscore.restfulapi.identity.IdentityProperties;
 import io.campuscore.restfulapi.web.ApiErrorWriter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Locale;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
@@ -26,16 +29,19 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final RateLimitProperties properties;
     private final ApiErrorWriter errorWriter;
     private final ClientIpResolver clientIpResolver;
+    private final IdentityProperties identityProperties;
 
     public RateLimitFilter(
             RateLimiterService rateLimiterService,
             RateLimitProperties properties,
             ApiErrorWriter errorWriter,
-            ClientIpResolver clientIpResolver) {
+            ClientIpResolver clientIpResolver,
+            IdentityProperties identityProperties) {
         this.rateLimiterService = rateLimiterService;
         this.properties = properties;
         this.errorWriter = errorWriter;
         this.clientIpResolver = clientIpResolver;
+        this.identityProperties = identityProperties;
     }
 
     private static final Set<String> MUTATING_METHODS = Set.of("POST", "PUT", "PATCH", "DELETE");
@@ -90,6 +96,18 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
+        // A validated BFF surface credential marks the per-surface loopback
+        // on /oauth2/token (exchange/refresh). Every surface's loopback
+        // shares the loopback IP, so leaving these calls in the generic
+        // ip-keyed DEFAULT_POST bucket would let traffic bursts rate-limit
+        // the whole proxy path (host-policy §2.2 self-DoS finding). The pair
+        // is only trusted after a constant-time check, and ONLY on the token
+        // endpoints — proxied business calls keep normal per-user buckets.
+        if (uri.startsWith("/oauth2/") && hasValidBffSurfaceCredential(request)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         // Determine client identity & rate limit policy
         RateLimitPolicy policy = resolvePolicy(uri);
         String clientKey = resolveClientKey(request, policy.category());
@@ -116,6 +134,22 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean hasValidBffSurfaceCredential(HttpServletRequest request) {
+        String surfaceId = request.getHeader("X-Campuscore-Surface");
+        String secret = request.getHeader("X-Campuscore-Bff-Secret");
+        if (surfaceId == null || secret == null) {
+            return false;
+        }
+        return identityProperties.getBff().getSurfaces().stream()
+                .filter(s -> surfaceId.equals(s.getId()))
+                .findFirst()
+                .map(s -> !s.getProxySecret().isBlank()
+                        && MessageDigest.isEqual(
+                                s.getProxySecret().getBytes(StandardCharsets.UTF_8),
+                                secret.getBytes(StandardCharsets.UTF_8)))
+                .orElse(false);
     }
 
     private boolean isWhitelisted(String uri) {

@@ -1,6 +1,87 @@
 // Deep production audit v2: correct params, paginate at limit=100, scan every
 // JSON value for test markers / nulls / data-quality anomalies.
-const API = 'https://campuscore-backend-p4em.onrender.com/api/v1';
+import { isIP } from 'node:net';
+
+function printUsage() {
+  console.log('Usage: node scripts/prod-deep-audit.mjs --target <origin> [--allow-network]');
+  console.log('Use a loopback target for local runs. Non-loopback requests require --allow-network.');
+  console.log('Set DEMO_PASSWORD for the seeded audit accounts.');
+}
+
+function isLoopback(hostname) {
+  const normalized = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  return normalized === 'localhost'
+    || normalized === '::1'
+    || (isIP(normalized) === 4 && normalized.startsWith('127.'));
+}
+
+function parseTargetOptions(args) {
+  let targetValue;
+  let allowNetwork = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument === '--help' || argument === '-h') {
+      printUsage();
+      process.exit(0);
+    }
+    if (argument === '--target') {
+      const value = args[index + 1];
+      if (!value || value.startsWith('--') || targetValue) {
+        console.error('Provide exactly one value for --target.');
+        printUsage();
+        process.exit(2);
+      }
+      targetValue = value;
+      index += 1;
+      continue;
+    }
+    if (argument === '--allow-network') {
+      allowNetwork = true;
+      continue;
+    }
+    console.error('Unknown option.');
+    printUsage();
+    process.exit(2);
+  }
+
+  if (!targetValue) {
+    console.error('An explicit --target origin is required.');
+    printUsage();
+    process.exit(2);
+  }
+
+  let url;
+  try {
+    url = new URL(targetValue);
+  } catch {
+    console.error('--target must be a valid HTTP or HTTPS origin.');
+    printUsage();
+    process.exit(2);
+  }
+
+  if (!['http:', 'https:'].includes(url.protocol)
+      || url.username
+      || url.password
+      || url.pathname !== '/'
+      || url.search
+      || url.hash) {
+    console.error('--target must be an HTTP or HTTPS origin without credentials, path, query, or fragment.');
+    printUsage();
+    process.exit(2);
+  }
+
+  if (!isLoopback(url.hostname) && !allowNetwork) {
+    console.error('Non-loopback targets require --allow-network.');
+    printUsage();
+    process.exit(2);
+  }
+
+  return { baseUrl: url.origin, allowNetwork };
+}
+
+const targetOptions = parseTargetOptions(process.argv.slice(2));
+const API = `${targetOptions.baseUrl}/api/v1`;
 const PASSWORD = process.env.DEMO_PASSWORD || 'password123';
 const ROUND = 'c8f1a234-9b7e-412d-8301-1b2c3d4e5f60';
 

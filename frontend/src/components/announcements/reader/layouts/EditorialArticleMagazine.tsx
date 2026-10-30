@@ -206,6 +206,8 @@ export function EditorialArticleMagazine({
             <img
               src={coverImage}
               alt={coverDetails?.alt || announcement.title}
+              width={1600}
+              height={900}
               className="h-full w-full object-cover"
             />
           </div>

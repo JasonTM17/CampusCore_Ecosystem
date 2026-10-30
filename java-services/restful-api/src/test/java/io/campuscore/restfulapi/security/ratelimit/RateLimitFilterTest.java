@@ -7,7 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import io.campuscore.restfulapi.web.ApiErrorWriter;
 import jakarta.servlet.FilterChain;
 import java.util.List;
@@ -33,7 +33,7 @@ class RateLimitFilterTest {
         // matching direct (non-proxied) request handling in these tests.
         properties = new RateLimitProperties(true, false, false, "", 5, 40, 60);
         errorWriter = new ApiErrorWriter(new ObjectMapper());
-        filter = new RateLimitFilter(limiterService, properties, errorWriter, new ClientIpResolver(properties));
+        filter = new RateLimitFilter(limiterService, properties, errorWriter, new ClientIpResolver(properties), new io.campuscore.restfulapi.identity.IdentityProperties());
         SecurityContextHolder.clearContext();
     }
 
@@ -168,7 +168,7 @@ class RateLimitFilterTest {
     @Test
     void spoofedForwardedPrefixesShareOneBucketWhileDistinctRealIpsDoNot() throws Exception {
         RateLimitProperties proxyTrusted = new RateLimitProperties(true, true, false, "", 5, 40, 60);
-        RateLimitFilter proxyFilter = new RateLimitFilter(limiterService, proxyTrusted, errorWriter, new ClientIpResolver(proxyTrusted));
+        RateLimitFilter proxyFilter = new RateLimitFilter(limiterService, proxyTrusted, errorWriter, new ClientIpResolver(proxyTrusted), new io.campuscore.restfulapi.identity.IdentityProperties());
 
         for (int i = 1; i <= 3; i++) {
             MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/auth/login");

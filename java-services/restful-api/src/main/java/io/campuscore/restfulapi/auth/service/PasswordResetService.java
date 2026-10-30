@@ -73,6 +73,14 @@ public class PasswordResetService {
     private final Clock clock;
     private final String publicBaseUrl;
 
+    /**
+     * Unified revocation bridge — kills the OIDC lane alongside legacy
+     * sessions on credential events. Optional: hand-built test contexts
+     * inject the constructor only and keep the legacy session-only path.
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private io.campuscore.restfulapi.identity.UnifiedSessionAuthority unifiedSessions;
+
     /** No Clock bean exists in the context; the service only needs wall time. */
     @Autowired
     public PasswordResetService(
@@ -184,7 +192,12 @@ public class PasswordResetService {
             throw invalidToken();
         }
         users.resetPassword(user.id(), passwordEncoder.encode(newPassword), now);
-        users.deleteAllRefreshSessions(user.id());
+        // resetPassword() already bumped the credential revision.
+        if (unifiedSessions != null) {
+            unifiedSessions.revokeGrants(user.id(), "LEGACY", "PASSWORD_RESET", null);
+        } else {
+            users.deleteAllRefreshSessions(user.id());
+        }
         users.clearUserRefreshToken(user.id());
         tokens.invalidateUnused(user.id(), now);
         audit.record(user.id(), null, "PASSWORD_RESET_COMPLETED", "USER", user.id(),

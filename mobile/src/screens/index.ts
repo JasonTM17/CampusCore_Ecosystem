@@ -1,6 +1,11 @@
 import type { ComponentType } from 'react';
 
 import { SignInScreen } from './auth/SignInScreen';
+import { ForgotPasswordScreen, LoggedOutScreen } from './account';
+import { CurriculumScreen } from './academic/CurriculumScreen';
+import { EnrollmentsScreen } from './academic/EnrollmentsScreen';
+import { TranscriptScreen } from './academic/TranscriptScreen';
+import ResetPasswordRoute from './account/ResetPasswordRoute';
 import { AssistantChatScreen } from './assistant/AssistantScreen';
 import {
   AdminDashboardScreen,
@@ -11,6 +16,14 @@ import {
   LecturerGradingScreen,
   LecturerScheduleScreen,
 } from './operations/OperationsScreens';
+import { EventsScreen } from './student/EventsScreen';
+import { LearningScreen } from './student/LearningScreen';
+import { AdmissionsScreen } from './student/AdmissionsScreen';
+import { LibraryScreen } from './student/LibraryScreen';
+import { CareersScreen } from './student/CareersScreen';
+import { NewsScreen } from './student/NewsScreen';
+import { DocsScreen } from './student/DocsScreen';
+import { AnnouncementsScreen, CertificatesScreen, ConductScreen } from './content';
 import {
   AttendanceScreen,
   CoursesScreen,
@@ -32,12 +45,28 @@ import type { MobileScreenProps } from '../navigation/types';
 
 export const screenComponents: Record<ScreenName, ComponentType<MobileScreenProps>> = {
   'auth.signIn': SignInScreen,
+  'auth.forgotPassword': ForgotPasswordScreen,
+  'auth.resetPassword': ResetPasswordRoute,
+  'auth.loggedOut': LoggedOutScreen,
   'dashboard.student': StudentDashboardScreen,
   schedule: ScheduleScreen,
   courses: CoursesScreen,
   grades: GradesScreen,
+  transcript: TranscriptScreen,
+  curriculum: CurriculumScreen,
+  enrollments: EnrollmentsScreen,
   attendance: AttendanceScreen,
   registration: RegistrationScreen,
+  events: EventsScreen,
+  learning: LearningScreen,
+  admissions: AdmissionsScreen,
+  library: LibraryScreen,
+  careers: CareersScreen,
+  news: NewsScreen,
+  docs: DocsScreen,
+  announcements: AnnouncementsScreen,
+  conduct: ConductScreen,
+  certificates: CertificatesScreen,
   notifications: NotificationsScreen,
   profile: ProfileScreen,
   'thesis.topics': ThesisTopicsScreen,

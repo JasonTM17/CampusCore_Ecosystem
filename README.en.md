@@ -4,7 +4,7 @@
 > Service-oriented architecture: a central Spring Boot Java REST API, a Next.js Web Portal, PostgreSQL managed via Flyway, and a private RAG sidecar reachable only inside the internal network.
 
 [![Java 21](https://img.shields.io/badge/Java-21-orange.svg?style=flat-square&logo=openjdk)](https://openjdk.org/)
-[![Spring Boot 3.5](https://img.shields.io/badge/Spring%20Boot-3.5-brightgreen.svg?style=flat-square&logo=springboot)](https://spring.io/projects/spring-boot)
+[![Spring Boot 4.1](https://img.shields.io/badge/Spring%20Boot-4.1-brightgreen.svg?style=flat-square&logo=springboot)](https://spring.io/projects/spring-boot)
 [![Next.js 15](https://img.shields.io/badge/Next.js-15-black.svg?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![PostgreSQL 15](https://img.shields.io/badge/PostgreSQL-15-blue.svg?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Flyway](https://img.shields.io/badge/Flyway-Migrations-red.svg?style=flat-square)](https://flywaydb.org/)
@@ -59,6 +59,8 @@ Expo Mobile App (Experimental)─┘         │ (internal /internal/rag)
 ```
 
 > The ports above are the **Docker Compose defaults**. Every host port can be overridden through environment variables in `.env` (see the [Installation guide](#installation--local-deployment-guide)).
+
+> **Branding:** the public deployment carries the visible brand **CampusUTE** (`campusute.io.vn`; logo at `frontend/public/icon.png`); `CampusCore` is the internal source name (groupId, Docker images, database). The Expo mobile app in `mobile/` is also named `CampusUTE` (`mobile/app.json`).
 
 ---
 
@@ -205,7 +207,7 @@ flowchart TD
     end
 
     subgraph BACKEND["CORE JAVA APPLICATION SERVICES"]
-        REST["Spring Boot 3.5 REST API\n(:4010 | /api/v1/)\n• Auth & RBAC Filter Chain\n• 4-Layer Registration Engine\n• Gradebook & Transcript Service\n• Thesis Lifecycle Manager\n• Assistant Proxy & Quota Ledger"]
+        REST["Spring Boot 4.1 REST API\n(:4010 | /api/v1/)\n• Auth & RBAC Filter Chain\n• 4-Layer Registration Engine\n• Gradebook & Transcript Service\n• Thesis Lifecycle Manager\n• Assistant Proxy & Quota Ledger"]
         RAG["Private rag-service Sidecar\n(:4011 | internal expose only)\n• Bilingual Prompt Injection Guard\n• Lexical ranking BM25\n• Snapshot runtime reader\n• Runs Flyway migrations in the compose stack"]
     end
 
@@ -422,13 +424,14 @@ flowchart LR
 
 | Layer | Technology | Version | Purpose |
 | --- | --- | --- | --- |
-| **Backend API** | Java / Spring Boot | 21 / 3.5.16 | Central RESTful API, Spring Security, Validation, JPA/Hibernate |
-| **Frontend Web** | Next.js (App Router) | 15.5 | Interactive portal, Server Components, same-origin `/api/v1` proxy |
+| **Backend API** | Java / Spring Boot | 21 / 4.1.1 | Central RESTful API, Spring Security, Validation, JPA/Hibernate |
+| **Frontend Web** | Next.js (App Router) / React | 15.5 / 18.3 | Interactive portal, Server Components, same-origin `/api/v1` proxy |
+| **Mobile App** | Expo / React Native | ~57 / 0.86 | `CampusUTE` app (expo-router, SecureStore) — preview/live modes via `EXPO_PUBLIC_API_*` |
 | **UI Libraries** | Tailwind CSS, Radix UI, TinyMCE | 3.4 / Radix / 8 | HCMUTE-inspired design system, data tables, rich-text editing |
 | **Build Tooling** | Maven / Node.js | 3.9.12 / 20 | Java build tool and Node runtime for the frontend |
 | **Database** | PostgreSQL | 15 (postgres:15-alpine) | ACID transactions, partial indexes, tsvector full-text search |
 | **Schema Management** | Flyway | bundled with Spring Boot | Versioned migrations in `java-services/restful-api/src/main/resources/db/migration/` |
-| **RAG Sidecar** | Spring Boot (sidecar mode) | 3.5.16 | Internal AI service on port 4011, lexical ranking, injection guard |
+| **RAG Sidecar** | Spring Boot (sidecar mode) | 4.1.1 | Internal AI service on port 4011, lexical ranking, injection guard |
 | **AI Model** | DeepSeek | deepseek-v4-flash | Optional LLM for complex questions, fully switchable via `DEEPSEEK_ENABLED` |
 | **Email Testing** | Mailpit | v1.21 | Local SMTP sink for notification emails in development |
 | **Testing & QA** | JUnit 5, Mockito, node:test, Playwright | Latest | Backend unit tests, frontend smoke tests, Playwright e2e |
@@ -487,18 +490,38 @@ The values below are the **Docker Compose defaults**. Every host port can be ove
 - **Mailpit Web UI**: `http://127.0.0.1:8025`
 - **PostgreSQL**: `127.0.0.1:5432` | Database: `campuscore_restful` | User: `campuscore`
 
+### CampusUTE mobile app (Expo — experimental)
+
+The Expo/React Native app lives in `mobile/` (expo-router + expo-secure-store). Run it with `npm start` inside `mobile/` (Metro + Expo Go/dev client). Two modes via variables in `mobile/.env` (gitignored; template at `mobile/.env.example`):
+
+- `EXPO_PUBLIC_API_MODE=preview`: bundled sample content, **no network** — every API request is rejected (`MOBILE_API_PREVIEW`), for UI browsing only.
+- `EXPO_PUBLIC_API_MODE=live` + `EXPO_PUBLIC_API_URL`: calls a real backend — Android emulator uses `http://10.0.2.2:4010/api/v1`, a physical phone uses the dev machine's LAN IP; the production host `https://www.campusute.io.vn/api/v1` serves anonymous content only (sign-in requires the `id.campusute.io.vn` issuer).
+
+The app never connects to the database directly; the three run modes are detailed in [docs/ecosystem/mobile-environments.md](docs/ecosystem/mobile-environments.md).
+
 ---
 
 ## Demo Test Accounts
 
+> **Important (Security):** migrations `V48` and `V145` seed every demo account **LOCKED**
+> (`status = 'LOCKED'`), and `DemoAccountGate` reapplies that lock on each boot. The passwords
+> below only work after you deliberately unlock accounts via `DEMO_ACCOUNTS_ENABLED` for local
+> evaluation. A real deployment running Flyway will never accept these public credentials.
+
 | Role | Email | Password | Granted Scope |
 | --- | --- | --- | --- |
 | **Student** | `student@campuscore.edu` | `password123` | Course enrollment, timetable, grades, AI assistant, thesis |
+| **Applicant** | `applicant@campuscore.edu` | `password123` | Admissions portal `/apply`: draft/submit/withdraw a simulated application (`admissions:self` capability, no academic rights) |
+| **Applicant 2** | `applicant2@campuscore.edu` | `password123` | Second applicant used for admission-record isolation checks |
 | **Lecturer** | `lecturer@campuscore.edu` | `password123` | Teaching schedule, gradebook entry, thesis guidance |
 | **Admin** | `admin@campuscore.edu` | `password123` | User administration, catalog & section scheduling, RAG drafting |
 | **Second Admin** | `admin002@campuscore.demo` | `password123` | Independent admin used for the Four-Eyes cross-review of RAG knowledge |
 
 The demo seed also provisions a supporting lecturer directory (`lecturer002@campuscore.demo` through `lecturer012@campuscore.demo`) so section rosters, committees, and teaching schedules mirror a real campus population.
+
+### Two-factor authentication (2FA) via email OTP
+
+Every account opts in under *Profile → Two-factor authentication*: enter the password, receive a 6-digit code by email, confirm once. While 2FA is on, sign-in stops after the password step and asks for the OTP — codes are stored as SHA-256 digests, expire in 10 minutes, and lock after 5 wrong attempts. **Disabling 2FA mirrors enabling it**: the password starts a challenge and an emailed one-time code confirms it — it cannot be turned off with the password alone. Delivery depends on configured SMTP (`SPRING_MAIL_*`); an environment without SMTP gets a 502 `MAIL_DELIVERY_FAILED` instead of a fake success.
 
 ---
 
@@ -508,7 +531,7 @@ All endpoints share the `/api/v1` prefix and are grouped by resource. The **comp
 
 | Resource Group | Path Prefix | Description |
 | --- | --- | --- |
-| Authentication & sessions | `/api/v1/auth` | Sign-up, role-scoped portal sign-in, token refresh, sign-out |
+| Authentication & sessions | `/api/v1/auth` | Role-scoped portal sign-in, token refresh, sign-out, password change. **No self-registration** — accounts are provisioned via `/api/v1/users` |
 | Personal profile | `/api/v1/me` | Profile data, registration eligibility, registration summary and slip |
 | Course registration | `/api/v1/me/enrollments` | Enroll (4-layer anti-race, mandatory `Idempotency-Key`), drop, list enrolled sections |
 | Catalog & lookups | `/api/v1/sections`, `/api/v1/schedules`, `/api/v1/attendance`, `/api/v1/lecturers` | Section catalog, timetables, attendance, lecturer directory |
@@ -518,6 +541,11 @@ All endpoints share the `/api/v1` prefix and are grouped by resource. The **comp
 | CampusCore AI assistant | `/api/v1/assistant` | RAG Q&A (`/chat`), SSE streaming (`/chat/stream`), message feedback |
 | RAG knowledge governance | see Swagger (assistant-knowledge group) | Draft creation, two-admin review, privacy gate activation |
 | Announcements & notifications | `/api/v1/announcements`, `/api/v1/notifications` | Academic bulletin board and per-user notification inbox |
+| Admissions | `/api/v1/admissions` | Draft, submit, resubmit (content-bound idempotency) and withdraw simulated applications |
+| Events | `/api/v1/events` | Event catalog (`page`/`limit` paging), seat booking and attendance check-in |
+| Learning (LMS) | `/api/v1/learning` | Course materials, assignment submissions and owner-locked draft lifecycle |
+| Library | `/api/v1/library` | Catalogue search (`page`/`limit` + `X-Total-Count`), holds and loans |
+| Careers | `/api/v1/careers` | Job postings (`page`/`limit` + `X-Total-Count`) and application tracking |
 | System health | `/api/v1/health` | Liveness and readiness probes guarded by `X-Health-Key` |
 
 ---

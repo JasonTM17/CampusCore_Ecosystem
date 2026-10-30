@@ -34,7 +34,9 @@ public class AnnouncementReadRepository {
             "isGlobal", "publishAt", "expiresAt", "publishedBy", "semesterId",
             "semesterName", "sectionId", "sectionNumber", "courseCode", "courseName",
             "lecturerId", "lecturerDisplayName", "createdAt", "updatedAt",
-            "version", "archivedAt", "archivedBy"
+            "version", "archivedAt", "archivedBy",
+            "status", "authorId", "reviewerId", "reviewedAt", "reviewNote",
+            "publishedRevision"
             """;
     /** Safe columns for the anonymous public feed — no audience-scoping arrays. */
     private static final String PUBLIC_SELECT_COLUMNS = """
@@ -152,6 +154,28 @@ public class AnnouncementReadRepository {
         return Objects.requireNonNullElse(count, 0L);
     }
 
+    /**
+     * Anonymous single-item read: accepts the row id or its public slug and
+     * applies the exact public feed conditions — a draft, scoped, scheduled,
+     * expired, or archived row answers empty so the caller can 404 without an
+     * existence oracle.
+     */
+    public java.util.Optional<PublicAnnouncementResponse> findPublicDetail(
+            String idOrSlug,
+            Instant now) {
+        List<String> conditions = new ArrayList<>(publicConditions(now));
+        conditions.add("(\"id\" = :key OR \"slug\" = :key)");
+        MapSqlParameterSource parameters = publicWhere(now);
+        parameters.addValue("key", idOrSlug);
+        return jdbc.query(
+                        "SELECT " + PUBLIC_SELECT_COLUMNS + " FROM " + TABLE
+                                + where(conditions) + " LIMIT 2",
+                        parameters,
+                        PUBLIC_ROW_MAPPER)
+                .stream()
+                .findFirst();
+    }
+
     private static List<String> publicConditions(Instant now) {
         return List.of(
                 "\"status\" = 'PUBLISHED'",
@@ -232,9 +256,20 @@ public class AnnouncementReadRepository {
             parameters.addValue("priority", filter.priority());
         }
         if ("ACTIVE".equals(filter.status())) {
-            conditions.add("\"archivedAt\" IS NULL");
-        } else if ("ARCHIVED".equals(filter.status())) {
-            conditions.add("\"archivedAt\" IS NOT NULL");
+            // Legacy alias: pre-workflow "active" meant "not archived".
+            conditions.add("\"status\" <> 'ARCHIVED'");
+        } else if ("ALL".equals(filter.status())) {
+            // no lifecycle predicate
+        } else if (filter.status() != null) {
+            conditions.add("\"status\" = :status");
+            parameters.addValue("status", filter.status());
+        }
+        if (filter.authorScope() != null) {
+            // Lecturer scope: own posts plus the review queue — the read
+            // surface that lets lecturer authors manage drafts and lecturer
+            // reviewers reach IN_REVIEW posts.
+            conditions.add("(\"authorId\" = :authorScope OR \"status\" = 'IN_REVIEW')");
+            parameters.addValue("authorScope", filter.authorScope());
         }
         List<String> tokens = LikePattern.tokens(filter.search());
         if (!tokens.isEmpty()) {
@@ -271,6 +306,7 @@ public class AnnouncementReadRepository {
             parameters.addValue(parameter, visibility.roles().get(index));
         }
         conditions.add("(" + String.join(" OR ", audience) + ")");
+        conditions.add("\"status\" = 'PUBLISHED'");
         conditions.add("(\"publishAt\" IS NULL OR \"publishAt\" <= :now)");
         conditions.add("(\"expiresAt\" IS NULL OR \"expiresAt\" > :now)");
         conditions.add("\"archivedAt\" IS NULL");
@@ -358,9 +394,20 @@ public class AnnouncementReadRepository {
                 resultSet.getInt("version"),
                 instant(resultSet, "archivedAt"),
                 resultSet.getString("archivedBy"),
+                resultSet.getString("status"),
+                resultSet.getString("authorId"),
+                resultSet.getString("reviewerId"),
+                instant(resultSet, "reviewedAt"),
+                resultSet.getString("reviewNote"),
+                nullableInteger(resultSet, "publishedRevision"),
                 semester,
                 section,
                 lecturer);
+    }
+
+    private static Integer nullableInteger(ResultSet resultSet, String column) throws SQLException {
+        int value = resultSet.getInt(column);
+        return resultSet.wasNull() ? null : value;
     }
 
     private static List<String> stringList(Array sqlArray) throws SQLException {
@@ -396,7 +443,22 @@ public class AnnouncementReadRepository {
         return value != null && !value.isEmpty();
     }
 
-    public record AnnouncementFilter(String semesterId, String sectionId, String priority, String status, String search) {
+    public record AnnouncementFilter(
+            String semesterId,
+            String sectionId,
+            String priority,
+            String status,
+            String search,
+            String authorScope) {
+
+        public AnnouncementFilter(
+                String semesterId,
+                String sectionId,
+                String priority,
+                String status,
+                String search) {
+            this(semesterId, sectionId, priority, status, search, null);
+        }
     }
 
     public record UserVisibility(
