@@ -1,9 +1,15 @@
 package io.campuscore.restfulapi.notification.push;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.AdditionalAnswers.delegatesTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
 import io.campuscore.restfulapi.notification.push.DeliveryOutboxRepository.Claim;
 import io.campuscore.restfulapi.notification.push.PushDeviceDtos.PushDeviceRegistrationRequest;
+import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository;
+import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository.CreateNotificationCommand;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -15,7 +21,9 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
@@ -57,6 +65,9 @@ class NotificationPushPostgresIT {
 
     @Autowired
     private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private NotificationWriteRepository notifications;
 
     private TransactionTemplate transactions;
     private String suffix;
@@ -234,6 +245,88 @@ class NotificationPushPostgresIT {
         assertThat(state.status()).isEqualTo("CLAIMED");
         assertThat(state.leaseGeneration()).isEqualTo(claim.generation());
         assertThat(state.sentAt()).isNull();
+    }
+
+    @Test
+    void rotationBetweenPreparationAndSendUsesTheCommittedRegistration() throws Exception {
+        assertCommittedRegistrationUsed(false);
+    }
+
+    @Test
+    void obsoleteTokenReboundToAnotherUserCannotReceiveThePreparedNotification() throws Exception {
+        assertCommittedRegistrationUsed(true);
+    }
+
+    private void assertCommittedRegistrationUsed(boolean rebindObsoleteToken) throws Exception {
+        String installation = "rotating-" + suffix;
+        String obsoleteToken = "before-" + suffix;
+        String replacementToken = "after-" + suffix;
+        String notificationId = "rotating-notice-" + suffix;
+        deviceService.register(userA, installation,
+                new PushDeviceRegistrationRequest("FCM", "ANDROID", obsoleteToken));
+        notifications.create(new CreateNotificationCommand(notificationId, userA,
+                "Private fixture title", "Private fixture body", "INFO", "/private/fixture",
+                Instant.now().minusSeconds(2)));
+        String outboxId = jdbc.queryForObject(
+                "SELECT id FROM notifications.delivery_outbox WHERE notification_id=:id",
+                new MapSqlParameterSource("id", notificationId), String.class);
+
+        CountDownLatch prepared = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        AtomicBoolean firstLookup = new AtomicBoolean(true);
+        DeliveryOutboxRepository pausedOutbox = mock(DeliveryOutboxRepository.class, delegatesTo(outbox));
+        doAnswer(invocation -> {
+            var snapshot = outbox.loadForSend(invocation.getArgument(0), invocation.getArgument(1));
+            if (firstLookup.compareAndSet(true, false)) {
+                prepared.countDown();
+                if (!resume.await(10, TimeUnit.SECONDS)) {
+                    throw new AssertionError("Send preparation was not released");
+                }
+            }
+            return snapshot;
+        }).when(pausedOutbox).loadForSend(any(), any());
+        AtomicInteger sends = new AtomicInteger();
+        AtomicReference<String> destination = new AtomicReference<>();
+        AtomicReference<String> providerName = new AtomicReference<>();
+        AtomicReference<PushProvider.PushPayload> sentPayload = new AtomicReference<>();
+        AtomicReference<String> sentDeliveryKey = new AtomicReference<>();
+        PushProvider provider = new PushProvider() {
+            @Override public boolean isConfigured() { return true; }
+            @Override
+            public DeliveryReceipt send(String provider, String token, PushPayload payload, String deliveryKey) {
+                sends.incrementAndGet();
+                destination.set(token);
+                providerName.set(provider);
+                sentDeliveryKey.set(deliveryKey);
+                sentPayload.set(payload);
+                return new DeliveryReceipt(true);
+            }
+        };
+        try (var dispatcher = new PushDispatcher(pausedOutbox, cryptography, provider, pushProperties);
+                var worker = Executors.newSingleThreadExecutor()) {
+            var dispatch = worker.submit(dispatcher::dispatchBatch);
+            try {
+                assertThat(prepared.await(10, TimeUnit.SECONDS)).isTrue();
+                deviceService.register(userA, installation,
+                        new PushDeviceRegistrationRequest("APNS", "IOS", replacementToken));
+                if (rebindObsoleteToken) {
+                    deviceService.register(userB, "rebound-" + suffix,
+                            new PushDeviceRegistrationRequest("FCM", "ANDROID", obsoleteToken));
+                }
+            } finally {
+                resume.countDown();
+            }
+            assertThat(dispatch.get(10, TimeUnit.SECONDS)).isEqualTo(1);
+        } finally {
+            resume.countDown();
+        }
+        assertThat(sends.get()).isEqualTo(1);
+        assertThat(replacementToken.equals(destination.get()))
+                .as("Only the committed destination may receive an accepted send").isTrue();
+        assertThat(providerName.get()).isEqualTo("APNS");
+        assertThat(sentDeliveryKey.get()).isEqualTo(outboxId);
+        assertThat(sentPayload.get()).isEqualTo(PushProvider.PushPayload.forNotification(notificationId));
+        assertThat(outbox.state(outboxId).orElseThrow().status()).isEqualTo("SENT");
     }
 
     @Test
