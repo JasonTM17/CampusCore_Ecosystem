@@ -103,15 +103,15 @@ public class AttendanceStore {
     private long decisionCount(String session, String decision) {
         return count("SELECT COUNT(*) FROM academic.\"AttendanceCheckin\" WHERE \"sessionId\"=? AND \"decision\"=?",session,decision);
     }
-    public List<OpenSessionResponse> openForStudent(String student, LocalDate date, Instant now) {
+    public List<OpenSessionResponse> openForStudent(String student, Instant now) {
         return jdbc.query("""
                 SELECT s."id",s."sectionId",sec."sectionNumber",s."closesAt",s."requireCode",g."name"
                 FROM academic."AttendanceSession" s JOIN academic."Enrollment" e ON e."sectionId"=s."sectionId"
                 JOIN academic."Section" sec ON sec."id"=s."sectionId"
                 JOIN academic."AttendanceGeofence" g ON g."id"=s."geofenceId"
-                WHERE e."studentId"=? AND e."status" NOT IN ('DROPPED','CANCELLED') AND s."attendanceDate"=?
+                WHERE e."studentId"=? AND e."status" NOT IN ('DROPPED','CANCELLED')
                 AND s."status"='OPEN' AND s."opensAt"<=? AND s."closesAt">? AND g."isActive"=TRUE ORDER BY s."closesAt",s."id"
-                """, (rs,n)->new OpenSessionResponse(rs.getString(1),rs.getString(2),rs.getString(3),rs.getTimestamp(4).toInstant(),rs.getBoolean(5),rs.getString(6)),student,date,ts(now),ts(now));
+                """, (rs,n)->new OpenSessionResponse(rs.getString(1),rs.getString(2),rs.getString(3),rs.getTimestamp(4).toInstant(),rs.getBoolean(5),rs.getString(6)),student,ts(now),ts(now));
     }
     private Checkin checkin(ResultSet rs) throws SQLException {
         return new Checkin(rs.getString("id"),rs.getString("sessionId"),rs.getString("studentId"),rs.getString("deviceHash"),
