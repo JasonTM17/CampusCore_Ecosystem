@@ -52,6 +52,8 @@ scripts/*
 !scripts/tests/*.test.mjs
 !scripts/assistant-eval/
 !scripts/assistant-eval/*
+!scripts/drill-hooks/
+!scripts/drill-hooks/*.mjs
 !scripts/supabase/
 !scripts/supabase/*
 
