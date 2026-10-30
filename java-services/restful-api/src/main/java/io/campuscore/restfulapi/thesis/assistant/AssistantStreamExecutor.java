@@ -19,6 +19,17 @@ import org.springframework.stereotype.Component;
 @Profile("persistence")
 public final class AssistantStreamExecutor implements DisposableBean, AutoCloseable {
     private final ThreadPoolTaskExecutor workers = new ThreadPoolTaskExecutor();
+    private io.micrometer.core.instrument.Counter rejected;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void bindMetrics(io.micrometer.core.instrument.MeterRegistry registry) {
+        String executor = workers.getThreadNamePrefix().contains("internal") ? "internal" : "student";
+        io.micrometer.core.instrument.Tags tags = io.micrometer.core.instrument.Tags.of("executor", executor);
+        registry.gauge("campuscore.assistant.executor.active", tags, workers, ThreadPoolTaskExecutor::getActiveCount);
+        registry.gauge("campuscore.assistant.executor.queued", tags, workers, pool -> pool.getThreadPoolExecutor().getQueue().size());
+        registry.gauge("campuscore.assistant.executor.max", tags, workers, ThreadPoolTaskExecutor::getMaxPoolSize);
+        rejected = registry.counter("campuscore.assistant.executor.rejected", tags);
+    }
 
     public AssistantStreamExecutor() {
         this("assistant-stream-", 4);
@@ -35,7 +46,12 @@ public final class AssistantStreamExecutor implements DisposableBean, AutoClosea
     }
 
     public void execute(Runnable task) {
-        workers.execute(task);
+        try {
+            workers.execute(task);
+        } catch (java.util.concurrent.RejectedExecutionException failure) {
+            if (rejected != null) rejected.increment();
+            throw failure;
+        }
     }
 
     @Override

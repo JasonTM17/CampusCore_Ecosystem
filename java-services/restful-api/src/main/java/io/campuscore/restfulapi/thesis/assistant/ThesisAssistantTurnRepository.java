@@ -34,6 +34,12 @@ public class ThesisAssistantTurnRepository {
     private final NamedParameterJdbcTemplate jdbc;
     private final boolean postgres;
     private final AssistantRecoveryActivity activity;
+    private io.micrometer.core.instrument.Counter staleRecovered;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void bindMetrics(io.micrometer.core.instrument.MeterRegistry registry) {
+        staleRecovered = registry.counter("campuscore.assistant.turn.stale.recovered");
+    }
 
     public ThesisAssistantTurnRepository(
             @org.springframework.beans.factory.annotation.Qualifier(AssistantDatabaseConfiguration.JDBC_TEMPLATE)
@@ -619,6 +625,7 @@ public class ThesisAssistantTurnRepository {
                         + "WHERE owner_id=:owner AND client_request_id=:request AND lease_generation=:generation AND state='DISPATCHED'",
                 p().addValue("owner", row.ownerId()).addValue("request", row.clientRequestId())
                         .addValue("generation", row.generation()));
+        afterCommit(() -> { if (staleRecovered != null) staleRecovered.increment(); });
         return new ExpiredLease(row.ownerId(), row.clientRequestId(), row.turnId(), row.generation(), terminalState);
     }
 

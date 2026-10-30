@@ -152,10 +152,19 @@ health:
   readiness-key: ${HEALTH_READINESS_KEY:}
 
 management:
+  metrics:
+    scrape-key: ${METRICS_SCRAPE_KEY:}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      minimum-expected-value:
+        http.server.requests: 1ms
+      maximum-expected-value:
+        http.server.requests: 120s
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       probes:

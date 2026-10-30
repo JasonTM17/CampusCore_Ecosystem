@@ -48,6 +48,13 @@ public class ThesisAssistantInternalController {
     private final AssistantRagProperties properties;
     private final Executor streamExecutor;
     private final boolean rejectKnownDefaults;
+    private io.micrometer.core.instrument.MeterRegistry metrics;
+
+    @Autowired(required = false)
+    void bindMetrics(io.micrometer.core.instrument.MeterRegistry registry) {
+        metrics = registry;
+        io.campuscore.restfulapi.config.MetricsConfiguration.initializeAnswerMeters(registry);
+    }
 
     public ThesisAssistantInternalController(ThesisAssistantService assistant, AssistantRagProperties properties) {
         this(assistant, properties, Runnable::run);
@@ -92,8 +99,12 @@ public class ThesisAssistantInternalController {
             @RequestHeader(name = "X-Assistant-Owner", required = false) String owner) {
         verify(token);
         String ownerId = owner(owner);
-        return AssistantRlsContext.withInternalOwner(ownerId, () -> assistant.answer(request.message(),
+        ChatResponse answer = AssistantRlsContext.withInternalOwner(ownerId, () -> assistant.answer(request.message(),
                 request.locale(), request.conversationId(), ownerId, request.clientRequestId(), request.scope()));
+        if (answer != null) {
+            io.campuscore.restfulapi.config.MetricsConfiguration.recordAnswer(metrics, answer.degraded());
+        }
+        return answer;
     }
 
     @Deprecated
@@ -112,6 +123,7 @@ public class ThesisAssistantInternalController {
         String ownerId = owner(owner);
         SseEmitter emitter = new SseEmitter(120_000L);
         AtomicBoolean terminal = new AtomicBoolean(false);
+        AtomicBoolean answerCounted = new AtomicBoolean(false);
         AtomicBoolean transportClosed = new AtomicBoolean(false);
         AtomicBoolean generationFinished = new AtomicBoolean(false);
         Runnable generation = () -> {
@@ -119,6 +131,9 @@ public class ThesisAssistantInternalController {
             AssistantRlsContext.withInternalOwner(ownerId, () -> {
                 assistant.stream(request.message(), request.locale(), request.conversationId(), ownerId,
                         request.clientRequestId(), event -> {
+                            if (event instanceof ThesisAssistantService.StreamDone done && answerCounted.compareAndSet(false, true)) {
+                                io.campuscore.restfulapi.config.MetricsConfiguration.recordAnswer(metrics, done.degraded());
+                            }
                             if (event instanceof ThesisAssistantService.StreamDone
                                     || event instanceof ThesisAssistantService.StreamError) {
                                 terminal.set(true);

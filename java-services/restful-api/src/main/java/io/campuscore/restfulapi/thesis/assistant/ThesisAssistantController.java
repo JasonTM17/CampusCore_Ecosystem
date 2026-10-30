@@ -56,6 +56,13 @@ public class ThesisAssistantController {
     private final AssistantPersonalContextAdvisor personalContext;
     private final AssistantRlsState rlsState;
     private final Executor streamExecutor;
+    private io.micrometer.core.instrument.MeterRegistry metrics;
+
+    @Autowired(required = false)
+    void bindMetrics(io.micrometer.core.instrument.MeterRegistry registry) {
+        metrics = registry;
+        io.campuscore.restfulapi.config.MetricsConfiguration.initializeAnswerMeters(registry);
+    }
 
     /** Compatibility constructor for focused controller tests. */
     public ThesisAssistantController(ThesisAssistantService assistant) {
@@ -216,6 +223,14 @@ public class ThesisAssistantController {
     @PreAuthorize("hasAnyRole('STUDENT','LECTURER','ADMIN','SUPER_ADMIN','TRUONG_KHOA')")
     public ChatResponse chat(@Valid @RequestBody ChatRequest request, @AuthenticationPrincipal Jwt actor,
             HttpServletRequest httpRequest) {
+        ChatResponse answer = chatAnswer(request, actor, httpRequest);
+        if (answer != null) {
+            io.campuscore.restfulapi.config.MetricsConfiguration.recordAnswer(metrics, answer.degraded());
+        }
+        return answer;
+    }
+
+    private ChatResponse chatAnswer(ChatRequest request, Jwt actor, HttpServletRequest httpRequest) {
         requireAssistantRlsAvailable();
         boolean dbDownAtRequestStart = Boolean.TRUE.equals(
                 httpRequest.getAttribute(DatabaseAvailabilityTracker.REQUEST_ATTRIBUTE));
@@ -497,7 +512,11 @@ public class ThesisAssistantController {
                 HEARTBEAT_INTERVAL_MS, HEARTBEAT_INTERVAL_MS,
                 java.util.concurrent.TimeUnit.MILLISECONDS);
         Runnable stopHeartbeat = () -> heartbeat.cancel(false);
+        AtomicBoolean answerCounted = new AtomicBoolean(false);
         Consumer<ThesisAssistantService.StreamEvent> sink = event -> {
+            if (event instanceof ThesisAssistantService.StreamDone done && answerCounted.compareAndSet(false, true)) {
+                io.campuscore.restfulapi.config.MetricsConfiguration.recordAnswer(metrics, done.degraded());
+            }
             if (!transportClosed.get()) send(emitter, event);
         };
         var securityContext = SecurityContextHolder.createEmptyContext();
