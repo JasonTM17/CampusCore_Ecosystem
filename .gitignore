@@ -52,6 +52,8 @@ scripts/*
 !scripts/tests/*.test.mjs
 !scripts/assistant-eval/
 !scripts/assistant-eval/*
+!scripts/supabase/
+!scripts/supabase/*
 
 # Test
 coverage/
