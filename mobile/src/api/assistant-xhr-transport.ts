@@ -39,16 +39,31 @@ export interface XhrLike {
   abort(): void;
 }
 
+/**
+ * Session-scoped authority a stream joins instead of running its own grant:
+ * the epoch snapshot fences the lane and one pre-frame 401 may share the
+ * client-wide refresh flight.
+ */
+export interface XhrSessionAuthority {
+  /** Current session epoch; a change retires every lane that started earlier. */
+  epoch?(): number | undefined;
+  /** Joins the shared single-flight refresh for a lane that started under `requestEpoch`. */
+  refresh(requestEpoch: number | undefined): Promise<boolean>;
+}
+
 export interface XhrSseTransportOptions {
   baseUrl: string;
   getAccessToken: () => string | undefined;
   /** Same cancel call the turn orchestrator uses; the bearer and refresh rules stay with the caller. */
   cancelRequest: (clientRequestId: string) => Promise<unknown>;
+  /** Shared session lane; without it the transport stays read-only on 401 like any HTTP failure. */
+  session?: XhrSessionAuthority;
   createXhr?: () => XhrLike;
   clock?: AssistantClock;
   idleTimeoutMs?: number;
   totalTimeoutMs?: number;
   maxResponseChars?: number;
+  epochPollMs?: number;
 }
 
 interface QueueItem {
@@ -58,6 +73,8 @@ interface QueueItem {
 }
 
 const XHR_DONE = 4;
+/** How often a live stream re-checks its session epoch; mirrors the client transfer watch. */
+const DEFAULT_EPOCH_POLL_MS = 250;
 
 function lost(code: string): AssistantStreamError {
   return new AssistantStreamError(code, { retryable: true, connectionLost: true });
@@ -82,6 +99,7 @@ export function createXhrSseTransport(options: XhrSseTransportOptions): Assistan
   const idleMs = options.idleTimeoutMs ?? ASSISTANT_STREAM_IDLE_TIMEOUT_MS;
   const totalMs = options.totalTimeoutMs ?? ASSISTANT_STREAM_TOTAL_TIMEOUT_MS;
   const maxChars = options.maxResponseChars ?? ASSISTANT_STREAM_MAX_RESPONSE_CHARS;
+  const epochPollMs = options.epochPollMs ?? DEFAULT_EPOCH_POLL_MS;
   const active = new Map<string, () => void>();
 
   return {
@@ -89,38 +107,47 @@ export function createXhrSseTransport(options: XhrSseTransportOptions): Assistan
       const signal = transportOptions.signal;
       if (signal?.aborted) return;
 
-      const xhr = createXhr();
-      const validator = new AssistantEventValidator();
+      const session = options.session;
+      const startEpoch = session?.epoch?.();
+      const epochChanged = () => startEpoch !== undefined && session?.epoch?.() !== startEpoch;
+
+      let xhr: XhrLike | undefined;
+      const validator = new AssistantEventValidator(request.clientRequestId);
       const parser = new SseFrameParser();
       const queue: QueueItem[] = [];
       let wake: (() => void) | undefined;
       let settled = false;
       let offset = 0;
+      let frameSeen = false;
+      let retriedUnauthorized = false;
       let idleTimer: unknown;
       let totalTimer: unknown;
+      let epochTimer: unknown;
 
       const clearTimers = () => {
         if (idleTimer !== undefined) clock.clearTimeout(idleTimer);
         if (totalTimer !== undefined) clock.clearTimeout(totalTimer);
+        if (epochTimer !== undefined) clock.clearTimeout(epochTimer);
         idleTimer = undefined;
         totalTimer = undefined;
+        epochTimer = undefined;
       };
-      const detach = () => {
-        xhr.onprogress = null;
-        xhr.onload = null;
-        xhr.onerror = null;
-        xhr.onabort = null;
-        xhr.ontimeout = null;
+      const detach = (attempt: XhrLike) => {
+        attempt.onprogress = null;
+        attempt.onload = null;
+        attempt.onerror = null;
+        attempt.onabort = null;
+        attempt.ontimeout = null;
       };
       const finish = (events: AssistantStreamEvent[], error?: Error) => {
         if (settled) return;
         settled = true;
         clearTimers();
-        detach();
+        if (xhr) detach(xhr);
         queue.push({ events, error, end: true });
         wake?.();
         wake = undefined;
-        if (xhr.readyState !== XHR_DONE) {
+        if (xhr && xhr.readyState !== XHR_DONE) {
           try {
             xhr.abort();
           } catch {
@@ -128,14 +155,29 @@ export function createXhrSseTransport(options: XhrSseTransportOptions): Assistan
           }
         }
       };
+      /** The owning session was replaced: end as a failed terminal so nothing replays under it. */
+      const sessionExpired = () => finish([{ type: 'error', code: 'SESSION_CHANGED', retryable: false }]);
       const armIdle = () => {
         if (idleTimer !== undefined) clock.clearTimeout(idleTimer);
         idleTimer = clock.setTimeout(() => finish([], lost('STREAM_IDLE_TIMEOUT')), idleMs);
       };
-      const statusOk = () => xhr.status >= 200 && xhr.status < 300;
+      const statusOk = (attempt: XhrLike) => attempt.status >= 200 && attempt.status < 300;
+      const httpError = (attempt: XhrLike) => new AssistantStreamError(
+        responseErrorCode(attempt.status, attempt.responseText ?? ''),
+        {
+          status: attempt.status,
+          retryAfter: attempt.getResponseHeader('Retry-After'),
+          retryable: attempt.status === 429 || attempt.status >= 500,
+        },
+      );
 
       /** Decode frames; events decoded before a violation are still delivered. */
       const consume = (frames: SseFrame[]): boolean => {
+        if (epochChanged()) {
+          sessionExpired();
+          return true;
+        }
+        if (frames.length > 0) frameSeen = true;
         const events: AssistantStreamEvent[] = [];
         let failure: Error | undefined;
         try {
@@ -157,8 +199,8 @@ export function createXhrSseTransport(options: XhrSseTransportOptions): Assistan
         return false;
       };
 
-      const readNewText = (): boolean => {
-        const text = xhr.responseText ?? '';
+      const readNewText = (attempt: XhrLike): boolean => {
+        const text = attempt.responseText ?? '';
         if (text.length > maxChars) {
           finish([], lost('STREAM_RESPONSE_TOO_LARGE'));
           return true;
@@ -173,54 +215,119 @@ export function createXhrSseTransport(options: XhrSseTransportOptions): Assistan
         return consume(parser.push(chunk));
       };
 
-      xhr.onprogress = () => {
-        if (!settled && statusOk()) readNewText();
-      };
-      xhr.onload = () => {
+      /** One pre-frame 401 may join the shared refresh, then the same logical request is replayed. */
+      const retryAfterRefresh = async (failed: XhrLike) => {
+        detach(failed);
+        let refreshed = false;
+        try {
+          refreshed = (await session?.refresh(startEpoch)) === true;
+        } catch {
+          // A failed grant keeps the original 401.
+        }
         if (settled) return;
-        if (!statusOk()) {
-          const status = xhr.status;
-          finish([], new AssistantStreamError(responseErrorCode(status, xhr.responseText ?? ''), {
-            status,
-            retryAfter: xhr.getResponseHeader('Retry-After'),
-            retryable: status === 429 || status >= 500,
-          }));
+        if (epochChanged()) {
+          sessionExpired();
           return;
         }
-        if (readNewText() || consume(parser.finish())) return;
+        if (!refreshed) {
+          finish([], httpError(failed));
+          return;
+        }
+        try {
+          openAttempt();
+        } catch {
+          finish([], lost('STREAM_CONNECTION_LOST'));
+        }
+      };
+
+      const onAttemptLoad = (attempt: XhrLike) => {
+        if (settled) return;
+        if (
+          attempt.status === 401 && !retriedUnauthorized && !frameSeen && offset === 0
+          && session?.refresh !== undefined && !epochChanged()
+        ) {
+          retriedUnauthorized = true;
+          void retryAfterRefresh(attempt);
+          return;
+        }
+        if (!statusOk(attempt)) {
+          finish([], httpError(attempt));
+          return;
+        }
+        if (readNewText(attempt) || consume(parser.finish())) return;
         try {
           validator.finish(request.clientRequestId);
         } catch (error) {
           finish([], error instanceof Error ? error : lost('STREAM_INCOMPLETE'));
         }
       };
-      xhr.onerror = () => finish([], lost('STREAM_CONNECTION_LOST'));
-      xhr.ontimeout = () => finish([], lost('STREAM_CONNECTION_LOST'));
-      xhr.onabort = () => finish([], lost('STREAM_CONNECTION_LOST'));
+
+      const traceId = requestId();
+      const body = streamRequestBody(request);
+
+      const openAttempt = () => {
+        const attempt = createXhr();
+        xhr = attempt;
+        attempt.onprogress = () => {
+          if (!settled && attempt === xhr && statusOk(attempt)) readNewText(attempt);
+        };
+        attempt.onload = () => {
+          if (attempt === xhr) onAttemptLoad(attempt);
+        };
+        attempt.onerror = () => {
+          if (attempt === xhr) finish([], lost('STREAM_CONNECTION_LOST'));
+        };
+        attempt.ontimeout = () => {
+          if (attempt === xhr) finish([], lost('STREAM_CONNECTION_LOST'));
+        };
+        attempt.onabort = () => {
+          if (attempt === xhr) finish([], lost('STREAM_CONNECTION_LOST'));
+        };
+        const token = getAccessToken();
+        attempt.open('POST', streamUrl(baseUrl));
+        attempt.timeout = 0;
+        attempt.setRequestHeader('Accept', 'text/event-stream');
+        attempt.setRequestHeader('Content-Type', 'application/json');
+        attempt.setRequestHeader('X-Request-Id', traceId);
+        if (token) attempt.setRequestHeader('Authorization', `Bearer ${token}`);
+        armIdle();
+        try {
+          attempt.send(body);
+        } catch {
+          finish([], lost('STREAM_CONNECTION_LOST'));
+        }
+      };
+
+      /** A quiet stream still dies with its epoch; the watch polls the shared clock. */
+      const armEpochWatch = () => {
+        if (session?.epoch === undefined || startEpoch === undefined) return;
+        epochTimer = clock.setTimeout(() => {
+          epochTimer = undefined;
+          if (settled) return;
+          if (epochChanged()) {
+            sessionExpired();
+            return;
+          }
+          armEpochWatch();
+        }, epochPollMs);
+      };
 
       const onCallerAbort = () => finish([]);
       active.set(request.clientRequestId, onCallerAbort);
       signal?.addEventListener('abort', onCallerAbort, { once: true });
       try {
-        const token = getAccessToken();
-        xhr.open('POST', streamUrl(baseUrl));
-        xhr.timeout = 0;
-        xhr.setRequestHeader('Accept', 'text/event-stream');
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.setRequestHeader('X-Request-Id', requestId());
-        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        armIdle();
+        armEpochWatch();
         totalTimer = clock.setTimeout(() => finish([], lost('STREAM_TOTAL_TIMEOUT')), totalMs);
-        try {
-          xhr.send(streamRequestBody(request));
-        } catch {
-          finish([], lost('STREAM_CONNECTION_LOST'));
-        }
+        openAttempt();
 
         while (true) {
           const item = queue.shift();
           if (!item) {
             await new Promise<void>((resolve) => { wake = resolve; });
+            continue;
+          }
+          if (!item.end && epochChanged()) {
+            sessionExpired();
             continue;
           }
           for (const event of item.events) yield event;
