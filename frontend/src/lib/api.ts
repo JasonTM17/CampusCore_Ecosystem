@@ -2085,7 +2085,7 @@ export type MailDispatchResponse = {
   message: string;
   recipient: string;
   template: string;
-  dispatchedAt: string;
+  dispatchedAt: string | null;
 };
 
 export const mailApi = {

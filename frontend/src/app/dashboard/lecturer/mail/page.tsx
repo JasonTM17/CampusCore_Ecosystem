@@ -98,7 +98,7 @@ interface GradeAlertForm {
 interface SentRecord {
   recipient: string;
   template: string;
-  dispatchedAt: string;
+  dispatchedAt: string | null;
 }
 
 type MailCopy = ReturnType<typeof useI18n>['messages']['mailCompose'];
@@ -292,6 +292,7 @@ export default function LecturerMailComposePage() {
   const [attemptedSend, setAttemptedSend] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [errorKind, setErrorKind] = useState<MailErrorKind | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
   // The campus quota is 5 emails/hour/account, enforced server-side. The badge
   // counts THIS browser session's sends inside a rolling hour — persisted in
   // sessionStorage so a page reload does not reset the display back to 0.
@@ -520,8 +521,15 @@ export default function LecturerMailComposePage() {
 
     setIsSending(true);
     setErrorKind(null);
+    setServerError(null);
     try {
       const response = await dispatchForTemplate();
+      if (!response.success) {
+        setSent(null);
+        setServerError(response.message || copy.errors.deliveryFailed);
+        return;
+      }
+      setServerError(null);
       setSent({
         recipient: response.recipient,
         template: templateTitle(template),
@@ -558,6 +566,8 @@ export default function LecturerMailComposePage() {
         setGrades([]);
       }
     } catch (error) {
+      setSent(null);
+      setServerError(null);
       setErrorKind(classifyMailError(error));
     } finally {
       setIsSending(false);
@@ -1159,7 +1169,14 @@ export default function LecturerMailComposePage() {
             </CardContent>
           </Card>
 
-          {errorKind ? (
+          {serverError ? (
+            <div
+              role="alert"
+              className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm leading-6 text-destructive"
+            >
+              {serverError}
+            </div>
+          ) : errorKind ? (
             <div
               role="alert"
               className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm leading-6 text-destructive"
@@ -1220,7 +1237,7 @@ export default function LecturerMailComposePage() {
                 </div>
                 <div className="flex gap-2">
                   <dt className="shrink-0 font-medium text-muted-foreground">{copy.successSentAt}:</dt>
-                  <dd className="min-w-0 font-semibold text-foreground">{formatDateTime(sent.dispatchedAt)}</dd>
+                  <dd className="min-w-0 font-semibold text-foreground">{sent.dispatchedAt ? formatDateTime(sent.dispatchedAt) : '—'}</dd>
                 </div>
               </dl>
             </div>
