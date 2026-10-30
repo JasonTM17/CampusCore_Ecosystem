@@ -4,6 +4,10 @@ import static io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
+import static org.mockito.AdditionalAnswers.delegatesTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -27,9 +31,11 @@ import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -398,6 +404,101 @@ class NotificationPushContractPersistenceTest {
     }
 
     @Test
+    void rotationBetweenPreparationAndSendUsesTheRevalidatedRegistration() throws Exception {
+        assertRevalidatedRegistrationUsed(false);
+    }
+
+    @Test
+    void rebindingThePreparedTokenCannotDeliverAnotherUsersNotification() throws Exception {
+        assertRevalidatedRegistrationUsed(true);
+    }
+
+    @Test
+    void registrationChangedDuringDecryptionRetriesWithoutSending() throws Exception {
+        properties.setEnabled(true);
+        createDelivery("decrypting-notice", OWNER, "decrypting-install", "token-before-decryption",
+                Instant.now().minusSeconds(2));
+        CountDownLatch decrypted = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        PushTokenCryptography pausedCryptography = mock(PushTokenCryptography.class, delegatesTo(cryptography));
+        doAnswer(invocation -> {
+            String token = cryptography.decrypt(invocation.getArgument(0));
+            decrypted.countDown();
+            if (!resume.await(10, TimeUnit.SECONDS)) {
+                throw new AssertionError("Decryption was not released");
+            }
+            return token;
+        }).when(pausedCryptography).decrypt(any());
+        RecordingProvider provider = new RecordingProvider(false);
+        try (var dispatcher = new PushDispatcher(outbox, pausedCryptography, provider, properties);
+                var worker = Executors.newSingleThreadExecutor()) {
+            var dispatch = worker.submit(dispatcher::dispatchBatch);
+            try {
+                assertThat(decrypted.await(10, TimeUnit.SECONDS)).isTrue();
+                devices.register(OWNER, "decrypting-install",
+                        new PushDeviceRegistrationRequest("APNS", "IOS", "token-after-decryption"));
+            } finally {
+                resume.countDown();
+            }
+            dispatch.get(10, TimeUnit.SECONDS);
+        } finally {
+            resume.countDown();
+        }
+        assertThat(provider.sendCount()).isZero();
+        OutboxState pending = state("decrypting-notice");
+        assertThat(pending.status()).isEqualTo("RETRY_WAIT");
+        assertThat(pending.lastErrorCode()).isEqualTo("REGISTRATION_CHANGED");
+        assertThat(pending.attemptCount()).isEqualTo(1);
+        assertThat(pending.sentAt()).isNull();
+    }
+
+    private void assertRevalidatedRegistrationUsed(boolean rebindObsoleteToken) throws Exception {
+        properties.setEnabled(true);
+        createDelivery("rotating-notice", OWNER, "rotating-install", "token-before-rotation",
+                Instant.now().minusSeconds(2));
+        CountDownLatch prepared = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        AtomicBoolean firstLookup = new AtomicBoolean(true);
+        DeliveryOutboxRepository pausedOutbox = mock(DeliveryOutboxRepository.class, delegatesTo(outbox));
+        doAnswer(invocation -> {
+            var snapshot = outbox.loadForSend(invocation.getArgument(0), invocation.getArgument(1));
+            if (firstLookup.compareAndSet(true, false)) {
+                prepared.countDown();
+                if (!resume.await(10, TimeUnit.SECONDS)) {
+                    throw new AssertionError("Send preparation was not released");
+                }
+            }
+            return snapshot;
+        }).when(pausedOutbox).loadForSend(any(), any());
+        RecordingProvider provider = new RecordingProvider(false);
+        try (var dispatcher = new PushDispatcher(pausedOutbox, cryptography, provider, properties);
+                var worker = Executors.newSingleThreadExecutor()) {
+            var dispatch = worker.submit(dispatcher::dispatchBatch);
+            try {
+                assertThat(prepared.await(10, TimeUnit.SECONDS)).isTrue();
+                devices.register(OWNER, "rotating-install",
+                        new PushDeviceRegistrationRequest("APNS", "IOS", "token-after-rotation"));
+                if (rebindObsoleteToken) {
+                    devices.register(OTHER, "rebound-install",
+                            new PushDeviceRegistrationRequest("FCM", "ANDROID", "token-before-rotation"));
+                }
+            } finally {
+                resume.countDown();
+            }
+            assertThat(dispatch.get(10, TimeUnit.SECONDS)).isEqualTo(1);
+        } finally {
+            resume.countDown();
+        }
+        assertThat(provider.sendCount()).isEqualTo(1);
+        assertThat(provider.lastToken().equals("token-after-rotation"))
+                .as("Only the revalidated destination may receive an accepted send").isTrue();
+        assertThat(provider.lastProvider).isEqualTo("APNS");
+        assertThat(provider.lastPayload().notificationId()).isEqualTo("rotating-notice");
+        assertThat(provider.lastDeliveryKey()).isEqualTo(notificationId("rotating-notice"));
+        assertThat(state("rotating-notice").status()).isEqualTo("SENT");
+    }
+
+    @Test
     void confirmedProviderReceiptIsRequiredForSent() throws Exception {
         properties.setEnabled(true);
         MutableClock clock = new MutableClock(Instant.now().minusSeconds(2));
@@ -546,6 +647,7 @@ class NotificationPushContractPersistenceTest {
         private final boolean timeout;
         private int sendCount;
         private String lastToken;
+        private String lastProvider;
         private PushPayload lastPayload;
         private String lastDeliveryKey;
 
@@ -563,6 +665,7 @@ class NotificationPushContractPersistenceTest {
                 throws Exception {
             sendCount++;
             lastToken = token;
+            lastProvider = provider;
             lastPayload = payload;
             lastDeliveryKey = deliveryKey;
             if (timeout) {

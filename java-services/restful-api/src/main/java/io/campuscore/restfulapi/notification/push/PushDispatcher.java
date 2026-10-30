@@ -91,24 +91,8 @@ public class PushDispatcher implements AutoCloseable {
             if (candidate.isEmpty()) {
                 continue;
             }
-            DeliverySnapshot delivery = candidate.get();
-            String token;
             try {
-                token = cryptography.decrypt(delivery.tokenCiphertext());
-            } catch (AppException notConfigured) {
-                if ("PUSH_NOT_CONFIGURED".equals(notConfigured.getCode())) {
-                    outbox.block(claim, "PUSH_NOT_CONFIGURED", clock.instant());
-                } else {
-                    outbox.fail(claim, "TOKEN_DECRYPTION_FAILED", false, clock.instant(), null);
-                }
-                continue;
-            } catch (RuntimeException invalidCiphertext) {
-                outbox.fail(claim, "TOKEN_DECRYPTION_FAILED", false, clock.instant(), null);
-                continue;
-            }
-
-            try {
-                DeliveryReceipt receipt = sendWithTimeout(claim, delivery, token);
+                DeliveryReceipt receipt = sendWithTimeout(claim);
                 if (receipt != null && receipt.accepted()) {
                     if (outbox.acknowledgeSent(claim, clock.instant())) {
                         sent++;
@@ -136,11 +120,38 @@ public class PushDispatcher implements AutoCloseable {
         return sent;
     }
 
-    private DeliveryReceipt sendWithTimeout(Claim claim, DeliverySnapshot delivery, String token) throws Exception {
+    private DeliveryReceipt sendWithTimeout(Claim claim) throws Exception {
         Future<DeliveryReceipt> send = sendExecutor.submit(() -> {
-            // Recheck database authority after preparation and any executor wait.
-            if (outbox.loadForSend(claim, clock.instant()).isEmpty()) {
+            // Resolve the destination after any executor wait, within the send timeout.
+            var candidate = outbox.loadForSend(claim, clock.instant());
+            if (candidate.isEmpty()) {
                 return null;
+            }
+            DeliverySnapshot delivery = candidate.get();
+            String token;
+            try {
+                token = cryptography.decrypt(delivery.tokenCiphertext());
+            } catch (AppException notConfigured) {
+                if ("PUSH_NOT_CONFIGURED".equals(notConfigured.getCode())) {
+                    outbox.block(claim, "PUSH_NOT_CONFIGURED", clock.instant());
+                } else {
+                    outbox.fail(claim, "TOKEN_DECRYPTION_FAILED", false, clock.instant(), null);
+                }
+                return null;
+            } catch (RuntimeException invalidCiphertext) {
+                outbox.fail(claim, "TOKEN_DECRYPTION_FAILED", false, clock.instant(), null);
+                return null;
+            }
+            // Decryption must not carry a changed registration or expired claim into the provider.
+            var revalidated = outbox.loadForSend(claim, clock.instant());
+            if (revalidated.isEmpty()) {
+                return null;
+            }
+            if (!delivery.equals(revalidated.get())) {
+                throw new PushProviderException("REGISTRATION_CHANGED", true);
+            }
+            if (Thread.currentThread().isInterrupted()) {
+                throw new InterruptedException("Push preparation was interrupted");
             }
             return provider.send(delivery.provider(), token,
                     PushPayload.forNotification(delivery.notificationId()), delivery.outboxId());
