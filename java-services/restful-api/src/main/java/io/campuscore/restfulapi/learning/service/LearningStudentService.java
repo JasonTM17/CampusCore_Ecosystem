@@ -204,6 +204,7 @@ public class LearningStudentService {
         if (claimed != null) {
             return replayResponse(claimed);
         }
+        lockAssignmentForStudent(assignmentId, studentId);
         Map<String, Object> submission = lockSubmissionFor(studentId, assignmentId);
         if (submission == null) {
             String id = "sub-" + UUID.randomUUID();
@@ -237,19 +238,14 @@ public class LearningStudentService {
     @Transactional
     public SubmissionResponse saveDraft(String studentId, String submissionId,
             SubmissionUpsertRequest request) {
-        Map<String, Object> submission = lockOwnedSubmission(studentId, submissionId);
-        // Ownership alone is not the authority: a seat revoked after the
-        // draft opened still cannot write (Wukong F1 — §6 student scope).
-        requireSubmittableEnrollment(studentId,
-                staff.sectionOfAssignment(String.valueOf(submission.get("assignmentId"))));
-        // CLOSED/ARCHIVED assignments take no new work — not even draft
-        // edits on a pre-existing row (Kongming N1).
-        String assignmentStatus = staff.findAssignment(
-                String.valueOf(submission.get("assignmentId")), studentId).status();
-        if (!"PUBLISHED".equals(assignmentStatus)) {
-            throw problem(HttpStatus.CONFLICT, "ASSIGNMENT_NOT_OPEN",
-                    "This assignment is not open for submissions");
+        // Resolve ownership without locking, then acquire Assignment before
+        // Submission, just as submit does. Recheck ownership under that lock.
+        Map<String, Object> resolved = staff.getSubmission(submissionId);
+        if (!studentId.equals(String.valueOf(resolved.get("studentId")))) {
+            throw problem(HttpStatus.NOT_FOUND, "SUBMISSION_NOT_FOUND", "Submission not found");
         }
+        lockAssignmentForStudent(String.valueOf(resolved.get("assignmentId")), studentId);
+        Map<String, Object> submission = lockOwnedSubmission(studentId, submissionId);
         if (!"DRAFT".equals(String.valueOf(submission.get("status")))) {
             throw problem(HttpStatus.CONFLICT, "SUBMISSION_NOT_DRAFT",
                     "Only a draft can be edited");
@@ -299,6 +295,7 @@ public class LearningStudentService {
                     "Only a draft can be submitted");
         }
         requireDeadline(assignment);
+        requireContent((String) submission.get("draftText"), (String) submission.get("draftFileKey"));
         String submissionId = String.valueOf(submission.get("id"));
         int nextNo = nextRevisionNo(submissionId);
         insertRevision(submissionId, nextNo, submission);
@@ -324,9 +321,16 @@ public class LearningStudentService {
     @Transactional
     public SubmissionResponse resubmit(String studentId, String assignmentId, String idempotencyKey,
             SubmissionUpsertRequest request) {
+        // Keys claimed before content binding stored only resubmit:<assignmentId>;
+        // their original intent is unrecoverable, so they replay exactly as stored.
+        String legacyIdentity = "resubmit:" + assignmentId;
         Map<String, Object> claimed = claimIdempotency(studentId, idempotencyKey,
-                "resubmit:" + assignmentId);
+                resubmitIdentity(assignmentId, request), legacyIdentity);
         if (claimed != null) {
+            if (!legacyIdentity.equals(String.valueOf(claimed.get("request_hash")).trim())) {
+                // A bound replay still proves the bytes it declares (LMS-T07).
+                requireMatchingChecksum(request);
+            }
             return replayResponse(claimed);
         }
         Map<String, Object> assignment = lockAssignmentForStudent(assignmentId, studentId);
@@ -340,18 +344,16 @@ public class LearningStudentService {
         }
         requireDeadline(assignment);
         String submissionId = String.valueOf(submission.get("id"));
+        Map<String, Object> baseline = acceptedWork(submission);
         Map<String, Object> stored = request != null
                 ? staff.storeFile(studentId, submissionId, request.fileName(),
                         request.contentType(), request.contentBase64(), request.checksum())
                 : null;
         String textBody = request != null && request.textBody() != null
-                ? request.textBody() : (String) submission.get("draftText");
-        if (stored == null && (textBody == null || textBody.isBlank())) {
-            throw problem(HttpStatus.BAD_REQUEST, "SUBMISSION_EMPTY",
-                    "A resubmission needs text or a file");
-        }
+                ? request.textBody() : (String) baseline.get("draftText");
+        requireContent(textBody, (String) (stored == null ? baseline.get("draftFileKey") : stored.get("key")));
         int nextNo = nextRevisionNo(submissionId);
-        insertRevision(submissionId, nextNo, submission, stored, textBody);
+        insertRevision(submissionId, nextNo, baseline, stored, textBody);
         int updated = jdbc.update("UPDATE " + SUBMISSION
                         + " SET \"status\" = 'RESUBMITTED', \"submittedAt\" = CURRENT_TIMESTAMP,"
                         + " \"currentRevisionId\" = :revisionId,"
@@ -497,6 +499,26 @@ public class LearningStudentService {
         insertRevision(submissionId, revisionNo, draft, null, (String) draft.get("draftText"));
     }
 
+    private Map<String, Object> acceptedWork(Map<String, Object> submission) {
+        // Working-copy columns can still contain the initial draft. Omitted
+        // fields retain the latest accepted immutable revision instead.
+        Map<String, Object> revision = staff.getRevision((String) submission.get("currentRevisionId"));
+        Map<String, Object> baseline = new java.util.HashMap<>();
+        baseline.put("draftText", revision.get("textBody"));
+        baseline.put("draftFileKey", revision.get("fileKey"));
+        baseline.put("draftFileName", revision.get("fileName"));
+        baseline.put("draftContentType", revision.get("contentType"));
+        baseline.put("draftSizeBytes", revision.get("sizeBytes"));
+        baseline.put("draftChecksum", revision.get("checksum"));
+        return baseline;
+    }
+
+    private void requireContent(String textBody, String fileKey) {
+        if ((textBody == null || textBody.isBlank()) && (fileKey == null || fileKey.isBlank())) {
+            throw problem(HttpStatus.BAD_REQUEST, "SUBMISSION_EMPTY", "A submission needs text or a file");
+        }
+    }
+
     private void insertRevision(String submissionId, int revisionNo, Map<String, Object> source,
             Map<String, Object> stored, String textBody) {
         jdbc.update("INSERT INTO " + REVISION
@@ -519,7 +541,63 @@ public class LearningStudentService {
     // Idempotency (§1.3: per-owner key, request-hash bind, immutable replay)
     // ------------------------------------------------------------------
 
+    /** §1.3 request identity for resubmission: the normalized persisted intent
+     * — assignment, supplied text, file name/type and the decoded bytes digest.
+     * JSON and multipart carry the same fields, so transports share an
+     * identity; file metadata follows the persisted defaults and a key alone
+     * never binds bytes it did not receive. */
+    private static String resubmitIdentity(String assignmentId, SubmissionUpsertRequest request) {
+        String text = request == null ? null : request.textBody();
+        boolean hasFile = request != null && request.contentBase64() != null
+                && !request.contentBase64().isBlank();
+        String canonical = "resubmit\n"
+                + identityField(assignmentId)
+                + identityField(text)
+                + identityField(hasFile ? (request.fileName() == null ? "" : request.fileName()) : null)
+                + identityField(hasFile
+                        ? (request.contentType() == null ? "application/octet-stream" : request.contentType())
+                        : null)
+                + identityField(hasFile ? contentDigest(request.contentBase64()) : null);
+        return "resubmit:v2:" + LearningService.sha256(
+                canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static String identityField(String value) {
+        return value == null ? "-," : value.length() + "," + value + ";";
+    }
+
+    private static String contentDigest(String contentBase64) {
+        try {
+            return LearningService.sha256(java.util.Base64.getDecoder().decode(contentBase64));
+        } catch (IllegalArgumentException exception) {
+            return "invalid:" + LearningService.sha256(
+                    contentBase64.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+    }
+
+    private static void requireMatchingChecksum(SubmissionUpsertRequest request) {
+        if (request == null || request.contentBase64() == null || request.contentBase64().isBlank()
+                || request.checksum() == null || request.checksum().isBlank()) {
+            return;
+        }
+        byte[] bytes;
+        try {
+            bytes = java.util.Base64.getDecoder().decode(request.contentBase64());
+        } catch (IllegalArgumentException exception) {
+            return;
+        }
+        if (!request.checksum().equalsIgnoreCase(LearningService.sha256(bytes))) {
+            throw problem(HttpStatus.UNPROCESSABLE_ENTITY, "FILE_CHECKSUM_MISMATCH",
+                    "File checksum does not match the content");
+        }
+    }
+
     private Map<String, Object> claimIdempotency(String studentId, String key, String requestHash) {
+        return claimIdempotency(studentId, key, requestHash, null);
+    }
+
+    private Map<String, Object> claimIdempotency(String studentId, String key, String requestHash,
+            String legacyHash) {
         if (key == null || key.isBlank()) {
             throw problem(HttpStatus.BAD_REQUEST, "IDEMPOTENCY_KEY_REQUIRED",
                     "Idempotency-Key header is required");
@@ -558,7 +636,8 @@ public class LearningStudentService {
                         + " FROM " + IDEMPOTENCY
                         + " WHERE \"ownerId\" = :ownerId AND \"idempotencyKey\" = :key",
                 new MapSqlParameterSource("ownerId", studentId).addValue("key", key));
-        if (!requestHash.equals(String.valueOf(existing.get("request_hash")).trim())) {
+        String storedHash = String.valueOf(existing.get("request_hash")).trim();
+        if (!requestHash.equals(storedHash) && (legacyHash == null || !legacyHash.equals(storedHash))) {
             throw problem(HttpStatus.CONFLICT, "IDEMPOTENCY_CONFLICT",
                     "This Idempotency-Key was used for a different request");
         }
