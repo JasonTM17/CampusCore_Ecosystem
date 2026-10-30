@@ -3,6 +3,7 @@ package io.campuscore.restfulapi.identity;
 import io.campuscore.restfulapi.auth.repository.AuthUserRepository;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
@@ -17,6 +18,15 @@ import org.springframework.security.oauth2.server.authorization.token.OAuth2Toke
  * current credentialVersion.
  */
 public class IdentityTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingContext> {
+
+    /**
+     * Additive grants that belong to the account itself rather than to an
+     * academic role. {@code admissions:self} names the SELF admissions
+     * surface; it is minted for every grant-eligible account (the same
+     * ACTIVE predicate the authorization service applies) so an applicant
+     * with no academic role can still be told apart from a rejected login.
+     */
+    private static final List<String> SELF_CAPABILITIES = List.of("admissions:self");
 
     private final AuthUserRepository users;
 
@@ -41,6 +51,9 @@ public class IdentityTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodin
                 .claim("credentialVersion", state.credentialVersion())
                 .claim("roles", new ArrayList<>(state.roles()))
                 .claim("permissions", new ArrayList<>(state.permissions()));
+        if ("ACTIVE".equals(state.status())) {
+            context.getClaims().claim("capabilities", SELF_CAPABILITIES);
+        }
         if (state.studentId() != null) {
             context.getClaims().claim("studentId", state.studentId());
         }

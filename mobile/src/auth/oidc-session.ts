@@ -6,6 +6,7 @@ import {
 import * as WebBrowser from 'expo-web-browser';
 
 import type { UserRole } from '../navigation/routes';
+import { APPLICANT_UI_ROLE, capabilityClaimsFromPayload } from './capabilities';
 import {
   OIDC_REDIRECT_URI,
   buildAuthorizeUrl,
@@ -13,6 +14,7 @@ import {
   decodeJwtPayload,
   parseCallbackUrl,
   roleFromClaims,
+  sessionEntryFromClaims,
   verifyIdToken,
 } from './oidc-core';
 
@@ -111,8 +113,8 @@ export async function signInWithOidc(deps: OidcDeps): Promise<OidcOutcome> {
   const roleClaims = Array.isArray(accessClaims?.roles)
     ? accessClaims.roles.filter((role): role is string => typeof role === 'string')
     : [];
-  const role = roleFromClaims(roleClaims);
-  if (!role) {
+  const entry = sessionEntryFromClaims(roleClaims, capabilityClaimsFromPayload(accessClaims));
+  if (entry === null) {
     return {
       kind: 'blocked',
       reason: 'This account has no mobile surface — sign in on the web portal.',
@@ -124,6 +126,9 @@ export async function signInWithOidc(deps: OidcDeps): Promise<OidcOutcome> {
     accessToken,
     refreshToken,
     accountId: idCheck.accountId,
-    role,
+    // An applicant session has no UI role; it renders the least-privileged
+    // surface selector while the `applicant.surface` capability — derived
+    // from this same token — restricts it to the admissions routes.
+    role: entry.kind === 'role' ? entry.role : APPLICANT_UI_ROLE,
   };
 }

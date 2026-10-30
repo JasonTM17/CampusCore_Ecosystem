@@ -13,7 +13,10 @@ import { AppState } from 'react-native';
 import { apiClient, campusApi } from '../api/client';
 import { unregisterPushBestEffort } from '../api/push-notifications';
 import {
+  APPLICANT_UI_ROLE,
   NO_CAPABILITIES,
+  capabilityClaimsFromPayload,
+  hasApplicantSurface,
   resolveCapabilities,
   type CapabilitySet,
 } from '../auth/capabilities';
@@ -87,7 +90,18 @@ function claimsOf(accessToken: string | null): string[] {
 }
 
 function capabilitiesOf(accessToken: string | null): CapabilitySet {
-  return resolveCapabilities({ claims: claimsOf(accessToken), lanes: LANE_FLAGS });
+  const claims = claimsOf(accessToken);
+  return resolveCapabilities({
+    claims,
+    lanes: LANE_FLAGS,
+    capabilityClaims: capabilityClaimsFromPayload(
+      accessToken ? decodeJwtPayload(accessToken) : null,
+    ),
+    // The resolved UI role comes from the token itself, never from the
+    // caller — a hand-picked selector cannot smuggle a real session out of
+    // the applicant surface.
+    role: roleFromClaims(claims),
+  });
 }
 
 /**
@@ -166,7 +180,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           updateBootStatus('unavailable');
         } else if (result.kind === 'refreshed') {
           const claims = decodeJwtPayload(result.accessToken);
-          const role = roleFromClaims(claimsOf(result.accessToken));
+          const capabilities = capabilitiesOf(result.accessToken);
+          const role = roleFromClaims(claimsOf(result.accessToken))
+            ?? (hasApplicantSurface(capabilities) ? APPLICANT_UI_ROLE : null);
           const accountId = typeof claims?.sub === 'string' && claims.sub.trim() ? claims.sub : null;
           const unexpired = typeof claims?.exp === 'number' && Number.isFinite(claims.exp) && claims.exp > Date.now() / 1000;
           if (role && accountId && unexpired) {
@@ -176,7 +192,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               role,
               accountId,
               blockedReason: null,
-              capabilities: capabilitiesOf(result.accessToken),
+              capabilities,
             });
             updateBootStatus('ready');
           } else {
