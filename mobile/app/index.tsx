@@ -8,7 +8,7 @@ export default function Index() {
   const session = useSession();
   return (
     <Redirect
-      href={session.kind === 'signedOut' ? '/sign-in' : roleHomePath(session.role)}
+      href={session.kind === 'signedOut' ? '/sign-in' : roleHomePath(session.role, session.capabilities)}
     />
   );
 }
