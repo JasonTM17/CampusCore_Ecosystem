@@ -2933,7 +2933,7 @@ export interface components {
       name?: string;
     };
     CreateApplicationRequest: {
-      cycle?: string;
+      cycle: string;
     };
     CreateConversationRequest: {
       locale?: string;
@@ -5606,9 +5606,21 @@ export interface operations {
   };
   /** Danh sách hồ sơ của tôi */
   myApplications_1: {
+    parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
+      };
+    };
     responses: {
-      /** @description OK */
+      /** @description Danh sách hồ sơ */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["ApplicationResponse"][];
         };
@@ -5866,9 +5878,21 @@ export interface operations {
   };
   /** Danh sách staff grants */
   grants_3: {
+    parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
+      };
+    };
     responses: {
-      /** @description OK */
+      /** @description Danh sách staff grants */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["StaffGrantResponse"][];
         };
@@ -5912,11 +5936,19 @@ export interface operations {
     parameters: {
       query?: {
         status?: string;
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
       };
     };
     responses: {
-      /** @description OK */
+      /** @description Hàng đợi hồ sơ */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["ApplicationResponse"][];
         };
@@ -7557,9 +7589,21 @@ export interface operations {
   };
   /** Hồ sơ ứng tuyển của tôi */
   myApplications: {
+    parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
+      };
+    };
     responses: {
-      /** @description OK */
+      /** @description Hồ sơ ứng tuyển của tôi */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["ApplicationResponse"][];
         };
@@ -7696,9 +7740,21 @@ export interface operations {
   };
   /** Danh mục tổ chức tuyển dụng */
   organizations: {
+    parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
+      };
+    };
     responses: {
-      /** @description OK */
+      /** @description Danh mục tổ chức tuyển dụng */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["OrganizationResponse"][];
         };
@@ -7711,11 +7767,19 @@ export interface operations {
       query?: {
         opportunityId?: string;
         status?: string;
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
       };
     };
     responses: {
-      /** @description OK */
+      /** @description Hàng đợi hồ sơ */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["ApplicationResponse"][];
         };
@@ -7799,9 +7863,21 @@ export interface operations {
   };
   /** Danh sách grants careers (org/reviewer) */
   grants_2: {
+    parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
+      };
+    };
     responses: {
-      /** @description OK */
+      /** @description Danh sách grants careers */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["StaffGrantResponse"][];
         };
@@ -7843,11 +7919,19 @@ export interface operations {
     parameters: {
       query?: {
         status?: string;
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
       };
     };
     responses: {
-      /** @description OK */
+      /** @description Hàng đợi tin tuyển dụng */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["OpportunityResponse"][];
         };
@@ -8014,9 +8098,21 @@ export interface operations {
   };
   /** Tổ chức tôi được gán recruiter */
   myOrganizations: {
+    parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
+      };
+    };
     responses: {
-      /** @description OK */
+      /** @description Tổ chức tôi được gán recruiter */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["OrganizationResponse"][];
         };
@@ -8025,9 +8121,21 @@ export interface operations {
   };
   /** Hàng đợi IN_REVIEW (chỉ reviewer) */
   reviewQueue: {
+    parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
+      };
+    };
     responses: {
-      /** @description OK */
+      /** @description Hàng đợi IN_REVIEW */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["OpportunityResponse"][];
         };
@@ -8836,6 +8944,12 @@ export interface operations {
           "text/csv": string;
         };
       };
+      /** @description Vượt quá giới hạn số hàng xuất được hỗ trợ */
+      413: {
+        content: {
+          "application/json": components["schemas"]["ErrorResponse"];
+        };
+      };
     };
   };
   /**
@@ -9059,9 +9173,21 @@ export interface operations {
   };
   /** Danh sách sự kiện (staff, gồm draft) */
   list_4: {
+    parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
+      };
+    };
     responses: {
-      /** @description OK */
+      /** @description Danh sách sự kiện */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["EventResponse"][];
         };
@@ -9086,9 +9212,21 @@ export interface operations {
   };
   /** Danh sách staff grants */
   grants_1: {
+    parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
+      };
+    };
     responses: {
-      /** @description OK */
+      /** @description Danh sách staff grants */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["StaffGrantResponse"][];
         };
@@ -9278,13 +9416,23 @@ export interface operations {
   /** Roster đăng ký (staff only) */
   roster_1: {
     parameters: {
+      query?: {
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
+      };
       path: {
         eventId: string;
       };
     };
     responses: {
-      /** @description OK */
+      /** @description Roster đăng ký */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["RosterEntry"][];
         };
