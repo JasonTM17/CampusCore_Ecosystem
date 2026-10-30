@@ -561,6 +561,35 @@ class EventContractPersistenceTest {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    void repeatedGrantReplaysStoredProvenance() throws Exception {
+        RequestPostProcessor secondAdmin = CurrentAccountJwt.fixtureJwt(jdbc, "admin-user-2", "ADMIN");
+        MvcResult first = mvc.perform(post("/api/v1/events/staff/grants").with(adminJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"lecturer-outsider\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        MvcResult repeat = mvc.perform(post("/api/v1/events/staff/grants").with(secondAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"lecturer-outsider\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        JsonNode firstGrant = objectMapper.readTree(first.getResponse().getContentAsString());
+        JsonNode repeatGrant = objectMapper.readTree(repeat.getResponse().getContentAsString());
+        // A repeat replays the stored row — original grantor and grant
+        // instant — never the repeating admin's identity or a fresh clock.
+        assertThat(repeatGrant.get("id").asText()).isEqualTo(firstGrant.get("id").asText());
+        assertThat(repeatGrant.get("grantedBy").asText()).isEqualTo("admin-user");
+        assertThat(repeatGrant.get("createdAt").asText()).isEqualTo(firstGrant.get("createdAt").asText());
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM events.\"StaffGrant\" WHERE \"userId\" = 'lecturer-outsider'",
+                Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM events.\"Audit\" WHERE \"action\" = 'GRANTED'"
+                        + " AND \"detail\" LIKE '%lecturer-outsider%'",
+                Integer.class)).isEqualTo(1);
+    }
+
     // ---------------------------------------------------------------
     // Regression: authority and time preconditions
     // ---------------------------------------------------------------
