@@ -17,9 +17,9 @@ docker compose -p "$project" -f "$compose_file" exec -T postgres \
   pg_dump --format=custom --no-owner --no-privileges --username "$db_user" --dbname "$db_name" > "$archive"
 
 if command -v sha256sum >/dev/null 2>&1; then
-  sha256sum "$archive" > "$archive.sha256"
+  (cd "$backup_dir" && sha256sum "$(basename "$archive")") > "$archive.sha256"
 else
-  shasum -a 256 "$archive" > "$archive.sha256"
+  (cd "$backup_dir" && shasum -a 256 "$(basename "$archive")") > "$archive.sha256"
 fi
 
 find "$backup_dir" -maxdepth 1 -type f -name 'campuscore-*.dump*' -mtime "+$retention_days" -print -delete

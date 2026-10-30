@@ -6,8 +6,8 @@ archive="${1:?Usage: verify-backup.sh <custom-archive.dump>}"
 checksum="$archive.sha256"
 [[ -f "$checksum" ]] || { echo 'Backup checksum sidecar is missing.' >&2; exit 2; }
 if command -v sha256sum >/dev/null 2>&1; then
-  sha256sum --check "$checksum"
+  (cd "$(dirname "$archive")" && sha256sum --check "$(basename "$checksum")")
 else
-  shasum -a 256 --check "$checksum"
+  (cd "$(dirname "$archive")" && shasum -a 256 --check "$(basename "$checksum")")
 fi
 printf 'Checksum verified: %s\n' "$archive"
