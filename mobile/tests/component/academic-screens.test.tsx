@@ -216,6 +216,16 @@ describe('grades', () => {
 });
 
 describe('schedule and attendance', () => {
+  test('renders seven accessible week day buttons with one selected day', async () => {
+    await render(wrap(<ScheduleScreen {...props} />));
+    const dayCells = screen.getAllByTestId(/^day-/);
+
+    expect(dayCells).toHaveLength(7);
+    expect(dayCells.every((cell) => cell.props.accessibilityRole === 'button')).toBe(true);
+    expect(dayCells.every((cell) => Boolean(cell.props.accessibilityLabel))).toBe(true);
+    expect(dayCells.filter((cell) => cell.props.accessibilityState?.selected)).toHaveLength(1);
+  });
+
   test('schedule lists the term sessions and reports calendar export as unavailable', async () => {
     mockQueries['academic.enrollments'] = { data: enrollments };
     mockQueries['academic.semesters'] = { data: semesters };
