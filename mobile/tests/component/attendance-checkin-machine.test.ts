@@ -96,7 +96,7 @@ test.each<[AttendanceErrorCode, string, number]>([
   ['SESSION_CLOSED', 'sessionClosed', 410], ['BAD_CODE', 'rejected', 422],
   ['OUTSIDE_AREA', 'rejected', 422], ['LOW_ACCURACY', 'lowAccuracy', 422],
   ['TOO_MANY_ATTEMPTS', 'tooManyAttempts', 429], ['NETWORK_ERROR', 'networkError', 0],
-  ['UNKNOWN', 'error', 401], ['UNKNOWN', 'networkError', 503],
+  ['UNKNOWN', 'authRecovery', 401], ['UNKNOWN', 'networkError', 503],
 ])('maps server %s to %s without automatic retries', async (code, state, status) => {
   const { machine, api, ready } = setup();
   api.checkin.mockRejectedValue(new AttendanceApiError(code, status, code === 'NETWORK_ERROR', 123));
@@ -233,4 +233,52 @@ test('leaving during acquisition notification prevents GPS acquisition', async (
   machine.subscribe(({ state }) => { if (state.type === 'acquiringFix') machine.reset(); });
   await machine.acquireLocation();
   expect(location.getFreshFix).not.toHaveBeenCalled();
+});
+
+test.each([false, true])('latest refocus read resumes after the physical POST settles (rejected: %s)', async (rejected) => {
+  const { machine, api, ready } = setup();
+  let settle!: () => void;
+  api.checkin.mockImplementation(() => new Promise((resolve, reject) => {
+    settle = () => rejected ? reject(new TypeError('offline'))
+      : resolve({ decision: 'ACCEPTED', status: 'PRESENT', message: '' });
+  }));
+  await ready();
+  const submitting = machine.submit('123456');
+  await Promise.resolve(); await Promise.resolve();
+  expect(api.checkin).toHaveBeenCalledTimes(1);
+  machine.reset();
+  await machine.loadSessions('https://invalid.test');
+  await machine.loadSessions(`campuscore://attendance/checkin/${id}`);
+  await machine.submit('123456');
+  expect(api.openSessions).toHaveBeenCalledTimes(1);
+  settle(); await submitting;
+  expect(api.openSessions).toHaveBeenCalledTimes(2);
+  expect(machine.getSnapshot().selectedSession?.id).toBe(id);
+  expect(machine.getSnapshot().state.type).toBe('needsPermission');
+  expect(api.checkin).toHaveBeenCalledTimes(1);
+});
+
+test.each(['acceptConsent', 'checkin'] as const)('version rejection during %s refetches consent and requires explicit re-acceptance', async (operation) => {
+  const { machine, api, location, ready } = setup();
+  const error = { status: 400, code: 'INVALID_CONSENT_VERSION' };
+  if (operation === 'checkin') {
+    await ready(); api.checkin.mockRejectedValue(error);
+  } else {
+    api.getConsent.mockResolvedValue({ accepted: false, version: 'old', acceptedAt: null });
+    await machine.loadSessions(); await machine.selectSession(id);
+    api.acceptConsent.mockRejectedValueOnce(error);
+  }
+  api.getConsent.mockResolvedValue({ accepted: false, version: 'current', acceptedAt: null });
+  if (operation === 'checkin') await machine.submit('123456');
+  else await machine.acceptConsent();
+  expect(machine.getSnapshot().state).toMatchObject({ type: 'needsConsent', version: 'current', reason: 'INVALID_CONSENT_VERSION' });
+  expect(api.getConsent).toHaveBeenCalledTimes(2);
+  const fixes = location.getFreshFix.mock.calls.length;
+  await machine.acquireLocation(); await machine.submit('123456');
+  expect(location.getFreshFix).toHaveBeenCalledTimes(fixes);
+  expect(api.checkin).toHaveBeenCalledTimes(operation === 'checkin' ? 1 : 0);
+  api.acceptConsent.mockResolvedValue({ accepted: true, version: 'current', acceptedAt: null });
+  await machine.acceptConsent();
+  expect(api.acceptConsent).toHaveBeenLastCalledWith('current');
+  expect(machine.getSnapshot().state.type).toBe('needsPermission');
 });

@@ -9,8 +9,8 @@ import {
 export type CheckinState =
   | { type: 'idle' | 'loadingSessions' | 'noOpenSession' | 'needsPermission' | 'permissionBlocked'
       | 'servicesOff' | 'acquiringFix' | 'lowAccuracy' | 'submitting' | 'alreadyCheckedIn'
-      | 'sessionClosed' | 'notEnrolled' }
-  | { type: 'needsConsent'; version: string }
+      | 'sessionClosed' | 'notEnrolled' | 'authRecovery' }
+  | { type: 'needsConsent'; version: string; reason?: 'INVALID_CONSENT_VERSION' }
   | { type: 'readyForCode'; requireCode: boolean }
   | { type: 'accepted'; status: string | null }
   | { type: 'pendingReview' }
@@ -48,6 +48,7 @@ export function createCheckinMachine(deps: {
   let busy = false;
   // Retain the physical POST lock across reset: a second flow cannot overlap it.
   let postInFlight = false;
+  let queuedLoad: { link?: string } | undefined;
   let consentAccepted = false;
   let fix: FreshFix | undefined;
   let snapshot: CheckinSnapshot = { state: { type: 'idle' }, sessions: [], selectedSession: null };
@@ -58,6 +59,7 @@ export function createCheckinMachine(deps: {
   }
   function reset() {
     generation += 1; identity = deps.identity(); busy = false; fix = undefined; consentAccepted = false;
+    queuedLoad = undefined;
     publish({ type: 'idle' }, [], null);
   }
   function syncIdentity() { if (deps.identity() !== identity) reset(); }
@@ -72,14 +74,22 @@ export function createCheckinMachine(deps: {
     const ticket = generation;
     try { await work(ticket); }
     catch (error) { if (current(ticket)) { fix = undefined; await failure(error, ticket); } }
-    finally { if (current(ticket)) busy = false; }
+    finally {
+      if (current(ticket)) busy = false;
+      if (!busy && !postInFlight && queuedLoad) {
+        const queued = queuedLoad;
+        queuedLoad = undefined;
+        await loadSessions(queued.link);
+      }
+    }
   }
-  async function consent(ticket: number) {
+  async function consent(ticket: number, changedVersion = false) {
     const response = await deps.api.getConsent();
     if (!current(ticket)) return;
     if (!response.version) { publish({ type: 'error', code: 'UNKNOWN' }); return; }
-    consentAccepted = response.accepted;
-    publish(response.accepted ? { type: 'needsPermission' } : { type: 'needsConsent', version: response.version });
+    consentAccepted = response.accepted && !changedVersion;
+    publish(consentAccepted ? { type: 'needsPermission' } : { type: 'needsConsent', version: response.version,
+      ...(changedVersion ? { reason: 'INVALID_CONSENT_VERSION' as const } : {}) });
   }
   async function failure(error: unknown, ticket: number) {
     if (error instanceof LocationServiceError) {
@@ -92,14 +102,18 @@ export function createCheckinMachine(deps: {
       }
     }
     const apiError = normalizeAttendanceError(error);
+    if (apiError.status === 401) { consentAccepted = false; publish({ type: 'authRecovery' }); return; }
     switch (apiError.code) {
       case 'INVALID_LOCATION': case 'BAD_CODE': case 'OUTSIDE_AREA':
         publish({ type: 'rejected', reason: apiError.code }); return;
       case 'NOT_ENROLLED': publish({ type: 'notEnrolled' }); return;
-      case 'CONSENT_REQUIRED':
+      case 'CONSENT_REQUIRED': case 'INVALID_CONSENT_VERSION':
         consentAccepted = false;
-        try { await consent(ticket); }
-        catch { if (current(ticket)) publish({ type: 'networkError', retryable: true }); }
+        try { await consent(ticket, apiError.code === 'INVALID_CONSENT_VERSION'); }
+        catch (error) {
+          if (current(ticket)) publish(normalizeAttendanceError(error).status === 401
+            ? { type: 'authRecovery' } : { type: 'networkError', retryable: true });
+        }
         return;
       case 'ALREADY_CHECKED_IN': publish({ type: 'alreadyCheckedIn' }); return;
       case 'SESSION_CLOSED': publish({ type: 'sessionClosed' }); return;
@@ -139,23 +153,30 @@ export function createCheckinMachine(deps: {
     publish({ type: 'loadingSessions' }, snapshot.sessions, session);
     await consent(ticket);
   }
+  function loadSessions(link?: string): Promise<void> {
+    syncIdentity();
+    if (postInFlight) {
+      queuedLoad = { link };
+      publish({ type: 'loadingSessions' }, [], null);
+      return Promise.resolve();
+    }
+    return run(async (ticket) => {
+      fix = undefined; consentAccepted = false;
+      const parsed = link === undefined ? undefined : parseCheckinLink(link);
+      if (parsed && !parsed.ok) { publish({ type: 'error', code: 'INVALID_LINK' }, [], null); return; }
+      publish({ type: 'loadingSessions' }, [], null);
+      const sessions = await deps.api.openSessions();
+      if (!current(ticket)) return;
+      const frozen = Object.freeze(sessions.map((item) => Object.freeze({ ...item })));
+      publish({ type: sessions.length ? 'idle' : 'noOpenSession' }, frozen, null);
+      if (parsed?.ok) await select(parsed.sessionId, ticket);
+    });
+  }
   return {
     getSnapshot() { syncIdentity(); return snapshot; },
     subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     reset,
-    loadSessions(link) {
-      return run(async (ticket) => {
-        fix = undefined; consentAccepted = false;
-        const parsed = link === undefined ? undefined : parseCheckinLink(link);
-        if (parsed && !parsed.ok) { publish({ type: 'error', code: 'INVALID_LINK' }, [], null); return; }
-        publish({ type: 'loadingSessions' }, [], null);
-        const sessions = await deps.api.openSessions();
-        if (!current(ticket)) return;
-        const frozen = Object.freeze(sessions.map((item) => Object.freeze({ ...item })));
-        publish({ type: sessions.length ? 'idle' : 'noOpenSession' }, frozen, null);
-        if (parsed?.ok) await select(parsed.sessionId, ticket);
-      });
-    },
+    loadSessions,
     selectSession(sessionId) { return run((ticket) => select(sessionId, ticket)); },
     acceptConsent() {
       return run(async (ticket) => {

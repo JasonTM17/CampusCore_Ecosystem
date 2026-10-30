@@ -110,6 +110,30 @@ async function reachReady() {
 beforeEach(() => { mockParams = {}; mockRouter.back.mockReset(); });
 
 describe('check-in screen states', () => {
+  test('unauthorized submission shows explicit recovery and retry only reloads reads', async () => {
+    const fixture = setup({ checkinError: new AttendanceApiError('UNKNOWN', 401) });
+    await show(fixture.machine); await reachReady(); await submitCode('123456');
+    await byTestId('checkin-state-authRecovery');
+    expect(screen.getByText('Cần xác thực lại phiên đăng nhập')).toBeTruthy();
+    press(copy.retry);
+    await byRole(copy.entryAction);
+    expect(fixture.api.checkin).toHaveBeenCalledTimes(1);
+  });
+
+  test('changed consent renders the current version and re-acceptance message', async () => {
+    const fixture = setup({ consent: false });
+    fixture.api.acceptConsent.mockRejectedValueOnce({ status: 400, code: 'INVALID_CONSENT_VERSION' });
+    await show(fixture.machine);
+    await byRole(copy.entryAction); press(copy.entryAction);
+    await byTestId('checkin-consent');
+    fixture.api.getConsent.mockResolvedValue({ accepted: false, version: 'v2', acceptedAt: null });
+    press(copy.consentAccept);
+    await waitFor(() => expect(screen.getByText('Thông báo phiên bản v2')).toBeTruthy());
+    expect(screen.getByText('Thông báo vị trí đã thay đổi. Vui lòng đồng ý lại.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: copy.consentAccept })).toBeOnTheScreen();
+    expect(fixture.api.checkin).not.toHaveBeenCalled();
+  });
+
   test('session card → consent → permission → code → accepted', async () => {
     const fixture = setup({ consent: false });
     await show(fixture.machine);
