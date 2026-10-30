@@ -83,25 +83,55 @@ request id của native là `mobile-*` do client tự sinh và gửi lên server
 mọi client id khác (server vẫn validate charset); `durationMs` web gồm cả
 retry chain axios, native chỉ gồm fetch cuối sau refresh.
 
-### 2.2 Metric Inventory (Verified In-Code vs "TO INSTRUMENT")
+### 2.2 Internal Prometheus export and producer inventory
 
-Nhằm ngăn chặn phantom metrics, bảng sau phân định rõ những endpoint/metric đã thực sự tồn tại trong code và những metric cần bổ sung instrument khi kích hoạt Prometheus backend:
+`GET /actuator/prometheus` requires a dedicated `X-Metrics-Key` matching
+`METRICS_SCRAPE_KEY`. An empty configured key, missing/wrong header, or an ordinary
+user/admin JWT without this key receives 403. The key has no default value.
+Keep the route behind internal network controls and TLS at the deployment edge;
+never forward its header from public callers or expose it to web/mobile clients.
+No collector, external alert destination or retention policy is activated by this code.
+Disable export with `management.prometheus.metrics.export.enabled=false`, or remove
+`prometheus` from `management.endpoints.web.exposure.include` to stop scraping.
 
-| Tên Metric / Probe / Header | Vị trí trong Codebase | Trạng thái Code | Mô tả vận hành |
-| :--- | :--- | :--- | :--- |
-| `GET /api/v1/health/liveness` | `HealthController.java:43` | **VERIFIED_IN_CODE** | Probe kiểm tra tiến trình JVM sống. Không chạm database. |
-| `GET /api/v1/health/readiness` | `HealthController.java:53` | **VERIFIED_IN_CODE** | Probe sẵn sàng phục vụ. Bắt buộc header `X-Health-Key`. Chạy `SELECT 1` và kiểm tra RLS. |
-| `GET /actuator/health` | `application.yml:156` | **VERIFIED_IN_CODE** | Spring Boot Actuator health endpoint (public qua `SecurityConfig.java:181`). |
-| `GET /actuator/health/liveness` | `application.yml:159` | **VERIFIED_IN_CODE** | Built-in Spring Boot liveness probe (`probes.enabled=true`). |
-| `GET /actuator/health/readiness` | `application.yml:159` | **VERIFIED_IN_CODE** | Built-in Spring Boot readiness probe (`probes.enabled=true`). |
-| `GET /health` (Web) | `frontend/src/app/health/route.ts:6` | **VERIFIED_IN_CODE** | Route kiểm tra web edge/SSR; proxy tới `/api/v1/health/liveness`. |
-| Header `X-Request-Id` | `RequestIdFilter.java:19` | **VERIFIED_IN_CODE** | Header truy vết phân tán xuyên suốt Web, Native và REST API. |
-| Headers `X-RateLimit-*`, `Retry-After` | `RateLimitFilter.java:121` | **VERIFIED_IN_CODE** | Header trả về giới hạn quota và thời gian chờ khi gặp 429 `RATE_LIMIT_EXCEEDED`. |
-| `http_server_requests_seconds_*` | `pom.xml` (`spring-boot-starter-actuator`) | **TO INSTRUMENT** | Timer đo độ trễ và số lượng request HTTP. Cần thêm `micrometer-registry-prometheus` vào `pom.xml`. |
-| `hikaricp_connections_*` | `application.yml:284` (`spring.datasource.hikari`) | **TO INSTRUMENT** | Gauge/counter đo trạng thái pool kết nối PostgreSQL (active, idle, pending, timeout). Cần Micrometer Prometheus. |
-| `campuscore_assistant_requests_total` | `ThesisAssistantController.java` | **TO INSTRUMENT** | Metric đếm số lượng chat assistant kèm nhãn `{degraded="true|false", reason_code="..."}`. |
-| `campuscore_assistant_quota_consumed` | `ThesisAssistantTurnRepository.java` | **TO INSTRUMENT** | Gauge theo dõi hạn mức sử dụng hàng ngày (user quota: 20, global quota: 200). |
-| `campuscore_assistant_turn_stale_recovered` | `ThesisAssistantService.java` | **TO INSTRUMENT** | Counter đếm số lượt khôi phục lease quá hạn (`RESERVED`/`DISPATCHED` -> `FAILED_AMBIGUOUS`). |
+| Exported series | Actual producer / labels | Semantics |
+| --- | --- | --- |
+| `http_server_requests_seconds_count`, `_sum`, `_bucket` | Spring HTTP observations; method, status, outcome, exception and route template | Histogram bounds 1ms–120s; route-tag budget 1024. Fixed login/token routes retain their template for security-filter responses, including 429. Unknown raw paths and observation URLs are excluded. |
+| `hikaricp_connections_active`, `_max`, `_pending`, `_timeout_total` | Boot/Hikari automatic binding; actual physical `pool` names | Identity's transaction-aware datasource shares the primary physical pool; do not invent or sum a second identity pool. A fail-closed unavailable assistant datasource is not a healthy pool. |
+| `campuscore_assistant_requests_total` | Public and internal response completion boundaries; only `degraded="true|false"` | Both counters start at zero. Each JSON answer or first SSE done event is counted once at its boundary, including local/remote fallback. Error-only/incomplete streams are not answers. |
+| `campuscore_assistant_quota_consumed_daily` | Gauge: committed current campus-day GLOBAL `usage_bucket` row | No user/date labels. Separate actual Assistant-pool borrow and 1-second statement timeout; no charge/refund/readiness policy changes. Empty current bucket is zero; unavailable datasource/query or unverified PostgreSQL RLS state is NaN. Reflects dispatch, standalone charge/refund, restart and Asia/Ho_Chi_Minh day rollover. |
+| `campuscore_assistant_turn_stale_recovered_total` | Successful repository recovery CAS, incremented after commit | Includes sweep and opportunistic recovery; rollback and lost CAS do not increment. Process-local counter resets on restart. |
+| `campuscore_assistant_rls_verified` | Actual `AssistantRlsState` | 1 only after verification; absent/disabled/degraded verifier is 0. No reason string or raw state detail is exported. |
+| `campuscore_assistant_executor_active`, `_queued`, `_max`, `_rejected_total` | Both direct-handoff executors; only `executor="student|internal"` | Queue remains zero by existing policy; rejection increments before the original exception is rethrown. No new queue/SLO thresholds. |
+| `probe_success` | External blackbox exporter, not the Java registry | Requires separately authorized deployment/collection setup. Relabel `instance` to a stable service-instance identity shared by its liveness/readiness probes. Send `X-Health-Key` securely for the primary readiness probe. |
+
+The quota alert now uses `max(campuscore_assistant_quota_consumed_daily) > 180`:
+a gauge can decrease after refunds/day rollover, and replicas observe the same
+persisted bucket, so summing replicas would multiply usage. Scrape one shared
+quota domain per alert evaluation. The threshold and five-minute hold are unchanged.
+All other SLO thresholds and hold durations remain unchanged.
+
+On PostgreSQL the aggregate observation requires a verified runtime state. Its
+read-only transaction uses the existing GLOBAL-read policy with transaction-local
+`INTERNAL_OWNER` scope, empty owner and admin=false: no private user row can match.
+The transaction rolls back before returning its connection; no RLS policy, role,
+principal or schema is added. The actual Assistant datasource is used even when
+its database endpoint differs from the primary datasource. H2 fixtures prove
+committed-state behavior; PostgreSQL setting/rollback tests are simulations until
+a separately authorized real PostgreSQL verification lane runs.
+
+Missing series produce **no alert** under the catalog's direct comparisons,
+ratios and range functions; absence is not proof of health. Zero traffic produces
+no ratio/latency breach. Collection availability (`up`, missing scrape/blackbox
+series) must be covered by the deployment owner's monitoring policy. Unknown
+quota (NaN) likewise must not be interpreted as unused quota.
+
+`ops/monitoring/alert-tests.yml` covers all 22 alerts: absent/zero inputs, firing,
+counter reset, recovery, strict quota threshold and shared-bucket replicas.
+Run `promtool check rules ops/monitoring/alerts-api-slo.yml
+ops/monitoring/alerts-infrastructure.yml ops/monitoring/alerts-assistant.yml` and
+`promtool test rules ops/monitoring/alert-tests.yml` where promtool is installed.
+Fixture presence and YAML parsing do not prove PromQL execution or live collection.
 
 ---
 
@@ -168,7 +198,7 @@ flowchart TD
         JVMAlive --> Warmup[Flyway Migration & HikariCP Pool Warmup]
         Warmup --> ReadinessProbe{"Readiness Probe\n(/api/v1/health/readiness)"}
         ReadinessProbe -->|Fail / DB Down| DetachTraffic[Detach Ingress Traffic\nReturn 503 / Hold]
-        ReadinessProbe -->|Pass SELECT 1 & RLS| RouteTraffic[Attach Ingress Traffic\nAccept 200 OK Requests]
+        ReadinessProbe -->|Pass primary SELECT 1| RouteTraffic[Attach Ingress Traffic\nAccept 200 OK Requests]
     end
 
     Edge -->|Readiness Passed| RouteTraffic
@@ -183,12 +213,13 @@ flowchart TD
    - **Quy tắc**: Tuyệt đối **không kiểm tra** database hay external network dependencies.
    - **Hành động khi Fail**: Container Orchestrator (Docker/Kubernetes/Render) tiến hành khởi động lại (restart) container.
    - **Tham số khuyến nghị**: `initialDelaySeconds: 45`, `periodSeconds: 15`, `timeoutSeconds: 5`, `failureThreshold: 3`.
-2. **Readiness Probe (`/api/v1/health/readiness` hoặc `/actuator/health/readiness`)**:
-   - **Mục đích**: Xác định xem instance đã sẵn sàng tiếp nhận request của người dùng hay chưa (kết nối PostgreSQL thành công qua `SELECT 1`, Flyway schema ổn định, Assistant RLS đã kiểm tra).
+2. **Primary readiness probe (`/api/v1/health/readiness`)**:
+   - **Mục đích**: Kiểm tra PostgreSQL chính bằng `SELECT 1`. Assistant RLS suy giảm được ghi trong payload khi bean tồn tại; không làm primary readiness thất bại. Assistant chat có gate riêng và có thể trả 503 trong khi primary readiness vẫn 200.
    - **Bảo mật**: Yêu cầu header `X-Health-Key` khớp giá trị cấu hình `health.readiness-key` (`HEALTH_READINESS_KEY`).
    - **Hành động khi Fail**: Tạm thời ngắt lưu lượng truy cập từ load balancer / ingress; **tuyệt đối không restart** container ngay, cho phép database tự phục hồi hoặc hoàn tất migration.
    - **Tham số khuyến nghị**: `initialDelaySeconds: 20`, `periodSeconds: 10`, `timeoutSeconds: 3`, `failureThreshold: 3`.
-3. **Aggregated Health (`/actuator/health`)**:
+3. **Actuator readiness (`/actuator/health/readiness`) and aggregated health (`/actuator/health`)**:
+   - Actuator readiness is Spring availability state; it is not the keyed primary SQL probe and does not inherit its `X-Health-Key` contract. The catalog readiness alert targets only `/api/v1/health/readiness`.
    - Tổng hợp trạng thái các component. Không dùng làm liveness probe vì nếu một module phụ suy giảm trạng thái, liveness sẽ restart nhầm cả ứng dụng.
 4. **Web Frontend Health (`/health`)**:
    - Được định nghĩa tại `frontend/src/app/health/route.ts`. Proxy trực tiếp tới `/api/v1/health/liveness` với `X-Request-Id` tương ứng.
@@ -241,8 +272,8 @@ Mỗi luồng nghiệp vụ trọng yếu (Critical User Journey) được áp �
 - **Outage & Degraded Contract**: Khi DeepSeek gặp timeout (>15s), provider error hoặc cạn hạn mức, hệ thống tự động suy giảm về lexical RAG với cờ `degraded: true` và `reasonCode` tương ứng (`PROVIDER_TIMEOUT`, `GLOBAL_QUOTA_EXCEEDED`, `CIRCUIT_OPEN`).
 - **Ngưỡng Cảnh báo**:
   - Tỷ lệ câu trả lời degraded `> 20%` trong 10 phút.
-  - Hạn mức toàn hệ thống chạm ngưỡng `>= 90%` (180/200 turns).
-  - Đợt quét dọn lease quá hạn (30s recovery sweep) thu hồi `> 5` turns bị kẹt trong trạng thái `FAILED_AMBIGUOUS` trong 10 phút.
+  - Hạn mức toàn hệ thống vượt `180/200` turns (`> 180`, giữ 5 phút).
+  - Recovery CAS đã commit (sweep hoặc opportunistic) thu hồi `> 5` lease quá hạn trong 10 phút, giữ 2 phút; gồm `FAILED_PRE_DISPATCH` và `FAILED_AMBIGUOUS`.
 
 ---
 
