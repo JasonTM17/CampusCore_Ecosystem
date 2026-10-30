@@ -12,6 +12,7 @@ import java.net.http.HttpTimeoutException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -68,16 +69,20 @@ public class PushDispatcher implements AutoCloseable {
         if (!properties.isEnabled()) {
             return 0;
         }
-        Instant now = clock.instant();
         int maxAttempts = Math.max(1, Math.min(5, properties.getMaxAttempts()));
-        List<Claim> claims = outbox.claim(
-                UUID.randomUUID().toString(),
-                properties.getBatchSize(),
-                now,
-                properties.getLeaseSeconds(),
-                maxAttempts);
+        int batchSize = Math.max(1, Math.min(250, properties.getBatchSize()));
+        String workerId = UUID.randomUUID().toString();
+        List<String> visitedIds = new ArrayList<>();
         int sent = 0;
-        for (Claim claim : claims) {
+        for (int index = 0; index < batchSize; index++) {
+            // Waiting behind another send must not consume this row's lease or attempt.
+            List<Claim> claims = outbox.claim(
+                    workerId, 1, clock.instant(), properties.getLeaseSeconds(), maxAttempts, visitedIds);
+            if (claims.isEmpty()) {
+                break;
+            }
+            Claim claim = claims.getFirst();
+            visitedIds.add(claim.id());
             if (!provider.isConfigured()) {
                 outbox.block(claim, "PUSH_PROVIDER_NOT_CONFIGURED", clock.instant());
                 continue;
@@ -103,7 +108,7 @@ public class PushDispatcher implements AutoCloseable {
             }
 
             try {
-                DeliveryReceipt receipt = sendWithTimeout(delivery, token);
+                DeliveryReceipt receipt = sendWithTimeout(claim, delivery, token);
                 if (receipt != null && receipt.accepted()) {
                     if (outbox.acknowledgeSent(claim, clock.instant())) {
                         sent++;
@@ -131,10 +136,15 @@ public class PushDispatcher implements AutoCloseable {
         return sent;
     }
 
-    private DeliveryReceipt sendWithTimeout(DeliverySnapshot delivery, String token) throws Exception {
-        Future<DeliveryReceipt> send = sendExecutor.submit(() -> provider.send(
-                delivery.provider(), token, PushPayload.forNotification(delivery.notificationId()),
-                delivery.outboxId()));
+    private DeliveryReceipt sendWithTimeout(Claim claim, DeliverySnapshot delivery, String token) throws Exception {
+        Future<DeliveryReceipt> send = sendExecutor.submit(() -> {
+            // Recheck database authority after preparation and any executor wait.
+            if (outbox.loadForSend(claim, clock.instant()).isEmpty()) {
+                return null;
+            }
+            return provider.send(delivery.provider(), token,
+                    PushPayload.forNotification(delivery.notificationId()), delivery.outboxId());
+        });
         try {
             return send.get(properties.getSendTimeoutMs(), TimeUnit.MILLISECONDS);
         } catch (ExecutionException failure) {

@@ -436,6 +436,36 @@ class NotificationPushContractPersistenceTest {
         assertThat(payload.toString()).doesNotContain(titleSentinel, bodySentinel, linkSentinel);
     }
 
+    @Test
+    void expiredAndSupersededClaimsCannotLoadForSendOrAcknowledge() throws Exception {
+        properties.setEnabled(true);
+        Instant now = Instant.now().minusSeconds(2);
+        createDelivery("fenced-notice", OWNER, "fenced-install", "token-fenced", now);
+        var original = outbox.claim("old-worker", 1, now, 60, 5).getFirst();
+        Instant expiredAt = now.minusSeconds(1);
+        jdbc.update("UPDATE notifications.delivery_outbox SET lease_until=? WHERE id=?",
+                Timestamp.from(expiredAt), original.id());
+        var expired = new DeliveryOutboxRepository.Claim(original.id(), original.deviceId(),
+                original.workerId(), original.generation(), expiredAt, original.attemptCount());
+        assertThat(outbox.loadForSend(expired, now.minusSeconds(60))).isEmpty();
+        assertThat(outbox.acknowledgeSent(expired, now.minusSeconds(60))).isFalse();
+
+        var current = outbox.claim("new-worker", 1, now, 60, 5).getFirst();
+        assertThat(current.generation()).isEqualTo(original.generation() + 1);
+        assertThat(outbox.loadForSend(original, now)).isEmpty();
+        assertThat(outbox.acknowledgeSent(original, now)).isFalse();
+        var wrongGeneration = new DeliveryOutboxRepository.Claim(current.id(), current.deviceId(),
+                current.workerId(), original.generation(), current.leaseUntil(), current.attemptCount());
+        assertThat(outbox.loadForSend(wrongGeneration, now)).isEmpty();
+        assertThat(outbox.acknowledgeSent(wrongGeneration, now)).isFalse();
+        var wrongOwner = new DeliveryOutboxRepository.Claim(current.id(), current.deviceId(),
+                original.workerId(), current.generation(), current.leaseUntil(), current.attemptCount());
+        assertThat(outbox.loadForSend(wrongOwner, now)).isEmpty();
+        assertThat(outbox.acknowledgeSent(wrongOwner, now)).isFalse();
+        assertThat(outbox.loadForSend(current, now)).isPresent();
+        assertThat(outbox.acknowledgeSent(current, now)).isTrue();
+    }
+
     private void assertSuppressed(RecordingProvider provider, MutableClock clock, String notificationId) {
         try (var dispatcher = new PushDispatcher(outbox, cryptography, provider, properties, clock)) {
             dispatcher.dispatchBatch();
