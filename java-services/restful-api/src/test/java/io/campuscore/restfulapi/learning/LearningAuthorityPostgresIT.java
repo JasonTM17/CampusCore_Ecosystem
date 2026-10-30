@@ -242,7 +242,9 @@ class LearningAuthorityPostgresIT {
     @Test
     void concurrentSameKeySubmitYieldsSingleRevisionOnPostgres() throws Exception {
         String assignmentId = publishedAssignment(Instant.now().plus(1, ChronoUnit.HOURS));
-        students.ensureDraft(studentId, assignmentId, "it-draft-race");
+        var draft = students.ensureDraft(studentId, assignmentId, "it-draft-race");
+        students.saveDraft(studentId, draft.id(),
+                new SubmissionUpsertRequest("race fixture content", null, null, null, null));
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
@@ -270,9 +272,12 @@ class LearningAuthorityPostgresIT {
             }
             // At least one lane succeeds; a loser can only hit a business
             // conflict (in-progress/state), never a 500 or duplicate write.
-            assertThat(outcomes.stream().anyMatch(Outcome::registered)).isTrue();
+            assertThat(outcomes.stream().anyMatch(Outcome::registered))
+                    .as("submit outcomes: %s", outcomes)
+                    .isTrue();
             assertThat(outcomes.stream().filter(o -> !o.registered())
                             .allMatch(o -> o.status() == 409 || o.status() == 403))
+                    .as("submit outcomes: %s", outcomes)
                     .isTrue();
             Integer submissions = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM learning.\"Submission\" WHERE \"assignmentId\" = :a AND \"studentId\" = :s",
@@ -282,8 +287,12 @@ class LearningAuthorityPostgresIT {
                             + " JOIN learning.\"Submission\" sub ON sub.\"id\" = r.\"submissionId\""
                             + " WHERE sub.\"assignmentId\" = :a AND sub.\"studentId\" = :s",
                     Map.of("a", assignmentId, "s", studentId), Integer.class);
-            assertThat(submissions).isEqualTo(1);
-            assertThat(revisions).isEqualTo(1);
+            assertThat(submissions)
+                    .as("submit outcomes: %s", outcomes)
+                    .isEqualTo(1);
+            assertThat(revisions)
+                    .as("submit outcomes: %s", outcomes)
+                    .isEqualTo(1);
         } finally {
             pool.shutdownNow();
             assertThat(pool.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
