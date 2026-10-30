@@ -186,6 +186,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           const accountId = typeof claims?.sub === 'string' && claims.sub.trim() ? claims.sub : null;
           const unexpired = typeof claims?.exp === 'number' && Number.isFinite(claims.exp) && claims.exp > Date.now() / 1000;
           if (role && accountId && unexpired) {
+            // Restored identity wins: fence pending OIDC before it can store credentials.
+            sessionStore.bumpEpoch();
             setEpoch((e) => e + 1);
             setState({
               kind: 'authenticated',
