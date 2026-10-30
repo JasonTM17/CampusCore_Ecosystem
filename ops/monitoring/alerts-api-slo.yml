@@ -66,12 +66,12 @@ groups:
           instrumentation_status: "INSTRUMENTED (Micrometer HTTP observations; collection requires authenticated scrape)"
 
       # -----------------------------------------------------------------------
-      # 3. Critical Journey: Course Registration (POST/DELETE /api/v1/academic/me/enrollments)
+      # 3. Critical Journey: Course Registration (POST/DELETE /api/v1/me/enrollments, /api/v1/academic/me/enrollments)
       # Latency SLO: P95 < 500ms | Error Rate SLO: 5xx < 0.2%
       # -----------------------------------------------------------------------
       - alert: RegistrationLatencyP95Breached
         expr: >-
-          histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{uri=~"/api/v1/academic/(me/)?enrollments.*",method=~"POST|DELETE"}[5m])) by (le)) > 0.5
+          histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{uri=~"/api/v1/(academic/)?(me/)?enrollments.*",method=~"POST|DELETE"}[5m])) by (le)) > 0.5
         for: 5m
         labels:
           severity: warning
@@ -87,9 +87,9 @@ groups:
 
       - alert: RegistrationServerErrorRateHigh
         expr: >-
-          (sum(rate(http_server_requests_seconds_count{uri=~"/api/v1/academic/(me/)?enrollments.*",method=~"POST|DELETE",status=~"5.."}[5m]))
+          (sum(rate(http_server_requests_seconds_count{uri=~"/api/v1/(academic/)?(me/)?enrollments.*",method=~"POST|DELETE",status=~"5.."}[5m]))
           /
-          clamp_min(sum(rate(http_server_requests_seconds_count{uri=~"/api/v1/academic/(me/)?enrollments.*",method=~"POST|DELETE"}[5m])), 0.001)) > 0.002
+          clamp_min(sum(rate(http_server_requests_seconds_count{uri=~"/api/v1/(academic/)?(me/)?enrollments.*",method=~"POST|DELETE"}[5m])), 0.001)) > 0.002
         for: 3m
         labels:
           severity: critical
@@ -142,12 +142,12 @@ groups:
           instrumentation_status: "INSTRUMENTED (Micrometer HTTP observations; collection requires authenticated scrape)"
 
       # -----------------------------------------------------------------------
-      # 5. Critical Journey: Grades Read (GET /api/v1/enrollments/my/grades, /transcript)
+      # 5. Critical Journey: Grades Read (GET /api/v1/enrollments/my/grades, /transcript, /api/v1/sections/{id}/grades)
       # Latency SLO: P95 < 300ms | Error Rate SLO: 5xx < 0.05%
       # -----------------------------------------------------------------------
       - alert: GradesReadLatencyP95Breached
         expr: >-
-          histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{uri=~"/api/v1/enrollments/my/grades|/api/v1/enrollments/my/transcript|/api/v1/grades/.*",method="GET"}[5m])) by (le)) > 0.3
+          histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{uri=~"/api/v1/enrollments/my/grades|/api/v1/enrollments/my/transcript|/api/v1/sections/.*/grades",method="GET"}[5m])) by (le)) > 0.3
         for: 5m
         labels:
           severity: warning
@@ -163,9 +163,9 @@ groups:
 
       - alert: GradesReadServerErrorRateHigh
         expr: >-
-          (sum(rate(http_server_requests_seconds_count{uri=~"/api/v1/enrollments/my/grades|/api/v1/enrollments/my/transcript|/api/v1/grades/.*",method="GET",status=~"5.."}[5m]))
+          (sum(rate(http_server_requests_seconds_count{uri=~"/api/v1/enrollments/my/grades|/api/v1/enrollments/my/transcript|/api/v1/sections/.*/grades",method="GET",status=~"5.."}[5m]))
           /
-          clamp_min(sum(rate(http_server_requests_seconds_count{uri=~"/api/v1/enrollments/my/grades|/api/v1/enrollments/my/transcript|/api/v1/grades/.*",method="GET"}[5m])), 0.001)) > 0.0005
+          clamp_min(sum(rate(http_server_requests_seconds_count{uri=~"/api/v1/enrollments/my/grades|/api/v1/enrollments/my/transcript|/api/v1/sections/.*/grades",method="GET"}[5m])), 0.001)) > 0.0005
         for: 3m
         labels:
           severity: critical
