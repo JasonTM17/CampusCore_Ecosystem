@@ -80,7 +80,8 @@ test('native API seam fails closed until live mode is explicitly enabled', () =>
 });
 
 test('mobile role navigation rejects unauthorized routes and uses role-specific primary navigation', () => {
-  assert.match(routes, /export function canAccessScreen\(role: UserRole, route: ScreenName\)/);
+  assert.match(routes, /export function canAccessScreen\(\s*role: UserRole,\s*route: ScreenName,\s*capabilities: CapabilitySet = NO_CAPABILITIES,\s*\)/);
+  assert.match(routes, /if \(hasCapability\(capabilities, 'applicant\.surface'\)\) \{\s*return route === 'admissions';\s*\}/);
   assert.match(routes, /const bottomNavigationByRole: Readonly<Record<UserRole, readonly BottomNavigationItem\[\]>>/);
   assert.match(routes, /lecturer:\s*\[[\s\S]*?route: 'lecturer\.grading'/);
   assert.match(routes, /admin:\s*\[[\s\S]*?route: 'admin\.students'/);
