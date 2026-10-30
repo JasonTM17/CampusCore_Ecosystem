@@ -2320,9 +2320,14 @@
       "CreateApplicationRequest": {
         "properties": {
           "cycle": {
+            "maxLength": 60,
+            "minLength": 0,
             "type": "string"
           }
         },
+        "required": [
+          "cycle"
+        ],
         "type": "object"
       },
       "CreateConversationRequest": {
@@ -6160,6 +6165,8 @@
       "SaveApplicationRequest": {
         "properties": {
           "dateOfBirth": {
+            "maxLength": 20,
+            "minLength": 0,
             "type": "string"
           },
           "essay": {
@@ -6170,12 +6177,18 @@
             "type": "integer"
           },
           "fullName": {
+            "maxLength": 240,
+            "minLength": 0,
             "type": "string"
           },
           "intendedMajor": {
+            "maxLength": 200,
+            "minLength": 0,
             "type": "string"
           },
           "schoolName": {
+            "maxLength": 300,
+            "minLength": 0,
             "type": "string"
           }
         },
@@ -9019,6 +9032,28 @@
     "/api/v1/admissions/applications/my": {
       "get": {
         "operationId": "myApplications_1",
+        "parameters": [
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -9031,7 +9066,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Danh sách hồ sơ",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Danh sách hồ sơ của tôi",
@@ -9557,6 +9601,28 @@
     "/api/v1/admissions/staff/grants": {
       "get": {
         "operationId": "grants_3",
+        "parameters": [
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -9569,7 +9635,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Danh sách staff grants",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Danh sách staff grants",
@@ -9645,6 +9720,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -9659,7 +9754,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Hàng đợi hồ sơ",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Hàng đợi hồ sơ (lọc theo trạng thái)",
@@ -12699,6 +12803,28 @@
     "/api/v1/careers/applications/my": {
       "get": {
         "operationId": "myApplications",
+        "parameters": [
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -12711,7 +12837,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Hồ sơ ứng tuyển của tôi",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Hồ sơ ứng tuyển của tôi",
@@ -13004,6 +13139,28 @@
     "/api/v1/careers/organizations": {
       "get": {
         "operationId": "organizations",
+        "parameters": [
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -13016,7 +13173,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Danh mục tổ chức tuyển dụng",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Danh mục tổ chức tuyển dụng",
@@ -13044,6 +13210,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -13058,7 +13244,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Hàng đợi hồ sơ",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Hàng đợi hồ sơ trong các tổ chức tôi quản",
@@ -13223,6 +13418,28 @@
     "/api/v1/careers/staff/grants": {
       "get": {
         "operationId": "grants_2",
+        "parameters": [
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -13235,7 +13452,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Danh sách grants careers",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Danh sách grants careers (org/reviewer)",
@@ -13308,6 +13534,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -13322,7 +13568,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Hàng đợi tin tuyển dụng",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Hàng đợi tin tuyển dụng của các tổ chức tôi quản",
@@ -13637,6 +13892,28 @@
     "/api/v1/careers/staff/organizations/my": {
       "get": {
         "operationId": "myOrganizations",
+        "parameters": [
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -13649,7 +13926,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Tổ chức tôi được gán recruiter",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Tổ chức tôi được gán recruiter",
@@ -13661,6 +13947,28 @@
     "/api/v1/careers/staff/review-queue": {
       "get": {
         "operationId": "reviewQueue",
+        "parameters": [
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -13673,7 +13981,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Hàng đợi IN_REVIEW",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Hàng đợi IN_REVIEW (chỉ reviewer)",
@@ -15195,6 +15512,16 @@
               }
             },
             "description": "Xuất file CSV thành công"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Vượt quá giới hạn số hàng xuất được hỗ trợ"
           }
         },
         "summary": "Xuất danh sách ghi danh ra file CSV",
@@ -15640,6 +15967,28 @@
     "/api/v1/events/staff": {
       "get": {
         "operationId": "list_4",
+        "parameters": [
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -15652,7 +16001,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Danh sách sự kiện",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Danh sách sự kiện (staff, gồm draft)",
@@ -15693,6 +16051,28 @@
     "/api/v1/events/staff/grants": {
       "get": {
         "operationId": "grants_1",
+        "parameters": [
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -15705,7 +16085,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Danh sách staff grants",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Danh sách staff grants",
@@ -16068,6 +16457,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -16082,7 +16491,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Roster đăng ký",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Roster đăng ký (staff only)",
@@ -24703,12 +25121,12 @@
   ],
   "tags": [
     {
-      "description": "Quản lý và tra cứu nhóm sinh viên thực hiện khóa luận, thành viên nhóm và phân công đề tài",
-      "name": "Thesis Groups & Members"
+      "description": "Quản trị vùng điểm danh; vô hiệu hóa thay vì xóa",
+      "name": "Attendance Geofences"
     },
     {
-      "description": "Đăng ký học phần theo đợt, xét duyệt đơn xin vượt trần 28-30 tín chỉ, xuất phiếu đăng ký và hủy học phần",
-      "name": "Course Registration & Credit Limits"
+      "description": "Quản lý và tra cứu nhóm sinh viên thực hiện khóa luận, thành viên nhóm và phân công đề tài",
+      "name": "Thesis Groups & Members"
     },
     {
       "description": "Quản lý cấu hình giao diện, màu sắc chủ đề và nội dung trang chủ toàn hệ thống",
@@ -24719,36 +25137,12 @@
       "name": "Academic Operations & Grade Mutations"
     },
     {
-      "description": "Bảng quan sát khóa luận toàn khoa dành cho Trưởng khoa: nhóm, thành viên và giảng viên hướng dẫn",
-      "name": "Thesis Dean Overview"
-    },
-    {
-      "description": "Hàng đợi tuyển sinh mô phỏng: claim, trả hồ sơ, quyết định, grants",
-      "name": "Admissions Staff"
-    },
-    {
       "description": "Tài liệu công khai của trường — đọc ẩn danh, chỉ nội dung đã duyệt xuất bản",
       "name": "Public Documents"
     },
     {
-      "description": "Bật/tắt xác thực hai yếu tố qua email và hoàn tất đăng nhập bằng mã OTP",
-      "name": "Two-Factor Authentication"
-    },
-    {
       "description": "Quản lý và tra cứu kho đề tài Khóa luận & Đồ án tốt nghiệp theo đợt và bộ môn",
       "name": "Thesis Topics Catalog"
-    },
-    {
-      "description": "Điểm rèn luyện sinh viên theo 5 điều khung quy chế Bộ GD&ĐT và Quy chế công tác sinh viên HCM-UTE",
-      "name": "Student Conduct & Training Points"
-    },
-    {
-      "description": "Tra cứu thời khóa biểu học tập, phòng học và lịch giảng dạy",
-      "name": "Academic Schedules"
-    },
-    {
-      "description": "Thống kê khối lượng hướng dẫn khóa luận, phản biện và hội đồng của giảng viên",
-      "name": "Thesis Lecturer Workload"
     },
     {
       "description": "Trợ lý AI học vụ HCM-UTE: hỏi đáp quy chế đào tạo, tư vấn đề tài khóa luận qua giao thức JSON / Server-Sent Events (SSE)",
@@ -24763,24 +25157,8 @@
       "name": "Authentication & Session"
     },
     {
-      "description": "Tra cứu ghi danh học phần, điểm số sinh viên, bảng điểm tích lũy (Transcript) và đầu điểm lớp học phần",
-      "name": "Enrollments & Academic Records"
-    },
-    {
-      "description": "Truy vấn thông báo học vụ, bản tin trường HCM-UTE, quản lý vòng đời bài viết (soạn thảo, cập nhật, lưu trữ, lịch sử chỉnh sửa)",
-      "name": "Announcements & Campus News"
-    },
-    {
-      "description": "Hộp thư thông báo cá nhân, đếm tin chưa đọc và quản trị phát thông báo hệ thống",
-      "name": "Notifications & Alerts"
-    },
-    {
       "description": "Tin tuyển dụng theo tổ chức, duyệt đăng, xét hồ sơ",
       "name": "Careers staff"
-    },
-    {
-      "description": "Thao tác ghi nhận và cập nhật điểm danh lớp học phần của giảng viên",
-      "name": "Attendance Operations"
     },
     {
       "description": "Quầy thư viện mô phỏng: duyệt, phát sách, nhận trả, kho, grants",
@@ -24795,40 +25173,12 @@
       "name": "Academic Catalog Management (Admin)"
     },
     {
-      "description": "Quản lý và tra cứu chuyên cần, điểm danh sinh viên theo lớp học phần và cảnh báo vắng học",
-      "name": "Attendance Tracking"
-    },
-    {
-      "description": "Quản trị danh sách người dùng, cấp phát tài khoản học vụ, đặt lại mật khẩu và phân quyền hệ thống",
-      "name": "User Management (Admin)"
-    },
-    {
-      "description": "Tổng hợp đánh giá câu trả lời của trợ lý cho quản trị viên",
-      "name": "Assistant Feedback (Admin)"
-    },
-    {
       "description": "Quản lý và tra cứu các đợt đăng ký Khóa luận tốt nghiệp, Tiểu luận chuyên ngành và Đồ án tốt nghiệp",
       "name": "Thesis Registration Rounds"
     },
     {
-      "description": "Hệ thống gửi Email SMTP & Thymeleaf Templates",
-      "name": "Mail Services"
-    },
-    {
-      "description": "Đồng bộ hóa dữ liệu tri thức giữa Supabase và PostgreSQL",
-      "name": "AI Assistant Knowledge Sync (Admin)"
-    },
-    {
       "description": "Quản lý danh mục, thẻ phân loại, thư viện ảnh đa phương tiện và tài liệu đính kèm bài viết bằng Spring Data JPA ORM",
       "name": "Article Taxonomy & Media (JPA ORM)"
-    },
-    {
-      "description": "Quản lý hội đồng bảo vệ khóa luận, cơ cấu thành viên hội đồng, phân công đề tài phản biện và nhập điểm thành phần",
-      "name": "Thesis Defense Councils & Grading"
-    },
-    {
-      "description": "Tra cứu danh mục học vụ: Khoa, Bộ môn, Học kỳ, Năm học, Học phần, Khung chương trình đào tạo và Phòng học",
-      "name": "Academic Catalog"
     },
     {
       "description": "Việc làm mô phỏng: tin tuyển dụng, ứng tuyển, rút hồ sơ",
@@ -24839,24 +25189,8 @@
       "name": "Public Documents"
     },
     {
-      "description": "Sự kiện Đoàn–Hội: đăng ký, hủy đăng ký, lịch sử tham gia",
-      "name": "Events"
-    },
-    {
       "description": "Vết kiểm toán các thao tác quản trị: đổi vai trò, đặt lại mật khẩu, xóa dữ liệu, gỡ khóa tài khoản",
       "name": "Admin Audit"
-    },
-    {
-      "description": "Thư viện mô phỏng: tra cứu, giữ chỗ, lịch sử mượn",
-      "name": "Library"
-    },
-    {
-      "description": "Kiểm tra trạng thái sẵn sàng (Readiness) và khả năng hoạt động (Liveness) của dịch vụ",
-      "name": "Health & Probes"
-    },
-    {
-      "description": "Kiểm tra phiên bản giao ước API và tính tương thích tích hợp Web/Mobile",
-      "name": "System Contract & Probing"
     },
     {
       "description": "Quản lý và tra cứu lớp học phần, thời khóa biểu giảng dạy và bảng điểm sinh viên theo lớp",
@@ -24875,10 +25209,6 @@
       "name": "Identity Claims"
     },
     {
-      "description": "Tuyển sinh mô phỏng: hồ sơ, đính kèm, nộp/rút hồ sơ",
-      "name": "Admissions"
-    },
-    {
       "description": "Quy trình chuyển đổi trạng thái đợt khóa luận, đề xuất đề tài, phân công GVHD, quản lý nhóm và nộp báo cáo",
       "name": "Thesis Lifecycle Mutations"
     },
@@ -24891,12 +25221,104 @@
       "name": "Thesis Student Progress"
     },
     {
-      "description": "Quản trị vùng điểm danh; vô hiệu hóa thay vì xóa",
+      "description": "Đăng ký học phần theo đợt, xét duyệt đơn xin vượt trần 28-30 tín chỉ, xuất phiếu đăng ký và hủy học phần",
+      "name": "Course Registration & Credit Limits"
+    },
+    {
+      "description": "Bảng quan sát khóa luận toàn khoa dành cho Trưởng khoa: nhóm, thành viên và giảng viên hướng dẫn",
+      "name": "Thesis Dean Overview"
+    },
+    {
+      "description": "Hàng đợi tuyển sinh mô phỏng: claim, trả hồ sơ, quyết định, grants",
+      "name": "Admissions Staff"
+    },
+    {
+      "description": "Active options for opening an attendance session",
       "name": "Attendance Geofences"
+    },
+    {
+      "description": "Bật/tắt xác thực hai yếu tố qua email và hoàn tất đăng nhập bằng mã OTP",
+      "name": "Two-Factor Authentication"
+    },
+    {
+      "description": "Điểm rèn luyện sinh viên theo 5 điều khung quy chế Bộ GD&ĐT và Quy chế công tác sinh viên HCM-UTE",
+      "name": "Student Conduct & Training Points"
+    },
+    {
+      "description": "Tra cứu thời khóa biểu học tập, phòng học và lịch giảng dạy",
+      "name": "Academic Schedules"
+    },
+    {
+      "description": "Thống kê khối lượng hướng dẫn khóa luận, phản biện và hội đồng của giảng viên",
+      "name": "Thesis Lecturer Workload"
+    },
+    {
+      "description": "Tra cứu ghi danh học phần, điểm số sinh viên, bảng điểm tích lũy (Transcript) và đầu điểm lớp học phần",
+      "name": "Enrollments & Academic Records"
+    },
+    {
+      "description": "Truy vấn thông báo học vụ, bản tin trường HCM-UTE, quản lý vòng đời bài viết (soạn thảo, cập nhật, lưu trữ, lịch sử chỉnh sửa)",
+      "name": "Announcements & Campus News"
+    },
+    {
+      "description": "Hộp thư thông báo cá nhân, đếm tin chưa đọc và quản trị phát thông báo hệ thống",
+      "name": "Notifications & Alerts"
+    },
+    {
+      "description": "Thao tác ghi nhận và cập nhật điểm danh lớp học phần của giảng viên",
+      "name": "Attendance Operations"
+    },
+    {
+      "description": "Quản lý và tra cứu chuyên cần, điểm danh sinh viên theo lớp học phần và cảnh báo vắng học",
+      "name": "Attendance Tracking"
     },
     {
       "description": "Phiên điểm danh có xác minh vị trí",
       "name": "Attendance Check-in"
+    },
+    {
+      "description": "Quản trị danh sách người dùng, cấp phát tài khoản học vụ, đặt lại mật khẩu và phân quyền hệ thống",
+      "name": "User Management (Admin)"
+    },
+    {
+      "description": "Tổng hợp đánh giá câu trả lời của trợ lý cho quản trị viên",
+      "name": "Assistant Feedback (Admin)"
+    },
+    {
+      "description": "Hệ thống gửi Email SMTP & Thymeleaf Templates",
+      "name": "Mail Services"
+    },
+    {
+      "description": "Đồng bộ hóa dữ liệu tri thức giữa Supabase và PostgreSQL",
+      "name": "AI Assistant Knowledge Sync (Admin)"
+    },
+    {
+      "description": "Quản lý hội đồng bảo vệ khóa luận, cơ cấu thành viên hội đồng, phân công đề tài phản biện và nhập điểm thành phần",
+      "name": "Thesis Defense Councils & Grading"
+    },
+    {
+      "description": "Tra cứu danh mục học vụ: Khoa, Bộ môn, Học kỳ, Năm học, Học phần, Khung chương trình đào tạo và Phòng học",
+      "name": "Academic Catalog"
+    },
+    {
+      "description": "Sự kiện Đoàn–Hội: đăng ký, hủy đăng ký, lịch sử tham gia",
+      "name": "Events"
+    },
+    {
+      "description": "Thư viện mô phỏng: tra cứu, giữ chỗ, lịch sử mượn",
+      "name": "Library"
+    },
+    {
+      "description": "Kiểm tra trạng thái sẵn sàng (Readiness) và khả năng hoạt động (Liveness) của dịch vụ",
+      "name": "Health & Probes"
+    },
+    {
+      "description": "Kiểm tra phiên bản giao ước API và tính tương thích tích hợp Web/Mobile",
+      "name": "System Contract & Probing"
+    },
+    {
+      "description": "Tuyển sinh mô phỏng: hồ sơ, đính kèm, nộp/rút hồ sơ",
+      "name": "Admissions"
     }
   ]
 }

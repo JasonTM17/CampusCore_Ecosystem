@@ -11,6 +11,11 @@
       "label": "schema:UpdateEventRequest.version newly-required",
       "phase": "P08",
       "reason": "Restore the agreed optimistic-concurrency contract: draft edits must include the last-read version and stale edits return 409. No existing web/mobile draft-update caller exists; missing-version requests now return 400. User-authorized defect repair after independent review, 2026-10-22. No other compatibility exception is granted."
+    },
+    {
+      "label": "schema:CreateApplicationRequest.cycle newly-required",
+      "phase": "MP36",
+      "reason": "fec7d958 intentionally tightened boundary validation (@NotBlank @Size(max=60)) so an application write without a cycle is rejected 400 at the controller. Team Lead ruling on the MP36 stop gate 2026-10-30: narrowing is deliberate, not a drift artifact."
     }
   ]
 }
