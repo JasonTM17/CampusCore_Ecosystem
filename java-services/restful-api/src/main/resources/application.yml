@@ -137,6 +137,24 @@ identity:
       - /api/v1/auth/change-password
       - /api/v1/attendance
       - /api/v1/admin/attendance/geofences
+      - /api/v1/thesis
+      - /api/v1/mail
+      - /api/v1/assistant
+      - /api/v1/grades
+      - /api/v1/conduct
+      - /api/v1/enrollments
+      - /api/v1/registration
+      - /api/v1/classrooms
+      - /api/v1/courses
+      - /api/v1/curricula
+      - /api/v1/departments
+      - /api/v1/lecturers
+      - /api/v1/semesters
+      - /api/v1/academic-years
+      - /api/v1/users
+      - /api/v1/admin/audit
+      - /api/v1/admin/registration
+      - /api/v1/auth/profile
     # Anonymous read lane (P06): GET/HEAD onto these prefixes proxies WITHOUT
     # a session cookie — the upstream permitAll set in SecurityConfig is the
     # authority, so this list mirrors it exactly and adds nothing private.
