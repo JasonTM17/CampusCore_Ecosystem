@@ -45,6 +45,7 @@ final class AttendanceTestSchema {
     static void clear(JdbcTemplate jdbc) {
         for(String table:new String[]{"Attendance","AttendanceCheckinAttempt","AttendanceCheckin","AttendanceSession","AttendanceLocationConsent","Enrollment","Student","Section"})
             jdbc.update("DELETE FROM academic.\""+table+"\"");
+        jdbc.update("DELETE FROM academic.\"AttendanceGeofence\" WHERE \"id\" <> 'ute-main-placeholder'");
         jdbc.update("UPDATE academic.\"AttendanceGeofence\" SET \"isActive\"=TRUE,\"centerLat\"=10,\"centerLng\"=106 WHERE \"id\"='ute-main-placeholder'");
         jdbc.update("INSERT INTO academic.\"Section\" (\"id\",\"lecturerId\",\"sectionNumber\") VALUES ('section','lecturer','A')");
         for(int i=1;i<=5;i++) {

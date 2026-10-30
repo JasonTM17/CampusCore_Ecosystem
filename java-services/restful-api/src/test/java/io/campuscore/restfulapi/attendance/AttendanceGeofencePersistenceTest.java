@@ -192,6 +192,64 @@ class AttendanceGeofencePersistenceTest {
         assertThat(sessions.openForStudent("student1")).extracting(OpenSessionResponse::id).doesNotContain(sessionId);
         assertThat(store.session(sessionId,false).date()).isEqualTo(sessionDate);
     }
+    @Test void riskHistoryUsesCheckinCampusDayAcrossMidnightAndKeepsAcademicSessionDate() {
+        LocalDate sessionDate=LocalDate.of(2026,10,30);
+        LocalDate checkinDate=sessionDate.plusDays(1);
+        ZoneId zone=SessionService.CAMPUS_ZONE;
+        Instant beforeOpen=sessionDate.atTime(23,49).atZone(zone).toInstant();
+        Instant campusAOpen=checkinDate.atStartOfDay(zone).toInstant();
+        Instant campusCloses=checkinDate.atTime(0,30).atZone(zone).toInstant();
+        Instant campusBOpen=sessionDate.atTime(23,50).atZone(zone).toInstant();
+        Instant crossMidnightCloses=checkinDate.atTime(0,20).atZone(zone).toInstant();
+        Instant campusAFix=checkinDate.atTime(0,1).atZone(zone).toInstant();
+        Instant campusBFix=checkinDate.atTime(0,2).atZone(zone).toInstant();
+
+        jdbc.update("INSERT INTO academic.\"Section\" (\"id\",\"lecturerId\",\"sectionNumber\") VALUES ('risk-section-a','lecturer','RA')");
+        jdbc.update("INSERT INTO academic.\"Section\" (\"id\",\"lecturerId\",\"sectionNumber\") VALUES ('risk-section-b','lecturer','RB')");
+        jdbc.update("INSERT INTO academic.\"Section\" (\"id\",\"lecturerId\",\"sectionNumber\") VALUES ('risk-section-c','lecturer','RC')");
+        jdbc.update("INSERT INTO academic.\"Enrollment\" (\"id\",\"sectionId\",\"studentId\",\"status\") VALUES ('risk-enroll-a1','risk-section-a','student1','ENROLLED')");
+        jdbc.update("INSERT INTO academic.\"Enrollment\" (\"id\",\"sectionId\",\"studentId\",\"status\") VALUES ('risk-enroll-a2','risk-section-a','student2','ENROLLED')");
+        jdbc.update("INSERT INTO academic.\"Enrollment\" (\"id\",\"sectionId\",\"studentId\",\"status\") VALUES ('risk-enroll-b','risk-section-b','student1','ENROLLED')");
+        jdbc.update("INSERT INTO academic.\"Enrollment\" (\"id\",\"sectionId\",\"studentId\",\"status\") VALUES ('risk-enroll-c','risk-section-c','student2','ENROLLED')");
+        jdbc.update("""
+                INSERT INTO academic."AttendanceGeofence" ("id","name","campusCode","centerLat","centerLng","radiusMeters","isActive","createdBy")
+                VALUES ('risk-campus-b','Campus B','UTE-B',10.18,106,150,TRUE,'admin-user')
+                """);
+
+        useClock(Clock.fixed(beforeOpen,zone));
+        var campusASession=sessions.open(new OpenSessionRequest("risk-section-a",checkinDate,campusAOpen,campusCloses,10,"ute-main-placeholder",false),
+                "admin-user",null,List.of("ADMIN"));
+        var priorDateSession=sessions.open(new OpenSessionRequest("risk-section-b",sessionDate,campusBOpen,crossMidnightCloses,10,"risk-campus-b",false),
+                "admin-user",null,List.of("ADMIN"));
+        var sameDateSession=sessions.open(new OpenSessionRequest("risk-section-c",checkinDate,campusAOpen,campusCloses,10,"risk-campus-b",false),
+                "admin-user",null,List.of("ADMIN"));
+
+        useClock(Clock.fixed(campusAFix,zone));
+        var firstStudent1=checkins.checkin(campusASession.id(),"student1",
+                new CheckinRequest(null,10.0,106.0,5.0,campusAFix,false,"risk-device-a1",null),"ip");
+        var firstStudent2=checkins.checkin(campusASession.id(),"student2",
+                new CheckinRequest(null,10.0,106.0,5.0,campusAFix,false,"risk-device-a2",null),"ip");
+        assertThat(firstStudent1.decision()).isEqualTo("ACCEPTED");
+        assertThat(firstStudent2.decision()).isEqualTo("ACCEPTED");
+
+        useClock(Clock.fixed(campusBFix,zone));
+        var crossMidnight=checkins.checkin(priorDateSession.id(),"student1",
+                new CheckinRequest(null,10.18,106.0,5.0,campusBFix,false,"risk-device-b1",null),"ip");
+        var sameDate=checkins.checkin(sameDateSession.id(),"student2",
+                new CheckinRequest(null,10.18,106.0,5.0,campusBFix,false,"risk-device-c2",null),"ip");
+        assertThat(crossMidnight.decision()).isEqualTo("PENDING_REVIEW");
+        assertThat(crossMidnight.message()).contains("IMPOSSIBLE_SPEED");
+        assertThat(sameDate.decision()).isEqualTo("PENDING_REVIEW");
+        assertThat(sameDate.message()).contains("IMPOSSIBLE_SPEED");
+        assertThat(store.session(priorDateSession.id(),false).date()).isEqualTo(sessionDate);
+
+        String checkinId=store.checkins(priorDateSession.id()).getFirst().id();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM academic.\"Attendance\" WHERE \"checkinId\"=?",Integer.class,checkinId)).isZero();
+        checkins.review(checkinId,new ReviewRequest("APPROVE","verified in person"),"admin-user",null,List.of("ADMIN"));
+        Instant recordedDate=jdbc.queryForObject("SELECT \"date\" FROM academic.\"Attendance\" WHERE \"checkinId\"=?",
+                (rs,row)->rs.getTimestamp(1).toInstant(),checkinId);
+        assertThat(recordedDate).isEqualTo(sessionDate.atStartOfDay().toInstant(ZoneOffset.UTC));
+    }
     @Test void acceptedAndFailedAttemptsPersistAndSixthRequestHasRetryAfter() throws Exception {
         for(int i=0;i<5;i++) mvc.perform(post("/api/v1/attendance/sessions/"+id+"/checkin").with(student(1)).contentType(MediaType.APPLICATION_JSON)
                 .content(body("d").replaceFirst("\"code\":\"[0-9]{6}\"","\"code\":\"wrong\"")))
