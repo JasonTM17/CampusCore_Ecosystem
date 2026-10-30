@@ -1186,6 +1186,7 @@ export default function AdminAnnouncementsPage() {
                     {editorEngine === 'tinymce' ? (
                       <div className="space-y-1">
                         <TinyMceEditor
+                          draftOwnerId={user?.id}
                           value={draft.content}
                           onChange={(newContent) => setDraft((current) => ({ ...current, content: newContent }))}
                           locale={locale}
