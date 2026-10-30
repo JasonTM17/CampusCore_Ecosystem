@@ -5,6 +5,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static io.campuscore.restfulapi.attendance.AttendanceDtos.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import io.campuscore.restfulapi.academic.service.AcademicAttendanceWriteService;
 import io.campuscore.restfulapi.academic.web.AcademicAttendanceMutationDtos.*;
 import io.campuscore.restfulapi.security.ratelimit.RateLimiterService;
@@ -23,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
@@ -40,8 +43,10 @@ class AttendanceGeofencePersistenceTest {
     @Autowired AcademicAttendanceWriteService attendance;
     @Autowired AttendanceCheckinProperties properties;
     @Autowired RateLimiterService limiter;
+    @MockitoBean(name="attendanceClock") Clock attendanceClock;
     private String id;
     @BeforeEach void fixture() {
+        useClock(Clock.systemUTC());
         AttendanceTestSchema.create(jdbc,false);AttendanceTestSchema.clear(jdbc);
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS campuscore_auth");
         jdbc.execute("CREATE TABLE IF NOT EXISTS campuscore_auth.\"User\" (\"id\" VARCHAR(120) PRIMARY KEY,\"email\" VARCHAR(320),\"firstName\" VARCHAR(120),\"lastName\" VARCHAR(120),\"status\" VARCHAR(40) DEFAULT 'ACTIVE',\"mustChangePassword\" BOOLEAN DEFAULT FALSE)");
@@ -54,6 +59,10 @@ class AttendanceGeofencePersistenceTest {
         Instant now=Instant.now();
         id=sessions.open(new OpenSessionRequest("section",now.atZone(SessionService.CAMPUS_ZONE).toLocalDate(),now.minusSeconds(30),now.plusSeconds(900),10,"ute-main-placeholder",true),"lecturer-user","lecturer",List.of("LECTURER")).id();
         for(int i=1;i<=4;i++) checkins.acceptConsent("student"+i,"1");
+    }
+    private void useClock(Clock source) {
+        when(attendanceClock.instant()).thenAnswer(invocation -> source.instant());
+        when(attendanceClock.withZone(any(ZoneId.class))).thenAnswer(invocation -> source.withZone(invocation.getArgument(0)));
     }
     private CheckinRequest request(String device,double latitude) {
         var s=store.session(id,false);
@@ -150,6 +159,38 @@ class AttendanceGeofencePersistenceTest {
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("NOT_ENROLLED"));
         mvc.perform(get("/api/v1/attendance/sessions/open").with(student(1))).andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].geofenceName").exists()).andExpect(jsonPath("$[0].centerLat").doesNotExist()).andExpect(jsonPath("$[0].radiusMeters").doesNotExist());
+    }
+    @Test void crossMidnightSessionRemainsDiscoverableUntilCloseAndKeepsSessionDate() {
+        LocalDate sessionDate=LocalDate.of(2026,10,30);
+        ZoneId zone=SessionService.CAMPUS_ZONE;
+        Instant opensAt=sessionDate.atTime(23,50).atZone(zone).toInstant();
+        Instant beforeMidnight=sessionDate.atTime(23,55).atZone(zone).toInstant();
+        Instant afterMidnight=sessionDate.plusDays(1).atTime(0,5).atZone(zone).toInstant();
+        Instant closesAt=sessionDate.plusDays(1).atTime(0,20).atZone(zone).toInstant();
+        String sessionId="cross-midnight-session";
+        jdbc.update("INSERT INTO academic.\"Section\" (\"id\",\"lecturerId\",\"sectionNumber\") VALUES ('section-cross','lecturer','C')");
+        jdbc.update("INSERT INTO academic.\"Enrollment\" (\"id\",\"sectionId\",\"studentId\",\"status\") VALUES ('enroll-cross','section-cross','student1','ENROLLED')");
+        store.createSession(new AttendanceStore.Session(sessionId,"section-cross",sessionDate,"ute-main-placeholder",
+                opensAt,closesAt,10,false,"OPEN",codes.newSecret(sessionId)),"lecturer-user",opensAt);
+
+        useClock(Clock.fixed(beforeMidnight,zone));
+        assertThat(sessions.openForStudent("student1")).extracting(OpenSessionResponse::id).contains(sessionId);
+        useClock(Clock.fixed(afterMidnight,zone));
+        assertThat(sessions.openForStudent("student1")).extracting(OpenSessionResponse::id).contains(sessionId);
+        assertThat(sessions.openForStudent("student5")).extracting(OpenSessionResponse::id).doesNotContain(sessionId);
+
+        var response=checkins.checkin(sessionId,"student1",new CheckinRequest(null,10.0,106.0,5.0,afterMidnight,false,"cross-midnight-device",null),"ip");
+        assertThat(response.decision()).isEqualTo("ACCEPTED");
+        Instant recordedDate=jdbc.queryForObject("SELECT \"date\" FROM academic.\"Attendance\" WHERE \"studentId\"='student1'",
+                (rs,row)->rs.getTimestamp(1).toInstant());
+        assertThat(recordedDate).isEqualTo(sessionDate.atStartOfDay().toInstant(ZoneOffset.UTC));
+
+        useClock(Clock.fixed(closesAt,zone));
+        assertThat(sessions.openForStudent("student1")).extracting(OpenSessionResponse::id).doesNotContain(sessionId);
+        useClock(Clock.fixed(afterMidnight,zone));
+        jdbc.update("UPDATE academic.\"AttendanceGeofence\" SET \"isActive\"=FALSE WHERE \"id\"='ute-main-placeholder'");
+        assertThat(sessions.openForStudent("student1")).extracting(OpenSessionResponse::id).doesNotContain(sessionId);
+        assertThat(store.session(sessionId,false).date()).isEqualTo(sessionDate);
     }
     @Test void acceptedAndFailedAttemptsPersistAndSixthRequestHasRetryAfter() throws Exception {
         for(int i=0;i<5;i++) mvc.perform(post("/api/v1/attendance/sessions/"+id+"/checkin").with(student(1)).contentType(MediaType.APPLICATION_JSON)
