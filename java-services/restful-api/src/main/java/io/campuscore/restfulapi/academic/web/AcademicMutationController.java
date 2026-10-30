@@ -4,6 +4,7 @@ import io.campuscore.restfulapi.academic.service.AcademicMutationService;
 import io.campuscore.restfulapi.academic.web.AcademicEnrollmentReadDtos.EnrollmentResponse;
 import io.campuscore.restfulapi.academic.web.AcademicMutationDtos.EnrollRequest;
 import io.campuscore.restfulapi.academic.web.AcademicMutationDtos.GradeUpdateRequest;
+import io.campuscore.restfulapi.exception.ErrorResponse;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
 import io.campuscore.restfulapi.web.DomainException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -101,7 +104,9 @@ public class AcademicMutationController {
 
     @Operation(summary = "Xuất danh sách ghi danh ra file CSV", description = "Tạo báo cáo dạng CSV phục vụ công tác thống kê học vụ")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Xuất file CSV thành công")
+        @ApiResponse(responseCode = "200", description = "Xuất file CSV thành công"),
+        @ApiResponse(responseCode = "413", description = "Vượt quá giới hạn số hàng xuất được hỗ trợ",
+                content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping(value = "enrollments/export/csv", produces = "text/csv")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
