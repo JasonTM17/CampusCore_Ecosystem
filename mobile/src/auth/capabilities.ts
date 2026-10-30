@@ -1,4 +1,5 @@
 import type { LaneFlags } from '../config/lane-flags';
+import type { UserRole } from '../navigation/routes';
 
 /**
  * Pure capability resolution (no expo/react-native imports). The UI role is a
@@ -9,13 +10,31 @@ import type { LaneFlags } from '../config/lane-flags';
 
 export type StaffDesk = 'applyReview' | 'careersDesk' | 'libraryDesk';
 
+/**
+ * Access-token `capabilities` claim value minted by both token issuers for
+ * every grant-eligible (ACTIVE) account. It names the SELF admissions
+ * surface only — it is never derived from a username, a demo id, an
+ * application row, or any academic role, and it confers no academic right.
+ */
+export const ADMISSIONS_SELF_CLAIM = 'admissions:self';
+
+/**
+ * UI surface selector a roleless applicant session renders under. It is a
+ * presentation placeholder only: the `applicant.surface` capability — not
+ * this selector — decides which screens stay reachable, and the server
+ * still sees a token with no academic roles.
+ */
+export const APPLICANT_UI_ROLE: UserRole = 'student';
+
 export type Capability =
   | 'dean.overview'
   | 'admin.oversight'
   | 'staff.applyReview'
   | 'staff.careersDesk'
   | 'staff.libraryDesk'
-  | 'student.checkin';
+  | 'student.checkin'
+  | 'admissions.self'
+  | 'applicant.surface';
 
 export type CapabilitySet = readonly Capability[];
 
@@ -66,11 +85,33 @@ export interface CapabilityInput {
   claims: readonly string[];
   lanes: LaneFlags;
   staffGrants?: StaffGrants | null;
+  /**
+   * Issuer-minted `capabilities` claim values on the access token (see
+   * `capabilityClaimsFromPayload`). Unknown values are dropped.
+   */
+  capabilityClaims?: readonly string[];
+  /**
+   * UI role the account resolved to, or null for a roleless authenticated
+   * account. Only a roleless account carrying `admissions:self` earns the
+   * `applicant.surface` marker — an account with a real role keeps its
+   * existing behavior.
+   */
+  role?: UserRole | null;
 }
 
 export function resolveCapabilities(input: CapabilityInput): CapabilitySet {
   const claims = normalizeClaims(input.claims);
   const granted: Capability[] = [];
+  const issued = new Set(input.capabilityClaims ?? []);
+  if (issued.has(ADMISSIONS_SELF_CLAIM)) {
+    granted.push('admissions.self');
+    if (input.role == null) {
+      // Roleless account with the grant: applicant-only surface. The marker
+      // is what lets the route guard tell this session apart from a real
+      // student session that merely shares the same UI selector.
+      granted.push('applicant.surface');
+    }
+  }
   if (input.lanes.dean && claims.has('TRUONG_KHOA')) {
     granted.push('dean.overview');
   }
@@ -94,6 +135,22 @@ export function resolveCapabilities(input: CapabilityInput): CapabilitySet {
 
 export function hasCapability(capabilities: CapabilitySet, capability: Capability): boolean {
   return capabilities.includes(capability);
+}
+
+/** Whether this capability set marks an applicant-only session surface. */
+export function hasApplicantSurface(capabilities: CapabilitySet | undefined): boolean {
+  return hasCapability(capabilities ?? NO_CAPABILITIES, 'applicant.surface');
+}
+
+/**
+ * Access-token payload → issuer-minted `capabilities` claim values. Only a
+ * string array counts; anything else yields no claims (fail closed).
+ */
+export function capabilityClaimsFromPayload(payload: Record<string, unknown> | null): readonly string[] {
+  const claims = payload?.capabilities;
+  return Array.isArray(claims)
+    ? claims.filter((value): value is string => typeof value === 'string')
+    : [];
 }
 
 /** Portal host whose HTTPS links are app-claimed (universal links). */
