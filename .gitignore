@@ -154,6 +154,7 @@ client_secret*.json
 secrets.json
 secrets.*.json
 auth.json
+!contracts/**/auth.json
 oauth*.json
 /secrets/
 /ops/secrets/*
