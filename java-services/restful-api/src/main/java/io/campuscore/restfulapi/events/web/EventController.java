@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
@@ -52,11 +53,11 @@ public class EventController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<EventResponse>> list(
             @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request,
             @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
             @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
-        ListPaging.Window window = ListPaging.Window.of(page, limit);
-        return ListPaging.respond(students.listPublished(subject(jwt)), window,
-                EventResponse::startsAt, EventResponse::id);
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(students.listPublished(subject(jwt), window));
     }
 
     @Operation(summary = "Chi tiết sự kiện")
@@ -76,11 +77,11 @@ public class EventController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<MyRegistrationResponse>> myRegistrations(
             @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request,
             @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
             @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
-        ListPaging.Window window = ListPaging.Window.of(page, limit);
-        return ListPaging.respond(students.myRegistrations(subject(jwt)), window,
-                MyRegistrationResponse::registeredAt, MyRegistrationResponse::registrationId);
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(students.myRegistrations(subject(jwt), window));
     }
 
     @Operation(summary = "Đăng ký tham gia sự kiện")
