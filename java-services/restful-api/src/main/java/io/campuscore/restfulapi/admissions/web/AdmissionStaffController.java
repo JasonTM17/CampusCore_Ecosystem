@@ -6,8 +6,14 @@ import io.campuscore.restfulapi.admissions.web.AdmissionDtos.DecisionRequest;
 import io.campuscore.restfulapi.admissions.web.AdmissionDtos.ReturnApplicationRequest;
 import io.campuscore.restfulapi.admissions.web.AdmissionDtos.StaffGrantResponse;
 import io.campuscore.restfulapi.admissions.web.AdmissionDtos.TransitionRequest;
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 import org.springframework.context.annotation.Profile;
@@ -46,12 +52,19 @@ public class AdmissionStaffController {
     }
 
     @Operation(summary = "Hàng đợi hồ sơ (lọc theo trạng thái)")
+    @ApiResponse(responseCode = "200", description = "Hàng đợi hồ sơ", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping("/queue")
     @PreAuthorize("isAuthenticated()")
-    public List<ApplicationResponse> queue(
+    public ResponseEntity<List<ApplicationResponse>> queue(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestParam(required = false) String status) {
-        return admissions.queue(staff(jwt), status);
+            HttpServletRequest request,
+            @RequestParam(required = false) String status,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(admissions.queue(staff(jwt), status, window));
     }
 
     @Operation(summary = "Chi tiết hồ sơ (staff)")
@@ -106,10 +119,18 @@ public class AdmissionStaffController {
     }
 
     @Operation(summary = "Danh sách staff grants")
+    @ApiResponse(responseCode = "200", description = "Danh sách staff grants", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping("/grants")
     @PreAuthorize("isAuthenticated()")
-    public List<StaffGrantResponse> grants(@AuthenticationPrincipal Jwt jwt) {
-        return admissions.listGrants(staff(jwt), roles(jwt));
+    public ResponseEntity<List<StaffGrantResponse>> grants(
+            @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(admissions.listGrants(staff(jwt), roles(jwt), window));
     }
 
     @Operation(summary = "Cấp grant STAFF:admissions (admin)")

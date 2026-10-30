@@ -7,18 +7,22 @@ import io.campuscore.restfulapi.admissions.web.AdmissionDtos.DecisionRequest;
 import io.campuscore.restfulapi.admissions.web.AdmissionDtos.ReturnApplicationRequest;
 import io.campuscore.restfulapi.admissions.web.AdmissionDtos.ReviewResponse;
 import io.campuscore.restfulapi.admissions.web.AdmissionDtos.StaffGrantResponse;
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository.CreateNotificationCommand;
 import io.campuscore.restfulapi.web.DomainException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -114,14 +118,29 @@ public class AdmissionService {
     // ------------------------------------------------------------------
 
     public List<StaffGrantResponse> listGrants(String actorId, List<String> actorRoles) {
+        return listGrants(actorId, actorRoles, null).items();
+    }
+
+    public ListPaging.Result<StaffGrantResponse> listGrants(String actorId,
+            List<String> actorRoles, ListPaging.Window window) {
         if (actorRoles == null || !actorRoles.contains("ADMIN")) {
             requireStaffGrant(actorId);
         }
-        return jdbc.query(
-                "SELECT \"id\", \"userId\", \"scope\", \"grantedBy\", \"createdAt\""
-                        + " FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope ORDER BY \"createdAt\"",
-                new MapSqlParameterSource("scope", SCOPE),
-                (row, index) -> mapGrant(row));
+        MapSqlParameterSource params = new MapSqlParameterSource("scope", SCOPE);
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope",
+                    params, Long.class);
+        }
+        String sql = "SELECT \"id\", \"userId\", \"scope\", \"grantedBy\", \"createdAt\""
+                + " FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope ORDER BY \"createdAt\"";
+        if (window != null) {
+            sql += ", \"id\" LIMIT :limit OFFSET :offset";
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        return new ListPaging.Result<>(
+                jdbc.query(sql, params, (row, index) -> mapGrant(row)), total);
     }
 
     @Transactional
@@ -198,17 +217,33 @@ public class AdmissionService {
 
     /** Queue of applications — optional status filter; staff scope required. */
     public List<ApplicationResponse> queue(String actorId, String status) {
+        return queue(actorId, status, null).items();
+    }
+
+    public ListPaging.Result<ApplicationResponse> queue(String actorId, String status,
+            ListPaging.Window window) {
         requireStaffGrant(actorId);
         MapSqlParameterSource params = new MapSqlParameterSource();
-        StringBuilder sql = new StringBuilder(applicationSelect());
+        StringBuilder where = new StringBuilder();
         if (status != null && !status.isBlank()) {
-            sql.append(" WHERE a.\"status\" = :status");
+            where.append(" WHERE a.\"status\" = :status");
             params.addValue("status", status);
         }
-        sql.append(" ORDER BY a.\"submittedAt\" NULLS LAST, a.\"createdAt\"");
-        List<ApplicationResponse> rows = jdbc.query(sql.toString(), params,
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM " + APPLICATION + " a" + where, params, Long.class);
+        }
+        StringBuilder sql = new StringBuilder(applicationSelect())
+                .append(where)
+                .append(" ORDER BY a.\"submittedAt\" NULLS LAST, a.\"createdAt\"");
+        if (window != null) {
+            sql.append(", a.\"id\" LIMIT :limit OFFSET :offset");
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        List<ApplicationResponse> items = jdbc.query(sql.toString(), params,
                 (row, index) -> mapApplication(row, List.of(), List.of()));
-        return rows;
+        return new ListPaging.Result<>(items, total);
     }
 
     public ApplicationResponse staffApplication(String actorId, String applicationId) {
@@ -385,6 +420,53 @@ public class AdmissionService {
                         row.getString("note"),
                         row.getString("decision"),
                         toInstant(row.getObject("createdAt"))));
+    }
+
+    /** One grouped read per 100 parents — list lanes never fan out a query per row. */
+    Map<String, List<AttachmentResponse>> attachmentsByApplication(List<String> applicationIds) {
+        if (applicationIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<AttachmentResponse>> grouped = new HashMap<>();
+        for (int from = 0; from < applicationIds.size(); from += ListPaging.MAX_LIMIT) {
+            List<String> batch = applicationIds.subList(from,
+                    Math.min(applicationIds.size(), from + ListPaging.MAX_LIMIT));
+            jdbc.query(
+                    "SELECT \"applicationId\", \"id\", \"fileName\", \"contentType\", \"sizeBytes\","
+                            + " \"checksum\", \"createdAt\" FROM " + ATTACHMENT
+                            + " WHERE \"applicationId\" IN (:applicationIds)"
+                            + " ORDER BY \"applicationId\", \"createdAt\", \"id\"",
+                    new MapSqlParameterSource("applicationIds", batch),
+                    (RowCallbackHandler) row -> grouped.computeIfAbsent(row.getString("applicationId"),
+                            ignored -> new ArrayList<>()).add(new AttachmentResponse(
+                                    row.getString("id"), row.getString("fileName"), row.getString("contentType"),
+                                    row.getLong("sizeBytes"), row.getString("checksum"),
+                                    toInstant(row.getObject("createdAt")))));
+        }
+        return grouped;
+    }
+
+    Map<String, List<ReviewResponse>> reviewsByApplication(List<String> applicationIds) {
+        if (applicationIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<ReviewResponse>> grouped = new HashMap<>();
+        for (int from = 0; from < applicationIds.size(); from += ListPaging.MAX_LIMIT) {
+            List<String> batch = applicationIds.subList(from,
+                    Math.min(applicationIds.size(), from + ListPaging.MAX_LIMIT));
+            jdbc.query(
+                    "SELECT \"applicationId\", \"id\", \"reviewerId\", \"action\", \"checklist\","
+                            + " \"note\", \"decision\", \"createdAt\" FROM " + REVIEW
+                            + " WHERE \"applicationId\" IN (:applicationIds)"
+                            + " ORDER BY \"applicationId\", \"createdAt\", \"id\"",
+                    new MapSqlParameterSource("applicationIds", batch),
+                    (RowCallbackHandler) row -> grouped.computeIfAbsent(row.getString("applicationId"),
+                            ignored -> new ArrayList<>()).add(new ReviewResponse(
+                                    row.getString("id"), row.getString("reviewerId"), row.getString("action"),
+                                    row.getString("checklist"), row.getString("note"), row.getString("decision"),
+                                    toInstant(row.getObject("createdAt")))));
+        }
+        return grouped;
     }
 
     Map<String, Object> attachmentFile(String applicationId, String attachmentId) {

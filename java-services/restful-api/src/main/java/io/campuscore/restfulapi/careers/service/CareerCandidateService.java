@@ -2,8 +2,10 @@ package io.campuscore.restfulapi.careers.service;
 
 import io.campuscore.restfulapi.careers.web.CareerDtos.ApplicationResponse;
 import io.campuscore.restfulapi.careers.web.CareerDtos.ApplyRequest;
+import io.campuscore.restfulapi.careers.web.CareerDtos.AttachmentResponse;
 import io.campuscore.restfulapi.careers.web.CareerDtos.AttachmentUploadRequest;
 import io.campuscore.restfulapi.careers.web.CareerDtos.OpportunityResponse;
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.web.DomainException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -68,16 +70,34 @@ public class CareerCandidateService {
     /** Published opportunities — the only state a candidate may apply to. */
     @Transactional(readOnly = true)
     public List<OpportunityResponse> browse(String query) {
+        return browse(query, null).items();
+    }
+
+    @Transactional(readOnly = true)
+    public ListPaging.Result<OpportunityResponse> browse(String query, ListPaging.Window window) {
         MapSqlParameterSource params = new MapSqlParameterSource();
-        String sql = CareerService.opportunitySelect() + " WHERE o.\"status\" = 'PUBLISHED'";
+        String where = " WHERE o.\"status\" = 'PUBLISHED'";
         if (query != null && !query.isBlank()) {
-            sql += " AND (LOWER(o.\"title\") LIKE :q OR LOWER(o.\"description\") LIKE :q"
+            where += " AND (LOWER(o.\"title\") LIKE :q OR LOWER(o.\"description\") LIKE :q"
                     + " OR LOWER(o.\"location\") LIKE :q OR LOWER(g.\"name\") LIKE :q)";
             params.addValue("q", "%" + query.trim().toLowerCase() + "%");
         }
-        sql += " ORDER BY o.\"publishedAt\" DESC";
-        return jdbc.query(sql, params, (row, index) -> rowToMap(row))
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM " + OPPORTUNITY + " o"
+                            + " JOIN " + CareerService.ORGANIZATION
+                            + " g ON g.\"id\" = o.\"organizationId\"" + where,
+                    params, Long.class);
+        }
+        String sql = CareerService.opportunitySelect() + where + " ORDER BY o.\"publishedAt\" DESC";
+        if (window != null) {
+            sql += ", o.\"id\" LIMIT :limit OFFSET :offset";
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        List<OpportunityResponse> items = jdbc.query(sql, params, (row, index) -> rowToMap(row))
                 .stream().map(staff::mapOpportunity).toList();
+        return new ListPaging.Result<>(items, total);
     }
 
     /** Published detail — draft/closed postings are indistinguishable 404. */
@@ -98,11 +118,38 @@ public class CareerCandidateService {
     /** Own applications newest-first — foreign ids never appear here. */
     @Transactional
     public List<ApplicationResponse> myApplications(String candidateId) {
-        return jdbc.query(
-                CareerService.applicationSelect() + " WHERE a.\"candidateUserId\" = :owner"
-                        + " ORDER BY a.\"submittedAt\" DESC",
-                new MapSqlParameterSource("owner", candidateId),
-                (row, index) -> staff.mapApplication(rowToMap(row)));
+        return myApplications(candidateId, null).items();
+    }
+
+    @Transactional
+    public ListPaging.Result<ApplicationResponse> myApplications(String candidateId,
+            ListPaging.Window window) {
+        MapSqlParameterSource params = new MapSqlParameterSource("owner", candidateId);
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM " + APPLICATION + " a"
+                            + " WHERE a.\"candidateUserId\" = :owner",
+                    params, Long.class);
+        }
+        String sql = CareerService.applicationSelect() + " WHERE a.\"candidateUserId\" = :owner"
+                + " ORDER BY a.\"submittedAt\" DESC";
+        if (window != null) {
+            sql += ", a.\"id\" LIMIT :limit OFFSET :offset";
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        List<Map<String, Object>> rows = jdbc.query(sql, params,
+                (row, index) -> rowToMap(row));
+        List<String> applicationIds = rows.stream()
+                .map(row -> String.valueOf(row.get("id")))
+                .toList();
+        Map<String, List<AttachmentResponse>> attachments =
+                staff.attachmentsByApplication(applicationIds);
+        List<ApplicationResponse> items = rows.stream()
+                .map(row -> staff.mapApplication(row, attachments.getOrDefault(
+                        String.valueOf(row.get("id")), List.of())))
+                .toList();
+        return new ListPaging.Result<>(items, total);
     }
 
     /** Owner-only detail — a foreign id is indistinguishable 404. */

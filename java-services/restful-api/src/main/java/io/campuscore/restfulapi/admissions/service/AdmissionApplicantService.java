@@ -1,9 +1,12 @@
 package io.campuscore.restfulapi.admissions.service;
 
 import io.campuscore.restfulapi.admissions.web.AdmissionDtos.ApplicationResponse;
+import io.campuscore.restfulapi.admissions.web.AdmissionDtos.AttachmentResponse;
 import io.campuscore.restfulapi.admissions.web.AdmissionDtos.AttachmentUploadRequest;
 import io.campuscore.restfulapi.admissions.web.AdmissionDtos.CreateApplicationRequest;
+import io.campuscore.restfulapi.admissions.web.AdmissionDtos.ReviewResponse;
 import io.campuscore.restfulapi.admissions.web.AdmissionDtos.SaveApplicationRequest;
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.web.DomainException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -61,16 +64,41 @@ public class AdmissionApplicantService {
     // ------------------------------------------------------------------
 
     public List<ApplicationResponse> myApplications(String applicantId) {
-        List<Map<String, Object>> rows = jdbc.query(
-                AdmissionService.applicationSelect() + " WHERE a.\"applicantUserId\" = :owner"
-                        + " ORDER BY a.\"createdAt\" DESC",
-                new MapSqlParameterSource("owner", applicantId),
+        return myApplications(applicantId, null).items();
+    }
+
+    public ListPaging.Result<ApplicationResponse> myApplications(
+            String applicantId, ListPaging.Window window) {
+        MapSqlParameterSource params = new MapSqlParameterSource("owner", applicantId);
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM " + APPLICATION + " a WHERE a.\"applicantUserId\" = :owner",
+                    params, Long.class);
+        }
+        String sql = AdmissionService.applicationSelect() + " WHERE a.\"applicantUserId\" = :owner"
+                + " ORDER BY a.\"createdAt\" DESC";
+        if (window != null) {
+            sql += ", a.\"id\" ASC LIMIT :limit OFFSET :offset";
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        List<Map<String, Object>> rows = jdbc.query(sql, params,
                 (row, index) -> rowToMap(row));
-        return rows.stream()
-                .map(row -> staff.mapApplication(row,
-                        staff.attachmentsOf(String.valueOf(row.get("id"))),
-                        staff.reviewsOf(String.valueOf(row.get("id")))))
+        List<String> applicationIds = rows.stream()
+                .map(row -> String.valueOf(row.get("id")))
                 .toList();
+        Map<String, List<AttachmentResponse>> attachments =
+                staff.attachmentsByApplication(applicationIds);
+        Map<String, List<ReviewResponse>> reviews =
+                staff.reviewsByApplication(applicationIds);
+        List<ApplicationResponse> items = rows.stream()
+                .map(row -> {
+                    String id = String.valueOf(row.get("id"));
+                    return staff.mapApplication(row, attachments.getOrDefault(id, List.of()),
+                            reviews.getOrDefault(id, List.of()));
+                })
+                .toList();
+        return new ListPaging.Result<>(items, total);
     }
 
     /** Owner-only detail — a foreign id is indistinguishable 404 (§7 ADM-T02). */

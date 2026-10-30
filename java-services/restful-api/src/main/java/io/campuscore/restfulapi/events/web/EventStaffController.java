@@ -10,11 +10,17 @@ import io.campuscore.restfulapi.events.web.EventDtos.RosterEntry;
 import io.campuscore.restfulapi.events.web.EventDtos.StaffGrantResponse;
 import io.campuscore.restfulapi.events.web.EventDtos.UpdateEventRequest;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -26,6 +32,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -49,10 +56,18 @@ public class EventStaffController {
     }
 
     @Operation(summary = "Danh sách sự kiện (staff, gồm draft)")
+    @ApiResponse(responseCode = "200", description = "Danh sách sự kiện", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public List<EventResponse> list(@AuthenticationPrincipal Jwt jwt) {
-        return events.listStaffEvents(subject(jwt));
+    public ResponseEntity<List<EventResponse>> list(
+            @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(events.listStaffEvents(subject(jwt), window));
     }
 
     @Operation(summary = "Tạo sự kiện nháp")
@@ -132,12 +147,19 @@ public class EventStaffController {
     }
 
     @Operation(summary = "Roster đăng ký (staff only)")
+    @ApiResponse(responseCode = "200", description = "Roster đăng ký", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping("{eventId}/roster")
     @PreAuthorize("isAuthenticated()")
-    public List<RosterEntry> roster(
+    public ResponseEntity<List<RosterEntry>> roster(
             @AuthenticationPrincipal Jwt jwt,
-            @PathVariable String eventId) {
-        return events.roster(subject(jwt), eventId);
+            @PathVariable String eventId,
+            HttpServletRequest request,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(events.roster(subject(jwt), eventId, window));
     }
 
     @Operation(summary = "Điểm danh thủ công theo roster")
@@ -151,10 +173,18 @@ public class EventStaffController {
     }
 
     @Operation(summary = "Danh sách staff grants")
+    @ApiResponse(responseCode = "200", description = "Danh sách staff grants", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping("grants")
     @PreAuthorize("isAuthenticated()")
-    public List<StaffGrantResponse> grants(@AuthenticationPrincipal Jwt jwt) {
-        return events.listGrants(subject(jwt));
+    public ResponseEntity<List<StaffGrantResponse>> grants(
+            @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(events.listGrants(subject(jwt), window));
     }
 
     @Operation(summary = "Cấp grant STAFF:events (admin)")
