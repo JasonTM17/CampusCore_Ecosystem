@@ -429,3 +429,57 @@ tests:
     exp_samples:
     - labels: '{}'
       value: 0
+- name: journey-alerts-match-live-route-templates
+  interval: 1m
+  input_series:
+  - series: http_server_requests_seconds_count{uri="/api/v1/me/enrollments",method="POST",status="200"}
+    values: 0+100x20
+  - series: http_server_requests_seconds_count{uri="/api/v1/me/enrollments",method="POST",status="500"}
+    values: 0+10x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/me/enrollments",method="POST",le="0.1"}
+    values: 0+0x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/me/enrollments",method="POST",le="2"}
+    values: 0+210x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/me/enrollments",method="POST",le="+Inf"}
+    values: 0+210x20
+  - series: http_server_requests_seconds_count{uri="/api/v1/me/enrollments/{id}/drop",method="POST",status="200"}
+    values: 0+100x20
+  - series: http_server_requests_seconds_count{uri="/api/v1/me/enrollments/{id}/drop",method="POST",status="500"}
+    values: 0+10x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/me/enrollments/{id}/drop",method="POST",le="0.1"}
+    values: 0+0x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/me/enrollments/{id}/drop",method="POST",le="2"}
+    values: 0+210x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/me/enrollments/{id}/drop",method="POST",le="+Inf"}
+    values: 0+210x20
+  - series: http_server_requests_seconds_count{uri="/api/v1/sections/{id}/grades",method="GET",status="200"}
+    values: 0+100x20
+  - series: http_server_requests_seconds_count{uri="/api/v1/sections/{id}/grades",method="GET",status="500"}
+    values: 0+10x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/sections/{id}/grades",method="GET",le="0.1"}
+    values: 0+0x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/sections/{id}/grades",method="GET",le="2"}
+    values: 0+210x20
+  - series: http_server_requests_seconds_bucket{uri="/api/v1/sections/{id}/grades",method="GET",le="+Inf"}
+    values: 0+210x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="RegistrationLatencyP95Breached"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="RegistrationServerErrorRateHigh"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="GradesReadLatencyP95Breached"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+  - expr: count(ALERTS{alertstate="firing",alertname="GradesReadServerErrorRateHigh"})
+    eval_time: 20m
+    exp_samples:
+    - labels: '{}'
+      value: 1
