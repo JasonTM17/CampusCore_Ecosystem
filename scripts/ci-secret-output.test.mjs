@@ -2,11 +2,17 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync as bashExists } from 'node:fs';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+
+// The PATH bash on Windows can be the WSL launcher (no node, no drive paths): prefer Git Bash there.
+const BASH = process.platform === 'win32' && bashExists('C:\\Program Files\\Git\\bin\\bash.exe')
+  ? 'C:\\Program Files\\Git\\bin\\bash.exe'
+  : 'bash';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const workflowPath = path.join(repoRoot, '.github', 'workflows', 'ci.yml');
@@ -54,13 +60,17 @@ function extractSentinelCommand(runBlock) {
 
 const sentinelSteps = [
   'Secret hygiene gate (masked secret scan and test)',
-  'Secret hygiene',
 ];
 const sentinelCommands = sentinelSteps.map((stepName) => ({
   stepName,
   command: extractSentinelCommand(extractRunBlock(stepName)),
 }));
-assert.equal(sentinelCommands.length, 2, 'both early workflow sentinels must be covered');
+assert.equal(sentinelCommands.length, 1, 'the source-only sentinel must run once');
+assert.equal(
+  (workflow.match(/git grep --quiet -E 'sk-/g) ?? []).length,
+  1,
+  'duplicate source-only sentinels must not run in the Compose job',
+);
 
 function createFixture(t, trackedContent) {
   const directory = mkdtempSync(path.join(os.tmpdir(), 'ci-secret-sentinel-'));
@@ -81,7 +91,7 @@ function createFixture(t, trackedContent) {
 }
 
 function executeSentinel(command, cwd, env) {
-  const result = spawnSync('bash', ['-e', '-c', command], {
+  const result = spawnSync(BASH, ['-e', '-c', command], {
     cwd,
     env,
     encoding: 'utf8',
