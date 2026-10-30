@@ -54,6 +54,75 @@ export interface RosterStudent {
   studentName: string;
 }
 
+interface SessionContext {
+  sectionId: string;
+  sectionLabel: string;
+  date: string;
+  roster: RosterStudent[];
+}
+
+type SessionSelection = Pick<SessionContext, 'sectionId' | 'sectionLabel' | 'date'>;
+
+function captureSessionContext(
+  sectionId: string,
+  sectionLabel: string,
+  date: string,
+  roster: RosterStudent[],
+): SessionContext {
+  return {
+    sectionId,
+    sectionLabel,
+    date,
+    roster: roster.map((student) => ({ ...student })),
+  };
+}
+
+function getSessionContextState(
+  context: SessionContext | null,
+  selected: SessionSelection,
+) {
+  if (!context) return null;
+  return {
+    sessionLabel: context.sectionLabel,
+    sessionDate: context.date,
+    selectedLabel: selected.sectionLabel,
+    selectedDate: selected.date,
+    matches: context.sectionId === selected.sectionId && context.date === selected.date,
+  };
+}
+
+function resolveStudentLabel(
+  rosterById: Map<string, RosterStudent>,
+  studentId: string | undefined,
+  unknownStudent: string,
+) {
+  const known = studentId ? rosterById.get(studentId) : undefined;
+  if (known) return { name: known.studentName, code: known.studentCode };
+  const shortId = studentId ? studentId.slice(0, 8) : '—';
+  return { name: unknownStudent.replace('{id}', shortId), code: '' };
+}
+
+function canApplySessionRead(
+  requestGeneration: number,
+  currentGeneration: number,
+  requestedSessionId: string,
+  currentSession: Pick<SessionResponse, 'id' | 'status'> | null,
+  nextSession: Pick<SessionResponse, 'id' | 'status'>,
+) {
+  if (requestGeneration !== currentGeneration || nextSession.id !== requestedSessionId) {
+    return false;
+  }
+  return !(
+    currentSession?.id === requestedSessionId
+    && currentSession?.status !== 'OPEN'
+    && nextSession.status === 'OPEN'
+  );
+}
+
+function isSessionOpen(value: Pick<SessionResponse, 'status'> | null) {
+  return value?.status === 'OPEN';
+}
+
 export interface GeofenceCheckinPanelProps {
   sectionId: string;
   sectionLabel: string;
@@ -142,6 +211,7 @@ export function GeofenceCheckinPanel({
   const [closing, setClosing] = useState(false);
   const [projectorOpen, setProjectorOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
+  const [sessionContext, setSessionContext] = useState<SessionContext | null>(null);
 
   const [reviewTarget, setReviewTarget] = useState<{
     checkin: CheckinView;
@@ -153,6 +223,8 @@ export function GeofenceCheckinPanel({
 
   const sessionRef = useRef<SessionResponse | null>(null);
   sessionRef.current = session;
+  const sessionGenerationRef = useRef(0);
+  const geofencesLoadStartedRef = useRef(false);
   const shareInputRef = useRef<HTMLInputElement>(null);
 
   const loadGeofences = useCallback(async () => {
@@ -170,28 +242,38 @@ export function GeofenceCheckinPanel({
   }, []);
 
   useEffect(() => {
+    if (!sectionId || geofencesLoadStartedRef.current) return;
+    geofencesLoadStartedRef.current = true;
     void loadGeofences();
-  }, [loadGeofences]);
+  }, [loadGeofences, sectionId]);
 
   const refreshSession = useCallback(async (idOverride?: string) => {
     const id = idOverride ?? sessionRef.current?.id;
     if (!id) return;
+    const requestGeneration = ++sessionGenerationRef.current;
     try {
       const [nextSession, nextCheckins] = await Promise.all([
         geofencedAttendanceApi.getSession(id),
-        geofencedAttendanceApi.listSessionCheckins(id).catch(() => {
-          setCheckinsFailed(true);
-          return null;
-        }),
+        geofencedAttendanceApi.listSessionCheckins(id).catch(() => null),
       ]);
+      if (!canApplySessionRead(
+        requestGeneration,
+        sessionGenerationRef.current,
+        id,
+        sessionRef.current,
+        nextSession,
+      )) return;
+      sessionRef.current = nextSession;
       setSession(nextSession);
       if (nextCheckins) {
         setCheckins(nextCheckins);
         setCheckinsFailed(false);
+      } else {
+        setCheckinsFailed(true);
       }
       setPollStale(false);
     } catch {
-      setPollStale(true);
+      if (requestGeneration === sessionGenerationRef.current) setPollStale(true);
     }
   }, []);
 
@@ -228,11 +310,27 @@ export function GeofenceCheckinPanel({
     setShareUrl(path ? (buildCheckinShareUrl(window.location.origin, href(path)) ?? '') : '');
   }, [session?.id, href]);
 
+  const sessionRoster = sessionContext?.roster ?? roster;
   const rosterById = useMemo(() => {
     const map = new Map<string, RosterStudent>();
-    for (const row of roster) map.set(row.studentId, row);
+    for (const row of sessionRoster) map.set(row.studentId, row);
     return map;
-  }, [roster]);
+  }, [sessionRoster]);
+
+  const sessionSelection = getSessionContextState(sessionContext, {
+    sectionId,
+    sectionLabel,
+    date,
+  });
+  const selectionChanged = Boolean(session && sessionSelection && !sessionSelection.matches);
+  const sessionContextLabel = copy.forSelection
+    .replace('{section}', sessionSelection?.sessionLabel ?? sectionLabel)
+    .replace('{date}', sessionSelection?.sessionDate ?? date);
+  const selectedContextLabel = sessionSelection
+    ? copy.forSelection
+      .replace('{section}', sessionSelection.selectedLabel)
+      .replace('{date}', sessionSelection.selectedDate)
+    : '';
 
   const geofenceName = useMemo(() => {
     if (!session?.geofenceId) return '';
@@ -261,6 +359,7 @@ export function GeofenceCheckinPanel({
     setFieldErrors(plan.errors);
     if (Object.keys(plan.errors).length > 0) return;
 
+    const contextAtOpen = captureSessionContext(sectionId, sectionLabel, date, roster);
     setOpening(true);
     try {
       const created = await geofencedAttendanceApi.openSession({
@@ -272,6 +371,9 @@ export function GeofenceCheckinPanel({
         closesAt: plan.closesAtIso,
         ...(plan.opensAtIso ? { opensAt: plan.opensAtIso } : {}),
       });
+      sessionGenerationRef.current += 1;
+      sessionRef.current = created;
+      setSessionContext(contextAtOpen);
       setSession(created);
       setCheckins([]);
       setCheckinsFailed(false);
@@ -290,6 +392,8 @@ export function GeofenceCheckinPanel({
     lateAfter,
     refreshSession,
     requireCode,
+    roster,
+    sectionLabel,
     sectionId,
     startTime,
   ]);
@@ -298,7 +402,7 @@ export function GeofenceCheckinPanel({
     if (!session?.id) return;
     const accepted = await confirm({
       title: copy.closeSessionTitle,
-      message: copy.closeSessionMessage,
+      message: `${copy.closeSessionMessage} ${copy.sessionTitle}: ${sessionContextLabel}`,
       confirmText: copy.closeSessionAction,
       cancelText: messages.common.actions.cancel,
       variant: 'destructive',
@@ -307,6 +411,8 @@ export function GeofenceCheckinPanel({
     setClosing(true);
     try {
       const closed = await geofencedAttendanceApi.closeSession(session.id);
+      sessionGenerationRef.current += 1;
+      sessionRef.current = closed;
       setSession(closed);
       setProjectorOpen(false);
       void refreshSession(session.id);
@@ -315,7 +421,14 @@ export function GeofenceCheckinPanel({
     } finally {
       setClosing(false);
     }
-  }, [confirm, copy, messages.common.actions.cancel, refreshSession, session?.id]);
+  }, [
+    confirm,
+    copy,
+    messages.common.actions.cancel,
+    refreshSession,
+    session?.id,
+    sessionContextLabel,
+  ]);
 
   const handleCopyLink = useCallback(async () => {
     if (!shareUrl) return;
@@ -358,6 +471,7 @@ export function GeofenceCheckinPanel({
         decision: reviewTarget.decision,
         note,
       });
+      sessionGenerationRef.current += 1;
       setCheckins((prev) => prev.map((row) => (row.id === updated.id ? updated : row)));
       setReviewTarget(null);
     } catch (error) {
@@ -368,12 +482,8 @@ export function GeofenceCheckinPanel({
   }, [copy, reviewNote, reviewTarget]);
 
   const studentLabel = useCallback(
-    (studentId: string | undefined) => {
-      const known = studentId ? rosterById.get(studentId) : undefined;
-      if (known) return { name: known.studentName, code: known.studentCode };
-      const shortId = studentId ? studentId.slice(0, 8) : '—';
-      return { name: copy.unknownStudent.replace('{id}', shortId), code: '' };
-    },
+    (studentId: string | undefined) =>
+      resolveStudentLabel(rosterById, studentId, copy.unknownStudent),
     [copy.unknownStudent, rosterById],
   );
 
@@ -392,9 +502,15 @@ export function GeofenceCheckinPanel({
   const reasonLabel = (token: string) =>
     copy.reasons[token as keyof typeof copy.reasons] || token;
 
-  const isOpen = session?.status === 'OPEN';
+  const isOpen = isSessionOpen(session);
   const secondsLeft = sessionSecondsLeft(session?.closesAt, nowMs);
   const canShare = typeof navigator !== 'undefined' && Boolean(navigator.share);
+
+  useEffect(() => {
+    if (selectionChanged) setProjectorOpen(false);
+  }, [selectionChanged]);
+
+  if (!sectionId && !session) return null;
 
   return (
     <WorkspacePanel
@@ -556,6 +672,23 @@ export function GeofenceCheckinPanel({
           </form>
         ) : (
           <div className="space-y-5" data-testid="checkin-session">
+            <div
+              role="status"
+              data-testid="checkin-session-context"
+              data-selection-changed={selectionChanged ? 'true' : 'false'}
+              className="space-y-1 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm"
+            >
+              <p>
+                <span className="font-semibold">{copy.sessionTitle}: </span>
+                {sessionContextLabel}
+              </p>
+              {selectionChanged ? (
+                <p data-testid="checkin-selection-pending">
+                  <span className="font-semibold">{copy.openTitle}: </span>
+                  {selectedContextLabel}
+                </p>
+              ) : null}
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               <StatusPill tone={isOpen ? 'info' : 'neutral'}>
                 {isOpen ? copy.sessionOpen : copy.sessionClosed}
@@ -666,7 +799,7 @@ export function GeofenceCheckinPanel({
                   variant="outline"
                   className="gap-2"
                   onClick={() => setProjectorOpen(true)}
-                  disabled={!isOpen}
+                  disabled={!isOpen || selectionChanged}
                 >
                   <Presentation className="h-4 w-4" aria-hidden="true" />
                   {copy.projector}
@@ -813,7 +946,7 @@ export function GeofenceCheckinPanel({
         )}
       </div>
 
-      {projectorOpen && session?.id ? (
+      {projectorOpen && session?.id && !selectionChanged ? (
         <ProjectorCodeOverlay
           sessionId={session.id}
           sessionStatus={session.status}
@@ -832,7 +965,7 @@ export function GeofenceCheckinPanel({
           reviewTarget
             ? `${studentLabel(reviewTarget.checkin.studentId).name} — ${
                 reviewTarget.decision === 'APPROVE' ? copy.approve : copy.reject
-              }`
+              } — ${copy.sessionTitle}: ${sessionContextLabel}`
             : undefined
         }
       >

@@ -22,6 +22,37 @@ async function loadCheckinLib() {
   return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 }
 
+async function loadGeofencePanelHelpers() {
+  const source = read('src/components/lecturer/GeofenceCheckinPanel.tsx');
+  const ast = ts.createSourceFile(
+    'GeofenceCheckinPanel.tsx',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const names = [
+    'captureSessionContext',
+    'getSessionContextState',
+    'resolveStudentLabel',
+    'canApplySessionRead',
+    'isSessionOpen',
+  ];
+  const declarations = ast.statements.filter((node) =>
+    ts.isFunctionDeclaration(node) && names.includes(node.name?.text),
+  );
+  assert.equal(declarations.length, names.length, 'panel state helpers must remain directly testable');
+  const helperSource = `${declarations.map((node) => node.getFullText(ast)).join('\n')}\nexport { ${names.join(', ')} };`;
+  const { outputText } = ts.transpileModule(helperSource, {
+    compilerOptions: {
+      module: ts.ModuleKind.ESNext,
+      target: ts.ScriptTarget.ES2022,
+    },
+    fileName: 'GeofenceCheckinPanel.helpers.ts',
+  });
+  return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+}
+
 const VALID_ID = '9f2c1b7a-3d4e-4a5f-8b6c-0d1e2f3a4b5c';
 const SEEDED_ROW = {
   id: 'ute-main-placeholder',
@@ -294,6 +325,112 @@ test('lecturer page mounts the geofenced check-in panel behind the lecturer guar
   assert.match(page, /<GeofenceCheckinPanel/, 'page must render the check-in panel');
   assert.match(page, /sectionId=\{selectedSectionId\}/, 'panel receives the selected section');
   assert.match(page, /date=\{selectedDate\}/, 'panel receives the selected date');
+
+  const panelMount = /\/\* Geofenced app check-in[\s\S]*?\/\* Metrics Row \*\//.exec(page)?.[0] ?? '';
+  assert.ok(panelMount, 'panel mount block must exist');
+  assert.doesNotMatch(panelMount, /selectedSectionId\s*\?\s*\(/, 'empty selections must not unmount a live session');
+  assert.match(panelMount, /selectedSectionId \|\| copy\.noSectionsTitle/, 'empty selection keeps an identifiable label');
+  const panel = read('src/components/lecturer/GeofenceCheckinPanel.tsx');
+  assert.match(panel, /if \(!sectionId && !session\) return null;/, 'hide the empty panel while retaining session state');
+  assert.match(panel, /if \(!sectionId \|\| geofencesLoadStartedRef\.current\) return;/,
+    'load geofences only after a real selection and at most once automatically');
+});
+
+test('a deferred OPEN poll cannot undo a completed close or re-enable open-only controls', async () => {
+  const { canApplySessionRead, isSessionOpen } = await loadGeofencePanelHelpers();
+  const sessionId = 'session-A';
+  let generation = 0;
+  let visibleSession = { id: sessionId, status: 'OPEN' };
+  let resolvePoll;
+  const delayedResponse = new Promise((resolve) => {
+    resolvePoll = resolve;
+  });
+  const pollGeneration = ++generation;
+  const delayedPoll = delayedResponse.then((nextSession) => {
+    if (canApplySessionRead(
+      pollGeneration,
+      generation,
+      sessionId,
+      visibleSession,
+      nextSession,
+    )) {
+      visibleSession = nextSession;
+    }
+  });
+
+  // The close response commits first and advances the same generation fence.
+  generation += 1;
+  visibleSession = { id: sessionId, status: 'CLOSED' };
+  resolvePoll({ id: sessionId, status: 'OPEN' });
+  await delayedPoll;
+
+  assert.equal(visibleSession.status, 'CLOSED');
+  assert.equal(isSessionOpen(visibleSession), false);
+  assert.equal(
+    canApplySessionRead(++generation, generation, sessionId, visibleSession, {
+      id: sessionId,
+      status: 'OPEN',
+    }),
+    false,
+    'even a post-close read cannot reopen a terminal session',
+  );
+
+  const panel = read('src/components/lecturer/GeofenceCheckinPanel.tsx');
+  assert.match(panel, /const requestGeneration = \+\+sessionGenerationRef\.current;/);
+  assert.match(panel, /if \(!canApplySessionRead\([\s\S]*?nextSession,[\s\S]*?\)\) return;/);
+  assert.match(panel, /closeSession\(session\.id\)[\s\S]*?sessionGenerationRef\.current \+= 1;[\s\S]*?sessionRef\.current = closed;/);
+  assert.match(panel, /onClick=\{\(\) => setProjectorOpen\(true\)\}[\s\S]*?disabled=\{!isOpen \|\| selectionChanged\}/);
+  assert.match(panel, /onClick=\{\(\) => void handleClose\(\)\}[\s\S]*?disabled=\{!isOpen \|\| closing\}/);
+});
+
+test('a pending A check-in stays labeled with A context and A roster when selection moves to B', async () => {
+  const { captureSessionContext, getSessionContextState, resolveStudentLabel } = await loadGeofencePanelHelpers();
+  const rosterA = [{
+    studentId: 'student-A',
+    studentCode: 'A001',
+    studentName: 'Student A',
+  }];
+  const sessionContext = captureSessionContext(
+    'section-A',
+    'Course A — Section 01',
+    '2026-10-29',
+    rosterA,
+  );
+  rosterA[0].studentName = 'Student B roster overwrite';
+  const displayContext = getSessionContextState(sessionContext, {
+    sectionId: 'section-B',
+    sectionLabel: 'Course B — Section 02',
+    date: '2026-10-30',
+  });
+
+  assert.deepEqual(displayContext, {
+    sessionLabel: 'Course A — Section 01',
+    sessionDate: '2026-10-29',
+    selectedLabel: 'Course B — Section 02',
+    selectedDate: '2026-10-30',
+    matches: false,
+  });
+  assert.equal(sessionContext.roster[0].studentName, 'Student A');
+  const pendingA = { id: 'checkin-A', studentId: 'student-A', decision: 'PENDING_REVIEW' };
+  const rosterById = new Map(sessionContext.roster.map((student) => [student.studentId, student]));
+  assert.deepEqual(
+    resolveStudentLabel(rosterById, pendingA.studentId, 'Student {id}'),
+    { name: 'Student A', code: 'A001' },
+    'the pending A review action uses A’s captured roster label',
+  );
+
+  const panel = read('src/components/lecturer/GeofenceCheckinPanel.tsx');
+  assert.match(panel, /sessionContext\?\.roster \?\? roster/, 'check-in labels resolve against the session roster snapshot');
+  assert.match(panel, /data-testid="checkin-session-context"[\s\S]*?sessionContextLabel/);
+  assert.match(panel, /data-testid="checkin-selection-pending"[\s\S]*?selectedContextLabel/);
+  assert.match(panel, /\{copy\.sessionTitle\}: <\/span>[\s\S]*sessionContextLabel/);
+  assert.match(panel, /\{copy\.openTitle\}: <\/span>[\s\S]*selectedContextLabel/);
+  assert.match(panel, /description=\{[\s\S]*sessionContextLabel/,
+    'review confirmation repeats the session context');
+  assert.match(panel, /onClick=\{\(\) => openReview\(row, 'APPROVE'\)\}/,
+    'the pending row action remains bound to the displayed session row');
+  assert.match(panel, /message: `\$\{copy\.closeSessionMessage\} \$\{copy\.sessionTitle\}: \$\{sessionContextLabel\}`/,
+    'close confirmation repeats the session context');
 });
 
 test('check-in panel never stores the code and polls only while visible', () => {
