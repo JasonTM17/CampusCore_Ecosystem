@@ -114,6 +114,7 @@ jobs:
             scripts/ecosystem-doc-index.test.mjs \
             scripts/flyway-lineage-check.test.mjs \
             scripts/locale-keys.test.mjs \
+            scripts/platform-load.test.mjs \
             scripts/provision-assistant-runtime.test.mjs \
             scripts/release-promotion-policy.test.mjs \
             scripts/runtime-env-inventory.test.mjs \
