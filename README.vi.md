@@ -131,7 +131,8 @@ Tài khoản demo: `lecturer@campuscore.edu` | Mật khẩu: `password123`
 > ngay trong bảng xem trước, sau đó bấm *Điền vào bảng điểm* → *Lưu nháp* → *Xuất bản* như nhập tay.
 >
 > **Quản lý nhóm khóa luận:** giảng viên hướng dẫn thêm/xoá thành viên trong nhóm đang đăng ký
-> (3–4 thành viên, giữ nguyên đúng một nhóm trưởng) ngay trong khu vực *Hướng dẫn* của cổng khóa luận.
+> (3–5 thành viên để được duyệt, giữ nguyên đúng một nhóm trưởng) ngay trong khu vực *Hướng dẫn* của
+> cổng khóa luận.
 
 ---
 
@@ -554,10 +555,12 @@ App không bao giờ kết nối database trực tiếp; chi tiết ba môi trư
 
 ## Tài khoản demo kiểm thử
 
-> **Quan trọng (bảo mật):** migration `V48` **khoá toàn bộ tài khoản seed demo**
-> (`status = 'LOCKED'`) ngay sau khi apply, vì thông tin đăng nhập bên dưới đã được công bố công khai
-> trong chính README này — một bản triển khai thật chạy Flyway sẽ không bao giờ hoạt động với các
-> mật khẩu public. Mật khẩu dưới đây chỉ dùng được sau khi bạn chủ động mở khoá trong môi trường
+> **Quan trọng (bảo mật):** migration `V48` (và `V145` cho tài khoản tuyển sinh applicant)
+> **khoá toàn bộ tài khoản seed demo** (`status = 'LOCKED'`) ngay sau khi apply, vì thông tin đăng
+> nhập bên dưới đã được công bố công khai trong chính README này — một bản triển khai thật chạy
+> Flyway sẽ không bao giờ hoạt động với các mật khẩu public. Trạng thái khoá được `DemoAccountGate`
+> áp lại ở mỗi lần khởi động theo công tắc `DEMO_ACCOUNTS_ENABLED`. Mật khẩu dưới đây chỉ dùng được
+> sau khi bạn chủ động mở khoá trong môi trường
 > demo cục bộ (xem lệnh ở cuối mục). Trên sản phẩm thật, tài khoản do **Phòng Đào tạo cấp phát**
 > với mật khẩu tạm một-lần và bắt buộc đổi tại lần đăng nhập đầu.
 
@@ -566,6 +569,8 @@ Cơ sở dữ liệu seed sẵn các tài khoản tương ứng với các nhóm
 | Vai trò (Role) | Email đăng nhập | Mật khẩu demo | Quyền hạn và phạm vi truy cập |
 | --- | --- | --- | --- |
 | **Sinh viên (Student)** | `student@campuscore.edu` | `password123` | Đăng ký học phần, xem TKB, tra cứu điểm/bảng điểm, hỏi Trợ lý AI, đăng ký đề tài khóa luận |
+| **Thí sinh (Applicant)** | `applicant@campuscore.edu` | `password123` | Cổng tuyển sinh `/apply`: soạn/nộp/rút hồ sơ xét tuyển mô phỏng (capability `admissions:self`, không có quyền học vụ) |
+| **Thí sinh 2** | `applicant2@campuscore.edu` | `password123` | Tài khoản thí sinh thứ hai phục vụ kiểm thử cô lập hồ sơ xét tuyển |
 | **Giảng viên (Lecturer)** | `lecturer@campuscore.edu` | `password123` | Xem lịch dạy, chấm/nhập điểm học phần, đề xuất và hướng dẫn các nhóm khóa luận |
 | **Quản trị viên (Admin)** | `admin@campuscore.edu` | `password123` | Quản trị người dùng, danh mục khoa/ngành/phòng học, mở lớp học phần, soạn thảo tri thức RAG |
 | **Quản trị viên thứ 2** | `admin002@campuscore.demo` | `password123` | Tài khoản Quản trị độc lập dùng để duyệt chéo tri thức RAG theo nguyên tắc Four-Eyes |
@@ -623,6 +628,11 @@ Toàn bộ API dùng tiền tố chung `/api/v1` và được nhóm thành các 
 | Trợ lý AI CampusCore | `/api/v1/assistant` | Hỏi đáp RAG (`/chat`), stream SSE (`/chat/stream`), phản hồi chất lượng (`/messages/{id}/feedback`) |
 | Kiểm duyệt tri thức RAG | xem Swagger (nhóm assistant-knowledge) | Tạo bản thảo, duyệt bản nháp 2 Admin, kích hoạt Privacy Gate |
 | Bảng tin & thông báo | `/api/v1/announcements`, `/api/v1/notifications` | Đọc bảng tin đào tạo, hộp thư cảnh báo học vụ cá nhân |
+| Tuyển sinh | `/api/v1/admissions` | Soạn/nộp/nộp lại (idempotency gắn nội dung) và rút hồ sơ xét tuyển mô phỏng |
+| Sự kiện | `/api/v1/events` | Danh mục sự kiện (phân trang `page`/`limit`), giữ chỗ và điểm danh |
+| LMS & bài tập | `/api/v1/learning` | Tài liệu học tập, nộp và nộp lại bài tập với khoá draft theo chủ sở hữu |
+| Thư viện | `/api/v1/library` | Danh mục sách (phân trang `page`/`limit` + `X-Total-Count`), giữ chỗ và mượn trả |
+| Cổng việc làm | `/api/v1/careers` | Tin tuyển dụng (phân trang `page`/`limit` + `X-Total-Count`) và hồ sơ ứng tuyển |
 | Sức khỏe hệ thống | `/api/v1/health` | Liveness và Readiness Probe với `X-Health-Key` an toàn |
 
 ---

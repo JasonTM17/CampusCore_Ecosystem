@@ -71,7 +71,7 @@ Mốc đo lịch sử trong rehearsal: API RSS774,6MiB; các mốc trước ghi8
 
 Cần DNS + hosting credentials + store/signing. Khi có:
 
-1. Deploy API/id trước (image digest pin trong manifest).
+1. Deploy API/id trước từ image đã qua cổng staged: workflow `publish-ghcr.yml` build và stage tag `candidate-<sha>`, yêu cầu scan + SBOM attestation và xác nhận review exact-head trước khi promote tag release chính thức (không promote `latest` tự động).
 2. Deploy web hosts (portal/learn/apply/apex) trỏ surface registry.
 3. `probe-ecosystem-hosts.mjs` chống declared hostname (không `--insecure`).
 4. Canary synthetic personas → full lifecycle suite → live smoke.

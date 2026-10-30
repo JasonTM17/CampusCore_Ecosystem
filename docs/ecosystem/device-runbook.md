@@ -90,7 +90,8 @@ deep-link guard, domain contracts, session storage, OIDC flow) and
 `npm run typecheck` run on every change; `scripts/ecosystem-devices-verify.mjs`
 proves the committed association contract (synthetic identifiers only,
 `/session/*` + `/api/*` excluded, lanes scoped to the exact portal paths
-that resolve to native screens). The `devices` gate also registers
+that resolve to native screens, and gates producer notification app-links
+to approved lanes: `/apply`, `/careers`, `/library`, `/attendance/checkin`). The `devices` gate also registers
 `devices-android` / `devices-ios` capability cases — they report
 `BLOCKED_CAPABILITY` until `ECO_CAP_DEVICES_ANDROID=1` /
 `ECO_CAP_DEVICES_IOS=1` plus a runner are supplied, so a local PASS never

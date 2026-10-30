@@ -24,8 +24,8 @@ against the `java-services/restful-api` and `frontend` source code.
 | `X-Request-Id` (Header & Attribute) | `java-services/restful-api/.../security/RequestIdFilter.java:19` | **VERIFIED_IN_CODE** | Validates `[A-Za-z0-9._:-]{1,128}` or generates UUID. Included in all error responses. |
 | `X-RateLimit-*` & `Retry-After` | `java-services/restful-api/.../security/ratelimit/RateLimitFilter.java:121` | **VERIFIED_IN_CODE** | Rate limit quota headers and 429 response formatting with `RATE_LIMIT_EXCEEDED`. |
 | `api.client.request` (Ring buffer) | `frontend/src/lib/observability.ts:18` & `mobile/.../observability.ts` | **VERIFIED_IN_CODE** | In-memory 100-entry ring buffer on client for diagnostic and future OTel telemetry. |
-| `http_server_requests_seconds_*` | `pom.xml` (Actuator present, registry pending) | **TO INSTRUMENT** | Standard Spring Boot HTTP request timer. Requires `micrometer-registry-prometheus`. |
-| `hikaricp_connections_*` | `pom.xml` (HikariCP pool configured in `application.yml:284`) | **TO INSTRUMENT** | HikariCP pool connection stats. Requires `micrometer-registry-prometheus`. |
+| `http_server_requests_seconds_*` | `pom.xml`, `GET /actuator/prometheus` (`X-Metrics-Key`) | **VERIFIED_IN_CODE** | Standard Spring Boot HTTP request timer exported via `micrometer-registry-prometheus`. |
+| `hikaricp_connections_*` | `pom.xml`, `GET /actuator/prometheus` (`X-Metrics-Key`) | **VERIFIED_IN_CODE** | HikariCP connection pool metrics exported via Prometheus registry. |
 | `campuscore_assistant_requests_total` | `ThesisAssistantController.java` | **TO INSTRUMENT** | Custom Micrometer meter with tags `{degraded="true|false", reason_code="..."}`. |
 | `campuscore_assistant_quota_consumed`| `ThesisAssistantTurnRepository.java` | **TO INSTRUMENT** | Custom Micrometer gauge/counter for user & global daily quota tracking. |
 | `campuscore_assistant_turn_stale_recovered`| `ThesisAssistantService.java:recovery` | **TO INSTRUMENT** | Counter incremented on recovery sweep of expired `RESERVED`/`DISPATCHED` leases. |

@@ -35,7 +35,11 @@ The dependency-free screen-atlas regression can run now:
 npm test --prefix mobile
 ```
 
-It verifies 28 registered screens and the shared Stitch token anchors. Run
+The `npm test` script runs the discovery runner
+(`node scripts/run-node-tests.mjs`), which selects every top-level
+`tests/*.test.mjs` — including the screen-atlas registry — and is pinned by
+`--required` guards. `scripts/check-mobile-parity.mjs` verifies 59 registered
+native screens and the shared Stitch token anchors. Run
 `npm run typecheck --prefix mobile` from the repository root for the complete
 TypeScript gate.
 
@@ -82,9 +86,12 @@ yet present.
 
 ## Screen atlas
 
-The registry contains 37 navigable screens:
+The registry contains 59 verified native screens (`nativeChecked: 59` in
+`scripts/check-mobile-parity.mjs`):
 
 - Auth: sign in, forgot password, reset password, signed out.
+- Applicant: capability-routed sessions (`admissions:self` / `applicant.surface`)
+  land directly on `/apply` and are fenced strictly to the admissions surface.
 - Student: dashboard, schedule, courses, grades, transcript, curriculum, enrollments, attendance, registration,
   events, learning (materials & assignments), admissions (simulated), library (simulated),
   careers (simulated), news, docs, notifications, academic announcements, conduct score,

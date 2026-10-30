@@ -174,11 +174,13 @@ theo contract gốc. Companion doc: `docs/ecosystem/mobile-matrix.md`
   access-token claims `roles` (decode JWT payload, không verify —
   authorization vẫn server-side; claim chỉ để chọn surface).
 - **Role mapping (KM-8)**: claims `roles` là backend names; precedence
-  chọn native lane theo thứ tự **[LECTURER → STUDENT]** —
+  chọn native lane theo thứ tự **[LECTURER → STUDENT]** — session mang
+  capability tuyển sinh (`admissions:self` / `applicant.surface`) được
+  capability-route tới `/apply` và giới hạn trong phạm vi tuyển sinh;
   `ADMIN`/`SUPER_ADMIN` **không** có native lane: account chỉ mang
   admin roles → signed-in nhưng render web-only state (§4); account
-  `ADMIN+LECTURER` → lecturer lane; không mapped role nào →
-  signed-out "account không có native surface". `lecturerRoles`
+  `ADMIN+LECTURER` → lecturer lane; không mapped role nào và không có
+  capability hợp lệ → signed-out "account không có native surface". `lecturerRoles`
   trong `routes.ts` hiện chứa `admin` — đã được quyết: admin không
   vào lane đó nữa (mobile-matrix ghi rõ).
 - **Issuer config (KM-2)**: `EXPO_PUBLIC_ISSUER_URL` là **bắt buộc
@@ -337,10 +339,11 @@ Runner local, evidence `artifacts/verification/mobile-core`. Cases:
   public-client `client_id`-only được chấp nhận trên `grant_type=
   refresh_token` và `/oauth2/revoke`, và authorize-code+PKCE full
   exchange — trước khi implementation commit thiết kế logout.
-- `mobile-unit`: `npm test` — `package.json` test script phải enumerate
-  **tất cả** file mới (KM-13c): existing atlas/repair/student-json +
-  `tests/session-storage.test.mjs` + `tests/oidc-flow.test.mjs` +
-  `tests/route-compat.test.mjs`.
+- `mobile-unit`: `npm test` — chạy qua discovery runner
+  `scripts/run-node-tests.mjs` với các suite bắt buộc được pin
+  (`tests/screen-atlas.test.mjs`, `tests/phase-six-repair.test.mjs`);
+  mọi `tests/*.test.mjs` top-level mới được tự động chọn — không còn
+  danh sách file thủ công trong `package.json` (KM-13c).
 - `mobile-typecheck`: `npm run typecheck`.
 - `mobile-auth`: focused session tests — PKCE shape, session-store
   contract (in-memory impl mirror SecureStore API), refresh-epoch

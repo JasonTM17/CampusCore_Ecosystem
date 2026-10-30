@@ -503,9 +503,16 @@ The app never connects to the database directly; the three run modes are detaile
 
 ## Demo Test Accounts
 
+> **Important (Security):** migrations `V48` and `V145` seed every demo account **LOCKED**
+> (`status = 'LOCKED'`), and `DemoAccountGate` reapplies that lock on each boot. The passwords
+> below only work after you deliberately unlock accounts via `DEMO_ACCOUNTS_ENABLED` for local
+> evaluation. A real deployment running Flyway will never accept these public credentials.
+
 | Role | Email | Password | Granted Scope |
 | --- | --- | --- | --- |
 | **Student** | `student@campuscore.edu` | `password123` | Course enrollment, timetable, grades, AI assistant, thesis |
+| **Applicant** | `applicant@campuscore.edu` | `password123` | Admissions portal `/apply`: draft/submit/withdraw a simulated application (`admissions:self` capability, no academic rights) |
+| **Applicant 2** | `applicant2@campuscore.edu` | `password123` | Second applicant used for admission-record isolation checks |
 | **Lecturer** | `lecturer@campuscore.edu` | `password123` | Teaching schedule, gradebook entry, thesis guidance |
 | **Admin** | `admin@campuscore.edu` | `password123` | User administration, catalog & section scheduling, RAG drafting |
 | **Second Admin** | `admin002@campuscore.demo` | `password123` | Independent admin used for the Four-Eyes cross-review of RAG knowledge |
@@ -524,7 +531,7 @@ All endpoints share the `/api/v1` prefix and are grouped by resource. The **comp
 
 | Resource Group | Path Prefix | Description |
 | --- | --- | --- |
-| Authentication & sessions | `/api/v1/auth` | Sign-up, role-scoped portal sign-in, token refresh, sign-out |
+| Authentication & sessions | `/api/v1/auth` | Role-scoped portal sign-in, token refresh, sign-out, password change. **No self-registration** — accounts are provisioned via `/api/v1/users` |
 | Personal profile | `/api/v1/me` | Profile data, registration eligibility, registration summary and slip |
 | Course registration | `/api/v1/me/enrollments` | Enroll (4-layer anti-race, mandatory `Idempotency-Key`), drop, list enrolled sections |
 | Catalog & lookups | `/api/v1/sections`, `/api/v1/schedules`, `/api/v1/attendance`, `/api/v1/lecturers` | Section catalog, timetables, attendance, lecturer directory |
@@ -534,6 +541,11 @@ All endpoints share the `/api/v1` prefix and are grouped by resource. The **comp
 | CampusCore AI assistant | `/api/v1/assistant` | RAG Q&A (`/chat`), SSE streaming (`/chat/stream`), message feedback |
 | RAG knowledge governance | see Swagger (assistant-knowledge group) | Draft creation, two-admin review, privacy gate activation |
 | Announcements & notifications | `/api/v1/announcements`, `/api/v1/notifications` | Academic bulletin board and per-user notification inbox |
+| Admissions | `/api/v1/admissions` | Draft, submit, resubmit (content-bound idempotency) and withdraw simulated applications |
+| Events | `/api/v1/events` | Event catalog (`page`/`limit` paging), seat booking and attendance check-in |
+| Learning (LMS) | `/api/v1/learning` | Course materials, assignment submissions and owner-locked draft lifecycle |
+| Library | `/api/v1/library` | Catalogue search (`page`/`limit` + `X-Total-Count`), holds and loans |
+| Careers | `/api/v1/careers` | Job postings (`page`/`limit` + `X-Total-Count`) and application tracking |
 | System health | `/api/v1/health` | Liveness and readiness probes guarded by `X-Health-Key` |
 
 ---
