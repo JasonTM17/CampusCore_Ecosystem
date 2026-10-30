@@ -26,6 +26,8 @@ COPY --from=build --chown=campuscore:campuscore /workspace/java-services/restful
 USER 10001:10001
 EXPOSE 4010
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD wget --quiet --tries=1 --spider "http://127.0.0.1:${PORT:-${SERVER_PORT:-4010}}/api/v1/health/liveness" || exit 1
+
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=65.0 -XX:InitialRAMPercentage=40.0 -XX:+UseSerialGC -Xss512k -XX:MaxMetaspaceSize=160m -XX:ReservedCodeCacheSize=48m -XX:+ExitOnOutOfMemoryError"
 
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]
