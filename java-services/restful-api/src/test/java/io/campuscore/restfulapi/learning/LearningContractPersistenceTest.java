@@ -17,11 +17,14 @@ import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.test.context.ActiveProfiles;
@@ -709,6 +712,193 @@ class LearningContractPersistenceTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asText();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,text", "false,bytes", "false,name", "false,type", "false,omitted",
+            "true,text", "true,bytes", "true,name", "true,type", "true,omitted"})
+    void resubmissionKeyBindsEveryContentReplacement(boolean multipart, String changed) throws Exception {
+        String assignmentId = publishedAssignmentId();
+        String submissionId = submittedWork(assignmentId, "baseline", true);
+        returnWork(submissionId);
+        resubmitContent(assignmentId, "retry", multipart, "corrected", "%PDF-new bytes", "new.txt", "text/plain")
+                .andExpect(status().isOk());
+        var before = learningSnapshot();
+        // The JSON and multipart transports have the same persisted intent.
+        resubmitContent(assignmentId, "retry", !multipart, "corrected", "%PDF-new bytes", "new.txt", "text/plain")
+                .andExpect(status().isOk());
+        assertThat(learningSnapshot()).isEqualTo(before);
+        resubmitContent(assignmentId, "retry", multipart,
+                changed.equals("text") ? "different" : changed.equals("omitted") ? null : "corrected",
+                changed.equals("bytes") ? "different bytes" : "%PDF-new bytes",
+                changed.equals("name") ? "renamed.txt" : "new.txt",
+                changed.equals("type") ? "application/pdf" : "text/plain")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));
+        assertThat(learningSnapshot()).isEqualTo(before);
+    }
+
+    @Test
+    void resubmissionChecksumIsValidatedEvenOnReplay() throws Exception {
+        String assignmentId = publishedAssignmentId();
+        String submissionId = submittedWork(assignmentId, "baseline", true);
+        returnWork(submissionId);
+        resubmitContent(assignmentId, "retry", false, "corrected", "new bytes", "new.txt", "text/plain")
+                .andExpect(status().isOk());
+        var before = learningSnapshot();
+        mvc.perform(post("/api/v1/learning/assignments/" + assignmentId + "/resubmit")
+                        .with(studentJwt).header("Idempotency-Key", "retry")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(java.util.Map.of(
+                                "textBody", "corrected", "fileName", "new.txt", "contentType", "text/plain",
+                                "contentBase64", b64("new bytes"), "checksum", "deadbeef"))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("FILE_CHECKSUM_MISMATCH"));
+        assertThat(learningSnapshot()).isEqualTo(before);
+    }
+
+    @Test
+    void legacyResubmissionKeyReplaysStoredResponseWithoutConflict() throws Exception {
+        String assignmentId = publishedAssignmentId();
+        String submissionId = submittedWork(assignmentId, "baseline", true);
+        returnWork(submissionId);
+        MvcResult original = resubmitContent(assignmentId, "modern", false,
+                "corrected", "new bytes", "new.txt", "text/plain")
+                .andExpect(status().isOk()).andReturn();
+        // Records written before content binding store only resubmit:<assignmentId>;
+        // the original request cannot be reconstructed, so they replay as stored.
+        jdbc.update("INSERT INTO learning.\"Idempotency\""
+                        + " (\"id\", \"ownerId\", \"idempotencyKey\", \"requestHash\", \"state\","
+                        + " \"recordId\", \"responseBody\") VALUES (?, ?, ?, ?, 'COMPLETED', ?, ?)",
+                "idem-legacy-resub", "stu-1", "legacy-resub", "resubmit:" + assignmentId,
+                submissionId, original.getResponse().getContentAsString());
+        var before = learningSnapshot();
+        resubmitContent(assignmentId, "legacy-resub", false,
+                "different", "other bytes", "other.txt", "application/pdf")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(submissionId))
+                .andExpect(jsonPath("$.status").value("RESUBMITTED"));
+        assertThat(learningSnapshot()).isEqualTo(before);
+    }
+
+    @Test
+    void laterResubmissionRetainsLatestAcceptedTextAndAttachment() throws Exception {
+        String assignmentId = publishedAssignmentId();
+        String submissionId = submittedWork(assignmentId, "first text", true);
+        returnWork(submissionId);
+        resubmitContent(assignmentId, "second", false, "second text", "second bytes", "second.txt", "text/plain")
+                .andExpect(status().isOk());
+        returnWork(submissionId);
+        mvc.perform(post("/api/v1/learning/assignments/" + assignmentId + "/resubmit")
+                        .with(studentJwt).header("Idempotency-Key", "third")
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk());
+        var revisions = jdbc.queryForList("SELECT * FROM learning.\"SubmissionRevision\""
+                + " WHERE \"submissionId\" = ? ORDER BY \"revisionNo\"", submissionId);
+        assertThat(revisions).hasSize(3);
+        assertThat(revisions.get(0).get("textBody")).isEqualTo("first text");
+        assertThat(revisions.get(1).get("textBody")).isEqualTo("second text");
+        assertThat(revisions.get(2).get("textBody")).isEqualTo("second text");
+        assertThat(revisions.get(2).get("fileKey")).isEqualTo(revisions.get(1).get("fileKey"));
+        assertThat(revisions.get(2).get("fileKey")).isNotEqualTo(revisions.get(0).get("fileKey"));
+        var before = learningSnapshot();
+        // Replay the original omitted-field request even after another return.
+        returnWork(submissionId);
+        var afterReturn = learningSnapshot();
+        mvc.perform(post("/api/v1/learning/assignments/" + assignmentId + "/resubmit")
+                        .with(studentJwt).header("Idempotency-Key", "third")
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk());
+        assertThat(learningSnapshot()).isEqualTo(afterReturn);
+        assertThat(before).isNotEqualTo(afterReturn);
+    }
+
+    @Test
+    void returnedFileOnlyWorkCanRetainItsAttachment() throws Exception {
+        String assignmentId = publishedAssignmentId();
+        String submissionId = submittedWork(assignmentId, null, true);
+        returnWork(submissionId);
+        mvc.perform(post("/api/v1/learning/assignments/" + assignmentId + "/resubmit")
+                        .with(studentJwt).header("Idempotency-Key", "retain-file")
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForList("SELECT \"fileKey\" FROM learning.\"SubmissionRevision\""
+                        + " WHERE \"submissionId\" = ? ORDER BY \"revisionNo\"", submissionId))
+                .hasSize(2).satisfies(rows -> assertThat(rows.get(1)).isEqualTo(rows.get(0)));
+    }
+
+    @Test
+    void initialSubmissionRequiresEffectiveTextOrAttachment() throws Exception {
+        String assignmentId = publishedAssignmentId();
+        String submissionId = openDraft(assignmentId, studentJwt, "empty-draft");
+        mvc.perform(put("/api/v1/learning/submissions/" + submissionId + "/draft").with(studentJwt)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"textBody\":\"   \"}"))
+                .andExpect(status().isOk());
+        var before = learningSnapshot();
+        mvc.perform(post("/api/v1/learning/assignments/" + assignmentId + "/submit")
+                        .with(studentJwt).header("Idempotency-Key", "empty-submit"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("SUBMISSION_EMPTY"));
+        assertThat(learningSnapshot()).isEqualTo(before);
+        assertThat(jdbc.queryForObject("SELECT \"status\" FROM learning.\"Submission\" WHERE \"id\" = ?",
+                String.class, submissionId)).isEqualTo("DRAFT");
+    }
+
+    private String submittedWork(String assignmentId, String text, boolean file) throws Exception {
+        String submissionId = openDraft(assignmentId, studentJwt, "initial-draft");
+        var body = new java.util.HashMap<String, Object>();
+        body.put("textBody", text);
+        if (file) {
+            body.put("fileName", "first.txt");
+            body.put("contentType", "text/plain");
+            body.put("contentBase64", b64("first bytes"));
+        }
+        mvc.perform(put("/api/v1/learning/submissions/" + submissionId + "/draft").with(studentJwt)
+                        .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/learning/assignments/" + assignmentId + "/submit")
+                        .with(studentJwt).header("Idempotency-Key", "initial-submit"))
+                .andExpect(status().isOk());
+        return submissionId;
+    }
+
+    private void returnWork(String submissionId) throws Exception {
+        Integer version = jdbc.queryForObject("SELECT \"version\" FROM learning.\"Submission\" WHERE \"id\" = ?",
+                Integer.class, submissionId);
+        mvc.perform(post("/api/v1/learning/staff/submissions/" + submissionId + "/return")
+                        .with(lecturerJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"comment\":\"Please revise\",\"expectedVersion\":" + version + "}"))
+                .andExpect(status().isOk());
+    }
+
+    private org.springframework.test.web.servlet.ResultActions resubmitContent(String assignmentId,
+            String key, boolean multipart, String text, String bytes, String name, String type) throws Exception {
+        String path = "/api/v1/learning/assignments/" + assignmentId + "/resubmit";
+        if (multipart) {
+            var request = org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart(path)
+                    .file(new MockMultipartFile("file", name, type, bytes.getBytes(StandardCharsets.UTF_8)))
+                    .param("checksum", sha256(bytes).toUpperCase(java.util.Locale.ROOT));
+            if (text != null) {
+                request.param("textBody", text);
+            }
+            return mvc.perform(request.with(studentJwt).header("Idempotency-Key", key));
+        }
+        var body = new java.util.HashMap<String, Object>();
+        body.put("textBody", text);
+        body.put("fileName", name);
+        body.put("contentType", type);
+        body.put("contentBase64", b64(bytes));
+        return mvc.perform(post(path).with(studentJwt).header("Idempotency-Key", key)
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(body)));
+    }
+
+    private java.util.List<?> learningSnapshot() {
+        return java.util.List.of(
+                jdbc.queryForList("SELECT * FROM learning.\"Submission\" ORDER BY \"id\""),
+                jdbc.queryForList("SELECT * FROM learning.\"SubmissionRevision\" ORDER BY \"id\""),
+                jdbc.queryForList("SELECT * FROM learning.\"Audit\" ORDER BY \"id\""),
+                jdbc.queryForList("SELECT * FROM learning.\"Idempotency\" ORDER BY \"id\""),
+                jdbc.queryForList("SELECT \"key\", \"sha256\", \"sizeBytes\" FROM learning.\"FileObject\" ORDER BY \"key\""));
     }
 
     @SuppressWarnings("unused")
