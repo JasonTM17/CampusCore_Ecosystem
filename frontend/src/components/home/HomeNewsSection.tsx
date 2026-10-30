@@ -186,7 +186,7 @@ export function HomeNewsSection() {
                   setIsExpanded(false);
                 }}
                 className={cn(
-                  'inline-flex items-center gap-2 rounded-md px-4 py-2 text-xs font-semibold transition-all shadow-2xs cursor-pointer border',
+                  'inline-flex min-h-11 items-center gap-2 rounded-md px-4 py-2 text-xs font-semibold transition-all shadow-2xs cursor-pointer border',
                   isActive
                     ? 'bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/20'
                     : 'bg-card text-muted-foreground border-border/80 hover:bg-accent hover:text-foreground',

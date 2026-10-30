@@ -367,6 +367,30 @@ test('shared states and notification tabs preserve keyboard and feedback semanti
   assert.match(input, /text-base[\s\S]*sm:text-sm/);
 });
 
+test('public recovery and control surfaces keep landmarks and the 44px floor', () => {
+  const notFound = read('src/app/not-found.tsx');
+  const languageToggle = read('src/components/LanguageToggle.tsx');
+  const homeNews = read('src/components/home/HomeNewsSection.tsx');
+
+  // A missing route must still give keyboard and screen-reader users a way
+  // back: a skip link, a real <main> landmark and a recovery <nav>. The
+  // recovery action is a public control, so it keeps the 44 px touch target
+  // instead of the old 40 px link.
+  assert.match(notFound, /portal-skip-link/);
+  assert.match(notFound, /<main[\s\S]*?id="main-content"/);
+  assert.match(notFound, /<nav/);
+  assert.doesNotMatch(notFound, /(?<![-\w])h-10\b/);
+  assert.match(notFound, /min-h-11/);
+
+  // The inverse chrome chips render on the public header; they share the
+  // default chips' 44 px floor rather than a compact variant below it.
+  assert.doesNotMatch(languageToggle, /min-h-9/);
+  assert.match(languageToggle, /min-h-11/);
+
+  // The public news category filters resolved to ~34 px with no floor.
+  assert.match(homeNews, /CATEGORY_TABS\.map[\s\S]*?min-h-11/);
+});
+
 test('registration page diagnostics oracle permits academic course names but blocks internals', () => {
   const spec = read('e2e/portal-professional.spec.ts');
   const match = /const INTERNAL_DIAGNOSTICS = (\/.+\/[a-z]*);/.exec(spec);
