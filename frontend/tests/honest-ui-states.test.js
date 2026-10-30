@@ -397,7 +397,7 @@ test('careers board distinguishes denials and retries the load', () => {
   assert.match(source, /campusErrorKind/);
   assert.match(source, /setDenied\(true\)/);
   assert.match(source, /<WorkspaceForbiddenState/);
-  assert.match(source, /onRetry=\{\(\) => void load\(query \|\| undefined\)\}/);
+  assert.match(source, /onRetry=\{\(\) => void loadCurrentSelection\(\)\}/);
 });
 
 test('careers desk renders staff denial as a forbidden state with an action', () => {
@@ -412,7 +412,7 @@ test('library catalogue distinguishes denials and retries the load', () => {
   assert.match(source, /campusErrorKind/);
   assert.match(source, /setDenied\(true\)/);
   assert.match(source, /<WorkspaceForbiddenState/);
-  assert.match(source, /onRetry=\{\(\) => void load\(query \|\| undefined\)\}/);
+  assert.match(source, /onRetry=\{\(\) => void loadCurrentSelection\(\)\}/);
 });
 
 test('library desk separates staff denial from retryable failures', () => {
