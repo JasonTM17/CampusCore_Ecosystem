@@ -88,6 +88,25 @@ function Row({ row, copy, onChange, disabled = false }: AttendanceRosterRowProps
             </Pressable>
           );
         })}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={fillCopy(copy.clearMarkFor, { name: row.name })}
+          accessibilityState={{ disabled: disabled || !row.status }}
+          disabled={disabled || !row.status}
+          onPress={() => onChange(row.studentId, null)}
+          style={[
+            styles.chip,
+            {
+              borderColor: colors.outlineVariant,
+              backgroundColor: colors.card,
+              opacity: disabled || !row.status ? 0.45 : 1,
+            },
+          ]}
+        >
+          <UiText variant="label" tone={row.status ? 'default' : 'muted'}>
+            {copy.clearMark}
+          </UiText>
+        </Pressable>
       </View>
     </Card>
   );

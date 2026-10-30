@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 
-import { Button, SectionHeading, StatePanel, UiText } from '../../components/Ui';
+import { Button, Notice, SectionHeading, StatePanel, UiText } from '../../components/Ui';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { DateField } from '../../components/ui/date-field';
 import { FormField, Sheet } from '../../components/ui/primitives';
@@ -290,7 +290,7 @@ export function AdminCreditLimitsScreen() {
               key={row.id}
               title={row.studentName ?? row.studentCode ?? row.id}
               status={row.status}
-              count={typeof row.requestedLimit === 'number' ? `${row.requestedLimit} tín` : undefined}
+              count={typeof row.requestedLimit === 'number' ? fillCopy(copy.creditUnit, { n: row.requestedLimit }) : undefined}
               copy={copy}
               lines={[
                 row.studentCode,
@@ -492,6 +492,9 @@ export function AdminNotificationsScreen() {
       if (kind === 'offline' || kind === 'other') {
         setPreviewing(false);
         setState('unknown');
+        // Reload history so the admin can verify whether the send landed before
+        // acknowledging the unresolved outcome; nothing retries by itself.
+        void history.reload();
       } else {
         setSendError(laneErrorMessage(copy, error, copy.generic));
         setState('idle');
@@ -511,7 +514,7 @@ export function AdminNotificationsScreen() {
       loading={history.loading && !history.data}
       error={history.error}
       onRetry={() => void history.reload()}
-      banner={state === 'sent' ? { tone: 'success', message: copy.notifSent } : state === 'unknown' ? { tone: 'warning', message: copy.notifUnknown } : null}
+      banner={state === 'sent' ? { tone: 'success', message: copy.notifSent } : null}
 
       list={{ data: rows, keyExtractor: (item, index) => String(item.id ?? index),
         renderItem: ({ item: row, index: index }) => (
@@ -529,22 +532,39 @@ export function AdminNotificationsScreen() {
       </View>
 
       {previewing ? (
-        <Sheet visible onClose={() => { if (!busy) setPreviewing(false); }} title={copy.notifPreviewTitle}>
+        <Sheet
+          visible
+          scroll
+          onClose={() => { if (!busy) setPreviewing(false); }}
+          title={copy.notifPreviewTitle}
+          footer={
+            <View>
+              {sendError ? <UiText accessibilityRole="alert" variant="bodySmall" tone="error">{sendError}</UiText> : null}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+                <Button label={copy.notifBack} variant="secondary" onPress={() => setPreviewing(false)} disabled={busy} />
+                <Button label={copy.notifSend} loading={busy} onPress={() => void send()} />
+              </View>
+            </View>
+          }
+        >
           <UiText variant="label">{draft.title.trim()}</UiText>
           <UiText variant="bodySmall" tone="muted">{copy.notifTypes[draft.type] ?? draft.type}</UiText>
           <UiText variant="bodyMedium">{draft.message.trim()}</UiText>
           <UiText variant="bodySmall" tone="muted">{fillCopy(copy.notifSendBody, { to: draft.userId.trim() })}</UiText>
-          {sendError ? <UiText accessibilityRole="alert" variant="bodySmall" tone="error">{sendError}</UiText> : null}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
-            <Button label={copy.notifBack} variant="secondary" onPress={() => setPreviewing(false)} disabled={busy} />
-            <Button label={copy.notifSend} loading={busy} onPress={() => void send()} />
-          </View>
         </Sheet>
       ) : null}
     </>,
       }}
     >
       <View>
+        {state === 'unknown' ? (
+          <Notice
+            tone="warning"
+            message={copy.notifUnknown}
+            actionLabel={copy.notifCheckedHistory}
+            onAction={() => setState('idle')}
+          />
+        ) : null}
         <FormField
           label={copy.notifRecipient}
           value={draft.userId}
@@ -575,7 +595,7 @@ export function AdminNotificationsScreen() {
           value={draft.type}
           onChange={(type) => setDraft((current) => ({ ...current, type: type as NotificationDraft['type'] }))}
         />
-        <Button label={copy.notifPreview} onPress={preview} disabled={busy} />
+        <Button label={copy.notifPreview} onPress={preview} disabled={busy || state === 'unknown'} />
         <UiText variant="bodySmall" tone="muted">{copy.notifBulkWeb}</UiText>
         <HandoffLink label={copy.openOnWeb} path="/admin/notifications" />
 

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Linking } from 'react-native';
 
 import { Button, Card, UiText } from '../../../components/Ui';
@@ -49,12 +49,21 @@ export interface WebOnlyPanelProps<T = unknown> {
 export function WebOnlyPanel<T>({ title, path, children, list }: WebOnlyPanelProps<T>) {
   const styles = useOpsStyles();
   const { copy } = useOpsCopy();
+  const [failed, setFailed] = useState(false);
   return (
     <ScreenShell title={title} list={list && { ItemSeparatorComponent: ListGap, ...list }}>
       <Card tone="primary" style={styles.webOnlyCard}>
         <UiText variant="headlineSmall">{fillCopy(copy.webOnlyTitle, { title })}</UiText>
         <UiText variant="bodySmall" tone="muted" style={styles.webOnlyCopy}>{copy.webOnlyBody}</UiText>
-        <Button label={copy.openOnWeb} onPress={() => void openPortalPath(path)} style={styles.submit} />
+        <Button
+          label={copy.openOnWeb}
+          onPress={() => {
+            setFailed(false);
+            void openPortalPath(path).then((opened) => setFailed(!opened));
+          }}
+          style={styles.submit}
+        />
+        {failed ? <UiText accessibilityRole="alert" variant="bodySmall" tone="error">{copy.webOpenFailed}</UiText> : null}
       </Card>
       {children}
     </ScreenShell>

@@ -96,6 +96,7 @@ const vi = {
   deanNoTitle: 'Chưa đặt đề tài',
   deanMembers: '{n} thành viên',
   deanSupervised: '{groups} nhóm · {topics} đề tài',
+  deanGroupCount: '{n} nhóm',
 
   adminTotalUsers: 'Tổng sinh viên',
   adminChartTitle: 'Phân bố điểm',
@@ -125,6 +126,7 @@ const vi = {
   course: 'Học phần',
   creditRequested: 'Xin {n} tín chỉ',
   creditStandard: 'Hạn mức chuẩn {n}',
+  creditUnit: '{n} tín chỉ',
   creditReason: 'Lý do: {text}',
   reviewNote: 'Ghi chú duyệt',
 
@@ -146,6 +148,7 @@ const vi = {
   notifSendBody: 'Gửi tới {to}. Thông báo đến người nhận ngay và không thể thu hồi.',
   notifSent: 'Đã gửi thông báo',
   notifUnknown: 'Chưa rõ thông báo đã gửi chưa. Kiểm tra lịch sử trước khi gửi lại.',
+  notifCheckedHistory: 'Đã kiểm tra lịch sử',
   notifBulkWeb: 'Gửi hàng loạt và đặt lịch thực hiện trên web.',
   notifHistory: 'Lịch sử',
   notifRecipientInvalid: 'Mã người nhận chưa hợp lệ',
@@ -253,6 +256,7 @@ const en: Shape = {
   deanNoTitle: 'No topic title',
   deanMembers: '{n} members',
   deanSupervised: '{groups} groups · {topics} topics',
+  deanGroupCount: '{n} groups',
 
   adminTotalUsers: 'Total students',
   adminChartTitle: 'Grade distribution',
@@ -282,6 +286,7 @@ const en: Shape = {
   course: 'Course',
   creditRequested: 'Requests {n} credits',
   creditStandard: 'Standard limit {n}',
+  creditUnit: '{n} credits',
   creditReason: 'Reason: {text}',
   reviewNote: 'Review note',
 
@@ -303,6 +308,7 @@ const en: Shape = {
   notifSendBody: 'Sent to {to}. It reaches the recipient immediately and cannot be recalled.',
   notifSent: 'Notification sent',
   notifUnknown: 'It is unclear whether the notification was sent. Check the history before sending again.',
+  notifCheckedHistory: 'History checked',
   notifBulkWeb: 'Bulk sends and scheduling are done on the web.',
   notifHistory: 'History',
   notifRecipientInvalid: 'The recipient id is not valid',

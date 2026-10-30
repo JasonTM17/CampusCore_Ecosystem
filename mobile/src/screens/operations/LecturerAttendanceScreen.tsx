@@ -226,7 +226,7 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
               />
               <Button
                 icon="check-all"
-                label={copy.markAllPresent}
+                label={search.trim() ? fillCopy(copy.markAllPresentScoped, { n: visible.length }) : copy.markAllPresent}
                 variant="secondary"
                 onPress={markAll}
                 disabled={busy || visible.length === 0}

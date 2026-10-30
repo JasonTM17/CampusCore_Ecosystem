@@ -25,14 +25,24 @@ jest.mock('../../src/screens/lanes/lane-api', () => ({
     libraryCancel: jest.fn(),
     sendNotification: jest.fn(),
     notificationHistory: jest.fn(),
+    creditApplications: jest.fn(),
+    thesisRounds: jest.fn(),
+    deanOverview: jest.fn(),
   },
 }));
 
 import { laneApi } from '../../src/screens/lanes/lane-api';
 import { LaneRoute } from '../../src/screens/lanes/lane-registry';
+import { LocaleProvider } from '../../src/i18n/locale-provider';
 
 const api = laneApi as unknown as Record<string, jest.Mock<(...args: unknown[]) => Promise<unknown>>>;
 const renderThemed = async (element: ReactElement) => render(<ThemeProvider forcedScheme="light">{element}</ThemeProvider>);
+const renderEnglish = async (element: ReactElement) =>
+  render(
+    <LocaleProvider initialLocale="en">
+      <ThemeProvider forcedScheme="light">{element}</ThemeProvider>
+    </LocaleProvider>,
+  );
 
 beforeEach(() => {
   mockFlags.dean = false;
@@ -142,5 +152,85 @@ describe('admin notifications', () => {
     await fireEvent.press(screen.getByText('Gửi thông báo'));
     await waitFor(() => expect(screen.getByText(/Chưa rõ thông báo đã gửi chưa/)).toBeTruthy());
     expect(api.sendNotification).toHaveBeenCalledTimes(1);
+  });
+
+  test('an unknown send reloads history and blocks a new send until resolved', async () => {
+    api.sendNotification.mockRejectedValue({ status: 0 });
+    await renderThemed(<LaneRoute id="admin.notifications" />);
+    await waitFor(() => expect(screen.getByText('Xem trước')).toBeTruthy());
+    expect(api.notificationHistory).toHaveBeenCalledTimes(1);
+    await fireEvent.changeText(screen.getByLabelText('Mã người nhận'), '3f2b8c1e-5d4a-4e6f-9a7b-0c1d2e3f4a5b');
+    await fireEvent.changeText(screen.getByLabelText('Tiêu đề'), 'Nhắc lịch');
+    await fireEvent.changeText(screen.getByLabelText('Nội dung'), 'Nội dung');
+    await fireEvent.press(screen.getByText('Xem trước'));
+    await fireEvent.press(screen.getByText('Gửi thông báo'));
+    await waitFor(() => expect(screen.getByText(/Chưa rõ thông báo đã gửi chưa/)).toBeTruthy());
+    // The history is refreshed so the admin can check whether the send landed.
+    await waitFor(() => expect(api.notificationHistory).toHaveBeenCalledTimes(2));
+    // No new send may start while the outcome is unresolved.
+    const preview = screen.getByRole('button', { name: 'Xem trước' });
+    expect(preview.props.accessibilityState?.disabled).toBe(true);
+    await fireEvent.press(preview);
+    expect(screen.queryByText('Xem trước thông báo')).toBeNull();
+    // The explicit acknowledgement re-enables the preview, nothing retries itself.
+    await fireEvent.press(screen.getByRole('button', { name: 'Đã kiểm tra lịch sử' }));
+    await fireEvent.press(screen.getByText('Xem trước'));
+    await waitFor(() => expect(screen.getByText('Xem trước thông báo')).toBeTruthy());
+    expect(api.sendNotification).toHaveBeenCalledTimes(1);
+  });
+
+  test('a maximum-length preview scrolls while the send action stays pinned', async () => {
+    const message = 'x'.repeat(2000);
+    await renderThemed(<LaneRoute id="admin.notifications" />);
+    await waitFor(() => expect(screen.getByText('Xem trước')).toBeTruthy());
+    await fireEvent.changeText(screen.getByLabelText('Mã người nhận'), '3f2b8c1e-5d4a-4e6f-9a7b-0c1d2e3f4a5b');
+    await fireEvent.changeText(screen.getByLabelText('Tiêu đề'), 'Nhắc lịch');
+    await fireEvent.changeText(screen.getByLabelText('Nội dung'), message);
+    await fireEvent.press(screen.getByText('Xem trước'));
+    await waitFor(() => expect(screen.getByText('Xem trước thông báo')).toBeTruthy());
+    // The long body scrolls inside the sheet's own container…
+    const nearestScroll = (start: { parent: unknown; type: string }) => {
+      let node: { parent: unknown; type: string } | null = start;
+      while (node) {
+        if (node.type.includes('ScrollView')) return node;
+        node = node.parent as typeof node;
+      }
+      return null;
+    };
+    const bodyScroll = nearestScroll(screen.getByText(message));
+    // …a different container than the one the pinned Back/Send actions sit in.
+    const actionsScroll = nearestScroll(screen.getByRole('button', { name: 'Gửi thông báo' }));
+    expect(bodyScroll).toBeTruthy();
+    expect(actionsScroll).toBeTruthy();
+    expect(bodyScroll).not.toBe(actionsScroll);
+  });
+});
+
+describe('lane literals follow the locale', () => {
+  beforeEach(() => {
+    mockSession.role = 'lecturer';
+  });
+
+  test('dean supervisor group counts are localized', async () => {
+    mockFlags.dean = true;
+    mockSession.capabilities = ['dean.overview'];
+    api.thesisRounds.mockResolvedValue([{ id: 'r1', name: 'Round 1', status: 'OPEN' }]);
+    api.deanOverview.mockResolvedValue({
+      supervisors: [{ lecturerId: 'gv1', displayName: 'Lecturer One', supervisedGroups: 3, supervisedTopics: 2 }],
+      groups: [],
+    });
+    await renderEnglish(<LaneRoute id="dean.overview" />);
+    await waitFor(() => expect(screen.getByText('3 groups')).toBeTruthy());
+    expect(screen.queryByText(/nhóm/)).toBeNull();
+  });
+
+  test('credit-limit counts carry a localized credit unit', async () => {
+    mockFlags.admin = true;
+    mockSession.role = 'admin';
+    mockSession.capabilities = ['admin.oversight'];
+    api.creditApplications.mockResolvedValue([{ id: 'c1', studentName: 'An', requestedLimit: 25, status: 'PENDING' }]);
+    await renderEnglish(<LaneRoute id="admin.creditLimits" />);
+    await waitFor(() => expect(screen.getByText('25 credits')).toBeTruthy());
+    expect(screen.queryByText('25 tín')).toBeNull();
   });
 });

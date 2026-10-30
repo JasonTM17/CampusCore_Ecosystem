@@ -45,7 +45,7 @@ export function DeanOverviewScreen() {
           if (entry.kind === 'groupsHeading') return <><SectionHeading title={copy.deanGroups} />{groups.length === 0 ? <StatePanel kind="empty" title={copy.empty} /> : null}</>;
           if (entry.kind === 'supervisor') { const row = entry.row; return <QueueCard
             title={row.displayName ?? row.lecturerId ?? ''}
-            count={row.supervisedGroups ? `${row.supervisedGroups} nhóm` : undefined}
+            count={row.supervisedGroups ? fillCopy(copy.deanGroupCount, { n: row.supervisedGroups }) : undefined}
             lines={[row.departmentName, fillCopy(copy.deanSupervised, { groups: row.supervisedGroups ?? 0, topics: row.supervisedTopics ?? 0 })]}
             copy={copy}
           />; }
