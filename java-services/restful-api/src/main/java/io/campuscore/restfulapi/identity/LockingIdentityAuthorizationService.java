@@ -49,8 +49,9 @@ import org.springframework.transaction.annotation.Transactional;
  *       one value against every token column — AAD is a fixed class tag, not
  *       the column name).</li>
  *   <li><b>Session mirror:</b> grants carrying a refresh token upsert an
- *       OIDC-lane row into {@code campuscore_auth."Session"} (primary tx);
- *       removes delete it.</li>
+ *       OIDC-lane row into {@code campuscore_auth."Session"}; removes
+ *       delete it. Mirror, lineage and grant row share one commit on the
+ *       primary transaction's connection.</li>
  * </ul>
  */
 public class LockingIdentityAuthorizationService extends JdbcOAuth2AuthorizationService {
@@ -77,12 +78,12 @@ public class LockingIdentityAuthorizationService extends JdbcOAuth2Authorization
     /**
      * Joins the caller's transaction when one exists (none does inside SAS
      * grant providers, so REQUIRED opens a primary-datasource tx that holds
-     * the User lock through the mirror write). The identity-datasource
-     * {@code super.save} is autocommit on a second pool — it runs LAST so a
-     * failure leaves the primary tx to roll the mirror back cleanly; a
-     * post-commit primary failure can still orphan the grant row, which is
-     * why the lock+freshness gate (not the transaction) is the
-     * anti-resurrection mechanism.
+     * the User lock through the mirror write). The identity {@code super.save}
+     * runs through the schema-qualified {@code identityJdbcOperations} on the
+     * SAME transaction-bound connection, so lock, freshness gate, mirror,
+     * lineage and grant row commit or roll back as one. The lock+freshness
+     * gate remains the anti-resurrection mechanism against concurrent revokes,
+     * not merely against commit-window orphans.
      */
     @Override
     @Transactional(propagation = Propagation.REQUIRED)

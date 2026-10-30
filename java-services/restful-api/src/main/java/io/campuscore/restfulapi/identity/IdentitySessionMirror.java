@@ -13,8 +13,9 @@ import org.springframework.stereotype.Component;
  * Mirrors OIDC grants into {@code campuscore_auth."Session"} on the
  * <b>primary</b> datasource so the unified session view (and
  * {@code hasRecentSessionFromIp}) covers every lane. Writes use fully
- * qualified names; the identity schema also lives behind the second pool
- * for SAS's fixed unqualified SQL.
+ * qualified names; SAS's fixed unqualified grant SQL reaches the same
+ * transaction connection through {@code identityJdbcOperations}'s
+ * schema-qualified statements.
  */
 @Component
 public class IdentitySessionMirror {
