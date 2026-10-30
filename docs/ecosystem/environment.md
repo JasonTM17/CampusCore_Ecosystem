@@ -92,7 +92,7 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | `RATE_LIMIT_TRUST_PROXY_HEADERS`, `RATE_LIMIT_TRUST_REAL_IP` | Trust `X-Forwarded-For`/real IP from proxy | config | prod behind proxy | forbidden unless proxy strips spoofed headers |
 | `RATE_LIMIT_PROXY_TOKEN` | Shared token proving request came via trusted edge | secret | prod (with trusted proxy) | required only with trusted-proxy mode |
 | `RATE_LIMIT_LOGIN`, `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_WINDOW_SECONDS` | Bucket sizes + window | config | tuning | safe default |
-| `DEMO_ACCOUNTS_ENABLED` | Unlocks seeded demo accounts each boot | config | local demo only | **forbidden in prod** (`render.yaml` sets `false`) |
+| `DEMO_ACCOUNTS_ENABLED` | Unlocks seeded demo accounts each boot | config | local demo / demo deployments | Default `false`; public Render demo deployment intentionally ships `true` (owner decision 2026-09-25, `render.yaml`) |
 | `DEMO_ACCOUNTS_ROLES` | Restrict which demo roles unlock | config | local demo | safe default all demo roles |
 | `REGISTRATION_CREDIT_LIMIT_OVERRIDE` | Override credit cap for enrollment (0 = rule-driven) | config | optional | safe default `0` |
 | `ACADEMIC_ENROLLED_COUNT_RECONCILE_DELAY_MS`, `ACADEMIC_ENROLLED_COUNT_RECONCILE_INITIAL_DELAY_MS`, `ACADEMIC_ENROLLED_COUNT_REPAIR` | Enrolled-count reconciliation cadence + repair mode | config | tuning | safe default |

@@ -12,9 +12,10 @@ Lane coverage theo `mobile-policy.md` §4. Mỗi surface ghi
 | `LECTURER`/`FACULTY`/`TEACHER` | lecturer | Precedence LECTURER → STUDENT (KM-8). |
 | `ADMIN`/`SUPER_ADMIN` only | **web-only** | Không có native lane — mọi `admin.*` route render unavailable-state + portal link. |
 | `ADMIN` + `LECTURER` | lecturer | Admin role không mở lecturer.* — `lecturerRoles` đã gỡ `admin` (KM-8). |
-| no mapped role | signed-out | "account không có native surface" → blocked UX + portal. |
+| Applicant capability (`admissions:self` / `applicant.surface`) | applicant surface | Điều hướng tới `/apply`, giới hạn phạm vi truy cập duy nhất ở cổng tuyển sinh. |
+| no mapped role & no capability | signed-out | "account không có native surface" → blocked UX + portal. |
 
-## 2. Route matrix (28 screens → expo-router tree)
+## 2. Route matrix (59 screens verified via `scripts/check-mobile-parity.mjs` → expo-router tree)
 
 | ScreenName | Path | Role | Lane | API source |
 | --- | --- | --- | --- | --- |
@@ -29,7 +30,7 @@ Lane coverage theo `mobile-policy.md` §4. Mỗi surface ghi
 | `notifications` | `/notifications` | all | native | `notifications/my` |
 | `events` | `/events` | student | native | `events`, `events/my/registrations`, register/cancel (Idempotency-Key) |
 | `learning` | `/learning` | student | native (text lane) | `learning/sections`, `learning/sections/{id}/materials`, `learning/sections/{id}/assignments`, draft/save/submit/resubmit + revisions/feedback (Idempotency-Key; file picking P13) |
-| `admissions` | `/apply` | student | native (simulated) | `admissions/applications` draft/save/submit/withdraw (Idempotency-Key; attachments web lane; app path mirrors the portal `/apply` route) |
+| `admissions` | `/apply` | student / applicant (`admissions:self`) | native (simulated) | `admissions/applications` draft/save/submit/withdraw (Idempotency-Key; attachments web lane; app path mirrors the portal `/apply` route) |
 | `library` | `/library` | student | native (simulated) | `library/catalogue`, `library/requests` hold/cancel, `library/loans/my` (Idempotency-Key) |
 | `careers` | `/careers` | student | native (simulated) | `careers/opportunities`, `careers/applications` apply/withdraw (Idempotency-Key; recruiter/reviewer web) |
 | `news` | `/news` | student | native | `announcements/public` anonymous feed (PUBLISHED/global only) |

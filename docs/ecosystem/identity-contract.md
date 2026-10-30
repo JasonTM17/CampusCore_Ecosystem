@@ -43,12 +43,12 @@ endpoint trực tiếp của business chain, không trở thành ROPC grant.
 | Registered clients | `RegisteredClientRepository` custom đọc `identity.clients[]` config: exact `redirectUris`/`postLogoutRedirectUris`, no wildcard. **Browser surface = confidential** (secret hash qua env); **native = public + PKCE S256 bắt buộc** (KM finding 10 — native không giữ secret được) | config-driven, không DB |
 | Ký bất đối xứng | `identity.keys[]` RSA PEM qua env (không vào repo/DB): `kid`, `active`, key material. `JWKSource` public toàn ring qua `/oauth2/jwks`; rollover = add key + flip active, key cũ verify trong overlap | dev/test sinh RSA in-memory khi `identity.dev-keygen=true` |
 | Auth-code + PKCE + nonce | SAS `OAuth2AuthorizationService`: code one-time, `code_challenge_method=S256` required trên mọi client, state/nonce do client gửi — server embed nonce vào id_token | SAS-native |
-| Authorization persistence | `JdbcOAuth2AuthorizationService` trên `campuscore_identity.oauth2_authorization` qua **Hikari pool thứ hai** (`schema=campuscore_identity`, max 4) — bảng SAS dùng tên unqualified, `currentSchema=thesis` của pool chính không đụng được | không InMemory |
+| Authorization persistence | `JdbcOAuth2AuthorizationService` trên `campuscore_identity.oauth2_authorization` tham gia **cùng transaction trên DataSource chính** qua `TransactionAwareDataSourceProxy` và dynamic schema qualification (`identityJdbcOperations`) — không dùng pool Hikari thứ hai | không InMemory |
 | **Token at-rest encryption** | `LockingIdentityAuthorizationService` rebuild mọi token object trước persist: tất cả cột `*_token_value` là AES-256-GCM deterministic (`identity.token-encryption-key` env) — ADR-B "token mã hóa ở PostgreSQL" đúng chữ. Cột `attributes` KHÔNG encrypt (chứa metadata, không token); principal attribute được sanitize sang `UsernamePasswordAuthenticationToken` (không nhúng JWT raw) (KM finding 5) | stock SAS lưu raw — đây là lớp bọc bắt buộc |
 | OIDC scopes | `openid profile email` + `offline_access` trên clients cần refresh | first-party |
 | Claims trong OIDC access token | `OAuth2TokenCustomizer<JwtEncodingContext>` nhét `credentialVersion`, `roles`, `permissions`, `studentId`, `lecturerId`, `student.year` — cùng shape claims legacy để `AccountStateFilter.matchesCurrentAuthorization` chạy không đổi (KM finding 1) | gate bằng DB mỗi request giữ nguyên |
 | Login/2FA qua authority | `/oauth2/authorize` yêu cầu authenticated: `cc_*` cookie → `CookieOrBearerTokenResolver` → `JwtAuthenticationToken`; `principal_name = User.id` (**join key invariant** của mọi lookup/revoke); unauthenticated → entry point redirect `identity.login-page` (default `/login?return=`), silent-refresh là việc của login UI (P05) | mustChangePassword/status gate trên authorize — §2.4 |
-| Refresh OIDC | Opaque (SAS default) — không JWT; reuse detection của SAS → bridge §2.3 | |
+| Refresh OIDC | Opaque (SAS default) — `LockingRefreshTokenAuthenticationProvider` chạy trong transaction chính dưới khoá User row (`lockUserRow`), đảm bảo tiêu thụ nguyên tử đúng một rotation cho mỗi generation presented; reuse detection của SAS → bridge §2.3 | |
 | Resource server | `IdentityJwtDecoder` dispatch trên raw `iss` claim (string compare — `campuscore-restful-api` không phải URL nên `JwtIssuerAuthenticationManagerResolver`/trusted-issuer không dùng được, KM finding 9): legacy iss → HS256 decoder + `tokenType=access` shape; issuer-uri → `NimbusJwtDecoder` JWKSource nội bộ + aud ∈ registered clientIds | hai validator tường minh, không fallback |
 | Session mở rộng | `Session` += `lane`(`LEGACY`/`OIDC`/`BFF`), `clientId`, `authorizationId`, `revokedAt`, `rotatedAt`; default `LEGACY` — old image không vỡ | Flyway V134 |
 | **OIDC→Session mirror** | Session writer = `OAuth2AuthorizationService` decorator §2.3: grant chứa refresh token → upsert Session `lane='OIDC'`, `refreshToken=sha256(token)`, `authorizationId`, `expiresAt`; authorization removed → xóa row. Giữ `hasRecentSessionFromIp` cover OIDC lane (KM finding 8) | unified view = chính bảng Session |
@@ -110,9 +110,9 @@ Thứ tự global: **User → Session → oauth2_authorization**.
   first code stage (requestStart + chưa có access token). Row cũ trước
   attribute (không presentedVersion) thì mọi missing-row đều là resurrect
   → reject luôn.
-  Sau assert → `mirrorGrant` (primary tx) → `super.save` (identity pool,
-  autocommit — không cùng tx; đặt cuối để lỗi của nó chỉ rollback mirror,
-  không để lại grant mồ côi trong đa số failure mode).
+  Sau assert → `mirrorGrant` (primary tx) → `super.save` (cùng tham gia
+  transaction chính qua `identityJdbcOperations`; mirror, lineage và grant
+  row commit nguyên tử trong cùng connection).
   Revoke giữ User lock tới commit nên save bị chặn tới sau delete; sau lock,
   presentedVersion (đóng băng lúc request bắt đầu) mismatch với version đã
   bump → reject → **không hồi sinh** kể cả khi token được mint sau bump
