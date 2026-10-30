@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { localeKeys } from './ecosystem-locale-keys.mjs';
+import { localeCatalogPairs, localeKeys } from './ecosystem-locale-keys.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -31,9 +31,8 @@ for (const id of cited) {
 }
 
 // ── 2. vi/en key parity per i18n message file ──────────────────────────
-// locale object → key set (handles `vi:`, `"vi":`, `'vi':` decl styles and
-// hyphenated/dotted keys). A *-messages.ts file that yields no vi/en pair
-// is drift, not a skip — silence would mask a renamed locale block.
+// Discovers *-messages.ts, messages-*.ts, and messages.ts files.
+// A locale file that yields no vi/en pair is drift, not a skip.
 const i18nDirs = ['mobile/src/i18n', 'frontend/src/i18n'];
 let i18nFiles = 0;
 const i18nSkipped = [];
@@ -41,13 +40,24 @@ for (const dir of i18nDirs) {
   const abs = path.join(root, dir);
   if (!fs.existsSync(abs)) continue;
   for (const f of fs.readdirSync(abs)) {
-    if (!f.endsWith('-messages.ts')) continue;
+    if (!f.endsWith('.ts')) continue;
+    if (!f.endsWith('-messages.ts') && !f.startsWith('messages-') && f !== 'messages.ts') continue;
     const src = read(`${dir}/${f}`);
-    const vi = localeKeys(src, 'vi');
-    const en = localeKeys(src, 'en');
-    if (!vi || !en) { i18nSkipped.push(`${dir}/${f}`); continue; }
-    i18nFiles += 1;
-    assert.deepEqual([...vi].sort(), [...en].sort(), `${dir}/${f} vi/en key drift`);
+    const pairs = localeCatalogPairs(src, { name: f, baseDir: abs });
+    if (pairs.length === 0) {
+      const vi = localeKeys(src, 'vi');
+      const en = localeKeys(src, 'en');
+      if (!vi || !en) { i18nSkipped.push(`${dir}/${f}`); continue; }
+      i18nFiles += 1;
+      assert.deepEqual([...vi].sort(), [...en].sort(), `${dir}/${f} vi/en key drift`);
+      continue;
+    }
+    for (const pair of pairs) {
+      i18nFiles += 1;
+      const viKeys = [...pair.vi.keys()].sort();
+      const enKeys = [...pair.en.keys()].sort();
+      assert.deepEqual(viKeys, enKeys, `${dir}/${f} (${pair.name}) vi/en key drift`);
+    }
   }
 }
 assert.equal(i18nSkipped.length, 0, `locale maps without a vi/en pair: ${i18nSkipped.join(', ')}`);
