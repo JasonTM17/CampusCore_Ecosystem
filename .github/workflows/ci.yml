@@ -77,6 +77,8 @@ jobs:
           node-version: '22.13'
       - name: Install web dependencies for workflow replay parsing
         run: npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+      - name: Install mobile dependencies for native parity resolution
+        run: npm ci --prefix mobile --ignore-scripts --no-audit --no-fund
       - name: Secret hygiene gate (masked secret scan and test)
         shell: bash
         run: |
