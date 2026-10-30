@@ -4,7 +4,7 @@
 > Kiến trúc hướng dịch vụ: một Spring Boot Java REST API trung tâm, một Next.js Web Portal, một PostgreSQL quản lý bằng Flyway và một RAG Sidecar riêng tư chỉ chạy trong mạng nội bộ.
 
 [![Java 21](https://img.shields.io/badge/Java-21-orange.svg?style=flat-square&logo=openjdk)](https://openjdk.org/)
-[![Spring Boot 3.5](https://img.shields.io/badge/Spring%20Boot-3.5-brightgreen.svg?style=flat-square&logo=springboot)](https://spring.io/projects/spring-boot)
+[![Spring Boot 4.1](https://img.shields.io/badge/Spring%20Boot-4.1-brightgreen.svg?style=flat-square&logo=springboot)](https://spring.io/projects/spring-boot)
 [![Next.js 15](https://img.shields.io/badge/Next.js-15-black.svg?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![PostgreSQL 15](https://img.shields.io/badge/PostgreSQL-15-blue.svg?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Flyway](https://img.shields.io/badge/Flyway-Migrations-red.svg?style=flat-square)](https://flywaydb.org/)
@@ -57,6 +57,8 @@ Expo Mobile App (Thử nghiệm) ──┘         │ (mạng nội bộ /inter
 ```
 
 > Cổng ở sơ đồ trên là **giá trị mặc định của Docker Compose**. Toàn bộ cổng host đều ghi đè được qua biến môi trường trong `.env` (xem [Hướng dẫn cài đặt](#hướng-dẫn-cài-đặt--chạy-ứng-dụng)).
+
+> **Thương hiệu:** bản triển khai công khai mang tên hiển thị **CampusUTE** (`campusute.io.vn`; logo tại `frontend/public/icon.png`); `CampusCore` là tên mã nguồn nội bộ (groupId, image Docker, tên database). App di động Expo trong `mobile/` cũng mang tên `CampusUTE` (`mobile/app.json`).
 
 ---
 
@@ -254,7 +256,7 @@ flowchart TD
     end
 
     subgraph BACKEND["TẦNG DỊCH VỤ JAVA (APPLICATION SERVICES)"]
-        REST["Spring Boot 3.5 REST API\n(:4010 | /api/v1/)\n• Auth & RBAC Security Filter\n• Registration Engine chống race 4 lớp\n• Gradebook & Transcript Service\n• Thesis Lifecycle Manager\n• Assistant Gateway & Quota Guard"]
+        REST["Spring Boot 4.1 REST API\n(:4010 | /api/v1/)\n• Auth & RBAC Security Filter\n• Registration Engine chống race 4 lớp\n• Gradebook & Transcript Service\n• Thesis Lifecycle Manager\n• Assistant Gateway & Quota Guard"]
         RAG["Private rag-service Sidecar\n(:4011 | chỉ expose nội bộ)\n• Prompt-Injection Guard song ngữ\n• Lexical ranking có trọng số\n• Snapshot runtime reader\n• Thực thi Flyway migration trong cụm compose"]
     end
 
@@ -475,13 +477,14 @@ flowchart LR
 
 | Phân tầng | Công nghệ chính | Phiên bản | Vai trò & Mục đích sử dụng |
 | --- | --- | --- | --- |
-| **Backend API** | Java / Spring Boot | 21 / 3.5.16 | RESTful API trung tâm, Spring Security, Validation, JPA/Hibernate |
-| **Frontend Web** | Next.js (App Router) | 15.5 | Cổng thông tin tương tác, Server Components, proxy cùng nguồn `/api/v1` |
+| **Backend API** | Java / Spring Boot | 21 / 4.1.1 | RESTful API trung tâm, Spring Security, Validation, JPA/Hibernate |
+| **Frontend Web** | Next.js (App Router) / React | 15.5 / 18.3 | Cổng thông tin tương tác, Server Components, proxy cùng nguồn `/api/v1` |
+| **Ứng dụng Mobile** | Expo / React Native | ~57 / 0.86 | App `CampusUTE` (expo-router, SecureStore) — chế độ preview/live qua `EXPO_PUBLIC_API_*` |
 | **Thư viện UI** | Tailwind CSS, Radix UI, TinyMCE | 3.4 / Radix / 8 | Hệ thống thiết kế nhận diện HCMUTE, bảng biểu dữ liệu, soạn thảo rich-text |
 | **Biên dịch & Gói** | Maven / Node.js | 3.9.12 / 20 | Build tool cho Java backend và Node runtime cho frontend |
 | **Cơ sở dữ liệu** | PostgreSQL | 15 (postgres:15-alpine) | Giao dịch ACID, khóa ngoại, Partial Index, RLS; lưu tri thức cho truy xuất lexical có trọng số |
 | **Quản lý Schema** | Flyway | kèm Spring Boot | Versioned migration trong `java-services/restful-api/src/main/resources/db/migration/` |
-| **RAG Sidecar** | Spring Boot (chế độ sidecar) | 3.5.16 | Dịch vụ AI nội bộ cổng 4011, xếp hạng Lexical, Prompt-injection guard |
+| **RAG Sidecar** | Spring Boot (chế độ sidecar) | 4.1.1 | Dịch vụ AI nội bộ cổng 4011, xếp hạng Lexical, Prompt-injection guard |
 | **Mô hình AI** | DeepSeek | deepseek-v4-flash | LLM tùy chọn cho câu hỏi suy luận, tắt được hoàn toàn qua `DEEPSEEK_ENABLED` |
 | **Kiểm thử Email** | Mailpit | v1.21 | SMTP server ảo giả lập gửi nhận email thông báo trên môi trường dev |
 | **Kiểm thử & QA** | JUnit 5, Mockito, node:test, Playwright | Latest | Kiểm thử đơn vị backend, smoke test frontend, e2e Playwright |
@@ -540,14 +543,25 @@ Giá trị dưới đây là **mặc định của `docker-compose.yml`**. Mọi
 - **Mailpit Email Dashboard**: `http://127.0.0.1:8025`
 - **Cơ sở dữ liệu PostgreSQL**: `127.0.0.1:5432` | Database: `campuscore_restful` | User: `campuscore`
 
+### Ứng dụng di động CampusUTE (Expo — thử nghiệm)
+
+Mã nguồn app Expo/React Native nằm trong `mobile/` (expo-router + expo-secure-store). Chạy bằng `npm start` trong `mobile/` (Metro + Expo Go/dev client). Hai chế độ qua biến trong `mobile/.env` (gitignored; mẫu ở `mobile/.env.example`):
+
+- `EXPO_PUBLIC_API_MODE=preview`: nội dung mẫu cục bộ, **không gọi mạng** — mọi request API đều bị chặn (`MOBILE_API_PREVIEW`), dùng để xem giao diện.
+- `EXPO_PUBLIC_API_MODE=live` + `EXPO_PUBLIC_API_URL`: gọi backend thật — emulator Android dùng `http://10.0.2.2:4010/api/v1`, điện thoại thật dùng IP LAN của máy dev; host production `https://www.campusute.io.vn/api/v1` chỉ phục vụ nội dung ẩn danh (đăng nhập cần issuer `id.campusute.io.vn`).
+
+App không bao giờ kết nối database trực tiếp; chi tiết ba môi trường chạy: [docs/ecosystem/mobile-environments.md](docs/ecosystem/mobile-environments.md).
+
 ---
 
 ## Tài khoản demo kiểm thử
 
-> **Quan trọng (bảo mật):** migration `V48` **khoá toàn bộ tài khoản seed demo**
-> (`status = 'LOCKED'`) ngay sau khi apply, vì thông tin đăng nhập bên dưới đã được công bố công khai
-> trong chính README này — một bản triển khai thật chạy Flyway sẽ không bao giờ hoạt động với các
-> mật khẩu public. Mật khẩu dưới đây chỉ dùng được sau khi bạn chủ động mở khoá trong môi trường
+> **Quan trọng (bảo mật):** migration `V48` (và `V145` cho tài khoản tuyển sinh applicant)
+> **khoá toàn bộ tài khoản seed demo** (`status = 'LOCKED'`) ngay sau khi apply, vì thông tin đăng nhập
+> bên dưới đã được công bố công khai trong chính README này — một bản triển khai thật chạy Flyway sẽ
+> không bao giờ hoạt động với các mật khẩu public. Trạng thái khoá được `DemoAccountGate` áp lại ở mỗi
+> lần khởi động theo công tắc `DEMO_ACCOUNTS_ENABLED`. Mật khẩu dưới đây chỉ dùng được sau khi bạn chủ
+> động mở khoá trong môi trường
 > demo cục bộ (xem lệnh ở cuối mục). Trên sản phẩm thật, tài khoản do **Phòng Đào tạo cấp phát**
 > với mật khẩu tạm một-lần và bắt buộc đổi tại lần đăng nhập đầu.
 
@@ -559,6 +573,8 @@ Cơ sở dữ liệu seed sẵn các tài khoản tương ứng với các nhóm
 | **Sinh viên** — Huỳnh Hồng Thủy, MSSV `24110345` | `student2@campuscore.edu` | `password123` | Cùng quyền sinh viên; thành viên nhóm khóa luận demo |
 | **Sinh viên** — Trần Thị Ngọc Quyên, MSSV `24110051` | `student3@campuscore.edu` | `password123` | Cùng quyền sinh viên; thành viên nhóm khóa luận demo |
 | **Sinh viên** — Vũ Quốc Huy, MSSV `24162050` | `student4@campuscore.edu` | `password123` | Cùng quyền sinh viên; thành viên nhóm khóa luận demo |
+| **Thí sinh (Applicant)** | `applicant@campuscore.edu` | `password123` | Cổng tuyển sinh `/apply`: soạn/nộp/rút hồ sơ xét tuyển mô phỏng (capability `admissions:self`, không có quyền học vụ) |
+| **Thí sinh 2** | `applicant2@campuscore.edu` | `password123` | Tài khoản thí sinh thứ hai phục vụ kiểm thử cô lập hồ sơ xét tuyển |
 | **Giảng viên (Lecturer)** | `lecturer@campuscore.edu` | `password123` | Xem lịch dạy, chấm/nhập điểm học phần, đề xuất và hướng dẫn các nhóm khóa luận |
 | **Quản trị viên (Admin)** | `admin@campuscore.edu` | `password123` | Quản trị người dùng, danh mục khoa/ngành/phòng học, mở lớp học phần, soạn thảo tri thức RAG |
 | **Quản trị viên thứ 2** | `admin002@campuscore.demo` | `password123` | Tài khoản Quản trị độc lập dùng để duyệt chéo tri thức RAG theo nguyên tắc Four-Eyes |
@@ -593,8 +609,10 @@ Nếu không đặt `NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS=true` kèm mật khẩu, 
 Mỗi tài khoản **tự bật** 2FA trong trang *Hồ sơ → Xác thực hai yếu tố*: nhập mật khẩu, nhận mã 6 chữ số
 qua email, xác nhận một lần. Khi 2FA đang bật, bước đăng nhập sẽ dừng sau mật khẩu và yêu cầu mã OTP —
 mã lưu dưới dạng SHA-256, hạn 10 phút, sai 5 lần thì khoá yêu cầu; endpoint xác minh có rate limit riêng.
-Tắt 2FA chỉ cần nhập lại mật khẩu. Luồng gửi mail phụ thuộc SMTP đã cấu hình (`SPRING_MAIL_*`); môi
-trường chưa cấu hình SMTP sẽ nhận lỗi 502 `MAIL_DELIVERY_FAILED` thay vì gửi giả thành công.
+**Tắt 2FA cũng đi qua hai bước y như bật**: nhập lại mật khẩu để bắt đầu challenge, rồi nhập mã OTP
+một-lần được gửi qua email để xác nhận — không thể tắt chỉ bằng mật khẩu. Luồng gửi mail phụ thuộc SMTP
+đã cấu hình (`SPRING_MAIL_*`); môi trường chưa cấu hình SMTP sẽ nhận lỗi 502 `MAIL_DELIVERY_FAILED` thay
+vì gửi giả thành công.
 
 ---
 
@@ -614,6 +632,11 @@ Toàn bộ API dùng tiền tố chung `/api/v1` và được nhóm thành các 
 | Trợ lý AI CampusCore | `/api/v1/assistant` | Hỏi đáp RAG (`/chat`), stream SSE (`/chat/stream`), phản hồi chất lượng (`/messages/{id}/feedback`) |
 | Kiểm duyệt tri thức RAG | xem Swagger (nhóm assistant-knowledge) | Tạo bản thảo, duyệt bản nháp 2 Admin, kích hoạt Privacy Gate |
 | Bảng tin & thông báo | `/api/v1/announcements`, `/api/v1/notifications` | Đọc bảng tin đào tạo, hộp thư cảnh báo học vụ cá nhân |
+| Tuyển sinh | `/api/v1/admissions` | Soạn/nộp/nộp lại (idempotency gắn nội dung) và rút hồ sơ xét tuyển mô phỏng |
+| Sự kiện | `/api/v1/events` | Danh mục sự kiện (phân trang `page`/`limit`), giữ chỗ và điểm danh |
+| LMS & bài tập | `/api/v1/learning` | Tài liệu học tập, nộp và nộp lại bài tập với khoá draft theo chủ sở hữu |
+| Thư viện | `/api/v1/library` | Danh mục sách (phân trang `page`/`limit` + `X-Total-Count`), giữ chỗ và mượn trả |
+| Cổng việc làm | `/api/v1/careers` | Tin tuyển dụng (phân trang `page`/`limit` + `X-Total-Count`) và hồ sơ ứng tuyển |
 | Sức khỏe hệ thống | `/api/v1/health` | Liveness và Readiness Probe với `X-Health-Key` an toàn |
 
 ---

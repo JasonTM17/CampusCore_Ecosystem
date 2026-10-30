@@ -1,13 +1,14 @@
 package io.campuscore.restfulapi.engagement.web;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
+
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -33,8 +34,8 @@ public final class AnnouncementWriteDtos {
     }
 
     public record CreateAnnouncementRequest(
-            @NotNull String title,
-            @NotNull String content,
+            @NotBlank String title,
+            @NotBlank String content,
             String priority,
             List<?> targetRoles,
             List<?> targetYears,
@@ -48,9 +49,20 @@ public final class AnnouncementWriteDtos {
         public static CreateAnnouncementRequest from(JsonNode body) {
             ObjectNode object = objectBody(body);
             ensureAllowedFields(object);
+            String title = stringValue(object, "title", false);
+            if (title == null || title.isBlank()) {
+                throw new IllegalArgumentException("title is required");
+            }
+            String content = stringValue(object, "content", false);
+            if (content == null || content.isBlank()) {
+                throw new IllegalArgumentException("content is required");
+            }
+            if (title.codePointCount(0, title.length()) > 240) {
+                throw new IllegalArgumentException("title must contain at most 240 characters");
+            }
             return new CreateAnnouncementRequest(
-                    stringValue(object, "title", false),
-                    stringValue(object, "content", false),
+                    title,
+                    content,
                     stringValue(object, "priority", false),
                     listValue(object, "targetRoles"),
                     listValue(object, "targetYears"),
@@ -145,9 +157,7 @@ public final class AnnouncementWriteDtos {
 
     private static Set<String> presentAllowedFields(ObjectNode body, boolean lifecycleAllowed) {
         Set<String> present = new LinkedHashSet<>();
-        Iterator<String> fieldNames = body.fieldNames();
-        while (fieldNames.hasNext()) {
-            String field = fieldNames.next();
+        for (String field : body.propertyNames()) {
             if (!ANNOUNCEMENT_FIELDS.contains(field)) {
                 if (!lifecycleAllowed || !LIFECYCLE_FIELDS.contains(field)) {
                     throw new IllegalArgumentException("Unexpected body property: " + field);
@@ -159,9 +169,7 @@ public final class AnnouncementWriteDtos {
     }
 
     private static void presentLifecycleFields(ObjectNode body) {
-        Iterator<String> fieldNames = body.fieldNames();
-        while (fieldNames.hasNext()) {
-            String field = fieldNames.next();
+        for (String field : body.propertyNames()) {
             if (!LIFECYCLE_FIELDS.contains(field)) {
                 throw new IllegalArgumentException("Unexpected body property: " + field);
             }

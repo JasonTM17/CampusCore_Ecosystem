@@ -1,50 +1,157 @@
-import pkg from '../frontend/node_modules/playwright/index.js';
-const { chromium } = pkg;
+import { createRequire } from 'node:module';
+import { isIP } from 'node:net';
+
+function printUsage() {
+  console.log('Usage: node scripts/audit-prod-browser.mjs --target <origin> [--allow-network]');
+  console.log('Use a loopback target for local runs. Non-loopback requests require --allow-network.');
+  console.log('Set CAMPUS_DIAGNOSTIC_<ROLE>_EMAIL and CAMPUS_DIAGNOSTIC_<ROLE>_PASSWORD for each tested role.');
+}
+
+function isLoopback(hostname) {
+  const normalized = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  return normalized === 'localhost'
+    || normalized === '::1'
+    || (isIP(normalized) === 4 && normalized.startsWith('127.'));
+}
+
+function parseTargetOptions(args) {
+  let targetValue;
+  let allowNetwork = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument === '--help' || argument === '-h') {
+      printUsage();
+      process.exit(0);
+    }
+    if (argument === '--target') {
+      const value = args[index + 1];
+      if (!value || value.startsWith('--') || targetValue) {
+        console.error('Provide exactly one value for --target.');
+        printUsage();
+        process.exit(2);
+      }
+      targetValue = value;
+      index += 1;
+      continue;
+    }
+    if (argument === '--allow-network') {
+      allowNetwork = true;
+      continue;
+    }
+    console.error('Unknown option.');
+    printUsage();
+    process.exit(2);
+  }
+
+  if (!targetValue) {
+    console.error('An explicit --target origin is required.');
+    printUsage();
+    process.exit(2);
+  }
+
+  let url;
+  try {
+    url = new URL(targetValue);
+  } catch {
+    console.error('--target must be a valid HTTP or HTTPS origin.');
+    printUsage();
+    process.exit(2);
+  }
+
+  if (!['http:', 'https:'].includes(url.protocol)
+      || url.username
+      || url.password
+      || url.pathname !== '/'
+      || url.search
+      || url.hash) {
+    console.error('--target must be an HTTP or HTTPS origin without credentials, path, query, or fragment.');
+    printUsage();
+    process.exit(2);
+  }
+
+  if (!isLoopback(url.hostname) && !allowNetwork) {
+    console.error('Non-loopback targets require --allow-network.');
+    printUsage();
+    process.exit(2);
+  }
+
+  return { baseUrl: url.origin, allowNetwork };
+}
+
+const targetOptions = parseTargetOptions(process.argv.slice(2));
+const BASE = targetOptions.baseUrl;
+const require = createRequire(new URL('../frontend/package.json', import.meta.url));
+const { chromium } = require('playwright');
+
+function requiredCredentials(role, credentialKey) {
+  const emailName = 'CAMPUS_DIAGNOSTIC_' + credentialKey + '_EMAIL';
+  const passwordName = 'CAMPUS_DIAGNOSTIC_' + credentialKey + '_PASSWORD';
+  const email = process.env[emailName];
+  const password = process.env[passwordName];
+
+  if (!email || !password) {
+    console.error('Missing required environment variables: ' + emailName + ', ' + passwordName);
+    process.exit(2);
+  }
+  return { ...role, email, password };
+}
+
+async function guardBrowserTraffic(context) {
+  if (targetOptions.allowNetwork) return;
+
+  await context.route('**/*', (route) => {
+    try {
+      if (isLoopback(new URL(route.request().url()).hostname)) return route.continue();
+    } catch {
+      // Block malformed or non-HTTP requests when network access was not authorized.
+    }
+    return route.abort();
+  });
+}
 
 async function run() {
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext();
-  const page = await context.newPage();
 
-  const BASE = 'https://www.campusute.io.vn';
 
   const ROLES_TO_TEST = [
     {
       name: 'Sinh viên',
-      email: 'student@campuscore.edu',
       portal: 'student',
       pages: ['/vi/dashboard', '/vi/dashboard/courses', '/vi/dashboard/grades', '/vi/dashboard/curriculum', '/vi/dashboard/schedule', '/vi/dashboard/thesis']
     },
     {
       name: 'Giảng viên',
-      email: 'lecturer@campuscore.edu',
       portal: 'lecturer',
       pages: ['/vi/dashboard/lecturer', '/vi/dashboard/thesis', '/vi/dashboard/lecturer/schedule']
     },
     {
       name: 'Trưởng bộ môn',
-      email: 'truongbomon@campuscore.demo',
       portal: 'lecturer',
       pages: ['/vi/dashboard/thesis', '/vi/dashboard/lecturer']
     },
     {
       name: 'Trưởng khoa',
-      email: 'truongkhoa@campuscore.demo',
       portal: 'dean',
       pages: ['/vi/dashboard/dean', '/vi/dashboard/thesis']
     },
     {
       name: 'Admin',
-      email: 'admin@campuscore.edu',
       portal: 'admin',
       pages: ['/vi/admin', '/vi/admin/users', '/vi/admin/courses', '/vi/admin/departments']
     }
   ];
 
+  const credentialKeys = ['STUDENT', 'LECTURER', 'DEPARTMENT_HEAD', 'DEAN', 'ADMIN'];
+  const roles = ROLES_TO_TEST.map((role, index) => requiredCredentials(role, credentialKeys[index]));
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext();
+  await guardBrowserTraffic(context);
+  const page = await context.newPage();
+
   try {
-    for (const role of ROLES_TO_TEST) {
+    for (const role of roles) {
       console.log('\n======================================================');
-      console.log(`TESTING ROLE: ${role.name} (${role.email}) - Portal: ${role.portal}`);
+      console.log('TESTING ROLE: ' + role.name + ' - Portal: ' + role.portal);
       console.log('======================================================');
 
       const requests = [];
@@ -71,7 +178,7 @@ async function run() {
 
       // 2. Submit credentials
       await page.fill('input[type="email"], input[name="email"]', role.email);
-      await page.fill('input[type="password"], input[name="password"]', 'password123');
+      await page.fill('input[type="password"], input[name="password"]', role.password);
       
       const tSubmit = performance.now();
       await page.click('button[type="submit"]');
@@ -79,7 +186,7 @@ async function run() {
       // Wait for URL to leave login page
       await page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 20000 });
       const loginDuration = Math.round(performance.now() - tSubmit);
-      console.log(`2. Login + Auth redirect took: ${loginDuration}ms -> URL: ${page.url()}`);
+      console.log(`2. Login + Auth redirect took: ${loginDuration}ms -> path: ${new URL(page.url()).pathname}`);
 
       // Wait 1.5s for initial dashboard hydration
       await page.waitForTimeout(1500);
@@ -100,7 +207,7 @@ async function run() {
       apiReqs.sort((a, b) => (b.duration || 0) - (a.duration || 0));
       console.log(`\n   Total API calls: ${apiReqs.length}. Slowest 5 API calls:`);
       for (const r of apiReqs.slice(0, 5)) {
-        console.log(`     [${r.status || '?'}] ${r.duration || '?'}ms | ${r.method} ${r.url.replace(BASE, '')}`);
+        console.log(`     [${r.status || '?'}] ${r.duration || '?'}ms | ${r.method} ${new URL(r.url).pathname}`);
       }
 
       page.off('request', onRequest);
@@ -111,7 +218,7 @@ async function run() {
       await page.evaluate(() => localStorage.clear()).catch(() => {});
     }
   } catch (err) {
-    console.error('Audit Error:', err);
+    console.error('Audit failed: ' + err.name);
   } finally {
     await browser.close();
     process.exit(0);

@@ -138,15 +138,55 @@ function audienceFor(role: TargetRoleOption) {
   return { isGlobal: false, targetRoles: [role] };
 }
 
-const STORAGE_KEY = 'campuscore_editor_document';
-const EDITOR_TYPE_KEY = 'campuscore_editor_engine';
+const STORAGE_KEY_PREFIX = 'campuscore_editor_document';
+const EDITOR_TYPE_KEY_PREFIX = 'campuscore_editor_engine';
+const EDITOR_LOADING_LABEL = {
+  vi: 'Đang tải trung tâm điều khiển...',
+  en: 'Loading control studio...',
+} as const;
 
-export default function AcademicEditorPage() {
+export default function AcademicEditorPageGate() {
+  const { user, hasAccess, isLoading: authLoading, isForbidden } = useRequireAuth([
+    'ADMIN',
+    'SUPER_ADMIN',
+  ]);
+  const { locale } = useI18n();
+  // Every draft surface below is keyed to this resolved account id, so no
+  // editor may mount — and no storage may be read or written — before an
+  // authorized administrator identity actually exists.
+  const draftOwnerId =
+    !authLoading && !isForbidden && hasAccess ? (user?.id ?? null) : null;
+
+  if (authLoading) {
+    return <LoadingState label={EDITOR_LOADING_LABEL[locale === 'vi' ? 'vi' : 'en']} />;
+  }
+
+  // Strict Admin Gate: Only Admins can access!
+  if (isForbidden || !hasAccess) {
+    return <WorkspaceForbiddenState signedIn={Boolean(user)} />;
+  }
+
+  if (!draftOwnerId) {
+    return <LoadingState label={EDITOR_LOADING_LABEL[locale === 'vi' ? 'vi' : 'en']} />;
+  }
+
+  // Remounting per owner is the isolation boundary: a different
+  // administrator can never inherit the previous session's draft fields,
+  // deferred hydration or in-flight edit context.
+  return <AcademicEditorPage key={draftOwnerId} draftOwnerId={draftOwnerId} />;
+}
+
+function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
   const { user, hasAccess, isLoading: authLoading, isForbidden } = useRequireAuth([
     'ADMIN',
     'SUPER_ADMIN',
   ]);
   const { locale, formatDate, messages } = useI18n();
+  // Draft persistence is namespaced per account: another administrator's
+  // draft and engine choice are unreachable from this session, and unattributed
+  // keys written before namespacing stay quarantined rather than adopted.
+  const STORAGE_KEY = `${STORAGE_KEY_PREFIX}:${encodeURIComponent(draftOwnerId)}`;
+  const EDITOR_TYPE_KEY = `${EDITOR_TYPE_KEY_PREFIX}:${encodeURIComponent(draftOwnerId)}`;
   const isVi = locale === 'vi';
   const editorCopy = messages.editor;
 
@@ -273,7 +313,7 @@ export default function AcademicEditorPage() {
             characters: 'Ký tự',
             readingTime: 'Thời gian đọc ước tính',
             minutes: 'phút',
-            loading: 'Đang tải trung tâm điều khiển...',
+            loading: EDITOR_LOADING_LABEL.vi,
           }
         : {
             eyebrow: 'ADMIN SITE CONTROL & ACADEMIC EDITOR',
@@ -315,7 +355,7 @@ export default function AcademicEditorPage() {
             characters: 'Characters',
             readingTime: 'Estimated reading time',
             minutes: 'min',
-            loading: 'Loading control studio...',
+            loading: EDITOR_LOADING_LABEL.en,
           },
     [isVi],
   );
@@ -376,7 +416,7 @@ export default function AcademicEditorPage() {
       seedLocaleRef.current ? seedMessages.editor.seedTitleVi : seedMessages.editor.seedTitleEn,
     );
     setContent(seedLocaleRef.current ? EDITOR_SEED_HTML.vi : EDITOR_SEED_HTML.en);
-  }, []);
+  }, [STORAGE_KEY, EDITOR_TYPE_KEY]);
 
   // Load site appearance for Hero control tab
   useEffect(() => {
@@ -440,7 +480,7 @@ export default function AcademicEditorPage() {
       // so the author believed a draft existed that did not.
       toast.error(copy.draftSaveFailed);
     }
-  }, [audienceKnown, category, content, copy.draftSaveFailed, copy.savedToast, editingId, editingVersion, editorType, isVi, priority, priorityKnown, targetRole, title]);
+  }, [audienceKnown, category, content, copy.draftSaveFailed, copy.savedToast, STORAGE_KEY, editingId, editingVersion, editorType, isVi, priority, priorityKnown, targetRole, title]);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -484,7 +524,7 @@ export default function AcademicEditorPage() {
       // ignore
     }
     clearTinyMceAutosaveDrafts(studioEditorRef.current?.id);
-  }, []);
+  }, [STORAGE_KEY]);
 
   const handleReset = useCallback(() => {
     // RT-P3-3: routed through the unsaved-changes guard so the confirm text
@@ -509,7 +549,7 @@ export default function AcademicEditorPage() {
       // autosave draft.
       clearTinyMceAutosaveDrafts(studioEditorRef.current?.id);
     });
-  }, [defaultBodyFor, unsaved]);
+  }, [defaultBodyFor, STORAGE_KEY, unsaved]);
 
   // Reorder content blocks via SortableJS
   const handleReorderBlocks = (newBlocks: ContentBlock[]) => {
@@ -1553,6 +1593,7 @@ export default function AcademicEditorPage() {
                           checked={block.enabled}
                           onChange={() => handleToggleBlock(block.id)}
                           className="h-4 w-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                          aria-label={editorCopy.toggleBlockTitle}
                           title={editorCopy.toggleBlockTitle}
                         />
                         <div className="min-w-0">
@@ -1642,6 +1683,8 @@ export default function AcademicEditorPage() {
                         <img
                           src={banner.url}
                           alt={bannerTitle}
+                          width={banner.width}
+                          height={banner.height}
                           className="h-full w-full object-cover object-center transition duration-300 group-hover:scale-105"
                         />
                         {isSelected ? (
@@ -1667,6 +1710,8 @@ export default function AcademicEditorPage() {
           <div className="rounded-xl border border-border/80 bg-card p-1 shadow-sm sm:p-2">
             {editorType === 'tinymce' ? (
               <TinyMceEditor
+                id="studio"
+                draftOwnerId={draftOwnerId}
                 value={content}
                 onChange={setContent}
                 onInit={(_event, editor) => { studioEditorRef.current = editor; }}

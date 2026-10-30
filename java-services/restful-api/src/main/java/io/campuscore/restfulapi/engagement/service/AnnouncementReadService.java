@@ -24,7 +24,9 @@ public class AnnouncementReadService {
 
     public static final int MAX_PAGE_SIZE = 200;
     private static final Set<String> PRIORITIES = Set.of("LOW", "NORMAL", "HIGH", "URGENT");
-    private static final Set<String> STATUSES = Set.of("ACTIVE", "ARCHIVED", "ALL");
+    private static final Set<String> STATUSES =
+            Set.of("ACTIVE", "ARCHIVED", "ALL", "DRAFT", "IN_REVIEW", "PUBLISHED");
+    private static final Set<String> WRITER_ROLES = Set.of("LECTURER", "ADMIN", "SUPER_ADMIN");
 
     private final AnnouncementReadRepository announcements;
 
@@ -41,8 +43,18 @@ public class AnnouncementReadService {
         }
         AnnouncementResponse row = announcements.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Announcement not found"));
+        if (!"PUBLISHED".equals(row.status())) {
+            // Unpublished posts are staff-only: any writer-set member may open
+            // them (reviewers must read drafts; students/others get the same
+            // 404 an absent row produces).
+            if (roles.stream().anyMatch(WRITER_ROLES::contains)) {
+                return row;
+            }
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Announcement not found");
+        }
         if (roles.contains("ADMIN") || roles.contains("SUPER_ADMIN")
                 || actorId.equals(row.publishedBy())
+                || actorId.equals(row.authorId())
                 || (lecturerId != null && lecturerId.equals(row.lecturerId()))) {
             return row;
         }
@@ -80,14 +92,33 @@ public class AnnouncementReadService {
             String priority,
             String status,
             String search) {
+        return findAll(page, limit, semesterId, sectionId, priority, status, search, null);
+    }
+
+    /**
+     * {@code authorScope} is the lecturer subject: scoped results show their
+     * own posts plus the review queue (publication-policy §3).
+     */
+    @Transactional(readOnly = true)
+    public AnnouncementListResponse findAll(
+            int page,
+            int limit,
+            String semesterId,
+            String sectionId,
+            String priority,
+            String status,
+            String search,
+            String authorScope) {
         requirePage(page, limit);
         if (priority != null && !PRIORITIES.contains(priority)) {
             throw new IllegalArgumentException("priority must be LOW, NORMAL, HIGH, or URGENT");
         }
         if (status == null || !STATUSES.contains(status)) {
-            throw new IllegalArgumentException("status must be ACTIVE, ARCHIVED, or ALL");
+            throw new IllegalArgumentException(
+                    "status must be ACTIVE, ARCHIVED, ALL, DRAFT, IN_REVIEW, or PUBLISHED");
         }
-        AnnouncementFilter filter = new AnnouncementFilter(semesterId, sectionId, priority, status, search);
+        AnnouncementFilter filter =
+                new AnnouncementFilter(semesterId, sectionId, priority, status, search, authorScope);
         long total = announcements.countAll(filter);
         List<AnnouncementResponse> data = announcements.findAll(filter, offset(page, limit), limit);
         return response(data, total, page, limit);
@@ -130,6 +161,19 @@ public class AnnouncementReadService {
         return new PublicAnnouncementListResponse(
                 data,
                 new PageMeta(total, page, limit, (int) totalPages));
+    }
+
+    /**
+     * Anonymous single-item read by row id or slug under the public feed
+     * conditions; non-public or unknown keys 404 identically.
+     */
+    @Transactional(readOnly = true)
+    public PublicAnnouncementResponse findPublicDetail(String idOrSlug) {
+        if (idOrSlug == null || idOrSlug.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Announcement not found");
+        }
+        return announcements.findPublicDetail(idOrSlug, Instant.now())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Announcement not found"));
     }
 
     private static AnnouncementListResponse response(

@@ -1,0 +1,50 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "SYNTH00000.io.campuscore.mobile"
+        ],
+        "components": [
+          {
+            "/": "/session/*",
+            "exclude": true,
+            "comment": "auth callbacks stay in the browser lane — routing them to the app would loop the OIDC flow"
+          },
+          {
+            "/": "/api/*",
+            "exclude": true,
+            "comment": "BFF/API lanes are not app routes"
+          },
+          {
+            "/": "/news",
+            "comment": "public news lane → native news screen (article permalinks stay in the browser — no detail-param resolution)"
+          },
+          {
+            "/": "/docs",
+            "comment": "public documentation lane → native docs screen (doc permalinks stay in the browser)"
+          },
+          {
+            "/": "/careers",
+            "comment": "simulated careers lane → native careers screen"
+          },
+          {
+            "/": "/library",
+            "comment": "simulated library lane → native library screen"
+          },
+          {
+            "/": "/apply",
+            "comment": "simulated admissions lane → native admissions screen (portal path is /apply)"
+          },
+          {
+            "/": "/attendance/checkin/*",
+            "comment": "attendance session links → native check-in screen"
+          }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": []
+  }
+}

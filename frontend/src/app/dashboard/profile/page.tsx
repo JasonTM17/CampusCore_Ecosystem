@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Calendar, Camera, Eye, EyeOff, KeyRound, Mail, MapPin, Phone, Save, ShieldCheck, ShieldOff, User } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { authApi } from '@/lib/api';
@@ -12,6 +12,7 @@ import { WorkspacePanel } from '@/components/dashboard/WorkspaceSurface';
 import { useI18n } from '@/i18n';
 import { isDemoUser, loginHref, portalFromUser } from '@/lib/login-portal';
 import { campusCodeMessage, type CampusErrorCopy } from '@/lib/campus-error';
+import { civilDateInputValue } from '@/lib/civil-date';
 import { checkPasswordPolicy } from '@/lib/password-policy';
 import { maskEmail, normalizeOtpCode } from '@/lib/two-factor';
 import { cn } from '@/lib/utils';
@@ -83,28 +84,16 @@ function roleLabel(
   return labels.student;
 }
 
-/** Local-calendar date input value (toISOString shifts the day for UTC+7). */
-function localDateInput(value: string | undefined): string {
-  if (!value) return '';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return '';
-  const month = `${parsed.getMonth() + 1}`.padStart(2, '0');
-  const day = `${parsed.getDate()}`.padStart(2, '0');
-  return `${parsed.getFullYear()}-${month}-${day}`;
-}
-
 function profileFormState(user: {
   firstName?: string;
   lastName?: string;
   phone?: string;
-  dateOfBirth?: string;
   address?: string;
 } | null | undefined) {
   return {
     firstName: user?.firstName || '',
     lastName: user?.lastName || '',
     phone: user?.phone || '',
-    dateOfBirth: localDateInput(user?.dateOfBirth),
     address: user?.address || '',
   };
 }
@@ -213,30 +202,39 @@ export default function ProfilePage() {
   };
 
   // Two-factor status belongs to the signed-in account, so reload it when the
-  // user context resolves (or changes) rather than once per mount.
+  // user context resolves (or changes) rather than once per mount. The loader
+  // is a useCallback so the inline retry control can refetch the same read.
+  const loadTwoFactorStatus = useCallback(
+    (active?: () => boolean) => {
+      if (!user?.id) {
+        return;
+      }
+      const isCurrent = active ?? (() => true);
+      authApi
+        .getTwoFactorStatus()
+        .then((status) => {
+          if (isCurrent()) {
+            setTwoFactorEnabled(Boolean(status.enabled));
+            setTwoFactorStatusError('');
+          }
+        })
+        .catch(() => {
+          if (isCurrent()) {
+            setTwoFactorEnabled(null);
+            setTwoFactorStatusError(messages.profile.twoFactor.errors.statusFailed);
+          }
+        });
+    },
+    [user?.id, messages.profile.twoFactor.errors.statusFailed],
+  );
+
   useEffect(() => {
-    if (!user?.id) {
-      return;
-    }
     let active = true;
-    authApi
-      .getTwoFactorStatus()
-      .then((status) => {
-        if (active) {
-          setTwoFactorEnabled(Boolean(status.enabled));
-          setTwoFactorStatusError('');
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setTwoFactorEnabled(null);
-          setTwoFactorStatusError(messages.profile.twoFactor.errors.statusFailed);
-        }
-      });
+    loadTwoFactorStatus(() => active);
     return () => {
       active = false;
     };
-  }, [user?.id, messages.profile.twoFactor.errors.statusFailed]);
+  }, [loadTwoFactorStatus]);
 
   // Business codes from the two-factor endpoints take priority over the
   // generic HTTP-kind copy so the message names the actual failure.
@@ -414,11 +412,10 @@ export default function ProfilePage() {
     setIsLoading(true);
 
     try {
-      // The full name is school-managed (see the update endpoint), so it is
-      // deliberately not part of the self-service payload.
+      // The full name and date of birth are school-managed (see the update
+      // endpoint), so they are not part of the self-service payload.
       await authApi.updateProfile({
         phone: formData.phone.trim(),
-        dateOfBirth: formData.dateOfBirth || undefined,
         address: formData.address.trim(),
         avatar: avatarPreview,
       });
@@ -520,7 +517,7 @@ export default function ProfilePage() {
               <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-xl font-semibold text-primary-foreground">
                 {avatarPreview ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatarPreview} alt="" className="h-full w-full object-cover" />
+                  <img src={avatarPreview} alt="" width={256} height={256} className="h-full w-full object-cover" />
                 ) : (
                   initials
                 )}
@@ -646,10 +643,8 @@ export default function ProfilePage() {
                   <Input
                     id="profile-date-of-birth"
                     type="date"
-                    value={formData.dateOfBirth}
-                    onChange={(e) =>
-                      setFormData((current) => ({ ...current, dateOfBirth: e.target.value }))
-                    }
+                    value={civilDateInputValue(user?.dateOfBirth)}
+                    disabled
                     icon={<Calendar className="h-4 w-4" />}
                   />
                 </div>
@@ -782,7 +777,14 @@ export default function ProfilePage() {
 
             {twoFactorStatusError ? (
               <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
-                {twoFactorStatusError}
+                {twoFactorStatusError}{' '}
+                <button
+                  type="button"
+                  onClick={() => loadTwoFactorStatus()}
+                  className="font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {messages.common.actions.retry}
+                </button>
               </p>
             ) : null}
 

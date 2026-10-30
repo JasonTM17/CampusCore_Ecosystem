@@ -12,9 +12,9 @@ import io.campuscore.restfulapi.engagement.domain.ArticleAttachment;
 import io.campuscore.restfulapi.engagement.domain.ArticleCategory;
 import io.campuscore.restfulapi.engagement.domain.ArticleMediaGallery;
 import io.campuscore.restfulapi.engagement.domain.ArticleTag;
-import io.campuscore.restfulapi.engagement.repository.ArticleAttachmentRepository;
+import io.campuscore.restfulapi.engagement.repository.ArticleAssetReadRepository;
+import io.campuscore.restfulapi.engagement.repository.ArticleAssetReadRepository.AssetVisibility;
 import io.campuscore.restfulapi.engagement.repository.ArticleCategoryRepository;
-import io.campuscore.restfulapi.engagement.repository.ArticleMediaGalleryRepository;
 import io.campuscore.restfulapi.engagement.repository.ArticleTagRepository;
 import io.campuscore.restfulapi.engagement.web.ArticleTaxonomyController;
 import io.campuscore.restfulapi.engagement.web.ArticleTaxonomyDtos.AttachmentDto;
@@ -27,28 +27,32 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.server.ResponseStatusException;
 
 class ArticleTaxonomyControllerTest {
 
     private ArticleCategoryRepository categoryRepository;
     private ArticleTagRepository tagRepository;
-    private ArticleMediaGalleryRepository mediaGalleryRepository;
-    private ArticleAttachmentRepository attachmentRepository;
+    private ArticleAssetReadRepository assetReads;
     private ArticleTaxonomyController controller;
 
     @BeforeEach
     void setUp() {
         categoryRepository = mock(ArticleCategoryRepository.class);
         tagRepository = mock(ArticleTagRepository.class);
-        mediaGalleryRepository = mock(ArticleMediaGalleryRepository.class);
-        attachmentRepository = mock(ArticleAttachmentRepository.class);
-        controller = new ArticleTaxonomyController(
-                categoryRepository, tagRepository, mediaGalleryRepository, attachmentRepository);
+        assetReads = mock(ArticleAssetReadRepository.class);
+        controller = new ArticleTaxonomyController(categoryRepository, tagRepository, assetReads);
+    }
+
+    private static Jwt adminJwt() {
+        return Jwt.withTokenValue("fixture")
+                .header("alg", "none")
+                .subject("admin-1")
+                .claim("email", "admin-1@campuscore.edu")
+                .claim("roles", List.of("ADMIN"))
+                .build();
     }
 
     @Test
@@ -96,7 +100,7 @@ class ArticleTaxonomyControllerTest {
     }
 
     @Test
-    @DisplayName("getMediaGalleries filters by announcementId when provided")
+    @DisplayName("getMediaGalleries routes through the parent-visibility gate")
     void getMediaGalleriesFiltersByAnnouncement() {
         ArticleMediaGallery gallery = new ArticleMediaGallery();
         gallery.setId("gal-1");
@@ -104,43 +108,50 @@ class ArticleTaxonomyControllerTest {
         gallery.setMediaUrl("https://theses.campusute.io.vn/photo.jpg");
         gallery.setCaptionVi("Lễ tốt nghiệp");
 
-        when(mediaGalleryRepository.findByAnnouncementIdOrderByDisplayOrderAsc("ann-1"))
+        when(assetReads.isParentVisible(eq("ann-1"), any(AssetVisibility.class))).thenReturn(true);
+        when(assetReads.findGalleries(eq("ann-1"), any(AssetVisibility.class), eq(0L), eq(200)))
                 .thenReturn(List.of(gallery));
-        // Legacy feed is bounded through the page query now — the unbounded
-        // findAll() used to dump the whole table to any authenticated caller.
-        when(mediaGalleryRepository.findAll(any(Pageable.class)))
-                .thenAnswer(invocation -> new PageImpl<>(
-                        List.of(gallery), invocation.getArgument(0, Pageable.class), 1));
+        when(assetReads.findGalleries(eq(null), any(AssetVisibility.class), eq(0L), eq(200)))
+                .thenReturn(List.of(gallery));
 
-        List<ArticleMediaGallery> filtered = controller.getMediaGalleries("ann-1");
+        List<ArticleMediaGallery> filtered = controller.getMediaGalleries("ann-1", adminJwt());
         assertEquals(1, filtered.size());
         assertEquals("ann-1", filtered.get(0).getAnnouncementId());
 
-        List<ArticleMediaGallery> all = controller.getMediaGalleries(null);
+        List<ArticleMediaGallery> all = controller.getMediaGalleries(null, adminJwt());
         assertEquals(1, all.size());
     }
 
     @Test
-    @DisplayName("getAttachments filters by announcementId and only exposes public rows")
+    @DisplayName("getMediaGalleries answers 404 when the parent is not caller-visible")
+    void getMediaGalleriesHidesInvisibleParent() {
+        when(assetReads.isParentVisible(eq("draft-1"), any(AssetVisibility.class))).thenReturn(false);
+
+        ResponseStatusException ex = assertThrows(
+                ResponseStatusException.class,
+                () -> controller.getMediaGalleries("draft-1", adminJwt()));
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+    }
+
+    @Test
+    @DisplayName("getAttachments routes through the parent-visibility gate")
     void getAttachmentsFiltersByAnnouncement() {
         ArticleAttachment attachment = new ArticleAttachment();
         attachment.setId("att-1");
         attachment.setAnnouncementId("ann-1");
         attachment.setFileName("thong_bao.pdf");
 
-        // Regression: the scoped feed must use the public-only query so
-        // non-public attachments cannot be enumerated by article id.
-        when(attachmentRepository.findByAnnouncementIdAndIsPublicTrue("ann-1"))
+        when(assetReads.isParentVisible(eq("ann-1"), any(AssetVisibility.class))).thenReturn(true);
+        when(assetReads.findAttachments(eq("ann-1"), any(AssetVisibility.class), eq(0L), eq(200)))
                 .thenReturn(List.of(attachment));
-        when(attachmentRepository.findByIsPublicTrue(any(Pageable.class)))
-                .thenAnswer(invocation -> new PageImpl<>(
-                        List.of(attachment), invocation.getArgument(0, Pageable.class), 1));
+        when(assetReads.findAttachments(eq(null), any(AssetVisibility.class), eq(0L), eq(200)))
+                .thenReturn(List.of(attachment));
 
-        List<AttachmentDto> filtered = controller.getAttachments("ann-1");
+        List<AttachmentDto> filtered = controller.getAttachments("ann-1", adminJwt());
         assertEquals(1, filtered.size());
         assertEquals("thong_bao.pdf", filtered.get(0).fileName());
 
-        List<AttachmentDto> allPublic = controller.getAttachments(null);
+        List<AttachmentDto> allPublic = controller.getAttachments(null, adminJwt());
         assertEquals(1, allPublic.size());
     }
 
@@ -181,23 +192,20 @@ class ArticleTaxonomyControllerTest {
     }
 
     @Test
-    @DisplayName("getMediaGalleriesV2 caps an oversized page at 200 and sorts by displayOrder")
+    @DisplayName("getMediaGalleriesV2 caps an oversized page at 200 and reports gated totals")
     void getMediaGalleriesV2CapsPageSize() {
         ArticleMediaGallery gallery = new ArticleMediaGallery();
         gallery.setId("gal-1");
         gallery.setAnnouncementId("ann-1");
         gallery.setMediaUrl("https://theses.campusute.io.vn/photo.jpg");
-        when(mediaGalleryRepository.findByAnnouncementId(eq("ann-1"), any(Pageable.class)))
-                .thenAnswer(invocation -> new PageImpl<>(
-                        List.of(gallery), invocation.getArgument(1, Pageable.class), 1));
+        when(assetReads.isParentVisible(eq("ann-1"), any(AssetVisibility.class))).thenReturn(true);
+        when(assetReads.findGalleries(eq("ann-1"), any(AssetVisibility.class), eq(0L), eq(200)))
+                .thenReturn(List.of(gallery));
+        when(assetReads.countGalleries(eq("ann-1"), any(AssetVisibility.class))).thenReturn(1L);
 
-        MediaGalleryListResponse response = controller.getMediaGalleriesV2("ann-1", 1, 10_000);
+        MediaGalleryListResponse response = controller.getMediaGalleriesV2("ann-1", 1, 10_000, adminJwt());
 
-        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-        verify(mediaGalleryRepository).findByAnnouncementId(eq("ann-1"), pageable.capture());
-        assertEquals(200, pageable.getValue().getPageSize());
-        assertEquals(0, pageable.getValue().getPageNumber());
-        assertEquals("displayOrder", pageable.getValue().getSort().iterator().next().getProperty());
+        verify(assetReads).findGalleries(eq("ann-1"), any(AssetVisibility.class), eq(0L), eq(200));
         assertEquals(200, response.meta().limit());
         assertEquals(1, response.meta().page());
         assertEquals(1, response.meta().totalPages());
@@ -205,22 +213,18 @@ class ArticleTaxonomyControllerTest {
     }
 
     @Test
-    @DisplayName("getAttachmentsV2 falls back to the 50-row page and pages public rows by createdAt")
+    @DisplayName("getAttachmentsV2 falls back to the 50-row page and reports gated totals")
     void getAttachmentsV2UsesDefaultPublicPage() {
         ArticleAttachment attachment = new ArticleAttachment();
         attachment.setId("att-1");
         attachment.setFileName("quyet_dinh.pdf");
-        when(attachmentRepository.findByIsPublicTrue(any(Pageable.class)))
-                .thenAnswer(invocation -> new PageImpl<>(
-                        List.of(attachment), invocation.getArgument(0, Pageable.class), 100));
+        when(assetReads.findAttachments(eq(null), any(AssetVisibility.class), eq(50L), eq(50)))
+                .thenReturn(List.of(attachment));
+        when(assetReads.countAttachments(eq(null), any(AssetVisibility.class))).thenReturn(100L);
 
-        AttachmentListResponse response = controller.getAttachmentsV2(null, 2, 0);
+        AttachmentListResponse response = controller.getAttachmentsV2(null, 2, 0, adminJwt());
 
-        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-        verify(attachmentRepository).findByIsPublicTrue(pageable.capture());
-        assertEquals(50, pageable.getValue().getPageSize());
-        assertEquals(1, pageable.getValue().getPageNumber());
-        assertEquals("createdAt", pageable.getValue().getSort().iterator().next().getProperty());
+        verify(assetReads).findAttachments(eq(null), any(AssetVisibility.class), eq(50L), eq(50));
         assertEquals(
                 List.of(new AttachmentDto("att-1", null, "quyet_dinh.pdf", null, 0L, null, 0)),
                 response.data());

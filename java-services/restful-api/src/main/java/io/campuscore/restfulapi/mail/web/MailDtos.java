@@ -88,5 +88,18 @@ public final class MailDtos {
             String recipient,
             String template,
             Instant dispatchedAt
-    ) {}
+    ) {
+        /**
+         * Explicit not-delivered result for dispatch attempts while SMTP is
+         * disabled: nothing was sent, so there is no dispatch instant.
+         */
+        public static MailDispatchResponse notDelivered(String recipient, String template) {
+            return new MailDispatchResponse(
+                    false,
+                    "Dịch vụ email đang tắt; thư chưa được gửi.",
+                    recipient,
+                    template,
+                    null);
+        }
+    }
 }

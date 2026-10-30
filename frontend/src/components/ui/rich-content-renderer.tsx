@@ -203,6 +203,8 @@ function SafeImage({ src, alt }: { src: string; alt: string }) {
       <img
         src={src}
         alt={alt}
+        width={1200}
+        height={800}
         className="max-h-96 max-w-full h-auto rounded-md border border-border/70 object-cover shadow-sm"
         loading="lazy"
         onError={() => setHasError(true)}
@@ -507,6 +509,16 @@ function sanitizeHtml(html: string): string {
   return sanitizeAnnouncementHtml(html);
 }
 
+export function addBannerWebpSources(html: string): string {
+  return html.replace(/<img\b[^>]*>/gi, (image) => {
+    const match = /\bsrc="(\/images\/banners\/[A-Za-z0-9][A-Za-z0-9._-]*\.jpe?g)"/i.exec(image);
+    if (!match) return image;
+
+    const webpSource = match[1].replace(/\.jpe?g$/i, '.webp');
+    return `<picture class="block w-full"><source srcset="${webpSource}" type="image/webp">${image}</picture>`;
+  });
+}
+
 /**
  * RT-P2-3: TinyMCE emits bare fragments from ordinary authoring — a bulleted
  * list is `<ul><li>…</li></ul>`, a quote is `<blockquote>…</blockquote>` — and
@@ -530,7 +542,7 @@ export function isHtmlDocument(raw: string): boolean {
  * output is byte-stable for a given input.
  */
 export function renderHtmlDocument(content: string): string {
-  return annotateHtmlHeadingIds(sanitizeHtml(content));
+  return annotateHtmlHeadingIds(addBannerWebpSources(sanitizeHtml(content)));
 }
 
 function normalizeHtmlToMarkdown(raw: string): string {

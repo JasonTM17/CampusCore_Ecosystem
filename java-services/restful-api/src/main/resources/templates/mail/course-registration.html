@@ -17,7 +17,7 @@
 
               <div class="status-panel" style="margin:0 0 24px;padding:18px 20px;border:1px solid #a9d8c5;border-left:4px solid #168166;border-radius:10px;background-color:#edf8f3;">
                 <p class="status-label">ĐĂNG KÝ THÀNH CÔNG</p>
-                <h2 class="status-title" th:text="${semester != null ? semester : 'Học kỳ 1 Năm học 2026-2027'}">Học kỳ 1 Năm học 2026-2027</h2>
+                <h2 class="status-title" th:text="${semester != null ? semester : 'Chưa được cung cấp'}">Học kỳ 1 Năm học 2026-2027</h2>
                 <p class="status-copy">Hệ thống đã ghi nhận danh sách học phần dưới đây. Bạn nên lưu email này để đối chiếu khi cần.</p>
               </div>
 
@@ -35,11 +35,11 @@
                 <tr>
                   <td class="meta-cell">
                     <p class="meta-label">Khoa / ngành</p>
-                    <p class="meta-value" th:text="${department != null ? department : 'Khoa Công nghệ Thông tin'}">Khoa Công nghệ Thông tin</p>
+                    <p class="meta-value" th:text="${department != null ? department : 'Chưa được cung cấp'}">Khoa Công nghệ Thông tin</p>
                   </td>
                   <td class="meta-cell">
                     <p class="meta-label">Thời điểm ghi nhận</p>
-                    <p class="meta-value" th:text="${timestamp != null ? timestamp : #dates.format(#dates.createNow(), 'HH:mm dd/MM/yyyy')}">15/09/2026 09:00</p>
+                    <p class="meta-value" th:text="${timestamp != null ? timestamp : 'Chưa được cung cấp'}">15/09/2026 09:00</p>
                   </td>
                 </tr>
               </table>

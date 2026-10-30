@@ -11,13 +11,16 @@ spring:
       max-request-size: 21MB
   mvc:
     throw-exception-if-no-handler-found: true
+  jackson:
+    deserialization:
+      fail-on-null-for-primitives: false
   autoconfigure:
     exclude:
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
-      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
-      - org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
-      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceTransactionManagerAutoConfiguration
+      - org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration
+      - org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration
+      - org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
   mail:
     host: ${SPRING_MAIL_HOST:smtp.gmail.com}
     port: ${SPRING_MAIL_PORT:587}
@@ -84,14 +87,102 @@ security:
   csrf-header: ${CSRF_HEADER:X-CSRF-Token}
   cookie-secure: ${COOKIE_SECURE:false}
 
+# Identity authority (docs/ecosystem/identity-contract.md). Flag matrix:
+# enabled=false removes the whole /oauth2 + discovery surface; authorize-paused
+# returns 503 on authorize only. Default OFF — schema expand ships first.
+identity:
+  oidc:
+    enabled: ${IDENTITY_OIDC_ENABLED:false}
+    authorize-paused: ${IDENTITY_OIDC_AUTHORIZE_PAUSED:false}
+    dev-keygen: ${IDENTITY_DEV_KEYGEN:false}
+    issuer-uri: ${IDENTITY_ISSUER_URI:http://127.0.0.1:4010}
+    login-page: ${IDENTITY_LOGIN_PAGE:/login}
+    token-encryption-key: ${IDENTITY_TOKEN_ENCRYPTION_KEY:}
+    # Public clients allowlisted for refresh-token issuance at the code
+    # exchange (SAS suppresses it for NONE clients; RFC 8252 native apps need
+    # it — mobile-policy.md §3). cu-mobile today; confidential unaffected.
+    native-refresh-client-ids: ${IDENTITY_NATIVE_REFRESH_CLIENT_IDS:}
+  retention:
+    enabled: ${IDENTITY_RETENTION_ENABLED:true}
+    cron: ${IDENTITY_RETENTION_CRON:0 39 4 * * *}
+    grace: ${IDENTITY_RETENTION_GRACE:7d}
+  bff:
+    # Browser BFF lane (docs/ecosystem/host-policy.md). Off by default; the
+    # endpoints and tables only activate behind an edge that strips caller
+    # routing headers and stamps the trusted surface pair. Deployments MUST
+    # also add each surface origin to app.cors.allowed-origin-patterns —
+    # the CORS gate runs before the BFF session layer.
+    enabled: ${IDENTITY_BFF_ENABLED:false}
+    dev-http: ${IDENTITY_BFF_DEV_HTTP:false}
+    issuer-loopback: ${IDENTITY_BFF_ISSUER_LOOPBACK:${IDENTITY_ISSUER_URI:http://127.0.0.1:4010}}
+    issuer-public: ${IDENTITY_BFF_ISSUER_PUBLIC:${IDENTITY_ISSUER_URI:http://127.0.0.1:4010}}
+    session-ttl: ${IDENTITY_BFF_SESSION_TTL:12h}
+    transaction-ttl: ${IDENTITY_BFF_TX_TTL:5m}
+    api-allowlist:
+      - /api/v1/me
+      - /api/v1/auth/me
+      - /api/v1/announcements
+      - /api/v1/article-taxonomy
+      - /api/v1/notifications
+      - /api/v1/site-appearance
+      - /api/v1/academic
+      - /api/v1/engagement
+      - /api/v1/events
+      - /api/v1/library
+      - /api/v1/careers
+      - /api/v1/lms
+      - /api/v1/learning
+      - /api/v1/sections
+      - /api/v1/admissions
+      - /api/v1/auth/change-password
+      - /api/v1/attendance
+      - /api/v1/admin/attendance/geofences
+      - /api/v1/thesis
+      - /api/v1/mail
+      - /api/v1/assistant
+      - /api/v1/grades
+      - /api/v1/conduct
+      - /api/v1/enrollments
+      - /api/v1/registration
+      - /api/v1/classrooms
+      - /api/v1/courses
+      - /api/v1/curricula
+      - /api/v1/departments
+      - /api/v1/lecturers
+      - /api/v1/semesters
+      - /api/v1/academic-years
+      - /api/v1/users
+      - /api/v1/admin/audit
+      - /api/v1/admin/registration
+      - /api/v1/auth/profile
+    # Anonymous read lane (P06): GET/HEAD onto these prefixes proxies WITHOUT
+    # a session cookie — the upstream permitAll set in SecurityConfig is the
+    # authority, so this list mirrors it exactly and adds nothing private.
+    public-api-allowlist:
+      - /api/v1/announcements/public
+      - /api/v1/public/docs
+      - /api/v1/article-taxonomy/v2/categories
+      - /api/v1/site-appearance
+  # keys[]/clients[] bind via indexed env properties
+  # (IDENTITY_KEYS_0_KID, IDENTITY_CLIENTS_0_CLIENTID, ...) — see contract §2.1
+
 health:
   readiness-key: ${HEALTH_READINESS_KEY:}
 
 management:
+  metrics:
+    scrape-key: ${METRICS_SCRAPE_KEY:}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      minimum-expected-value:
+        http.server.requests: 1ms
+      maximum-expected-value:
+        http.server.requests: 120s
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       probes:
@@ -209,7 +300,12 @@ spring:
     activate:
       on-profile: persistence
   autoconfigure:
-    exclude: []
+    exclude:
+      # SAS is wired manually in IdentitySecurityConfig behind
+      # identity.oidc.enabled; Boot's autoconfig would register its own
+      # authorization-server and default filter chains unconditionally.
+      - org.springframework.boot.security.oauth2.server.authorization.autoconfigure.servlet.OAuth2AuthorizationServerAutoConfiguration
+      - org.springframework.boot.security.oauth2.server.authorization.autoconfigure.servlet.OAuth2AuthorizationServerJwtAutoConfiguration
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/campuscore?currentSchema=thesis}
     username: ${SPRING_DATASOURCE_USERNAME:campuscore}
@@ -243,7 +339,7 @@ spring:
     enabled: ${FLYWAY_ENABLED:true}
     create-schemas: true
     default-schema: thesis
-    schemas: thesis,academic,campuscore_auth
+    schemas: thesis,academic,campuscore_auth,campuscore_identity
     locations: classpath:db/migration
 
 app:
@@ -286,6 +382,21 @@ app:
     # roles become ACTIVE; the rest are LOCKED. Empty (default) keeps the
     # historical behavior of activating every demo role.
     roles: ${DEMO_ACCOUNTS_ROLES:}
+
+  notifications:
+    push:
+      enabled: false
+      # Supply a reviewed 32-byte Base64 key through the deployment secret store.
+      # Empty by default: registration fails closed and no device data is saved.
+      token-key: ""
+      dispatcher-enabled: false
+      batch-size: 25
+      lease-seconds: 60
+      send-timeout-ms: 20000
+      max-attempts: 5
+      retry-initial-ms: 1000
+      retry-cap-ms: 300000
+      retry-jitter-ratio: 0.2
 
 deepseek:
   enabled: ${DEEPSEEK_ENABLED:false}

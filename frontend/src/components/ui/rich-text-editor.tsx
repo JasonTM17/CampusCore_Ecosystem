@@ -872,10 +872,11 @@ export function RichTextEditor({
             </div>
             <div className="mt-4 space-y-3 text-sm">
               <div>
-                <label className="block font-medium text-foreground mb-1">
+                <label htmlFor="rich-text-link-text" className="block font-medium text-foreground mb-1">
                   {isVi ? 'Văn bản hiển thị' : 'Link Text'}
                 </label>
                 <input
+                  id="rich-text-link-text"
                   type="text"
                   value={linkText}
                   onChange={(e) => setLinkText(e.target.value)}
@@ -884,10 +885,11 @@ export function RichTextEditor({
                 />
               </div>
               <div>
-                <label className="block font-medium text-foreground mb-1">
+                <label htmlFor="rich-text-link-url" className="block font-medium text-foreground mb-1">
                   {isVi ? 'Địa chỉ URL' : 'Link URL'}
                 </label>
                 <input
+                  id="rich-text-link-url"
                   type="url"
                   value={linkUrl}
                   onChange={(e) => setLinkUrl(e.target.value)}

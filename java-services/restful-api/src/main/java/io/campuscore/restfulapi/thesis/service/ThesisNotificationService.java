@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.thesis.service;
 
+import io.campuscore.restfulapi.exception.SensitiveLogRedactor;
 import io.campuscore.restfulapi.mail.config.MailConfig;
 import io.campuscore.restfulapi.mail.service.EmailService;
 import io.campuscore.restfulapi.notification.repository.NotificationWriteRepository;
@@ -249,7 +250,8 @@ public class ThesisNotificationService {
                     new MapSqlParameterSource("id", topicId), String.class);
             return title == null ? "" : title;
         } catch (RuntimeException exception) {
-            log.warn("Thesis topic title lookup failed for {}", topicId, exception);
+            log.warn("Thesis topic title lookup failed for {} exceptionType={}",
+                    topicId, SensitiveLogRedactor.exceptionType(exception));
             return "";
         }
     }
@@ -263,7 +265,8 @@ public class ThesisNotificationService {
                     new MapSqlParameterSource("groupId", groupId), String.class);
             return title == null ? "" : title;
         } catch (RuntimeException exception) {
-            log.debug("No topic title for group {} — notification sent without it", groupId, exception);
+            log.debug("No topic title for group {} — notification sent without it; exceptionType={}",
+                    groupId, SensitiveLogRedactor.exceptionType(exception));
             return "";
         }
     }

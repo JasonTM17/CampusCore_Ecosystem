@@ -4,6 +4,7 @@ import io.campuscore.restfulapi.engagement.service.AnnouncementReadService;
 import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.AnnouncementListResponse;
 import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.AnnouncementResponse;
 import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.PublicAnnouncementListResponse;
+import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.PublicAnnouncementResponse;
 import java.math.BigInteger;
 import java.util.Collection;
 import java.util.List;
@@ -85,6 +86,21 @@ public class AnnouncementReadController {
         return announcements.get(id, jwt.getSubject(), roles, studentId, studentYear, lecturerId);
     }
 
+    /**
+     * Anonymous single-item read by row id or public slug — the permalink the
+     * public feed links to. Non-public or unknown keys 404 identically so no
+     * existence oracle is exposed.
+     */
+    @Operation(summary = "Bản tin công khai chi tiết theo id hoặc slug", description = "Nội dung công khai của một bản tin đã xuất bản, dùng cho permalink trang news công khai")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Truy vấn chi tiết công khai thành công"),
+        @ApiResponse(responseCode = "404", description = "Không tìm thấy bản tin công khai")
+    })
+    @GetMapping("public/{idOrSlug}")
+    public PublicAnnouncementResponse getPublicAnnouncement(@PathVariable String idOrSlug) {
+        return announcements.findPublicDetail(idOrSlug);
+    }
+
     @Operation(summary = "Lấy danh sách thông báo dành riêng cho người dùng", description = "Truy vấn thông báo phân quyền theo vai trò (Sinh viên, Giảng viên, Quản trị viên) và đối tượng lớp/học kỳ")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Truy vấn danh sách thông báo thành công"),
@@ -92,6 +108,9 @@ public class AnnouncementReadController {
         @ApiResponse(responseCode = "403", description = "Thiếu thông tin phân quyền hợp lệ")
     })
     @GetMapping("my")
+    @io.campuscore.restfulapi.security.ServiceEnforced(
+            "requireIdentity/requireProfileClaims validate the caller; AnnouncementReadService.findForUser "
+                    + "restricts published announcements to the caller's roles and student/lecturer audience")
     public AnnouncementListResponse getMyAnnouncements(
             @AuthenticationPrincipal Jwt jwt,
             @Parameter(description = "Số trang phân trang (bắt đầu từ 1)") @RequestParam(defaultValue = "1") int page,
@@ -118,21 +137,34 @@ public class AnnouncementReadController {
         @ApiResponse(responseCode = "403", description = "Chỉ Quản trị viên mới có quyền truy cập")
     })
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    // LECTURER is in the writer set (drafts + review queue) — the service
+    // scopes their results to own posts plus IN_REVIEW rows.
+    @PreAuthorize("hasAnyRole('LECTURER', 'ADMIN', 'SUPER_ADMIN')")
     public AnnouncementListResponse getAllAnnouncements(
             @Parameter(description = "Số trang phân trang (bắt đầu từ 1)") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "Số lượng thông báo trên một trang") @RequestParam(defaultValue = "20") int limit,
             @Parameter(description = "Mã định danh học kỳ (UUID)") @RequestParam(required = false) String semesterId,
             @Parameter(description = "Mã định danh lớp học phần (UUID)") @RequestParam(required = false) String sectionId,
             @Parameter(description = "Mức độ ưu tiên (LOW, NORMAL, HIGH, URGENT)") @RequestParam(required = false) String priority,
-            @Parameter(description = "Trạng thái thông báo (ACTIVE, ARCHIVED)") @RequestParam(defaultValue = "ACTIVE") String status,
+            @Parameter(description = "Trạng thái thông báo (ACTIVE, ARCHIVED, DRAFT, IN_REVIEW, PUBLISHED)") @RequestParam(defaultValue = "ACTIVE") String status,
             @Parameter(description = "Từ khóa tìm kiếm (tiêu đề, nội dung, môn học, giảng viên)") @RequestParam(required = false) String search,
             @RequestParam MultiValueMap<String, String> queryParameters,
             @AuthenticationPrincipal Jwt jwt) {
         requireAllowedQuery(
                 queryParameters,
                 Set.of("page", "limit", "semesterId", "sectionId", "priority", "status", "search"));
-        requireIdentity(jwt);
+        List<String> roles = requireIdentity(jwt);
+        String lecturerId = stringClaim(jwt, "lecturerId");
+        if (roles.contains("LECTURER") && lecturerId == null) {
+            throw new AccessDeniedException("Lecturer profile claim is required");
+        }
+        // Author scope only for lecturer-only callers; governance roles keep
+        // the unscoped admin view.
+        String authorScope = roles.contains("LECTURER")
+                && !roles.contains("ADMIN")
+                && !roles.contains("SUPER_ADMIN")
+                ? jwt.getSubject()
+                : null;
         return announcements.findAll(
                 page,
                 limit,
@@ -140,7 +172,8 @@ public class AnnouncementReadController {
                 normalizeOptional(sectionId),
                 priority,
                 status,
-                normalizeOptional(search));
+                normalizeOptional(search),
+                authorScope);
     }
 
     private static void requireAllowedQuery(

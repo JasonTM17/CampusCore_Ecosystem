@@ -47,13 +47,16 @@ public class AcademicAttendanceWriteService {
         }
 
         boolean isAdmin = roles != null && (roles.contains("ADMIN") || roles.contains("SUPER_ADMIN"));
-        if (!isAdmin) {
-            if (lecturerId == null || lecturerId.isBlank() || !repository.isSectionOwnedByLecturer(normalizedSectionId, lecturerId)) {
-                throw new DomainException(HttpStatus.FORBIDDEN, "SECTION_FORBIDDEN", "Section is not assigned to the current lecturer");
-            }
-        }
+        requireSectionOwnership(normalizedSectionId, lecturerId, isAdmin);
 
         Instant normalizedDate = parseAndNormalizeDate(request.date());
+        // Global lock order Student -> Section (shared with registration): the
+        // attendance rows' real Student FK checks would otherwise contend on
+        // registration's Student locks while this transaction holds Section.
+        repository.lockStudentsForAttendance(stableStudentOrder(request.records()));
+        repository.lockSectionForAttendance(normalizedSectionId);
+        // Re-verify ownership under the section lock: it may have been reassigned while waiting.
+        requireSectionOwnership(normalizedSectionId, lecturerId, isAdmin);
         Instant maxAllowedDate = AttendanceDay.parse(Instant.now().toString());
         if (normalizedDate.isAfter(maxAllowedDate)) {
             throw new DomainException(HttpStatus.BAD_REQUEST, "INVALID_ATTENDANCE_DATE", "Attendance date cannot be in the future");
@@ -123,6 +126,43 @@ public class AcademicAttendanceWriteService {
                 insertRows.isEmpty()
                         ? "Attendance records cleared for " + targetStudentIds.size() + " students"
                         : "Attendance recorded successfully for " + insertRows.size() + " students");
+    }
+
+    private void requireSectionOwnership(String sectionId, String lecturerId, boolean isAdmin) {
+        if (!isAdmin && (lecturerId == null || lecturerId.isBlank()
+                || !repository.isSectionOwnedByLecturer(sectionId, lecturerId))) {
+            throw new DomainException(HttpStatus.FORBIDDEN, "SECTION_FORBIDDEN", "Section is not assigned to the current lecturer");
+        }
+    }
+
+    private static List<String> stableStudentOrder(List<StudentAttendanceEntry> records) {
+        if (records == null) return List.of();
+        return records.stream().map(StudentAttendanceEntry::studentId)
+                .filter(id -> id != null && !id.isBlank()).map(String::trim)
+                .distinct().sorted().toList();
+    }
+
+    /**
+     * Student path is insert-only: any existing record (including manual ABSENT)
+     * wins. The shared section lock closes the check-then-insert/manual reset race.
+     */
+    @Transactional
+    public String recordStudentCheckin(String sectionId, String studentId, String date,
+            String status, String checkinId, Instant now) {
+        if (!Set.of("PRESENT", "LATE").contains(status)) {
+            throw new DomainException(HttpStatus.BAD_REQUEST, "INVALID_ATTENDANCE_STATUS", "Invalid check-in attendance status");
+        }
+        repository.lockSectionForAttendance(sectionId);
+        if (!repository.findActiveEnrolledStudentIds(sectionId).contains(studentId)) {
+            throw new DomainException(HttpStatus.FORBIDDEN, "NOT_ENROLLED", "Student is not enrolled");
+        }
+        Instant day = parseAndNormalizeDate(date);
+        if (repository.attendanceExists(sectionId, studentId, day)) return "MANUAL_RECORD_PRESERVED";
+        String id = UUID.randomUUID().toString();
+        repository.insertAttendanceBatch(List.of(new AttendanceInsertRow(id,studentId,sectionId,day,status,
+                "Student geofenced check-in",now,now)));
+        repository.linkCheckin(id,checkinId);
+        return status;
     }
 
     /**

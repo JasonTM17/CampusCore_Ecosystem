@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 
 import { buildApiProxyUrl } from '@/lib/proxy-url';
+import { surfaceFromHost } from '@/lib/surfaces';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,6 +25,29 @@ async function handle(request: NextRequest, context: RouteContext) {
   headers.delete('host');
   headers.set('accept-encoding', 'identity');
 
+  // BFF lane (docs/ecosystem/host-policy.md §5): on a BFF surface host the
+  // browser's opaque __Host-cu_session rides the cookie header as usual, but
+  // the request must land on /bff/api/** so the Java BFF resolves the
+  // surface, refreshes the server-side grant, and injects the bearer token.
+  // Every caller-stamped x-campuscore-* is stripped before the edge pair is
+  // set — the proxy token authenticates the pair to the BFF chain.
+  const surface = surfaceFromHost(request.headers.get('host'));
+  const bffLane = surface?.mode === 'bff'
+    && process.env.NEXT_PUBLIC_BFF_LANE !== 'false';
+  if (bffLane) {
+    for (const name of [...headers.keys()]) {
+      if (name.toLowerCase().startsWith('x-campuscore-')) {
+        headers.delete(name);
+      }
+    }
+    headers.set('x-campuscore-surface', surface.id);
+    headers.set(
+      'x-campuscore-scheme',
+      request.nextUrl.protocol.replace(':', ''),
+    );
+    headers.set('x-campuscore-host', request.headers.get('host') ?? '');
+  }
+
   // Forwarded headers are client-controlled until we overwrite them: an
   // forwarded identity must come from runtime metadata, never a caller's XFF.
   // Vercel overwrites its platform header; trust it only on that platform.
@@ -46,7 +70,13 @@ async function handle(request: NextRequest, context: RouteContext) {
     headers.set('x-campuscore-client-ip', clientIp);
   }
 
-  const upstreamUrl = buildApiProxyUrl(origin, path, request.nextUrl.search);
+  // /bff/api/<suffix> maps to /api/v1<suffix> on the Java side — the v1
+  // prefix lives in the Java mapping, so the leading v1 segment of the
+  // public path is dropped here instead of doubled upstream.
+  const bffSuffix = path[0] === 'v1' ? path.slice(1) : path;
+  const upstreamUrl = bffLane
+    ? `${origin}/bff/api/${bffSuffix.join('/')}${request.nextUrl.search}`
+    : buildApiProxyUrl(origin, path, request.nextUrl.search);
 
   const response = await fetch(upstreamUrl, {
     method: request.method,
@@ -70,7 +100,9 @@ async function handle(request: NextRequest, context: RouteContext) {
     );
   }
 
-  if (typeof response.headers.getSetCookie === 'function') {
+  // The BFF lane must never hand an upstream Set-Cookie to the browser
+  // (contract §5): the opaque session is the only cookie this lane owns.
+  if (!bffLane && typeof response.headers.getSetCookie === 'function') {
     const cookies = response.headers.getSetCookie();
     if (cookies.length > 0) {
       responseHeaders.delete('set-cookie');
@@ -78,6 +110,9 @@ async function handle(request: NextRequest, context: RouteContext) {
         responseHeaders.append('set-cookie', cookie);
       }
     }
+  }
+  if (bffLane) {
+    responseHeaders.set('Cache-Control', 'no-store');
   }
 
   // Fetch forbids even an empty ArrayBuffer for these statuses. In particular,

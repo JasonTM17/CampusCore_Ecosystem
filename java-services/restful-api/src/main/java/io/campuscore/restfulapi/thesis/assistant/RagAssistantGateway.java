@@ -1,9 +1,10 @@
 package io.campuscore.restfulapi.thesis.assistant;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantController.CancelResponse;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantController.ConversationCreated;
 import io.campuscore.restfulapi.thesis.assistant.ThesisAssistantController.CreateConversationRequest;
@@ -279,7 +280,7 @@ public class RagAssistantGateway {
     private HttpRequest.BodyPublisher bodyPublisher(Object body) {
         try {
             return HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body), StandardCharsets.UTF_8);
-        } catch (IOException exception) {
+        } catch (JacksonException exception) {
             throw new DomainException(HttpStatus.BAD_GATEWAY, "RAG_REQUEST_SERIALIZATION_FAILED", "Failed to serialize assistant request");
         }
     }
@@ -433,7 +434,7 @@ public class RagAssistantGateway {
                 unsafeAnswer ? "PROVIDER_UNSAFE_OUTPUT" : response.reasonCode(),
                 normalizedLocale, citations, response.requestId(),
                 response.clientRequestId(), response.turnId(), response.replayed(), response.terminalStatus(),
-                response.conversationId(), response.messageId());
+                response.conversationId(), response.messageId(), response.resetAt());
     }
 
     private static boolean safeCitation(ThesisAssistantDtos.Citation citation, String scope) {
@@ -463,11 +464,20 @@ public class RagAssistantGateway {
     }
 
     private <T extends ThesisAssistantService.StreamEvent> T decode(String payload, Class<T> type) throws IOException {
-        JsonNode node = objectMapper.readTree(payload);
+        JsonNode node;
+        try {
+            node = objectMapper.readTree(payload);
+        } catch (JacksonException malformed) {
+            throw unavailable("RAG_SERVICE_UNAVAILABLE", "RAG service request failed");
+        }
         if (node instanceof ObjectNode objectNode) {
             objectNode.remove("type");
         }
-        return objectMapper.treeToValue(node, type);
+        try {
+            return objectMapper.treeToValue(node, type);
+        } catch (JacksonException malformed) {
+            throw unavailable("RAG_SERVICE_UNAVAILABLE", "RAG service request failed");
+        }
     }
 
     private DomainException problem(int statusCode, String body) {
@@ -483,7 +493,7 @@ public class RagAssistantGateway {
                 if (error.message() != null && !error.message().isBlank()) {
                     message = error.message();
                 }
-            } catch (IOException ignored) {
+            } catch (JacksonException ignored) {
                 // Keep the synthesized status message when the remote service
                 // returns a non-CampusCore payload.
             }

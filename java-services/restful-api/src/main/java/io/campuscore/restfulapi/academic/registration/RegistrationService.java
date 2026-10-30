@@ -35,6 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Profile("persistence")
@@ -322,16 +323,8 @@ public class RegistrationService {
             throw problem(HttpStatus.FORBIDDEN, "STUDENT_PROFILE_REQUIRED", "Student profile is required");
         }
         String hash = sha256("ENROLL|" + sectionId);
-        EnrollmentResponse response = transactions.execute(status -> {
-            EnrollmentResponse enrolled =
-                    enrollLocked(studentId, sectionId, roles, idempotencyKey, hash);
-            if (enrolled == null) {
-                throw problem(HttpStatus.INTERNAL_SERVER_ERROR, "ENROLLMENT_FAILED",
-                        "Enrollment transaction returned no result");
-            }
-            persistSlip(studentId, enrolled);
-            return enrolled;
-        });
+        EnrollmentResponse response = transactions.execute(status ->
+                enrollLocked(studentId, sectionId, roles, idempotencyKey, hash));
         if (response == null) {
             throw problem(HttpStatus.INTERNAL_SERVER_ERROR, "ENROLLMENT_FAILED", "Enrollment transaction returned no result");
         }
@@ -361,24 +354,53 @@ public class RegistrationService {
 
     @Transactional
     public SlipPayload slip(String studentId, String semesterId) {
+        // Regeneration writes the same cache that enroll/drop invalidate. Hold
+        // their Student lock before reading either cache or roster, through
+        // rendering and persistence, so a drop cannot retire a snapshot and
+        // then have this request reinsert it. No Section/Enrollment lock is
+        // acquired first: the established writer order stays unchanged.
+        lockStudent(studentId);
         MapSqlParameterSource parameters = new MapSqlParameterSource("studentId", studentId);
-        String sql = "SELECT \"sha256\", \"payload\" FROM " + SLIP + " WHERE \"studentId\" = :studentId";
+        String sql = "SELECT \"semesterId\", \"sha256\", \"payload\" FROM " + SLIP + " WHERE \"studentId\" = :studentId";
         if (semesterId != null && !semesterId.isBlank()) {
             sql += " AND \"semesterId\" = :semesterId";
             parameters.addValue("semesterId", semesterId);
         }
         sql += " ORDER BY \"createdAt\" DESC";
         List<Map<String, Object>> rows = jdbc.queryForList(sql, parameters);
+        String targetSemesterId = semesterId;
+        List<Map<String, Object>> active = null;
         if (!rows.isEmpty()) {
             Map<String, Object> row = rows.get(0);
             byte[] payload = payloadBytes(row.get("payload"));
             if (isValidPdf(payload)) {
-                return new SlipPayload(String.valueOf(row.get("sha256")).trim(), payload);
+                String cachedSemesterId = String.valueOf(row.get("semesterId")).trim();
+                List<Map<String, Object>> cachedRoster = activeEnrollments(studentId, cachedSemesterId);
+                if (cachedRoster.isEmpty()) {
+                    // Only completed history justifies an empty active roster;
+                    // an all-dropped term must not certify a retired snapshot.
+                    Integer completed = jdbc.queryForObject(
+                            "SELECT COUNT(*) FROM " + ENROLLMENT
+                                    + " WHERE \"studentId\" = :studentId AND \"semesterId\" = :semesterId"
+                                    + " AND \"status\" = 'COMPLETED'",
+                            new MapSqlParameterSource("studentId", studentId)
+                                    .addValue("semesterId", cachedSemesterId), Integer.class);
+                    if (completed != null && completed > 0) {
+                        return new SlipPayload(String.valueOf(row.get("sha256")).trim(), payload);
+                    }
+                } else {
+                    RenderedSlip expected = renderActiveRoster(studentId, cachedSemesterId, cachedRoster);
+                    String storedDigest = String.valueOf(row.get("sha256")).trim();
+                    if (expected.sha256().equals(storedDigest) && expected.sha256().equals(sha256(payload))) {
+                        return new SlipPayload(storedDigest, payload);
+                    }
+                }
+                // A valid PDF is not proof that it represents the current roster.
+                targetSemesterId = cachedSemesterId;
+                active = cachedRoster;
             }
         }
 
-        // When no valid pre-persisted slip exists, dynamically generate and store a slip for active enrollments
-        String targetSemesterId = semesterId;
         if (targetSemesterId == null || targetSemesterId.isBlank()) {
             // Resolve the semester of the student's latest active enrollment.
             // Ordering raw semester ids lexically can pick a historical semester
@@ -393,102 +415,113 @@ public class RegistrationService {
             }
         }
         if (targetSemesterId != null && !targetSemesterId.isBlank()) {
-            List<Map<String, Object>> active = activeEnrollments(studentId, targetSemesterId);
+            if (active == null) {
+                active = activeEnrollments(studentId, targetSemesterId);
+            }
             if (!active.isEmpty()) {
-                Map<String, Object> first = active.get(0);
-                String enrollmentId = String.valueOf(first.get("id"));
-                String sectionId = String.valueOf(first.get("section_id"));
-
-                String studentCode = studentId;
-                String studentName = null;
-                try {
-                    Map<String, Object> stuInfo = jdbc.queryForMap(
-                            "SELECT s.\"studentId\" AS student_code, u.\"firstName\" AS first_name, u.\"lastName\" AS last_name"
-                                    + " FROM " + STUDENT + " s"
-                                    + " LEFT JOIN \"campuscore_auth\".\"User\" u ON u.\"id\" = s.\"userId\""
-                                    + " WHERE s.\"id\" = :studentId",
-                            new MapSqlParameterSource("studentId", studentId));
-                    if (stuInfo.get("student_code") != null) {
-                        studentCode = String.valueOf(stuInfo.get("student_code"));
-                    }
-                    studentName = displayName(
-                            (String) stuInfo.get("first_name"),
-                            (String) stuInfo.get("last_name"));
-                } catch (Exception ignored) {
-                }
-
-                String semesterName = targetSemesterId;
-                try {
-                    Map<String, Object> semInfo = jdbc.queryForMap(
-                            "SELECT \"name\" FROM " + SEMESTER + " WHERE \"id\" = :semesterId",
-                            new MapSqlParameterSource("semesterId", targetSemesterId));
-                    if (semInfo.get("name") != null) {
-                        semesterName = String.valueOf(semInfo.get("name"));
-                    }
-                } catch (Exception ignored) {
-                }
-
-                List<RegistrationPdfRenderer.CourseItem> courseItems = active.stream().map(row -> new RegistrationPdfRenderer.CourseItem(
-                        String.valueOf(row.get("course_code")),
-                        String.valueOf(row.get("course_name")),
-                        String.valueOf(row.get("section_number")),
-                        ((Number) row.get("credits")).intValue(),
-                        String.valueOf(row.get("id")),
-                        String.valueOf(row.get("section_id"))
-                )).toList();
-
-                byte[] pdf = pdfRenderer.renderEnriched(
-                        studentId,
-                        studentCode,
-                        studentName,
-                        targetSemesterId,
-                        semesterName,
-                        enrollmentId,
-                        sectionId,
-                        courseItems);
-                String digest = sha256(pdf);
-
-                String roundId = first.get("round_id") != null ? String.valueOf(first.get("round_id")) : null;
-                if (roundId == null || roundId.isBlank()) {
-                    List<String> roundIds = jdbc.queryForList(
-                            "SELECT \"id\" FROM " + ROUND + " WHERE \"semesterId\" = :semesterId ORDER BY \"windowStart\" DESC",
-                            new MapSqlParameterSource("semesterId", targetSemesterId), String.class);
-                    if (!roundIds.isEmpty()) {
-                        roundId = roundIds.get(0);
-                    } else {
-                        List<String> fallbackRounds = jdbc.queryForList(
-                                "SELECT \"id\" FROM " + ROUND + " ORDER BY \"windowStart\" DESC",
-                                new MapSqlParameterSource(), String.class);
-                        if (!fallbackRounds.isEmpty()) {
-                            roundId = fallbackRounds.get(0);
-                        }
-                    }
-                }
-
+                RenderedSlip rendered = renderActiveRoster(studentId, targetSemesterId, active);
+                String roundId = resolveSlipRoundId(active.get(0), targetSemesterId);
                 if (roundId != null && !roundId.isBlank()) {
                     try {
                         jdbc.update(
+                                "DELETE FROM " + SLIP + " WHERE \"studentId\" = :studentId AND \"semesterId\" = :semesterId",
+                                new MapSqlParameterSource()
+                                        .addValue("studentId", studentId)
+                                        .addValue("semesterId", targetSemesterId));
+                        jdbc.update(
                                 "INSERT INTO " + SLIP
                                         + " (\"id\", \"studentId\", \"semesterId\", \"roundId\", \"sha256\", \"byteSize\", \"payload\")"
-                                        + " SELECT :id, :studentId, :semesterId, :roundId, :sha, :size, :payload"
-                                        + " WHERE NOT EXISTS (SELECT 1 FROM " + SLIP
-                                        + " WHERE \"studentId\" = :studentId AND \"semesterId\" = :semesterId AND TRIM(\"sha256\") = :sha)",
+                                        + " VALUES (:id, :studentId, :semesterId, :roundId, :sha, :size, :payload)",
                                 new MapSqlParameterSource()
                                         .addValue("id", UUID.randomUUID().toString())
                                         .addValue("studentId", studentId)
                                         .addValue("semesterId", targetSemesterId)
                                         .addValue("roundId", roundId)
-                                        .addValue("sha", digest)
-                                        .addValue("size", pdf.length)
-                                        .addValue("payload", pdf));
+                                        .addValue("sha", rendered.sha256())
+                                        .addValue("size", rendered.payload().length)
+                                        .addValue("payload", rendered.payload()));
                     } catch (Exception ignored) {
                     }
                 }
-                return new SlipPayload(digest, pdf);
+                return new SlipPayload(rendered.sha256(), rendered.payload());
             }
         }
 
         throw problem(HttpStatus.NOT_FOUND, "ROUND_NOT_FOUND", "Registration slip not found");
+    }
+
+    private RenderedSlip renderActiveRoster(
+            String studentId,
+            String semesterId,
+            List<Map<String, Object>> active) {
+        Map<String, Object> first = active.get(0);
+        String studentCode = studentId;
+        String studentName = null;
+        try {
+            Map<String, Object> studentInfo = jdbc.queryForMap(
+                    "SELECT s.\"studentId\" AS student_code, u.\"firstName\" AS first_name, u.\"lastName\" AS last_name"
+                            + " FROM " + STUDENT + " s"
+                            + " LEFT JOIN \"campuscore_auth\".\"User\" u ON u.\"id\" = s.\"userId\""
+                            + " WHERE s.\"id\" = :studentId",
+                    new MapSqlParameterSource("studentId", studentId));
+            if (studentInfo.get("student_code") != null) {
+                studentCode = String.valueOf(studentInfo.get("student_code"));
+            }
+            studentName = displayName(
+                    (String) studentInfo.get("first_name"),
+                    (String) studentInfo.get("last_name"));
+        } catch (Exception ignored) {
+        }
+
+        String semesterName = semesterId;
+        try {
+            Map<String, Object> semesterInfo = jdbc.queryForMap(
+                    "SELECT \"name\" FROM " + SEMESTER + " WHERE \"id\" = :semesterId",
+                    new MapSqlParameterSource("semesterId", semesterId));
+            if (semesterInfo.get("name") != null) {
+                semesterName = String.valueOf(semesterInfo.get("name"));
+            }
+        } catch (Exception ignored) {
+        }
+
+        List<RegistrationPdfRenderer.CourseItem> courseItems = active.stream()
+                .map(row -> new RegistrationPdfRenderer.CourseItem(
+                        String.valueOf(row.get("course_code")),
+                        String.valueOf(row.get("course_name")),
+                        String.valueOf(row.get("section_number")),
+                        ((Number) row.get("credits")).intValue(),
+                        String.valueOf(row.get("id")),
+                        String.valueOf(row.get("section_id"))))
+                .toList();
+        byte[] payload = pdfRenderer.renderEnriched(
+                studentId,
+                studentCode,
+                studentName,
+                semesterId,
+                semesterName,
+                String.valueOf(first.get("id")),
+                String.valueOf(first.get("section_id")),
+                courseItems);
+        return new RenderedSlip(sha256(payload), payload);
+    }
+
+    private String resolveSlipRoundId(Map<String, Object> first, String semesterId) {
+        String roundId = first.get("round_id") == null ? null : String.valueOf(first.get("round_id"));
+        if (roundId != null && !roundId.isBlank()) {
+            return roundId;
+        }
+        List<String> roundIds = jdbc.queryForList(
+                "SELECT \"id\" FROM " + ROUND + " WHERE \"semesterId\" = :semesterId ORDER BY \"windowStart\" DESC",
+                new MapSqlParameterSource("semesterId", semesterId),
+                String.class);
+        if (!roundIds.isEmpty()) {
+            return roundIds.get(0);
+        }
+        List<String> fallbackRounds = jdbc.queryForList(
+                "SELECT \"id\" FROM " + ROUND + " ORDER BY \"windowStart\" DESC",
+                new MapSqlParameterSource(),
+                String.class);
+        return fallbackRounds.isEmpty() ? null : fallbackRounds.get(0);
     }
 
     private static boolean isValidPdf(byte[] data) {
@@ -500,6 +533,9 @@ public class RegistrationService {
     public record SlipPayload(String sha256, byte[] payload) {
     }
 
+    private record RenderedSlip(String sha256, byte[] payload) {
+    }
+
     private EnrollmentResponse enrollLocked(
             String studentId,
             String sectionId,
@@ -508,7 +544,7 @@ public class RegistrationService {
             String hash) {
         Map<String, Object> replay = claimIdempotency(studentId, idempotencyKey, hash);
         if (replay != null) {
-            return reads.findEnrollment(String.valueOf(replay.get("enrollment_id")), roles, studentId);
+            return replayedEnrollment(replay, roles, studentId);
         }
         Map<String, Object> student = lockStudent(studentId);
         Map<String, Object> section = lockSection(sectionId);
@@ -576,7 +612,43 @@ public class RegistrationService {
                         .addValue("actorId", studentId)
                         .addValue("hash", hash));
         completeIdempotency(studentId, idempotencyKey, enrollmentId, hash);
-        return reads.findEnrollment(enrollmentId, roles, studentId);
+        EnrollmentResponse response = reads.findEnrollment(enrollmentId, roles, studentId);
+        // Document/lifecycle side effects belong to the first execution only:
+        // a replay must not resurrect a slip that a drop has already retired.
+        persistSlip(studentId, response);
+        return response;
+    }
+
+    /**
+     * Replay of a completed enroll claim. A recorded target that still
+     * resolves answers with its live row — a dropped enrollment honestly
+     * reports DROPPED rather than certifying a stale success. A hard-deleted
+     * or never-recorded target answers the stable conflict tombstone the
+     * other idempotent services use, instead of a fabricated result or a
+     * server error.
+     */
+    private EnrollmentResponse replayedEnrollment(
+            Map<String, Object> replay,
+            List<String> roles,
+            String studentId) {
+        Object recorded = replay.get("enrollment_id");
+        String enrollmentId = recorded == null ? null : String.valueOf(recorded).trim();
+        if (enrollmentId == null || enrollmentId.isEmpty()) {
+            throw replayTombstone();
+        }
+        try {
+            return reads.findEnrollment(enrollmentId, roles, studentId);
+        } catch (ResponseStatusException exception) {
+            if (HttpStatus.NOT_FOUND.equals(exception.getStatusCode())) {
+                throw replayTombstone();
+            }
+            throw exception;
+        }
+    }
+
+    private static DomainException replayTombstone() {
+        return problem(HttpStatus.CONFLICT, "IDEMPOTENCY_RESPONSE_UNAVAILABLE",
+                "The recorded enrollment result is unavailable; query the current enrollment state");
     }
 
     private void dropLocked(
@@ -590,18 +662,27 @@ public class RegistrationService {
         if (replay != null) {
             return;
         }
-        // Resolve the immutable owner without locking Enrollment. All mutations
-        // of one student's registration serialize on Student before taking any
-        // Enrollment lock, including administrative drops.
+        // Resolve the immutable owner and section without locking Enrollment.
+        // Every writer in this module takes row locks in one order — Student,
+        // then Section, then Enrollment (the order attendance check-in shares);
+        // a writer may skip a prefix but must never hold an Enrollment lock
+        // while waiting on the owning Section, including administrative drops.
         String targetStudentId;
+        String resolvedSectionId;
         try {
-            targetStudentId = jdbc.queryForObject(
-                    "SELECT \"studentId\" FROM " + ENROLLMENT + " WHERE \"id\" = :id",
-                    new MapSqlParameterSource("id", enrollmentId), String.class);
+            Map<String, Object> resolved = jdbc.queryForMap(
+                    "SELECT \"studentId\" AS student_id, \"sectionId\" AS section_id"
+                            + " FROM " + ENROLLMENT + " WHERE \"id\" = :id",
+                    new MapSqlParameterSource("id", enrollmentId));
+            targetStudentId = String.valueOf(resolved.get("student_id"));
+            resolvedSectionId = String.valueOf(resolved.get("section_id"));
         } catch (EmptyResultDataAccessException exception) {
             throw problem(HttpStatus.NOT_FOUND, "ENROLLMENT_NOT_FOUND", "Enrollment not found");
         }
         lockStudent(targetStudentId);
+        // Student serializes same-student operations. Across students, Section
+        // must precede Round on both enroll and drop to avoid a second lock cycle.
+        Map<String, Object> section = lockSection(resolvedSectionId);
         Map<String, Object> enrollment;
         try {
             enrollment = jdbc.queryForMap(
@@ -611,7 +692,10 @@ public class RegistrationService {
         } catch (EmptyResultDataAccessException exception) {
             throw problem(HttpStatus.NOT_FOUND, "ENROLLMENT_NOT_FOUND", "Enrollment not found");
         }
-        if (!targetStudentId.equals(String.valueOf(enrollment.get("student_id")))) {
+        // Authority is re-read under the row lock: the unlocked resolve could
+        // not see a concurrent reparenting or delete that committed meanwhile.
+        if (!targetStudentId.equals(String.valueOf(enrollment.get("student_id")))
+                || !resolvedSectionId.equals(String.valueOf(enrollment.get("section_id")))) {
             throw problem(HttpStatus.CONFLICT, "ENROLLMENT_NOT_ACTIVE", "Enrollment changed during the request");
         }
         boolean admin = roles != null && (roles.contains("ADMIN") || roles.contains("SUPER_ADMIN"));
@@ -621,9 +705,6 @@ public class RegistrationService {
         if (!List.of("ENROLLED", "PENDING").contains(String.valueOf(enrollment.get("status")))) {
             throw problem(HttpStatus.CONFLICT, "ENROLLMENT_NOT_ACTIVE", "Enrollment is no longer active");
         }
-        // Student serializes same-student operations. Across students, Section
-        // must precede Round on both enroll and drop to avoid a second lock cycle.
-        Map<String, Object> section = lockSection(String.valueOf(enrollment.get("section_id")));
         String droppedCourseId = String.valueOf(section.get("course_id"));
         String semesterId = String.valueOf(enrollment.get("semester_id"));
         assertNoActiveCorequisiteDependents(targetStudentId, droppedCourseId, semesterId, enrollmentId);
@@ -662,35 +743,32 @@ public class RegistrationService {
         if (response == null) {
             throw problem(HttpStatus.INTERNAL_SERVER_ERROR, "SLIP_PERSIST_FAILED", "Enrollment response missing after enroll");
         }
-        byte[] pdf = pdfRenderer.render(studentId, response.semesterId(), response.id(), response.sectionId());
-        String digest = sha256(pdf);
+        List<Map<String, Object>> active = activeEnrollments(studentId, response.semesterId());
+        if (active.isEmpty()) {
+            throw problem(HttpStatus.INTERNAL_SERVER_ERROR, "SLIP_PERSIST_FAILED", "Active registration roster is empty after enroll");
+        }
+        RenderedSlip rendered = renderActiveRoster(studentId, response.semesterId(), active);
+        String digest = rendered.sha256();
+        jdbc.update(
+                "DELETE FROM " + SLIP + " WHERE \"studentId\" = :studentId AND \"semesterId\" = :semesterId",
+                new MapSqlParameterSource()
+                        .addValue("studentId", studentId)
+                        .addValue("semesterId", response.semesterId()));
         int inserted = jdbc.update(
                 "INSERT INTO " + SLIP
                         + " (\"id\", \"studentId\", \"semesterId\", \"roundId\", \"sha256\", \"byteSize\", \"payload\")"
                         + " SELECT :id, :studentId, :semesterId, enrollment.\"roundId\", :sha, :size, :payload"
-                        + " FROM " + ENROLLMENT + " enrollment WHERE enrollment.\"id\" = :enrollmentId"
-                        + " AND NOT EXISTS (SELECT 1 FROM " + SLIP + " existing WHERE TRIM(existing.\"sha256\") = :sha"
-                        + " AND existing.\"studentId\" = :studentId AND existing.\"semesterId\" = :semesterId)",
+                        + " FROM " + ENROLLMENT + " enrollment WHERE enrollment.\"id\" = :enrollmentId",
                 new MapSqlParameterSource()
                         .addValue("id", UUID.randomUUID().toString())
                         .addValue("studentId", studentId)
                         .addValue("semesterId", response.semesterId())
                         .addValue("sha", digest)
-                        .addValue("size", pdf.length)
-                        .addValue("payload", pdf)
+                        .addValue("size", rendered.payload().length)
+                        .addValue("payload", rendered.payload())
                         .addValue("enrollmentId", response.id()));
-        if (inserted == 0) {
-            Long existing = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM " + SLIP
-                            + " WHERE \"studentId\" = :studentId AND \"semesterId\" = :semesterId AND TRIM(\"sha256\") = :sha",
-                    new MapSqlParameterSource()
-                            .addValue("studentId", studentId)
-                            .addValue("semesterId", response.semesterId())
-                            .addValue("sha", digest),
-                    Long.class);
-            if (existing == null || existing == 0) {
-                throw problem(HttpStatus.INTERNAL_SERVER_ERROR, "SLIP_PERSIST_FAILED", "Registration slip was not stored");
-            }
+        if (inserted != 1) {
+            throw problem(HttpStatus.INTERNAL_SERVER_ERROR, "SLIP_PERSIST_FAILED", "Registration slip was not stored");
         }
         jdbc.update(
                 "UPDATE " + IDEMPOTENCY + " SET \"slipSha256\" = :sha WHERE \"ownerId\" = :ownerId AND \"enrollmentId\" = :enrollmentId",
@@ -938,6 +1016,9 @@ public class RegistrationService {
                         + " JOIN " + COURSE + " course ON course.\"id\" = section.\"courseId\""
                         + " WHERE enrollment.\"studentId\" = :studentId AND enrollment.\"semesterId\" = :semesterId"
                         + " AND enrollment.\"status\" IN ('ENROLLED', 'PENDING', 'CONFIRMED')"
+                        // Multi-row locks are taken in a fixed id order so two
+                        // overlapping sets cannot contend in opposite orders.
+                        + " ORDER BY enrollment.\"id\""
                         // PostgreSQL otherwise locks the joined Section/Course rows too,
                         // inverting Section -> Round for a different student's drop.
                         + (postgres ? " FOR UPDATE OF enrollment" : " FOR UPDATE"),

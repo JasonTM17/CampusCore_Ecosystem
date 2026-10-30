@@ -1,18 +1,21 @@
 package io.campuscore.restfulapi.notification.repository;
 
 import io.campuscore.restfulapi.notification.web.NotificationReadDtos.NotificationResponse;
+import io.campuscore.restfulapi.notification.push.DeliveryOutboxRepository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 /** JDBC write adapter for the notification inbox. */
 @Repository
@@ -33,9 +36,18 @@ public class NotificationWriteRepository {
             NotificationWriteRepository::mapRow;
 
     private final NamedParameterJdbcTemplate jdbc;
+    private final DeliveryOutboxRepository deliveryOutbox;
 
-    public NotificationWriteRepository(NamedParameterJdbcTemplate jdbc) {
+    @Autowired
+    public NotificationWriteRepository(
+            NamedParameterJdbcTemplate jdbc, DeliveryOutboxRepository deliveryOutbox) {
         this.jdbc = jdbc;
+        this.deliveryOutbox = deliveryOutbox;
+    }
+
+    /** Compatibility constructor for focused repository fixtures outside Spring. */
+    public NotificationWriteRepository(NamedParameterJdbcTemplate jdbc) {
+        this(jdbc, null);
     }
 
     public Optional<NotificationResponse> findOwned(String userId, String notificationId) {
@@ -71,8 +83,12 @@ public class NotificationWriteRepository {
                 .findFirst();
     }
 
+    @Transactional
     public NotificationResponse create(CreateNotificationCommand command) {
         jdbc.update(INSERT_SQL, insertParameters(command));
+        if (deliveryOutbox != null) {
+            deliveryOutbox.enqueue(command.id(), command.userId(), command.createdAt());
+        }
         return findById(command.id())
                 .orElseThrow(() -> new IllegalStateException("created notification was not found"));
     }
@@ -86,6 +102,7 @@ public class NotificationWriteRepository {
      * is the honest contract to callers. A failed batch throws and the caller
      * transaction is expected to roll the whole fan-out back.
      */
+    @Transactional
     public int createBatch(List<CreateNotificationCommand> commands) {
         if (commands == null || commands.isEmpty()) {
             return 0;
@@ -94,6 +111,11 @@ public class NotificationWriteRepository {
                 .map(NotificationWriteRepository::insertParameters)
                 .toArray(SqlParameterSource[]::new);
         jdbc.batchUpdate(INSERT_SQL, batch);
+        if (deliveryOutbox != null) {
+            for (CreateNotificationCommand command : commands) {
+                deliveryOutbox.enqueue(command.id(), command.userId(), command.createdAt());
+            }
+        }
         return commands.size();
     }
 

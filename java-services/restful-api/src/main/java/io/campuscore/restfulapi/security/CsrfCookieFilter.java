@@ -43,9 +43,14 @@ public class CsrfCookieFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
+        // The /bff/** lane enforces its own stricter session-bound CSRF
+        // triple-check (host-policy §4); on a shared dev host a stale legacy
+        // cc_csrf cookie must not shadow it.
         if (isSafeMethod(request.getMethod())
                 || hasBearerHeader(request)
-                || !hasSessionCookie(request)) {
+                || !hasSessionCookie(request)
+                || request.getRequestURI().startsWith("/bff/")
+                || request.getRequestURI().startsWith("/session/")) {
             filterChain.doFilter(request, response);
             return;
         }

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { readSources } from './helpers/read-sources.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -13,7 +14,7 @@ function read(relativePath) {
 test('selected thesis topic survives topic, detail, and registration navigation', () => {
   const types = read('src/navigation/types.ts');
   const navigator = read('src/navigation/MobileNavigator.tsx');
-  const thesis = read('src/screens/thesis/ThesisScreens.tsx');
+  const thesis = readSources(root, 'src/screens/thesis');
 
   assert.match(types, /thesisTopicId\?: string/);
   assert.match(types, /selectedThesisTopicId: string \| null/);
@@ -21,27 +22,29 @@ test('selected thesis topic survives topic, detail, and registration navigation'
   assert.match(navigator, /selectedThesisTopicId=\{selectedThesisTopicId\}/);
   assert.match(thesis, /navigate\('thesis\.detail', \{ thesisTopicId: topic\.id \}\)/);
   assert.match(thesis, /navigate\('thesis\.registration', \{ thesisTopicId: topic\.id \}\)/);
-  assert.match(thesis, /item\.id === \(selectedThesisTopicId \?\? group\?\.topicId\)/);
+  assert.match(thesis, /useThesisTopic\(selectedThesisTopicId \?\? undefined\)/);
+  assert.match(thesis, /const topicId = selectedThesisTopicId \?\? undefined/);
   assert.doesNotMatch(thesis, /const topic = workspace\.topics\[0\]/);
 });
 
 test('shared mobile primitives announce headings, progress, and unread state', () => {
   const ui = read('src/components/Ui.tsx');
-  const notifications = read('src/screens/student/StudentScreens.tsx');
+  const notifications = readSources(root,'src/screens/student',/^(StudentDashboard|Schedule|Courses|Grades|Attendance|Registration|Notifications|Profile)Screen\.tsx$|^shared\//);
 
-  assert.match(ui, /accessibilityRole="header" variant="headlineLarge"/);
+  // The compact app chrome uses the medium headline; heading semantics remain.
+  assert.match(ui, /accessibilityRole="header" variant="headlineMedium"/);
   assert.match(ui, /accessibilityRole="header" variant="headlineSmall"/);
   assert.match(ui, /accessibilityRole="progressbar"/);
   assert.match(ui, /accessibilityValue=\{\{ min: 0, max: 100, now: Math\.round\(boundedValue\) \}\}/);
-  assert.match(ui, /unread \? 'Unread' : null/);
-  assert.match(ui, />\s*Unread\s*</);
+  assert.match(ui, /unread \? copy\.unread : null/);
+  assert.match(ui, /\{copy\.unread\}/);
   assert.match(notifications, /accessibilityLiveRegion="polite"/);
 });
 
 test('student navigation and registration stay usable at a narrow mobile width', () => {
   const routes = read('src/navigation/routes.ts');
   const bottomNavigation = read('src/components/BottomNavigation.tsx');
-  const studentScreens = read('src/screens/student/StudentScreens.tsx');
+  const studentScreens = readSources(root,'src/screens/student',/^(StudentDashboard|Schedule|Courses|Grades|Attendance|Registration|Notifications|Profile)Screen\.tsx$|^shared\//);
 
   assert.match(routes, /student:\s*\[[\s\S]*?route: 'registration', label: 'Register'/);
   assert.match(bottomNavigation, /accessibilityRole="tablist"/);
@@ -78,7 +81,11 @@ test('npm test runs the atlas and Phase 6 regressions explicitly', () => {
 
 test('mobile assistant keeps native transport buffered and owner-history operations explicit', () => {
   const client = read('src/api/client.ts');
-  const assistant = read('src/screens/assistant/AssistantScreen.tsx');
+  const assistant = [
+    readSources(root, 'src/screens/assistant'),
+    readSources(root, 'src/assistant'),
+    read('src/api/assistant-api.ts'),
+  ].join('\n');
 
   assert.match(client, /conversations: '\/assistant\/conversations'/);
   assert.match(client, /\/messages/);
@@ -86,7 +93,7 @@ test('mobile assistant keeps native transport buffered and owner-history operati
   assert.match(client, /signal\?: AbortSignal|RequestInit/);
   assert.match(assistant, /conversationId/);
   assert.match(assistant, /deleteConversation/);
-  assert.match(assistant, /lastFailedPrompt/);
+  assert.match(assistant, /canRetry/);
   assert.match(assistant, /citation\.excerpt/);
   assert.doesNotMatch(assistant, /EventSource|text\/event-stream/);
   assert.doesNotMatch(client, /DEEPSEEK_API_KEY|sk-[A-Za-z0-9]/);
@@ -94,7 +101,8 @@ test('mobile assistant keeps native transport buffered and owner-history operati
 
 test('mobile assistant preserves idempotency, server cancellation, pagination, and fixed feedback reasons', () => {
   const client = read('src/api/client.ts');
-  const assistant = read('src/screens/assistant/AssistantScreen.tsx');
+  const screens = readSources(root, 'src/screens/assistant');
+  const assistant = [screens, readSources(root, 'src/assistant'), read('src/api/assistant-api.ts'), read('src/i18n/assistant-messages.ts')].join('\n');
 
   assert.match(client, /createAssistantClientRequestId/);
   assert.match(client, /clientRequestId:/);
@@ -103,37 +111,44 @@ test('mobile assistant preserves idempotency, server cancellation, pagination, a
   assert.match(client, /cancelAssistantRequest/);
   assert.match(client, /AssistantFeedbackReason/);
   assert.match(client, /putAssistantFeedback/);
-  assert.match(assistant, /lastFailedClientRequestId/);
-  assert.match(assistant, /cancelAssistantRequest\(clientRequestId\)/);
-  assert.match(assistant, /finally \{ abortRef\.current\?\.abort\(\)/);
-  assert.match(assistant, /pendingDeleteId/);
+  // The turn orchestrator owns the same-key resubmit and the server cancel.
+  assert.match(assistant, /createClientRequestId: createAssistantClientRequestId/);
+  assert.match(assistant, /cancelRequest: \(clientRequestId\) => assistantApi\.cancel\(clientRequestId\)/);
+  assert.match(assistant, /orchestrator\?\.dispose\(\)/);
+  assert.match(assistant, /pendingDelete/);
   assert.match(assistant, /sessionExpired/);
   assert.match(assistant, /offline/);
 });
 
 test('mobile never replays a terminal or fenced request key', () => {
-  const assistant = read('src/screens/assistant/AssistantScreen.tsx');
+  const orchestrator = read('src/assistant/turn-orchestrator.ts');
 
-  assert.match(assistant, /const NON_REPLAYABLE_TERMINAL_CODES = new Set\(\[[\s\S]*'FAILED_AMBIGUOUS'[\s\S]*'TURN_TERMINAL_RACE'[\s\S]*'TURN_NOT_ACTIVE'/);
-  assert.match(assistant, /!NON_REPLAYABLE_TERMINAL_CODES\.has\(requestError\?\.code \?\? ''\)/);
-  assert.match(assistant, /'TURN_CANCELLED'/);
-  assert.match(assistant, /'TURN_PURGED'/);
+  assert.match(orchestrator, /const FENCED_CODES = new Set\(\[/);
+  for (const code of ['FAILED_AMBIGUOUS', 'TURN_TERMINAL_RACE', 'TURN_NOT_ACTIVE']) {
+    assert.ok(orchestrator.includes(`'${code}'`), code);
+  }
+  assert.match(orchestrator, /FENCED_CODES\.has\(/);
+  assert.match(orchestrator, /'TURN_CANCELLED'/);
+  assert.match(orchestrator, /'TURN_PURGED'/);
 });
 
 test('mobile refreshes the session single-flight and exits to sign-in on expiry', () => {
   const client = read('src/api/client.ts');
   const navigator = read('src/navigation/MobileNavigator.tsx');
+  const store = read('src/auth/session-store.ts');
 
   // Concurrent 401s must share one refresh rotation; independent refreshes race
-  // the backend rotation and clear both tokens.
-  assert.match(client, /let sessionRefreshPromise: Promise<boolean> \| null = null/);
-  assert.match(client, /refreshSessionOnce\(requestId\)/);
-  assert.doesNotMatch(client, /await refreshMobileSession\(requestId\)/);
+  // the issuer rotation and revoke both tokens.
+  assert.match(client, /let sessionRefreshFlight: \{ epoch: number \| undefined; promise: Promise<boolean> \} \| null = null/);
+  assert.match(client, /refreshSessionOnce\(requestEpoch\)/);
+  assert.match(client, /options\.refreshSession\?\.\(\)/);
+  assert.doesNotMatch(client, /refreshToken/);
   assert.match(client, /setOnSessionExpired\(handler: \(\(\) => void\) \| undefined\): void/);
   assert.match(client, /onSessionExpired\?\.\(\)/);
-  // An in-flight refresh must not clobber a newer sign-in or sign-out.
-  assert.match(client, /sessionEpoch \+= 1/);
-  assert.match(client, /if \(epoch !== sessionEpoch\)/);
+  // An in-flight refresh must not clobber a newer sign-in or sign-out — the
+  // epoch gates live in session-store where the disk write happens (KM-6).
+  assert.match(store, /sessionEpoch \+= 1/);
+  assert.match(store, /if \(epoch !== sessionEpoch\)/);
   // A failed refresh must bridge back to the sign-in screen instead of a dead end.
   assert.match(navigator, /apiClient\.setOnSessionExpired\(/);
   assert.match(navigator, /setSessionKind\('signedOut'\)/);

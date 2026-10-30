@@ -31,18 +31,5 @@ coverage
 logs
 *.log
 
-# Code
-src
-app
-*.ts
-*.tsx
-
-# Config
-tsconfig.json
-next.config.js
-next-env.d.ts
-postcss.config.js
-tailwind.config.ts
-
 # Misc
 README.md

@@ -1,18 +1,42 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 
+import {
+  NO_CAPABILITIES,
+  hasCapability,
+  type Capability,
+  type CapabilitySet,
+} from '../auth/capabilities';
+import type { LaneFlags } from '../config/lane-flags';
+
 export type NavigationIconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 export type UserRole = 'student' | 'lecturer' | 'admin';
 
 export type ScreenName =
   | 'auth.signIn'
+  | 'auth.forgotPassword'
+  | 'auth.resetPassword'
+  | 'auth.loggedOut'
   | 'dashboard.student'
   | 'schedule'
   | 'courses'
   | 'grades'
+  | 'transcript'
+  | 'curriculum'
+  | 'enrollments'
   | 'attendance'
   | 'registration'
+  | 'events'
+  | 'learning'
+  | 'admissions'
+  | 'library'
+  | 'careers'
+  | 'news'
+  | 'docs'
   | 'notifications'
+  | 'announcements'
+  | 'conduct'
+  | 'certificates'
   | 'profile'
   | 'thesis.topics'
   | 'thesis.detail'
@@ -26,6 +50,49 @@ export type ScreenName =
   | 'lecturer.schedule'
   | 'lecturer.grading'
   | 'lecturer.attendance';
+
+/**
+ * Flag-gated lane screens. They are deliberately not `ScreenName` members:
+ * the registry above stays the always-on surface, and a lane screen exists
+ * only for a session whose capability set grants it.
+ */
+export type LaneScreenId =
+  | 'dean.overview'
+  | 'staff.applyReview'
+  | 'staff.careersDesk'
+  | 'staff.libraryDesk'
+  | 'admin.overview'
+  | 'admin.attendance'
+  | 'admin.audit'
+  | 'admin.creditLimits'
+  | 'admin.enrollments'
+  | 'admin.events'
+  | 'admin.notifications'
+  | 'attendance.checkin';
+
+/** Flag group a lane belongs to — indexes `LaneFlags`. */
+export type LaneGroup = 'dean' | 'staff' | 'admin' | 'checkin';
+
+export const laneGroupOf = (id: LaneScreenId): LaneGroup =>
+  id.startsWith('attendance.') ? 'checkin'
+    : id.startsWith('dean.') ? 'dean'
+      : id.startsWith('staff.') ? 'staff' : 'admin';
+
+/**
+ * Lanes a preview pseudo-session may open when its flag is on. Preview is
+ * still never an authorization substitute — a lane in this set must render
+ * simulated data only, and the check-in API itself refuses non-live POSTs.
+ */
+export const PREVIEW_LANES: ReadonlySet<LaneScreenId> = new Set(['attendance.checkin']);
+
+export interface LaneScreenDefinition {
+  id: LaneScreenId;
+  title: string;
+  /** UI role the lane renders under; null = any signed-in role (per-desk grant). */
+  role: UserRole | null;
+  capability: Capability;
+  icon: NavigationIconName;
+}
 
 export type ScreenFamily =
   | 'auth'
@@ -55,24 +122,40 @@ export interface StitchMobileReference {
 
 const allRoles: readonly UserRole[] = ['student', 'lecturer', 'admin'];
 const studentRoles: readonly UserRole[] = ['student'];
-const lecturerRoles: readonly UserRole[] = ['lecturer', 'admin'];
+const lecturerRoles: readonly UserRole[] = ['lecturer'];
 const adminRoles: readonly UserRole[] = ['admin'];
 
 export const screenRegistry: readonly ScreenDefinition[] = [
   { name: 'auth.signIn', title: 'Sign in', family: 'auth', roles: allRoles, icon: 'login' },
+  { name: 'auth.forgotPassword', title: 'Forgot password', family: 'auth', roles: allRoles, icon: 'lock-question' },
+  { name: 'auth.resetPassword', title: 'Reset password', family: 'auth', roles: allRoles, icon: 'lock-reset' },
+  { name: 'auth.loggedOut', title: 'Signed out', family: 'auth', roles: allRoles, icon: 'logout' },
   { name: 'dashboard.student', title: 'Dashboard', family: 'student', roles: studentRoles, icon: 'home-variant' },
   { name: 'schedule', title: 'Schedule', family: 'student', roles: studentRoles, icon: 'calendar-week' },
   { name: 'courses', title: 'Courses', family: 'student', roles: studentRoles, icon: 'book-open-page-variant' },
   { name: 'grades', title: 'Grades', family: 'student', roles: studentRoles, icon: 'chart-box-outline' },
+  { name: 'transcript', title: 'Transcript', family: 'student', roles: studentRoles, icon: 'file-document-outline' },
+  { name: 'curriculum', title: 'Curriculum', family: 'student', roles: studentRoles, icon: 'book-education-outline' },
+  { name: 'enrollments', title: 'Enrollments', family: 'student', roles: studentRoles, icon: 'clipboard-list-outline' },
   { name: 'attendance', title: 'Attendance', family: 'student', roles: studentRoles, icon: 'clipboard-check-outline' },
   { name: 'registration', title: 'Registration', family: 'student', roles: studentRoles, icon: 'book-plus-outline' },
+  { name: 'events', title: 'Events', family: 'student', roles: studentRoles, icon: 'calendar-star' },
+  { name: 'learning', title: 'Materials & assignments', family: 'student', roles: studentRoles, icon: 'book-education-outline' },
+  { name: 'admissions', title: 'Admissions (simulated)', family: 'student', roles: studentRoles, icon: 'account-edit-outline' },
+  { name: 'library', title: 'Library (simulated)', family: 'student', roles: studentRoles, icon: 'bookshelf' },
+  { name: 'careers', title: 'Careers (simulated)', family: 'student', roles: studentRoles, icon: 'briefcase-search-outline' },
+  { name: 'news', title: 'Campus news', family: 'student', roles: studentRoles, icon: 'newspaper-variant-outline' },
+  { name: 'docs', title: 'Public documents', family: 'student', roles: studentRoles, icon: 'file-document-outline' },
   { name: 'notifications', title: 'Notifications', family: 'student', roles: allRoles, icon: 'bell-outline' },
+  { name: 'announcements', title: 'Academic announcements', family: 'student', roles: studentRoles, icon: 'bullhorn-outline' },
+  { name: 'conduct', title: 'Conduct score', family: 'student', roles: studentRoles, icon: 'medal-outline' },
+  { name: 'certificates', title: 'Certificates', family: 'student', roles: studentRoles, icon: 'certificate-outline' },
   { name: 'profile', title: 'Profile', family: 'student', roles: allRoles, icon: 'account-circle-outline' },
   { name: 'thesis.topics', title: 'Thesis topics', family: 'thesis', roles: studentRoles, icon: 'lightbulb-on-outline' },
   { name: 'thesis.detail', title: 'Topic detail', family: 'thesis', roles: studentRoles, icon: 'text-box-search-outline' },
   { name: 'thesis.registration', title: 'Thesis registration', family: 'thesis', roles: studentRoles, icon: 'account-group-outline' },
   { name: 'thesis.progress', title: 'Thesis progress', family: 'thesis', roles: studentRoles, icon: 'chart-timeline-variant' },
-  { name: 'assistant.chat', title: 'CampusCore assistant', family: 'assistant', roles: allRoles, icon: 'robot-outline' },
+  { name: 'assistant.chat', title: 'CampusUTE assistant', family: 'assistant', roles: allRoles, icon: 'robot-outline' },
   { name: 'admin.dashboard', title: 'Admin dashboard', family: 'staff', roles: adminRoles, icon: 'shield-account-outline' },
   { name: 'admin.students', title: 'Manage students', family: 'staff', roles: adminRoles, icon: 'school-outline' },
   { name: 'admin.lecturers', title: 'Manage lecturers', family: 'staff', roles: adminRoles, icon: 'account-tie-outline' },
@@ -80,6 +163,21 @@ export const screenRegistry: readonly ScreenDefinition[] = [
   { name: 'lecturer.schedule', title: 'Teaching schedule', family: 'staff', roles: lecturerRoles, icon: 'calendar-account-outline' },
   { name: 'lecturer.grading', title: 'Gradebook', family: 'staff', roles: lecturerRoles, icon: 'notebook-edit-outline' },
   { name: 'lecturer.attendance', title: 'Class attendance', family: 'staff', roles: lecturerRoles, icon: 'account-check-outline' },
+];
+
+export const laneScreenRegistry: readonly LaneScreenDefinition[] = [
+  { id: 'dean.overview', title: 'Faculty thesis overview', role: 'lecturer', capability: 'dean.overview', icon: 'school-outline' },
+  { id: 'staff.applyReview', title: 'Admissions review', role: null, capability: 'staff.applyReview', icon: 'account-edit-outline' },
+  { id: 'staff.careersDesk', title: 'Careers desk', role: null, capability: 'staff.careersDesk', icon: 'briefcase-search-outline' },
+  { id: 'staff.libraryDesk', title: 'Library desk', role: null, capability: 'staff.libraryDesk', icon: 'bookshelf' },
+  { id: 'admin.overview', title: 'Oversight', role: 'admin', capability: 'admin.oversight', icon: 'shield-account-outline' },
+  { id: 'admin.attendance', title: 'Attendance oversight', role: 'admin', capability: 'admin.oversight', icon: 'account-check-outline' },
+  { id: 'admin.audit', title: 'Audit log', role: 'admin', capability: 'admin.oversight', icon: 'clipboard-text-clock-outline' },
+  { id: 'admin.creditLimits', title: 'Credit limit applications', role: 'admin', capability: 'admin.oversight', icon: 'credit-card-check-outline' },
+  { id: 'admin.enrollments', title: 'Enrollments', role: 'admin', capability: 'admin.oversight', icon: 'book-plus-outline' },
+  { id: 'admin.events', title: 'Event desk', role: 'admin', capability: 'admin.oversight', icon: 'calendar-star' },
+  { id: 'admin.notifications', title: 'Notification desk', role: 'admin', capability: 'admin.oversight', icon: 'bell-outline' },
+  { id: 'attendance.checkin', title: 'Check in', role: 'student', capability: 'student.checkin', icon: 'map-marker-check-outline' },
 ];
 
 const bottomNavigationByRole: Readonly<Record<UserRole, readonly BottomNavigationItem[]>> = {
@@ -103,13 +201,37 @@ const bottomNavigationByRole: Readonly<Record<UserRole, readonly BottomNavigatio
   ],
 };
 
-// Direct references only. Other registry screens derive from the same token and
-// interaction contract until a dedicated Stitch screen is added.
+// Direct references only. The seven ecosystem domain lanes resolve to the live
+// CampusUTE Stitch project (8459672847959457355, CampusCore Institutional
+// Mobile System); the capstone-era lanes reference the legacy project kept in
+// frontend/.stitch/metadata.json. Other registry screens derive from the same
+// token and interaction contract until a dedicated Stitch screen is added.
 export const stitchMobileReferences: Readonly<
   Partial<Record<ScreenName, readonly StitchMobileReference[]>>
 > = {
   'auth.signIn': [
     { id: '67e517e324ef454c810e2b41b4acdc99', title: 'Đăng nhập - Hệ thống Quản lý Đề tài' },
+  ],
+  events: [
+    { id: 'fc5427a8d03549878d4acb90e696d646', title: 'CampusCore - Sự kiện & Đoàn-Hội' },
+  ],
+  learning: [
+    { id: '44f28aa4f58a4cd2bbba9ee6efa534f5', title: 'CampusCore - Học tập & LMS' },
+  ],
+  admissions: [
+    { id: 'bff380e5f2474201b169d6d6b3e7330c', title: 'CampusCore - Tuyển sinh (Mô phỏng)' },
+  ],
+  library: [
+    { id: '46104df5b291438d828c9d1d85042e6a', title: 'CampusCore - Thư viện & Học liệu' },
+  ],
+  careers: [
+    { id: '11bb52c7330c44428c503d35c343e2ff', title: 'CampusCore - Việc làm & Hướng nghiệp' },
+  ],
+  news: [
+    { id: '62e1c33865dc4baea955a00cc8bfb311', title: 'CampusCore - Tin tức & Thông báo' },
+  ],
+  docs: [
+    { id: '02b1eec59ef749e199392e724ed6ca11', title: 'CampusCore - Tài liệu & Biểu mẫu' },
   ],
   'dashboard.student': [
     { id: '55abc697e13e416aa87c89fd331e6c62', title: 'Dashboard - Mobile App' },
@@ -145,7 +267,11 @@ export const stitchMobileReferences: Readonly<
 export const menuSections = [
   {
     title: 'Student workspace',
-    families: ['student', 'thesis', 'assistant'] as const,
+    families: ['student', 'thesis'] as const,
+  },
+  {
+    title: 'Assistant',
+    families: ['assistant'] as const,
   },
   {
     title: 'Staff',
@@ -157,10 +283,87 @@ export function getScreenDefinition(route: ScreenName) {
   return screenRegistry.find((screen) => screen.name === route);
 }
 
-export function canAccessScreen(role: UserRole, route: ScreenName) {
+/**
+ * Registry-screen access. An applicant-surface session — a roleless
+ * authenticated account carrying the `admissions:self` grant — reaches the
+ * SELF admissions screen and nothing else, whatever UI selector it renders
+ * under. Every other session keeps the role check unchanged; callers that
+ * pass no capability set see exactly the historical behavior.
+ */
+export function canAccessScreen(
+  role: UserRole,
+  route: ScreenName,
+  capabilities: CapabilitySet = NO_CAPABILITIES,
+) {
+  if (hasCapability(capabilities, 'applicant.surface')) {
+    return route === 'admissions';
+  }
   return getScreenDefinition(route)?.roles.includes(role) ?? false;
 }
 
 export function getBottomNavigation(role: UserRole) {
   return bottomNavigationByRole[role];
+}
+
+export function getLaneScreen(id: LaneScreenId) {
+  return laneScreenRegistry.find((screen) => screen.id === id);
+}
+
+/**
+ * Whether a lane screen is reachable for this surface role + capability set.
+ * Staff desks are granted per desk by the server, so they are not tied to the
+ * UI role; every other lane also needs its own UI role.
+ */
+export function canAccessLaneScreen(
+  role: UserRole,
+  capabilities: CapabilitySet,
+  id: LaneScreenId,
+) {
+  const screen = getLaneScreen(id);
+  if (!screen || !hasCapability(capabilities, screen.capability)) {
+    return false;
+  }
+  return screen.role === null || screen.role === role;
+}
+
+/** Lane entries to show in menus; an empty capability set shows none. */
+export function getLaneNavigation(role: UserRole, capabilities: CapabilitySet) {
+  return laneScreenRegistry.filter((screen) => canAccessLaneScreen(role, capabilities, screen.id));
+}
+
+/**
+ * Preview-session lane rule: a preview pseudo-session holds no capabilities,
+ * so the grant is the build flag plus the lane's UI role — demo surfaces only.
+ */
+export function canPreviewLaneScreen(role: UserRole, flags: LaneFlags, id: LaneScreenId): boolean {
+  const screen = getLaneScreen(id);
+  if (!screen || !PREVIEW_LANES.has(id) || flags[laneGroupOf(id)] !== true) {
+    return false;
+  }
+  return screen.role === null || screen.role === role;
+}
+
+/**
+ * One session+flag+capability lane rule shared by the router guard, the
+ * navigation adapter and the render-time check: authenticated sessions need
+ * the capability; preview sessions reach only `PREVIEW_LANES`; signed-out
+ * sessions reach nothing.
+ */
+export function laneAllowedForSession(input: {
+  kind: 'signedOut' | 'preview' | 'authenticated';
+  role: UserRole;
+  capabilities: CapabilitySet | undefined;
+  flags: LaneFlags;
+  id: LaneScreenId;
+}): boolean {
+  if (input.flags[laneGroupOf(input.id)] !== true) {
+    return false;
+  }
+  if (input.kind === 'authenticated') {
+    return canAccessLaneScreen(input.role, input.capabilities ?? [], input.id);
+  }
+  if (input.kind === 'preview') {
+    return canPreviewLaneScreen(input.role, input.flags, input.id);
+  }
+  return false;
 }

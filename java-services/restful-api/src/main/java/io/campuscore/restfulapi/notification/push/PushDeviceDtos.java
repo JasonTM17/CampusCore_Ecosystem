@@ -1,0 +1,59 @@
+package io.campuscore.restfulapi.notification.push;
+
+import io.campuscore.restfulapi.exception.AppException;
+import io.swagger.v3.oas.annotations.media.Schema;
+import java.time.Instant;
+import java.util.Set;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
+import org.springframework.http.HttpStatus;
+
+/** Request and redacted response DTOs for owner-scoped push registration. */
+public final class PushDeviceDtos {
+
+    private static final Set<String> REQUEST_FIELDS = Set.of("provider", "platform", "token");
+
+    private PushDeviceDtos() { }
+
+    @Schema(name = "PushDeviceRegistrationRequest")
+    public record PushDeviceRegistrationRequest(
+            @Schema(type = "string", requiredMode = Schema.RequiredMode.REQUIRED) String provider,
+            @Schema(type = "string", requiredMode = Schema.RequiredMode.REQUIRED) String platform,
+            @Schema(type = "string", requiredMode = Schema.RequiredMode.REQUIRED,
+                    accessMode = Schema.AccessMode.WRITE_ONLY) String token) {
+        public static PushDeviceRegistrationRequest from(JsonNode body) {
+            if (!(body instanceof ObjectNode object)) {
+                throw invalidRequest();
+            }
+            for (String field : object.propertyNames()) {
+                if (!REQUEST_FIELDS.contains(field)) {
+                    throw invalidRequest();
+                }
+            }
+            String provider = stringField(object, "provider");
+            String platform = stringField(object, "platform");
+            String token = stringField(object, "token");
+            if (provider == null || platform == null || token == null) {
+                throw invalidRequest();
+            }
+            return new PushDeviceRegistrationRequest(provider, platform, token);
+        }
+
+        private static String stringField(ObjectNode body, String field) {
+            JsonNode value = body.get(field);
+            return value != null && value.isTextual() ? value.asText() : null;
+        }
+    }
+
+    public record PushDeviceRegistrationResponse(
+            String installationId,
+            String provider,
+            String platform,
+            String status,
+            Instant updatedAt) { }
+
+    private static AppException invalidRequest() {
+        return new AppException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST",
+                "Push device registration request is invalid");
+    }
+}

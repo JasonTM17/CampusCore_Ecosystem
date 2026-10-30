@@ -12,7 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -117,11 +117,56 @@ class ArticleTaxonomyV2PersistenceTest {
                     "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """);
+        // Attachment/gallery routes join the parent announcement
+        // (publication-policy §4), so the fixture needs the parent rows the
+        // seeded assets point at — all globally visible and in-window.
+        jdbc.execute("DROP TABLE IF EXISTS \"engagement\".\"Announcement\"");
+        jdbc.execute("""
+                CREATE TABLE "engagement"."Announcement" (
+                    "id" VARCHAR(120) PRIMARY KEY,
+                    "title" VARCHAR(240) NOT NULL,
+                    "content" TEXT NOT NULL,
+                    "priority" VARCHAR(20) NOT NULL,
+                    "targetRoles" VARCHAR ARRAY NOT NULL,
+                    "targetYears" INTEGER ARRAY NOT NULL,
+                    "isGlobal" BOOLEAN NOT NULL,
+                    "publishAt" TIMESTAMP WITH TIME ZONE,
+                    "expiresAt" TIMESTAMP WITH TIME ZONE,
+                    "publishedBy" VARCHAR(120),
+                    "sectionId" VARCHAR(120),
+                    "lecturerId" VARCHAR(120),
+                    "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL,
+                    "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL,
+                    "archivedAt" TIMESTAMP WITH TIME ZONE,
+                    "archivedBy" VARCHAR(120),
+                    "status" VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
+                    "authorId" VARCHAR(120),
+                    "reviewerId" VARCHAR(120),
+                    "reviewedAt" TIMESTAMP WITH TIME ZONE,
+                    "reviewNote" VARCHAR(500),
+                    "publishedRevision" INTEGER,
+                    "slug" VARCHAR(240)
+                )
+                """);
+        jdbc.execute("CREATE SCHEMA IF NOT EXISTS \"academic\"");
+        jdbc.execute("DROP TABLE IF EXISTS \"academic\".\"Enrollment\"");
+        jdbc.execute("""
+                CREATE TABLE "academic"."Enrollment" (
+                    "id" VARCHAR(120) PRIMARY KEY,
+                    "studentId" VARCHAR(120) NOT NULL,
+                    "sectionId" VARCHAR(120) NOT NULL,
+                    "status" VARCHAR(30) NOT NULL
+                )
+                """);
 
         insertCategory("cat-first", "RESEARCH_TECH", "nghien-cuu-cong-nghe", 1);
         insertCategory("cat-second", "AWARDS_HONORS", "hoc-bong-khen-thuong", 2);
         insertCategory("cat-hidden", "ARCHIVED_NEWS", "luu-tru", 3);
         jdbc.update("UPDATE \"engagement\".\"ArticleCategory\" SET \"isActive\" = FALSE WHERE \"id\" = 'cat-hidden'");
+
+        seedParent("ann-1");
+        seedParent("ann-2");
+        seedParent("ann-big");
 
         insertGallery("gal-1", "ann-1", 1);
         insertGallery("gal-2", "ann-1", 2);
@@ -133,6 +178,27 @@ class ArticleTaxonomyV2PersistenceTest {
 
         insertAttachment("att-1", "ann-1", 1);
         insertAttachment("att-private", "ann-1", false, 2);
+    }
+
+    /** Every fixture asset points at a live, globally visible published parent. */
+    private void seedParent(String id) {
+        jdbc.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) connection -> {
+            try (java.sql.PreparedStatement statement = connection.prepareStatement("""
+                    INSERT INTO "engagement"."Announcement" (
+                        "id", "title", "content", "priority", "targetRoles", "targetYears",
+                        "isGlobal", "publishAt", "createdAt", "updatedAt", "status", "authorId")
+                    VALUES (?, ?, '<p>x</p>', 'NORMAL', ?, ?, TRUE,
+                            TIMESTAMP WITH TIME ZONE '2020-01-01 00:00:00+00',
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'PUBLISHED', 'portal-admin-1')
+                    """)) {
+                statement.setString(1, id);
+                statement.setString(2, "News " + id);
+                statement.setArray(3, connection.createArrayOf("VARCHAR", new String[0]));
+                statement.setArray(4, connection.createArrayOf("INTEGER", new Integer[0]));
+                statement.executeUpdate();
+            }
+            return null;
+        });
     }
 
     private void insertCategory(String id, String code, String slug, int displayOrder) {
@@ -312,4 +378,17 @@ class ArticleTaxonomyV2PersistenceTest {
                 .andExpect(jsonPath("$.data[0].isPublic").doesNotExist())
                 .andExpect(jsonPath("$.meta.limit").value(200));
     }
+
+    @Test
+    void taxonomyPolicyKeepsOnlyTheCategoryFeedAnonymous() throws Exception {
+        for (String path : List.of("article-categories", "article-categories/example", "article-tags",
+                "article-tags/example", "article-media-galleries", "article-attachments",
+                "article-taxonomy/v2/categories/example", "article-taxonomy/v2/tags",
+                "article-taxonomy/v2/tags/example", "article-taxonomy/v2/media-galleries",
+                "article-taxonomy/v2/attachments")) {
+            mvc.perform(get("/api/v1/" + path)).andExpect(status().isUnauthorized());
+        }
+        mvc.perform(get("/api/v1/article-taxonomy/v2/categories")).andExpect(status().isOk());
+    }
+
 }

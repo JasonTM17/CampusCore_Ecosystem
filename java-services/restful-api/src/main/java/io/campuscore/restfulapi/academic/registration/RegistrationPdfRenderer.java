@@ -15,6 +15,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class RegistrationPdfRenderer {
 
+    private static final int ROWS_PER_PAGE = 12;
+
     public record CourseItem(
             String courseCode,
             String courseName,
@@ -157,101 +159,119 @@ public class RegistrationPdfRenderer {
                         0,
                         cleanEnrollmentId,
                         cleanSectionId));
-        int maxRows = Math.min(items.size(), 12);
-        int totalCredits = 0;
-        int currentY = 532;
+        long totalCredits = items.stream().mapToLong(CourseItem::credits).sum();
+        List<String> pageHeaderLines = List.copyOf(streamLines);
+        List<byte[]> pageStreams = new ArrayList<>();
 
-        for (int i = 0; i < maxRows; i++) {
-            CourseItem item = items.get(i);
-            totalCredits += item.credits();
-            int rowY = currentY - (i * 16);
+        for (int pageStart = 0; pageStart < items.size(); pageStart += ROWS_PER_PAGE) {
+            int pageEnd = Math.min(items.size(), pageStart + ROWS_PER_PAGE);
+            List<CourseItem> pageItems = items.subList(pageStart, pageEnd);
+            boolean finalPage = pageEnd == items.size();
+            List<String> pageLines = new ArrayList<>(pageHeaderLines);
 
-            // Row bottom line
-            streamLines.add("q");
-            streamLines.add("0.85 0.85 0.85 RG 0.4 w");
-            streamLines.add("54 " + (rowY - 4) + " m 558 " + (rowY - 4) + " l S");
-            streamLines.add("Q");
+            for (int i = 0; i < pageItems.size(); i++) {
+                CourseItem item = pageItems.get(i);
+                int rowNumber = pageStart + i + 1;
+                int rowY = 532 - (i * 16);
 
-            String cName = item.courseName() != null ? item.courseName() : "Course " + (i + 1);
-            if (cName.length() > 36) {
-                cName = cName.substring(0, 33) + "...";
+                pageLines.add("q");
+                pageLines.add("0.85 0.85 0.85 RG 0.4 w");
+                pageLines.add("54 " + (rowY - 4) + " m 558 " + (rowY - 4) + " l S");
+                pageLines.add("Q");
+
+                String cName = item.courseName() != null ? item.courseName() : "Course " + rowNumber;
+                if (cName.length() > 36) {
+                    cName = cName.substring(0, 33) + "...";
+                }
+
+                pageLines.add("BT");
+                pageLines.add("0 g");
+                pageLines.add("/F1 8 Tf 62 " + rowY + " Td (" + rowNumber + ") Tj");
+                pageLines.add("/F1 8 Tf 85 " + rowY + " Td (" + escapePdf(item.courseCode()) + ") Tj");
+                pageLines.add("/F1 8 Tf 150 " + rowY + " Td (" + escapePdf(cName) + ") Tj");
+                pageLines.add("/F1 8 Tf 365 " + rowY + " Td (" + escapePdf(item.sectionNumber()) + ") Tj");
+                pageLines.add("/F1 8 Tf 440 " + rowY + " Td (" + (item.credits() > 0 ? String.valueOf(item.credits()) : "-") + ") Tj");
+                pageLines.add("/F1 8 Tf 485 " + rowY + " Td (Hop le) Tj");
+                pageLines.add("ET");
             }
 
-            streamLines.add("BT");
-            streamLines.add("0 g");
-            streamLines.add("/F1 8 Tf 62 " + rowY + " Td (" + (i + 1) + ") Tj");
-            streamLines.add("/F1 8 Tf 85 " + rowY + " Td (" + escapePdf(item.courseCode()) + ") Tj");
-            streamLines.add("/F1 8 Tf 150 " + rowY + " Td (" + escapePdf(cName) + ") Tj");
-            streamLines.add("/F1 8 Tf 365 " + rowY + " Td (" + escapePdf(item.sectionNumber()) + ") Tj");
-            streamLines.add("/F1 8 Tf 440 " + rowY + " Td (" + (item.credits() > 0 ? String.valueOf(item.credits()) : "-") + ") Tj");
-            streamLines.add("/F1 8 Tf 485 " + rowY + " Td (Hop le) Tj");
-            streamLines.add("ET");
+            int afterTableY = 532 - (pageItems.size() * 16) - 10;
+            if (finalPage && totalCredits > 0) {
+                pageLines.add("BT");
+                pageLines.add("/F2 9 Tf 350 " + afterTableY + " Td (Tong so tin chi dang ky: " + totalCredits + " TC) Tj");
+                pageLines.add("ET");
+            }
+
+            if (finalPage) {
+                int sigY = Math.min(afterTableY - 25, 340);
+                pageLines.add("BT");
+                pageLines.add("/F2 9 Tf 90 " + sigY + " Td (Sinh vien dang ky) Tj");
+                pageLines.add("/F1 8 Tf 85 " + (sigY - 12) + " Td ((Ky va ghi ro ho ten)) Tj");
+                pageLines.add("/F2 9 Tf 380 " + sigY + " Td (Xac nhan Phong Dao tao) Tj");
+                pageLines.add("/F1 8 Tf 380 " + (sigY - 12) + " Td ((Ky ten va dong dau)) Tj");
+                pageLines.add("ET");
+            }
+
+            pageLines.add("q");
+            pageLines.add("0.5 w 0.8 0.8 0.8 RG");
+            pageLines.add("54 135 m 558 135 l S");
+            pageLines.add("Q");
+            pageLines.add("BT");
+            pageLines.add("/F1 8 Tf 54 120 Td (Phieu dang ky co gia tri xac nhan ket qua dang ky hoc phan tai Phong Dao tao.) Tj");
+            pageLines.add("ET");
+            pageLines.add("BT");
+            pageLines.add("/F1 8 Tf 54 105 Td (" + escapePdf(legacyText) + ") Tj");
+            pageLines.add("ET");
+            pageLines.add("BT");
+            pageLines.add("/F1 7 Tf 54 90 Td (CampusUTE Official Registration Document - Verified by SHA-256 Digest) Tj");
+            pageLines.add("ET");
+
+            String streamContent = String.join("\n", pageLines) + "\n";
+            pageStreams.add(streamContent.getBytes(StandardCharsets.US_ASCII));
         }
 
-        int afterTableY = currentY - (maxRows * 16) - 10;
-        if (totalCredits > 0) {
-            streamLines.add("BT");
-            streamLines.add("/F2 9 Tf 350 " + afterTableY + " Td (Tong so tin chi dang ky: " + totalCredits + " TC) Tj");
-            streamLines.add("ET");
-        }
-
-        // Signatures section
-        int sigY = Math.min(afterTableY - 25, 340);
-        streamLines.add("BT");
-        streamLines.add("/F2 9 Tf 90 " + sigY + " Td (Sinh vien dang ky) Tj");
-        streamLines.add("/F1 8 Tf 85 " + (sigY - 12) + " Td ((Ky va ghi ro ho ten)) Tj");
-        streamLines.add("/F2 9 Tf 380 " + sigY + " Td (Xac nhan Phong Dao tao) Tj");
-        streamLines.add("/F1 8 Tf 380 " + (sigY - 12) + " Td ((Ky ten va dong dau)) Tj");
-        streamLines.add("ET");
-
-        // Notice and Verification
-        streamLines.add("q");
-        streamLines.add("0.5 w 0.8 0.8 0.8 RG");
-        streamLines.add("54 135 m 558 135 l S");
-        streamLines.add("Q");
-
-        streamLines.add("BT");
-        streamLines.add("/F1 8 Tf 54 120 Td (Phieu dang ky co gia tri xac nhan ket qua dang ky hoc phan tai Phong Dao tao.) Tj");
-        streamLines.add("ET");
-
-        // Legacy compatibility line
-        streamLines.add("BT");
-        streamLines.add("/F1 8 Tf 54 105 Td (" + escapePdf(legacyText) + ") Tj");
-        streamLines.add("ET");
-
-        streamLines.add("BT");
-        streamLines.add("/F1 7 Tf 54 90 Td (CampusUTE Official Registration Document - Verified by SHA-256 Digest) Tj");
-        streamLines.add("ET");
-
-        String streamContent = String.join("\n", streamLines) + "\n";
-        byte[] streamBytes = streamContent.getBytes(StandardCharsets.US_ASCII);
-
-        return assemblePdf(streamBytes);
+        return assemblePdf(pageStreams);
     }
 
-    private byte[] assemblePdf(byte[] streamBytes) {
+    private byte[] assemblePdf(List<byte[]> pageStreams) {
         byte[] header = "%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n".getBytes(StandardCharsets.ISO_8859_1);
 
         List<byte[]> objects = new ArrayList<>();
         // 1 0 obj: Catalog
         objects.add("1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n".getBytes(StandardCharsets.US_ASCII));
-        // 2 0 obj: Pages
-        objects.add("2 0 obj\n<</Type/Pages/Count 1/Kids[3 0 R]>>\nendobj\n".getBytes(StandardCharsets.US_ASCII));
-        // 3 0 obj: Page
-        objects.add("3 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R/F2 6 0 R>>>>>>\nendobj\n"
+        StringBuilder pageKids = new StringBuilder();
+        for (int pageIndex = 0; pageIndex < pageStreams.size(); pageIndex++) {
+            if (pageIndex > 0) {
+                pageKids.append(' ');
+            }
+            pageKids.append(3 + pageIndex * 2).append(" 0 R");
+        }
+        objects.add(("2 0 obj\n<</Type/Pages/Count " + pageStreams.size() + "/Kids[" + pageKids + "]>>\nendobj\n")
                 .getBytes(StandardCharsets.US_ASCII));
-        // 4 0 obj: Stream content
-        String streamHeader = "4 0 obj\n<</Length " + streamBytes.length + ">>\nstream\n";
-        String streamFooter = "\nendstream\nendobj\n";
-        byte[] obj4 = concat(
-                streamHeader.getBytes(StandardCharsets.US_ASCII),
-                streamBytes,
-                streamFooter.getBytes(StandardCharsets.US_ASCII));
-        objects.add(obj4);
-        // 5 0 obj: Font F1 (Helvetica)
-        objects.add("5 0 obj\n<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>\nendobj\n".getBytes(StandardCharsets.US_ASCII));
-        // 6 0 obj: Font F2 (Helvetica-Bold)
-        objects.add("6 0 obj\n<</Type/Font/Subtype/Type1/BaseFont/Helvetica-Bold>>\nendobj\n".getBytes(StandardCharsets.US_ASCII));
+
+        int regularFontId = 3 + pageStreams.size() * 2;
+        int boldFontId = regularFontId + 1;
+        for (int pageIndex = 0; pageIndex < pageStreams.size(); pageIndex++) {
+            int pageObjectId = 3 + pageIndex * 2;
+            int contentObjectId = pageObjectId + 1;
+            String pageObject = pageObjectId + " 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents "
+                    + contentObjectId + " 0 R/Resources<</Font<</F1 " + regularFontId + " 0 R/F2 " + boldFontId
+                    + " 0 R>>>>>>\nendobj\n";
+            objects.add(pageObject.getBytes(StandardCharsets.US_ASCII));
+
+            byte[] streamBytes = pageStreams.get(pageIndex);
+            String streamHeader = contentObjectId + " 0 obj\n<</Length " + streamBytes.length + ">>\nstream\n";
+            String streamFooter = "\nendstream\nendobj\n";
+            objects.add(concat(
+                    streamHeader.getBytes(StandardCharsets.US_ASCII),
+                    streamBytes,
+                    streamFooter.getBytes(StandardCharsets.US_ASCII)));
+        }
+
+        objects.add((regularFontId + " 0 obj\n<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>\nendobj\n")
+                .getBytes(StandardCharsets.US_ASCII));
+        objects.add((boldFontId + " 0 obj\n<</Type/Font/Subtype/Type1/BaseFont/Helvetica-Bold>>\nendobj\n")
+                .getBytes(StandardCharsets.US_ASCII));
 
         // Calculate offsets
         int currentOffset = header.length;

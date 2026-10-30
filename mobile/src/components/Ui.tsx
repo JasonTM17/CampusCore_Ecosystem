@@ -5,44 +5,110 @@ import {
   ScrollView,
   StyleProp,
   StyleSheet,
-  Text,
-  TextInput,
-  TextInputProps,
-  TextProps,
-  TextStyle,
   View,
   ViewStyle,
 } from 'react-native';
 
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+
+import { chromeFor } from '../design/chrome';
 import { tokens } from '../design/tokens';
+import { useTheme } from '../design/theme';
+import { useShellCopy } from '../i18n/use-shell-copy';
+import type { ThemeColors } from '../design/theme';
+import { UiText } from './ui/UiText';
+import type { TextTone } from './ui/UiText';
+import { Avatar as UiAvatar } from './ui/avatar';
+import { Button } from './ui/Button';
+import { FormField } from './ui/primitives';
+import { ResponsiveContent } from './ui/ResponsiveContent';
+import { IconChip } from './ui/institutional';
 
-export type TextVariant =
-  | 'display'
-  | 'headlineLarge'
-  | 'headlineMedium'
-  | 'headlineSmall'
-  | 'bodyLarge'
-  | 'bodyMedium'
-  | 'bodySmall'
-  | 'label'
-  | 'meta';
+export { UiText } from './ui/UiText';
+export type { UiTextProps, TextVariant, TextTone } from './ui/UiText';
+export { Button } from './ui/Button';
+export type { ButtonProps } from './ui/Button';
+export * from './ui/index';
 
-export type TextTone = 'default' | 'muted' | 'primary' | 'success' | 'warning' | 'error' | 'onPrimary';
+/* ---------- themed styles ---------- */
 
-export interface UiTextProps extends Omit<TextProps, 'style'> {
-  variant?: TextVariant;
-  tone?: TextTone;
-  style?: StyleProp<TextStyle>;
+const styleCache = new WeakMap<ThemeColors, ReturnType<typeof buildStyles>>();
+function stylesFor(colors: ThemeColors) {
+  let s = styleCache.get(colors);
+  if (!s) {
+    s = buildStyles(colors);
+    styleCache.set(colors, s);
+  }
+  return s;
 }
 
-export function UiText({
-  variant = 'bodyMedium',
-  tone = 'default',
-  style,
-  ...props
-}: UiTextProps) {
-  return <Text {...props} style={[textStyles[variant], toneStyles[tone], style]} />;
+function buildStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    screen: { flex: 1, backgroundColor: colors.background },
+    scrollContent: {
+      paddingHorizontal: tokens.layout.mobileGutter,
+      paddingTop: tokens.spacing.md,
+      paddingBottom: tokens.spacing.xl + tokens.layout.bottomNavigationHeight,
+    },
+    headerRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: tokens.spacing.md },
+    headerCopy: { flex: 1, paddingRight: tokens.spacing.sm },
+    eyebrow: { letterSpacing: 0, marginBottom: tokens.spacing.xs, textTransform: 'uppercase' },
+    subtitle: { marginTop: tokens.spacing.xs },
+    card: {
+      backgroundColor: colors.card,
+      borderColor: colors.outlineVariant,
+      borderRadius: tokens.radii.card,
+      borderWidth: 1,
+      elevation: tokens.elevation.low,
+      padding: tokens.spacing.md,
+      shadowColor: '#0A2A57',
+      shadowOffset: { height: 1, width: 0 },
+      shadowOpacity: 0.06,
+      shadowRadius: 3,
+    },
+    heroCard: { borderRadius: tokens.radii.card, padding: tokens.spacing.md },
+    heroActions: { marginTop: tokens.spacing.sm + tokens.spacing.xs },
+    metricHead: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+    metricIcon: { alignItems: 'center', backgroundColor: colors.primaryFixed, borderRadius: tokens.radii.control, height: 32, justifyContent: 'center', width: 32 },
+    actionTile: { alignItems: 'center', flex: 1, gap: tokens.spacing.sm, justifyContent: 'center', minHeight: 92, minWidth: tokens.layout.touchTarget, padding: tokens.spacing.sm + tokens.spacing.xs },
+    actionIcon: { alignItems: 'center', backgroundColor: colors.primaryFixed, borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', width: 36 },
+    chevron: { marginLeft: tokens.spacing.xs },
+    fieldGroup: { marginBottom: tokens.spacing.md },
+    badge: { alignSelf: 'flex-start', borderRadius: tokens.radii.pill, flexShrink: 1, flexWrap: 'wrap', maxWidth: '100%', minHeight: tokens.spacing.xl, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
+    metricCard: { flex: 1, justifyContent: 'space-between', minHeight: 104, minWidth: 0, padding: tokens.spacing.md },
+    metricValue: { marginVertical: tokens.spacing.xs },
+    sectionHeading: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, justifyContent: 'space-between', marginBottom: tokens.spacing.sm },
+    listRow: { alignItems: 'flex-start', flexDirection: 'row', gap: tokens.spacing.sm, minHeight: 48, paddingVertical: tokens.spacing.sm + tokens.spacing.xs },
+    leading: { alignItems: 'center', backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', marginRight: tokens.spacing.sm, width: 36 },
+    leadingUnread: { backgroundColor: colors.primaryFixed },
+    listCopy: { flex: 1, minWidth: 0, gap: tokens.spacing.xs },
+    listTitle: { flex: 1 },
+    listTitleRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
+    listMeta: { flexShrink: 1, maxWidth: '36%', textAlign: 'right', fontVariant: ['tabular-nums'] },
+    unreadTitle: { color: colors.primary, fontWeight: '600' },
+    unreadLabel: { backgroundColor: colors.primaryFixed, borderRadius: tokens.radii.pill, paddingHorizontal: tokens.spacing.xs, paddingVertical: 2 },
+    rowPressed: { backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control },
+    progressGroup: { marginTop: tokens.spacing.sm },
+    progressHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.xs },
+    progressTrack: { backgroundColor: colors.primaryFixed, borderRadius: tokens.spacing.xs, height: tokens.spacing.sm, overflow: 'hidden' },
+    progressFill: { borderRadius: tokens.spacing.xs, height: '100%' },
+    divider: { backgroundColor: colors.outlineVariant, height: 1, marginVertical: tokens.spacing.sm },
+    scrollSection: { marginBottom: tokens.spacing.lg },
+    statePanel: { alignItems: 'center', flexWrap: 'wrap', gap: tokens.spacing.sm, backgroundColor: colors.card, borderColor: colors.outlineVariant, borderRadius: tokens.radii.card, borderWidth: 1, flexDirection: 'row', padding: tokens.spacing.md },
+    statePanelError: { backgroundColor: colors.errorFixed },
+    dataNotice: { backgroundColor: colors.warningFixed },
+    stateCopy: { flex: 1, marginHorizontal: tokens.spacing.sm },
+    stateDescription: { marginTop: tokens.spacing.xs },
+  });
 }
+
+type UiStyles = ReturnType<typeof buildStyles>;
+function useUiStyles(): UiStyles {
+  const { colors } = useTheme();
+  return stylesFor(colors);
+}
+
+/* ---------- primitives (exports unchanged) ---------- */
 
 export interface ScreenShellProps {
   title: string;
@@ -51,16 +117,12 @@ export interface ScreenShellProps {
   children: ReactNode;
   headerAction?: ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
+  /** Custom auth composition can keep the shell without its standard heading. */
+  hideHeader?: boolean;
 }
 
-export function ScreenShell({
-  title,
-  eyebrow,
-  subtitle,
-  children,
-  headerAction,
-  contentStyle,
-}: ScreenShellProps) {
+export function ScreenShell({ title, eyebrow, subtitle, children, headerAction, contentStyle, hideHeader = false }: ScreenShellProps) {
+  const styles = useUiStyles();
   return (
     <View style={styles.screen}>
       <ScrollView
@@ -68,14 +130,14 @@ export function ScreenShell({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.headerRow}>
+        {hideHeader ? null : <View style={styles.headerRow}>
           <View style={styles.headerCopy}>
             {eyebrow ? (
               <UiText variant="meta" tone="primary" style={styles.eyebrow}>
                 {eyebrow.toUpperCase()}
               </UiText>
             ) : null}
-            <UiText accessibilityRole="header" variant="headlineLarge">{title}</UiText>
+            <UiText accessibilityRole="header" variant="headlineMedium">{title}</UiText>
             {subtitle ? (
               <UiText variant="bodySmall" tone="muted" style={styles.subtitle}>
                 {subtitle}
@@ -83,8 +145,8 @@ export function ScreenShell({
             ) : null}
           </View>
           {headerAction}
-        </View>
-        {children}
+        </View>}
+        <ResponsiveContent>{children}</ResponsiveContent>
       </ScrollView>
     </View>
   );
@@ -97,85 +159,22 @@ export interface CardProps {
 }
 
 export function Card({ children, style, tone = 'card' }: CardProps) {
-  return <View style={[styles.card, cardTones[tone], style]}>{children}</View>;
+  const styles = useUiStyles();
+  const { colors, scheme } = useTheme();
+  const tones = {
+    card: { backgroundColor: colors.card },
+    low: { backgroundColor: colors.surfaceLow },
+    primary: { backgroundColor: colors.primaryFixed, borderColor: colors.primary },
+  } satisfies Record<NonNullable<CardProps['tone']>, ViewStyle>;
+  return <View style={[styles.card, tones[tone], scheme === 'dark' ? { elevation: 0, shadowOpacity: 0 } : undefined, style]}>{children}</View>;
 }
 
-export interface ButtonProps {
-  label: string;
-  onPress: () => void;
-  accessibilityLabel?: string;
-  variant?: 'primary' | 'secondary' | 'text';
-  disabled?: boolean;
-  loading?: boolean;
-  style?: StyleProp<ViewStyle>;
-}
-
-export function Button({
-  label,
-  onPress,
-  accessibilityLabel,
-  variant = 'primary',
-  disabled = false,
-  loading = false,
-  style,
-}: ButtonProps) {
-  const isDisabled = disabled || loading;
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityState={{ busy: loading, disabled: isDisabled }}
-      disabled={isDisabled}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.button,
-        buttonVariants[variant],
-        pressed && !isDisabled ? styles.buttonPressed : undefined,
-        isDisabled ? styles.buttonDisabled : undefined,
-        style,
-      ]}
-    >
-      {loading ? (
-        <View style={styles.buttonContent}>
-          <ActivityIndicator color={variant === 'primary' ? tokens.colors.onPrimary : tokens.colors.primary} size="small" />
-          <UiText variant="label" tone={variant === 'primary' ? 'onPrimary' : 'primary'}>
-            Loading…
-          </UiText>
-        </View>
-      ) : (
-        <UiText variant="label" tone={variant === 'primary' ? 'onPrimary' : 'primary'}>
-          {label}
-        </UiText>
-      )}
-    </Pressable>
-  );
-}
-
-export interface FieldProps extends TextInputProps {
-  label: string;
+export interface FieldProps extends React.ComponentProps<typeof FormField> {
   helperText?: string;
 }
 
 export function Field({ label, helperText, style, ...props }: FieldProps) {
-  return (
-    <View style={styles.fieldGroup}>
-      <UiText variant="label" style={styles.fieldLabel}>
-        {label}
-      </UiText>
-      <TextInput
-        {...props}
-        accessibilityLabel={props.accessibilityLabel ?? label}
-        placeholderTextColor={props.placeholderTextColor ?? tokens.colors.outline}
-        style={[styles.field, style]}
-      />
-      {helperText ? (
-        <UiText variant="bodySmall" tone="muted" style={styles.helperText}>
-          {helperText}
-        </UiText>
-      ) : null}
-    </View>
-  );
+  return <FormField label={label} hint={helperText} style={style} {...props} />;
 }
 
 export interface BadgeProps {
@@ -184,9 +183,20 @@ export interface BadgeProps {
 }
 
 export function Badge({ label, tone = 'neutral' }: BadgeProps) {
+  const styles = useUiStyles();
+  const { colors } = useTheme();
+  const bg = {
+    neutral: colors.surface,
+    primary: colors.primaryFixed,
+    success: colors.successFixed,
+    warning: colors.warningFixed,
+    error: colors.errorFixed,
+  } as const;
+  const textTone: TextTone =
+    tone === 'primary' ? 'primary' : tone === 'neutral' ? 'muted' : tone;
   return (
-    <View style={[styles.badge, badgeTones[tone]]}>
-      <UiText variant="meta" tone={badgeTextTones[tone]}>
+    <View style={[styles.badge, { backgroundColor: bg[tone] }]}>
+      <UiText variant="meta" tone={textTone} style={{ flexShrink: 1 }}>
         {label}
       </UiText>
     </View>
@@ -197,17 +207,28 @@ export interface MetricCardProps {
   label: string;
   value: string;
   detail?: string;
+  /** Optional MaterialCommunityIcons glyph shown in a tinted chip. */
+  icon?: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
   style?: StyleProp<ViewStyle>;
 }
 
-export function MetricCard({ label, value, detail, style }: MetricCardProps) {
+export function MetricCard({ label, value, detail, icon, style }: MetricCardProps) {
+  const styles = useUiStyles();
+  const { colors } = useTheme();
   return (
     <Card style={[styles.metricCard, style]}>
-      <UiText variant="bodySmall" tone="muted">
+      <View style={styles.metricHead}>
+        <UiText variant="headlineLarge" tone="primary" style={[styles.metricValue, { flex: 1, fontVariant: ['tabular-nums'] }]}>
+          {value}
+        </UiText>
+        {icon ? (
+          <View style={styles.metricIcon}>
+            <MaterialCommunityIcons color={colors.primary} name={icon} size={18} />
+          </View>
+        ) : null}
+      </View>
+      <UiText variant="label" tone="muted">
         {label}
-      </UiText>
-      <UiText variant="headlineMedium" tone="primary" style={styles.metricValue}>
-        {value}
       </UiText>
       {detail ? (
         <UiText variant="meta" tone="muted">
@@ -218,6 +239,75 @@ export function MetricCard({ label, value, detail, style }: MetricCardProps) {
   );
 }
 
+export interface HeroCardProps {
+  eyebrow?: string;
+  title: string;
+  detail?: string;
+  children?: ReactNode;
+  style?: StyleProp<ViewStyle>;
+  icon?: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+}
+
+/** Brand-navy summary surface (web hero band): light copy on the portal chrome. */
+export function HeroCard({ eyebrow, title, detail, children, style, icon }: HeroCardProps) {
+  const styles = useUiStyles();
+  const { scheme } = useTheme();
+  const chrome = chromeFor(scheme);
+  return (
+    <View style={[styles.heroCard, { backgroundColor: chrome.surface }, style]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm + tokens.spacing.xs }}>
+      {icon ? <IconChip icon={icon} onBrand size={40} /> : null}
+      <View style={{ flex: 1, minWidth: 0 }}>
+      {eyebrow ? (
+        <UiText variant="meta" style={{ color: chrome.accent }}>
+          {eyebrow}
+        </UiText>
+      ) : null}
+      <UiText variant="headlineMedium" style={{ color: chrome.onSurface, marginTop: tokens.spacing.xs }}>
+        {title}
+      </UiText>
+      {detail ? (
+        <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted, marginTop: tokens.spacing.xs }}>
+          {detail}
+        </UiText>
+      ) : null}
+      </View>
+      </View>
+      {children ? <View style={styles.heroActions}>{children}</View> : null}
+    </View>
+  );
+}
+
+export interface ActionTileProps {
+  label: string;
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+  onPress: () => void;
+  style?: StyleProp<ViewStyle>;
+  compact?: boolean;
+}
+
+/** Icon-over-label shortcut used for quick actions. */
+export function ActionTile({ label, icon, onPress, style, compact = false }: ActionTileProps) {
+  const styles = useUiStyles();
+  const { colors, scheme } = useTheme();
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.card, styles.actionTile, scheme === 'dark' ? { elevation: 0, shadowOpacity: 0 } : undefined, compact ? { flexDirection: 'row', justifyContent: 'flex-start', minHeight: 60 } : undefined, pressed ? { backgroundColor: colors.surfaceLow } : undefined, style]}
+    >
+      <View style={styles.actionIcon}>
+        <MaterialCommunityIcons color={colors.primary} name={icon} size={22} />
+      </View>
+      <UiText variant="label" style={{ textAlign: compact ? 'left' : 'center', flexShrink: 1, ...(compact ? { flex: 1 } : {}) }}>
+        {label}
+      </UiText>
+      {compact ? <MaterialCommunityIcons accessible={false} name="chevron-right" color={colors.textMuted} size={20} /> : null}
+    </Pressable>
+  );
+}
+
 export interface SectionHeadingProps {
   title: string;
   actionLabel?: string;
@@ -225,9 +315,10 @@ export interface SectionHeadingProps {
 }
 
 export function SectionHeading({ title, actionLabel, onAction }: SectionHeadingProps) {
+  const styles = useUiStyles();
   return (
     <View style={styles.sectionHeading}>
-      <UiText accessibilityRole="header" variant="headlineSmall">{title}</UiText>
+      <UiText accessibilityRole="header" variant="headlineSmall" style={{ flexShrink: 1 }}>{title}</UiText>
       {actionLabel && onAction ? (
         <Button label={actionLabel} onPress={onAction} variant="text" />
       ) : null}
@@ -243,19 +334,17 @@ export interface ListRowProps {
   trailing?: ReactNode;
   onPress?: () => void;
   unread?: boolean;
+  icon?: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+  stackedMeta?: boolean;
 }
 
-export function ListRow({
-  title,
-  subtitle,
-  meta,
-  leading,
-  trailing,
-  onPress,
-  unread = false,
-}: ListRowProps) {
+export function ListRow({ title, subtitle, meta, leading, trailing, onPress, unread = false, icon, stackedMeta = false }: ListRowProps) {
+  const styles = useUiStyles();
+  const { colors, window } = useTheme();
+  const stack = stackedMeta || window.fontScale >= 1.3;
+  const { copy } = useShellCopy();
   const accessibilityLabel = [
-    unread ? 'Unread' : null,
+    unread ? copy.unread : null,
     title,
     subtitle,
     meta,
@@ -266,7 +355,7 @@ export function ListRow({
       accessibilityLabel={!onPress ? accessibilityLabel : undefined}
       style={styles.listRow}
     >
-      {leading ? (
+      {icon ? <IconChip icon={icon} tone={unread ? 'primary' : 'neutral'} /> : leading ? (
         <View style={[styles.leading, unread ? styles.leadingUnread : undefined]}>
           <UiText variant="label" tone={unread ? 'primary' : 'muted'}>
             {leading}
@@ -280,22 +369,26 @@ export function ListRow({
           </UiText>
           {unread ? (
             <UiText variant="meta" tone="primary" style={styles.unreadLabel}>
-              Unread
+              {copy.unread}
             </UiText>
           ) : null}
         </View>
         {subtitle ? (
-          <UiText variant="bodySmall" tone="muted" numberOfLines={2}>
+          <UiText variant="bodySmall" tone="muted">
             {subtitle}
           </UiText>
         ) : null}
+        {meta && stack ? <UiText variant="meta" tone="muted">{meta}</UiText> : null}
       </View>
-      {meta ? (
+      {meta && !stack ? (
         <UiText variant="meta" tone="muted" style={styles.listMeta}>
           {meta}
         </UiText>
       ) : null}
       {trailing}
+      {onPress && !trailing ? (
+        <MaterialCommunityIcons color={colors.textMuted} name="chevron-right" size={20} style={styles.chevron} />
+      ) : null}
     </View>
   );
 
@@ -322,7 +415,14 @@ export interface ProgressBarProps {
 }
 
 export function ProgressBar({ value, label, tone = 'primary' }: ProgressBarProps) {
+  const styles = useUiStyles();
+  const { colors } = useTheme();
   const boundedValue = Math.max(0, Math.min(100, value));
+  const fill = {
+    primary: colors.primaryContainer,
+    success: colors.success,
+    warning: colors.warning,
+  } as const;
 
   return (
     <View
@@ -343,24 +443,23 @@ export function ProgressBar({ value, label, tone = 'primary' }: ProgressBarProps
         </View>
       ) : null}
       <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, progressTones[tone], { width: `${boundedValue}%` }]} />
+        <View style={[styles.progressFill, { backgroundColor: fill[tone] }, { width: `${boundedValue}%` }]} />
       </View>
     </View>
   );
 }
 
 export function Divider() {
+  const styles = useUiStyles();
   return <View style={styles.divider} />;
 }
 
+/**
+ * Legacy initials avatar — delegates to the shared identity avatar in
+ * `ui/avatar.tsx` while keeping the original {label, size} contract.
+ */
 export function Avatar({ label, size = 48 }: { label: string; size?: number }) {
-  return (
-    <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
-      <UiText variant="headlineSmall" tone="primary">
-        {label.slice(0, 1).toUpperCase()}
-      </UiText>
-    </View>
-  );
+  return <UiAvatar label={label} size={size} />;
 }
 
 export function ScreenSpacer({ size = tokens.spacing.md }: { size?: number }) {
@@ -375,13 +474,9 @@ export interface StatePanelProps {
   onAction?: () => void;
 }
 
-export function StatePanel({
-  kind,
-  title,
-  description,
-  actionLabel,
-  onAction,
-}: StatePanelProps) {
+export function StatePanel({ kind, title, description, actionLabel, onAction }: StatePanelProps) {
+  const styles = useUiStyles();
+  const { colors } = useTheme();
   return (
     <View
       accessibilityLiveRegion={kind === 'error' ? 'assertive' : 'polite'}
@@ -389,8 +484,8 @@ export function StatePanel({
       style={[styles.statePanel, kind === 'error' ? styles.statePanelError : undefined]}
     >
       {kind === 'loading' ? (
-        <ActivityIndicator color={tokens.colors.primary} size="small" />
-      ) : null}
+        <ActivityIndicator color={colors.primary} size="small" />
+      ) : <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name={kind === 'error' ? 'alert-circle-outline' : 'inbox-outline'} color={kind === 'error' ? colors.error : colors.textMuted} size={24} />}
       <View style={styles.stateCopy}>
         <UiText variant="label" tone={kind === 'error' ? 'error' : 'default'}>
           {title}
@@ -409,134 +504,25 @@ export function StatePanel({
 }
 
 export function ScrollSection({ children }: { children: ReactNode }) {
+  const styles = useUiStyles();
   return <View style={styles.scrollSection}>{children}</View>;
 }
 
-const textStyles = StyleSheet.create<Record<TextVariant, TextStyle>>({
-  display: { ...tokens.typography.display, fontFamily: tokens.typography.family },
-  headlineLarge: { ...tokens.typography.headlineLarge, fontFamily: tokens.typography.family },
-  headlineMedium: { ...tokens.typography.headlineMedium, fontFamily: tokens.typography.family },
-  headlineSmall: { ...tokens.typography.headlineSmall, fontFamily: tokens.typography.family },
-  bodyLarge: { ...tokens.typography.bodyLarge, fontFamily: tokens.typography.family },
-  bodyMedium: { ...tokens.typography.bodyMedium, fontFamily: tokens.typography.family },
-  bodySmall: { ...tokens.typography.bodySmall, fontFamily: tokens.typography.family },
-  label: { ...tokens.typography.label, fontFamily: tokens.typography.family },
-  meta: { ...tokens.typography.meta, fontFamily: tokens.typography.family },
-});
-
-const toneStyles = StyleSheet.create<Record<TextTone, TextStyle>>({
-  default: { color: tokens.colors.text },
-  muted: { color: tokens.colors.textMuted },
-  primary: { color: tokens.colors.primary },
-  success: { color: tokens.colors.success },
-  warning: { color: tokens.colors.warning },
-  error: { color: tokens.colors.error },
-  onPrimary: { color: tokens.colors.onPrimary },
-});
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: tokens.colors.background },
-  scrollContent: {
-    paddingHorizontal: tokens.layout.mobileGutter,
-    paddingTop: tokens.spacing.md,
-    paddingBottom: tokens.spacing.xl + tokens.layout.bottomNavigationHeight,
-  },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: tokens.spacing.lg, paddingBottom: tokens.spacing.md, borderBottomColor: tokens.colors.outlineVariant, borderBottomWidth: 1 },
-  headerCopy: { flex: 1, paddingRight: tokens.spacing.sm },
-  eyebrow: { letterSpacing: 0, marginBottom: tokens.spacing.xs, textTransform: 'uppercase' },
-  subtitle: { marginTop: tokens.spacing.xs },
-  card: {
-    backgroundColor: tokens.colors.card,
-    borderColor: tokens.colors.outlineVariant,
-    borderRadius: tokens.radii.card,
-    borderWidth: 1,
-    padding: tokens.spacing.md,
-  },
-  button: {
-    alignItems: 'center',
-    borderRadius: tokens.radii.control,
-    justifyContent: 'center',
-    minHeight: tokens.layout.touchTarget,
-    paddingHorizontal: tokens.spacing.md,
-  },
-  buttonContent: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm },
-  buttonPressed: { opacity: 0.88 },
-  buttonDisabled: { opacity: 0.48 },
-  buttonPrimary: { backgroundColor: tokens.colors.primary },
-  buttonSecondary: { backgroundColor: tokens.colors.card, borderColor: tokens.colors.outlineVariant, borderWidth: 1 },
-  buttonText: { backgroundColor: 'transparent', minHeight: tokens.layout.touchTarget, paddingHorizontal: tokens.spacing.xs },
-  fieldGroup: { marginBottom: tokens.spacing.md },
-  fieldLabel: { marginBottom: tokens.spacing.xs },
-  field: {
-    backgroundColor: tokens.colors.card,
-    borderColor: tokens.colors.outlineVariant,
-    borderRadius: tokens.radii.control,
-    borderWidth: 1,
-    color: tokens.colors.text,
-    fontFamily: tokens.typography.family,
-    fontSize: tokens.typography.bodyMedium.fontSize,
-    minHeight: tokens.layout.touchTarget,
-    paddingHorizontal: tokens.spacing.md,
-    paddingVertical: tokens.spacing.sm,
-  },
-  helperText: { marginTop: tokens.spacing.xs },
-  badge: { alignSelf: 'flex-start', borderRadius: tokens.radii.pill, paddingHorizontal: tokens.spacing.sm, paddingVertical: tokens.spacing.xs },
-  metricCard: { flex: 1, minHeight: 108, padding: tokens.spacing.sm + tokens.spacing.xs },
-  metricValue: { marginVertical: tokens.spacing.xs },
-  sectionHeading: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
-  listRow: { alignItems: 'center', flexDirection: 'row', minHeight: tokens.layout.touchTarget, paddingVertical: tokens.spacing.sm },
-  leading: { alignItems: 'center', backgroundColor: tokens.colors.surfaceLow, borderRadius: tokens.radii.control, height: 36, justifyContent: 'center', marginRight: tokens.spacing.sm, width: 36 },
-  leadingUnread: { backgroundColor: tokens.colors.primaryFixed },
-  listCopy: { flex: 1, paddingRight: tokens.spacing.sm },
-  listTitle: { flex: 1 },
-  listTitleRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
-  listMeta: { marginLeft: tokens.spacing.sm },
-  unreadTitle: { color: tokens.colors.primary, fontWeight: '600' },
-  unreadLabel: { backgroundColor: tokens.colors.primaryFixed, borderRadius: tokens.radii.pill, paddingHorizontal: tokens.spacing.xs, paddingVertical: 2 },
-  rowPressed: { backgroundColor: tokens.colors.surfaceLow, borderRadius: tokens.radii.control },
-  progressGroup: { marginTop: tokens.spacing.sm },
-  progressHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.xs },
-  progressTrack: { backgroundColor: tokens.colors.primaryFixed, borderRadius: tokens.radii.pill, height: tokens.spacing.sm, overflow: 'hidden' },
-  progressFill: { borderRadius: tokens.radii.pill, height: '100%' },
-  divider: { backgroundColor: tokens.colors.outlineVariant, height: 1, marginVertical: tokens.spacing.sm },
-  avatar: { alignItems: 'center', backgroundColor: tokens.colors.primaryFixed, justifyContent: 'center' },
-  scrollSection: { marginBottom: tokens.spacing.lg },
-  statePanel: { alignItems: 'center', backgroundColor: tokens.colors.card, borderColor: tokens.colors.outlineVariant, borderLeftColor: tokens.colors.primary, borderLeftWidth: 3, borderRadius: tokens.radii.card, borderWidth: 1, flexDirection: 'row', padding: tokens.spacing.md },
-  statePanelError: { borderLeftColor: tokens.colors.error },
-  stateCopy: { flex: 1, marginHorizontal: tokens.spacing.sm },
-  stateDescription: { marginTop: tokens.spacing.xs },
-});
-
-const cardTones = {
-  card: { backgroundColor: tokens.colors.card },
-  low: { backgroundColor: tokens.colors.surfaceLow },
-  primary: { backgroundColor: tokens.colors.primaryFixed, borderColor: tokens.colors.primary },
-} satisfies Record<NonNullable<CardProps['tone']>, ViewStyle>;
-
-const buttonVariants = {
-  primary: styles.buttonPrimary,
-  secondary: styles.buttonSecondary,
-  text: styles.buttonText,
-} satisfies Record<NonNullable<ButtonProps['variant']>, ViewStyle>;
-
-const badgeTones = {
-  neutral: { backgroundColor: tokens.colors.surface },
-  primary: { backgroundColor: tokens.colors.primaryFixed },
-  success: { backgroundColor: '#D9F2DF' },
-  warning: { backgroundColor: '#FFF0C7' },
-  error: { backgroundColor: '#FBDAD7' },
-} satisfies Record<NonNullable<BadgeProps['tone']>, ViewStyle>;
-
-const badgeTextTones = {
-  neutral: 'muted',
-  primary: 'primary',
-  success: 'success',
-  warning: 'warning',
-  error: 'error',
-} satisfies Record<NonNullable<BadgeProps['tone']>, TextTone>;
-
-const progressTones = {
-  primary: { backgroundColor: tokens.colors.primaryContainer },
-  success: { backgroundColor: tokens.colors.success },
-  warning: { backgroundColor: tokens.colors.warning },
-} satisfies Record<NonNullable<ProgressBarProps['tone']>, ViewStyle>;
+/**
+ * Offline-stale banner (mobile-policy §5): rendered above real data when a
+ * revalidation failed — the memory copy stays visible, the banner is the
+ * "dữ liệu có thể cũ" warning. Never rendered instead of data.
+ */
+export function DataNotice({ message }: { message: string }) {
+  const styles = useUiStyles();
+  return (
+    <View
+      accessibilityLiveRegion="polite"
+      style={[styles.statePanel, styles.dataNotice]}
+    >
+      <UiText variant="bodySmall" tone="warning">
+        {message}
+      </UiText>
+    </View>
+  );
+}

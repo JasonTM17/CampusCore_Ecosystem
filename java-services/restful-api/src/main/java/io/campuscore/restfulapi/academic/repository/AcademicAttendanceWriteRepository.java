@@ -32,6 +32,33 @@ public class AcademicAttendanceWriteRepository {
         return count != null && count > 0;
     }
 
+    /** Shared lock with student check-in; serialize manual replacement and automatic insert. */
+    public void lockSectionForAttendance(String sectionId) {
+        jdbc.queryForList("SELECT \"id\" FROM " + SECTION + " WHERE \"id\"=:id FOR UPDATE",
+                new MapSqlParameterSource("id", sectionId), String.class);
+    }
+
+    /** Global lock order Student -> Section (shared with registration): target
+     * students lock in stable id order before the section lock is taken. */
+    public void lockStudentsForAttendance(List<String> studentIds) {
+        if (studentIds == null || studentIds.isEmpty()) return;
+        jdbc.queryForList("SELECT \"id\" FROM \"academic\".\"Student\" WHERE \"id\" IN (:ids) ORDER BY \"id\" FOR UPDATE",
+                new MapSqlParameterSource("ids", studentIds), String.class);
+    }
+
+    public boolean attendanceExists(String sectionId, String studentId, Instant date) {
+        Long count = jdbc.queryForObject("SELECT COUNT(*) FROM " + ATTENDANCE
+                + " WHERE \"sectionId\"=:section AND \"studentId\"=:student AND \"date\"=:date",
+                new MapSqlParameterSource("section", sectionId).addValue("student", studentId)
+                        .addValue("date", utcTimestamp(date)), Long.class);
+        return count != null && count > 0;
+    }
+
+    public void linkCheckin(String attendanceId, String checkinId) {
+        jdbc.update("UPDATE " + ATTENDANCE + " SET \"checkinId\"=:checkin WHERE \"id\"=:id",
+                new MapSqlParameterSource("id", attendanceId).addValue("checkin", checkinId));
+    }
+
     public boolean isSectionOwnedByLecturer(String sectionId, String lecturerId) {
         Long count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM " + SECTION + " WHERE \"id\" = :sectionId AND \"lecturerId\" = :lecturerId",

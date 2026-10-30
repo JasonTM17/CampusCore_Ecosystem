@@ -1,0 +1,6 @@
+appId: io.campuscore.mobile
+---
+- launchApp
+- assertVisible: "Dashboard|Bảng điều khiển"
+- tapOn: "Assistant"
+- assertVisible: ".*[Qq]uestion|Câu hỏi.*"

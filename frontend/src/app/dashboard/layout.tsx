@@ -50,7 +50,7 @@ import { LocalizedLink } from '@/components/LocalizedLink';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { BrandMark } from '@/components/BrandMark';
 import { ForcedPasswordRotationGate } from '@/components/auth/ForcedPasswordRotationGate';
-import { AssistantPanel } from '@/components/assistant/AssistantPanel';
+import { LazyAssistantPanel as AssistantPanel } from '@/components/assistant/lazy-assistant-panel';
 import { AssistantMascot } from '@/components/assistant/AssistantMascot';
 import { useDocumentTitle } from '@/lib/use-document-title';
 import { Button } from '@/components/ui/button';
@@ -85,6 +85,8 @@ type DashboardMenuLabelKey =
   | 'teachingSchedule'
   | 'gradeManagement'
   | 'mailCompose'
+  | 'events'
+  | 'learning'
   | 'deanOverview';
 
 type DashboardMenuSectionKey = 'overview' | 'academic' | 'teaching' | 'campus';
@@ -112,6 +114,7 @@ const studentMenuSections: readonly DashboardMenuSectionConfig[] = [
     items: [
       { href: '/dashboard/register', icon: ClipboardList, labelKey: 'courseRegistration' },
       { href: '/dashboard/enrollments', icon: BookOpen, labelKey: 'myCourses' },
+      { href: '/dashboard/learn', icon: ClipboardList, labelKey: 'learning' },
       { href: '/dashboard/curriculum', icon: GraduationCap, labelKey: 'curriculum' },
       { href: '/dashboard/schedule', icon: Calendar, labelKey: 'schedule' },
       { href: '/dashboard/grades', icon: FileText, labelKey: 'grades' },
@@ -125,6 +128,7 @@ const studentMenuSections: readonly DashboardMenuSectionConfig[] = [
     items: [
       { href: '/dashboard/thesis', icon: ScrollText, labelKey: 'thesis' },
       { href: '/dashboard/certificates', icon: ClipboardCheck, labelKey: 'certificates' },
+      { href: '/dashboard/events', icon: Users, labelKey: 'events' },
       { href: '/dashboard/announcements', icon: Megaphone, labelKey: 'announcements' },
       { href: '/dashboard/notifications', icon: Bell, labelKey: 'notifications' },
     ],
@@ -143,6 +147,7 @@ const lecturerMenuSections: readonly DashboardMenuSectionConfig[] = [
     items: [
       { href: '/dashboard/lecturer/schedule', icon: Calendar, labelKey: 'teachingSchedule' },
       { href: '/dashboard/lecturer/grades', icon: FileText, labelKey: 'gradeManagement' },
+      { href: '/dashboard/lecturer/learn', icon: ClipboardList, labelKey: 'learning' },
       { href: '/dashboard/lecturer/attendance', icon: CalendarCheck, labelKey: 'attendance' },
       { href: '/dashboard/lecturer/mail', icon: Mail, labelKey: 'mailCompose' },
     ],
@@ -151,6 +156,7 @@ const lecturerMenuSections: readonly DashboardMenuSectionConfig[] = [
     sectionKey: 'campus',
     items: [
       { href: '/dashboard/thesis', icon: ScrollText, labelKey: 'thesis' },
+      { href: '/dashboard/events', icon: Users, labelKey: 'events' },
       { href: '/dashboard/lecturer/announcements', icon: Megaphone, labelKey: 'announcements' },
       { href: '/dashboard/notifications', icon: Bell, labelKey: 'notifications' },
     ],
@@ -273,6 +279,10 @@ export default function DashboardLayout({
   const [notificationsError, setNotificationsError] = useState(false);
   const [avatarPhoto, setAvatarPhoto] = useState(user?.avatar ?? '');
   const profileRef = useRef<HTMLDivElement>(null);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const profileTriggerRef = useRef<HTMLButtonElement>(null);
+  // Set by the trigger's ArrowUp so the open effect focuses the last item.
+  const profileFocusLastRef = useRef(false);
   const notificationsRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const sidebarCloseRef = useRef<HTMLButtonElement>(null);
@@ -614,6 +624,7 @@ export default function DashboardLayout({
 
       if (profileOpen) {
         setProfileOpen(false);
+        profileTriggerRef.current?.focus();
       } else if (notificationsOpen) {
         setNotificationsOpen(false);
       } else if (sidebarOpen) {
@@ -672,8 +683,50 @@ export default function DashboardLayout({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // The role="menu" contract: opening moves focus into the menu (first item,
+  // or the last when opened with ArrowUp from the trigger).
+  useEffect(() => {
+    if (!profileOpen) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      const items = profileMenuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
+      if (!items?.length) {
+        return;
+      }
+      const target = profileFocusLastRef.current ? items[items.length - 1] : items[0];
+      profileFocusLastRef.current = false;
+      target.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [profileOpen]);
+
+  const handleProfileMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const items = Array.from(
+      profileMenuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+    );
+    if (items.length === 0) {
+      return;
+    }
+    const current = items.indexOf(document.activeElement as HTMLElement);
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const next = event.key === 'ArrowDown'
+        ? (current + 1) % items.length
+        : (current + items.length - 1) % items.length;
+      items[next]?.focus();
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      items[0]?.focus();
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      items[items.length - 1]?.focus();
+    }
+  };
+
   const notificationEpochRef = useRef(0);
   const notificationRequestRef = useRef(0);
+  const notificationPollRequestRef = useRef(0);
   const notificationSessionRef = useRef({ userId: user?.id ?? null, isLoggingOut });
   notificationSessionRef.current = { userId: user?.id ?? null, isLoggingOut };
   const lastNotificationsFetchTimeRef = useRef(0);
@@ -739,15 +792,27 @@ export default function DashboardLayout({
       return;
     }
     const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible' && !notificationSessionRef.current.isLoggingOut) {
-        notificationsApi.unreadCount()
-          .then((count) => {
-            if (!notificationSessionRef.current.isLoggingOut) {
-              setUnreadCount(count);
-            }
-          })
-          .catch(() => {});
+      if (document.visibilityState !== 'visible' || notificationSessionRef.current.isLoggingOut) {
+        return;
       }
+      // The same stale-write guards reloadNotifications uses: a poll issued
+      // for the previous user that resolves after a logout→login swap must
+      // never write the old user's unread count onto the new user's bell.
+      const epoch = notificationEpochRef.current;
+      const sequence = ++notificationPollRequestRef.current;
+      const userId = notificationSessionRef.current.userId;
+      const isCurrent = () =>
+        notificationEpochRef.current === epoch
+        && notificationPollRequestRef.current === sequence
+        && notificationSessionRef.current.userId === userId
+        && !notificationSessionRef.current.isLoggingOut;
+      notificationsApi.unreadCount()
+        .then((count) => {
+          if (isCurrent()) {
+            setUnreadCount(count);
+          }
+        })
+        .catch(() => {});
     }, 180_000);
 
     return () => window.clearInterval(timer);
@@ -992,7 +1057,7 @@ export default function DashboardLayout({
                   messages.adminShell.officeBadge
                 ) : avatarPhoto ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatarPhoto} alt="" className="h-full w-full object-cover" />
+                  <img src={avatarPhoto} alt="" width={256} height={256} className="h-full w-full object-cover" />
                 ) : (
                   <>
                     {user.firstName?.[0]}
@@ -1351,8 +1416,16 @@ export default function DashboardLayout({
 
               <div className="relative" ref={profileRef}>
                 <button
+                  ref={profileTriggerRef}
                   type="button"
                   onClick={() => setProfileOpen((current) => !current)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                      event.preventDefault();
+                      profileFocusLastRef.current = event.key === 'ArrowUp';
+                      setProfileOpen(true);
+                    }
+                  }}
                   className="flex min-h-11 items-center gap-3 rounded-md border border-border/70 bg-card px-1.5 py-1 transition-[background-color,border-color] duration-150 hover:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:px-3"
                   aria-label={messages.dashboardShell.controls.toggleProfile}
                   aria-expanded={profileOpen}
@@ -1364,7 +1437,7 @@ export default function DashboardLayout({
                       messages.adminShell.officeBadge
                     ) : avatarPhoto ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={avatarPhoto} alt="" className="h-full w-full object-cover" />
+                  <img src={avatarPhoto} alt="" width={256} height={256} className="h-full w-full object-cover" />
                     ) : (
                       <>
                         {user.firstName?.[0]}
@@ -1394,7 +1467,14 @@ export default function DashboardLayout({
                 {profileOpen ? (
                   <div
                     id="dashboard-profile-menu"
+                    ref={profileMenuRef}
                     role="menu"
+                    onKeyDown={handleProfileMenuKeyDown}
+                    onBlur={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+                        setProfileOpen(false);
+                      }
+                    }}
                     className="absolute right-0 mt-2 w-[min(18rem,calc(100vw-2rem))] rounded-md border border-border/80 bg-card shadow-2xl"
                   >
                     <div className="flex items-center gap-3 border-b border-border/70 px-4 py-4">
@@ -1403,7 +1483,7 @@ export default function DashboardLayout({
                           messages.adminShell.officeBadge
                         ) : avatarPhoto ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={avatarPhoto} alt="" className="h-full w-full object-cover" />
+                          <img src={avatarPhoto} alt="" width={256} height={256} className="h-full w-full object-cover" />
                         ) : (
                           <>
                             {user.firstName?.[0]}

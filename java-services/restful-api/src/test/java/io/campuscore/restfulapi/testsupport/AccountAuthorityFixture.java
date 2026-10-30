@@ -67,15 +67,52 @@ public final class AccountAuthorityFixture {
                 + " \"credentialVersion\" BIGINT NOT NULL DEFAULT 0 CHECK (\"credentialVersion\" >= 0)");
     }
 
-    /** Real persisted challenge boundary used by password-replacement fixtures. */
+    /**
+     * Real persisted challenge boundary used by password-replacement
+     * fixtures. Chains the identity sweep schema: the unified session
+     * authority runs on every credential/session kill, so a fixture that
+     * exercises login, reset, 2FA, or admin mutation without the
+     * campuscore_identity tables fails on the sweep, not on the behaviour
+     * under test.
+     */
     public static void ensureCredentialReplacementSchema(JdbcTemplate jdbc) {
         ensureCredentialVersion(jdbc);
+        ensureIdentitySchema(jdbc);
         jdbc.execute("CREATE TABLE IF NOT EXISTS campuscore_auth.\"TwoFactorChallenge\" ("
                 + " \"id\" VARCHAR(120) PRIMARY KEY, \"userId\" VARCHAR(120) NOT NULL,"
                 + " \"purpose\" VARCHAR(16) NOT NULL, \"codeHash\" VARCHAR(64) NOT NULL,"
                 + " \"expiresAt\" TIMESTAMP WITH TIME ZONE NOT NULL, \"consumedAt\" TIMESTAMP WITH TIME ZONE,"
                 + " \"attempts\" INTEGER NOT NULL DEFAULT 0,"
                 + " \"createdAt\" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+    }
+
+    /**
+     * The unified session authority sweeps the campuscore_identity tables on
+     * every account revoke — including admin-mutation paths that legacy H2
+     * fixtures exercise. These are the columns the sweep SQL touches; column
+     * names/types mirror V134/V135 so the fixture cannot drift silent.
+     */
+    public static void ensureIdentitySchema(JdbcTemplate jdbc) {
+        jdbc.execute("CREATE SCHEMA IF NOT EXISTS campuscore_identity");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS campuscore_identity.oauth2_authorization ("
+                + " id varchar(255) PRIMARY KEY, registered_client_id varchar(255) NOT NULL,"
+                + " principal_name varchar(200) NOT NULL)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS campuscore_identity.oidc_refresh_lineage ("
+                + " token_hash varchar(64) PRIMARY KEY, authorization_id varchar(255) NOT NULL,"
+                + " user_id varchar(120) NOT NULL, state varchar(8) NOT NULL DEFAULT 'LIVE',"
+                + " created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, used_at timestamp)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS campuscore_identity.logout_audit ("
+                + " id varchar(64) PRIMARY KEY, user_id varchar(120) NOT NULL,"
+                + " lane varchar(16) NOT NULL, reason varchar(60) NOT NULL,"
+                + " request_id varchar(128), created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS campuscore_identity.bff_session ("
+                + " id varchar(64) PRIMARY KEY, user_id varchar(120) NOT NULL,"
+                + " surface varchar(24) NOT NULL, client_id varchar(255) NOT NULL,"
+                + " authorization_id varchar(255) NOT NULL, csrf_ciphertext varchar(512) NOT NULL,"
+                + " ip varchar(45), user_agent varchar(300),"
+                + " created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+                + " last_seen_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+                + " expires_at timestamp NOT NULL, revoked_at timestamp)");
     }
 
     /** Seeds one pending LOGIN row so replacement tests verify durable invalidation. */

@@ -31,7 +31,7 @@ import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -42,8 +42,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -764,7 +764,8 @@ class AcademicEnrollmentMutationPersistenceTest {
     void enrollmentRollsBackWhenRegistrationSlipCannotBeStored() throws Exception {
         doThrow(new IllegalStateException("renderer unavailable"))
                 .when(pdfRenderer)
-                .render(anyString(), anyString(), anyString(), anyString());
+                .renderEnriched(anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString(),
+                        org.mockito.ArgumentMatchers.anyList());
 
         mvc.perform(post("/api/v1/me/enrollments")
                         .with(studentJwt("student-user-1", "student-1"))
@@ -826,6 +827,14 @@ class AcademicEnrollmentMutationPersistenceTest {
                 .andExpect(status().isOk())
                 .andReturn();
         String enrollmentId = objectMapper.readTree(first.getResponse().getContentAsString()).get("id").asText();
+        List<String> slipIdsBeforeReplay = jdbc.queryForList(
+                "SELECT \"id\" FROM \"academic\".\"RegistrationSlip\" WHERE \"studentId\" = ? ORDER BY \"id\"",
+                String.class,
+                "student-1");
+        List<String> eventIdsBeforeReplay = jdbc.queryForList(
+                "SELECT \"id\" FROM \"academic\".\"EnrollmentEvent\" WHERE \"studentId\" = ? ORDER BY \"id\"",
+                String.class,
+                "student-1");
         MvcResult second = mvc.perform(post("/api/v1/enrollments/enroll")
                         .with(studentJwt("student-user-1", "student-1"))
                         .header("Idempotency-Key", "replay-key")
@@ -840,6 +849,16 @@ class AcademicEnrollmentMutationPersistenceTest {
                         Integer.class,
                         "student-1"))
                 .isEqualTo(1);
+        assertThat(jdbc.queryForList(
+                        "SELECT \"id\" FROM \"academic\".\"RegistrationSlip\" WHERE \"studentId\" = ? ORDER BY \"id\"",
+                        String.class,
+                        "student-1"))
+                .containsExactlyElementsOf(slipIdsBeforeReplay);
+        assertThat(jdbc.queryForList(
+                        "SELECT \"id\" FROM \"academic\".\"EnrollmentEvent\" WHERE \"studentId\" = ? ORDER BY \"id\"",
+                        String.class,
+                        "student-1"))
+                .containsExactlyElementsOf(eventIdsBeforeReplay);
     }
 
     @Test

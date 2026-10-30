@@ -290,3 +290,135 @@ test('site appearance PUT fails loudly when persistence fails', () => {
   assert.match(route, /status: 500/);
   assert.match(route, /SITE_APPEARANCE_NOT_SAVED/);
 });
+
+// ---------------------------------------------------------------------------
+// AUD-22 — every data route error surface offers a real retry, and denials
+// render a forbidden state instead of a generic error
+// ---------------------------------------------------------------------------
+
+test('public news list retries a failed feed through the shared ErrorState', () => {
+  const source = read('src/app/news/news-list-client.tsx');
+  assert.match(source, /<ErrorState/);
+  assert.match(source, /onRetry=\{\(\) => void query\.refetch\(\)\}/);
+  // The bare alert paragraph without a retry control is gone.
+  assert.doesNotMatch(source, /role="alert"[^>]*>\s*\{copy\.loadError\}/);
+});
+
+test('public docs list retries a failed feed through the shared ErrorState', () => {
+  const source = read('src/app/docs/page.tsx');
+  assert.match(source, /<ErrorState/);
+  assert.match(source, /onRetry=\{\(\) => void query\.refetch\(\)\}/);
+  assert.doesNotMatch(source, /role="alert"[^>]*>\s*\{copy\.loadError\}/);
+});
+
+test('news detail splits a 404 from a retryable failure', () => {
+  const source = read('src/app/news/[id]/news-detail-client.tsx');
+  assert.match(source, /campusErrorKind\(query\.error\) === 'notFound'/);
+  assert.match(source, /<ErrorState/);
+  assert.match(source, /onRetry=\{\(\) => void query\.refetch\(\)\}/);
+  // A network/server failure no longer masquerades as "story unavailable".
+  assert.doesNotMatch(source, /query\.isError \|\| !item/);
+});
+
+test('docs detail splits a 404 from a retryable failure', () => {
+  const source = read('src/app/docs/[slug]/page.tsx');
+  assert.match(source, /campusErrorKind\(query\.error\) === 'notFound'/);
+  assert.match(source, /<ErrorState/);
+  assert.match(source, /onRetry=\{\(\) => void query\.refetch\(\)\}/);
+  assert.doesNotMatch(source, /query\.isError \|\| !doc/);
+});
+
+test('home news section retries the feed instead of telling users to refresh', () => {
+  const source = read('src/components/home/HomeNewsSection.tsx');
+  assert.match(source, /refetch/);
+  assert.match(source, /onClick=\{\(\) => void refetch\(\)\}/);
+  // The dead-end copy is gone.
+  assert.doesNotMatch(source, /refresh the page in a few minutes/);
+});
+
+test('news and docs error titles exist in both locales', () => {
+  const catalog = read('src/i18n/messages-content.ts');
+  assert.match(catalog, /loadErrorTitle: 'News feed unavailable'/);
+  assert.match(catalog, /loadErrorTitle: 'Bảng tin chưa khả dụng'/);
+  assert.match(catalog, /loadErrorTitle: 'Documents unavailable'/);
+  assert.match(catalog, /loadErrorTitle: 'Tài liệu chưa khả dụng'/);
+});
+
+test('learning console retries the sections read on failure', () => {
+  const source = read('src/components/learning/LearningConsolePage.tsx');
+  const matches = source.match(/onRetry=\{\(\) => void loadSections\(\)\}/g) || [];
+  // Student and lecturer consoles both retry.
+  assert.equal(matches.length, 2);
+});
+
+test('thesis workspace error retries by re-running the workspace load', () => {
+  const source = read('src/app/dashboard/thesis/page.tsx');
+  assert.match(source, /workspaceRetryToken/);
+  assert.match(source, /onRetry=\{\(\) => setWorkspaceRetryToken\(\(token\) => token \+ 1\)\}/);
+  assert.match(source, /refreshTopics, selectedRoundId, workspaceRetryToken\]/);
+});
+
+test('profile two-factor status read is retryable', () => {
+  const source = read('src/app/dashboard/profile/page.tsx');
+  assert.match(source, /const loadTwoFactorStatus = useCallback/);
+  assert.match(source, /onClick=\{\(\) => loadTwoFactorStatus\(\)\}/);
+  assert.match(source, /messages\.common\.actions\.retry/);
+});
+
+test('admin thesis splits load failures from action errors and retries', () => {
+  const source = read('src/app/admin/thesis/page.tsx');
+  assert.match(source, /const \[loadError, setLoadError\]/);
+  assert.match(source, /const retryLoad = \(\) => \{/);
+  assert.match(source, /void loadData\(\)/);
+  assert.match(source, /onClick=\{retryLoad\}/);
+});
+
+test('admissions apply page distinguishes denials and retries errors', () => {
+  const source = read('src/components/admissions/AdmissionsApplyPage.tsx');
+  assert.match(source, /campusErrorKind/);
+  assert.match(source, /setDenied\(true\)/);
+  assert.match(source, /<WorkspaceForbiddenState/);
+  assert.match(source, /onRetry=\{\(\) => void load\(\)\}/);
+  // The error surface never renders the applications grid alongside.
+  assert.match(source, /!isLoading && !error && !denied && \(/);
+});
+
+test('admissions review page offers a way back on denial and retries the queue', () => {
+  const source = read('src/components/admissions/AdmissionsReviewPage.tsx');
+  assert.match(source, /<ForbiddenState/);
+  assert.match(source, /<LinkButton href="\/dashboard"/);
+  assert.match(source, /messages\.common\.actions\.openDashboard/);
+  assert.match(source, /onRetry=\{\(\) => void loadQueue\(\)\}/);
+  assert.match(source, /kind === 'forbidden' \|\| kind === 'unauthorized'/);
+});
+
+test('careers board distinguishes denials and retries the load', () => {
+  const source = read('src/components/careers/CareersBoardPage.tsx');
+  assert.match(source, /campusErrorKind/);
+  assert.match(source, /setDenied\(true\)/);
+  assert.match(source, /<WorkspaceForbiddenState/);
+  assert.match(source, /onRetry=\{\(\) => void loadCurrentSelection\(\)\}/);
+});
+
+test('careers desk renders staff denial as a forbidden state with an action', () => {
+  const source = read('src/components/careers/CareersDeskPage.tsx');
+  assert.match(source, /<ForbiddenState/);
+  assert.match(source, /<LinkButton href="\/dashboard"/);
+  assert.match(source, /onRetry=\{\(\) => void load\(\)\}/);
+});
+
+test('library catalogue distinguishes denials and retries the load', () => {
+  const source = read('src/components/library/LibraryCataloguePage.tsx');
+  assert.match(source, /campusErrorKind/);
+  assert.match(source, /setDenied\(true\)/);
+  assert.match(source, /<WorkspaceForbiddenState/);
+  assert.match(source, /onRetry=\{\(\) => void loadCurrentSelection\(\)\}/);
+});
+
+test('library desk separates staff denial from retryable failures', () => {
+  const source = read('src/components/library/LibraryDeskPage.tsx');
+  assert.match(source, /<ForbiddenState/);
+  assert.match(source, /<LinkButton href="\/dashboard"/);
+  assert.match(source, /onRetry=\{\(\) => void load\(filter\)\}/);
+  assert.match(source, /setDenied\(true\)/);
+});

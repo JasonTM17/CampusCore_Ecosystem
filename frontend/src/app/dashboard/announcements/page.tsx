@@ -404,12 +404,17 @@ export default function StudentAnnouncementsPage() {
             </div>
           </div>
           <div className="relative hidden md:block md:col-span-4 h-36 overflow-hidden rounded-xl border border-border/60 shadow-xs">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/images/banners/campus_academic_banner.jpg"
-              alt="HCMUTE Campus Banner"
-              className="h-full w-full object-cover object-center"
-            />
+            <picture className="absolute inset-0 block">
+              <source srcSet="/images/banners/campus_academic_banner.webp" type="image/webp" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/images/banners/campus_academic_banner.jpg"
+                alt="HCMUTE Campus Banner"
+                width={1376}
+                height={768}
+                className="h-full w-full object-cover object-center"
+              />
+            </picture>
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
             <div className="absolute bottom-2 left-3 rounded-md bg-background/80 px-2 py-0.5 text-[11px] font-bold text-foreground backdrop-blur-xs">
               HCMUTE Campus Portal

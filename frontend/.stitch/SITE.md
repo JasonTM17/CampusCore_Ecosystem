@@ -2,15 +2,21 @@
 
 ## Canonical reference
 
-- Stitch project: `16486483525927292845` (Smart Student Management Portal).
+- Active Stitch project: `8459672847959457355` (CampusUTE Mobile — domain
+  lanes), with the CampusCore Institutional Mobile System design system.
+- Legacy Stitch project: `16486483525927292845` (Smart Student Management
+  Portal) — not present in the active Stitch account as of 2026-10-23; its
+  records are retained as capstone-era references only.
 - The direct screen ledger is [`metadata.json`](./metadata.json), refreshed
-  from Stitch on 2026-08-19. It records 22 named reference screens and keeps
-  the supplementary image separate from implementation scope.
-- Design system: Academic Continuity; the local token contract is
+  2026-10-23. It records 32 named reference screens across both projects and
+  keeps the supplementary image separate from implementation scope.
+- Design system: Academic Continuity tokens plus the generated CampusCore
+  Institutional Mobile System; the local token contract is
   [`DESIGN.md`](./DESIGN.md).
-- Current Stitch atlas observed on 2026-08-19: 23 screen records — 9 desktop,
-  13 mobile, and 1 supplementary image record. The 22 screen records have
-  HTML and screenshot references; the supplementary image has no HTML record.
+- Current Stitch atlas observed on 2026-10-23: 32 screen records — 12 desktop,
+  20 mobile (13 legacy + 7 domain lanes), and 1 supplementary image record.
+  The screen records have HTML and screenshot references; the supplementary
+  image has no HTML record.
 - The web implementation lives under `frontend/src` and the native mobile
   implementation lives under the repository-level `mobile/` app. Responsive
   web is not counted as the native app.

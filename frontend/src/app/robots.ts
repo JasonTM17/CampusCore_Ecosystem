@@ -33,6 +33,16 @@ export default function robots(): MetadataRoute.Robots {
           '/reset-password',
           '/en/reset-password',
           '/vi/reset-password',
+          // Check-in deep links hand off to the CampusUTE app; session ids
+          // must never reach a search index.
+          '/attendance/checkin/',
+          '/en/attendance/checkin/',
+          '/vi/attendance/checkin/',
+          // The staff desk start page is a gated surface like the desks it
+          // links to.
+          '/staff',
+          '/en/staff',
+          '/vi/staff',
           '/api/',
           '/_next/',
         ],

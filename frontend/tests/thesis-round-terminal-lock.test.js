@@ -65,6 +65,8 @@ function loadMessages() {
     '@/i18n/config': {},
     '@/i18n/messages-thesis-workflow': loadModule('src/i18n/messages-thesis-workflow.ts'),
     '@/i18n/messages-dean-overview': loadModule('src/i18n/messages-dean-overview.ts'),
+    '@/i18n/messages-content': loadModule('src/i18n/messages-content.ts'),
+    '@/i18n/messages-attendance-geofence': loadModule('src/i18n/messages-attendance-geofence.ts'),
   }).en;
 }
 
@@ -88,6 +90,9 @@ function loadReviewPanel() {
     '@/i18n/messages': {},
     '@/lib/thesis-api': {},
     '@/lib/thesis-text': thesisText,
+    // The static renderer never runs effects, so the hook is stubbed to the
+    // same fresh timestamp it would return after its first client tick.
+    '@/lib/use-now': { useNow: () => Date.now() },
   }).default;
 }
 

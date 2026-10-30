@@ -1,2 +1,0 @@
-org.springframework.boot.env.EnvironmentPostProcessor=\
-io.campuscore.restfulapi.config.RuntimeSecretEnvironmentPostProcessor

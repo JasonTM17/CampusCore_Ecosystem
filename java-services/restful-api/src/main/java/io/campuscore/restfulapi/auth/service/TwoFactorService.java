@@ -6,6 +6,7 @@ import io.campuscore.restfulapi.auth.repository.TwoFactorChallengeRepository;
 import io.campuscore.restfulapi.auth.repository.TwoFactorChallengeRepository.ChallengeRecord;
 import io.campuscore.restfulapi.auth.web.SessionCookieService;
 import io.campuscore.restfulapi.exception.AppException;
+import io.campuscore.restfulapi.exception.SensitiveLogRedactor;
 import io.campuscore.restfulapi.mail.config.MailConfig;
 import io.campuscore.restfulapi.mail.service.EmailService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -144,11 +145,13 @@ public class TwoFactorService {
     @Transactional(noRollbackFor = AppException.class)
     public void confirmEnable(String userId, String challengeId, String code) {
         String keepSessionId = resolveCurrentSessionId(userId);
+        users.lockUserRow(userId);
+        requireActiveUser(userId);
         ChallengeRecord challenge = requireUsableChallenge(
                 challengeId, TwoFactorChallengeRepository.PURPOSE_ENABLE, userId);
         verifyCode(challenge, code);
+        consumeOnce(challenge);
         users.setTwoFactorEnabled(userId, true);
-        challenges.consume(challenge.id(), clock.instant());
         // Round-3 ct-4: turning 2FA on is a security-posture change — the
         // trail records who and when, next to the password events.
         audit.record(userId, null, "TWO_FACTOR_ENABLED", "USER", userId,
@@ -189,11 +192,13 @@ public class TwoFactorService {
     @Transactional(noRollbackFor = AppException.class)
     public void confirmDisable(String userId, String challengeId, String code) {
         String keepSessionId = resolveCurrentSessionId(userId);
+        users.lockUserRow(userId);
+        requireActiveUser(userId);
         ChallengeRecord challenge = requireUsableChallenge(
                 challengeId, TwoFactorChallengeRepository.PURPOSE_DISABLE, userId);
         verifyCode(challenge, code);
+        consumeOnce(challenge);
         users.setTwoFactorEnabled(userId, false);
-        challenges.consume(challenge.id(), clock.instant());
         audit.record(userId, null, "TWO_FACTOR_DISABLED", "USER", userId,
                 "User disabled two-factor authentication after password and emailed-code verification");
         users.bumpCredentialVersion(userId);
@@ -236,12 +241,28 @@ public class TwoFactorService {
      */
     private void revokeOtherRefreshSessions(String userId, String keepSessionId) {
         if (keepSessionId == null) {
-            users.deleteAllRefreshSessions(userId);
+            if (unifiedSessions != null) {
+                unifiedSessions.revokeGrants(userId, "LEGACY", "TWO_FACTOR_CHANGED", null);
+            } else {
+                users.deleteAllRefreshSessions(userId);
+            }
             users.clearUserRefreshToken(userId);
             return;
         }
-        users.deleteOtherRefreshSessions(userId, keepSessionId);
+        if (unifiedSessions != null) {
+            unifiedSessions.revokeOtherGrants(userId, keepSessionId, "LEGACY",
+                    "TWO_FACTOR_CHANGED", null);
+        } else {
+            users.deleteOtherRefreshSessions(userId, keepSessionId);
+        }
     }
+
+    /**
+     * Unified revocation bridge — optional so hand-built test contexts keep
+     * the legacy session-only path.
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private io.campuscore.restfulapi.identity.UnifiedSessionAuthority unifiedSessions;
 
     /**
      * Resolves the refresh token of the request being served, if any. Returns
@@ -283,6 +304,12 @@ public class TwoFactorService {
         verifyCode(challenge, code);
         challenges.consume(challenge.id(), clock.instant());
         return challenge.userId();
+    }
+
+    private void consumeOnce(ChallengeRecord challenge) {
+        if (challenges.consume(challenge.id(), clock.instant()) != 1) {
+            throw invalidChallenge();
+        }
     }
 
     private String createAndDeliverChallenge(String userId, String purpose) {
@@ -416,7 +443,8 @@ public class TwoFactorService {
                             "expiryMinutes", (int) CODE_TTL.toMinutes()));
         } catch (RuntimeException exception) {
             // Never log or surface the code itself.
-            log.warn("Two-factor code email failed for userId={}: {}", userId, exception.getMessage());
+            log.warn("Two-factor code email failed for userId={} exceptionType={}",
+                    userId, SensitiveLogRedactor.exceptionType(exception));
             throw mailUnavailable();
         }
     }

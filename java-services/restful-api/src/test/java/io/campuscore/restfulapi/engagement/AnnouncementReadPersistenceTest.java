@@ -15,7 +15,7 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -108,6 +108,12 @@ class AnnouncementReadPersistenceTest {
                     "version" INTEGER NOT NULL DEFAULT 0,
                     "archivedAt" TIMESTAMP WITH TIME ZONE,
                     "archivedBy" VARCHAR(120),
+                    "status" VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
+                    "authorId" VARCHAR(120),
+                    "reviewerId" VARCHAR(120),
+                    "reviewedAt" TIMESTAMP WITH TIME ZONE,
+                    "reviewNote" VARCHAR(500),
+                    "publishedRevision" INTEGER,
                     "displayOrder" INTEGER
                 )
                 """);
@@ -579,8 +585,8 @@ class AnnouncementReadPersistenceTest {
                         "id", "title", "content", "priority", "targetRoles", "targetYears",
                         "isGlobal", "publishAt", "expiresAt", "publishedBy", "semesterId",
                         "semesterName", "sectionId", "sectionNumber", "courseCode", "courseName",
-                        "lecturerId", "lecturerDisplayName", "createdAt", "updatedAt"
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        "lecturerId", "lecturerDisplayName", "createdAt", "updatedAt", "status"
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PUBLISHED')
                     """)) {
                 statement.setString(1, fixture.id());
                 statement.setString(2, "Title " + fixture.id());
@@ -672,4 +678,13 @@ class AnnouncementReadPersistenceTest {
                     courseName, lecturerId, lecturerDisplayName, createdAt);
         }
     }
+
+    @Test
+    void audiencePolicyRejectsAnonymousAndStudentAccessToStaffListing() throws Exception {
+        mvc.perform(get("/api/v1/announcements/my")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/announcements").with(
+                io.campuscore.restfulapi.testsupport.CurrentAccountJwt.fixtureJwt(jdbc, "policy-student", "STUDENT")))
+                .andExpect(status().isForbidden());
+    }
+
 }

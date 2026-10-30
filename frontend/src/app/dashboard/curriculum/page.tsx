@@ -14,6 +14,7 @@ import {
 import { useRequireAuth } from '@/context/AuthContext';
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { curriculumApi, registrationApi, type RegistrationSection } from '@/lib/api';
+import { campusCodeMessage, campusErrorCode } from '@/lib/campus-error';
 import { getLocalizedName } from '@/lib/academic-content';
 import { useApiQuery } from '@/lib/query';
 import { LocalizedLink } from '@/components/LocalizedLink';
@@ -70,11 +71,18 @@ export default function CurriculumPage() {
     enabled: hasAccess,
     staleTime: 5 * 60_000,
   });
-  // The catalog endpoint answers 4xx when no registration round is open; a
-  // closed round degrades to "no open section" markers instead of an error.
+  // The catalog endpoint answers 409 WINDOW_CLOSED when no registration round
+  // is open; that code alone degrades to "no open section" markers. Every other
+  // failure stays an error with retry instead of reading as an empty catalog.
   const sectionsQuery = useApiQuery(
     ['registration', 'sections', 'curriculum-page'],
-    () => registrationApi.sections().catch(() => [] as RegistrationSection[]),
+    () =>
+      registrationApi.sections().catch((error: unknown) => {
+        if (campusErrorCode(error) === 'WINDOW_CLOSED') {
+          return [] as RegistrationSection[];
+        }
+        throw error;
+      }),
     { enabled: hasAccess, staleTime: 5 * 60_000 },
   );
 
@@ -413,8 +421,14 @@ export default function CurriculumPage() {
                 </CardTitle>
                 <p className="text-xs leading-5 text-muted-foreground">{copy.availableDescription}</p>
               </CardHeader>
-              <CardContent className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
-                {availableCourses.map((course) => {
+              <CardContent className={sectionsQuery.isError ? 'p-4' : 'grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3'}>
+                {sectionsQuery.isError ? (
+                  <ErrorState
+                    title={messages.courseRegistration.loadFailed}
+                    description={campusCodeMessage(sectionsQuery.error, messages.common.campusErrors)}
+                    onRetry={() => void sectionsQuery.refetch()}
+                  />
+                ) : availableCourses.map((course) => {
                   const openCount = openSectionCountByCourseId.get(course.courseId) ?? 0;
                   return (
                     <div

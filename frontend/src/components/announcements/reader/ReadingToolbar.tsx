@@ -101,7 +101,7 @@ export function ReadingToolbar({
           type="button"
           onClick={() => toggleMode('EDITORIAL')}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-[32px]',
+            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-11 sm:min-h-8',
             preferences.mode === 'EDITORIAL'
               ? 'bg-primary text-primary-foreground shadow-xs'
               : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80',
@@ -116,7 +116,7 @@ export function ReadingToolbar({
           type="button"
           onClick={() => toggleMode('OFFICIAL')}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-[32px]',
+            'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-primary/40 min-h-11 sm:min-h-8',
             preferences.mode === 'OFFICIAL'
               ? 'bg-primary text-primary-foreground shadow-xs'
               : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80',
@@ -136,7 +136,7 @@ export function ReadingToolbar({
             type="button"
             onClick={handleDecreaseFont}
             disabled={currentFontIndex === 0}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:opacity-40"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:opacity-40 sm:h-7 sm:w-7"
             title={isVi ? 'Giảm cỡ chữ (A-)' : 'Decrease font size'}
             aria-label={isVi ? 'Giảm cỡ chữ' : 'Decrease font size'}
           >
@@ -149,7 +149,7 @@ export function ReadingToolbar({
             type="button"
             onClick={handleIncreaseFont}
             disabled={currentFontIndex === fontSizes.length - 1}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:opacity-40"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground disabled:opacity-40 sm:h-7 sm:w-7"
             title={isVi ? 'Tăng cỡ chữ (A+)' : 'Increase font size'}
             aria-label={isVi ? 'Tăng cỡ chữ' : 'Increase font size'}
           >
@@ -162,7 +162,7 @@ export function ReadingToolbar({
           type="button"
           onClick={toggleFontFamily}
           className={cn(
-            'inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/70 px-2.5 text-xs font-medium transition-colors hover:bg-secondary/60',
+            'inline-flex h-11 items-center gap-1.5 rounded-lg border border-border/70 px-2.5 text-xs font-medium transition-colors hover:bg-secondary/60 sm:h-8',
             preferences.fontFamily === 'serif' ? 'font-serif bg-secondary/40' : 'font-sans',
           )}
           title={
@@ -185,13 +185,13 @@ export function ReadingToolbar({
             type="button"
             onClick={() => setTheme('light')}
             className={cn(
-              'inline-flex h-7 w-7 items-center justify-center rounded-sm transition-colors',
+              'inline-flex h-11 w-11 items-center justify-center rounded-sm transition-colors sm:h-7 sm:w-7',
               preferences.theme === 'light'
-                ? 'bg-background text-amber-600 shadow-xs ring-1 ring-border/70'
+                ? 'reader-theme-light shadow-xs ring-1 ring-[var(--reader-border)]'
                 : 'text-muted-foreground hover:text-foreground',
             )}
             title={isVi ? 'Nền sáng tiêu chuẩn' : 'Light background'}
-            aria-label="Light mode"
+            aria-label={isVi ? 'Nền sáng tiêu chuẩn' : 'Light background'}
           >
             <Sun className="h-3.5 w-3.5" />
           </button>
@@ -200,13 +200,13 @@ export function ReadingToolbar({
             type="button"
             onClick={() => setTheme('sepia')}
             className={cn(
-              'inline-flex h-7 w-7 items-center justify-center rounded-sm font-serif font-bold text-xs transition-colors',
+              'inline-flex h-11 w-11 items-center justify-center rounded-sm font-serif font-bold text-xs transition-colors sm:h-7 sm:w-7',
               preferences.theme === 'sepia'
-                ? 'bg-[#EAE0C8] text-[#5C4033] shadow-xs'
+                ? 'reader-theme-sepia shadow-xs ring-1 ring-[var(--reader-border)]'
                 : 'text-muted-foreground hover:text-foreground',
             )}
             title={isVi ? 'Nền Sepia dịu mắt ban đêm' : 'Warm eye-care Sepia mode'}
-            aria-label="Sepia mode"
+            aria-label={isVi ? 'Nền Sepia dịu mắt ban đêm' : 'Warm eye-care Sepia mode'}
           >
             S
           </button>
@@ -215,13 +215,13 @@ export function ReadingToolbar({
             type="button"
             onClick={() => setTheme('dark')}
             className={cn(
-              'inline-flex h-7 w-7 items-center justify-center rounded-sm transition-colors',
+              'inline-flex h-11 w-11 items-center justify-center rounded-sm transition-colors sm:h-7 sm:w-7',
               preferences.theme === 'dark'
-                ? 'bg-slate-900 text-sky-400 shadow-xs'
+                ? 'reader-theme-dark shadow-xs ring-1 ring-[var(--reader-border)]'
                 : 'text-muted-foreground hover:text-foreground',
             )}
             title={isVi ? 'Nền tối chống chói' : 'Dark mode'}
-            aria-label="Dark mode"
+            aria-label={isVi ? 'Nền tối chống chói' : 'Dark mode'}
           >
             <Moon className="h-3.5 w-3.5" />
           </button>
@@ -236,7 +236,7 @@ export function ReadingToolbar({
             variant="default"
             size="sm"
             onClick={onEdit}
-            className="h-8 gap-1.5 rounded-lg text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-xs"
+            className="h-11 gap-1.5 rounded-lg text-xs font-semibold shadow-xs sm:h-8"
             title={isVi ? 'Chỉnh sửa bài viết' : 'Edit announcement'}
           >
             <FileEdit className="h-3.5 w-3.5" />
@@ -249,7 +249,7 @@ export function ReadingToolbar({
           variant="outline"
           size="sm"
           onClick={onPrint}
-          className="h-8 gap-1.5 rounded-lg text-xs"
+          className="h-11 gap-1.5 rounded-lg text-xs sm:h-8"
           title={isVi ? 'In tài liệu (chuẩn khổ A4)' : 'Print document'}
         >
           <Printer className="h-3.5 w-3.5" />
@@ -261,18 +261,18 @@ export function ReadingToolbar({
           variant="outline"
           size="sm"
           onClick={onShare}
-          className="h-8 gap-1.5 rounded-lg text-xs"
+          className="h-11 gap-1.5 rounded-lg text-xs sm:h-8"
           title={isVi ? 'Sao chép liên kết bài viết' : 'Copy notice link'}
         >
           {copyState === 'copied' ? (
             <>
-              <Check className="h-3.5 w-3.5 text-emerald-500" />
-              <span className="text-emerald-600 font-semibold">{isVi ? 'Đã chép!' : 'Copied!'}</span>
+              <Check className="h-3.5 w-3.5 text-status-success" />
+              <span className="text-status-success-foreground font-semibold">{isVi ? 'Đã chép!' : 'Copied!'}</span>
             </>
           ) : copyState === 'failed' ? (
             <>
-              <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
-              <span className="text-amber-600 font-semibold" role="status">
+              <AlertCircle className="h-3.5 w-3.5 text-status-warning" />
+              <span className="text-status-warning-foreground font-semibold" role="status">
                 {isVi ? 'Không chép được liên kết' : 'Could not copy the link'}
               </span>
             </>
@@ -288,7 +288,7 @@ export function ReadingToolbar({
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/80 bg-background text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 hover:border-red-300 dark:hover:bg-red-950/40 dark:hover:text-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-border/80 bg-background text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40 focus:outline-none focus:ring-2 focus:ring-destructive/40"
           title={isVi ? 'Đóng cửa sổ đọc (Esc)' : 'Close reader (Esc)'}
           aria-label={isVi ? 'Đóng cửa sổ đọc' : 'Close reader'}
         >

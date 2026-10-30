@@ -18,6 +18,9 @@ target/
 .env.production.local
 .env.production
 .env.vercel*
+.env.*
+!.env.example
+!.env.*.example
 
 # Logs
 logs
@@ -44,6 +47,15 @@ scripts/*
 !scripts/
 !scripts/*.sh
 !scripts/*.mjs
+!scripts/verify-ecosystem.gates.json
+!scripts/tests/
+!scripts/tests/*.test.mjs
+!scripts/assistant-eval/
+!scripts/assistant-eval/*
+!scripts/drill-hooks/
+!scripts/drill-hooks/*.mjs
+!scripts/supabase/
+!scripts/supabase/*
 
 # Test
 coverage/
@@ -82,6 +94,9 @@ src/designs/
 # Local agent harness
 .omp/
 
+# Contract generator staging dirs (cleaned on success; crash-safe leftovers)
+/.contract-check-*/
+
 # Local-only planning and Grok workflow artifacts
 /plans/260901-1809-campuscore-production-readiness-and-professional-ux/
 /.grok/workflows/
@@ -115,3 +130,101 @@ scratch/
 /r2.json
 /database/domain_management_system*.sql
 /docs/report_images/
+
+# Sensitive material (never commit): signing keys, certificates, cloud and
+# mobile credentials, tokens, private keys, local secret stores, DB dumps.
+*.key
+*.pem
+*.p12
+*.pfx
+*.p8
+*.jks
+*.keystore
+*.mobileprovision
+*.cer
+*.crt
+*.der
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+google-services.json
+GoogleService-Info.plist
+service-account*.json
+*-service-account*.json
+service_account*.json
+credentials.json
+client_secret*.json
+secrets.json
+secrets.*.json
+auth.json
+!contracts/**/auth.json
+oauth*.json
+/secrets/
+/ops/secrets/*
+!/ops/secrets/README.md
+.envrc
+.npmrc.local
+.netrc
+*.local.json
+eas.json.local
+*.dump
+*.dump.gz
+*.sql.gz
+*.sql.zip
+dump.sql
+*.rdb
+dump.rdb
+*.bak
+*.heapdump
+*.hprof
+hs_err_pid*.log
+replay_pid*.log
+ngrok.ya?ml
+ngrok.yml
+ngrok.yaml
+.ngrok2/
+cloudflared.ya?ml
+cloudflared.yml
+cloudflared.yaml
+.gcloud/
+
+# Cloud/CLI credential stores and token-bearing config (per-user on dev
+# machines; a copied store must never be committed)
+.aws/
+.azure/
+.ssh/
+.gnupg/
+.docker/
+.kube/
+.terraform/
+.npmrc
+*.tfvars
+*.tfstate
+*.tfstate.*
+*.kdbx
+*.ovpn
+*.gpg
+
+# SSH private-key basename families (covers variants such as id_rsa_old,
+# id_ed25519_sk, id_rsa.pub beyond the exact names listed above)
+id_rsa*
+id_dsa*
+id_ecdsa*
+id_ed25519*
+
+# Local dump/capture destinations that may embed data or credentials
+*.pgdump
+*.dmp
+*.har
+*.sql.bz2
+*.sql.xz
+
+# Shell/REPL history can record typed secrets
+.bash_history
+.bash_sessions/
+.zsh_history
+.zsh_sessions/
+.pshistory
+.node_repl_history
+.python_history

@@ -28,6 +28,8 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
@@ -58,7 +60,7 @@ public class SecurityConfig {
      * {@code isAuthenticated()}. The {@code roles} claim is likewise required:
      * every access token this service mints carries it.
      */
-    static Jwt requireAccessTokenShape(Jwt jwt) {
+    public static Jwt requireAccessTokenShape(Jwt jwt) {
         if (!"access".equals(jwt.getClaimAsString("tokenType"))) {
             throw new BadCredentialsException("Invalid access token");
         }
@@ -124,6 +126,7 @@ public class SecurityConfig {
                 "Deprecation",
                 "Sunset",
                 "Idempotency-Key",
+                "X-Total-Count",
                 "X-RateLimit-Limit",
                 "X-RateLimit-Remaining",
                 "X-RateLimit-Reset",
@@ -136,6 +139,83 @@ public class SecurityConfig {
         return source;
     }
 
+    /** Shared by the filter chain and the controller-policy inventory; no second public allow-list. */
+    static List<PublicEndpoint> publicEndpoints() {
+        String[] paths = {
+            "/api/v1/auth/login",
+            "/api/v1/auth/refresh",
+            // Second step of a two-factor login: the
+            // caller holds only the emailed challenge id,
+            // no token yet, so it must stay anonymous.
+            // IP rate limiting lives in RateLimitFilter.
+            "/api/v1/auth/two-factor/verify",
+            // Self-service password reset: anonymous by
+            // design (the caller has no token yet), bound
+            // to the client IP by RateLimitFilter, and the
+            // generic reply never reveals account state.
+            "/api/v1/auth/forgot-password",
+            "/api/v1/auth/reset-password",
+            "/api/v1/contract",
+            "/api/v1/health/**",
+            // Anonymous public campus news feed for the
+            // homepage; read-only and safe-subset only.
+            // The /* child is the public permalink detail
+            // (id or slug) — same safe subset, same 404.
+            "/api/v1/announcements/public",
+            "/api/v1/announcements/public/*",
+            // Anonymous public documentation surface
+            // (publication-policy §5): list, slug detail,
+            // revision permalinks, attachment metadata.
+            "/api/v1/public/docs",
+            "/api/v1/public/docs/**",
+            // Read-only public-safe category feed the
+            // anonymous homepage uses to label articles by
+            // their editorial taxonomy instead of guessing.
+            "/api/v1/article-taxonomy/v2/categories",
+            "/internal/rag/assistant/**",
+            "/internal/rag/thesis/assistant/**",
+            // Mail endpoints used to be reachable without a
+            // token; sending mail is now a staff action and
+            // the template previews require any login.
+            "/error",
+            "/actuator/health/**",
+            // BFF browser lane (P05): these endpoints do
+            // their own opaque-session authentication —
+            // the resource chain must not demand a bearer
+            // token the browser never holds. When
+            // identity.bff.enabled=false the controllers
+            // are absent, so the pattern inertly matches
+            // nothing.
+            "/bff/**",
+            "/session/**",
+            // SAS login page (the authorize chain's
+            // unauthenticated entrypoint target).
+            "/login",
+            "/api/docs/**",
+            "/swagger-ui.html",
+            "/swagger-ui/**",
+            "/v3/api-docs/**"
+        };
+        List<PublicEndpoint> endpoints = new ArrayList<>();
+        for (String path : paths) {
+            endpoints.add(new PublicEndpoint(null, path));
+        }
+        // Preserve the read-verb-only exception: writes still require authentication.
+        endpoints.add(new PublicEndpoint(HttpMethod.GET, "/api/v1/site-appearance"));
+        return List.copyOf(endpoints);
+    }
+
+    static RequestMatcher[] publicEndpointMatchers() {
+        return publicEndpoints().stream().map(PublicEndpoint::matcher).toArray(RequestMatcher[]::new);
+    }
+
+    record PublicEndpoint(HttpMethod method, String path) {
+        RequestMatcher matcher() {
+            return method == null ? PathPatternRequestMatcher.withDefaults().matcher(path)
+                    : PathPatternRequestMatcher.withDefaults().matcher(method, path);
+        }
+    }
+
     @Bean
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
@@ -144,53 +224,16 @@ public class SecurityConfig {
             io.campuscore.restfulapi.security.ratelimit.RateLimitFilter rateLimitFilter,
             AccountStateFilter accountStateFilter,
             ApiErrorWriter errorWriter,
-            CorsConfigurationSource corsConfigurationSource) throws Exception {
+            CorsConfigurationSource corsConfigurationSource,
+            @org.springframework.beans.factory.annotation.Qualifier("jwtDecoder") JwtDecoder jwtDecoder,
+            @org.springframework.beans.factory.annotation.Qualifier("identityJwtDecoder")
+                    org.springframework.beans.factory.ObjectProvider<JwtDecoder> identityDecoder) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/api/v1/auth/login",
-                                "/api/v1/auth/refresh",
-                                // Second step of a two-factor login: the
-                                // caller holds only the emailed challenge id,
-                                // no token yet, so it must stay anonymous.
-                                // IP rate limiting lives in RateLimitFilter.
-                                "/api/v1/auth/two-factor/verify",
-                                // Self-service password reset: anonymous by
-                                // design (the caller has no token yet), bound
-                                // to the client IP by RateLimitFilter, and the
-                                // generic reply never reveals account state.
-                                "/api/v1/auth/forgot-password",
-                                "/api/v1/auth/reset-password",
-                                "/api/v1/contract",
-                                "/api/v1/health/**",
-                                // Anonymous public campus news feed for the
-                                // homepage; read-only and safe-subset only.
-                                "/api/v1/announcements/public",
-                                // Read-only public-safe category feed the
-                                // anonymous homepage uses to label articles by
-                                // their editorial taxonomy instead of guessing.
-                                "/api/v1/article-taxonomy/v2/categories",
-                                "/internal/rag/assistant/**",
-                                "/internal/rag/thesis/assistant/**",
-                                // Mail endpoints used to be reachable without a
-                                // token; sending mail is now a staff action and
-                                // the template previews require any login.
-                                "/error",
-                                "/actuator/health/**",
-                                "/api/docs/**",
-                                "/swagger-ui.html",
-                                "/swagger-ui/**",
-                                "/v3/api-docs/**")
-                        .permitAll()
-                        // Public site chrome (accent, homepage hero, post
-                        // order). Anonymous access is pinned to the read verb:
-                        // a PUT to the same path matches no permitAll rule, so
-                        // it falls through to authentication and then to the
-                        // controller's administrator-only @PreAuthorize.
-                        .requestMatchers(HttpMethod.GET, "/api/v1/site-appearance")
+                        .requestMatchers(publicEndpointMatchers())
                         .permitAll()
                         // Admin-only mutation surfaces deny wrong roles at the
                         // URL level, so a request that also fails bean
@@ -214,7 +257,12 @@ public class SecurityConfig {
                 .oauth2ResourceServer(oauth -> oauth
                         .bearerTokenResolver(tokenResolver)
                         .authenticationEntryPoint(authenticationEntryPoint(errorWriter))
-                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))
+                        // Explicit decoder: when the OIDC lane is enabled the
+                        // dual-lane dispatcher owns bearer validation; when it
+                        // is absent the legacy HS256 bean answers as before.
+                        .jwt(jwt -> jwt
+                                .decoder(identityDecoder.getIfAvailable(() -> jwtDecoder))
+                                .jwtAuthenticationConverter(jwtAuthenticationConverter())))
                 .addFilterAfter(csrfCookieFilter, BearerTokenAuthenticationFilter.class)
                 .addFilterAfter(accountStateFilter, BearerTokenAuthenticationFilter.class)
                 .addFilterAfter(rateLimitFilter, CsrfCookieFilter.class);

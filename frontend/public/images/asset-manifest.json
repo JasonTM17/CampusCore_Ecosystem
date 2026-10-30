@@ -1,0 +1,611 @@
+[
+  {
+    "path": "frontend/public/images/banners/academic_convocation_ceremony.jpg",
+    "sha256": "39a65e52cf900d0f1ab8068dc754f466794629207eea625b7beebed050c74872",
+    "bytes": 1168657,
+    "referencedBy": [
+      "frontend/src/components/announcements/AnnouncementEditModal.tsx"
+    ],
+    "alt": "Grand Convocation Ceremony",
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/banners/academic_convocation_ceremony.webp",
+    "sha256": "1ec82ee509b6c95f8d07777672f52962f312cc0f4fe48186a29d62d3d233e7a6",
+    "bytes": 242322,
+    "referencedBy": [],
+    "alt": "Grand Convocation Ceremony",
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/banners/academic_notice_banner.jpg",
+    "sha256": "aeb78646ae78056f52bc5508596f0e5812c39833bb468719238e6c83865c3934",
+    "bytes": 849708,
+    "referencedBy": [
+      "frontend/src/components/announcements/AnnouncementEditModal.tsx"
+    ],
+    "alt": "Academic Notice Bulletin",
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/banners/academic_notice_banner.webp",
+    "sha256": "4747d47937af86a0c3bd46814b689bfdb85e580fda3eb89caf4f7b854c2aaa97",
+    "bytes": 109486,
+    "referencedBy": [],
+    "alt": "Academic Notice Bulletin",
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/banners/campus_academic_banner.jpg",
+    "sha256": "4c312bcc39c496f3b838568afa6ebb044fe050ba09ed75521a7df15eeb17be87",
+    "bytes": 1004480,
+    "referencedBy": [
+      "frontend/src/app/dashboard/announcements/page.tsx",
+      "frontend/src/components/announcements/AnnouncementEditModal.tsx"
+    ],
+    "alt": "HCMUTE Campus Banner",
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/banners/campus_academic_banner.webp",
+    "sha256": "c823e805e284c8c0544eb3961f941ef1b88ae884f3137676c2a571833bb8e341",
+    "bytes": 190944,
+    "referencedBy": [
+      "frontend/src/app/dashboard/announcements/page.tsx"
+    ],
+    "alt": "HCMUTE Campus Banner",
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/banners/department_research_lab.jpg",
+    "sha256": "8ff64b1432f6d6a3b8d712d39d1435c009ec0af5ad70a060abcea7b5974acd40",
+    "bytes": 987357,
+    "referencedBy": [
+      "frontend/src/app/admin/departments/page.tsx",
+      "frontend/src/components/announcements/AnnouncementEditModal.tsx"
+    ],
+    "alt": "HCMUTE IT Department Research Lab",
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/banners/department_research_lab.webp",
+    "sha256": "8cd499855b5ee99144dfde3b1a0487547bbe48a0cf2b473f11bd05017a7db83c",
+    "bytes": 169330,
+    "referencedBy": [
+      "frontend/src/app/admin/departments/page.tsx"
+    ],
+    "alt": "HCMUTE IT Department Research Lab",
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/banners/faculty_engineering_hall.jpg",
+    "sha256": "8682a77bf9b1d3c5b0d3b41a3bcc6188238e4ece28a8be773965cb1b4da438c4",
+    "bytes": 1009659,
+    "referencedBy": [
+      "frontend/src/components/announcements/AnnouncementEditModal.tsx",
+      "frontend/src/components/dashboard/thesis/ThesisTopicCatalogPage.tsx"
+    ],
+    "alt": "HCMUTE Faculty of Engineering Hall",
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/banners/faculty_engineering_hall.webp",
+    "sha256": "2e554d3ca96c82d54199dc1372232352b66ffc2f63d92b15c049a907667e38bf",
+    "bytes": 191260,
+    "referencedBy": [
+      "frontend/src/components/dashboard/thesis/ThesisTopicCatalogPage.tsx"
+    ],
+    "alt": "HCMUTE Faculty of Engineering Hall",
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/banners/smart_campus_library.jpg",
+    "sha256": "7657f86c17726f70f1771b4fd63594b6f8fb672b9e8d1dd9fa1a7ba941e3afef",
+    "bytes": 943317,
+    "referencedBy": [
+      "frontend/src/components/announcements/AnnouncementEditModal.tsx"
+    ],
+    "alt": "Smart Digital Library & Commons",
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/banners/smart_campus_library.webp",
+    "sha256": "5f86607505084e0fd274e246ce657f05f7b672e1cc6b90dfee0dfe75054572c1",
+    "bytes": 154688,
+    "referencedBy": [],
+    "alt": "Smart Digital Library & Commons",
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/banners/thesis_defense_hall.jpg",
+    "sha256": "2bda46ecea8b5d8c04164d1a0f33ced9ee15bfe056f63b165d04566c71d292c9",
+    "bytes": 840291,
+    "referencedBy": [
+      "frontend/src/components/announcements/AnnouncementEditModal.tsx",
+      "frontend/src/components/dashboard/thesis/ThesisTopicDetailPage.tsx",
+      "frontend/src/components/thesis/ThesisRegulationGuide.tsx"
+    ],
+    "alt": "HCMUTE Thesis Defense Hall",
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/banners/thesis_defense_hall.webp",
+    "sha256": "bdd31212bb0ea485a3b95701a59a87434a8cce3bb4f2d93136c8642487928c6e",
+    "bytes": 108666,
+    "referencedBy": [
+      "frontend/src/components/dashboard/thesis/ThesisTopicDetailPage.tsx",
+      "frontend/src/components/thesis/ThesisRegulationGuide.tsx"
+    ],
+    "alt": "HCMUTE Thesis Defense Hall",
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/banners/thesis_evaluation_council.jpg",
+    "sha256": "4439709d253f51ad59711074585e68e708e37b9e81a3b9499d8ec8e1508fef04",
+    "bytes": 287550,
+    "referencedBy": [
+      "frontend/src/components/announcements/AnnouncementEditModal.tsx",
+      "frontend/src/components/dashboard/thesis/ThesisAdvisorDirectoryPage.tsx"
+    ],
+    "alt": "HCMUTE Academic Thesis Evaluation Council",
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/banners/thesis_evaluation_council.webp",
+    "sha256": "9b592b4035f624128f9afe6a530d6c771b4ed00fe5525c2b0f68ab4c026dceb2",
+    "bytes": 92716,
+    "referencedBy": [
+      "frontend/src/components/dashboard/thesis/ThesisAdvisorDirectoryPage.tsx"
+    ],
+    "alt": "HCMUTE Academic Thesis Evaluation Council",
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/academic-counseling-room.jpg",
+    "sha256": "8b60d167e52b08be0e04e6deae5b9b08f9b54ffc585e29267aed51797c173c12",
+    "bytes": 877880,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/ai-hackathon-arena.jpg",
+    "sha256": "3e9aca56d669aef9fe78dc29d664cf1de6feb56fe3231412cffd0523f8ebd6e6",
+    "bytes": 990490,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/bigdata-ai-lab.jpg",
+    "sha256": "df7f46800fee19e353d567da7f9b95e2c6aade79394629e5369ae7a1b84b0646",
+    "bytes": 917486,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/blood-donation-day.jpg",
+    "sha256": "6efe716705fd9aa49c887968381d2c91d2dc81bb8af620f938ed9b7b6a2cd9c2",
+    "bytes": 871081,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/campus-acoustic-festival.jpg",
+    "sha256": "35996c5178b954484ed7a03760fb1c766f7dea25d4373b4d8cd243e56cda5284",
+    "bytes": 1146808,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/campus-book-fair.jpg",
+    "sha256": "764ef9886c60fbe13d48c120a8bec06c00351acf2c8d269b489da5481bff6729",
+    "bytes": 1217360,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/campus-digital-library.jpg",
+    "sha256": "6d84bd1357db0ac87909dce7f23d37030f92f75f185a445f1d3dcb79f9c49644",
+    "bytes": 928668,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/campus-marathon-run.jpg",
+    "sha256": "f26650ad3130acfc224033b52a426a481048c1d67fae8419e124e2184ae25fc1",
+    "bytes": 1167672,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/campus-sports-cup.jpg",
+    "sha256": "88a6dddbe2b2586dd35945d086c6531aad0403c54da76fd5796585ddf9853b3d",
+    "bytes": 987815,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/commencement-graduation.jpg",
+    "sha256": "4f01a35c4778962a59450a3e87b5e74e310ce5f06fa58b2be40594b13b42e857",
+    "bytes": 1009045,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/course-registration.jpg",
+    "sha256": "f8c4795c25881e5505d563ffcba7492ca42407e9be680a21dd46e15d22b3744e",
+    "bytes": 966391,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/cultural-arts-gala.jpg",
+    "sha256": "5556a7cb48d11a80ef8c29db639f4d95ead9c11446ebff55a95f265461e469a1",
+    "bytes": 979242,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/cultural-exchange-day.jpg",
+    "sha256": "3d1bce40c1d62d13531088558ab9de63254abcea34c58f72eaa93eac50a6738d",
+    "bytes": 1209391,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/digital-transcript-service.jpg",
+    "sha256": "547d52499ab19af8317825bfbd3caf28b96484fa1a2bc5d9fe15521c25d2e481",
+    "bytes": 834582,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/english-it-testing-lab.jpg",
+    "sha256": "6c27042a57d309a474914b8c054ee1fde7bb2ca86cb4f7d2a1370bb6b894f5a1",
+    "bytes": 834016,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/exam-hall-proctoring.jpg",
+    "sha256": "8136bc06dfb3bc812628db95764c6c1d1f85865adef256d9c19f8a4e53cf04ad",
+    "bytes": 851026,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/faculty-excellence-awards.jpg",
+    "sha256": "c685e74a3d18a3e960f04a81e14f59967d98e7cb27f1e874ca7ff9ddebd010be",
+    "bytes": 898444,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/freshman-welcome-ceremony.jpg",
+    "sha256": "762640e5f009079febe092c4e3bf92e41d22890f267758c2cfc4da45692fc41a",
+    "bytes": 1037595,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/green-summer-volunteer.jpg",
+    "sha256": "d49869e83cbaa8b6d1db8981aa886fe34020f22c017a8703ecc92c8638310bfe",
+    "bytes": 1157960,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/job-internship-fair.jpg",
+    "sha256": "adf07089edf5a6b96d8393734c6e1d4308b801c403d715837227523eb0ee3127",
+    "bytes": 908666,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/robotics-innovation-contest.jpg",
+    "sha256": "39e8097f060b014186200939e95f0cc33745be182b403e6505d4ee5c671bc485",
+    "bytes": 1076943,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/robotics-iot-lab.jpg",
+    "sha256": "ddd32e9047c4b1000d479c3243e676337486192559ac7dbf1662c1d92008dd52",
+    "bytes": 962448,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/scholarship-ceremony.jpg",
+    "sha256": "0486d8976e3cdd8fec1c820075ccc9b3994c9792d20e3555cc9c9a4607a68911",
+    "bytes": 951871,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/scientific-research.jpg",
+    "sha256": "eddc0efcfb2f47164a9f4e29fb9489b929051dd75af3947d1159c5a6fb76630d",
+    "bytes": 1048656,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/semiconductor-cleanroom.jpg",
+    "sha256": "7ed74547725fb2aaff4323ad5db6144c71deb569b0ad74b976015ee5c1d50231",
+    "bytes": 931639,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/stem-conference-keynote.jpg",
+    "sha256": "d2cf42a4f96976ab4bd1394d726e59910feeeed3ad449c069c98580d5062c99c",
+    "bytes": 911577,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/student-dormitory-campus.jpg",
+    "sha256": "9e1a00a41304f61c95cca839f0a6eabe9a433d6f9e77ae0ff0da11f07f9e65e8",
+    "bytes": 1224097,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/student-research-symposium.jpg",
+    "sha256": "ae19864a5536b97dc099cb7919b3b9ef509b83dd292cdbcac0da6d53c40a7974",
+    "bytes": 893793,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/student-timetable-schedule.jpg",
+    "sha256": "4a21fd0a3ce9bf73c0b3403a3b3cbd070f3052e53a6d09c7e32600925bc5fc38",
+    "bytes": 798678,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/tech-career-expo.jpg",
+    "sha256": "c509d1d83318f6ae865341c170a926818350ef237d0debfef05e6557a5e9f684",
+    "bytes": 979470,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/thesis-defense.jpg",
+    "sha256": "a71d9477cc39ca2bc7ae8301f5146eca3fe27f16af8518971c9d0327573223dd",
+    "bytes": 871181,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  },
+  {
+    "path": "frontend/public/images/events/tuition-payment-banking.jpg",
+    "sha256": "11f460ce71f11f7fb35df190dd9b267704f3ca48b5bcb648807e9a63dc5e3480",
+    "bytes": 761194,
+    "referencedBy": [],
+    "alt": null,
+    "source": "UNVERIFIED",
+    "rights": "UNVERIFIED",
+    "depiction": "UNVERIFIED",
+    "verifiedBy": null,
+    "verifiedOn": null
+  }
+]

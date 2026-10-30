@@ -60,6 +60,17 @@ public class AuthLoginService {
     private final AdminAuditRecorder audit;
     private final Clock clock;
 
+    /**
+     * Unified revocation bridge (identity-contract.md §2.3). Optional so the
+     * service keeps working in hand-built test contexts; when present,
+     * account-wide revocations also kill the OIDC lane's grants. Field
+     * injection is deliberate: every call site already holds the User lock,
+     * and adding a constructor param would ripple through every manual
+     * instantiation in tests.
+     */
+    @Autowired(required = false)
+    private io.campuscore.restfulapi.identity.UnifiedSessionAuthority unifiedSessions;
+
     @Autowired
     public AuthLoginService(
             AuthUserRepository users,
@@ -190,7 +201,7 @@ public class AuthLoginService {
                     // leave an audit trace instead of silently 401-ing.
                     String subject = decoded.getSubject();
                     users.findById(subject).ifPresent(owner -> {
-                        users.deleteAllRefreshSessions(owner.id());
+                        revokeAllLanes(owner.id(), "LEGACY", "REFRESH_REPLAY");
                         reuseLogger.warn(
                                 "REFRESH_TOKEN_REUSE subject={} ip={} userAgent={}",
                                 subject,
@@ -296,7 +307,13 @@ public class AuthLoginService {
         // Rotation clears the office-issued flag; sessions are revoked so the
         // user signs back in with the new credential.
         users.setMustChangePassword(user.id(), false);
-        users.deleteAllRefreshSessions(user.id());
+        // changePassword() already bumped the credential revision, so kill
+        // sessions and OIDC grants without a second bump.
+        if (unifiedSessions != null) {
+            unifiedSessions.revokeGrants(user.id(), "LEGACY", "PASSWORD_CHANGED", null);
+        } else {
+            users.deleteAllRefreshSessions(user.id());
+        }
         users.clearUserRefreshToken(user.id());
         // Round-3 ct-4: a self-service credential rotation is exactly the
         // operation whose author an investigation needs to know — the trail
@@ -327,11 +344,32 @@ public class AuthLoginService {
         users.lockUserRow(userId);
         if (sessionId != null) {
             users.deleteRefreshSessionById(userId, sessionId);
+            users.clearUserRefreshToken(userId);
+            users.bumpCredentialVersion(userId);
+        } else {
+            // Ambiguous-device logout already revokes the whole account —
+            // let the unified authority kill the OIDC lane alongside.
+            if (unifiedSessions != null) {
+                unifiedSessions.revokeAccount(userId, "LEGACY", "LOGOUT_AMBIGUOUS", null);
+            } else {
+                users.deleteAllRefreshSessions(userId);
+                users.clearUserRefreshToken(userId);
+                users.bumpCredentialVersion(userId);
+            }
+        }
+    }
+
+    /**
+     * Account-wide session kill that reaches every lane. The caller's User
+     * lock makes the authority's re-lock re-entrant; the authority also
+     * bumps the credential revision so already-issued access tokens die.
+     */
+    private void revokeAllLanes(String userId, String lane, String reason) {
+        if (unifiedSessions != null) {
+            unifiedSessions.revokeAccount(userId, lane, reason, null);
         } else {
             users.deleteAllRefreshSessions(userId);
         }
-        users.clearUserRefreshToken(userId);
-        users.bumpCredentialVersion(userId);
     }
 
     private Jwt decodeRefresh(String refreshTokenValue) {

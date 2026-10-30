@@ -82,9 +82,9 @@ public class TwoFactorChallengeRepository {
         return attempts == null ? -1 : attempts;
     }
 
-    /** Marks the challenge as used (success, lock-out, or manual consumption). */
-    public void consume(String id, Instant consumedAt) {
-        jdbc.update(
+    /** Marks an unused challenge as used; returns one only for the winning consumer. */
+    public int consume(String id, Instant consumedAt) {
+        return jdbc.update(
                 "UPDATE " + TABLE + " SET \"consumedAt\" = :consumedAt"
                         + " WHERE \"id\" = :id AND \"consumedAt\" IS NULL",
                 new MapSqlParameterSource()

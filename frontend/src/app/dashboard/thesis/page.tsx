@@ -46,6 +46,7 @@ import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/i18n';
+import { useNow } from '@/lib/use-now';
 import { ThesisWorkflowStepper } from '@/components/thesis/ThesisWorkflowStepper';
 import { ThesisRegulationGuide } from '@/components/thesis/ThesisRegulationGuide';
 import { RoundMilestoneCard } from '@/components/thesis/RoundMilestoneCard';
@@ -167,6 +168,9 @@ export default function ThesisPage() {
   // a failed fetch instead of silently rendering as empty.
   const [secondaryDataError, setSecondaryDataError] = useState(false);
   const [actionSuccess, setActionSuccess] = useState('');
+  // Bumping this token re-runs the workspace data effect, giving the mid-page
+  // load-error state a retry that actually refetches topics/groups/councils.
+  const [workspaceRetryToken, setWorkspaceRetryToken] = useState(0);
 
   // Propose topic state
   const [isProposeModalOpen, setIsProposeModalOpen] = useState(false);
@@ -841,7 +845,7 @@ export default function ThesisPage() {
       topicRequestRef.current += 1;
       councilRequestRef.current += 1;
     };
-  }, [canLoadStaffRelations, isStudent, loadCouncilDetails, messages.thesis.loadFailed, refreshTopics, selectedRoundId]);
+  }, [canLoadStaffRelations, isStudent, loadCouncilDetails, messages.thesis.loadFailed, refreshTopics, selectedRoundId, workspaceRetryToken]);
 
   // Retry path for a failed council listing: the defense tab gets the real
   // failure with a way back, instead of a council workspace that silently
@@ -929,15 +933,20 @@ export default function ThesisPage() {
     }));
   }, [currentGroup]);
 
+  // Live clock shared by every deadline check below; a render-time Date.now()
+  // would freeze "window open" / "days remaining" until an unrelated re-render.
+  // nowMs is 0 before mount — unknown dates stay permissive, known dates wait
+  // one tick rather than trusting a stale or skewed render-time value.
+  const nowMs = useNow();
+
   // The backend also rejects group/topic actions outside the registration
   // window dates, so the CTA must not invite a doomed request after the end.
   const isRegistrationWindowOpen = useMemo(() => {
     if (selectedRound?.status !== 'REGISTRATION_OPEN') return false;
-    const now = Date.now();
     const start = Date.parse(selectedRound.registrationStart);
     const end = Date.parse(selectedRound.registrationEnd);
-    return (Number.isNaN(start) || now >= start) && (Number.isNaN(end) || now <= end);
-  }, [selectedRound]);
+    return (Number.isNaN(start) || nowMs >= start) && (Number.isNaN(end) || nowMs <= end);
+  }, [selectedRound, nowMs]);
 
   const canManageMembers = useMemo(() => {
     if (!currentGroup || !user?.studentId) return false;
@@ -1981,14 +1990,15 @@ export default function ThesisPage() {
     : selectedRound;
   const reportDeadlineAt = reportDeadlineRound?.reportDeadline ?? reportDeadlineRound?.gvpbDeadline ?? null;
   const reportDeadlineMs = reportDeadlineAt ? Date.parse(reportDeadlineAt) : Number.NaN;
-  const reportDaysRemaining = Number.isFinite(reportDeadlineMs)
-    ? Math.ceil((reportDeadlineMs - Date.now()) / 86_400_000)
+  const reportDaysRemaining = Number.isFinite(reportDeadlineMs) && nowMs > 0
+    ? Math.ceil((reportDeadlineMs - nowMs) / 86_400_000)
     : null;
   // The backend freezes a report once this deadline passes (409
   // REPORT_DEADLINE_PASSED); the panel now says so instead of offering a button
   // that can only fail. A round type without this date never freezes, matching
-  // the server.
-  const reportDeadlinePassed = Number.isFinite(reportDeadlineMs) && Date.now() >= reportDeadlineMs;
+  // the server. nowMs is 0 until mounted, which reads as "not passed" — the
+  // permissive side, since the server remains the write gate.
+  const reportDeadlinePassed = Number.isFinite(reportDeadlineMs) && nowMs >= reportDeadlineMs;
   // Four honest window states replace the old two-flag check, which read
   // RESULTS_PUBLISHED/CLOSED rounds as "opens after registration closes" —
   // backwards. Order matters: a finished round stays finished even when its
@@ -2561,7 +2571,14 @@ export default function ThesisPage() {
 
           <ThesisRegulationGuide />
 
-          {error ? <ErrorState title={messages.thesis.loadFailed} description={error} /> : null}
+          {error ? (
+            <ErrorState
+              title={messages.thesis.loadFailed}
+              description={error}
+              retryLabel={messages.thesis.retry}
+              onRetry={() => setWorkspaceRetryToken((token) => token + 1)}
+            />
+          ) : null}
           {workloadError ? (
             <div
               role="status"

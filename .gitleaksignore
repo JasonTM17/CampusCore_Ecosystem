@@ -1,0 +1,12 @@
+
+# Shared fixture key used by the identity contract tests (not a credential)
+java-services/restful-api/src/test/java/io/campuscore/restfulapi/identity/MobileOidcTwoFactorFlowTest.java:generic-api-key:69
+
+# Synthetic in-memory OIDC/BFF fixtures of the login page and BFF PATCH tests (not credentials)
+java-services/restful-api/src/test/java/io/campuscore/restfulapi/identity/IdentityLoginPageRenderTest.java:generic-api-key:39
+java-services/restful-api/src/test/java/io/campuscore/restfulapi/identity/IdentityLoginPageRenderTest.java:generic-api-key:41
+java-services/restful-api/src/test/java/io/campuscore/restfulapi/identity/bff/BffPatchProxyTest.java:generic-api-key:50
+
+# Synthetic in-memory OIDC fixtures of the atomic persistence integration test (not credentials)
+java-services/restful-api/src/test/java/io/campuscore/restfulapi/identity/IdentityAtomicPersistencePostgresIT.java:generic-api-key:57
+java-services/restful-api/src/test/java/io/campuscore/restfulapi/identity/IdentityAtomicPersistencePostgresIT.java:generic-api-key:59

@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -1074,6 +1074,15 @@ class ThesisTopicPersistenceTest {
                 studentId,
                 userId,
                 "CODE-" + studentId);
+    }
+
+
+    @Test
+    void topicCatalogPolicyRejectsAnonymousOnListAndDetail() throws Exception {
+        mvc.perform(get("/api/v1/thesis/topics").param("roundId", UUID.randomUUID().toString()))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/thesis/topics/" + UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
     }
 
 }

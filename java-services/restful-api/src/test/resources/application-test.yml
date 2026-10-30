@@ -53,3 +53,7 @@ engagement:
 academic:
   enrolled-count:
     enabled: false
+
+attendance:
+  checkin:
+    jobs-enabled: false

@@ -98,13 +98,23 @@ async function assertViewportIntegrity(page: Page, route: string) {
 
 function observeRuntimeFailures(page: Page) {
   const errors: string[] = [];
+  // Thesis report absence is domain control-flow: every consumer treats 404
+  // REPORT_NOT_FOUND as "not submitted yet" — an expected empty state, not a
+  // runtime failure. Match both the network response and the browser's own
+  // console echo of that same request.
+  const expectedAbsence = (pathname: string) =>
+    /^\/api\/v1\/thesis\/(groups|topics)\/[^/]+\/report$/.test(pathname);
   page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(`console: ${message.text()}`);
+    if (message.type() !== 'error') return;
+    const resource = message.location().url;
+    if (resource && expectedAbsence(new URL(resource).pathname)) return;
+    errors.push(`console: ${message.text()}`);
   });
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
   page.on('response', (response) => {
     const url = new URL(response.url());
-    if (url.pathname.startsWith('/api/') && response.status() >= 400) {
+    if (url.pathname.startsWith('/api/') && response.status() >= 400
+      && !(response.status() === 404 && expectedAbsence(url.pathname))) {
       errors.push(`network: ${response.status()} ${url.pathname}`);
     }
   });

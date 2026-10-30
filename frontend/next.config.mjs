@@ -9,6 +9,8 @@
  * nonced; TinyMCE's dynamic script loading rides on 'strict-dynamic'.
  */
 const nextConfig = {
+  // Optional private build output for concurrent verification; default stays .next.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   reactStrictMode: true,
   output: process.env.OUTPUT_STANDALONE === 'true' || process.platform !== 'win32' ? 'standalone' : undefined,
   experimental: {
@@ -71,6 +73,17 @@ const nextConfig = {
           {
             key: 'Referrer-Policy',
             value: 'no-referrer',
+          },
+        ],
+      },
+      {
+        // Universal-links association is an extensionless path that must
+        // answer application/json — Next cannot infer it from a suffix.
+        source: '/.well-known/apple-app-site-association',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/json',
           },
         ],
       },
