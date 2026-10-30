@@ -92,7 +92,7 @@ public class SessionService {
     }
     @Transactional(readOnly=true)
     public List<OpenSessionResponse> openForStudent(String student) {
-        return store.openForStudent(student,LocalDate.now(clock.withZone(CAMPUS_ZONE)),clock.instant());
+        return store.openForStudent(student,clock.instant());
     }
     public static DomainException failure(HttpStatus status,String code) {
         return new DomainException(status,code,code.replace('_',' '));
