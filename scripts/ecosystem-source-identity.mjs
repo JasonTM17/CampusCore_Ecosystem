@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const roots = ['java-services', 'frontend', 'mobile', 'scripts', 'contracts',
-  '.github', '.gitignore', 'docs/ecosystem', 'docker-compose*.yml', 'Dockerfile', 'package*.json'];
+  '.github', '.gitignore', 'docs/ecosystem', 'ops', 'database', 'docker-compose*.yml', 'Dockerfile', 'package*.json'];
 const secretOrOutput = /(?:^|\/)(?:\.env[^/]*|node_modules|target|\.next|dist|build)(?:\/|$)|\.(?:pem|key|pfx|p12|dump|log)$/i;
 
 /** Hash actual inputs, including unstaged and new source; never credential/output files. */
