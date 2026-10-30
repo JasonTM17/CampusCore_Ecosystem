@@ -70,6 +70,51 @@ test('gitignore covers credential stores and dump destinations, keeps examples',
   }
 });
 
+test('gitignore covers credential, dump and tunnel paths but not contract fixtures', () => {
+  const ignored = [
+    'dump.rdb',
+    'ngrok.yml',
+    'ngrok.yaml',
+    'service_account.json',
+    'service-account.json',
+    '.gcloud/credentials.db',
+    'dump.sql',
+    'nested/dir/dump.sql',
+    'cloudflared.yml',
+    'frontend/e2e/auth.json',
+  ];
+  for (const relativePath of ignored) {
+    assert.equal(checkIgnoreStatus(relativePath), 0, `${relativePath} should be ignored`);
+  }
+  const tracked = [
+    'contracts/ecosystem/auth.json',
+    'contracts/ecosystem/fixtures/auth.json',
+  ];
+  for (const relativePath of tracked) {
+    assert.equal(checkIgnoreStatus(relativePath), 1, `${relativePath} must stay un-ignored`);
+  }
+});
+
+test('scanner flags tracked credential-path files by name only', (t) => {
+  const { dir, env } = makeRepo(t);
+  writeFileSync(path.join(dir, 'service_account.json'), '{"synthetic":true}\n', 'utf8');
+  writeFileSync(path.join(dir, 'ngrok.yml'), 'version: synthetic\n', 'utf8');
+  writeFileSync(path.join(dir, 'dump.sql'), '-- synthetic\n', 'utf8');
+  writeFileSync(path.join(dir, 'dump.rdb'), 'synthetic\n', 'utf8');
+  mkdirSync(path.join(dir, '.gcloud'));
+  writeFileSync(path.join(dir, '.gcloud', 'credentials.db'), 'synthetic\n', 'utf8');
+  const { status, output } = runScanner(env, dir);
+  assert.equal(status, 1, output);
+  for (const name of ['service_account.json', 'ngrok.yml', 'dump.sql', 'dump.rdb', '.gcloud']) {
+    assert.match(
+      output,
+      new RegExp(name.replace(/\./g, '\\.')),
+      `${name} should be reported`,
+    );
+  }
+  assert.ok(!output.includes('synthetic'), 'scanner output must never echo file contents');
+});
+
 test('scanner reports planted secret by path and never prints its value', (t) => {
   const { dir, env } = makeRepo(t);
   const secretValue = ['sk-', 'UN1Q', 'secretHygiene', 'Probe', 'Value', '00000001'].join('');

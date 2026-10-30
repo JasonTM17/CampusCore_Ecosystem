@@ -31,6 +31,8 @@ const credentialStoreDirectories = new Set([
   '.docker',
   '.kube',
   '.terraform',
+  '.gcloud',
+  '.ngrok2',
 ]);
 const allowedNameSuffixes = ['.example', '.sample', '.template', '.pub'];
 const allowedPaths = new Set([]);
@@ -41,13 +43,14 @@ const namePatterns = [
   ['ssh-key-file', /^id_(rsa|dsa|ecdsa|ed25519)/],
   [
     'credential-store-file',
-    /^(google-services\.json|GoogleService-Info\.plist|credentials\.json|secrets\.json|secrets\..+\.json|service-account.*\.json|.*-service-account.*\.json|client_secret.*\.json|.*\.local\.json|eas\.json\.local)$/,
+    /^(google-services\.json|GoogleService-Info\.plist|credentials\.json|secrets\.json|secrets\..+\.json|service[-_]account.*\.json|.*-service[-_]account.*\.json|client_secret.*\.json|.*\.local\.json|eas\.json\.local|ngrok\.ya?ml|cloudflared\.ya?ml|credentials\.db)$/,
   ],
   ['credential-store-file', /^\.npmrc$/],
   ['credential-store-file', /^\.netrc$/],
   ['credential-store-file', /\.(tfvars|tfstate|kdbx|ovpn|gpg)$/i],
   ['credential-store-file', /\.tfstate\..+$/i],
-  ['data-dump-file', /\.(dump|pgdump|dmp|bak|har|heapdump|hprof)$/i],
+  ['data-dump-file', /\.(dump|pgdump|dmp|bak|har|heapdump|hprof|rdb)$/i],
+  ['data-dump-file', /^dump\.sql$/i],
   ['data-dump-file', /\.sql\.(gz|zip|bz2|xz)$/i],
   ['shell-history-file', /^\.(bash_history|zsh_history|pshistory|node_repl_history|python_history|irb_history)$/],
 ];
