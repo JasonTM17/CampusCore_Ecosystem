@@ -40,7 +40,7 @@ class IdentityPolicyInventoryTest {
     // Digests cover executable policy bodies, ignoring comments and whitespace.
     // They intentionally require review even for a contract-preserving policy edit.
     private static final java.util.List<ExceptionPolicy> EXCEPTIONS = java.util.List.of(
-            new ExceptionPolicy("identity/IdentitySecurityConfig.java", "identityServerChain", "f0fc9175bc3f303d1d2b6ec342e50275fe35c13d8acf95fc151fd0ecc22f0e6a",
+            new ExceptionPolicy("identity/IdentitySecurityConfig.java", "identityServerChain", "96b0524911d1c0bbdf36507b817c9b057e692ea73e0f987643b59dd4af922e70",
                     "SAS framework CSRF disabled for protocol clients; cookie filter runs before endpoints; GET is safe-method exempt"),
             new ExceptionPolicy("identity/IdentitySecurityConfig.java", "handleLogout", "a41823ad839bbe50d65146509a491e66f77f20118ac107750a5d5d6aca09ed80",
                     "GET/POST exact registered redirect; best-effort revoke failure still reports success (AUD-06 proposal)"),

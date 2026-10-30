@@ -29,6 +29,8 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2RefreshTokenAuthenticationProvider;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2RefreshTokenAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
@@ -41,6 +43,7 @@ import org.springframework.security.oauth2.server.authorization.token.JwtGenerat
 import org.springframework.security.oauth2.server.authorization.token.OAuth2AccessTokenGenerator;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationProvider;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.csrf.CsrfFilter;
@@ -75,7 +78,7 @@ public class IdentitySecurityConfig {
             io.campuscore.restfulapi.security.CsrfCookieFilter csrfCookieFilter,
             AuthUserRepository users, ApiErrorWriter errorWriter,
             UnifiedSessionAuthority authority, IdentitySessionMirror mirror,
-            IdentityProperties properties) throws Exception {
+            IdentityProperties properties, PlatformTransactionManager transactionManager) throws Exception {
         OAuth2AuthorizationServerConfigurer authorizationServer =
                 new OAuth2AuthorizationServerConfigurer();
         http
@@ -104,8 +107,27 @@ public class IdentitySecurityConfig {
                                 .authenticationProviders(providers -> providers
                                         .add(0, new NativePublicClientAuthenticationProvider(
                                                 identityClientRepository))))
-                        .tokenEndpoint(token -> token.errorResponseHandler(
-                                new OidcRefreshReplayHandler(mirror, authority,
+                        .tokenEndpoint(token -> token
+                                // Refresh consumption must be atomic: the
+                                // account lock has to cover the delegate's
+                                // own lookup and rotation save, or two
+                                // requests presenting the same live
+                                // generation both succeed. Replace the
+                                // stock provider rather than prepend — a
+                                // failed locked attempt must not be
+                                // retried outside the lock by provider
+                                // fallthrough.
+                                .authenticationProviders(providers -> {
+                                    providers.removeIf(provider -> provider.supports(
+                                            OAuth2RefreshTokenAuthenticationToken.class));
+                                    providers.add(new LockingRefreshTokenAuthenticationProvider(
+                                            new OAuth2RefreshTokenAuthenticationProvider(
+                                                    identityAuthorizationService,
+                                                    identityTokenGenerator),
+                                            identityAuthorizationService, users,
+                                            transactionManager));
+                                })
+                                .errorResponseHandler(new OidcRefreshReplayHandler(mirror, authority,
                                         OidcRefreshReplayHandler.defaultDelegate())))
                         .oidc(oidc -> oidc.logoutEndpoint(logout -> logout
                                 .logoutResponseHandler((request, response, authentication) ->
