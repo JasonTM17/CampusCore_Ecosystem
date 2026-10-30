@@ -134,7 +134,7 @@ function runDrill(config) {
     evidence.counts = counts;
     evidence.fkConstraints = lines(fks).length;
     evidence.orphans = orphans;
-    const context = { container, sourceDb: db, restoreDb, user, fixture: 'synthetic', previousImage: config.previousImage,
+    const context = { container, sourceDb: db, restoreDb, user, writer, fixture: 'synthetic', previousImage: config.previousImage,
       externalBlobInventory: evidence.externalBlobInventory };
     for (const name of hookNames) evidence.checks[name] = runHook(config.hooks[name], { ...context, check: name });
     evidence.verdict = Object.values(evidence.checks).some((check) => check.status === 'FAIL') ? 'FAIL'
