@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { Button, Card, FilterChip, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Button, Card, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { useLocale } from '../../i18n/locale-provider';
@@ -142,16 +142,26 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
             <Button accessibilityLabel={copy.nextWeek} label="›" onPress={() => setWeekOffset((value) => value + 1)} variant="text" />
           </View>
           <View style={styles.dayStrip}>
-            {days.map((date, index) => (
-              <View key={civilKey(date)} testID={`day-${civilKey(date)}`} style={styles.dayChipWrap}>
-                <FilterChip
-                  label={copy.dayShort[index]}
-                  count={date.getDate()}
-                  selected={index === selectedDayIndex}
+            {days.map((date, index) => {
+              const selected = index === selectedDayIndex;
+              const isToday = civilKey(date) === civilKey(today);
+              return (
+                <Pressable
+                  key={civilKey(date)}
+                  testID={`day-${civilKey(date)}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${copy.dayShort[index]} ${date.getDate()}`}
+                  accessibilityState={{ selected }}
                   onPress={() => { setSelectedDayIndex(index); setOpenId(null); }}
-                />
-              </View>
-            ))}
+                  style={[styles.dayCell, { backgroundColor: selected ? colors.primaryFixed : 'transparent' }]}
+                >
+                  <UiText variant="meta" tone="muted" numberOfLines={1}>{copy.dayShort[index]}</UiText>
+                  <UiText variant="label" tone={selected || isToday ? 'primary' : 'default'} style={styles.dayDate}>
+                    {date.getDate()}
+                  </UiText>
+                </Pressable>
+              );
+            })}
           </View>
           {(() => {
             const date = days[selectedDayIndex];
@@ -185,8 +195,9 @@ const styles = StyleSheet.create({
   courseLine: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
   courseName: { flex: 1, minWidth: 120 },
   roomLine: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs },
-  dayStrip: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs, marginTop: tokens.spacing.sm },
-  dayChipWrap: { flexGrow: 1, minWidth: 40 },
+  dayStrip: { flexDirection: 'row', marginTop: tokens.spacing.sm },
+  dayCell: { alignItems: 'center', borderRadius: tokens.radii.control, flex: 1, justifyContent: 'center', minHeight: tokens.layout.touchTarget, paddingVertical: tokens.spacing.xs },
+  dayDate: { fontVariant: ['tabular-nums'] },
   dayContent: { marginTop: tokens.spacing.md },
   dayHeading: { marginBottom: tokens.spacing.sm },
   emptyDay: { alignItems: 'center', flexDirection: 'row', gap: tokens.spacing.sm, minHeight: tokens.layout.touchTarget },
