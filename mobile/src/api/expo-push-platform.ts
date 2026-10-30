@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import type { Notification, NotificationBehavior } from 'expo-notifications';
@@ -8,6 +9,7 @@ import type { PushPlatform } from './push-notifications';
 const INSTALL_KEY = 'cu.install';
 const INSTALL_MARKER_KEY = 'installMarker';
 const FOREGROUND_DEADLINE_MS = 2500;
+const EXPO_PROJECT_ID_PATTERN = /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i;
 const FOREGROUND_FALLBACK: NotificationBehavior = {
   shouldShowBanner: false,
   shouldShowList: false,
@@ -37,6 +39,18 @@ function parseAppInstanceId(raw: string | null): string | null {
     // A missing/malformed existing marker must not create a second identity.
   }
   return null;
+}
+
+function readExpoProjectId(): string {
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId
+    ?? Constants.easConfig?.projectId;
+  if (projectId == null || projectId === '') {
+    throw new Error('EXPO_PROJECT_ID_MISSING');
+  }
+  if (typeof projectId !== 'string' || !EXPO_PROJECT_ID_PATTERN.test(projectId)) {
+    throw new Error('EXPO_PROJECT_ID_INVALID');
+  }
+  return projectId;
 }
 
 async function readInstallationId(): Promise<string> {
@@ -76,7 +90,7 @@ export const expoPushPlatform: PushPlatform = {
 
   async getPushToken() {
     const notifications = await loadNotifications();
-    const token = await notifications.getExpoPushTokenAsync();
+    const token = await notifications.getExpoPushTokenAsync({ projectId: readExpoProjectId() });
     return token.data;
   },
 };
