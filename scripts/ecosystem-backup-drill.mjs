@@ -114,7 +114,7 @@ for (const [name, n] of Object.entries(orphans)) {
 // OUTSIDE this dump (object store, not pg_dump) — counted so the gap is
 // disclosed in evidence rather than implied covered.
 const flywayHead = psql(db,
-  `SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1`);
+  `SELECT version FROM thesis.flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1`);
 const storageObjects = Number(psql(db,
   `SELECT count(*) FROM thesis.thesis_group_report WHERE storage_key IS NOT NULL`));
 
