@@ -75,6 +75,19 @@ export const libraryApi = {
     });
     return response.data;
   },
+  cataloguePage: async (query: string | undefined, page: number, limit: number): Promise<{
+    items: LibraryTitle[];
+    total: number | null;
+  }> => {
+    const response = await api.get<LibraryTitle[]>('/library/catalogue', {
+      params: { ...(query ? { query } : {}), page, limit },
+    });
+    const headerValue = response.headers?.['x-total-count']
+      ?? response.headers?.['X-Total-Count'];
+    const parsedTotal = headerValue == null ? Number.NaN : Number(headerValue);
+    const total = Number.isSafeInteger(parsedTotal) && parsedTotal >= 0 ? parsedTotal : null;
+    return { items: response.data, total };
+  },
   title: async (titleId: string): Promise<LibraryTitle> => {
     const response = await api.get<LibraryTitle>(`/library/catalogue/${titleId}`);
     return response.data;

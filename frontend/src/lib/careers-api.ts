@@ -103,6 +103,19 @@ export const careersApi = {
     });
     return response.data;
   },
+  opportunitiesPage: async (query: string | undefined, page: number, limit: number): Promise<{
+    items: CareerOpportunity[];
+    total: number | null;
+  }> => {
+    const response = await api.get<CareerOpportunity[]>('/careers/opportunities', {
+      params: { ...(query ? { query } : {}), page, limit },
+    });
+    const headerValue = response.headers?.['x-total-count']
+      ?? response.headers?.['X-Total-Count'];
+    const parsedTotal = headerValue == null ? Number.NaN : Number(headerValue);
+    const total = Number.isSafeInteger(parsedTotal) && parsedTotal >= 0 ? parsedTotal : null;
+    return { items: response.data, total };
+  },
   opportunity: async (opportunityId: string): Promise<CareerOpportunity> => {
     const response = await api.get<CareerOpportunity>(`/careers/opportunities/${opportunityId}`);
     return response.data;

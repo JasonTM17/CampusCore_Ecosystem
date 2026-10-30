@@ -22,6 +22,7 @@ import { useI18n } from '@/i18n';
 import { cn } from '@/lib/utils';
 
 type Copy = (typeof careerMessages)['vi'];
+const PAGE_SIZE = 20;
 
 const OPPORTUNITY_TONE: Record<string, StatusTone> = {
   DRAFT: 'neutral',
@@ -66,11 +67,13 @@ function friendlyError(copy: Copy, error: unknown): string {
  */
 export function CareersBoardPage() {
   const { isLoading: authLoading } = useRequireAuth();
-  const { locale, formatDateTime } = useI18n();
+  const { locale, formatDateTime, messages } = useI18n();
   const copy = careerMessages[locale];
   const [opportunities, setOpportunities] = useState<CareerOpportunity[]>([]);
   const [applications, setApplications] = useState<CareerApplication[]>([]);
   const [query, setQuery] = useState('');
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState<number | null>(null);
   const [coverLetters, setCoverLetters] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
@@ -78,19 +81,49 @@ export function CareersBoardPage() {
   // A 401/403 on the board read is a denial, not an outage.
   const [denied, setDenied] = useState(false);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
+  const requestSequence = useRef(0);
+  const currentSelection = useRef<{ search: string | undefined; page: number }>({
+    search: undefined,
+    page: 0,
+  });
 
-  const load = useCallback(async (search?: string) => {
+  const load = useCallback(async (search?: string, requestedPage = 0) => {
+    const requestId = ++requestSequence.current;
+    currentSelection.current = { search, page: requestedPage };
     setIsLoading(true);
     setError('');
     setDenied(false);
     try {
       const [rows, mine] = await Promise.all([
-        careersApi.opportunities(search),
+        careersApi.opportunitiesPage(search, requestedPage, PAGE_SIZE),
         careersApi.myApplications(),
       ]);
-      setOpportunities(rows);
+      if (requestId !== requestSequence.current) return;
+
+      let pageResult = rows;
+      let resultPage = requestedPage;
+      if (pageResult.items.length === 0 && resultPage > 0) {
+        const lastPage = pageResult.total === null
+          ? resultPage - 1
+          : Math.max(0, Math.ceil(pageResult.total / PAGE_SIZE) - 1);
+        resultPage = Math.min(resultPage - 1, lastPage);
+        if (pageResult.total !== 0) {
+          pageResult = await careersApi.opportunitiesPage(search, resultPage, PAGE_SIZE);
+          if (requestId !== requestSequence.current) return;
+        }
+      }
+      if (pageResult.items.length === 0 && pageResult.total !== null && pageResult.total > 0) {
+        setError(copy.failed);
+        return;
+      }
+
+      setOpportunities(pageResult.items);
+      setTotal(pageResult.total);
+      setPage(resultPage);
       setApplications(mine);
+      currentSelection.current = { search, page: resultPage };
     } catch (cause) {
+      if (requestId !== requestSequence.current) return;
       const kind = campusErrorKind(cause);
       if (kind === 'forbidden' || kind === 'unauthorized') {
         setDenied(true);
@@ -98,13 +131,42 @@ export function CareersBoardPage() {
         setError(friendlyError(copy, cause));
       }
     } finally {
-      setIsLoading(false);
+      if (requestId === requestSequence.current) setIsLoading(false);
     }
   }, [copy]);
 
   useEffect(() => {
-    void load();
+    void load(undefined, 0);
   }, [load]);
+
+  const search = () => {
+    const selection = { search: query || undefined, page: 0 };
+    currentSelection.current = selection;
+    setPage(0);
+    void load(selection.search, selection.page);
+  };
+
+  const loadCurrentSelection = () => load(
+    currentSelection.current.search,
+    currentSelection.current.page,
+  );
+
+  const goToPage = (nextPage: number) => {
+    const selection = { search: currentSelection.current.search, page: nextPage };
+    currentSelection.current = selection;
+    void load(selection.search, selection.page);
+  };
+
+  const totalPages = total === null ? null : Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const hasPreviousPage = page > 0;
+  const hasNextPage = totalPages === null
+    ? opportunities.length === PAGE_SIZE
+    : page + 1 < totalPages;
+  const firstVisible = opportunities.length === 0 ? 0 : page * PAGE_SIZE + 1;
+  const lastVisible = page * PAGE_SIZE + opportunities.length;
+  const paginationSummary = total === null
+    ? `${messages.common.states.showingResults} ${firstVisible} ${messages.common.states.to} ${lastVisible} ${messages.common.states.results}`
+    : `${messages.common.states.showingResults} ${firstVisible} ${messages.common.states.to} ${lastVisible} ${messages.common.states.of} ${total} ${messages.common.states.results}`;
 
   const appliedOpportunityIds = new Set(
     applications
@@ -118,7 +180,7 @@ export function CareersBoardPage() {
         coverLetters[opportunityId] ?? '', newCareerIdempotencyKey());
       toast.success(copy.applied);
       setCoverLetters((current) => ({ ...current, [opportunityId]: '' }));
-      await load(query || undefined);
+      await loadCurrentSelection();
     } catch (cause) {
       setError(friendlyError(copy, cause));
     } finally {
@@ -132,7 +194,7 @@ export function CareersBoardPage() {
       await careersApi.withdraw(application.id, application.version,
         newCareerIdempotencyKey());
       toast.success(copy.withdrawn);
-      await load(query || undefined);
+      await loadCurrentSelection();
     } catch (cause) {
       setError(friendlyError(copy, cause));
     } finally {
@@ -158,7 +220,7 @@ export function CareersBoardPage() {
       // Only a successful upload clears the input: on failure the picked file
       // stays selected so the candidate does not have to re-pick it.
       if (input) input.value = '';
-      await load(query || undefined);
+      await loadCurrentSelection();
     } catch (cause) {
       setError(friendlyError(copy, cause));
     } finally {
@@ -176,7 +238,7 @@ export function CareersBoardPage() {
         eyebrow={<SectionEyebrow>{copy.eyebrow}</SectionEyebrow>}
         title={copy.title}
         description={copy.description}
-        actions={<Button variant="outline" onClick={() => void load(query || undefined)}>{copy.refresh}</Button>}
+        actions={<Button variant="outline" onClick={() => void loadCurrentSelection()}>{copy.refresh}</Button>}
       />
 
       <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm"
@@ -184,7 +246,7 @@ export function CareersBoardPage() {
         {copy.simulatedBanner}
       </p>
 
-      {error ? <ErrorState title={copy.failed} description={error} onRetry={() => void load(query || undefined)} /> : null}
+      {error ? <ErrorState title={copy.failed} description={error} onRetry={() => void loadCurrentSelection()} /> : null}
       {denied ? <WorkspaceForbiddenState /> : null}
 
       <div className="flex gap-2">
@@ -193,9 +255,9 @@ export function CareersBoardPage() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={copy.searchPlaceholder}
-          onKeyDown={(event) => { if (event.key === 'Enter') void load(query || undefined); }}
+          onKeyDown={(event) => { if (event.key === 'Enter') search(); }}
         />
-        <Button data-testid="careers-search" variant="outline" onClick={() => void load(query || undefined)}>
+        <Button data-testid="careers-search" variant="outline" onClick={search}>
           {copy.search}
         </Button>
       </div>
@@ -249,6 +311,27 @@ export function CareersBoardPage() {
             </article>
           ))}
         </section>
+      ) : null}
+
+      {!isLoading && !error && !denied ? (
+        <div className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p role="status" aria-live="polite" data-testid="careers-pagination-summary"
+            className="text-sm text-muted-foreground">
+            {paginationSummary}
+          </p>
+          {hasPreviousPage || hasNextPage ? (
+            <nav aria-label={messages.common.states.page} className="flex items-center gap-2">
+              <Button size="sm" variant="outline" disabled={!hasPreviousPage}
+                onClick={() => goToPage(page - 1)}>
+                {messages.common.states.goToPreviousPage}
+              </Button>
+              <Button size="sm" variant="outline" disabled={!hasNextPage}
+                onClick={() => goToPage(page + 1)}>
+                {messages.common.states.goToNextPage}
+              </Button>
+            </nav>
+          ) : null}
+        </div>
       ) : null}
 
       <section className="space-y-3" data-testid="careers-applications">
