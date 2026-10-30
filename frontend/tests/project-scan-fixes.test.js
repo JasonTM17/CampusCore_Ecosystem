@@ -275,14 +275,15 @@ test('published image tags are full-SHA, revision-bound, and never auto-promote 
   const workflow = fs.readFileSync(path.join(root, '../.github/workflows/publish-ghcr.yml'), 'utf8');
   const overlay = fs.readFileSync(path.join(root, '../docker-compose.rag.override.yml'), 'utf8');
 
-  assert.match(workflow, /type=raw,value=\$\{\{ needs\.release-gate\.outputs\.sha \}\}/);
+  assert.match(workflow, /type=raw,value=candidate-\$\{\{ needs\.release-gate\.outputs\.sha \}\}/);
   assert.match(workflow, /org\.opencontainers\.image\.revision=\$\{\{ needs\.release-gate\.outputs\.sha \}\}/);
   assert.match(workflow, /\.Image\.Config\.Labels/);
   assert.match(workflow, /--format '\{\{\.Manifest\.Digest\}\}'/);
   assert.doesNotMatch(workflow, /\|\s*awk/);
   assert.match(workflow, /refusing wrong-revision|revision.*not \$full_sha/s);
-  assert.match(workflow, /partially published; refusing to create a cross-registry manifest/);
-  assert.doesNotMatch(workflow, /promote-latest|imagetools create/);
+  assert.doesNotMatch(workflow, /promote-latest|:latest\b|value=latest/);
+  assert.equal((workflow.match(/imagetools create/g) ?? []).length, 1, 'release tags are created only by the single scanned-digest promotion');
+  assert.match(workflow, /imagetools create --tag "\$target" "\$SCAN_REF"/);
   assert.match(overlay, /CAMPUSCORE_IMAGE_TAG:\?Set CAMPUSCORE_IMAGE_TAG/);
 });
 
