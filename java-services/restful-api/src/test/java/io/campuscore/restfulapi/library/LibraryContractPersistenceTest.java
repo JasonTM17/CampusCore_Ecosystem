@@ -22,6 +22,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -290,6 +291,35 @@ class LibraryContractPersistenceTest {
                         .content("{\"titleId\":\"title-1\",\"barcode\":\"BC-001\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("BARCODE_TAKEN"));
+    }
+
+    @Test
+    void repeatedGrantReplaysStoredProvenance() throws Exception {
+        RequestPostProcessor secondAdmin = CurrentAccountJwt.fixtureJwt(jdbc, "admin-user-2", "ADMIN");
+        MvcResult first = mvc.perform(post("/api/v1/library/staff/grants")
+                        .with(adminJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"student-9\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        MvcResult repeat = mvc.perform(post("/api/v1/library/staff/grants")
+                        .with(secondAdmin).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"student-9\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        JsonNode firstGrant = objectMapper.readTree(first.getResponse().getContentAsString());
+        JsonNode repeatGrant = objectMapper.readTree(repeat.getResponse().getContentAsString());
+        // A repeat replays the stored row — original grantor and grant
+        // instant — never the repeating admin's identity or a fresh clock.
+        assertThat(repeatGrant.get("id").asText()).isEqualTo(firstGrant.get("id").asText());
+        assertThat(repeatGrant.get("grantedBy").asText()).isEqualTo("admin-user");
+        assertThat(repeatGrant.get("createdAt").asText()).isEqualTo(firstGrant.get("createdAt").asText());
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM library.\"StaffGrant\" WHERE \"userId\" = 'student-9'",
+                Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM library.\"Audit\" WHERE \"action\" = 'STAFF_GRANTED'"
+                        + " AND \"detail\" LIKE '%student-9%'",
+                Integer.class)).isEqualTo(1);
     }
 
     @Test
