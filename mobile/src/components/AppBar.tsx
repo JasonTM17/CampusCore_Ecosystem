@@ -81,9 +81,9 @@ export function AppBar({ role, onProfile, onSignIn }: AppBarProps) {
           <Pressable
             accessibilityRole="button"
             onPress={onSignIn}
-            style={({ pressed }) => [styles.signIn, { backgroundColor: pressed ? chrome.overlay : chrome.gold }]}
+            style={({ pressed }) => [styles.signIn, { backgroundColor: pressed ? chrome.overlay : chrome.accent }]}
           >
-            <UiText variant="label" style={{ color: chrome.onGold }}>{copy.guestSignIn}</UiText>
+            <UiText variant="label" style={{ color: chrome.surfaceStrong }}>{copy.guestSignIn}</UiText>
           </Pressable>
         ) : null}
       </View>
