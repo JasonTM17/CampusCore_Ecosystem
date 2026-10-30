@@ -186,10 +186,6 @@ jobs:
 
           ghcr_digest="$(inspect_digest "$GHCR_IMAGE:$full_sha")"
           hub_digest="$(inspect_digest "$HUB_IMAGE:$full_sha")"
-          if [[ "$ghcr_digest" == ABSENT && "$hub_digest" == ABSENT ]]; then
-            echo 'should_push=true' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
 
           if [[ "$ghcr_digest" == sha256:* && "$hub_digest" == sha256:* ]]; then
             verify_existing "$GHCR_IMAGE:$full_sha" "$ghcr_digest"
@@ -198,12 +194,43 @@ jobs:
               echo "Immutable tag $full_sha has mismatched digests across registries; refusing overwrite." >&2
               exit 1
             }
-            echo "Immutable tag $full_sha is already verified in both registries; nothing to push." >&2
-          else
-            echo "Immutable tag $full_sha is partially published; refusing to create a cross-registry manifest without a blob-copy tool." >&2
-            exit 1
+            echo "Immutable tag $full_sha is already verified in both registries; nothing to promote."
+            {
+              echo 'release_state=verified'
+              echo "release_digest=$ghcr_digest"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-          echo 'should_push=false' >> "$GITHUB_OUTPUT"
+
+          if [[ "$ghcr_digest" == ABSENT && "$hub_digest" == ABSENT ]]; then
+            echo 'release_state=promote' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # A tag surviving in exactly one registry means a previous run was
+          # interrupted between the two promotions. The surviving digest is
+          # re-scanned below and the missing tag is recreated from it; existing
+          # content is never overwritten.
+          if [[ "$ghcr_digest" == sha256:* ]]; then
+            verify_existing "$GHCR_IMAGE:$full_sha" "$ghcr_digest"
+            {
+              echo 'release_state=promote'
+              echo "source_repo=$GHCR_IMAGE"
+              echo "source_digest=$ghcr_digest"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$hub_digest" == sha256:* ]]; then
+            verify_existing "$HUB_IMAGE:$full_sha" "$hub_digest"
+            {
+              echo 'release_state=promote'
+              echo "source_repo=$HUB_IMAGE"
+              echo "source_digest=$hub_digest"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Could not determine the release tag state for $full_sha." >&2
+          exit 1
 
       - name: Generate metadata
         id: meta
@@ -211,16 +238,54 @@ jobs:
         with:
           images: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.package }}
-            docker.io/${{ env.DOCKERHUB_OWNER }}/${{ matrix.hub-package }}
           tags: |
-            type=raw,value=${{ needs.release-gate.outputs.sha }}
+            type=raw,value=candidate-${{ needs.release-gate.outputs.sha }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.description=${{ matrix.description }}
             org.opencontainers.image.revision=${{ needs.release-gate.outputs.sha }}
 
-      - name: Build and push
-        if: steps.immutability.outputs.should_push == 'true'
+      - name: Check staged candidate state
+        id: candidate
+        if: steps.immutability.outputs.release_state == 'promote' && steps.immutability.outputs.source_digest == ''
+        shell: bash
+        env:
+          GHCR_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.package }}
+        run: |
+          set -euo pipefail
+          full_sha="${{ needs.release-gate.outputs.sha }}"
+          candidate_ref="$GHCR_IMAGE:candidate-$full_sha"
+
+          set +e
+          digest="$(docker buildx imagetools inspect "$candidate_ref" --format '{{.Manifest.Digest}}' 2>&1)"
+          status=$?
+          set -e
+          if [[ "$status" -ne 0 ]]; then
+            if grep -Eqi 'manifest unknown|name unknown|not found|no such manifest|denied|403 forbidden' <<<"$digest"; then
+              echo 'present=false' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            printf '%s\n' "$digest" >&2
+            exit 1
+          fi
+          [[ "$digest" == sha256:* ]] || {
+            echo "Candidate tag $candidate_ref has no usable digest." >&2
+            exit 1
+          }
+          labels="$(docker buildx imagetools inspect "$candidate_ref" --format '{{json .Image.Config.Labels}}')"
+          revision="$(REVISION_LABELS="$labels" python3 -c 'import json, os; labels=json.loads(os.environ["REVISION_LABELS"] or "null") or {}; print(labels.get("org.opencontainers.image.revision", ""))')"
+          [[ "$revision" == "$full_sha" ]] || {
+            echo "Candidate tag $candidate_ref is bound to revision '$revision', not $full_sha; refusing to overwrite." >&2
+            exit 1
+          }
+          echo "Reusing staged candidate $candidate_ref"
+          {
+            echo 'present=true'
+            echo "digest=$digest"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and stage candidate image
+        if: steps.immutability.outputs.release_state == 'promote' && steps.immutability.outputs.source_digest == '' && steps.candidate.outputs.present != 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -234,6 +299,120 @@ jobs:
           provenance: mode=max
           sbom: true
 
+      - name: Resolve scan source and verify attestations
+        id: scanref
+        if: success() && steps.immutability.outcome == 'success'
+        shell: bash
+        env:
+          GHCR_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.package }}
+          RELEASE_STATE: ${{ steps.immutability.outputs.release_state }}
+          RELEASE_DIGEST: ${{ steps.immutability.outputs.release_digest }}
+          SOURCE_REPO: ${{ steps.immutability.outputs.source_repo }}
+          SOURCE_DIGEST: ${{ steps.immutability.outputs.source_digest }}
+        run: |
+          set -euo pipefail
+          full_sha="${{ needs.release-gate.outputs.sha }}"
+
+          if [[ "$RELEASE_STATE" == verified ]]; then
+            repo="$GHCR_IMAGE"
+            digest="$RELEASE_DIGEST"
+          elif [[ -n "$SOURCE_DIGEST" ]]; then
+            repo="$SOURCE_REPO"
+            digest="$SOURCE_DIGEST"
+          else
+            repo="$GHCR_IMAGE"
+            digest="$(docker buildx imagetools inspect "$GHCR_IMAGE:candidate-$full_sha" --format '{{.Manifest.Digest}}')"
+          fi
+          [[ "$digest" == sha256:* ]] || {
+            echo "Scan source for $full_sha has no usable digest." >&2
+            exit 1
+          }
+          scan_ref="$repo@$digest"
+
+          # The exact bytes to be promoted must carry the BuildKit
+          # SBOM/provenance attestation manifests and the requested source
+          # revision before the scan gate is allowed to pass.
+          raw="$(docker buildx imagetools inspect --raw "$scan_ref")"
+          RAW_INDEX="$raw" python3 - <<'PY'
+          import json
+          import os
+
+          index = json.loads(os.environ["RAW_INDEX"])
+          descriptors = index.get("manifests", [])
+          attestations = [
+              item for item in descriptors
+              if item.get("annotations", {}).get("vnd.docker.reference.type") == "attestation-manifest"
+          ]
+          if not attestations:
+              raise SystemExit("No OCI attestation manifest was found; SBOM/provenance evidence is missing.")
+          PY
+
+          labels="$(docker buildx imagetools inspect "$scan_ref" --format '{{json .Image.Config.Labels}}')"
+          revision="$(REVISION_LABELS="$labels" python3 -c 'import json, os; labels=json.loads(os.environ["REVISION_LABELS"] or "null") or {}; print(labels.get("org.opencontainers.image.revision", ""))')"
+          [[ "$revision" == "$full_sha" ]] || {
+            echo "Scan source is bound to revision '$revision', not $full_sha." >&2
+            exit 1
+          }
+          {
+            echo "ref=$scan_ref"
+            echo "digest=$digest"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Scan staged image for high and critical vulnerabilities
+        if: success() && steps.immutability.outcome == 'success'
+        uses: aquasecurity/trivy-action@v0.36.0
+        env:
+          # Explicit credentials apply only when the scan source lives in
+          # GHCR; a Docker Hub source falls back to the docker login config
+          # instead of being poisoned by foreign-registry credentials.
+          TRIVY_USERNAME: ${{ startsWith(steps.scanref.outputs.ref, env.REGISTRY) && github.actor || '' }}
+          TRIVY_PASSWORD: ${{ startsWith(steps.scanref.outputs.ref, env.REGISTRY) && secrets.GITHUB_TOKEN || '' }}
+        with:
+          image-ref: ${{ steps.scanref.outputs.ref }}
+          format: json
+          output: trivy-${{ matrix.package }}.json
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Promote scanned image to immutable release tags
+        if: success() && steps.immutability.outputs.release_state == 'promote'
+        shell: bash
+        env:
+          GHCR_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.package }}
+          HUB_IMAGE: docker.io/${{ env.DOCKERHUB_OWNER }}/${{ matrix.hub-package }}
+          SCAN_REF: ${{ steps.scanref.outputs.ref }}
+          SCAN_DIGEST: ${{ steps.scanref.outputs.digest }}
+        run: |
+          set -euo pipefail
+          full_sha="${{ needs.release-gate.outputs.sha }}"
+
+          # imagetools copies the verified manifest graph (image, SBOM and
+          # provenance attestations) into each missing release tag. A tag that
+          # already binds the scanned digest is left untouched; a tag bound to
+          # different bytes is never repointed.
+          for target in "$GHCR_IMAGE:$full_sha" "$HUB_IMAGE:$full_sha"; do
+            set +e
+            existing="$(docker buildx imagetools inspect "$target" --format '{{.Manifest.Digest}}' 2>&1)"
+            status=$?
+            set -e
+            if [[ "$status" -ne 0 ]]; then
+              if grep -Eqi 'manifest unknown|name unknown|not found|no such manifest|denied|403 forbidden' <<<"$existing"; then
+                echo "Creating release tag $target from $SCAN_REF"
+                docker buildx imagetools create --tag "$target" "$SCAN_REF"
+                continue
+              fi
+              printf '%s\n' "$existing" >&2
+              exit 1
+            fi
+            if [[ "$existing" == "$SCAN_DIGEST" ]]; then
+              echo "Release tag $target already points at the scanned digest; leaving it untouched."
+              continue
+            fi
+            echo "Release tag $target already exists with a different digest; refusing to overwrite." >&2
+            exit 1
+          done
+
       - name: Verify immutable registry parity and source revision
         if: always() && steps.immutability.outcome == 'success'
         shell: bash
@@ -241,6 +420,8 @@ jobs:
           GHCR_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.package }}
           HUB_IMAGE: docker.io/${{ env.DOCKERHUB_OWNER }}/${{ matrix.hub-package }}
           IMAGE_PACKAGE: ${{ matrix.package }}
+          SCAN_REF: ${{ steps.scanref.outputs.ref }}
+          SCAN_DIGEST: ${{ steps.scanref.outputs.digest }}
         run: |
           set -euo pipefail
           full_sha="${{ needs.release-gate.outputs.sha }}"
@@ -257,6 +438,10 @@ jobs:
           hub_digest="$(manifest_digest "$HUB_IMAGE:$full_sha")"
           [[ "$ghcr_digest" == sha256:* && "$hub_digest" == "$ghcr_digest" ]] || {
             echo 'Published full-SHA manifests are missing or differ across registries.' >&2
+            exit 1
+          }
+          [[ "$ghcr_digest" == "$SCAN_DIGEST" ]] || {
+            echo 'Published full-SHA manifests do not match the scanned digest.' >&2
             exit 1
           }
           attestation_count() {
@@ -295,7 +480,7 @@ jobs:
             }
             revisions+=("$revision")
           done
-          GHCR_IMAGE="$GHCR_IMAGE" HUB_IMAGE="$HUB_IMAGE" FULL_SHA="$full_sha" GHCR_DIGEST="$ghcr_digest" HUB_DIGEST="$hub_digest" GHCR_ATTESTATIONS="$ghcr_attestations" HUB_ATTESTATIONS="$hub_attestations" IMAGE_PACKAGE="$IMAGE_PACKAGE" python3 - <<'PY'
+          GHCR_IMAGE="$GHCR_IMAGE" HUB_IMAGE="$HUB_IMAGE" FULL_SHA="$full_sha" GHCR_DIGEST="$ghcr_digest" HUB_DIGEST="$hub_digest" GHCR_ATTESTATIONS="$ghcr_attestations" HUB_ATTESTATIONS="$hub_attestations" IMAGE_PACKAGE="$IMAGE_PACKAGE" SCAN_REF="$SCAN_REF" python3 - <<'PY'
           import json
           import os
 
@@ -308,6 +493,7 @@ jobs:
               },
               "sbom": "BuildKit sbom=true attestation verified",
               "provenance": "BuildKit provenance=mode=max attestation verified",
+              "scanRef": os.environ["SCAN_REF"],
               "vulnerabilityReport": "trivy-" + os.environ["IMAGE_PACKAGE"] + ".json",
           }
           with open("release-" + os.environ["IMAGE_PACKAGE"] + ".json", "w", encoding="utf-8") as handle:
@@ -320,20 +506,6 @@ jobs:
             echo "- digest: \`$ghcr_digest\`"
             echo "- GHCR and Docker Hub manifests: parity, OCI revision, and $ghcr_attestations/$hub_attestations attestation manifests verified"
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Scan published image for high and critical vulnerabilities
-        if: success() && steps.immutability.outcome == 'success'
-        uses: aquasecurity/trivy-action@v0.36.0
-        env:
-          TRIVY_USERNAME: ${{ github.actor }}
-          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.package }}:${{ needs.release-gate.outputs.sha }}
-          format: json
-          output: trivy-${{ matrix.package }}.json
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: '1'
 
       - name: Upload per-image release evidence
         if: success() && steps.immutability.outcome == 'success'
