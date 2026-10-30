@@ -434,7 +434,7 @@ public class RagAssistantGateway {
                 unsafeAnswer ? "PROVIDER_UNSAFE_OUTPUT" : response.reasonCode(),
                 normalizedLocale, citations, response.requestId(),
                 response.clientRequestId(), response.turnId(), response.replayed(), response.terminalStatus(),
-                response.conversationId(), response.messageId());
+                response.conversationId(), response.messageId(), response.resetAt());
     }
 
     private static boolean safeCitation(ThesisAssistantDtos.Citation citation, String scope) {
