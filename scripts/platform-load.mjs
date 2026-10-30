@@ -107,7 +107,13 @@ export async function runLoad(config) {
             }
           } finally { reader.releaseLock(); }
         }
-      } catch { requestFailed = true; bucket.transportErrors++; }
+      } catch (caught) {
+        // A request still in flight when the run deadline fires is aborted by
+        // the run controller, not by the network; do not score it as a
+        // transport failure. The per-request 10s timeout still counts.
+        if (controller.signal.aborted) { bucket.requests--; break; }
+        requestFailed = true; bucket.transportErrors++;
+      }
       if (requestFailed) bucket.errors++;
       const latency = Math.min(10_000, Math.max(0, Math.ceil(performance.now() - before)));
       bucket.histogram[latency]++;
