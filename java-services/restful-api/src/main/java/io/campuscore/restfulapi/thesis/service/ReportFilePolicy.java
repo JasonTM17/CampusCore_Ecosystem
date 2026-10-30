@@ -20,6 +20,7 @@ public final class ReportFilePolicy {
     /** 20 MB — matches the servlet multipart cap configured for the API. */
     public static final long MAX_FILE_BYTES = 20L * 1024 * 1024;
 
+    private static final int MAX_NAME_LENGTH = 200;
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "doc", "docx");
 
     private ReportFilePolicy() {
@@ -68,16 +69,25 @@ public final class ReportFilePolicy {
         if (slash >= 0) {
             name = name.substring(slash + 1);
         }
+
+        String extension = extensionOf(name);
+        String extensionSuffix = extension.isEmpty() ? "" : name.substring(name.lastIndexOf('.'));
+        int stemEnd = extension.isEmpty() ? name.length() : name.lastIndexOf('.');
+        String stem = name.substring(0, stemEnd);
+        int stemLimit = Math.max(0, MAX_NAME_LENGTH - extensionSuffix.length());
         StringBuilder cleaned = new StringBuilder();
-        for (char candidate : name.toCharArray()) {
-            if (candidate >= 32 && candidate != '"' && candidate != '\'' && candidate != '<' && candidate != '>'
-                    && candidate != '&' && cleaned.length() < 200) {
-                cleaned.append(candidate);
+        for (int offset = 0; offset < stem.length();) {
+            int candidate = stem.codePointAt(offset);
+            int candidateLength = Character.charCount(candidate);
+            if (!Character.isISOControl(candidate) && candidate != '"' && candidate != '\'' && candidate != '<'
+                    && candidate != '>' && candidate != '&' && cleaned.length() + candidateLength <= stemLimit) {
+                cleaned.appendCodePoint(candidate);
             }
+            offset += candidateLength;
         }
-        String result = cleaned.toString().trim();
+        String result = (cleaned.toString() + extensionSuffix).trim();
         if (result.isEmpty()) {
-            result = "report." + extensionOf(original);
+            result = "report." + extension;
         }
         return result;
     }

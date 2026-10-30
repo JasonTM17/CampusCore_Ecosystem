@@ -245,7 +245,7 @@ public class AcademicMutationService {
         // Unfiltered exports used to load the whole enrollment table into
         // memory. A CSV past this bound would be unusable anyway; the caller
         // narrows filters instead of streaming the entire history.
-        parameters.addValue("exportLimit", EXPORT_LIMIT);
+        parameters.addValue("exportLimit", EXPORT_LIMIT + 1);
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT e.\"id\", student.\"studentId\" AS student_number,"
                         + " student_user.\"email\", student_user.\"firstName\", student_user.\"lastName\","
@@ -260,6 +260,11 @@ public class AcademicMutationService {
                         + " JOIN " + SEMESTER + " semester ON semester.\"id\" = e.\"semesterId\""
                         + where + " ORDER BY e.\"enrolledAt\" DESC, e.\"id\" DESC LIMIT :exportLimit",
                 parameters);
+        if (rows.size() > EXPORT_LIMIT) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    HttpStatus.PAYLOAD_TOO_LARGE,
+                    "Enrollment export exceeds the supported row limit");
+        }
         StringBuilder csv = new StringBuilder(
                 "id,studentNumber,email,studentName,courseCode,courseName,section,semester,status,enrolledAt,finalGrade,letterGrade\r\n");
         for (Map<String, Object> row : rows) {
