@@ -36,10 +36,10 @@ import org.springframework.transaction.annotation.Transactional;
  * partial unique index on active requests per copy (LIB-X02 backstop) so
  * two patrons racing one copy can never both win.
  *
- * <p>Reservation expiry is a server-clock rule (LIB-X01): the sweep runs
- * inside the same transaction as any queue/request/read path, marks
- * expired holds CANCELLED (reason {@code RESERVATION_EXPIRED}) and frees
- * their copies — a client cannot hold a copy forever.
+ * <p>Reservation expiry is a server-clock rule: bounded staff maintenance
+ * and copy-scoped replacement requests materialize cancellation and release
+ * in one transaction. Patron reads expose persisted state and the deadline;
+ * approve and issue reject expired holds even before cleanup commits.
  *
  * <p>Stock is derived from copy status, never a counter: RETURN flips
  * ISSUED→RETURNED and ON_LOAN→AVAILABLE in one transaction, so a replayed
@@ -295,17 +295,29 @@ public class LibraryService {
     // Expiry sweep (LIB-X01: the server clock is the only authority)
     // ------------------------------------------------------------------
 
-    /**
-     * End every expired reservation hold. Runs inside the caller's
-     * transaction so queue, approve, issue and patron reads all see the
-     * same server-clock answer; frees each released copy.
-     */
+    /** Process one bounded batch under staff authority; notification failure rolls it back. */
+    @Transactional
     public int expireOverdue(String actorId) {
+        requireStaffGrant(actorId);
+        return expireHolds(actorId, null);
+    }
+
+    /** Called only inside the patron mutation transaction, before locking the copy. */
+    void expireForCopy(String copyId) {
+        expireHolds("system", copyId);
+    }
+
+    private int expireHolds(String actorId, String copyId) {
         List<Map<String, Object>> expired = jdbc.queryForList(
-                "SELECT \"id\", \"copyId\", \"borrowerUserId\" FROM " + LOAN_REQUEST
+                "SELECT \"id\", \"copyId\", \"borrowerUserId\", \"status\" FROM " + LOAN_REQUEST
                         + " WHERE \"status\" IN ('REQUESTED','APPROVED')"
-                        + " AND \"expiresAt\" IS NOT NULL AND \"expiresAt\" < CURRENT_TIMESTAMP",
-                new MapSqlParameterSource());
+                        + " AND \"expiresAt\" IS NOT NULL AND \"expiresAt\" < CURRENT_TIMESTAMP"
+                        + (copyId == null ? "" : " AND \"copyId\" = :copyId")
+                        + " ORDER BY \"expiresAt\", \"id\" LIMIT :batchSize FOR UPDATE"
+                        + (postgres ? " SKIP LOCKED" : ""),
+                new MapSqlParameterSource("copyId", copyId)
+                        .addValue("batchSize", copyId == null ? 100 : 1));
+        int completed = 0;
         for (Map<String, Object> request : expired) {
             String requestId = String.valueOf(request.get("id"));
             int updated = jdbc.update(
@@ -313,12 +325,15 @@ public class LibraryService {
                             + " \"cancelledBy\" = :actor, \"cancelledAt\" = CURRENT_TIMESTAMP,"
                             + " \"cancelReason\" = 'RESERVATION_EXPIRED',"
                             + " \"version\" = \"version\" + 1, \"updatedAt\" = CURRENT_TIMESTAMP"
-                            + " WHERE \"id\" = :id AND \"status\" IN ('REQUESTED','APPROVED')",
+                            + " WHERE \"id\" = :id AND \"status\" IN ('REQUESTED','APPROVED')"
+                            + " AND \"expiresAt\" < CURRENT_TIMESTAMP",
                     new MapSqlParameterSource("id", requestId).addValue("actor", actorId));
             if (updated == 0) {
                 continue;
             }
-            audit("REQUEST", requestId, actorId, "EXPIRED", null, "CANCELLED", "server-clock sweep");
+            completed++;
+            audit("REQUEST", requestId, actorId, "EXPIRED", String.valueOf(request.get("status")),
+                    "CANCELLED", "server-clock sweep");
             freeCopyIfUnheld(String.valueOf(request.get("copyId")));
             notifications.create(new CreateNotificationCommand(
                     UUID.randomUUID().toString(),
@@ -327,7 +342,7 @@ public class LibraryService {
                     "Đơn giữ chỗ " + requestId + " đã hết hạn theo giờ máy chủ.",
                     "INFO", "/library", Instant.now()));
         }
-        return expired.size();
+        return completed;
     }
 
     /** Free a copy iff no active request still holds it (unique-index safe). */
@@ -346,7 +361,7 @@ public class LibraryService {
     // Staff request lane
     // ------------------------------------------------------------------
 
-    /** Request queue — sweeps expired holds first so staff never see stale. */
+    /** Request queue — materializes at most one expiry batch before reading persisted state. */
     @Transactional
     public List<LoanRequestResponse> queue(String actorId, String status) {
         requireStaffGrant(actorId);
@@ -422,6 +437,8 @@ public class LibraryService {
         requireWithinHoldWindow(loan);
         String copyId = String.valueOf(loan.get("copyId"));
         lockCopy(copyId);
+        // Waiting for the copy lock can consume the remaining hold window.
+        requireWithinHoldWindow(loan);
         int copyFlipped = jdbc.update(
                 "UPDATE " + COPY + " SET \"status\" = 'ON_LOAN',"
                         + " \"version\" = \"version\" + 1, \"updatedAt\" = CURRENT_TIMESTAMP"
@@ -647,7 +664,7 @@ public class LibraryService {
         Object expiresAt = request.get("expiresAt");
         if (expiresAt != null && toInstant(expiresAt).isBefore(Instant.now())) {
             throw problem(HttpStatus.CONFLICT, "RESERVATION_EXPIRED",
-                    "The reservation hold expired — the copy has been released");
+                    "The reservation hold expired; copy release is pending cleanup");
         }
     }
 

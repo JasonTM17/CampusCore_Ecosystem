@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.library.service;
 
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.library.web.LibraryDtos.BorrowRequest;
 import io.campuscore.restfulapi.library.web.LibraryDtos.CopyResponse;
 import io.campuscore.restfulapi.library.web.LibraryDtos.LoanRequestResponse;
@@ -8,6 +9,9 @@ import io.campuscore.restfulapi.web.DomainException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
@@ -16,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -60,37 +65,54 @@ public class LibraryPatronService {
     // Catalogue reads (any authenticated user; availability is server truth)
     // ------------------------------------------------------------------
 
-    /** Titles with live availability — the expiry sweep runs first so a stale hold never shows as taken. */
-    @Transactional
+    /** Persisted availability: expired holds remain reserved until durable cleanup commits. */
+    @Transactional(readOnly = true)
     public List<TitleResponse> catalogue(String borrowerId, String query) {
-        staff.expireOverdue(borrowerId);
+        return catalogue(borrowerId, query, null).items();
+    }
+
+    public record CataloguePage(List<TitleResponse> items, long total) {
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public CataloguePage catalogue(String borrowerId, String query, ListPaging.Window window) {
         StringBuilder sql = new StringBuilder(
                 "SELECT \"id\", \"title\", \"author\", \"isbn\", \"category\", \"publisher\","
                         + " \"publishedYear\", \"description\", \"version\" FROM " + TITLE);
         MapSqlParameterSource params = new MapSqlParameterSource();
+        String filter = "";
         if (query != null && !query.isBlank()) {
-            sql.append(" WHERE LOWER(\"title\") LIKE :q OR LOWER(\"author\") LIKE :q"
-                    + " OR LOWER(\"isbn\") LIKE :q OR LOWER(\"category\") LIKE :q");
-            params.addValue("q", "%" + query.trim().toLowerCase() + "%");
+            filter = " WHERE LOWER(\"title\") LIKE :q OR LOWER(\"author\") LIKE :q"
+                    + " OR LOWER(\"isbn\") LIKE :q OR LOWER(\"category\") LIKE :q";
+            params.addValue("q", "%" + query.trim().toLowerCase(Locale.ROOT) + "%");
         }
+        sql.append(filter);
+        long total = window == null ? 0 : jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + TITLE + filter, params, Long.class);
         sql.append(" ORDER BY \"title\"");
+        if (window != null) {
+            sql.append(", \"id\" LIMIT :limit OFFSET :offset");
+            params.addValue("limit", window.limit())
+                    .addValue("offset", (long) window.page() * window.limit());
+        }
         List<Map<String, Object>> rows = jdbc.query(sql.toString(), params,
                 (row, index) -> rowToMap(row));
-        return rows.stream()
-                .map(row -> staff.mapTitle(row, copiesOfTitle(String.valueOf(row.get("id")))))
+        Map<String, List<CopyResponse>> copies = copiesOfTitles(rows.stream()
+                .map(row -> String.valueOf(row.get("id"))).toList());
+        List<TitleResponse> items = rows.stream()
+                .map(row -> staff.mapTitle(row, copies.getOrDefault(String.valueOf(row.get("id")), List.of())))
                 .toList();
+        return new CataloguePage(items, window == null ? rows.size() : total);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public TitleResponse title(String borrowerId, String titleId) {
-        staff.expireOverdue(borrowerId);
         return staff.findTitle(titleId);
     }
 
     /** Own requests/loans newest-first — foreign ids never appear here. */
-    @Transactional
+    @Transactional(readOnly = true)
     public List<LoanRequestResponse> myLoans(String borrowerId) {
-        staff.expireOverdue(borrowerId);
         List<Map<String, Object>> rows = jdbc.query(
                 LibraryService.requestSelect() + " WHERE r.\"borrowerUserId\" = :owner"
                         + " ORDER BY r.\"createdAt\" DESC",
@@ -100,9 +122,8 @@ public class LibraryPatronService {
     }
 
     /** Owner-only detail — a foreign id is indistinguishable 404. */
-    @Transactional
+    @Transactional(readOnly = true)
     public LoanRequestResponse myLoan(String borrowerId, String requestId) {
-        staff.expireOverdue(borrowerId);
         return staff.mapRequest(ownedRequest(borrowerId, requestId));
     }
 
@@ -128,9 +149,9 @@ public class LibraryPatronService {
         if (claimed != null) {
             return replayResponse(claimed);
         }
-        // Sweep before the copy lock: a dead hold on this copy frees the
-        // stock here instead of blocking requests until a read happens by.
-        staff.expireOverdue(borrowerId);
+        // Lock the expired request before its copy, matching staff transitions.
+        // Replacement never sweeps unrelated borrowers' other copies.
+        staff.expireForCopy(copyId);
         Map<String, Object> copy = staff.lockCopy(copyId);
         String copyStatus = String.valueOf(copy.get("status"));
         if ("RETIRED".equals(copyStatus)) {
@@ -265,17 +286,26 @@ public class LibraryPatronService {
         }
     }
 
-    private List<CopyResponse> copiesOfTitle(String titleId) {
-        return jdbc.query(
+    private Map<String, List<CopyResponse>> copiesOfTitles(List<String> titleIds) {
+        Map<String, List<CopyResponse>> grouped = new HashMap<>();
+        // Legacy unpaged callers retain their full result without an unbounded bind list.
+        for (int from = 0; from < titleIds.size(); from += ListPaging.MAX_LIMIT) {
+            List<CopyResponse> copies = jdbc.query(
                 "SELECT \"id\", \"titleId\", \"barcode\", \"status\", \"version\""
-                        + " FROM " + COPY + " WHERE \"titleId\" = :id ORDER BY \"barcode\"",
-                new MapSqlParameterSource("id", titleId),
+                        + " FROM " + COPY + " WHERE \"titleId\" IN (:ids) ORDER BY \"barcode\"",
+                new MapSqlParameterSource("ids", titleIds.subList(from,
+                        Math.min(titleIds.size(), from + ListPaging.MAX_LIMIT))),
                 (row, index) -> new CopyResponse(
                         row.getString("id"),
                         row.getString("titleId"),
                         row.getString("barcode"),
                         row.getString("status"),
                         row.getInt("version")));
+            for (CopyResponse copy : copies) {
+                grouped.computeIfAbsent(copy.titleId(), ignored -> new ArrayList<>()).add(copy);
+            }
+        }
+        return grouped;
     }
 
     private void freeCopyIfUnheld(String copyId) {
