@@ -3,6 +3,7 @@ package io.campuscore.restfulapi.academic.service;
 import io.campuscore.restfulapi.exception.SensitiveLogRedactor;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,9 +11,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Wave 1.4: reconciles the denormalized {@code academic."Section"."enrolledCount"}
@@ -24,7 +28,7 @@ import org.springframework.stereotype.Component;
  * guard is {@code enrolledCount < capacity}) and a too-high counter hides real
  * seats. Every hour the job compares the counter with
  * {@code COUNT(active enrollment)} — the same "active" definition the
- * registration flow uses ({@code status IN ('ENROLLED','PENDING','CONFIRMED')})
+ * registration flow uses ({@code status IN ('ENROLLED','PENDING','CONFIRMED','COMPLETED')})
  * — logs a WARN listing the drifted sections, and, when
  * {@code academic.enrolled-count.repair=true}, updates the counters to the true
  * values. Repair defaults to false so an operator sees the drift before any
@@ -40,15 +44,21 @@ public class EnrolledCountReconcileJob {
     /** Same active-enrollment definition as RegistrationService seat accounting. */
     static final String ACTIVE_STATUS_PREDICATE = "('ENROLLED', 'PENDING', 'CONFIRMED', 'COMPLETED')";
     private static final int LOGGED_SECTION_LIMIT = 20;
+    private static final int REPAIR_BATCH_SIZE = 100;
 
     private final NamedParameterJdbcTemplate jdbc;
     private final boolean repair;
+    private final TransactionTemplate transactions;
 
     @Autowired
     public EnrolledCountReconcileJob(NamedParameterJdbcTemplate jdbc,
             @Value("${academic.enrolled-count.repair:false}") boolean repair) {
         this.jdbc = jdbc;
         this.repair = repair;
+        this.transactions = new TransactionTemplate(new DataSourceTransactionManager(
+                Objects.requireNonNull(jdbc.getJdbcTemplate().getDataSource())));
+        this.transactions.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
+        this.transactions.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     boolean repairEnabled() {
@@ -59,16 +69,10 @@ public class EnrolledCountReconcileJob {
             initialDelayString = "${academic.enrolled-count.reconcile-initial-delay-ms:120000}")
     public void reconcile() {
         try {
-            List<DriftedSection> drifted = jdbc.query(
-                    "SELECT section.\"id\", section.\"enrolledCount\" AS stored_count, COUNT(enrollment.\"id\") AS true_count "
-                            + "FROM academic.\"Section\" section "
-                            + "LEFT JOIN academic.\"Enrollment\" enrollment "
-                            + "  ON enrollment.\"sectionId\" = section.\"id\" "
-                            + " AND enrollment.\"status\" IN " + ACTIVE_STATUS_PREDICATE + " "
-                            + "GROUP BY section.\"id\", section.\"enrolledCount\" "
-                            + "HAVING section.\"enrolledCount\" <> COUNT(enrollment.\"id\")",
-                    Map.of(), (rs, row) -> new DriftedSection(
-                            rs.getString("id"), rs.getInt("stored_count"), rs.getLong("true_count")));
+            List<DriftedSection> observed = counts(null);
+            logOverCapacity(observed);
+            List<DriftedSection> drifted = observed.stream()
+                    .filter(section -> section.storedCount() != section.trueCount()).toList();
             if (drifted.isEmpty()) {
                 return;
             }
@@ -83,15 +87,12 @@ public class EnrolledCountReconcileJob {
                     repair ? "auto-repairing" : "disabled");
             if (repair) {
                 List<String> driftedIds = drifted.stream().map(DriftedSection::sectionId).toList();
-                int repaired = jdbc.update(
-                        "UPDATE academic.\"Section\" section "
-                                + "SET \"enrolledCount\" = ("
-                                + "  SELECT COUNT(*) FROM academic.\"Enrollment\" enrollment "
-                                + "  WHERE enrollment.\"sectionId\" = section.\"id\" "
-                                + "    AND enrollment.\"status\" IN " + ACTIVE_STATUS_PREDICATE + "), "
-                                + "\"updatedAt\" = CURRENT_TIMESTAMP "
-                                + "WHERE section.\"id\" IN (:ids)",
-                        new MapSqlParameterSource("ids", driftedIds));
+                int repaired = 0;
+                for (int offset = 0; offset < driftedIds.size(); offset += REPAIR_BATCH_SIZE) {
+                    List<String> batch = driftedIds.subList(offset,
+                            Math.min(offset + REPAIR_BATCH_SIZE, driftedIds.size()));
+                    repaired += transactions.execute(status -> repairBatch(batch));
+                }
                 log.warn("enrolledCount repair corrected {} section counter(s)", repaired);
             }
         } catch (Exception failure) {
@@ -100,5 +101,50 @@ public class EnrolledCountReconcileJob {
         }
     }
 
-    record DriftedSection(String sectionId, int storedCount, long trueCount) { }
+    private int repairBatch(List<String> ids) {
+        List<String> locked = jdbc.queryForList(
+                "SELECT \"id\" FROM academic.\"Section\" WHERE \"id\" IN (:ids) ORDER BY \"id\" FOR UPDATE",
+                new MapSqlParameterSource("ids", ids), String.class);
+        if (locked.isEmpty()) {
+            return 0;
+        }
+        // A separate READ COMMITTED statement sees writers that committed during the lock wait.
+        List<DriftedSection> current = counts(locked);
+        logOverCapacity(current);
+        int repaired = 0;
+        for (DriftedSection section : current) {
+            if (section.storedCount() != section.trueCount()) {
+                repaired += jdbc.update("UPDATE academic.\"Section\" SET \"enrolledCount\"=:count, "
+                                + "\"updatedAt\"=CURRENT_TIMESTAMP WHERE \"id\"=:id AND \"enrolledCount\"<>:count",
+                        new MapSqlParameterSource("id", section.sectionId()).addValue("count", section.trueCount()));
+            }
+        }
+        return repaired;
+    }
+
+    private List<DriftedSection> counts(List<String> ids) {
+        return jdbc.query(
+                "SELECT section.\"id\", section.\"enrolledCount\" AS stored_count, section.\"capacity\", "
+                        + "COUNT(enrollment.\"id\") AS true_count FROM academic.\"Section\" section "
+                        + "LEFT JOIN academic.\"Enrollment\" enrollment ON enrollment.\"sectionId\"=section.\"id\" "
+                        + "AND enrollment.\"status\" IN " + ACTIVE_STATUS_PREDICATE + " "
+                        + (ids == null ? "" : "WHERE section.\"id\" IN (:ids) ")
+                        + "GROUP BY section.\"id\", section.\"enrolledCount\", section.\"capacity\" "
+                        + "HAVING section.\"enrolledCount\"<>COUNT(enrollment.\"id\") "
+                        + "OR COUNT(enrollment.\"id\")>section.\"capacity\" ORDER BY section.\"id\"",
+                ids == null ? Map.of() : Map.of("ids", ids),
+                (rs, row) -> new DriftedSection(rs.getString("id"), rs.getInt("stored_count"),
+                        rs.getLong("true_count"), rs.getInt("capacity")));
+    }
+
+    private void logOverCapacity(List<DriftedSection> sections) {
+        List<String> ids = sections.stream().filter(section -> section.trueCount() > section.capacity())
+                .map(DriftedSection::sectionId).toList();
+        if (!ids.isEmpty()) {
+            log.warn("enrolledCount over-capacity occupancy on {} section(s), ids={}; capacity unchanged",
+                    ids.size(), ids.stream().limit(LOGGED_SECTION_LIMIT).toList());
+        }
+    }
+
+    record DriftedSection(String sectionId, int storedCount, long trueCount, int capacity) { }
 }
