@@ -47,9 +47,11 @@ export async function saveLocale(storage: KeyValueStorage | undefined, locale: A
 const pad = (n: number, width = 2) => String(n).padStart(width, '0');
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const EMPTY = '—';
+const CAMPUS_TIME_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 interface DateParts { y: number; m: number; d: number; hh: number; mm: number }
 
+/** Extracts campus-local parts from instants while keeping date-only values civil. */
 function toParts(value: string | number | Date | null | undefined): DateParts | null {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value === 'string') {
@@ -58,7 +60,14 @@ function toParts(value: string | number | Date | null | undefined): DateParts | 
   }
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return { y: date.getFullYear(), m: date.getMonth() + 1, d: date.getDate(), hh: date.getHours(), mm: date.getMinutes() };
+  const campusDate = new Date(date.getTime() + CAMPUS_TIME_OFFSET_MS);
+  return {
+    y: campusDate.getUTCFullYear(),
+    m: campusDate.getUTCMonth() + 1,
+    d: campusDate.getUTCDate(),
+    hh: campusDate.getUTCHours(),
+    mm: campusDate.getUTCMinutes(),
+  };
 }
 
 function datePart(p: DateParts, locale: AppLocale): string {
