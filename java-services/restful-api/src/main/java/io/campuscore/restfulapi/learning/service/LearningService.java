@@ -16,8 +16,10 @@ import io.campuscore.restfulapi.web.DomainException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.text.BreakIterator;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
@@ -58,6 +60,8 @@ public class LearningService {
     /** Enrollment statuses allowed to appear on the LMS roster (mirrors the
      * attendance convention — everything except DROPPED/CANCELLED). */
     static final String ROSTER_STATUSES = "('ENROLLED','PENDING','CONFIRMED','COMPLETED')";
+
+    private static final int NOTIFICATION_TITLE_MAX_LENGTH = 240;
 
     private final NamedParameterJdbcTemplate jdbc;
     private final NotificationWriteRepository notifications;
@@ -439,9 +443,21 @@ public class LearningService {
         if (authUserId == null) {
             return;
         }
+        String notificationTitle = title + ": " + assignmentTitle;
+        if (notificationTitle.length() > NOTIFICATION_TITLE_MAX_LENGTH) {
+            // Like event notices, fit both H2's UTF-16 ceiling and PostgreSQL's
+            // character ceiling. Reserve the ellipsis and keep whole graphemes.
+            BreakIterator characters = BreakIterator.getCharacterInstance(Locale.ROOT);
+            characters.setText(notificationTitle);
+            int end = NOTIFICATION_TITLE_MAX_LENGTH - 1;
+            if (!characters.isBoundary(end)) {
+                end = characters.preceding(end);
+            }
+            notificationTitle = notificationTitle.substring(0, end) + "…";
+        }
         notifications.create(new CreateNotificationCommand(
                 UUID.randomUUID().toString(), authUserId,
-                title + ": " + assignmentTitle, message, type,
+                notificationTitle, message, type,
                 "/dashboard/learn", Instant.now()));
     }
 
