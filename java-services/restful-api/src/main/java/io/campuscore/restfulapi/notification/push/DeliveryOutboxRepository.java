@@ -68,6 +68,13 @@ public class DeliveryOutboxRepository {
     @Transactional
     public List<Claim> claim(
             String workerId, int requestedLimit, Instant now, long leaseSeconds, int maxAttempts) {
+        return claim(workerId, requestedLimit, now, leaseSeconds, maxAttempts, List.of());
+    }
+
+    @Transactional
+    public List<Claim> claim(
+            String workerId, int requestedLimit, Instant now, long leaseSeconds, int maxAttempts,
+            List<String> excludedIds) {
         int limit = Math.max(1, Math.min(requestedLimit, 250));
         int attempts = Math.max(1, maxAttempts);
         String databaseClock = databaseClockSql();
@@ -81,14 +88,17 @@ public class DeliveryOutboxRepository {
                         .addValue("maxAttempts", attempts));
 
         String lockingClause = isPostgres() ? " FOR UPDATE SKIP LOCKED" : "";
+        String exclusionClause = excludedIds.isEmpty() ? "" : " AND id NOT IN (:excludedIds)";
         List<ClaimCandidate> candidates = jdbc.query(
                 "SELECT id, device_id, attempt_count, lease_generation FROM " + OUTBOX
                         + " WHERE attempt_count<:maxAttempts AND"
                         + " ((status IN ('PENDING','RETRY_WAIT') AND next_attempt_at<=" + databaseClock + ")"
                         + " OR (status='CLAIMED' AND lease_until<=" + databaseClock + "))"
+                        + exclusionClause
                         + " ORDER BY created_at,id LIMIT :limit" + lockingClause,
                 new MapSqlParameterSource()
                         .addValue("maxAttempts", attempts)
+                        .addValue("excludedIds", excludedIds)
                         .addValue("limit", limit),
                 (rs, rowNumber) -> new ClaimCandidate(
                         rs.getString("id"), rs.getString("device_id"),

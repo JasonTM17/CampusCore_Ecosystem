@@ -159,9 +159,13 @@ class NotificationPushPostgresIT {
         assertThat(oldWorker.id()).isEqualTo(fencedRow);
 
         awaitLeaseExpiry(oldWorker);
+        assertThat(outbox.loadForSend(oldWorker, oldWorker.leaseUntil().minusSeconds(1))).isEmpty();
+        assertThat(outbox.state(fencedRow).orElseThrow().status()).isEqualTo("CLAIMED");
         Claim newWorker = transactions.execute(status -> outbox.claim(
                 "new-worker-" + suffix, 1, Instant.now(), 60, 5)).getFirst();
         assertThat(newWorker.generation()).isEqualTo(oldWorker.generation() + 1);
+        assertThat(outbox.loadForSend(oldWorker, Instant.now())).isEmpty();
+        assertThat(outbox.state(fencedRow).orElseThrow().leaseOwner()).isEqualTo(newWorker.workerId());
         Boolean oldWorkerAcknowledged =
                 transactions.execute(status -> outbox.acknowledgeSent(oldWorker, Instant.now()));
         Boolean newWorkerAcknowledged =
