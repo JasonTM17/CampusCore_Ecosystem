@@ -8,8 +8,8 @@ import io.campuscore.restfulapi.audit.AdminAuditRecorder;
 import io.campuscore.restfulapi.security.ratelimit.RateLimiterService;
 import io.campuscore.restfulapi.web.DomainException;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -94,9 +94,12 @@ public class CheckinService {
             List<AttendanceStore.Checkin> cluster=active.stream().filter(c->c.lat()!=null && c.lng()!=null
                     && rounded(c.lat())==rounded(r.latitude()) && rounded(c.lng())==rounded(r.longitude())).toList();
             // Same-day non-rejected prior fix (pending positions are real submissions).
-            Instant dayStart=s.date().atStartOfDay(SessionService.CAMPUS_ZONE).toInstant();
+            // Risk history follows the server-stamped campus date; s.date() remains the academic record date.
+            LocalDate checkinDate=now.atZone(SessionService.CAMPUS_ZONE).toLocalDate();
+            Instant dayStart=checkinDate.atStartOfDay(SessionService.CAMPUS_ZONE).toInstant();
+            Instant dayEnd=checkinDate.plusDays(1).atStartOfDay(SessionService.CAMPUS_ZONE).toInstant();
             var reasons=risk.evaluate(r.mockProvider(),r.accuracyMeters(),new RiskEvaluator.Position(r.latitude(),r.longitude(),r.capturedAt()),
-                    store.previousRelevant(student,dayStart,dayStart.plus(Duration.ofDays(1))),!shared.isEmpty(),(int)cluster.stream().map(AttendanceStore.Checkin::studentId).distinct().count());
+                    store.previousRelevant(student,dayStart,dayEnd),!shared.isEmpty(),(int)cluster.stream().map(AttendanceStore.Checkin::studentId).distinct().count());
             String decision=reasons.isEmpty()?geo.decision():"PENDING_REVIEW";
             String reason=reasons.isEmpty()?geo.reason():String.join(",",reasons)+(geo.reason().equals("BORDERLINE")?",BORDERLINE":"");
             for(var c:shared) store.flag(c,"SHARED_DEVICE");
