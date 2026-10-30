@@ -59,9 +59,18 @@ test('preference round-trips through storage and survives failures', async () =>
 test('dates use the locale order and date-only values do not shift', () => {
   assert.equal(locale.formatDate('2026-03-07', 'vi'), '07/03/2026');
   assert.equal(locale.formatDate('2026-03-07', 'en'), '03/07/2026');
-  assert.equal(locale.formatDateTime(new Date(2026, 2, 7, 9, 5), 'vi'), '07/03/2026 09:05');
+  assert.equal(locale.formatDateTime(new Date('2026-03-07T02:05:00Z'), 'vi'), '07/03/2026 09:05');
+  assert.equal(locale.formatDateTime('2026-03-07', 'vi'), '07/03/2026 00:00');
   assert.equal(locale.formatDate('not a date', 'vi'), '—');
   assert.equal(locale.formatDate(null, 'en'), '—');
+});
+
+test('instants use Vietnam time in both locales', () => {
+  const instant = '2026-10-30T08:00:00Z';
+  assert.equal(locale.formatDateTime(instant, 'vi'), '30/10/2026 15:00');
+  assert.equal(locale.formatDateTime(instant, 'en'), '10/30/2026 15:00');
+  assert.equal(locale.formatDate('2026-10-29T18:00:00Z', 'vi'), '30/10/2026');
+  assert.equal(locale.formatDate('2026-10-29T18:00:00Z', 'en'), '10/30/2026');
 });
 
 test('numbers, credits and bytes follow locale separators', () => {
