@@ -1,7 +1,17 @@
 import { expect, jest, test } from '@jest/globals';
-import { createAttendanceApi, createSingleAttemptRequest, normalizeAttendanceError, parseRetryAfter,
+import { createAttendanceApi, createNativeAttendanceApi, createSingleAttemptRequest, normalizeAttendanceError, parseRetryAfter,
   type AttendanceRequest, type CheckinBody } from '../../src/attendance-checkin/attendance-api';
 import { createInstallationIdStore, INSTALLATION_ID_KEY } from '../../src/attendance-checkin/installation-id';
+import { apiClient } from '../../src/api/client';
+import { sessionStore } from '../../src/auth/mobile-session-store';
+
+jest.mock('../../src/auth/mobile-session-store', () => {
+  const { jest } = require('@jest/globals');
+  return { sessionStore: {
+    getAccessToken: jest.fn(() => 'test-access'), sessionEpoch: jest.fn(() => 1),
+    refreshAccessToken: jest.fn(), setAccessToken: jest.fn(),
+  } };
+});
 
 const id = '12345678-1234-4abc-8def-123456789abc';
 const body: CheckinBody = { code: '123456', latitude: 10, longitude: 106, accuracyMeters: 20,
@@ -65,4 +75,36 @@ test('installation UUID is single-flight, secure-store backed and stable across 
 test('installation ID fails closed when randomness is unavailable', async () => {
   const store = createInstallationIdStore({ getItemAsync: async () => null, setItemAsync: async () => {} }, () => 'weak-id');
   await expect(store.getInstallationId()).rejects.toThrow('INSTALLATION_ID_UNAVAILABLE');
+});
+
+test('consent version rejection retains its dedicated code', () => {
+  expect(normalizeAttendanceError({ status: 400, code: 'INVALID_CONSENT_VERSION' }).code)
+    .toBe('INVALID_CONSENT_VERSION');
+});
+
+test.each([true, false])('native POST 401 uses shared auth recovery (refresh succeeds: %s) without replay', async (refreshed) => {
+  const originalFetch = globalThis.fetch;
+  const expired = jest.fn();
+  const refresh = jest.mocked(sessionStore.refreshAccessToken);
+  refresh.mockResolvedValue({ accessToken: refreshed ? 'test-rotated' : null } as Awaited<ReturnType<typeof sessionStore.refreshAccessToken>>);
+  const beforeRefresh = refresh.mock.calls.length;
+  apiClient.setOnSessionExpired(expired);
+  const fetchImpl = jest.fn<typeof fetch>()
+    .mockResolvedValueOnce(new Response('{}', { status: 401 }))
+    .mockResolvedValueOnce(new Response('{}', { status: 401 }))
+    .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+  globalThis.fetch = fetchImpl;
+  try {
+    await expect(createNativeAttendanceApi().checkin(id, body))
+      .rejects.toMatchObject({ code: 'AUTH_RECOVERY', status: 401 });
+    expect(refresh.mock.calls.length - beforeRefresh).toBe(1);
+    expect(expired).toHaveBeenCalledTimes(refreshed ? 0 : 1);
+    expect(fetchImpl.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+    expect(fetchImpl.mock.calls.slice(1).every(([url, init]) =>
+      String(url).endsWith('/auth/me') && init?.method === 'GET')).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledTimes(refreshed ? 3 : 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+    apiClient.setOnSessionExpired(undefined);
+  }
 });

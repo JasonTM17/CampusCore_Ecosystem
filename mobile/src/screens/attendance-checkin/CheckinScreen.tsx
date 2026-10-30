@@ -37,6 +37,7 @@ function stateCopy(state: CheckinState, c: CheckinCopy): StateCopy {
     case 'notEnrolled': return { icon: 'account-off-outline', tone: 'muted', title: c.notEnrolledTitle };
     case 'tooManyAttempts': return { icon: 'timer-lock-outline', tone: 'warning', title: c.rateLimitTitle };
     case 'networkError': return { icon: 'cloud-off-outline', tone: 'error', title: c.offlineTitle, body: c.offlineBody };
+    case 'authRecovery': return { icon: 'account-off-outline', tone: 'warning', title: c.authRecoveryTitle, body: c.authRecoveryBody };
     case 'rejected':
       return state.reason === 'OUTSIDE_AREA' ? { icon: 'map-marker-off-outline', tone: 'error', title: c.outsideTitle }
         : state.reason === 'BAD_CODE' ? { icon: 'key-outline', tone: 'error', title: c.badCodeTitle, body: c.badCodeBody }
@@ -53,7 +54,7 @@ function stateCopy(state: CheckinState, c: CheckinCopy): StateCopy {
 
 /** Result states announce themselves to screen readers on arrival. */
 const RESULT_STATES = new Set(['accepted', 'pendingReview', 'alreadyCheckedIn', 'rejected', 'sessionClosed',
-  'notEnrolled', 'tooManyAttempts', 'networkError', 'error']);
+  'notEnrolled', 'tooManyAttempts', 'networkError', 'authRecovery', 'error']);
 
 /**
  * apiClient and PreviewPill pull native modules at load time — they are
@@ -139,6 +140,7 @@ function CheckinBody({ snapshot, copy, machine, code, setCode, retryAfter, onRet
       <Card>
         <View style={styles.resultWrap} testID="checkin-consent">
           <UiText variant="headlineSmall">{copy.consentTitle}</UiText>
+          {state.reason === 'INVALID_CONSENT_VERSION' ? <UiText variant="bodySmall" tone="warning">{copy.consentChanged}</UiText> : null}
           <UiText variant="meta" tone="muted">{fillCopy(copy.consentVersion, { version: state.version })}</UiText>
           <View style={styles.consentList}>
             {[copy.consentOnce, copy.consentRetention, copy.consentPurpose].map((line) => (
@@ -219,7 +221,7 @@ function CheckinBody({ snapshot, copy, machine, code, setCode, retryAfter, onRet
       case 'lowAccuracy': return { label: copy.retry, run: () => void machine.acquireLocation() };
       case 'rejected': return { label: copy.retry, run: () => void machine.acquireLocation() };
       case 'tooManyAttempts': return { label: retryAfter > 0 ? fillCopy(copy.rateLimitWait, { seconds: retryAfter }) : copy.retry, run: onRetry, disabled: retryAfter > 0 };
-      case 'networkError': return { label: copy.retry, run: onRetry };
+      case 'networkError': case 'authRecovery': return { label: copy.retry, run: onRetry };
       case 'error': return state.code === 'INVALID_LINK' || state.code === 'INVALID_SESSION'
         ? { label: copy.back, run: () => router.back() }
         : { label: copy.retry, run: onRetry };

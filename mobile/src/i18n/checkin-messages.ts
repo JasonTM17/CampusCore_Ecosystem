@@ -15,6 +15,7 @@ const vi = {
   codeRequired: 'Cần mã 6 số',
 
   consentTitle: 'Cho phép dùng vị trí',
+  consentChanged: 'Thông báo vị trí đã thay đổi. Vui lòng đồng ý lại.',
   consentVersion: 'Thông báo phiên bản {version}',
   consentOnce: 'Vị trí chỉ được đọc một lần tại thời điểm điểm danh.',
   consentRetention: 'Vị trí được giữ 30 ngày.',
@@ -63,6 +64,8 @@ const vi = {
   fixFailedBody: 'Vị trí quá cũ hoặc hết thời gian chờ. Thử lại ngoài trời.',
   genericTitle: 'Có lỗi xảy ra',
   genericBody: 'Thử lại sau.',
+  authRecoveryTitle: 'Cần xác thực lại phiên đăng nhập',
+  authRecoveryBody: 'Thử lại để tải buổi điểm danh, hoặc đăng nhập lại nếu phiên đã hết hạn.',
 
   entryTitle: 'Điểm danh',
   entryDetail: '{n} buổi điểm danh đang mở',
@@ -100,6 +103,7 @@ const en: CheckinCopy = {
   codeRequired: '6-digit code required',
 
   consentTitle: 'Location consent',
+  consentChanged: 'The location notice has changed. Please accept it again.',
   consentVersion: 'Notice version {version}',
   consentOnce: 'Your position is read once at the moment of check-in.',
   consentRetention: 'Your position is kept for 30 days.',
@@ -148,6 +152,8 @@ const en: CheckinCopy = {
   fixFailedBody: 'The fix was stale or timed out. Try again outdoors.',
   genericTitle: 'Something went wrong',
   genericBody: 'Please try again.',
+  authRecoveryTitle: 'Session authentication required',
+  authRecoveryBody: 'Retry to reload check-in sessions, or sign in again if your session has expired.',
 
   entryTitle: 'Check in',
   entryDetail: '{n} open check-in session(s)',
