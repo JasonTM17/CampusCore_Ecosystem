@@ -7,6 +7,7 @@
     {
       "id": 1,
       "web": "/",
+      "native": "/",
       "actor": "G",
       "mode": "NATIVE-READ",
       "laneGated": false,
@@ -19,6 +20,7 @@
     {
       "id": 2,
       "web": "/hub",
+      "native": "/",
       "actor": "G/auth",
       "mode": "NATIVE-READ",
       "laneGated": false,
@@ -31,6 +33,7 @@
     {
       "id": 3,
       "web": "/news",
+      "native": "/news",
       "actor": "G/auth",
       "mode": "NATIVE-READ",
       "laneGated": false,
@@ -43,6 +46,7 @@
     {
       "id": 4,
       "web": "/news/[id]",
+      "native": "/news",
       "actor": "G/auth",
       "mode": "NATIVE-READ",
       "laneGated": false,
@@ -55,6 +59,7 @@
     {
       "id": 5,
       "web": "/docs",
+      "native": "/docs",
       "actor": "G/auth",
       "mode": "NATIVE-READ",
       "laneGated": false,
@@ -67,6 +72,7 @@
     {
       "id": 6,
       "web": "/docs/[slug]",
+      "native": "/docs",
       "actor": "G/auth",
       "mode": "NATIVE-READ",
       "laneGated": false,
@@ -79,6 +85,7 @@
     {
       "id": 7,
       "web": "/login",
+      "native": "/sign-in",
       "actor": "G",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -91,6 +98,7 @@
     {
       "id": 8,
       "web": "/register",
+      "native": "/sign-in",
       "actor": "G",
       "mode": "NATIVE-READ",
       "laneGated": false,
@@ -103,6 +111,7 @@
     {
       "id": 9,
       "web": "/forgot-password",
+      "native": "/forgot-password",
       "actor": "G",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -115,6 +124,7 @@
     {
       "id": 10,
       "web": "/reset-password",
+      "native": "/reset-password",
       "actor": "G",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -127,6 +137,7 @@
     {
       "id": 11,
       "web": "/session/logged-out",
+      "native": "/session/logged-out",
       "actor": "G",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -139,6 +150,7 @@
     {
       "id": 12,
       "web": "/apply",
+      "native": "/apply",
       "actor": "auth",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -151,6 +163,7 @@
     {
       "id": 13,
       "web": "/apply/review",
+      "native": "/apply/review",
       "actor": "STAFF",
       "mode": "NATIVE-LITE",
       "laneGated": true,
@@ -163,6 +176,7 @@
     {
       "id": 14,
       "web": "/careers",
+      "native": "/careers",
       "actor": "auth",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -175,6 +189,7 @@
     {
       "id": 15,
       "web": "/careers/desk",
+      "native": "/careers/desk",
       "actor": "STAFF",
       "mode": "NATIVE-LITE",
       "laneGated": true,
@@ -187,6 +202,7 @@
     {
       "id": 16,
       "web": "/library",
+      "native": "/library",
       "actor": "auth",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -199,6 +215,7 @@
     {
       "id": 17,
       "web": "/library/desk",
+      "native": "/library/desk",
       "actor": "STAFF",
       "mode": "NATIVE-LITE",
       "laneGated": true,
@@ -211,6 +228,7 @@
     {
       "id": 18,
       "web": "/dashboard",
+      "native": "/dashboard",
       "actor": "S",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -223,6 +241,7 @@
     {
       "id": 19,
       "web": "/dashboard/announcements",
+      "native": "/announcements",
       "actor": "S",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -235,6 +254,7 @@
     {
       "id": 20,
       "web": "/dashboard/assistant-specialized",
+      "native": "/assistant",
       "actor": "S",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -247,6 +267,7 @@
     {
       "id": 21,
       "web": "/dashboard/attendance",
+      "native": "/attendance",
       "actor": "S",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -259,6 +280,7 @@
     {
       "id": 22,
       "web": "/dashboard/certificates",
+      "native": "/certificates",
       "actor": "S",
       "mode": "NATIVE-READ",
       "laneGated": false,
@@ -271,6 +293,7 @@
     {
       "id": 23,
       "web": "/dashboard/conduct",
+      "native": "/conduct",
       "actor": "S",
       "mode": "NATIVE-READ",
       "laneGated": false,
@@ -283,6 +306,7 @@
     {
       "id": 24,
       "web": "/dashboard/courses",
+      "native": "/courses",
       "actor": "S",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -295,6 +319,7 @@
     {
       "id": 25,
       "web": "/dashboard/curriculum",
+      "native": "/curriculum",
       "actor": "S",
       "mode": "NATIVE-READ",
       "laneGated": false,
@@ -307,6 +332,7 @@
     {
       "id": 26,
       "web": "/dashboard/enrollments",
+      "native": "/enrollments",
       "actor": "S",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -319,6 +345,7 @@
     {
       "id": 27,
       "web": "/dashboard/events",
+      "native": "/events",
       "actor": "S",
       "mode": "NATIVE-LITE",
       "laneGated": false,
@@ -331,6 +358,7 @@
     {
       "id": 28,
       "web": "/dashboard/grades",
+      "native": "/grades",
       "actor": "S",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -343,6 +371,7 @@
     {
       "id": 29,
       "web": "/dashboard/learn",
+      "native": "/learning",
       "actor": "S",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -355,6 +384,7 @@
     {
       "id": 30,
       "web": "/dashboard/notifications",
+      "native": "/notifications",
       "actor": "S",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -367,6 +397,7 @@
     {
       "id": 31,
       "web": "/dashboard/profile",
+      "native": "/profile",
       "actor": "S",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -379,6 +410,7 @@
     {
       "id": 32,
       "web": "/dashboard/register",
+      "native": "/registration",
       "actor": "S",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -391,6 +423,7 @@
     {
       "id": 33,
       "web": "/dashboard/schedule",
+      "native": "/schedule",
       "actor": "S",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -403,6 +436,7 @@
     {
       "id": 34,
       "web": "/dashboard/sign-out",
+      "native": "/session/logged-out",
       "actor": "S",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -415,6 +449,7 @@
     {
       "id": 35,
       "web": "/dashboard/thesis",
+      "native": "/thesis",
       "actor": "S",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -427,6 +462,7 @@
     {
       "id": 36,
       "web": "/dashboard/thesis/[roundId]",
+      "native": "/thesis",
       "actor": "S",
       "mode": "NATIVE-LITE",
       "laneGated": false,
@@ -439,6 +475,7 @@
     {
       "id": 37,
       "web": "/dashboard/thesis/advisors",
+      "native": "/thesis",
       "actor": "S",
       "mode": "NATIVE-READ",
       "laneGated": false,
@@ -451,6 +488,7 @@
     {
       "id": 38,
       "web": "/dashboard/thesis/progress",
+      "native": "/thesis/progress",
       "actor": "S",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -463,6 +501,7 @@
     {
       "id": 39,
       "web": "/dashboard/thesis/topics",
+      "native": "/thesis",
       "actor": "S",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -475,6 +514,7 @@
     {
       "id": 40,
       "web": "/dashboard/thesis/topics/[id]",
+      "native": "/thesis/[topicId]",
       "actor": "S",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -487,6 +527,7 @@
     {
       "id": 41,
       "web": "/dashboard/transcript",
+      "native": "/transcript",
       "actor": "S",
       "mode": "NATIVE-READ",
       "laneGated": false,
@@ -499,6 +540,7 @@
     {
       "id": 42,
       "web": "/dashboard/dean",
+      "native": "/dashboard/dean",
       "actor": "D",
       "mode": "NATIVE-READ",
       "laneGated": true,
@@ -523,6 +565,7 @@
     {
       "id": 44,
       "web": "/dashboard/lecturer",
+      "native": "/lecturer/dashboard",
       "actor": "L",
       "mode": "NATIVE-READ",
       "laneGated": false,
@@ -535,6 +578,7 @@
     {
       "id": 45,
       "web": "/dashboard/lecturer/announcements",
+      "native": "/lecturer/dashboard",
       "actor": "L",
       "mode": "NATIVE-LITE",
       "laneGated": false,
@@ -547,6 +591,7 @@
     {
       "id": 46,
       "web": "/dashboard/lecturer/attendance",
+      "native": "/lecturer/attendance",
       "actor": "L",
       "mode": "NATIVE-LITE",
       "laneGated": false,
@@ -559,6 +604,7 @@
     {
       "id": 47,
       "web": "/dashboard/lecturer/grades",
+      "native": "/lecturer/grading",
       "actor": "L",
       "mode": "NATIVE-LITE",
       "laneGated": false,
@@ -571,6 +617,7 @@
     {
       "id": 48,
       "web": "/dashboard/lecturer/grades/[id]",
+      "native": "/lecturer/grading",
       "actor": "L",
       "mode": "NATIVE-LITE",
       "laneGated": false,
@@ -583,6 +630,7 @@
     {
       "id": 49,
       "web": "/dashboard/lecturer/learn",
+      "native": "/lecturer/dashboard",
       "actor": "L",
       "mode": "NATIVE-LITE",
       "laneGated": false,
@@ -607,6 +655,7 @@
     {
       "id": 51,
       "web": "/dashboard/lecturer/profile",
+      "native": "/profile",
       "actor": "L",
       "mode": "NATIVE-FULL",
       "laneGated": false,
@@ -619,6 +668,7 @@
     {
       "id": 52,
       "web": "/dashboard/lecturer/schedule",
+      "native": "/lecturer/schedule",
       "actor": "L",
       "mode": "NATIVE-READ",
       "laneGated": false,
@@ -631,6 +681,7 @@
     {
       "id": 53,
       "web": "/dashboard/lecturer/thesis",
+      "native": "/lecturer/dashboard",
       "actor": "L",
       "mode": "NATIVE-LITE",
       "laneGated": false,
@@ -643,6 +694,7 @@
     {
       "id": 54,
       "web": "/admin",
+      "native": "/admin",
       "actor": "A",
       "mode": "NATIVE-READ",
       "laneGated": true,
@@ -703,6 +755,7 @@
     {
       "id": 59,
       "web": "/admin/attendance",
+      "native": "/admin/attendance",
       "actor": "A",
       "mode": "NATIVE-READ",
       "laneGated": true,
@@ -715,6 +768,7 @@
     {
       "id": 60,
       "web": "/admin/audit",
+      "native": "/admin/audit",
       "actor": "A",
       "mode": "NATIVE-READ",
       "laneGated": true,
@@ -751,6 +805,7 @@
     {
       "id": 63,
       "web": "/admin/credit-limit-applications",
+      "native": "/admin/credit-limit-applications",
       "actor": "A",
       "mode": "NATIVE-LITE",
       "laneGated": true,
@@ -787,6 +842,7 @@
     {
       "id": 66,
       "web": "/admin/enrollments",
+      "native": "/admin/enrollments",
       "actor": "A",
       "mode": "NATIVE-READ",
       "laneGated": true,
@@ -799,6 +855,7 @@
     {
       "id": 67,
       "web": "/admin/events",
+      "native": "/admin/events",
       "actor": "A",
       "mode": "NATIVE-LITE",
       "laneGated": true,
@@ -835,6 +892,7 @@
     {
       "id": 70,
       "web": "/admin/notifications",
+      "native": "/admin/notifications",
       "actor": "A",
       "mode": "NATIVE-LITE",
       "laneGated": true,
@@ -895,6 +953,7 @@
     {
       "id": 75,
       "web": "/attendance/checkin/[sessionId]",
+      "native": "/attendance/checkin/[sessionId]",
       "actor": "S",
       "mode": "NATIVE-LITE",
       "laneGated": true,
