@@ -65,10 +65,7 @@ public class OpenApiConfig {
                 .servers(List.of(
                         new Server()
                                 .url("http://127.0.0.1:" + serverPort)
-                                .description("Máy chủ phát triển nội bộ (Localhost Dev Server)"),
-                        new Server()
-                                .url("https://campusute.io.vn")
-                                .description("Máy chủ Production Trực tuyến")))
+                                .description("Máy chủ phát triển nội bộ (Localhost Dev Server)")))
                 .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
                 .components(new Components()
                         .addSecuritySchemes(SECURITY_SCHEME_NAME,
