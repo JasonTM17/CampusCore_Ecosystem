@@ -18,6 +18,7 @@ in `src/navigation/routes.ts`; the atlas regression pins that traceability:
   with `#0056B3` for filled emphasis.
 - Spacing uses a 4px baseline, with a 16px mobile gutter and 8px card radius.
 - Interactive controls use a minimum 44px touch target.
+- Text scaling check: `adb shell settings put system font_scale 2.0`, then restore `adb shell settings put system font_scale 1.0`.
 - High-frequency mobile navigation is a role-specific bottom bar; the menu
   panel exposes only routes that the active preview role may access. Navigator
   policy also rejects a direct transition to an unauthorized route.

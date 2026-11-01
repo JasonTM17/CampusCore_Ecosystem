@@ -213,7 +213,7 @@ function SignInNewsSection({ navigation }: { navigation: MobileScreenProps['navi
           style={styles.seeAll}
           testID="signin-news-see-all"
         >
-          <UiText numberOfLines={1} variant="label" tone="primary">{copy.seeAll}</UiText>
+          <UiText variant="label" tone="primary">{copy.seeAll}</UiText>
           <MaterialCommunityIcons accessible={false} color={colors.primary} importantForAccessibility="no" name="chevron-right" size={18} />
         </Pressable>
       </View>
@@ -309,7 +309,7 @@ function FeaturedNewsCard({
             {category ? <StatusPill label={category} tone="primary" /> : null}
             {date ? <UiText variant="meta" tone="muted">{date}</UiText> : null}
           </View>
-          <UiText numberOfLines={2} variant="label">{item.title}</UiText>
+          <UiText variant="label">{item.title}</UiText>
           {summary ? <UiText numberOfLines={2} variant="bodySmall" tone="muted">{summary}</UiText> : null}
           <View style={styles.readRow}>
             <UiText variant="label" tone="primary">{readLabel}</UiText>
@@ -345,7 +345,7 @@ function CompactNewsRow({
       testID={`signin-news-row-${index}`}
     >
       <View style={styles.rowCopy}>
-        <UiText numberOfLines={2} variant="label">{item.title}</UiText>
+        <UiText variant="label">{item.title}</UiText>
         <View style={styles.metaRow}>
           {urgentLabel ? <StatusPill label={urgentLabel} tone="error" /> : null}
           {date ? <UiText variant="meta" tone="muted">{date}</UiText> : null}
