@@ -12,7 +12,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -21,6 +24,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 @Profile("persistence")
 public class AcademicEnrollmentReadRepository {
+    private static final Logger log = LoggerFactory.getLogger(AcademicEnrollmentReadRepository.class);
     private static final String ENROLLMENT = "\"academic\".\"Enrollment\"";
     private static final String SECTION = "\"academic\".\"Section\"";
     private static final String SCHEDULE = "\"academic\".\"SectionSchedule\"";
@@ -183,7 +187,9 @@ public class AcademicEnrollmentReadRepository {
                 if (count != null && count > 0) {
                     return true;
                 }
-            } catch (Exception ignored) {
+            } catch (DataAccessException failure) {
+                log.warn("department-scoped section access check failed, denying access; exceptionType={}",
+                        failure.getClass().getSimpleName());
             }
         }
         if (roles != null && roles.contains("TRUONG_KHOA")) {
@@ -200,7 +206,9 @@ public class AcademicEnrollmentReadRepository {
                 if (count != null && count > 0) {
                     return true;
                 }
-            } catch (Exception ignored) {
+            } catch (DataAccessException failure) {
+                log.warn("faculty-scoped section access check failed, denying access; exceptionType={}",
+                        failure.getClass().getSimpleName());
             }
         }
         return false;
