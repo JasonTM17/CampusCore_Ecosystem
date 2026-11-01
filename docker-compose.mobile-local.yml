@@ -1,0 +1,30 @@
+# Mobile local-dev OIDC overlay — merged over docker-compose.yml for
+# Android-emulator development:
+#   docker compose -f docker-compose.yml -f docker-compose.mobile-local.yml up -d --build
+# Turns the OIDC lane on so the mobile app's authorization-code+PKCE sign-in
+# works against the local stack. All secrets are disposable dev-only values
+# copied from docker-compose.sso-preview.yml — never reused elsewhere.
+services:
+  restful-api:
+    environment:
+      IDENTITY_OIDC_ENABLED: "true"
+      IDENTITY_DEV_KEYGEN: "true"
+      # The issuer must be the address the CLIENT uses. The Android emulator
+      # cannot reach 127.0.0.1 on the host; 10.0.2.2 is its host alias. A
+      # physical device needs the host LAN IP instead:
+      #   MOBILE_LOCAL_ISSUER=http://192.168.1.x:4010 docker compose -f docker-compose.yml -f docker-compose.mobile-local.yml up -d --build
+      IDENTITY_ISSUER_URI: ${MOBILE_LOCAL_ISSUER:-http://10.0.2.2:4010}
+      IDENTITY_TOKEN_ENCRYPTION_KEY: ${IDENTITY_TOKEN_ENCRYPTION_KEY:-dGVzdC1rZXktMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY=}
+      # Native OIDC client (mobile-policy.md §3): public client + PKCE, the
+      # exact campuscore:// callback, and the native-refresh allowlist that
+      # lets the minted grant carry a refresh token for SecureStore.
+      IDENTITY_CLIENTS_0_CLIENTID: cu-mobile
+      IDENTITY_CLIENTS_0_PUBLICCLIENT: "true"
+      IDENTITY_CLIENTS_0_REDIRECTURIS_0: campuscore://auth/callback
+      IDENTITY_CLIENTS_0_SCOPES_0: openid
+      IDENTITY_CLIENTS_0_SCOPES_1: profile
+      IDENTITY_CLIENTS_0_SCOPES_2: email
+      IDENTITY_CLIENTS_0_SCOPES_3: offline_access
+      IDENTITY_CLIENTS_0_ACCESSTOKENTTL: PT15M
+      IDENTITY_CLIENTS_0_REFRESHTOKENTTL: P7D
+      IDENTITY_OIDC_NATIVE_REFRESH_CLIENT_IDS_0: cu-mobile
