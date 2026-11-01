@@ -422,3 +422,128 @@ test('library desk separates staff denial from retryable failures', () => {
   assert.match(source, /onRetry=\{\(\) => void load\(filter\)\}/);
   assert.match(source, /setDenied\(true\)/);
 });
+
+// ---------------------------------------------------------------------------
+// W13 audit DATA-01..05 / STATE-01/02/04 — silent data loss and stale loads
+// ---------------------------------------------------------------------------
+
+test('a failed curriculum read on the certificate page is surfaced with retry', () => {
+  const source = read('src/app/dashboard/certificates/page.tsx');
+  assert.match(source, /const \[curriculumError, setCurriculumError\]/);
+  assert.match(source, /setCurriculumError\(true\)/);
+  assert.match(source, /<ErrorState/);
+  assert.match(source, /onRetry=\{\(\) => setCurriculumReloadToken\(\(token\) => token \+ 1\)\}/);
+  // The empty catch that rendered em-dashes without a signal is gone.
+  assert.doesNotMatch(source, /\} catch \{\s*\/\/ No curriculum data/);
+});
+
+test('a failed events roster read surfaces an error with retry', () => {
+  const source = read('src/components/events/EventsConsolePage.tsx');
+  assert.match(source, /const \[rosterError, setRosterError\] = useState\(false\)/);
+  assert.match(source, /setRosterError\(true\)/);
+  assert.match(source, /onRetry=\{\(\) => void loadRoster\(/);
+  assert.match(source, /title=\{copy\.failed\}/);
+  // A roster failure must not default the table to an honest-looking zero.
+  assert.doesNotMatch(source, /\} catch \{\s*if \(current\(\)\) setRoster\(\[\]\);/);
+});
+
+test('the public news feed pages through every published story', () => {
+  const source = read('src/app/news/news-list-client.tsx');
+  assert.match(source, /const PAGE_SIZE = 50/);
+  assert.match(source, /const \[page, setPage\] = useState\(1\)/);
+  assert.match(source, /\['public-news', page\]/, 'the query key carries the active page');
+  assert.match(source, /getPublic\(\{ page, limit: PAGE_SIZE \}\)/);
+  assert.match(source, /meta\?\.totalPages/);
+  assert.match(source, /hasNextPage\(page, totalPages\)/);
+  assert.match(source, /messages\.common\.states\.goToPreviousPage/);
+  assert.match(source, /messages\.common\.states\.goToNextPage/);
+});
+
+test('the public document catalogue pages through every published document', () => {
+  const source = read('src/app/docs/page.tsx');
+  assert.match(source, /const PAGE_SIZE = 50/);
+  assert.match(source, /const \[page, setPage\] = useState\(1\)/);
+  assert.match(source, /\['public-docs', search, page\]/, 'the query key carries search and page');
+  assert.match(source, /list\(\{ page, limit: PAGE_SIZE, search: search \|\| undefined \}\)/);
+  assert.match(source, /meta\?\.totalPages/);
+  assert.match(source, /hasNextPage\(page, totalPages\)/);
+  assert.match(source, /messages\.common\.states\.goToPreviousPage/);
+  assert.match(source, /messages\.common\.states\.goToNextPage/);
+});
+
+test('the notification inbox exposes older pages instead of silently capping', () => {
+  const source = read('src/components/dashboard/NotificationsCenterPage.tsx');
+  assert.match(source, /const \[loadedPages, setLoadedPages\]/);
+  assert.match(source, /const \[totalPages, setTotalPages\]/);
+  assert.match(source, /loadedPages < totalPages/, 'the control appears only while older pages exist');
+  assert.match(source, /const loadOlder = useCallback|async function loadOlder/);
+  assert.match(source, /setLoadedPages\(nextPage\)/);
+  // The first page is still prefetched the same way for the common case.
+  assert.match(source, /const first = await notificationsApi\.getMy\(\{ page: 1, limit: 100 \}\)/);
+});
+
+test('learning section loads are epoch-guarded per surface and cancelled at unmount', () => {
+  const source = read('src/components/learning/LearningConsolePage.tsx');
+  assert.match(source, /import \{ createRequestEpoch \} from '@\/lib\/request-epoch'/);
+  assert.equal(
+    (source.match(/const sectionEpoch = useRef\(createRequestEpoch\(\)\)\.current;/g) || []).length,
+    2,
+    'the student and lecturer surfaces each own an epoch',
+  );
+  assert.ok(
+    (source.match(/if \(!sectionEpoch\.isCurrent\(epoch\)\) return;/g) || []).length >= 4,
+    'success and failure paths check freshness before setState or toast',
+  );
+  assert.match(source, /sectionEpoch\.invalidate\(\)/);
+});
+
+test('the request epoch accepts only the newest request and retires at unmount', () => {
+  const ts = require('typescript');
+  const output = ts.transpileModule(read('src/lib/request-epoch.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const moduleRecord = { exports: {} };
+  Function('module', 'exports', output)(moduleRecord, moduleRecord.exports);
+  const { createRequestEpoch } = moduleRecord.exports;
+
+  const epoch = createRequestEpoch();
+  assert.equal(epoch.isCurrent(0), false, 'nothing is current before a request starts');
+  const first = epoch.begin();
+  assert.equal(epoch.isCurrent(first), true);
+  const second = epoch.begin();
+  assert.equal(epoch.isCurrent(first), false, 'a newer section load supersedes the older one');
+  assert.equal(epoch.isCurrent(second), true);
+  epoch.invalidate();
+  assert.equal(epoch.isCurrent(second), false, 'unmount retires the in-flight request');
+  assert.equal(epoch.isCurrent(epoch.begin()), true, 'a fresh mount starts a new era');
+});
+
+test('learning lifecycle mutations are guarded against double submission', () => {
+  const source = read('src/components/learning/LearningConsolePage.tsx');
+  assert.match(source, /const pendingActionRef = useRef<string \| null>\(null\)/);
+  assert.match(source, /const \[pendingActionId, setPendingActionId\] = useState<string \| null>\(null\)/);
+  assert.match(source, /if \(pendingActionRef\.current !== null\) return;/);
+  assert.match(source, /disabled=\{pendingActionId === actionKey\}/);
+});
+
+test('a failed learning section load clears the previous section rows', () => {
+  const source = read('src/components/learning/LearningConsolePage.tsx');
+  const clears = source.match(
+    /catch \(cause\) \{\s*if \(!sectionEpoch\.isCurrent\(epoch\)\) return;\s*setMaterials\(\[\]\);\s*setAssignments\(\[\]\);/g,
+  ) || [];
+  assert.equal(clears.length, 2, 'both surfaces clear material and assignment rows on failure');
+});
+
+test('the event create dialog names every input for screen readers', () => {
+  const source = read('src/components/events/EventsConsolePage.tsx');
+  for (const label of [
+    'copy.titleField',
+    'copy.organizer',
+    'copy.where',
+    'copy.capacity',
+    'copy.descriptionField',
+    'copy.cancelReason',
+  ]) {
+    assert.match(source, new RegExp(`aria-label=\\{${label.replace('.', '\\.')}\\}`), label);
+  }
+});

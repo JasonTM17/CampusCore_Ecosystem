@@ -67,6 +67,7 @@ import SupervisedGroupList from '@/features/thesis/components/SupervisedGroupLis
 import ThesisRepositoryWorkspace from '@/features/thesis/components/ThesisRepositoryWorkspace';
 import { departmentsApi, fetchAllPages, lecturersApi } from '@/lib/api';
 import { getLocalizedName } from '@/lib/academic-content';
+import { isHttpUrl } from '@/lib/safe-url';
 import type { Department, Lecturer } from '@/types/api';
 import {
   getThesisTopicCapabilities,
@@ -117,7 +118,7 @@ const GRADE_BADGE_CLASS: Record<GradeBand, string> = {
   FAIR: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/30',
   UPPER_AVERAGE: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
   AVERAGE: 'bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30',
-  BELOW_AVERAGE: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 border-yellow-500/30',
+  BELOW_AVERAGE: 'bg-yellow-500/15 text-yellow-800 dark:text-yellow-300 border-yellow-500/30',
   PASS: 'bg-zinc-500/15 text-zinc-700 dark:text-zinc-300 border-zinc-500/30',
   RETAKE: 'bg-destructive/15 text-destructive border-destructive/30',
 };
@@ -1084,11 +1085,16 @@ export default function ThesisPage() {
 
   useEffect(() => {
     if (!isSupervisorOrAdmin || supervisedGroups.length === 0) return;
+    let active = true;
     for (const g of supervisedGroups) {
       if (g.approvalStatus === 'APPROVED' && !supervisedReports[g.id]) {
         void thesisApi.getReport(g.id)
-          .then((rep) => setSupervisedReports((prev) => ({ ...prev, [g.id]: rep })))
+          .then((rep) => {
+            if (!active) return;
+            setSupervisedReports((prev) => ({ ...prev, [g.id]: rep }));
+          })
           .catch((err: unknown) => {
+            if (!active) return;
             // 404 REPORT_NOT_FOUND means the group has not submitted yet —
             // an expected state, not a data error.
             const status = (err as { response?: { status?: number } })?.response?.status;
@@ -1098,6 +1104,9 @@ export default function ThesisPage() {
           });
       }
     }
+    return () => {
+      active = false;
+    };
   }, [isSupervisorOrAdmin, supervisedGroups, supervisedReports]);
 
   const filteredRepositoryReports = useMemo(() => {
@@ -2169,11 +2178,11 @@ export default function ThesisPage() {
                 </div>
               </div>
             ) : null}
-            {groupReport.url ? (
+            {groupReport.url && isHttpUrl(groupReport.url) ? (
               <a
                 href={groupReport.url}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 className="inline-flex min-h-8 items-center gap-1 text-sm text-primary underline-offset-2 hover:underline"
               >
                 {messages.thesis.report.view}
