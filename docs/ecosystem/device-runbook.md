@@ -1,5 +1,9 @@
 # Device runbook — CampusUTE native acceptance (P13)
 
+> **Status: deferred — the ecosystem runs local-first; nothing here is deployed.**
+> The store lane, signing identity and `*.campusute.io.vn` hosts below are **future go-live
+> preparation**; local quick start: [README.md](../../README.md#quick-start-local).
+
 Gate `devices` combines two per-OS evidence sets (Android + iOS). It does
 **not** self-PASS from build logs: each OS needs a complete scenario run
 recorded with the exact OS/build/runtime/hash fields from

@@ -1,23 +1,27 @@
 # Runtime environment variables (operator reference)
 
+> **Status: deferred — the ecosystem runs local-first; nothing here is deployed.**
+> The `prod` / `render` / `vercel` columns and hosted-platform notes below are **future targets**;
+> local quick start: [README.md](../../README.md#quick-start-local).
+
 Single inventory of every runtime variable referenced by
 `java-services/restful-api/src/main/resources/application.yml` (115 `${...}` names),
 `AttendanceCheckinProperties` + `PushProperties` (`@ConfigurationProperties` relaxed binding),
 `frontend/.env.example` + `frontend/next.config.mjs` + `process.env` usage,
-`mobile/` `EXPO_PUBLIC_*` usage, `docker-compose*.yml`, and `render.yaml`.
+`mobile/` `EXPO_PUBLIC_*` usage, and `docker-compose*.yml`.
 Closes audit item AUD-27 and reconciles runtime variable discovery.
 
 ## Rules
 
-- **Secret values live only in the host's secret manager** (Render dashboard,
-  Docker `ops/secrets/*` files read via `*_FILE` indirection in prod compose, or
-  gitignored `.env*` files) — **never in this repository, never in the mobile
+- **Secret values live only in the host's secret manager** (gitignored local files
+  or, for a future hosted target, that platform's secret store; Docker
+  `ops/secrets/*` files read via `*_FILE` indirection) — **never in this repository, never in the mobile
   bundle.** `EXPO_PUBLIC_*` and `NEXT_PUBLIC_*` are inlined into public
   bundles: public by definition, secrets forbidden.
 - **Class:** `secret` | `public` (shipped to browsers/apps) | `config`
   (server-side operator setting).
-- **Required in:** `local` (jar/dev), `compose` (local stack), `prod` (prod
-  compose), `render`, `vercel`, `mobile-build`, `e2e`, `sso-preview`.
+- **Required in:** `local` (jar/dev), `compose` (local stack), `prod` / `render` /
+  `vercel` (future hosted targets, deferred), `mobile-build`, `e2e`, `sso-preview`.
 - **Default policy:** `safe default` | `required` (no usable default) |
   `forbidden in prod` (must stay off/absent publicly).
 - **Binding mechanisms:** Explicit placeholders (`${VAR:default}` in
@@ -57,7 +61,7 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | `ACCESS_TOKEN_COOKIE`, `REFRESH_TOKEN_COOKIE` | Cookie names for web session tokens | config | optional | safe default |
 | `CSRF_COOKIE`, `CSRF_HEADER` | CSRF cookie/header names | config | optional | safe default |
 | `COOKIE_SECURE` | `Secure` flag on cookies | config | all | safe default dev; must be `true` behind HTTPS |
-| `HEALTH_READINESS_KEY` | Bearer key for `X-Health-Key` readiness probe | secret | all | required |
+| `HEALTH_READINESS_KEY` | Bearer key for `X-Health-Key` readiness probe | secret | all | required; local Compose and `.env.example` ship the dev-only constant `local-course-health-key` (replace it anywhere shared) |
 | `METRICS_SCRAPE_KEY` | Bearer key for `X-Metrics-Key` header on `GET /actuator/prometheus` | secret | when metrics scraping is enabled | safe default `""` (endpoint fails closed with 403 when unset; boots cleanly) |
 | `INTERNAL_SERVICE_TOKEN` | Internal service-to-service auth token | secret | e2e | required when used |
 
@@ -71,7 +75,7 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | `FLYWAY_ENABLED` | Run Flyway migrations on boot | config | all | safe default `true` |
 | `DB_POOL_MAX`, `DB_POOL_MIN`, `DB_POOL_IDLE_TIMEOUT_MS`, `DB_POOL_KEEPALIVE_MS` | Hikari pool sizing/idle | config | tuning | safe default |
 | `DB_CONNECTION_TIMEOUT_MS`, `DB_VALIDATION_TIMEOUT_MS` | Hikari acquire/validate timeouts | config | tuning | safe default |
-| `ASSISTANT_DB_URL`, `ASSISTANT_DB_USERNAME`, `ASSISTANT_DB_PASSWORD` | Separate assistant (RAG) datasource, prod | secret | prod | required when sidecar DB split |
+| `ASSISTANT_DB_URL`, `ASSISTANT_DB_USERNAME`, `ASSISTANT_DB_PASSWORD` | Separate assistant (RAG) datasource, prod (`ASSISTANT_DB_PASSWORD` >= 16 characters) | secret | prod | required when sidecar DB split; Compose provisions `campuscore_assistant_runtime` once via `scripts/provision-assistant-runtime.mjs`, run that script manually before boot outside Compose |
 | `ASSISTANT_DB_POOL_MAX`, `ASSISTANT_DB_CONNECTION_TIMEOUT_MS`, `ASSISTANT_DB_IDLE_TIMEOUT_MS`, `ASSISTANT_DB_KEEPALIVE_TIME_MS` | Assistant pool tuning | config | tuning | safe default |
 
 ## 4. Mail (SMTP)
@@ -92,7 +96,7 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | `RATE_LIMIT_TRUST_PROXY_HEADERS`, `RATE_LIMIT_TRUST_REAL_IP` | Trust `X-Forwarded-For`/real IP from proxy | config | prod behind proxy | forbidden unless proxy strips spoofed headers |
 | `RATE_LIMIT_PROXY_TOKEN` | Shared token proving request came via trusted edge | secret | prod (with trusted proxy) | required only with trusted-proxy mode |
 | `RATE_LIMIT_LOGIN`, `RATE_LIMIT_DEFAULT`, `RATE_LIMIT_WINDOW_SECONDS` | Bucket sizes + window | config | tuning | safe default |
-| `DEMO_ACCOUNTS_ENABLED` | Unlocks seeded demo accounts each boot | config | local demo / demo deployments | Default `false`; public Render demo deployment intentionally ships `true` (owner decision 2026-09-25, `render.yaml`) |
+| `DEMO_ACCOUNTS_ENABLED` | Unlocks seeded demo accounts each boot | config | local demo only | Default `false`; local compose/`.env.example` opt in (`true`) so a fresh clone demo works |
 | `DEMO_ACCOUNTS_ROLES` | Restrict which demo roles unlock | config | local demo | safe default all demo roles |
 | `REGISTRATION_CREDIT_LIMIT_OVERRIDE` | Override credit cap for enrollment (0 = rule-driven) | config | optional | safe default `0` |
 | `ACADEMIC_ENROLLED_COUNT_RECONCILE_DELAY_MS`, `ACADEMIC_ENROLLED_COUNT_RECONCILE_INITIAL_DELAY_MS`, `ACADEMIC_ENROLLED_COUNT_REPAIR` | Enrolled-count reconciliation cadence + repair mode | config | tuning | safe default |
@@ -172,8 +176,8 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | Variable | Purpose | Class | Required in | Default policy |
 | --- | --- | --- | --- | --- |
 | `RESTFUL_API_HOST_PORT`, `FRONTEND_HOST_PORT`, `MAILPIT_UI_HOST_PORT`, `MAILPIT_SMTP_HOST_PORT` | Host port publishes | config | compose | safe defaults `4010/3000/8025/1025` |
-| `CAMPUSCORE_IMAGE_REGISTRY`, `CAMPUSCORE_IMAGE_TAG` | Image coordinates for prod compose | config | prod | required |
-| `CAMPUSCORE_DOMAIN`, `ACME_EMAIL` | Caddy domain + ACME registration email | config | prod | required |
+| `CAMPUSCORE_IMAGE_REGISTRY`, `CAMPUSCORE_IMAGE_TAG` | Image coordinates for a future self-hosted stack | config | future hosted (deferred) | required there |
+| `CAMPUSCORE_DOMAIN`, `ACME_EMAIL` | Caddy domain + ACME registration email (`ops/caddy/Caddyfile`) | config | future hosted (deferred) | required there |
 | `E2E_CORE_API_IMAGE`, `E2E_API_HOST_PORT` | Image under test + e2e host port | config | e2e | required/safe default |
 | `SWAGGER_ENABLED`, `*_READ_ENABLED`, `*_WRITE_ENABLED`, `AUTH_LOGIN_ENABLED`, `THESIS_ASSISTANT_ENABLED`, `ACADEMIC_*_ENABLED`, `ENGAGEMENT_*_ENABLED`, `PEOPLE_READ_ENABLED`, `FINANCE_READ_ENABLED`, `ANALYTICS_READ_ENABLED`, `NOTIFICATIONS_READ_ENABLED`, `THESIS_READ_ENABLED`, `ACADEMIC_ENROLLMENT_READ_ENABLED`, `ACADEMIC_SCHEDULE_READ_ENABLED`, `ACADEMIC_WAITLIST_READ_ENABLED`, `ACADEMIC_ATTENDANCE_READ_ENABLED`, `ACADEMIC_SECTION_READ_ENABLED`, `ACADEMIC_CONTEXT_ENABLED` | E2E feature-gate matrix toggles | config | e2e | safe default |
 
