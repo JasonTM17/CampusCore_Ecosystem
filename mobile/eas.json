@@ -15,10 +15,18 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://www.campusute.io.vn/api/v1",
+        "EXPO_PUBLIC_PORTAL_URL": "https://www.campusute.io.vn"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://www.campusute.io.vn/api/v1",
+        "EXPO_PUBLIC_PORTAL_URL": "https://www.campusute.io.vn"
+      }
     }
   }
 }

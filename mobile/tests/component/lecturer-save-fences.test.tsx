@@ -1,0 +1,254 @@
+import { beforeEach, expect, jest, test } from '@jest/globals';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import type { ReactElement, ReactNode } from 'react';
+import { ThemeProvider } from '../../src/design/theme';
+import { LocaleProvider } from '../../src/i18n/locale-provider';
+import { fillCopy } from '../../src/i18n/academic-messages';
+import { operationsMessages } from '../../src/i18n/operations-messages';
+import type { MobileScreenProps } from '../../src/navigation/types';
+import { localIsoDate } from '../../src/screens/operations/lecturer-model';
+
+const mockRuntime = {
+  mode: 'live' as 'live' | 'preview',
+  queries: {} as Record<string, unknown>,
+  saveAttendance: jest.fn(async (..._args: unknown[]) => 1),
+  saveGrades: jest.fn(async (..._args: unknown[]) => undefined),
+};
+
+jest.mock('../../src/api/client', () => ({
+  get apiClient() { return { mode: mockRuntime.mode }; },
+  campusApi: {},
+}));
+jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({}) }));
+jest.mock('../../src/hooks/useScreenQuery', () => ({
+  useScreenQuery: (key: string) => ({
+    data: mockRuntime.queries[key],
+    error: null,
+    warning: null,
+    errorStatus: null,
+    isLoading: false,
+    isStale: false,
+    reload: jest.fn(async () => {}),
+    setData: jest.fn(),
+  }),
+}));
+jest.mock('../../src/screens/operations/lecturer-api', () => ({
+  StaleAttendanceError: class StaleAttendanceError extends Error {},
+  lecturerApi: {
+    schedule: jest.fn(async () => []),
+    gradingSections: jest.fn(async () => []),
+    attendanceSheet: jest.fn(async () => ({ sectionId: '', date: '', roster: [], marks: [] })),
+    saveAttendance: (...args: unknown[]) => mockRuntime.saveAttendance(...args),
+    sectionGrades: jest.fn(async () => []),
+    saveGrades: (...args: unknown[]) => mockRuntime.saveGrades(...args),
+    publishGrades: jest.fn(async () => undefined),
+  },
+}));
+jest.mock('../../src/screens/operations/lecturer-ui', () => {
+  const React = require('react') as typeof import('react');
+  const Native = require('react-native') as typeof import('react-native');
+  const actual = jest.requireActual('../../src/screens/operations/lecturer-ui') as typeof import('../../src/screens/operations/lecturer-ui');
+  return {
+    ...actual,
+    OpsShell: ({ children, list }: {
+      children: ReactNode;
+      list?: {
+        data: readonly unknown[];
+        renderItem: (info: { item: unknown; index: number }) => ReactNode;
+        footer?: ReactNode;
+      };
+    }) => React.createElement(
+      Native.View,
+      null,
+      children,
+      ...(list?.data.map((item, index) => React.createElement(
+        React.Fragment,
+        { key: String(index) },
+        list.renderItem({ item, index }),
+      )) ?? []),
+      list?.footer,
+    ),
+    SectionPicker: ({ sections, onChange }: {
+      sections: readonly { sectionId: string }[];
+      value: string;
+      onChange: (sectionId: string) => void;
+    }) => React.createElement(
+      Native.View,
+      null,
+      ...sections.map((section) => React.createElement(
+        Native.Pressable,
+        {
+          key: section.sectionId,
+          accessibilityRole: 'button',
+          accessibilityLabel: `Select ${section.sectionId}`,
+          onPress: () => onChange(section.sectionId),
+        },
+        React.createElement(Native.Text, null, section.sectionId),
+      )),
+    ),
+    CsvExport: () => null,
+    HandoffButton: () => null,
+  };
+});
+
+import { LecturerAttendanceScreen } from '../../src/screens/operations/LecturerAttendanceScreen';
+import { LecturerGradingScreen } from '../../src/screens/operations/LecturerGradingScreen';
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
+}
+
+const sections = [
+  { sectionId: 'section-a', sectionNumber: '01', courseCode: 'CS-A', courseNameVi: 'Course A', courseNameEn: 'Course A' },
+  { sectionId: 'section-b', sectionNumber: '02', courseCode: 'CS-B', courseNameVi: 'Course B', courseNameEn: 'Course B' },
+];
+const today = localIsoDate();
+const attendanceSheetA = {
+  sectionId: 'section-a', date: today,
+  roster: [{ studentId: 'a1', studentCode: 'A1', firstName: 'Alpha' }], marks: [],
+};
+const attendanceSheetB = {
+  sectionId: 'section-b', date: today,
+  roster: [{ studentId: 'b1', studentCode: 'B1', firstName: 'Bravo' }],
+  marks: [{ studentId: 'b1', status: 'ABSENT' }],
+};
+const gradeSheetA = {
+  sectionId: 'section-a',
+  rows: [{ enrollmentId: 'ea', studentName: 'Alpha', studentCode: 'A1', processScore: null, finalExamScore: null, gradeStatus: 'DRAFT' }],
+};
+const gradeSheetB = {
+  sectionId: 'section-b',
+  rows: [{ enrollmentId: 'eb', studentName: 'Bravo', studentCode: 'B1', processScore: null, finalExamScore: null, gradeStatus: 'DRAFT' }],
+};
+const navigation = { navigate: jest.fn(), navigateLane: jest.fn(), goBack: jest.fn() };
+const props = { navigation, role: 'lecturer', selectedThesisTopicId: null } as unknown as MobileScreenProps;
+
+const renderScreen = (element: ReactElement, locale: 'vi' | 'en' = 'vi') =>
+  render(
+    <LocaleProvider initialLocale={locale}>
+      <ThemeProvider forcedScheme="light">{element}</ThemeProvider>
+    </LocaleProvider>,
+  );
+
+beforeEach(() => {
+  mockRuntime.mode = 'live';
+  mockRuntime.queries = {
+    'lecturer:schedule': sections,
+    [`lecturer:sheet:section-a:${today}`]: attendanceSheetA,
+    [`lecturer:sheet:section-b:${today}`]: attendanceSheetB,
+    'lecturer:grading': sections,
+    'lecturer:grades:section-a': gradeSheetA,
+    'lecturer:grades:section-b': gradeSheetB,
+  };
+  mockRuntime.saveAttendance.mockReset().mockResolvedValue(1);
+  mockRuntime.saveGrades.mockReset().mockResolvedValue(undefined);
+});
+
+test('a deferred attendance save does not apply section A state to section B', async () => {
+  const pending = deferred<number>();
+  mockRuntime.saveAttendance.mockReturnValueOnce(pending.promise);
+  await renderScreen(<LecturerAttendanceScreen {...props} />);
+  await screen.findByText('Alpha');
+
+  const markPresent = fillCopy(operationsMessages.vi.markStatusFor, {
+    name: 'Alpha',
+    status: operationsMessages.vi.statusPresent,
+  });
+  await fireEvent.press(screen.getByRole('radio', { name: markPresent }));
+  await fireEvent.press(screen.getByRole('button', { name: operationsMessages.vi.save }));
+  expect(mockRuntime.saveAttendance).toHaveBeenCalledTimes(1);
+
+  await fireEvent.press(screen.getByRole('button', { name: 'Select section-b' }));
+  await screen.findByText('Bravo');
+  await act(async () => {
+    pending.resolve(1);
+    await pending.promise;
+  });
+
+  expect(screen.queryByText(fillCopy(operationsMessages.vi.saved, { n: 1 }))).toBeNull();
+  expect(screen.queryByText(fillCopy(operationsMessages.vi.unsaved, { n: 1 }))).toBeNull();
+  expect(screen.getByText('Bravo')).toBeTruthy();
+});
+
+test('an attendance save for a revisited sheet preserves its current baseline', async () => {
+  const pending = deferred<number>();
+  mockRuntime.saveAttendance.mockReturnValueOnce(pending.promise);
+  await renderScreen(<LecturerAttendanceScreen {...props} />);
+  await screen.findByText('Alpha');
+
+  const markPresent = fillCopy(operationsMessages.vi.markStatusFor, {
+    name: 'Alpha',
+    status: operationsMessages.vi.statusPresent,
+  });
+  await fireEvent.press(screen.getByRole('radio', { name: markPresent }));
+  await fireEvent.press(screen.getByRole('button', { name: operationsMessages.vi.save }));
+  await fireEvent.press(screen.getByRole('button', { name: 'Select section-b' }));
+  await screen.findByText('Bravo');
+  await fireEvent.press(screen.getByRole('button', { name: 'Select section-a' }));
+  await screen.findByText('Alpha');
+
+  await act(async () => {
+    pending.resolve(1);
+    await pending.promise;
+  });
+
+  expect(screen.getByText(fillCopy(operationsMessages.vi.saved, { n: 1 }))).toBeTruthy();
+  expect(screen.queryByText(fillCopy(operationsMessages.vi.unsaved, { n: 1 }))).toBeNull();
+});
+
+test.each([
+  ['success', false],
+  ['failure', true],
+])('a deferred grading %s for section A does not message section B', async (_outcome, shouldReject) => {
+  const pending = deferred<undefined>();
+  mockRuntime.saveGrades.mockReturnValueOnce(pending.promise);
+  await renderScreen(<LecturerGradingScreen {...props} />, 'en');
+  const processLabel = `${fillCopy(operationsMessages.en.gradeRowLabel, { name: 'Alpha' })}, ${operationsMessages.en.process}`;
+  await fireEvent.changeText(await screen.findByLabelText(processLabel), '7');
+  await fireEvent.press(screen.getByRole('button', { name: operationsMessages.en.saveScores }));
+  expect(mockRuntime.saveGrades).toHaveBeenCalledTimes(1);
+
+  await fireEvent.press(screen.getByRole('button', { name: 'Select section-b' }));
+  await screen.findByText('Bravo');
+  const processLabelB = `${fillCopy(operationsMessages.en.gradeRowLabel, { name: 'Bravo' })}, ${operationsMessages.en.process}`;
+  const processInputB = await screen.findByLabelText(processLabelB);
+  await fireEvent.changeText(processInputB, '8');
+  await act(async () => {
+    if (shouldReject) pending.reject(new Error('save failed'));
+    else pending.resolve(undefined);
+    await pending.promise.catch(() => undefined);
+  });
+
+  expect(screen.queryByText(fillCopy(operationsMessages.en.scoresSaved, { n: 1 }))).toBeNull();
+  expect(screen.queryByText(operationsMessages.en.saveScoresFailed)).toBeNull();
+  expect(screen.getByText('Bravo')).toBeTruthy();
+  expect(screen.getByLabelText(processLabelB).props.value).toBe('8');
+  await waitFor(() => expect(mockRuntime.saveGrades).toHaveBeenCalledTimes(1));
+});
+
+test('a grading save for a revisited section preserves its new draft', async () => {
+  const pending = deferred<undefined>();
+  mockRuntime.saveGrades.mockReturnValueOnce(pending.promise);
+  await renderScreen(<LecturerGradingScreen {...props} />, 'en');
+  const processLabelA = `${fillCopy(operationsMessages.en.gradeRowLabel, { name: 'Alpha' })}, ${operationsMessages.en.process}`;
+  await fireEvent.changeText(await screen.findByLabelText(processLabelA), '7');
+  await fireEvent.press(screen.getByRole('button', { name: operationsMessages.en.saveScores }));
+
+  await fireEvent.press(screen.getByRole('button', { name: 'Select section-b' }));
+  await screen.findByText('Bravo');
+  await fireEvent.press(screen.getByRole('button', { name: 'Select section-a' }));
+  await screen.findByText('Alpha');
+  const processInputA = await screen.findByLabelText(processLabelA);
+  await fireEvent.changeText(processInputA, '8');
+
+  await act(async () => {
+    pending.resolve(undefined);
+    await pending.promise;
+  });
+
+  expect(screen.getByText(fillCopy(operationsMessages.en.scoresSaved, { n: 1 }))).toBeTruthy();
+  expect(screen.getByLabelText(processLabelA).props.value).toBe('8');
+});

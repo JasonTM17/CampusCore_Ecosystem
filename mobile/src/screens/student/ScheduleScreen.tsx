@@ -117,6 +117,8 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
       error={preview ? null : enrollmentsQuery.error}
       warning={preview ? null : enrollmentsQuery.warning}
       onRetry={() => void enrollmentsQuery.reload()}
+      onRefresh={preview ? undefined : () => { void enrollmentsQuery.reload(); void semestersQuery.reload(); }}
+      refreshing={!preview && (enrollmentsQuery.isStale || semestersQuery.isStale)}
       list={{ data: scheduleRows,
         keyExtractor: (row) => row.kind === 'heading' ? `day:${row.day}` : row.item.id,
         renderItem: ({ item: row }) => row.kind === 'session'

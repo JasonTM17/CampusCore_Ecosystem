@@ -18,7 +18,10 @@ const MODULES = {
   '../auth/mobile-session-store': 'mobile-session-store.mjs',
   './assistant-stream': 'assistant-stream.mjs',
   './observability': 'observability.mjs',
+  './base-url': 'base-url.mjs',
 };
+
+globalThis.__DEV__ = true;
 
 function transpile(file, fileName) {
   const source = fs.readFileSync(path.join(mobileRoot, file), 'utf8');
@@ -42,6 +45,7 @@ export const sessionStore = {
 `);
 fs.writeFileSync(path.join(tempRoot, 'assistant-stream.mjs'), 'export const createSseTransport = () => ({});\n');
 transpile('src/api/observability.ts', 'observability.ts');
+transpile('src/api/base-url.ts', 'base-url.ts');
 transpile('src/api/client.ts', 'client.ts');
 const {
   ApiClientError,
@@ -89,6 +93,44 @@ function makeSession(initialToken = 'old-token') {
 }
 
 const authorizedWith = (token) => (call) => call.headers.get('authorization') === `Bearer ${token}`;
+
+test('base URL fallback is development-only and release config must use HTTPS', () => {
+  const previousDev = globalThis.__DEV__;
+  try {
+    globalThis.__DEV__ = true;
+    assert.equal(
+      createApiClient({ baseUrl: '', mode: 'live' }).baseUrl,
+      'http://127.0.0.1:4010/api/v1',
+    );
+
+    globalThis.__DEV__ = false;
+    assert.equal(createApiClient({ baseUrl: '', mode: 'live' }).baseUrl, '');
+    assert.equal(createApiClient({ baseUrl: 'http://api.test/api/v1', mode: 'live' }).baseUrl, '');
+    assert.equal(
+      createApiClient({ baseUrl: 'https://api.test/api/v1', mode: 'live' }).baseUrl,
+      'https://api.test/api/v1',
+    );
+  } finally {
+    globalThis.__DEV__ = previousDev;
+  }
+});
+
+test('an unconfigured release request fails through the typed network path before fetch', async () => {
+  const previousDev = globalThis.__DEV__;
+  globalThis.__DEV__ = false;
+  const client = createApiClient({ baseUrl: '', mode: 'live' });
+  const net = installFetch(() => json(200, { unexpected: true }));
+  try {
+    await assert.rejects(
+      client.get('/private'),
+      (error) => error.code === 'API_NOT_CONFIGURED' && error.kind === 'network',
+    );
+    assert.equal(net.calls.length, 0);
+  } finally {
+    net.restore();
+    globalThis.__DEV__ = previousDev;
+  }
+});
 
 function deferred() {
   let resolve;
@@ -524,6 +566,24 @@ test('a cross-origin redirect is re-sent without Authorization; same-origin keep
     await client.download('/doc/other');
     assert.equal(net.calls[3].url, 'http://api.test/api/v1/real/file');
     assert.equal(net.calls[3].headers.get('authorization'), 'Bearer old-token');
+  } finally {
+    net.restore();
+  }
+});
+
+test('an HTTPS transfer refuses an HTTP redirect before following it', async () => {
+  const { options } = makeSession();
+  const client = createApiClient({ ...options, baseUrl: 'https://api.test/api/v1' });
+  const net = installFetch(() => new Response(null, {
+    status: 302,
+    headers: { location: 'http://insecure.test/blob/1' },
+  }));
+  try {
+    await assert.rejects(
+      client.download('/doc/file'),
+      (error) => error.code === 'INSECURE_REDIRECT',
+    );
+    assert.equal(net.calls.length, 1);
   } finally {
     net.restore();
   }

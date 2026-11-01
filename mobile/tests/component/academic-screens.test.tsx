@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { RefreshControl } from 'react-native';
 import type { ReactElement } from 'react';
 
 import { apiClient } from '../../src/api/client';
@@ -7,7 +8,7 @@ import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { auditTree } from '../a11y/audit';
 
-type QueryState = { data?: unknown; error?: string | null; warning?: string | null; errorStatus?: number | null; isLoading?: boolean };
+type QueryState = { data?: unknown; error?: string | null; warning?: string | null; errorStatus?: number | null; isLoading?: boolean; isStale?: boolean };
 
 const mockQueries: Record<string, QueryState> = {};
 const mockReload = jest.fn(async () => {});
@@ -43,7 +44,7 @@ jest.mock('../../src/hooks/useScreenQuery', () => ({
       warning: state.warning ?? null,
       errorStatus: state.errorStatus ?? null,
       isLoading: state.isLoading ?? false,
-      isStale: false,
+      isStale: state.isStale ?? false,
       reload: mockReload,
       setData: jest.fn(),
     };
@@ -159,7 +160,7 @@ describe('enrollments and courses', () => {
 
     await fireEvent.press(screen.getByRole('tab', { name: 'Đã học (1)' }));
     await fireEvent.press(screen.getByRole('button', { name: /MA101 Giải tích/ }));
-    expect(screen.getByText('8.2 · B+')).toBeOnTheScreen();
+    expect(screen.getByText('8,2 · B+')).toBeOnTheScreen();
     expect(screen.getByText('Chưa thể tải xuống trên thiết bị này')).toBeOnTheScreen();
     expect(auditTree(screen.toJSON() as never).violations).toEqual([]);
     await fireEvent.press(screen.getByRole('button', { name: 'Quay lại' }));
@@ -184,6 +185,18 @@ describe('enrollments and courses', () => {
 });
 
 describe('grades', () => {
+  test('pull to refresh reloads the screen query', async () => {
+    mockQueries['academic.enrollments'] = { data: enrollments };
+    mockQueries['academic.semesters'] = { data: semesters, isStale: true };
+    await render(wrap(<CoursesScreen {...props} />));
+    const list = screen.getByTestId('course-grid');
+    const refreshControl = list.props.refreshControl as ReactElement<{ refreshing: boolean; onRefresh: () => void }>;
+    expect(refreshControl.type).toBe(RefreshControl);
+    expect(refreshControl.props.refreshing).toBe(true);
+    await act(async () => { refreshControl.props.onRefresh(); });
+    expect(mockReload).toHaveBeenCalledTimes(2);
+  });
+
   test('labels preview grades with the localized semester name', async () => {
     Object.defineProperty(apiClient, 'mode', { configurable: true, value: 'preview' });
     await render(wrap(<GradesScreen {...props} />));
@@ -248,6 +261,14 @@ describe('schedule and attendance', () => {
 });
 
 describe('curriculum', () => {
+  test('uses labelled preview curriculum data', async () => {
+    Object.defineProperty(apiClient, 'mode', { configurable: true, value: 'preview' });
+    await render(wrap(<CurriculumScreen {...props} />));
+    expect(screen.getByText('Kỹ thuật phần mềm')).toBeOnTheScreen();
+    expect(screen.getByText('CS101')).toBeOnTheScreen();
+    expect(screen.getByText('Dữ liệu xem trước, không phải hồ sơ thật.')).toBeOnTheScreen();
+  });
+
   test('shows credits progress, requirements and the registration link', async () => {
     mockQueries['academic.curriculum'] = {
       data: {

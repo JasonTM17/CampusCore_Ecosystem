@@ -90,6 +90,8 @@ export function TranscriptScreen(_props: MobileScreenProps) {
       error={preview ? null : malformed ? copy.generic : query.error}
       warning={preview ? null : query.warning}
       onRetry={() => void query.reload()}
+      onRefresh={preview ? undefined : () => { void query.reload(); }}
+      refreshing={!preview && query.isStale}
 
       list={{ data: groupedRows(visibleTerms, (entry) => entry.semesterId, (entry) => entry.records, (record) => record.id), keyExtractor: (entry) => entry.key,
         renderItem: ({ item: entry }) => <TermCard entry={entry} />,

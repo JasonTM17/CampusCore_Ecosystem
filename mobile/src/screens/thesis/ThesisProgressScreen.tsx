@@ -4,6 +4,7 @@ import { Badge, Button, Card, Divider, ListRow, ProgressBar, ScreenShell, Sectio
 import { IconChip, StatusPill } from '../../components/ui/index';
 import { tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
+import { useLocale } from '../../i18n/locale-provider';
 import { fillThesisCopy } from '../../i18n/thesis-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { ThesisReportCard } from './ThesisReportCard';
@@ -28,6 +29,7 @@ const MILESTONE_TONE: Record<MilestoneState, 'success' | 'primary' | 'neutral'> 
 /** Server-derived progress of the student's group in the selected round, with the report. */
 export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
   const { colors } = useTheme();
+  const { formatNumber } = useLocale();
   const { copy } = useThesisUi();
   const active = useActiveThesisRound();
   const state = useThesisGroup(active.round?.id ?? null);
@@ -78,7 +80,7 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
                   <UiText variant="bodySmall" tone="error" style={styles.line}>{`${copy.groupRejectedReason}: ${group.rejectionReason}`}</UiText>
                 ) : null}
                 {typeof progress?.finalScore === 'number' ? (
-                  <UiText variant="label" style={styles.line}>{`${copy.finalScore}: ${progress.finalScore}`}</UiText>
+                  <UiText variant="label" style={styles.line}>{`${copy.finalScore}: ${formatNumber(progress.finalScore, { maximumFractionDigits: 2 })}`}</UiText>
                 ) : null}
               </Card>
 

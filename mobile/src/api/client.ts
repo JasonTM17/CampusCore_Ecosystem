@@ -5,12 +5,15 @@ import {
   type AssistantTransport,
 } from './assistant-stream';
 import { recordApiMetric, pathTemplate } from './observability';
+import { resolveApiBaseUrl } from './base-url';
 import type {
   PushDeviceRegistrationBody,
   PushDeviceRegistrationResponse,
 } from './push-notifications';
 import type { DiskDownload, NativeFileRuntime, TransferProgress } from './native-file-adapter';
 import type { components as GeneratedApiComponents } from './generated-api';
+
+export { DEFAULT_API_BASE_URL } from './base-url';
 
 export type JsonObject = Record<string, unknown>;
 export type AssistantLocale = 'en' | 'vi';
@@ -746,7 +749,7 @@ const ABORT_CODES = new Set(['REQUEST_ABORTED', 'SESSION_CHANGED']);
 
 export function classifyApiError(status: number, code?: string): ApiErrorKind {
   if (code !== undefined && ABORT_CODES.has(code)) return 'aborted';
-  if (code === 'NETWORK_ERROR') return 'network';
+  if (code === 'NETWORK_ERROR' || code === 'API_NOT_CONFIGURED') return 'network';
   if (status === 401) return 'unauthorized';
   if (status === 403) return 'denied';
   if (status === 404) return 'not_found';
@@ -774,7 +777,8 @@ export class ApiClientError extends Error {
 
   /** A retry of the same intent may succeed; callers must still reuse the idempotency key. */
   get retryable() {
-    return this.kind === 'network' || this.kind === 'server' || this.kind === 'rate_limited';
+    return this.code !== 'API_NOT_CONFIGURED'
+      && (this.kind === 'network' || this.kind === 'server' || this.kind === 'rate_limited');
   }
 }
 
@@ -807,16 +811,8 @@ export function normalizeApiError(error: unknown): NormalizedApiError {
   return { kind: 'network', status: 0, code: 'NETWORK_ERROR', message, retryable: true };
 }
 
-export const DEFAULT_API_BASE_URL = Platform.OS === 'android'
-  ? 'http://10.0.2.2:4010/api/v1'
-  : 'http://127.0.0.1:4010/api/v1';
-
 const configuredApiBaseUrl = process.env.EXPO_PUBLIC_API_URL;
 const configuredApiMode: ApiMode = process.env.EXPO_PUBLIC_API_MODE === 'preview' ? 'preview' : 'live';
-
-function normalizeBaseUrl(value: string) {
-  return value.replace(/\/+$/, '');
-}
 
 function normalizePath(path: string) {
   return path.startsWith('/') ? path : `/${path}`;
@@ -929,9 +925,12 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     try { nativeFiles = (require('./native-file-adapter') as typeof import('./native-file-adapter')).getNativeFileRuntime(); }
     catch { /* Web/node or an older native binary keeps the existing bytes lane. */ }
   }
-  const baseUrl = normalizeBaseUrl(
-    options.baseUrl ?? configuredApiBaseUrl ?? DEFAULT_API_BASE_URL,
+  const developmentBuild = typeof __DEV__ !== 'undefined' && __DEV__;
+  const baseUrl = resolveApiBaseUrl(
+    options.baseUrl ?? configuredApiBaseUrl,
+    developmentBuild,
   );
+  const resolvedBaseUrl = baseUrl ?? '';
   const apiMode = options.mode ?? configuredApiMode;
   let accessToken: string | undefined;
   const getAccessToken = options.getAccessToken ?? (() => accessToken);
@@ -978,7 +977,8 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     if (!transfer) {
       return { response: await fetch(url, { ...fetchInit, headers }), sameOrigin: true };
     }
-    const apiOrigin = originOf(baseUrl);
+    const apiOrigin = originOf(resolvedBaseUrl);
+    const requireHttpsRedirects = !developmentBuild || /^https:\/\//i.test(resolvedBaseUrl);
     const requestId = headers.get('X-Request-Id') ?? '';
     let currentUrl = url;
     let currentInit: RequestInit = { ...fetchInit, redirect: 'manual' };
@@ -999,6 +999,9 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       }
       await response.body?.cancel().catch(() => {});
       currentUrl = resolveLocation(currentUrl, location);
+      if (requireHttpsRedirects && !/^https:\/\//i.test(currentUrl)) {
+        throw new ApiClientError('The server redirect must use HTTPS', 0, requestId, 'INSECURE_REDIRECT');
+      }
       if (originOf(currentUrl) !== apiOrigin) {
         sameOrigin = false;
         currentHeaders = new Headers(currentHeaders);
@@ -1028,6 +1031,14 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         'MOBILE_API_PREVIEW',
       );
     }
+    if (!resolvedBaseUrl) {
+      throw new ApiClientError(
+        'The mobile API is not configured for this build',
+        0,
+        requestId,
+        'API_NOT_CONFIGURED',
+      );
+    }
     const transfer = mode !== 'json';
     const isPublic = auth === 'public';
     const headers = new Headers(init.headers);
@@ -1044,7 +1055,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       headers.set('Authorization', `Bearer ${token}`);
     }
 
-    const url = `${baseUrl}${normalizePath(path)}`;
+    const url = `${resolvedBaseUrl}${normalizePath(path)}`;
     let diskDownload: DiskDownload | undefined;
     const readBody = async (response: Response): Promise<unknown> => {
       if (mode !== 'download' || !response.ok) return readResponseBody(response);
@@ -1178,7 +1189,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   }
 
   const client: ApiClient = {
-    baseUrl,
+    baseUrl: resolvedBaseUrl,
     mode: apiMode,
 
     setAccessToken(token) {

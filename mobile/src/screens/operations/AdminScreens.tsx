@@ -21,6 +21,7 @@ import {
 import { Avatar } from '../../components/ui/avatar';
 import { SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
+import { useLocale } from '../../i18n/locale-provider';
 import type { MobileScreenProps } from '../../navigation/types';
 import { LaneEntries } from '../lanes/LaneEntries';
 import { HandoffButton, isOpsPreview } from './lecturer-ui';
@@ -223,6 +224,7 @@ export function AdminDashboardScreen({ navigation }: MobileScreenProps) {
 export function AdminStudentsScreen() {
   const styles = useOpsStyles();
   const { copy } = useOpsCopy();
+  const { formatNumber } = useLocale();
   const preview = isOpsPreview();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -336,7 +338,7 @@ export function AdminStudentsScreen() {
             </View>
             <View style={styles.detailRow}>
               <UiText variant="label" style={styles.detailLabel}>GPA</UiText>
-              <UiText variant="bodyMedium" style={styles.detailValue}>{selectedStudent.gpa.toFixed(2)}</UiText>
+              <UiText variant="bodyMedium" style={styles.detailValue}>{formatNumber(selectedStudent.gpa, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</UiText>
             </View>
             <HandoffButton label={copy.openOnWeb} path="/admin/users" />
           </View>

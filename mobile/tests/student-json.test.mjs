@@ -88,10 +88,11 @@ test('student screens key enrollment lists by semester and guard profile saves',
 
 test('student screens translate service errors into student-friendly copy', () => {
   const screens = readSources(mobileRoot,'src/screens/student',/^(StudentDashboard|Schedule|Courses|Grades|Attendance|Registration|Notifications|Profile)Screen\.tsx$|^shared\//);
+  const academicMessages = fs.readFileSync(path.join(mobileRoot, 'src/i18n/academic-messages.ts'), 'utf8');
 
   assert.match(screens, /studentFriendlyErrorMessage/);
-  assert.match(screens, /friendlyErrorMessageByCode/);
-  assert.match(screens, /Registration is not open right now\./);
+  assert.match(screens, /academicMessages\[locale\]\.studentErrors/);
+  assert.match(academicMessages, /Registration is not open right now\./);
   assert.doesNotMatch(screens, /ApiClientError \? nextError\.message/);
   assert.doesNotMatch(screens, /nextError instanceof ApiClientError \? nextError\.message/);
   assert.doesNotMatch(screens, /Java API contract/);

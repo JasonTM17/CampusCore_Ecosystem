@@ -28,12 +28,12 @@ export interface EnrollmentDetailProps {
 
 export function EnrollmentDetail({ enrollment, onBack }: EnrollmentDetailProps) {
   const { copy, locale } = useAcademicCopy();
-  const { formatDate } = useLocale();
+  const { formatDate, formatNumber } = useLocale();
   const section = enrollment.section;
   const published = enrollment.gradeStatus === 'PUBLISHED';
   const lecturer = lecturerName(section);
   const grade = published && enrollment.finalGrade != null
-    ? `${enrollment.finalGrade}${enrollment.letterGrade ? ` · ${enrollment.letterGrade}` : ''}`
+    ? `${formatNumber(enrollment.finalGrade, { maximumFractionDigits: 2 })}${enrollment.letterGrade ? ` · ${enrollment.letterGrade}` : ''}`
     : copy.noGrade;
 
   return (

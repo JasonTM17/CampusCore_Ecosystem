@@ -14,12 +14,12 @@ import { tokens } from '../../design/tokens';
 import { chromeFor } from '../../design/chrome';
 import { useThemedStyles, useTheme } from '../../design/theme';
 import type { ThemeColors } from '../../design/theme';
-import { accountMessages } from '../../i18n/account-messages';
 import { campusMessages } from '../../i18n/campus-messages';
 import { useLocale } from '../../i18n/locale-provider';
 import { shellMessages } from '../../i18n/shell-messages';
 import { useSession } from '../../session/SessionContext';
 import { accountScreen } from '../account/account-routes';
+import { useAccountCopy } from '../account/use-account-copy';
 import { contentApi } from '../content/content-api';
 import {
   isUrgentPriority,
@@ -32,37 +32,6 @@ import { previewNews } from '../content/preview-data';
 import { summaryOrExcerpt } from '../content/rich-text';
 import { usePagedList } from '../content/use-paged-list';
 import type { MobileScreenProps } from '../../navigation/types';
-
-const copyByLocale = {
-  en: {
-    title: 'Welcome back',
-    portal: 'Academic information portal',
-    heading: 'Sign in',
-    preview: 'Preview build — explore with a local pseudo-session.',
-    live: 'Continue in your browser with CampusUTE ID. Your credentials never touch this app.',
-    explore: 'Explore preview',
-    signIn: 'Sign in with CampusUTE ID',
-    unreachable: 'Sign-in could not reach the CampusUTE identity service.',
-    storage: 'Sign-in could not save the session securely on this device.',
-    invalid: 'The sign-in response could not be validated.',
-    unavailable: 'The saved session is temporarily unavailable.',
-    retry: 'Retry session',
-  },
-  vi: {
-    title: 'Chào mừng trở lại',
-    portal: 'Cổng thông tin đào tạo',
-    heading: 'Đăng nhập',
-    preview: 'Bản xem thử — khám phá bằng phiên cục bộ.',
-    live: 'Tiếp tục trong trình duyệt với CampusUTE ID. Thông tin đăng nhập không đi qua ứng dụng này.',
-    explore: 'Khám phá bản xem thử',
-    signIn: 'Đăng nhập bằng CampusUTE ID',
-    unreachable: 'Không kết nối được dịch vụ định danh CampusUTE.',
-    storage: 'Không thể lưu phiên đăng nhập an toàn trên thiết bị này.',
-    invalid: 'Không thể xác thực phản hồi đăng nhập.',
-    unavailable: 'Phiên đã lưu tạm thời không khả dụng.',
-    retry: 'Thử lại phiên',
-  },
-} as const;
 
 /** How far the form card rides up over the navy hero band. */
 const HERO_OVERLAP = tokens.spacing.lg + tokens.spacing.xs;
@@ -78,7 +47,7 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
   const chrome = chromeFor(scheme);
   const session = useSession();
   const { locale } = useLocale();
-  const copy = copyByLocale[locale];
+  const copy = useAccountCopy();
   const insets = useContext(SafeAreaInsetsContext);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -99,11 +68,11 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
         return;
       }
       if (outcome.kind === 'unavailable') {
-        setError(accountMessages[locale].errors.issuerNotConfigured);
+        setError(copy.errors.issuerNotConfigured);
         return;
       }
       if (outcome.kind === 'blocked') {
-        setError(copy.invalid);
+        setError(copy.signIn.invalid);
         return;
       }
       sessionStore.bumpEpoch();
@@ -111,14 +80,14 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
       try {
         await sessionStore.saveRefresh(outcome.refreshToken);
       } catch {
-        setError(copy.storage);
+        setError(copy.signIn.storage);
         return;
       }
       if (epoch !== sessionStore.sessionEpoch()) return;
       sessionStore.setAccessToken(outcome.accessToken);
       navigation.completeSignIn(outcome.role, outcome.accountId);
     } catch {
-      setError(copy.unreachable);
+      setError(copy.signIn.unreachable);
     } finally {
       signInFlight.current = false;
       setIsSubmitting(false);
@@ -138,23 +107,23 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
             <Image accessibilityLabel="HCMUTE" accessibilityRole="image" source={require('../../../assets/hcmute-logo.png')} resizeMode="contain" style={styles.brandMark} />
             <View style={styles.brandCopy}>
               <UiText variant="headlineMedium" style={{ color: chrome.onSurface }}>CampusUTE</UiText>
-              <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>{copy.portal}</UiText>
+              <UiText variant="bodySmall" style={{ color: chrome.onSurfaceMuted }}>{copy.signIn.portal}</UiText>
             </View>
           </View>
-          <UiText variant="headlineMedium" style={[styles.heroTitle, { color: chrome.onSurface }]}>{copy.title}</UiText>
+          <UiText variant="headlineMedium" style={[styles.heroTitle, { color: chrome.onSurface }]}>{copy.signIn.title}</UiText>
           <PreviewPill style={styles.previewPill} />
         </View>
         <View style={styles.body}>
           <Card style={styles.formCard}>
-            <UiText accessibilityRole="header" variant="headlineLarge">{copy.heading}</UiText>
+            <UiText accessibilityRole="header" variant="headlineLarge">{copy.signIn.heading}</UiText>
             <UiText variant="bodySmall" tone="muted" style={styles.formIntro}>
-              {isPreview ? copy.preview : copy.live}
+              {isPreview ? copy.signIn.preview : copy.signIn.live}
             </UiText>
             {isPreview ? (
-              <Button icon="arrow-right" label={copy.explore} onPress={() => navigation.enterPreview()} style={styles.submit} />
+              <Button icon="arrow-right" label={copy.signIn.explore} onPress={() => navigation.enterPreview()} style={styles.submit} />
             ) : (
               <Button
-                label={copy.signIn}
+                label={copy.signIn.signIn}
                 icon="login"
                 loading={isSubmitting}
                 onPress={handleSignIn}
@@ -163,15 +132,15 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
             )}
             {isPreview ? null : (
               <Button
-                label={accountMessages[locale].forgot.title}
+                label={copy.forgot.title}
                 onPress={() => navigation.navigate(accountScreen('forgotPassword'))}
                 variant="text"
               />
             )}
             {!isPreview && (session.bootStatus === 'unavailable' || session.bootStatus === 'checking') ? (
               <View accessibilityLiveRegion="polite">
-                <UiText variant="bodySmall" tone="error">{copy.unavailable}</UiText>
-                <Button label={copy.retry} loading={session.bootStatus === 'checking'} onPress={() => void session.retryBoot?.()} />
+                <UiText variant="bodySmall" tone="error">{copy.signIn.unavailable}</UiText>
+                <Button label={copy.signIn.retry} loading={session.bootStatus === 'checking'} onPress={() => void session.retryBoot?.()} />
               </View>
             ) : null}
             {error ? (

@@ -47,6 +47,7 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
     data: liveAnnouncements,
     error: announcementsError,
     isLoading: announcementsLoading,
+    reload: reloadAnnouncements,
   } = useLiveResource<JsonObject[]>(
     'announcements',
     [],
@@ -93,10 +94,16 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
         icon="school-outline"
         eyebrow={c.currentSemester}
         title={apiClient.mode === 'preview' ? c.previewSemester : fillShellCopy(c.activeSections, { n: activeEnrollments.length })}
-        detail={apiClient.mode === 'preview' ? undefined : announcementsError ?? (announcementsLoading ? undefined : fillShellCopy(c.announcements, { n: liveAnnouncements.length }))}
+        detail={apiClient.mode === 'preview' || announcementsError || announcementsLoading ? undefined : fillShellCopy(c.announcements, { n: liveAnnouncements.length })}
       >
         <Button icon="calendar-week-outline" label={c.openSchedule} onPress={() => navigation.navigate('schedule')} variant="secondary" onBrand />
       </HeroCard>
+      {announcementsError ? (
+        <View style={styles.announcementError}>
+          <DataNotice message={announcementsError} />
+          <Button label={c.retry} variant="text" onPress={() => void reloadAnnouncements()} />
+        </View>
+      ) : null}
 
       <StatStrip style={styles.stats} items={[
         { icon: 'book-open-page-variant-outline', label: c.activeLabel, value: apiClient.mode === 'preview' ? '3' : String(activeEnrollments.length) },
@@ -137,4 +144,5 @@ const styles = StyleSheet.create({
   stats: { marginTop: tokens.spacing.sm + tokens.spacing.xs },
   actionGrid: { flexDirection: 'row', alignItems: 'stretch', gap: tokens.spacing.sm },
   actionStack: { flexDirection: 'column' },
+  announcementError: { gap: tokens.spacing.xs },
 });

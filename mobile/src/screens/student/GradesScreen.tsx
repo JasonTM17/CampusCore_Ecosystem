@@ -73,6 +73,8 @@ export function GradesScreen({ navigation }: MobileScreenProps) {
       error={preview ? null : query.error}
       warning={preview ? null : query.warning}
       onRetry={() => void query.reload()}
+      onRefresh={preview ? undefined : () => { void query.reload(); }}
+      refreshing={!preview && query.isStale}
 
       list={{ data: groupedRows(grouped, (group) => group[0], (group) => group[1].records, (item) => item.id), keyExtractor: (entry) => entry.key,
         renderItem: ({ item: entry }) => { const item = entry.group;  const [groupKey, group] = item;

@@ -1,5 +1,6 @@
 import { apiClient } from '../../../api/client';
 import { useScreenQuery } from '../../../hooks/useScreenQuery';
+import { useLocale } from '../../../i18n/locale-provider';
 import { studentFriendlyErrorMessage } from './errors';
 
 /**
@@ -14,10 +15,11 @@ export function useLiveResource<T>(
   request: () => Promise<T>,
   fallbackMessage: string,
 ) {
+  const { locale } = useLocale();
   const query = useScreenQuery<T>(key, request, {
     enabled: apiClient.mode === 'live',
     errorMessage: fallbackMessage,
-    mapError: (error) => studentFriendlyErrorMessage(error, fallbackMessage),
+    mapError: (error) => studentFriendlyErrorMessage(error, fallbackMessage, locale),
   });
   return {
     data: query.data ?? initialValue,

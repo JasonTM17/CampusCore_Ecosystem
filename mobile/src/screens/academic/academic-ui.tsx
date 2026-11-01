@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { Card, DataNotice, StatePanel, UiText } from '../../components/Ui';
 import { ScrollableScreenShell as ScreenShell } from '../../components/perf/list-screen-shell';
@@ -57,14 +57,21 @@ export interface AcademicShellProps<T = unknown> {
   error?: string | null;
   warning?: string | null;
   onRetry?: () => void;
+  onRefresh?: () => void;
+  refreshing?: boolean;
   children: ReactNode;
 }
 
 /** Screen frame with the loading, error and stale-data states in one place. */
-export function AcademicShell<T>({ title, eyebrow, loading = false, error, warning, onRetry, children, list }: AcademicShellProps<T>) {
+export function AcademicShell<T>({ title, eyebrow, loading = false, error, warning, onRetry, onRefresh, refreshing = false, children, list }: AcademicShellProps<T>) {
   const { copy } = useAcademicCopy();
+  const { colors } = useTheme();
+  const refreshControl = onRefresh
+    ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
+    : undefined;
+  const frameList = list ? { ...list, ...(refreshControl ? { refreshControl } : {}) } : undefined;
   return (
-    <ScreenShell title={title} eyebrow={eyebrow} list={list && (loading || error ? { ...list, data: [], footer: null } : list)}>
+    <ScreenShell title={title} eyebrow={eyebrow} list={frameList && (loading || error ? { ...frameList, data: [], footer: null } : frameList)}>
       {warning ? <DataNotice message={warning} /> : null}
       {loading ? (
         <StatePanel kind="loading" title={copy.loading} />
