@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 
-import { buildApiProxyUrl } from '@/lib/proxy-url';
+import { buildApiProxyUrl, resolveJavaApiOrigin } from '@/lib/proxy-url';
 import { surfaceFromHost } from '@/lib/surfaces';
 
 export const runtime = 'nodejs';
@@ -18,9 +18,7 @@ const PUBLIC_GET_PATHS = new Set(['site-appearance', 'article-taxonomy/v2/catego
 
 async function handle(request: NextRequest, context: RouteContext) {
   const { path } = await context.params;
-  const origin = (process.env.JAVA_API_ORIGIN ||
-    process.env.BACKEND_INTERNAL_ORIGIN ||
-    (process.env.NODE_ENV === 'production' ? 'https://campuscore-backend-p4em.onrender.com' : 'http://127.0.0.1:4010')).replace(/\/$/, '');
+  const origin = resolveJavaApiOrigin();
   const headers = new Headers(request.headers);
   headers.delete('host');
   headers.set('accept-encoding', 'identity');

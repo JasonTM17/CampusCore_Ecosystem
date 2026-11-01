@@ -3200,14 +3200,30 @@ test('real QueryClient.clear() evicts every cached entry', () => {
 });
 
 function loadMobileClientModule() {
-  const mobileClientPath = path.resolve(root, '..', 'mobile', 'src', 'api', 'client.ts');
-  const source = fs.readFileSync(mobileClientPath, 'utf8');
+  const mobileApiDir = path.resolve(root, '..', 'mobile', 'src', 'api');
+  const platform = { OS: 'android' };
+  const loadTypeScriptModule = (fileName, localRequire) => {
+    const source = fs.readFileSync(path.join(mobileApiDir, fileName), 'utf8');
+    const { outputText } = ts.transpileModule(source, {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+      fileName,
+    });
+    const moduleRecord = { exports: {} };
+    new Function('require', 'module', 'exports', outputText)(localRequire, moduleRecord, moduleRecord.exports);
+    return moduleRecord.exports;
+  };
+  const baseUrlModule = loadTypeScriptModule('base-url.ts', (spec) => {
+    if (spec === 'react-native') return { Platform: platform };
+    throw new Error(`unexpected import in mobile base-url.ts: ${spec}`);
+  });
+  const source = fs.readFileSync(path.join(mobileApiDir, 'client.ts'), 'utf8');
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
     fileName: 'client.ts',
   });
   const requireStub = (spec) => {
-    if (spec === 'react-native') return { Platform: { OS: 'android' } };
+    if (spec === 'react-native') return { Platform: platform };
+    if (spec === './base-url') return baseUrlModule;
     if (spec === './observability') {
       return { recordApiMetric: () => {}, pathTemplate: (p) => p };
     }
@@ -3220,7 +3236,9 @@ function loadMobileClientModule() {
     throw new Error(`unexpected import in mobile client.ts: ${spec}`);
   };
   const mod = { exports: {} };
-  new Function('require', 'module', 'exports', outputText)(requireStub, mod, mod.exports);
+  // The test uses an HTTP fixture URL, so run the client with Expo's development
+  // flag enabled while preserving the real base-url validation behavior.
+  new Function('require', 'module', 'exports', '__DEV__', outputText)(requireStub, mod, mod.exports, true);
   return { exports: mod.exports };
 }
 
@@ -3246,6 +3264,7 @@ test('mobile sessionEpoch keeps a stale lane from evicting the newer session', a
         sessionEpoch: () => epoch,
         onSessionExpired: () => { expired += 1; },
       });
+      assert.equal(client.baseUrl, 'http://example.test');
       const pending = client.requestWithMeta('/me').then(
         () => ({ ok: true }),
         (err) => ({ ok: false, err }),

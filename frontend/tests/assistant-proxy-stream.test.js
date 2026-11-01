@@ -9,14 +9,16 @@ function loadProxy(upstream, onFetch = () => {}, environment = {}) {
   const source = fs.readFileSync(path.join(__dirname, '../src/app/api/v1/[...path]/route.ts'), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const record = { exports: {} };
+  const env = { JAVA_API_ORIGIN: 'http://test-api', ...environment };
   const context = vm.createContext({
     Headers, Response,
-    process: { env: { JAVA_API_ORIGIN: 'http://test-api', ...environment } },
+    process: { env },
     fetch: async (url, options) => { onFetch(url, options); return upstream; },
   });
   vm.runInContext(`(function(require,module,exports){${output}\n})`, context)(
     () => ({
       buildApiProxyUrl: (origin, segments, query) => `${origin}/api/v1/${segments.join('/')}${query}`,
+      resolveJavaApiOrigin: () => env.JAVA_API_ORIGIN || env.BACKEND_INTERNAL_ORIGIN || 'http://127.0.0.1:4010',
       // Test hosts are unmapped, so the proxy stays on the plain bearer lane.
       surfaceFromHost: () => null,
     }),

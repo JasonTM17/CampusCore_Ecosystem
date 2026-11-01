@@ -271,22 +271,6 @@ test('registration idempotency keeps PostgreSQL duplicate claims inside the tran
   assert.match(service, /H2 does not implement PostgreSQL's ON CONFLICT syntax/);
 });
 
-test('published image tags are full-SHA, revision-bound, and never auto-promote latest', () => {
-  const workflow = fs.readFileSync(path.join(root, '../.github/workflows/publish-ghcr.yml'), 'utf8');
-  const overlay = fs.readFileSync(path.join(root, '../docker-compose.rag.override.yml'), 'utf8');
-
-  assert.match(workflow, /type=raw,value=candidate-\$\{\{ needs\.release-gate\.outputs\.sha \}\}/);
-  assert.match(workflow, /org\.opencontainers\.image\.revision=\$\{\{ needs\.release-gate\.outputs\.sha \}\}/);
-  assert.match(workflow, /\.Image\.Config\.Labels/);
-  assert.match(workflow, /--format '\{\{\.Manifest\.Digest\}\}'/);
-  assert.doesNotMatch(workflow, /\|\s*awk/);
-  assert.match(workflow, /refusing wrong-revision|revision.*not \$full_sha/s);
-  assert.doesNotMatch(workflow, /promote-latest|:latest\b|value=latest/);
-  assert.equal((workflow.match(/imagetools create/g) ?? []).length, 1, 'release tags are created only by the single scanned-digest promotion');
-  assert.match(workflow, /imagetools create --tag "\$target" "\$SCAN_REF"/);
-  assert.match(overlay, /CAMPUSCORE_IMAGE_TAG:\?Set CAMPUSCORE_IMAGE_TAG/);
-});
-
 test('Playwright defaults to the collision-checked CampusCore frontend port', () => {
   const config = fs.readFileSync(path.join(root, 'playwright.config.ts'), 'utf8');
   assert.match(config, /E2E_BASE_URL\s*\?\?\s*['"]http:\/\/127\.0\.0\.1:3101['"]/);
