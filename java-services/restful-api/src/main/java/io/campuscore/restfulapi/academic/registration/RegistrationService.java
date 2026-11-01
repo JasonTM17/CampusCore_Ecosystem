@@ -12,6 +12,8 @@ import io.campuscore.restfulapi.web.DomainException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.sql.Savepoint;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -24,7 +26,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
@@ -59,6 +64,8 @@ public class RegistrationService {
     private static final String AUTH_USER = "campuscore_auth.\"User\"";
     private static final String CURRICULUM_COURSE = "academic.\"CurriculumCourse\"";
     private static final int STANDARD_CREDIT_LIMIT = CreditLimitApplicationService.STANDARD_LIMIT;
+
+    private static final Logger log = LoggerFactory.getLogger(RegistrationService.class);
 
     private final NamedParameterJdbcTemplate jdbc;
     private final AcademicEnrollmentReadService reads;
@@ -428,19 +435,43 @@ public class RegistrationService {
                                 new MapSqlParameterSource()
                                         .addValue("studentId", studentId)
                                         .addValue("semesterId", targetSemesterId));
-                        jdbc.update(
-                                "INSERT INTO " + SLIP
-                                        + " (\"id\", \"studentId\", \"semesterId\", \"roundId\", \"sha256\", \"byteSize\", \"payload\")"
-                                        + " VALUES (:id, :studentId, :semesterId, :roundId, :sha, :size, :payload)",
-                                new MapSqlParameterSource()
-                                        .addValue("id", UUID.randomUUID().toString())
-                                        .addValue("studentId", studentId)
-                                        .addValue("semesterId", targetSemesterId)
-                                        .addValue("roundId", roundId)
-                                        .addValue("sha", rendered.sha256())
-                                        .addValue("size", rendered.payload().length)
-                                        .addValue("payload", rendered.payload()));
-                    } catch (Exception ignored) {
+                        MapSqlParameterSource insertParameters = new MapSqlParameterSource()
+                                .addValue("id", UUID.randomUUID().toString())
+                                .addValue("studentId", studentId)
+                                .addValue("semesterId", targetSemesterId)
+                                .addValue("roundId", roundId)
+                                .addValue("sha", rendered.sha256())
+                                .addValue("size", rendered.payload().length)
+                                .addValue("payload", rendered.payload());
+                        // PostgreSQL aborts the whole transaction on a failed
+                        // statement; the best-effort INSERT runs behind a
+                        // savepoint on the request connection so a failure
+                        // rolls back only itself — the stale-row DELETE above
+                        // still commits. PROPAGATION_NESTED is unavailable on
+                        // the JPA manager and a second transaction would
+                        // deadlock on the held Student row lock.
+                        jdbc.getJdbcOperations().execute((ConnectionCallback<Void>) connection -> {
+                            Savepoint savepoint = connection.setSavepoint();
+                            try {
+                                jdbc.update(
+                                        "INSERT INTO " + SLIP
+                                                + " (\"id\", \"studentId\", \"semesterId\", \"roundId\", \"sha256\", \"byteSize\", \"payload\")"
+                                                + " VALUES (:id, :studentId, :semesterId, :roundId, :sha, :size, :payload)",
+                                        insertParameters);
+                                connection.releaseSavepoint(savepoint);
+                            } catch (DataAccessException | SQLException failure) {
+                                try {
+                                    connection.rollback(savepoint);
+                                } catch (SQLException rollbackFailure) {
+                                    failure.addSuppressed(rollbackFailure);
+                                }
+                                throw failure;
+                            }
+                            return null;
+                        });
+                    } catch (DataAccessException failure) {
+                        log.warn("registration slip cache persistence skipped; exceptionType={}",
+                                failure.getClass().getSimpleName());
                     }
                 }
                 return new SlipPayload(rendered.sha256(), rendered.payload());
@@ -470,7 +501,9 @@ public class RegistrationService {
             studentName = displayName(
                     (String) studentInfo.get("first_name"),
                     (String) studentInfo.get("last_name"));
-        } catch (Exception ignored) {
+        } catch (DataAccessException failure) {
+            log.warn("slip student name lookup failed; exceptionType={}",
+                    failure.getClass().getSimpleName());
         }
 
         String semesterName = semesterId;
@@ -481,7 +514,9 @@ public class RegistrationService {
             if (semesterInfo.get("name") != null) {
                 semesterName = String.valueOf(semesterInfo.get("name"));
             }
-        } catch (Exception ignored) {
+        } catch (DataAccessException failure) {
+            log.warn("slip semester name lookup failed; exceptionType={}",
+                    failure.getClass().getSimpleName());
         }
 
         List<RegistrationPdfRenderer.CourseItem> courseItems = active.stream()

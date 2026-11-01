@@ -214,6 +214,37 @@ class RegistrationSlipDropRacePostgresIT {
         assertSlipNotFound(null);
     }
 
+    @Test
+    void failedSlipCacheInsertMustNotResurrectTheStaleCacheRow() {
+        // Cache a real slip, then mark the stored digest stale so the next GET
+        // takes the re-render path and rewrites the cache row.
+        registration.slip(studentId, semesterId);
+        assertThat(slipCount()).isEqualTo(1);
+        jdbc.update("UPDATE academic.\"RegistrationSlip\" SET \"sha256\"=:sha WHERE \"studentId\"=:student",
+                Map.of("sha", "0".repeat(64), "student", studentId));
+        // Enrollment.roundId carries no foreign key, so a dangling value is a
+        // legitimate fixture state; the cache INSERT then fails on the
+        // RegistrationSlip.roundId FK inside the request transaction.
+        jdbc.update("UPDATE academic.\"Enrollment\" SET \"roundId\"=:round WHERE \"id\"=:id",
+                Map.of("round", "round-dangling-" + studentId, "id", enrollmentId));
+
+        RegistrationService.SlipPayload fresh = registration.slip(studentId, semesterId);
+        assertThat(fresh.payload()).isNotEmpty();
+        assertThat(fresh.sha256()).isNotEqualTo("0".repeat(64));
+        // PostgreSQL aborts the transaction on the first failed statement: an
+        // unguarded cache write poisons the request transaction and the COMMIT
+        // silently rolls back, resurrecting the stale row the DELETE removed.
+        // Correct behaviour keeps the stale row deleted even though the new
+        // row cannot be inserted.
+        assertThat(slipCount())
+                .as("aborted cache INSERT must not roll back the stale-row DELETE")
+                .isZero();
+        // The next GET still serves the freshly rendered slip; the best-effort
+        // cache stays empty while the dangling roundId persists.
+        assertThat(registration.slip(studentId, semesterId).payload()).isNotEmpty();
+        assertThat(slipCount()).isZero();
+    }
+
     private boolean awaitBlockingOrCompletion(AtomicInteger owner, AtomicInteger waiter, Future<?> dropping)
             throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
