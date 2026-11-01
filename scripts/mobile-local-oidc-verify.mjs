@@ -159,12 +159,16 @@ async function main() {
   if (!Array.isArray(payload.roles)) fail('claims', 'roles claim missing');
   pass('claims', `iss=${payload.iss}; capabilities/roles present`);
 
-  // 7. Resource call — the lightest authenticated endpoint the app hits.
-  const enrollments = await fetch(`${BASE}/api/v1/enrollments/my`, {
-    headers: { Authorization: `Bearer ${token.body.access_token}`, Connection: 'close' },
-  });
-  if (!enrollments.ok) fail('resource', `GET /api/v1/enrollments/my -> ${enrollments.status}`);
-  pass('resource', 'GET /api/v1/enrollments/my -> 200 with the minted token');
+  // 7. Resource calls — the first-load endpoints the student dashboard hits
+  //    with the same token (mobile StudentDashboardScreen + client.ts).
+  for (const path of ['/api/v1/enrollments/my', '/api/v1/announcements/my',
+      '/api/v1/notifications/my', '/api/v1/attendance/my/summary']) {
+    const res = await fetch(`${BASE}${path}`, {
+      headers: { Authorization: `Bearer ${token.body.access_token}`, Connection: 'close' },
+    });
+    if (!res.ok) fail('resource', `GET ${path} -> ${res.status}`);
+    pass('resource', `GET ${path} -> 200 with the minted token`);
+  }
 
   // 8. Refresh rotation (native allowlist)
   const refresh = await fetchJson(`${BASE}/oauth2/token`, {

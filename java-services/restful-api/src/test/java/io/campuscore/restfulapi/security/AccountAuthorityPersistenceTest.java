@@ -39,14 +39,14 @@ class AccountAuthorityPersistenceTest {
         jdbc = new JdbcTemplate(source);
         jdbc.execute("DROP ALL OBJECTS");
         jdbc.execute("CREATE SCHEMA campuscore_auth");
-        jdbc.execute("CREATE TABLE campuscore_auth.\"User\" (\"id\" VARCHAR PRIMARY KEY, \"status\" VARCHAR, \"mustChangePassword\" BOOLEAN)");
+        jdbc.execute("CREATE TABLE campuscore_auth.\"User\" (\"id\" VARCHAR PRIMARY KEY, \"status\" VARCHAR, \"mustChangePassword\" BOOLEAN, \"email\" VARCHAR, \"firstName\" VARCHAR, \"lastName\" VARCHAR)");
         jdbc.execute("CREATE TABLE campuscore_auth.\"Student\" (\"id\" VARCHAR, \"userId\" VARCHAR, \"year\" INTEGER)");
         jdbc.execute("CREATE TABLE campuscore_auth.\"Lecturer\" (\"id\" VARCHAR, \"userId\" VARCHAR, \"isActive\" BOOLEAN)");
         jdbc.execute("CREATE TABLE campuscore_auth.\"Role\" (\"id\" VARCHAR, \"name\" VARCHAR)");
         jdbc.execute("CREATE TABLE campuscore_auth.\"UserRole\" (\"userId\" VARCHAR, \"roleId\" VARCHAR)");
         jdbc.execute("CREATE TABLE campuscore_auth.\"Permission\" (\"id\" VARCHAR, \"module\" VARCHAR, \"action\" VARCHAR)");
         jdbc.execute("CREATE TABLE campuscore_auth.\"RolePermission\" (\"roleId\" VARCHAR, \"permissionId\" VARCHAR)");
-        jdbc.update("INSERT INTO campuscore_auth.\"User\" VALUES ('user','ACTIVE',FALSE)");
+        jdbc.update("INSERT INTO campuscore_auth.\"User\" (\"id\", \"status\", \"mustChangePassword\") VALUES ('user','ACTIVE',FALSE)");
         io.campuscore.restfulapi.testsupport.AccountAuthorityFixture.ensureCredentialVersion(jdbc);
         jdbc.update("INSERT INTO campuscore_auth.\"Role\" VALUES ('role','ADMIN')");
         jdbc.update("INSERT INTO campuscore_auth.\"UserRole\" VALUES ('user','role')");

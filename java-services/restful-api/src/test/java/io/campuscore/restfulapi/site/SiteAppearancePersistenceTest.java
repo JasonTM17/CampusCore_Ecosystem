@@ -74,6 +74,8 @@ class SiteAppearancePersistenceTest {
                 CREATE TABLE "campuscore_auth"."User" (
                     "id" VARCHAR(512) PRIMARY KEY,
                     "email" VARCHAR(320) NOT NULL,
+                    "firstName" VARCHAR(200),
+                    "lastName" VARCHAR(200),
                     "status" VARCHAR(40) NOT NULL DEFAULT 'ACTIVE',
                     "mustChangePassword" BOOLEAN NOT NULL DEFAULT FALSE,
                     "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
