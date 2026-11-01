@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DEFAULT_SITE_APPEARANCE } from '@/lib/site-appearance';
 import { CSRF_COOKIE_NAME, hasCsrfSessionHint } from '@/lib/session-hint';
+import { resolveJavaApiOrigin } from '@/lib/proxy-url';
 import {
   readSavedSiteAppearance,
   writeSiteAppearance,
@@ -18,7 +19,7 @@ function cookieValue(cookieSource: string, name: string): string {
 }
 
 function javaOrigin(): string {
-  return (process.env.JAVA_API_ORIGIN || 'http://127.0.0.1:4010').replace(/\/$/, '');
+  return resolveJavaApiOrigin();
 }
 
 async function requireAdmin(request: NextRequest): Promise<boolean> {

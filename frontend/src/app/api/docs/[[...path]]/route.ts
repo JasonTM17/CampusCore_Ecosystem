@@ -1,5 +1,7 @@
 import type { NextRequest } from 'next/server';
 
+import { resolveJavaApiOrigin } from '@/lib/proxy-url';
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +11,7 @@ type RouteContext = {
 
 async function handle(request: NextRequest, context: RouteContext) {
   const { path = [] } = await context.params;
-  const origin = (process.env.JAVA_API_ORIGIN || 'http://127.0.0.1:4010').replace(/\/$/, '');
+  const origin = resolveJavaApiOrigin();
   const suffix = path.length > 0 ? `/${path.join('/')}` : '';
   const backendPath = suffix === '/openapi.json' ? '/v3/api-docs' : `/v3/api-docs${suffix}`;
   const headers = new Headers(request.headers);

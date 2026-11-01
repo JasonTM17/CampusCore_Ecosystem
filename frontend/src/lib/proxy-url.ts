@@ -1,3 +1,16 @@
+type JavaApiEnvironment = {
+  [key: string]: string | undefined;
+  JAVA_API_ORIGIN?: string;
+  BACKEND_INTERNAL_ORIGIN?: string;
+};
+
+const DEFAULT_JAVA_API_ORIGIN = 'http://127.0.0.1:4010';
+
+export function resolveJavaApiOrigin(env: JavaApiEnvironment = process.env): string {
+  const configuredOrigin = env.JAVA_API_ORIGIN?.trim() || env.BACKEND_INTERNAL_ORIGIN?.trim();
+  return (configuredOrigin || DEFAULT_JAVA_API_ORIGIN).replace(/\/+$/, '');
+}
+
 export function buildApiProxyUrl(
   origin: string,
   path: readonly string[],

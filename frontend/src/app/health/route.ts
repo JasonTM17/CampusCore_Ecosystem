@@ -1,10 +1,12 @@
 import type { NextRequest } from 'next/server';
 
+import { resolveJavaApiOrigin } from '@/lib/proxy-url';
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export function GET(request: NextRequest) {
-  const origin = process.env.JAVA_API_ORIGIN || 'http://127.0.0.1:4010';
+  const origin = resolveJavaApiOrigin();
   return fetch(`${origin}/api/v1/health/liveness`, {
     headers: {
       Accept: 'application/json',
