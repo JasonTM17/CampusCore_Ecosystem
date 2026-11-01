@@ -2,7 +2,7 @@
 set -euo pipefail
 
 project="${COMPOSE_PROJECT_NAME:-campuscore-production}"
-compose_file="${COMPOSE_FILE:-docker-compose.prod.yml}"
+compose_file="${COMPOSE_FILE:-docker-compose.yml}"
 backup_dir="${BACKUP_DIR:-ops/backups}"
 retention_days="${BACKUP_RETENTION_DAYS:-14}"
 db_user="${POSTGRES_USER:-campuscore}"

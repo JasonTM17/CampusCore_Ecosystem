@@ -122,7 +122,6 @@ When an alert fires or a user reports an error:
 
 ## 6. Runbook References
 
-- Production Deployment & Operations: [PRODUCTION_RUNBOOK.md](../../docs/PRODUCTION_RUNBOOK.md)
 - Demo Environment Operations: [DEMO_RUNBOOK.md](../../docs/DEMO_RUNBOOK.md)
 - Assistant & RAG Operations: [deepseek-assistant.md](../../docs/integrations/deepseek-assistant.md)
 - Supabase Assistant Knowledge: [supabase-assistant.md](../../docs/integrations/supabase-assistant.md)

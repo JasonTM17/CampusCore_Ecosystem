@@ -2,7 +2,7 @@
 # Collection/routing NOT_RUN against a live Prometheus instance.
 # Missing input series produce no alert; zero traffic yields no ratio/latency breach.
 # Scrape/exporter absence requires the deployment monitoring availability policy.
-# Cross-reference: docs/ecosystem/observability.md, docs/PRODUCTION_RUNBOOK.md
+# Cross-reference: docs/ecosystem/observability.md
 groups:
   - name: campuscore-infrastructure
     rules:
@@ -25,7 +25,7 @@ groups:
             Database connection pool is {{ $value | humanizePercentage }} utilized for pool
             {{ $labels.pool }} on instance {{ $labels.instance }}. High connection utilization
             precedes connection acquisition timeout errors.
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#render--neon-operating-notes"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "INSTRUMENTED (actual Hikari pools; identity shares the primary pool)"
 
       - alert: DatabaseConnectionPoolSaturationCritical
@@ -43,7 +43,7 @@ groups:
           description: >-
             Database connection pool {{ $labels.pool }} is saturated; inspect active/max and pending gauges.
             Incoming API requests will block and fail after connection-timeout (15000ms).
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#render--neon-operating-notes"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "INSTRUMENTED (actual Hikari pools; identity shares the primary pool)"
 
       - alert: DatabaseConnectionAcquisitionTimeout
@@ -59,7 +59,7 @@ groups:
           description: >-
             Connection requests timed out waiting for a free database connection in pool {{ $labels.pool }}.
             This causes HTTP 500 errors to end users. Immediate investigation required.
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#render--neon-operating-notes"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "INSTRUMENTED (actual Hikari pools; identity shares the primary pool)"
 
       # -----------------------------------------------------------------------
@@ -81,7 +81,7 @@ groups:
           description: >-
             Liveness probe on {{ $labels.instance }} has failed for > 30s.
             Container is non-responsive and must be restarted by orchestrator.
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#start-and-smoke"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "EXTERNAL_EXPORTER_REQUIRED; endpoint exists (HealthController.java line 43 & Actuator probes)"
 
       - alert: ServiceReadinessFailed
@@ -98,7 +98,7 @@ groups:
             Readiness probe on {{ $labels.instance }} has failed. The process is alive
             but its primary PostgreSQL connection is unavailable. Assistant degradation alone does not fail this probe.
             Ingress traffic must be detached; do NOT restart container immediately.
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#start-and-smoke"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "EXTERNAL_EXPORTER_REQUIRED; endpoint exists (HealthController.java line 53, requires X-Health-Key)"
 
       # -----------------------------------------------------------------------
@@ -120,7 +120,7 @@ groups:
             Instance {{ $labels.instance }} is alive but not ready after 90 seconds.
             Render free-tier cold-starts typically finish in 15-40s. A 90s delay indicates
             database lock contention, slow Flyway migration, or pool exhaustion.
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#render-cold-start-mitigation"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "EXTERNAL_EXPORTER_REQUIRED; endpoint exists (HealthController.java probes)"
 
       # -----------------------------------------------------------------------
@@ -140,5 +140,5 @@ groups:
           description: >-
             Next.js web frontend /health route returned non-200 or timed out.
             Web tier is unable to proxy to restful-api or SSR server is down.
-          runbook_url: "docs/PRODUCTION_RUNBOOK.md#start-and-smoke"
+          runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "EXTERNAL_EXPORTER_REQUIRED; endpoint exists (frontend/src/app/health/route.ts)"

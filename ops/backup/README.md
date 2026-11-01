@@ -16,7 +16,7 @@ JSON/SSE assistant calls, and row counts before approving a recovery.
 
 Rollback is an application/image operation: stop the edge, set
 `CAMPUSCORE_IMAGE_TAG` to the previous verified full commit SHA, pull the four
-matching digests, run `docker compose -f docker-compose.prod.yml up -d --wait`,
+matching digests, run `docker compose -f docker-compose.yml up -d --wait`,
 and repeat the smoke checks. Never use `latest`, and never run `down -v` on a
 production volume. If a migration is irreversible, restore into an isolated
 database first and obtain an explicit recovery decision before changing the

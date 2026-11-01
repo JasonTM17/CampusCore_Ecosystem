@@ -9,15 +9,6 @@ const scriptsDirectory = dirname(fileURLToPath(import.meta.url));
 const browserDiagnostics = [
   'diagnose-login.mjs',
   'benchmark-all-roles.mjs',
-  'audit-prod-browser.mjs',
-];
-const retiredPollers = [
-  'wait-prod-e98423.mjs',
-  'wait-prod-v131.mjs',
-  'wait-prod-section-search.mjs',
-];
-const fetchDiagnostics = [
-  'prod-deep-audit.mjs',
 ];
 
 const readScript = (name) => readFileSync(resolve(scriptsDirectory, name), 'utf8');
@@ -94,7 +85,7 @@ test('diagnostic logs omit URL queries and unknown option values', () => {
 });
 
 test('role diagnostics require named environment credentials', () => {
-  for (const name of ['benchmark-all-roles.mjs', 'audit-prod-browser.mjs', 'diagnose-login.mjs']) {
+  for (const name of ['benchmark-all-roles.mjs', 'diagnose-login.mjs']) {
     const source = readScript(name);
     assert.ok(source.includes('CAMPUS_DIAGNOSTIC_'), `${name} must name its credential environment variables`);
     assert.ok(source.includes('process.env'), `${name} must read credentials from the environment`);
@@ -109,7 +100,7 @@ test('role diagnostics require named environment credentials', () => {
 
 test('role diagnostics reject missing environment credentials before browser startup', () => {
   const credentialRoles = ['STUDENT', 'LECTURER', 'DEPARTMENT_HEAD', 'DEAN', 'ADMIN'];
-  for (const name of ['benchmark-all-roles.mjs', 'audit-prod-browser.mjs']) {
+  for (const name of ['benchmark-all-roles.mjs']) {
     const source = readScript(name);
     const rolesPrepared = source.search(/const roles\s*=\s*(?:ROLES|ROLES_TO_TEST)\.map/);
     const browserStart = source.indexOf('chromium.launch');
@@ -145,63 +136,6 @@ test('login diagnostic writes screenshots only under the ignored artifact tree',
   const source = readScript('diagnose-login.mjs');
   assert.ok(source.includes('artifacts/verification/diagnostics/'), 'screenshot output must stay under artifacts');
   assert.ok(!source.includes('scripts/dashboard-rendered.png'), 'screenshot output must not dirty scripts');
-});
-
-test('historical deployment pollers are retired without requests', () => {
-  for (const name of retiredPollers) {
-    const source = readScript(name);
-    assert.ok(/retired/i.test(source), `${name} must identify itself as retired`);
-    assert.ok(source.includes('--help'), `${name} must provide guarded help`);
-    assert.ok(!/\bfetch\s*\(/.test(source), `${name} must not issue a request`);
-
-    const help = spawnSync(process.execPath, [resolve(scriptsDirectory, name), '--help'], { encoding: 'utf8', timeout: 5000 });
-    const defaultRun = spawnSync(process.execPath, [resolve(scriptsDirectory, name)], { encoding: 'utf8', timeout: 5000 });
-    assert.equal(help.status, 0, `${name} help must exit cleanly`);
-    assert.equal(defaultRun.status, 2, `${name} must fail closed without network access`);
-  }
-});
-
-test('fetch diagnostics validate an explicit target before issuing requests', () => {
-  for (const name of fetchDiagnostics) {
-    const source = readScript(name);
-    const validation = source.indexOf('parseTargetOptions(process.argv.slice(2))');
-    const firstRequest = source.indexOf('fetch(');
-
-    assert.ok(source.includes('--target'), `${name} must document an explicit target`);
-    assert.ok(source.includes('--allow-network'), `${name} must require network opt-in for remote targets`);
-    assert.ok(validation >= 0 && firstRequest > validation, `${name} must validate its target before any request helper exists`);
-    assert.ok(/if\s*\(\s*!isLoopback\(url\.hostname\)\s*&&\s*!allowNetwork\s*\)/.test(source), `${name} must reject remote targets without opt-in`);
-    assert.ok(!/https:\/\/(?:www\.)?campusute\.io\.vn|https:\/\/campuscore-backend-p4em\.onrender\.com/i.test(source), `${name} must not embed a remote target`);
-  }
-});
-
-test('fetch diagnostics reject bad targets and unknown options before any request', () => {
-  for (const name of fetchDiagnostics) {
-    const invalidTarget = spawnSync(process.execPath, [resolve(scriptsDirectory, name), '--target', 'file:///invalid-target'], {
-      encoding: 'utf8',
-      timeout: 5000,
-    });
-    assert.equal(invalidTarget.status, 2, `${name} must reject non-HTTP targets`);
-
-    const missingTarget = spawnSync(process.execPath, [resolve(scriptsDirectory, name)], {
-      encoding: 'utf8',
-      timeout: 5000,
-    });
-    assert.equal(missingTarget.status, 2, `${name} must fail closed without an explicit target`);
-
-    const help = spawnSync(process.execPath, [resolve(scriptsDirectory, name), '--help'], {
-      encoding: 'utf8',
-      timeout: 5000,
-    });
-    assert.equal(help.status, 0, `${name} help must exit cleanly`);
-
-    const unknown = spawnSync(process.execPath, [resolve(scriptsDirectory, name), '--unrecognized-option=probe'], {
-      encoding: 'utf8',
-      timeout: 5000,
-    });
-    assert.equal(unknown.status, 2, `${name} must reject unknown options`);
-    assert.ok(!unknown.stderr.includes('--unrecognized-option=probe'), `${name} must not echo the rejected option`);
-  }
 });
 
 test('Java container health reports unauthenticated liveness only', () => {
