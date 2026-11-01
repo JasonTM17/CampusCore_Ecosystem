@@ -18,6 +18,7 @@ const vi = {
     server: 'Hệ thống đang bận. Vui lòng thử lại sau.',
     preview: 'Tính năng này không khả dụng ở bản xem thử.',
     unknown: 'Chưa thể hoàn tất. Vui lòng thử lại.',
+    issuerNotConfigured: 'Đăng nhập chưa được cấu hình cho bản này.',
     codes: {
       PASSWORD_TOO_SHORT: 'Mật khẩu cần có ít nhất 8 ký tự.',
       PASSWORD_TOO_LONG: 'Mật khẩu không được quá 128 ký tự.',
@@ -166,6 +167,7 @@ const en: Messages = {
     server: 'The service is busy. Please try again later.',
     preview: 'This feature is not available in the preview build.',
     unknown: 'We could not complete that. Please try again.',
+    issuerNotConfigured: 'Sign-in is not configured for this build.',
     codes: {
       PASSWORD_TOO_SHORT: 'Use at least 8 characters.',
       PASSWORD_TOO_LONG: 'Use no more than 128 characters.',

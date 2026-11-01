@@ -98,6 +98,10 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
       if (outcome.kind === 'cancelled') {
         return;
       }
+      if (outcome.kind === 'unavailable') {
+        setError(accountMessages[locale].errors.issuerNotConfigured);
+        return;
+      }
       if (outcome.kind === 'blocked') {
         setError(copy.invalid);
         return;
@@ -191,8 +195,8 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
 }
 
 function sessionStoreIssuer(): string {
-  // The store already resolves EXPO_PUBLIC_ISSUER_URL → platform default
-  // (KM-2); the flow must target the same origin the refresh calls use.
+  // The store resolves EXPO_PUBLIC_ISSUER_URL and uses a platform default in
+  // development (KM-2); the flow must target the same origin the refresh calls use.
   return sessionStore.issuer;
 }
 

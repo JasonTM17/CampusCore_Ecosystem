@@ -28,6 +28,7 @@ import {
 
 export type OidcOutcome =
   | { kind: 'signedIn'; accessToken: string; refreshToken: string; accountId: string; role: UserRole }
+  | { kind: 'unavailable'; code: 'issuer_not_configured' }
   | { kind: 'blocked'; reason: string }
   | { kind: 'cancelled' };
 
@@ -53,7 +54,10 @@ function parseJson(raw: string | null): Record<string, unknown> | null {
 }
 
 export async function signInWithOidc(deps: OidcDeps): Promise<OidcOutcome> {
-  const issuer = deps.issuer.replace(/\/+$/, '');
+  const issuer = deps.issuer.trim().replace(/\/+$/, '');
+  if (!issuer) {
+    return { kind: 'unavailable', code: 'issuer_not_configured' };
+  }
   const fetchImpl = deps.fetchImpl ?? fetch;
   const openSession = deps.openSession ?? WebBrowser.openAuthSessionAsync;
   const nowSeconds = Math.floor((deps.now?.() ?? Date.now()) / 1000);
