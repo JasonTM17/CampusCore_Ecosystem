@@ -6,6 +6,10 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.campuscore.restfulapi.web.DomainException;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -29,6 +33,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.slf4j.LoggerFactory;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -215,34 +220,76 @@ class RegistrationSlipDropRacePostgresIT {
     }
 
     @Test
-    void failedSlipCacheInsertMustNotResurrectTheStaleCacheRow() {
+    void danglingEnrollmentRoundFallsBackToARealRoundAndStillCaches() {
         // Cache a real slip, then mark the stored digest stale so the next GET
         // takes the re-render path and rewrites the cache row.
-        registration.slip(studentId, semesterId);
+        RegistrationService.SlipPayload cached = registration.slip(studentId, semesterId);
         assertThat(slipCount()).isEqualTo(1);
         jdbc.update("UPDATE academic.\"RegistrationSlip\" SET \"sha256\"=:sha WHERE \"studentId\"=:student",
                 Map.of("sha", "0".repeat(64), "student", studentId));
         // Enrollment.roundId carries no foreign key, so a dangling value is a
-        // legitimate fixture state; the cache INSERT then fails on the
-        // RegistrationSlip.roundId FK inside the request transaction.
+        // legitimate fixture state. The resolver must not trust it blindly —
+        // it validates against the round table and falls back to the live
+        // semester round, so caching self-heals without a failed statement.
         jdbc.update("UPDATE academic.\"Enrollment\" SET \"roundId\"=:round WHERE \"id\"=:id",
                 Map.of("round", "round-dangling-" + studentId, "id", enrollmentId));
 
-        RegistrationService.SlipPayload fresh = registration.slip(studentId, semesterId);
-        assertThat(fresh.payload()).isNotEmpty();
-        assertThat(fresh.sha256()).isNotEqualTo("0".repeat(64));
-        // PostgreSQL aborts the transaction on the first failed statement: an
-        // unguarded cache write poisons the request transaction and the COMMIT
-        // silently rolls back, resurrecting the stale row the DELETE removed.
-        // Correct behaviour keeps the stale row deleted even though the new
-        // row cannot be inserted.
-        assertThat(slipCount())
-                .as("aborted cache INSERT must not roll back the stale-row DELETE")
-                .isZero();
-        // The next GET still serves the freshly rendered slip; the best-effort
-        // cache stays empty while the dangling roundId persists.
-        assertThat(registration.slip(studentId, semesterId).payload()).isNotEmpty();
-        assertThat(slipCount()).isZero();
+        ListAppender<ILoggingEvent> logCapture = attachServiceLogger();
+        try {
+            RegistrationService.SlipPayload fresh = registration.slip(studentId, semesterId);
+            assertThat(fresh.payload()).isNotEmpty();
+            assertThat(fresh.sha256()).isEqualTo(cached.sha256());
+            assertThat(slipCount()).as("stale row replaced by the fresh cache row").isEqualTo(1);
+            assertThat(storedSha256())
+                    .as("cache regenerated through the live-round fallback")
+                    .isEqualTo(fresh.sha256());
+            assertThat(logCapture.list)
+                    .as("no WARN and no failed statement for a dangling enrollment roundId")
+                    .isEmpty();
+        } finally {
+            detachServiceLogger(logCapture);
+        }
+    }
+
+    @Test
+    void failedSlipCacheInsertMustNotResurrectTheStaleCacheRow() {
+        // Cache a real slip, then mark the stored digest stale so the next GET
+        // re-renders and rewrites the cache row.
+        RegistrationService.SlipPayload cached = registration.slip(studentId, semesterId);
+        assertThat(slipCount()).isEqualTo(1);
+        jdbc.update("UPDATE academic.\"RegistrationSlip\" SET \"sha256\"=:sha WHERE \"studentId\"=:student",
+                Map.of("sha", "0".repeat(64), "student", studentId));
+        // Deterministic statement-level fault: a check constraint the stale
+        // row already satisfies but the fresh digest always violates — the
+        // same failure class as an FK or unique violation inside the request
+        // transaction, without depending on dangling fixture data.
+        jdbc.getJdbcOperations().execute(
+                "ALTER TABLE academic.\"RegistrationSlip\" DROP CONSTRAINT IF EXISTS slip_it_insert_blocked");
+        jdbc.getJdbcOperations().execute(
+                "ALTER TABLE academic.\"RegistrationSlip\" ADD CONSTRAINT slip_it_insert_blocked"
+                        + " CHECK (\"sha256\" <> '" + cached.sha256() + "')");
+        ListAppender<ILoggingEvent> logCapture = attachServiceLogger();
+        try {
+            RegistrationService.SlipPayload fresh = registration.slip(studentId, semesterId);
+            assertThat(fresh.payload()).isNotEmpty();
+            // PostgreSQL aborts the transaction on the first failed statement:
+            // the savepoint keeps the INSERT failure from rolling back the
+            // stale-row DELETE at commit.
+            assertThat(slipCount())
+                    .as("aborted cache INSERT must not roll back the stale-row DELETE")
+                    .isZero();
+            assertThat(logCapture.list)
+                    .as("one WARN records the skipped cache write")
+                    .anySatisfy(event -> {
+                        assertThat(event.getLevel()).isEqualTo(Level.WARN);
+                        assertThat(event.getFormattedMessage())
+                                .contains("registration slip cache persistence skipped");
+                    });
+        } finally {
+            detachServiceLogger(logCapture);
+            jdbc.getJdbcOperations().execute(
+                    "ALTER TABLE academic.\"RegistrationSlip\" DROP CONSTRAINT IF EXISTS slip_it_insert_blocked");
+        }
     }
 
     private boolean awaitBlockingOrCompletion(AtomicInteger owner, AtomicInteger waiter, Future<?> dropping)
@@ -270,6 +317,24 @@ class RegistrationSlipDropRacePostgresIT {
                     assertThat(rejection.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
                     assertThat(rejection.code()).isEqualTo("ROUND_NOT_FOUND");
                 });
+    }
+
+    private String storedSha256() {
+        return jdbc.queryForObject("SELECT \"sha256\" FROM academic.\"RegistrationSlip\""
+                        + " WHERE \"studentId\"=:student AND \"semesterId\"=:semester",
+                Map.of("student", studentId, "semester", semesterId), String.class).trim();
+    }
+
+    private ListAppender<ILoggingEvent> attachServiceLogger() {
+        Logger serviceLogger = (Logger) LoggerFactory.getLogger(RegistrationService.class);
+        ListAppender<ILoggingEvent> capture = new ListAppender<>();
+        capture.start();
+        serviceLogger.addAppender(capture);
+        return capture;
+    }
+
+    private void detachServiceLogger(ListAppender<ILoggingEvent> capture) {
+        ((Logger) LoggerFactory.getLogger(RegistrationService.class)).detachAppender(capture);
     }
 
     private int slipCount() {

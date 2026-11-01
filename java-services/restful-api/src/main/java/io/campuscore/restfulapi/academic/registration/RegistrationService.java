@@ -488,35 +488,31 @@ public class RegistrationService {
         Map<String, Object> first = active.get(0);
         String studentCode = studentId;
         String studentName = null;
-        try {
-            Map<String, Object> studentInfo = jdbc.queryForMap(
-                    "SELECT s.\"studentId\" AS student_code, u.\"firstName\" AS first_name, u.\"lastName\" AS last_name"
-                            + " FROM " + STUDENT + " s"
-                            + " LEFT JOIN \"campuscore_auth\".\"User\" u ON u.\"id\" = s.\"userId\""
-                            + " WHERE s.\"id\" = :studentId",
-                    new MapSqlParameterSource("studentId", studentId));
-            if (studentInfo.get("student_code") != null) {
-                studentCode = String.valueOf(studentInfo.get("student_code"));
+        String semesterName = semesterId;
+        // Cosmetic fields come from ONE non-throwing lookup — LEFT JOINs keep
+        // missing name/semester data from raising (Student.id is the PK, so at
+        // most one row), and a real statement failure propagates instead of
+        // poisoning the request transaction behind a swallowed exception.
+        List<Map<String, Object>> infos = jdbc.queryForList(
+                "SELECT s.\"studentId\" AS student_code, u.\"firstName\" AS first_name,"
+                        + " u.\"lastName\" AS last_name, semester.\"name\" AS semester_name"
+                        + " FROM " + STUDENT + " s"
+                        + " LEFT JOIN " + AUTH_USER + " u ON u.\"id\" = s.\"userId\""
+                        + " LEFT JOIN " + SEMESTER + " semester ON semester.\"id\" = :semesterId"
+                        + " WHERE s.\"id\" = :studentId",
+                new MapSqlParameterSource("studentId", studentId)
+                        .addValue("semesterId", semesterId));
+        if (!infos.isEmpty()) {
+            Map<String, Object> info = infos.get(0);
+            if (info.get("student_code") != null) {
+                studentCode = String.valueOf(info.get("student_code"));
             }
             studentName = displayName(
-                    (String) studentInfo.get("first_name"),
-                    (String) studentInfo.get("last_name"));
-        } catch (DataAccessException failure) {
-            log.warn("slip student name lookup failed; exceptionType={}",
-                    failure.getClass().getSimpleName());
-        }
-
-        String semesterName = semesterId;
-        try {
-            Map<String, Object> semesterInfo = jdbc.queryForMap(
-                    "SELECT \"name\" FROM " + SEMESTER + " WHERE \"id\" = :semesterId",
-                    new MapSqlParameterSource("semesterId", semesterId));
-            if (semesterInfo.get("name") != null) {
-                semesterName = String.valueOf(semesterInfo.get("name"));
+                    (String) info.get("first_name"),
+                    (String) info.get("last_name"));
+            if (info.get("semester_name") != null) {
+                semesterName = String.valueOf(info.get("semester_name"));
             }
-        } catch (DataAccessException failure) {
-            log.warn("slip semester name lookup failed; exceptionType={}",
-                    failure.getClass().getSimpleName());
         }
 
         List<RegistrationPdfRenderer.CourseItem> courseItems = active.stream()
@@ -542,7 +538,14 @@ public class RegistrationService {
 
     private String resolveSlipRoundId(Map<String, Object> first, String semesterId) {
         String roundId = first.get("round_id") == null ? null : String.valueOf(first.get("round_id"));
-        if (roundId != null && !roundId.isBlank()) {
+        // Enrollment.roundId carries no FK — a dangling value must not reach
+        // the slip cache INSERT (it would fail the RegistrationSlip.roundId FK
+        // on every request). Only trust it when the round still exists;
+        // otherwise fall through to the live-round lookups below.
+        if (roundId != null && !roundId.isBlank()
+                && !jdbc.queryForList(
+                        "SELECT \"id\" FROM " + ROUND + " WHERE \"id\" = :roundId",
+                        new MapSqlParameterSource("roundId", roundId), String.class).isEmpty()) {
             return roundId;
         }
         List<String> roundIds = jdbc.queryForList(
