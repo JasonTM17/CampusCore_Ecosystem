@@ -132,6 +132,13 @@ class PublicationWorkflowPersistenceTest {
                 )
                 """);
         jdbc.execute("DROP TABLE IF EXISTS academic.\"Enrollment\"");
+        jdbc.execute("DROP TABLE IF EXISTS academic.\"Section\"");
+        jdbc.execute("""
+                CREATE TABLE academic."Section" (
+                    "id" VARCHAR(120) PRIMARY KEY,
+                    "lecturerId" VARCHAR(120)
+                )
+                """);
         jdbc.execute("""
                 CREATE TABLE academic."Enrollment" (
                     "id" VARCHAR(120) PRIMARY KEY,
@@ -546,4 +553,42 @@ class PublicationWorkflowPersistenceTest {
                 .claim("studentId", "wf-st-1")
                 .claim("student", Map.of("year", 1)), "STUDENT");
     }
+    @Test
+    void lecturerCannotReviewGlobalAnnouncementButGovernanceCan() throws Exception {
+        String id = createDraft(admin("admin-1"), "Global notice", "Body.", null);
+        mvc.perform(post("/api/v1/announcements/" + id + "/submit").with(admin("admin-1")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/announcements/" + id + "/approve")
+                        .with(lecturer("wf-lect-u", "wf-lect-1")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ANNOUNCEMENT_APPROVAL_FORBIDDEN"));
+        mvc.perform(post("/api/v1/announcements/" + id + "/return")
+                        .with(lecturer("wf-lect-u", "wf-lect-1"))
+                        .contentType("application/json").content("{\"reason\":\"needs work\"}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/announcements/" + id + "/approve").with(admin("admin-2")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void lecturerReviewsOnlyOwnSectionAnnouncements() throws Exception {
+        jdbc.update("INSERT INTO academic.\"Section\" (\"id\", \"lecturerId\") VALUES (?, ?)", "section-own", "wf-lect-1");
+        jdbc.update("INSERT INTO academic.\"Section\" (\"id\", \"lecturerId\") VALUES (?, ?)", "section-other", "wf-lect-2");
+        String own = createDraft(admin("admin-1"), "Section notice", "Body.",
+                "\"isGlobal\":false,\"sectionId\":\"section-own\",");
+        String other = createDraft(admin("admin-1"), "Other section", "Body.",
+                "\"isGlobal\":false,\"sectionId\":\"section-other\",");
+        mvc.perform(post("/api/v1/announcements/" + own + "/submit").with(admin("admin-1")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/announcements/" + other + "/submit").with(admin("admin-1")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/announcements/" + own + "/approve")
+                        .with(lecturer("wf-lect-u", "wf-lect-1")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/announcements/" + other + "/approve")
+                        .with(lecturer("wf-lect-u", "wf-lect-1")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ANNOUNCEMENT_APPROVAL_FORBIDDEN"));
+    }
+
 }

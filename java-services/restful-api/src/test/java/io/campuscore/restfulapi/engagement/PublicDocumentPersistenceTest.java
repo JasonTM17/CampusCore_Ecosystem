@@ -813,4 +813,20 @@ class PublicDocumentPersistenceTest {
                 String.class);
         org.assertj.core.api.Assertions.assertThat(stored).doesNotContain("script");
     }
+    @Test
+    void lecturerCannotReviewPublicDocumentsOnlyGovernanceCan() throws Exception {
+        String id = createDoc("scope-doc", "lecturer-1", "Tai lieu", "Doc", "Noi dung", "Body");
+        submit(id, "lecturer-1");
+
+        mvc.perform(post("/api/v1/docs/" + id + "/approve")
+                        .with(lecturer("lecturer-2")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("DOCUMENT_APPROVAL_FORBIDDEN"));
+        mvc.perform(post("/api/v1/docs/" + id + "/return")
+                        .with(lecturer("lecturer-2"))
+                        .contentType("application/json").content("{\"reason\":\"needs rework\"}"))
+                .andExpect(status().isForbidden());
+        approve(id, "admin-1");
+    }
+
 }

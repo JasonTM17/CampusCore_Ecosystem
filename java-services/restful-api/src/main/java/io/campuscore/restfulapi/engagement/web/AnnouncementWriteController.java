@@ -141,7 +141,8 @@ public class AnnouncementWriteController {
     public AnnouncementResponse approve(
             @Parameter(description = "Mã định danh thông báo (UUID)", required = true) @PathVariable String id,
             @AuthenticationPrincipal Jwt jwt) {
-        return announcements.approve(subject(jwt), actorLabel(jwt), jwt.getClaimAsStringList("roles"), id);
+        return announcements.approve(subject(jwt), actorLabel(jwt), jwt.getClaimAsStringList("roles"),
+                jwt.getClaimAsString("lecturerId"), id);
     }
 
     @Operation(summary = "Trả bài về nháp kèm ghi chú", description = "Người duyệt trả bài IN_REVIEW về DRAFT; ghi chú lý do bắt buộc để tác giả biết phải sửa gì")
@@ -157,7 +158,8 @@ public class AnnouncementWriteController {
             @AuthenticationPrincipal Jwt jwt,
             @RequestBody JsonNode request) {
         return announcements.returnForRework(subject(jwt), actorLabel(jwt),
-                jwt.getClaimAsStringList("roles"), id, LifecycleRequest.from(request));
+                jwt.getClaimAsStringList("roles"), jwt.getClaimAsString("lecturerId"), id,
+                LifecycleRequest.from(request));
     }
 
     @Operation(summary = "Lưu trữ (Archive) thông báo", description = "Đưa thông báo vào trạng thái lưu trữ bảo mật")

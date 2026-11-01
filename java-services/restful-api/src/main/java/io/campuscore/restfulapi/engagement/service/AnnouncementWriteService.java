@@ -305,15 +305,17 @@ public class AnnouncementWriteService {
 
     /**
      * IN_REVIEW {@literal ->} PUBLISHED — the only path that makes content
-     * live. The reviewer must be a writer-set member other than the author;
-     * the approve binds the current version as {@code publishedRevision} and
-     * is the notification trigger.
+     * live. The reviewer must be a governance role, or a lecturer (other than
+     * the author) whose section the announcement targets; the approve binds
+     * the current version as {@code publishedRevision} and is the
+     * notification trigger.
      */
     @Transactional
     public AnnouncementResponse approve(
             String actorId,
             String actorLabel,
             List<String> roles,
+            String lecturerId,
             String announcementId) {
         String actor = requireText(actorId, "actor");
         String label = requireActorLabel(actorLabel, "actorLabel");
@@ -326,6 +328,7 @@ public class AnnouncementWriteService {
             throw conflict("REVIEWER_EQUALS_AUTHOR",
                     "The author cannot approve their own announcement");
         }
+        requireReviewScope(roles, lecturerId, before);
         Instant now = Instant.now(clock);
         if (before.expiresAt() != null && !before.expiresAt().isAfter(now)) {
             throw conflict("ANNOUNCEMENT_ALREADY_EXPIRED",
@@ -346,6 +349,7 @@ public class AnnouncementWriteService {
             String actorId,
             String actorLabel,
             List<String> roles,
+            String lecturerId,
             String announcementId,
             LifecycleRequest request) {
         String actor = requireText(actorId, "actor");
@@ -356,6 +360,7 @@ public class AnnouncementWriteService {
         if (!"IN_REVIEW".equals(before.status())) {
             throw invalidState();
         }
+        requireReviewScope(roles, lecturerId, before);
         Instant now = Instant.now(clock);
         if (announcements.returnForRework(id, before.version(), actor, reason, now) != 1) {
             throw conflict("ANNOUNCEMENT_VERSION_CONFLICT", "Announcement was changed by another administrator");
@@ -515,6 +520,23 @@ public class AnnouncementWriteService {
         return new AnnouncementHistoryListResponse(
                 data,
                 new PageMeta(total, page, limit, Math.toIntExact(totalPages)));
+    }
+
+    /**
+     * Review scope for approve/return: governance may review anything; a
+     * lecturer who is not the author may review only a non-global
+     * announcement whose section they teach.
+     */
+    private void requireReviewScope(List<String> roles, String lecturerId, AnnouncementResponse before) {
+        if (isGovernanceRole(roles)) {
+            return;
+        }
+        String sectionId = before.sectionId();
+        if (Boolean.TRUE.equals(before.isGlobal()) || sectionId == null
+                || !announcements.sectionBelongsToLecturer(sectionId, lecturerId)) {
+            throw new DomainException(HttpStatus.FORBIDDEN, "ANNOUNCEMENT_APPROVAL_FORBIDDEN",
+                    "Approval requires a governance role or an announcement of your own section");
+        }
     }
 
     /** Governance roles read every announcement's history; lecturers only their own. */
