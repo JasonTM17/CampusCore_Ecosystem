@@ -5,7 +5,7 @@ import { useRequireAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
-import { EmptyState, LoadingState } from '@/components/ui/state-block';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { conductApi, curriculumApi } from '@/lib/api';
 import { MyCurriculumResponse } from '@/types/api';
 import { Button } from '@/components/ui/button';
@@ -74,6 +74,9 @@ export default function CertificatesPage() {
   const [selectedPurpose, setSelectedPurpose] = useState<CertificatePurpose>('MILITARY_DEFERMENT');
   const [customRecipient, setCustomRecipient] = useState<string>('');
   const [curriculumData, setCurriculumData] = useState<MyCurriculumResponse | null>(null);
+  const [curriculumError, setCurriculumError] = useState(false);
+  const [isCurriculumLoading, setIsCurriculumLoading] = useState(true);
+  const [curriculumReloadToken, setCurriculumReloadToken] = useState(0);
   // The office-issued MSSV lives on the student record, not the auth session
   // (whose `studentId` is the internal profile id, e.g. "student-profile").
   // Same source the transcript page uses: the conduct summary's studentCode.
@@ -82,18 +85,22 @@ export default function CertificatesPage() {
   useEffect(() => {
     let active = true;
     async function loadCurriculum() {
+      setCurriculumError(false);
+      setIsCurriculumLoading(true);
       try {
         const res = await curriculumApi.getMyCurriculum();
         if (active) setCurriculumData(res);
       } catch {
-        // No curriculum data: the sheet renders an em-dash, never a made-up major.
+        if (active) setCurriculumError(true);
+      } finally {
+        if (active) setIsCurriculumLoading(false);
       }
     }
     void loadCurriculum();
     return () => {
       active = false;
     };
-  }, []);
+  }, [curriculumReloadToken]);
 
   useEffect(() => {
     if (!hasAccess) return;
@@ -202,6 +209,13 @@ export default function CertificatesPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Purpose Selector Panel - Screen Only */}
         <div className="print:hidden lg:col-span-5 space-y-6">
+          {curriculumError ? (
+            <ErrorState
+              title={messages.common.states.sectionErrorTitle}
+              description={certCopy.curriculumHint}
+              onRetry={() => setCurriculumReloadToken((token) => token + 1)}
+            />
+          ) : null}
           <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
             <TriangleAlert className="h-3.5 w-3.5" />
             <span>{certCopy.serviceBadge}</span>
@@ -281,10 +295,12 @@ export default function CertificatesPage() {
                 {certCopy.issuedByValue}. {certCopy.issuedByNote}
               </p>
             </div>
-            {!curriculumData && (
+            {!curriculumError && !curriculumData && (
               <div className="flex items-start gap-2 border-t border-border/60 pt-2">
                 <TriangleAlert className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                <p>{certCopy.curriculumHint}</p>
+                <p role="status">
+                  {isCurriculumLoading ? messages.common.states.loading : certCopy.curriculumHint}
+                </p>
               </div>
             )}
           </div>

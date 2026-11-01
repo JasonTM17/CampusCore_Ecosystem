@@ -3,7 +3,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const root = path.resolve(__dirname, '..');
+const root = process.env.W13_SRC_ROOT
+  ? path.resolve(process.env.W13_SRC_ROOT)
+  : path.resolve(__dirname, '..');
 
 function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');
@@ -121,4 +123,32 @@ test('admin enrollments filter fallback copy lives in the dictionary', () => {
   // The reference-loader contract (phase-six-repair) is untouched.
   assert.match(enrollmentsPage, /setReferenceError\(/);
   assert.match(enrollmentsPage, /setSectionReferenceError\(/);
+});
+
+// --- W13-DEEPSEEK-WEB-B: audit disclosure + locale-aware counts ---
+
+const adminAudit = read('src/app/admin/audit/page.tsx');
+
+test('the audit detail disclosure is a real button, not an aria-expanded row', () => {
+  assert.doesNotMatch(adminAudit, /<tr\b[^>]*aria-expanded/, 'aria-expanded leaves the table row');
+  assert.doesNotMatch(adminAudit, /<tr\b[^>]*tabIndex/, 'the row is no longer a focusable control');
+  assert.match(
+    adminAudit,
+    /<button\b[^>]*aria-expanded=\{expanded === entry\.id\}/,
+    'the disclosure button carries the expanded state',
+  );
+  assert.match(
+    adminAudit,
+    /aria-controls=\{`audit-detail-\$\{entry\.id\}`\}/,
+    'the button points at the detail row it owns',
+  );
+  assert.match(adminAudit, /id={`audit-detail-\$\{entry\.id\}`}/, 'the detail row keeps its id');
+});
+
+const adminAnnouncements = read('src/app/admin/announcements/page.tsx');
+
+test('admin announcement length errors format counts with the active locale', () => {
+  assert.doesNotMatch(adminAnnouncements, /toLocaleString\('vi-VN'\)/);
+  assert.match(adminAnnouncements, /formatNumber\(limit\)/);
+  assert.match(adminAnnouncements, /formatNumber\(excess\)/);
 });

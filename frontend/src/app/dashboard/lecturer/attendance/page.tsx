@@ -72,6 +72,7 @@ export default function LecturerAttendancePage() {
   const { confirm, confirmationDialog } = useConfirmationDialog();
 
   const [semesters, setSemesters] = useState<Semester[]>([]);
+  const [semesterError, setSemesterError] = useState('');
   const [selectedSemester, setSelectedSemester] = useState('');
   const [sections, setSections] = useState<GradingSection[]>([]);
   const [selectedSectionId, setSelectedSectionId] = useState('');
@@ -96,13 +97,14 @@ export default function LecturerAttendancePage() {
 
   // 1. Fetch semesters
   const fetchSemesters = useCallback(async () => {
+    setSemesterError('');
     try {
       const response = await semestersApi.getAll();
       setSemesters(response.data ?? []);
     } catch {
-      // Non-fatal, fallback to all sections
+      setSemesterError(messages.lecturerGrades.errors.semestersFailed);
     }
-  }, []);
+  }, [messages.lecturerGrades.errors.semestersFailed]);
 
   // 2. Fetch lecturer's assigned sections
   const fetchSections = useCallback(async () => {
@@ -424,6 +426,15 @@ export default function LecturerAttendancePage() {
           </div>
         }
       />
+
+      {semesterError ? (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive print:hidden">
+          <span>{semesterError}</span>
+          <Button type="button" variant="outline" size="sm" onClick={() => void fetchSemesters()}>
+            {messages.common.actions.retry}
+          </Button>
+        </div>
+      ) : null}
 
       {/* Control bar: Semester, Section & Date */}
       <WorkspacePanel title={copy.selectSection} className="p-4 sm:p-5 print:hidden">

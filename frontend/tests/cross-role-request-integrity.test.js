@@ -736,3 +736,258 @@ test('a publish confirmed after navigation must not reach the API', async () => 
   assert.equal(calls.calls.filter(([n, v]) => n === 'isPublishing' && v === true).length, 0,
     'the stale publish must not even raise the busy flag');
 });
+
+// ---------- W13-DEEPSEEK-WEB-B: latest-request guards ----------
+
+const createEpoch = () => loadModule('src/lib/request-epoch.ts').createRequestEpoch();
+
+test('a stale admin announcement list cannot overwrite the newer filter result', async () => {
+  const calls = recorder();
+  const first = deferred();
+  let call = 0;
+  const fetchAnnouncements = pageFunction('app/admin/announcements/page.tsx', 'fetchAnnouncements', {
+    page: 1,
+    filters: { semesterId: '', priority: '', search: '', status: 'ACTIVE' },
+    announcementsApi: {
+      getAll: () => {
+        call += 1;
+        return call === 1
+          ? first.promise
+          : Promise.resolve({ data: [{ id: 'new' }], meta: { totalPages: 2 } });
+      },
+    },
+    setItems: calls.record('items'),
+    setTotalPages: calls.record('totalPages'),
+    setIsLoading: calls.record('isLoading'),
+    setError: calls.record('error'),
+    friendlyError: () => 'ERR',
+    announcementsEpoch: createEpoch(),
+  });
+  const pending = fetchAnnouncements();
+  await fetchAnnouncements();
+  first.resolve({ data: [{ id: 'old' }], meta: { totalPages: 9 } });
+  await pending;
+  assert.deepEqual(new Map(calls.calls).get('items'), [{ id: 'new' }],
+    'the older response must not overwrite the newer filter list');
+  assert.equal(calls.calls.filter(([n, v]) => n === 'isLoading' && v === false).length, 1,
+    'the stale finally must not clear the newer loading flag');
+});
+
+test('a stale review-queue status response cannot overwrite the newly selected status', async () => {
+  const calls = recorder();
+  const first = deferred();
+  const epoch = createEpoch();
+  let call = 0;
+  let queueItems = [];
+  const dependencies = (queueStatus) => ({
+    queueStatus,
+    queueEpoch: epoch,
+    announcementsApi: {
+      getAll: () => {
+        call += 1;
+        return call === 1
+          ? first.promise
+          : Promise.resolve({ data: [{ id: 'new' }], meta: { totalPages: 1 } });
+      },
+    },
+    setQueueItems: (update) => {
+      queueItems = typeof update === 'function' ? update(queueItems) : update;
+      calls.record('items')(queueItems);
+    },
+    setQueueTotalPages: calls.record('totalPages'),
+    setQueuePage: calls.record('page'),
+    setQueueLoading: calls.record('loading'),
+    setQueueError: calls.record('error'),
+    setQueueLoadingMore: calls.record('loadingMore'),
+    setQueueLoadMoreError: calls.record('loadMoreError'),
+  });
+  const oldFetch = pageFunction('app/dashboard/lecturer/announcements/page.tsx', 'fetchQueue', dependencies('DRAFT'));
+  const newFetch = pageFunction('app/dashboard/lecturer/announcements/page.tsx', 'fetchQueue', dependencies('PUBLISHED'));
+  const pending = oldFetch();
+  await newFetch();
+  first.resolve({ data: [{ id: 'old' }], meta: { totalPages: 1 } });
+  await pending;
+  assert.deepEqual(new Map(calls.calls).get('items'), [{ id: 'new' }],
+    'the DRAFT response must not replace the PUBLISHED queue');
+});
+
+test('the review queue pages past item 50 and appends only unseen rows', async () => {
+  let params;
+  let queueItems = [{ id: 'a' }, { id: 'b' }];
+  const values = {};
+  const fetchQueue = pageFunction('app/dashboard/lecturer/announcements/page.tsx', 'fetchQueue', {
+    queueStatus: 'ALL',
+    queueEpoch: createEpoch(),
+    announcementsApi: {
+      getAll: async (query) => {
+        params = query;
+        return { data: [{ id: 'b' }, { id: 'c' }], meta: { totalPages: 3, total: 120 } };
+      },
+    },
+    setQueueItems: (update) => {
+      queueItems = typeof update === 'function' ? update(queueItems) : update;
+    },
+    setQueueTotalPages: (value) => { values.totalPages = value; },
+    setQueuePage: (value) => { values.page = value; },
+    setQueueLoading: () => {},
+    setQueueError: () => {},
+    setQueueLoadingMore: () => {},
+    setQueueLoadMoreError: () => {},
+  });
+  await fetchQueue(2);
+  assert.equal(params.page, 2, 'page 2 is requested instead of re-reading page 1');
+  assert.equal(params.limit, 50);
+  assert.equal(params.status, 'ALL');
+  assert.deepEqual(queueItems.map((item) => item.id), ['a', 'b', 'c'],
+    'the next page appends without duplicating an item already on screen');
+  assert.equal(values.totalPages, 3);
+  assert.equal(values.page, 2);
+  const source = read('src/app/dashboard/lecturer/announcements/page.tsx');
+  assert.match(source, /fetchQueue\(queuePage \+ 1\)/, 'the load-more control requests the next page');
+  assert.match(source, /hasNextPage\(queuePage, queueTotalPages\)/, 'the control appears only while older pages exist');
+});
+
+test('editor publish ignores a re-entrant invocation while a publish is in flight', async () => {
+  let creates = 0;
+  const publish = pageFunction('app/dashboard/editor/page.tsx', 'handlePublishAnnouncement', {
+    isPublishingNotice: true,
+    publishInFlightRef: { current: false },
+    editingId: null,
+    handleUpdateAnnouncement: async () => {},
+    title: 'Notice',
+    content: '<p>Body</p>',
+    priority: 'NORMAL',
+    targetRole: 'ALL',
+    locale: 'en',
+    isVi: false,
+    findAnnouncementLengthViolation: () => null,
+    announcementLengthViolationMessage: () => '',
+    announcementsApi: { create: async () => { creates += 1; } },
+    audienceFor: () => ({}),
+    clearPersistedDraft: () => {},
+    fetchPublishedNotices: () => {},
+    setIsPublishingNotice: () => {},
+    toast: { success: () => {}, error: () => {} },
+  });
+  await publish();
+  assert.equal(creates, 0, 'a publish already flagged in flight must not create a duplicate');
+});
+
+test('editor update ignores a re-entrant invocation while an update is in flight', async () => {
+  let updates = 0;
+  const update = pageFunction('app/dashboard/editor/page.tsx', 'handleUpdateAnnouncement', {
+    isPublishingNotice: false,
+    publishInFlightRef: { current: true },
+    editingId: 'notice-1',
+    title: 'Notice',
+    content: '<p>Body</p>',
+    priorityKnown: true,
+    priority: 'NORMAL',
+    audienceKnown: true,
+    targetRole: 'ALL',
+    locale: 'en',
+    isVi: false,
+    editingVersion: 1,
+    findAnnouncementLengthViolation: () => null,
+    announcementLengthViolationMessage: () => '',
+    announcementsApi: { update: async () => { updates += 1; } },
+    audienceFor: () => ({}),
+    setEditingVersion: () => {},
+    clearPersistedDraft: () => {},
+    fetchPublishedNotices: () => {},
+    setIsPublishingNotice: () => {},
+    toast: { success: () => {}, error: () => {} },
+  });
+  await update();
+  assert.equal(updates, 0, 'an update already in flight must not be sent twice');
+});
+
+test('admin section delete ignores a second trigger while the first is pending', async () => {
+  let deletes = 0;
+  const handleDelete = pageFunction('app/admin/sections/page.tsx', 'handleDelete', {
+    copy: {
+      deleteTitle: 'Delete',
+      deleteMessage: () => 'Confirm',
+      deleteConfirm: 'Delete',
+      deleted: 'Deleted',
+      deleteFailed: 'Failed',
+      unknownCourse: 'Unknown',
+    },
+    confirm: async () => true,
+    deletingRef: { current: true },
+    setDeletingSectionId: () => {},
+    adminSectionsApi: { delete: async () => { deletes += 1; } },
+    toast: { success: () => {}, error: () => {} },
+    sections: [],
+    page: 1,
+    setPage: () => {},
+    fetchSections: async () => {},
+  });
+  await handleDelete({ id: 'section-1', sectionNumber: '01', course: { code: 'CS101' } });
+  assert.equal(deletes, 0, 'the pending delete guard must block the second call');
+});
+
+test('a stale grading-section response cannot replace the newly selected semester', async () => {
+  const calls = recorder();
+  const first = deferred();
+  const epoch = createEpoch();
+  let call = 0;
+  const dependencies = (selectedSemester) => ({
+    selectedSemester,
+    sectionsEpoch: epoch,
+    sectionsApi: {
+      getMyGradingSections: () => {
+        call += 1;
+        return call === 1
+          ? first.promise
+          : Promise.resolve([{ id: 'new-section' }]);
+      },
+    },
+    messages: { lecturerGrades: { errors: { loadFailed: 'FAILED' } } },
+    setSections: calls.record('sections'),
+    setIsLoading: calls.record('isLoading'),
+    setError: calls.record('error'),
+  });
+  const oldFetch = pageFunction('app/dashboard/lecturer/grades/page.tsx', 'fetchSections', dependencies('term-a'));
+  const newFetch = pageFunction('app/dashboard/lecturer/grades/page.tsx', 'fetchSections', dependencies('term-b'));
+  const pending = oldFetch();
+  await newFetch();
+  first.resolve([{ id: 'old-section' }]);
+  await pending;
+  assert.deepEqual(new Map(calls.calls).get('sections'), [{ id: 'new-section' }],
+    'term A sections must not land after term B was selected');
+});
+
+test('a stale audit page cannot overwrite the newer filter result', async () => {
+  const calls = recorder();
+  const first = deferred();
+  let call = 0;
+  const load = pageFunction('app/admin/audit/page.tsx', 'load', {
+    page: 1,
+    PAGE_SIZE: 20,
+    applied: { search: 'new' },
+    auditEpoch: createEpoch(),
+    adminAuditApi: {
+      list: () => {
+        call += 1;
+        return call === 1
+          ? first.promise
+          : Promise.resolve({ data: [{ id: 'new' }], meta: { totalPages: 2, total: 25 } });
+      },
+    },
+    setRows: calls.record('rows'),
+    setTotalPages: calls.record('totalPages'),
+    setTotal: calls.record('total'),
+    setLoading: calls.record('loading'),
+    setError: calls.record('error'),
+    campusErrorMessage: () => 'ERR',
+    messages: { common: { campusErrors: {} } },
+    copy: { loadFailed: 'FAILED' },
+  });
+  const pending = load();
+  await load();
+  first.resolve({ data: [{ id: 'old' }], meta: { totalPages: 9, total: 99 } });
+  await pending;
+  assert.deepEqual(new Map(calls.calls).get('rows'), [{ id: 'new' }],
+    'the older audit response must not overwrite the newer page');
+});

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
   ArrowRight,
@@ -51,6 +51,8 @@ import {
   formatAnnouncementSemester,
 } from '@/lib/announcement-presentation';
 import { cn } from '@/lib/utils';
+import { hasNextPage } from '@/lib/pager';
+import { createRequestEpoch } from '@/lib/request-epoch';
 
 type LecturerNoticeCategory =
   | 'ALL'
@@ -88,10 +90,19 @@ export default function LecturerAnnouncementsPage() {
   const [queueItems, setQueueItems] = useState<AnnouncementRecord[]>([]);
   const [queueLoading, setQueueLoading] = useState(true);
   const [queueError, setQueueError] = useState(false);
+  const [queuePage, setQueuePage] = useState(1);
+  const [queueTotalPages, setQueueTotalPages] = useState(1);
+  const [queueLoadingMore, setQueueLoadingMore] = useState(false);
+  const [queueLoadMoreError, setQueueLoadMoreError] = useState(false);
   const [queueBusyId, setQueueBusyId] = useState<string | null>(null);
   const [returnTarget, setReturnTarget] = useState<AnnouncementRecord | null>(null);
   const [returnReason, setReturnReason] = useState('');
+  const queueEpoch = useRef(createRequestEpoch()).current;
   const { confirm, confirmationDialog } = useConfirmationDialog();
+
+  useEffect(() => () => {
+    queueEpoch.invalidate();
+  }, [queueEpoch]);
 
   const copy =
     locale === 'vi'
@@ -201,22 +212,46 @@ export default function LecturerAnnouncementsPage() {
     }
   }, [copy.loadFailed]);
 
-  const fetchQueue = useCallback(async () => {
-    setQueueLoading(true);
-    setQueueError(false);
+  const fetchQueue = useCallback(async (nextPage = 1) => {
+    const epoch = queueEpoch.begin();
+    if (nextPage === 1) {
+      setQueueLoading(true);
+      setQueueError(false);
+    } else {
+      setQueueLoadingMore(true);
+      setQueueLoadMoreError(false);
+    }
     try {
       const response = await announcementsApi.getAll({
         status: queueStatus,
-        page: 1,
+        page: nextPage,
         limit: 50,
       });
-      setQueueItems(response.data ?? []);
+      if (!queueEpoch.isCurrent(epoch)) return;
+      const data = response.data ?? [];
+      setQueueItems((current) => {
+        if (nextPage === 1) return data;
+        const seen = new Set(current.map((item) => item.id));
+        return [...current, ...data.filter((item) => !seen.has(item.id))];
+      });
+      setQueueTotalPages(Math.max(response.meta?.totalPages ?? 1, 1));
+      setQueuePage(nextPage);
     } catch {
-      setQueueError(true);
+      if (!queueEpoch.isCurrent(epoch)) return;
+      if (nextPage === 1) {
+        setQueueError(true);
+      } else {
+        setQueueLoadMoreError(true);
+      }
     } finally {
-      setQueueLoading(false);
+      if (!queueEpoch.isCurrent(epoch)) return;
+      if (nextPage === 1) {
+        setQueueLoading(false);
+      } else {
+        setQueueLoadingMore(false);
+      }
     }
-  }, [queueStatus]);
+  }, [queueEpoch, queueStatus]);
 
   useEffect(() => {
     if (hasAccess) {
@@ -496,9 +531,9 @@ export default function LecturerAnnouncementsPage() {
                         <span className={cn(
                           'rounded-md px-2.5 py-0.5 text-xs font-semibold border',
                           item.status === 'PUBLISHED'
-                            ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400'
+                            ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20 dark:text-emerald-400'
                             : item.status === 'IN_REVIEW'
-                              ? 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400'
+                              ? 'bg-amber-500/10 text-amber-700 border-amber-500/20 dark:text-amber-400'
                               : item.status === 'ARCHIVED'
                                 ? 'bg-secondary text-muted-foreground border-border/60'
                                 : 'bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400',
@@ -583,6 +618,26 @@ export default function LecturerAnnouncementsPage() {
               );
             })
           )}
+          {!queueLoading && !queueError && hasNextPage(queuePage, queueTotalPages) ? (
+            <div className="flex flex-col items-center gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void fetchQueue(queuePage + 1)}
+                disabled={queueLoadingMore}
+              >
+                <RefreshCw
+                  className={`mr-2 h-4 w-4 motion-reduce:animate-none ${queueLoadingMore ? 'animate-spin' : ''}`}
+                  aria-hidden="true"
+                />
+                {queueLoadingMore ? copy.loadingMore : copy.loadMore}
+              </Button>
+              {queueLoadMoreError ? (
+                <p className="text-xs text-destructive" role="alert">{copy.loadMoreFailed}</p>
+              ) : null}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

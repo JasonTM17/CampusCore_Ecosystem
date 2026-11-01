@@ -203,6 +203,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
   const [priorityKnown, setPriorityKnown] = useState(true);
   const [audienceKnown, setAudienceKnown] = useState(true);
   const [isPublishingNotice, setIsPublishingNotice] = useState(false);
+  const publishInFlightRef = useRef(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -903,6 +904,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
 
   // Publish announcement to backend feed
   const handlePublishAnnouncement = async () => {
+    if (publishInFlightRef.current || isPublishingNotice) return;
     // K1: when a saved announcement is open in the editor, "Publish" means
     // "save this document". It must update the live record instead of pushing a
     // duplicate of it; the create-new flow is reached by cancelling the edit or
@@ -924,6 +926,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
       return;
     }
 
+    publishInFlightRef.current = true;
     setIsPublishingNotice(true);
     try {
       await announcementsApi.create({
@@ -951,12 +954,14 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
           : 'Could not publish announcement.',
       );
     } finally {
+      publishInFlightRef.current = false;
       setIsPublishingNotice(false);
     }
   };
 
   // Update existing announcement in backend
   const handleUpdateAnnouncement = async () => {
+    if (publishInFlightRef.current || isPublishingNotice) return;
     if (!editingId || !title.trim()) {
       toast.error(isVi ? 'Vui lòng nhập tiêu đề bài viết!' : 'Please enter title!');
       return;
@@ -968,6 +973,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
       return;
     }
 
+    publishInFlightRef.current = true;
     setIsPublishingNotice(true);
     try {
       await announcementsApi.update(editingId, {
@@ -991,6 +997,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
     } catch {
       toast.error(isVi ? 'Không thể cập nhật thông báo.' : 'Failed to update announcement.');
     } finally {
+      publishInFlightRef.current = false;
       setIsPublishingNotice(false);
     }
   };
@@ -1906,7 +1913,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                                 ann.priority === 'URGENT'
                                   ? 'bg-red-500/10 text-red-600 dark:text-red-300 border border-red-500/30'
                                   : ann.priority === 'HIGH'
-                                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-300 border border-amber-500/30'
+                                  ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30'
                                   : 'bg-blue-500/10 text-blue-600 dark:text-blue-300 border border-blue-500/30'
                               )}
                             >

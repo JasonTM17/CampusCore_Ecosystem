@@ -517,7 +517,7 @@ export default function ProfilePage() {
               <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-xl font-semibold text-primary-foreground">
                 {avatarPreview ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatarPreview} alt="" width={256} height={256} className="h-full w-full object-cover" />
+                  <img src={avatarPreview} alt={messages.profile.photoLabel} width={256} height={256} className="h-full w-full object-cover" />
                 ) : (
                   initials
                 )}

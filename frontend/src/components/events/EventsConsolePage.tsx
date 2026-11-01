@@ -86,6 +86,7 @@ export function EventsConsolePage() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [roster, setRoster] = useState<EventRosterEntry[]>([]);
   const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterError, setRosterError] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   // A retry after a timeout must replay the same Idempotency-Key, so a
@@ -170,6 +171,7 @@ export function EventsConsolePage() {
     selectedRef.current = null;
     setSelectedEventId(null);
     setRoster([]);
+    setRosterError(false);
     setStaffEvents([]);
     setStudentEvents([]);
     setMyRegistrations([]);
@@ -187,12 +189,16 @@ export function EventsConsolePage() {
     const current = () => request === rosterSequence.current &&
       accountRef.current === accountId && selectedRef.current === eventId;
     setRoster([]);
+    setRosterError(false);
     setRosterLoading(true);
     try {
       const entries = await eventsApi.staffRoster(eventId);
       if (current()) setRoster(entries);
     } catch {
-      if (current()) setRoster([]);
+      if (current()) {
+        setRoster([]);
+        setRosterError(true);
+      }
     } finally {
       if (current()) setRosterLoading(false);
     }
@@ -204,6 +210,7 @@ export function EventsConsolePage() {
     ++rosterSequence.current;
     setSelectedEventId(next);
     setRoster([]);
+    setRosterError(false);
     if (next) void loadRoster(next);
   }, [loadRoster]);
 
@@ -212,6 +219,7 @@ export function EventsConsolePage() {
     selectedRef.current = null;
     setSelectedEventId(null);
     setRoster([]);
+    setRosterError(false);
     setError('');
     setMode(view);
     if (view === 'student') {
@@ -531,6 +539,12 @@ export function EventsConsolePage() {
                     </div>
                     {rosterLoading ? (
                       <LoadingState label={copy.loading} />
+                    ) : rosterError ? (
+                      <ErrorState
+                        title={copy.failed}
+                        description=""
+                        onRetry={() => void loadRoster(event.id)}
+                      />
                     ) : roster.length === 0 ? (
                       <EmptyState title={copy.rosterEmpty} description="" />
                     ) : (
@@ -716,16 +730,19 @@ export function EventsConsolePage() {
         <div className="space-y-3">
           <Input
             placeholder={copy.titleField}
+            aria-label={copy.titleField}
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
           />
           <Input
             placeholder={copy.organizer}
+            aria-label={copy.organizer}
             value={form.organizer}
             onChange={(e) => setForm((f) => ({ ...f, organizer: e.target.value }))}
           />
           <Input
             placeholder={copy.where}
+            aria-label={copy.where}
             value={form.location}
             onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
           />
@@ -769,6 +786,7 @@ export function EventsConsolePage() {
           </div>
           <Input
             placeholder={copy.capacity}
+            aria-label={copy.capacity}
             type="number"
             min={1}
             value={form.capacity}
@@ -776,6 +794,7 @@ export function EventsConsolePage() {
           />
           <Input
             placeholder={copy.descriptionField}
+            aria-label={copy.descriptionField}
             value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
           />
@@ -798,6 +817,7 @@ export function EventsConsolePage() {
         <div className="space-y-3">
           <Input
             placeholder={copy.cancelReason}
+            aria-label={copy.cancelReason}
             value={cancelReason}
             onChange={(e) => setCancelReason(e.target.value)}
           />

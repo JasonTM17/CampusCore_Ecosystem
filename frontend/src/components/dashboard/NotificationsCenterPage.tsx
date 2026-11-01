@@ -85,6 +85,10 @@ export default function NotificationsCenterPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
+  const [loadedPages, setLoadedPages] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [olderError, setOlderError] = useState('');
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
   const filterRefs = useRef<Record<Filter, HTMLButtonElement | null>>({
@@ -103,8 +107,8 @@ export default function NotificationsCenterPage() {
       const first = await notificationsApi.getMy({ page: 1, limit: 100 });
       const rows = [...(first.data ?? [])];
       const seen = new Set(rows.map((item) => item.id));
-      const totalPages = Math.min(Math.max(first.meta?.totalPages ?? 1, 1), 10);
-      for (let p = 2; p <= totalPages; p++) {
+      const fetchedPages = Math.min(Math.max(first.meta?.totalPages ?? 1, 1), 10);
+      for (let p = 2; p <= fetchedPages; p++) {
         const next = await notificationsApi.getMy({ page: p, limit: 100 });
         for (const item of next.data ?? []) {
           if (!seen.has(item.id)) {
@@ -114,12 +118,41 @@ export default function NotificationsCenterPage() {
         }
       }
       setItems(rows);
+      setLoadedPages(fetchedPages);
+      setTotalPages(Math.max(first.meta?.totalPages ?? 1, 1));
     } catch {
       setError(copy.loadFailed);
     } finally {
       setIsLoading(false);
     }
   }, [copy.loadFailed]);
+
+  const loadOlder = useCallback(async () => {
+    if (isLoadingMore || loadedPages >= totalPages) return;
+    const nextPage = loadedPages + 1;
+    setIsLoadingMore(true);
+    setOlderError('');
+    try {
+      const next = await notificationsApi.getMy({ page: nextPage, limit: 100 });
+      setItems((current) => {
+        const seen = new Set(current.map((item) => item.id));
+        const merged = [...current];
+        for (const item of next.data ?? []) {
+          if (!seen.has(item.id)) {
+            seen.add(item.id);
+            merged.push(item);
+          }
+        }
+        return merged;
+      });
+      setLoadedPages(nextPage);
+      setTotalPages(Math.max(nextPage, next.meta?.totalPages ?? totalPages));
+    } catch {
+      setOlderError(copy.loadFailed);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [copy.loadFailed, isLoadingMore, loadedPages, totalPages]);
 
   useEffect(() => {
     if (hasAccess) {
@@ -405,6 +438,21 @@ export default function NotificationsCenterPage() {
               })}
           </div>
         )}
+        {!isLoading && !error && loadedPages < totalPages ? (
+          <div className="mt-4 flex flex-col items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void loadOlder()}
+              disabled={isLoadingMore}
+            >
+              {isLoadingMore ? messages.common.states.loading : messages.assistant.loadMoreMessages}
+            </Button>
+            {olderError ? (
+              <p role="alert" className="text-xs text-destructive">{olderError}</p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );
