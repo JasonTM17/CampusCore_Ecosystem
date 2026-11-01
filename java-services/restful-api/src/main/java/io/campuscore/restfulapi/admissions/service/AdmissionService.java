@@ -107,7 +107,7 @@ public class AdmissionService {
     }
 
     private static void requireAdmin(List<String> roles) {
-        if (roles == null || !roles.contains("ADMIN")) {
+        if (roles == null || !(roles.contains("ADMIN") || roles.contains("SUPER_ADMIN"))) {
             throw problem(HttpStatus.FORBIDDEN, "ADMISSIONS_ADMIN_REQUIRED",
                     "Grant administration requires the ADMIN role");
         }
@@ -123,7 +123,7 @@ public class AdmissionService {
 
     public ListPaging.Result<StaffGrantResponse> listGrants(String actorId,
             List<String> actorRoles, ListPaging.Window window) {
-        if (actorRoles == null || !actorRoles.contains("ADMIN")) {
+        if (actorRoles == null || !(actorRoles.contains("ADMIN") || actorRoles.contains("SUPER_ADMIN"))) {
             requireStaffGrant(actorId);
         }
         MapSqlParameterSource params = new MapSqlParameterSource("scope", SCOPE);

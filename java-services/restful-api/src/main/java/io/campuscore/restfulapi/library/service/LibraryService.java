@@ -112,7 +112,7 @@ public class LibraryService {
     }
 
     private static void requireAdmin(List<String> roles) {
-        if (roles == null || !roles.contains("ADMIN")) {
+        if (roles == null || !(roles.contains("ADMIN") || roles.contains("SUPER_ADMIN"))) {
             throw problem(HttpStatus.FORBIDDEN, "LIBRARY_ADMIN_REQUIRED",
                     "Grant administration requires the ADMIN role");
         }
