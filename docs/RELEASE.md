@@ -10,9 +10,10 @@ authorize production deployment.
 - Confirm no legacy backend, K8s, monitoring or retired image reference
   remains. The internal `rag-service` sidecar is an intentional course-runtime
   component and is addressed only through its token-protected
-  `/internal/rag/**` contract. The current release workflow publishes the
-  four course images to both Docker Hub (`nguyenson1710/campuscore-*`) and
-  GHCR (`ghcr.io/jasontm17/campuscore-*`) from the same commit.
+  `/internal/rag/**` contract. This repository does not contain an image
+  publishing workflow: the local compose stack builds from the working tree,
+  and any registry-published image is an optional external artefact pinned by
+  full commit SHA (never `latest`).
 
 ## API and database
 
@@ -37,29 +38,27 @@ DeepSeek smoke is optional, chargeable and only allowed after a rotated runtime
 key is injected explicitly. Java 21 is the course compile, CI, and Docker runtime authority for this
 successor. A local run on another JDK is recorded as NOT_RUN for that gate.
 
-The published GHCR images mirror the local stack and can be smoked without a
-rebuild. Pin `CAMPUSCORE_IMAGE_TAG` to the reviewed full commit SHA for a
-reproducible smoke. The published-artifact overlay rejects an unset tag so a
-moving registry alias cannot be selected accidentally. This
-includes `student-management-ute-database`, a thin
+If an image set was published externally for a reviewed commit, it mirrors the
+local stack and can be smoked without a rebuild. Pin `CAMPUSCORE_IMAGE_TAG` to
+the reviewed full commit SHA for a reproducible smoke. The published-artifact
+overlay rejects an unset tag so a moving registry alias cannot be selected
+accidentally. This includes `student-management-ute-database`, a thin
 `postgres:15-alpine` wrapper with no migrations or credentials. Flyway in the
-Java services (rag-service in compose / REST API standalone) remains the only schema/seed owner; upgrading PostgreSQL requires a
-fresh database and the same Flyway/health checks above:
+Java services (rag-service in compose / REST API standalone) remains the only
+schema/seed owner; upgrading PostgreSQL requires a fresh database and the same
+Flyway/health checks above:
 
 ```powershell
 $env:CAMPUSCORE_IMAGE_TAG = "<full-commit-sha>"
 docker compose -f docker-compose.yml -f docker-compose.rag.override.yml up -d --no-build postgres mailpit rag-service restful-api web
 ```
 
-The same workflow publishes Docker Hub tags with the `campuscore-*` names.
-Each registry receives an immutable full-commit-SHA tag; the workflow binds it
-to `org.opencontainers.image.revision`, refuses wrong-revision or mismatched
-tags, and fails closed when a previous run left only one registry populated;
-that partial state requires an operator-run blob copy after source verification.
-It emits BuildKit provenance and SBOM
-attestations and does not perform a non-atomic cross-registry `latest` move.
-Verify both registry manifests
-before announcing a release:
+The overlay is optional; the default local path builds every image from source.
+If an external publisher produced images, each registry must receive an
+immutable full-commit-SHA tag bound to `org.opencontainers.image.revision`,
+with BuildKit provenance and SBOM attestations, and no non-atomic
+cross-registry `latest` move. Verify the manifests of whichever registries you
+actually published to before announcing a release:
 
 ```powershell
 docker manifest inspect docker.io/nguyenson1710/student-management-ute-frontend:<full-commit-sha>

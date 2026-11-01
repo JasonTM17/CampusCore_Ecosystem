@@ -1,4 +1,8 @@
-# Release runbook — demo candidate → staged deploy → rollback
+# Release runbook — local demo candidate → future go-live → rollback
+
+> **Status: deferred — the ecosystem runs local-first; nothing here is deployed.**
+> Runbook này mô tả quy trình release/go-live **tương lai**; local quick start nằm ở
+> [README.md](../../README.md#quick-start-local).
 
 C2 P14: một release hội tụ D0–D10 (synthetic demo, chưa pilot). Mọi bước
 ghi evidence; deploy/DNS/store là external capability — `BLOCKED_CAPABILITY`
@@ -67,23 +71,26 @@ free-tier CU-h chỉ là ước lượng ghi rõ method, không gọi là bill t
 
 Mốc đo lịch sử trong rehearsal: API RSS774,6MiB; các mốc trước ghi825MiB–1,03GiB. Các giá trị đó vượt ngân sách512MiB đã dùng khi lập phương án miễn phí; không phải phép đo của candidate hiện tại hay xác nhận gói dịch vụ hiện hành. Trước cloud deployment, owner phải chọn phương án có bằng chứng: tài nguyên trả phí đủ RAM, giảm footprint rồi đo lại mà giữ các kiểm bảo mật, hoặc tiếp tục local/tự host trong phạm vi được phép. Chưa có quyết định thì cloud deploy còn BLOCKED_CAPABILITY. Ưu tiên miễn phí không đồng nghĩa cam kết vận hành miễn phí; không tự mua hoặc đăng ký dịch vụ. Local verification không thay quyết định cloud sizing.
 
-## 5. Staged deploy (BLOCKED_CAPABILITY hiện tại)
+## 5. Staged deploy (BLOCKED_CAPABILITY — future go-live)
 
-Cần DNS + hosting credentials + store/signing. Khi có:
+Cần DNS + hosting credentials + store/signing. Khi owner mở go-live:
 
-1. Deploy API/id trước từ image đã qua cổng staged: workflow `publish-ghcr.yml` build và stage tag `candidate-<sha>`, yêu cầu scan + SBOM attestation và xác nhận review exact-head trước khi promote tag release chính thức (không promote `latest` tự động).
+1. Build API/id image từ commit đã qua cổng staged, gắn tag `candidate-<sha>`, chạy scan + SBOM attestation và xác nhận review exact-head trước khi promote tag release chính thức (không promote `latest` tự động). Repo này **không** chứa workflow publish image.
 2. Deploy web hosts (portal/learn/apply/apex) trỏ surface registry.
 3. `probe-ecosystem-hosts.mjs` chống declared hostname (không `--insecure`).
 4. Canary synthetic personas → full lifecycle suite → live smoke.
 5. Rollback drill: restore backup hiện tại → attachment parity → delta
    check trước reopen. DNS rollback theo record thực — TTL không tức thì.
 
-### Provider checklist còn thiếu (measured 2026-10-30, all probed)
+### Future go-live prerequisites (measured 2026-10-30 — không phải defect của repo này)
 
-| Item | Probe result | Owner action |
+Các host dưới đây là **host đích tương lai** của ecosystem; việc chúng chưa
+resolve/404 phản ánh go-live chưa mở, không phải lỗi cần sửa trong workspace local.
+
+| Item | Probe result (2026-10-30) | Owner action khi mở go-live |
 | --- | --- | --- |
-| `id.campusute.io.vn` (OIDC issuer) | NXDOMAIN | DNS CNAME → Render custom domain; issuer env `IDENTITY_ISSUER` phải khớp |
-| `api.campusute.io.vn` | NXDOMAIN | DNS CNAME → Render service (hoặc giữ Vercel `/api/v1` proxy và bỏ host này khỏi registry) |
+| `id.campusute.io.vn` (OIDC issuer) | NXDOMAIN | Trỏ DNS về hosting đã chọn; issuer env `IDENTITY_ISSUER` phải khớp |
+| `api.campusute.io.vn` | NXDOMAIN | Trỏ DNS về API service (hoặc giữ `/api/v1` proxy và bỏ host này khỏi registry) |
 | `/.well-known/assetlinks.json` | 404 trên www | Deploy frontend ≥ commit `4471465a`; fingerprint đã bind keystore release local (`0A:0B:8C:…`, xem `device-runbook.md`) |
 | `/.well-known/apple-app-site-association` | 404 trên www | Cùng deploy; TeamID còn `SYNTH00000` — điền khi enroll Apple Developer (proposal trong `device-runbook.md`) |
 | Physical device acceptance | NOT_RUN | Emulator pass là mức chứng minh hiện có; không thay physical |
