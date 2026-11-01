@@ -84,6 +84,12 @@ const navigation = { navigate, navigateLane, signOut: jest.fn() } as unknown as 
 const props = { navigation, role: 'student' } as MobileScreenProps;
 const renderThemed = (element: ReactElement) => render(<ThemeProvider forcedScheme="light">{element}</ThemeProvider>);
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
 function setWidth(width: number) {
   jest.spyOn(Dimensions, 'get').mockReturnValue({ width, height: 800, scale: 2, fontScale: 1 } as ReturnType<typeof Dimensions.get>);
 }
@@ -256,6 +262,34 @@ describe('push opt-in denial recovery', () => {
     showRows([]);
     await renderThemed(<NotificationsScreen {...props} />);
     expect(screen.queryByRole('button', { name: notificationsMessages.vi.enableAction })).toBeNull();
+  });
+
+  test('double-tapping push opt-in starts one permission flow', async () => {
+    showOptIn({ granted: false, canAskAgain: true });
+    const permission = deferred<{ granted: boolean; canAskAgain?: boolean }>();
+    jest.mocked(expoPushPlatform.requestPermissionsAsync).mockReturnValue(permission.promise);
+    await renderThemed(<NotificationsScreen {...props} />);
+    const button = screen.getByRole('button', { name: notificationsMessages.vi.enableAction });
+    try {
+      await fireEvent.press(button);
+      await waitFor(() => expect(jest.mocked(expoPushPlatform.requestPermissionsAsync)).toHaveBeenCalledTimes(1));
+      await fireEvent.press(screen.getByRole('button', { name: notificationsMessages.vi.enableAction }));
+
+      expect(jest.mocked(expoPushPlatform.requestPermissionsAsync)).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('button', { name: notificationsMessages.vi.enableAction })).toBeDisabled();
+
+      await act(async () => {
+        permission.resolve({ granted: false, canAskAgain: true });
+        await permission.promise;
+      });
+      expect(await screen.findByText(notificationsMessages.vi.permissionDenied)).toBeOnTheScreen();
+    } finally {
+      await act(async () => {
+        permission.resolve({ granted: false, canAskAgain: true });
+        await permission.promise;
+      });
+      jest.mocked(expoPushPlatform.requestPermissionsAsync).mockImplementation(async () => mockPushPermission.value);
+    }
   });
 
   test('a denial the OS will still prompt for offers a retry, and a final denial swaps to settings', async () => {

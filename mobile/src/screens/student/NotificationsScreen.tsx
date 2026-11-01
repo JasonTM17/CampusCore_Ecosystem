@@ -244,39 +244,52 @@ function PushOptInCard() {
   const checkinCopy = checkinMessages[locale];
   const [status, setStatus] = useState<PushOptInStatus>('idle');
   const [denialBlocked, setDenialBlocked] = useState(false);
+  const [pending, setPending] = useState(false);
+  const pendingRef = useRef(false);
   if (!PUSH_OPT_IN_ENABLED) return null;
 
   const onEnable = async () => {
-    let lastError: unknown = null;
-    const api: PushApi = {
-      registerPushDevice: async (installationId, body) => {
-        try {
-          return await campusApi.registerPushDevice(installationId, body);
-        } catch (error) {
-          lastError = error;
-          throw error;
-        }
-      },
-      unregisterPushDevice: (installationId) => campusApi.unregisterPushDevice(installationId),
-    };
-    // Lazy requires keep the expo-notifications adapter out of app startup
-    // while the opt-in flag is off.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { createPushNotificationClient } = require('../../api/push-notifications') as typeof import('../../api/push-notifications');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { expoPushPlatform } = require('../../api/expo-push-platform') as typeof import('../../api/expo-push-platform');
-    const result = await createPushNotificationClient(expoPushPlatform, api).register(true);
-    if (result.status === 'registered') setStatus('registered');
-    else if (result.status === 'permission-denied') {
-      setStatus('denied');
-      // A denial the OS marked final (canAskAgain === false) can only be
-      // undone in device settings; anything else may still prompt.
-      const permission = await expoPushPlatform.getPermissionsAsync().catch(() => null);
-      setDenialBlocked(permission?.canAskAgain === false);
+    if (pendingRef.current) return;
+    pendingRef.current = true;
+    setPending(true);
+    setStatus('idle');
+    try {
+      let lastError: unknown = null;
+      const api: PushApi = {
+        registerPushDevice: async (installationId, body) => {
+          try {
+            return await campusApi.registerPushDevice(installationId, body);
+          } catch (error) {
+            lastError = error;
+            throw error;
+          }
+        },
+        unregisterPushDevice: (installationId) => campusApi.unregisterPushDevice(installationId),
+      };
+      // Lazy requires keep the expo-notifications adapter out of app startup
+      // while the opt-in flag is off.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { createPushNotificationClient } = require('../../api/push-notifications') as typeof import('../../api/push-notifications');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { expoPushPlatform } = require('../../api/expo-push-platform') as typeof import('../../api/expo-push-platform');
+      const result = await createPushNotificationClient(expoPushPlatform, api).register(true);
+      if (result.status === 'registered') setStatus('registered');
+      else if (result.status === 'permission-denied') {
+        setStatus('denied');
+        // A denial the OS marked final (canAskAgain === false) can only be
+        // undone in device settings; anything else may still prompt.
+        const permission = await expoPushPlatform.getPermissionsAsync().catch(() => null);
+        setDenialBlocked(permission?.canAskAgain === false);
+      }
+      else if (result.status === 'unavailable') setStatus('unavailable');
+      else if (lastError instanceof ApiClientError && lastError.status === 503) setStatus('unavailable');
+      else setStatus('failed');
+    } catch {
+      setStatus('failed');
+    } finally {
+      pendingRef.current = false;
+      setPending(false);
     }
-    else if (result.status === 'unavailable') setStatus('unavailable');
-    else if (lastError instanceof ApiClientError && lastError.status === 503) setStatus('unavailable');
-    else setStatus('failed');
   };
 
   if (status === 'idle') {
@@ -284,7 +297,7 @@ function PushOptInCard() {
       <Card tone="low">
         <UiText variant="label">{pushMsg.permissionTitle}</UiText>
         <UiText variant="bodySmall" tone="muted">{pushMsg.permissionRationale}</UiText>
-        <Button label={pushMsg.enableAction} onPress={() => void onEnable()} variant="secondary" />
+        <Button label={pushMsg.enableAction} onPress={() => void onEnable()} variant="secondary" loading={pending} disabled={pending} />
       </Card>
     );
   }

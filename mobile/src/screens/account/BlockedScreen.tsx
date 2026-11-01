@@ -4,6 +4,7 @@ import { Button, StatusPill, UiText } from '../../components/Ui';
 import { tokens } from '../../design/tokens';
 import type { MobileScreenProps } from '../../navigation/types';
 import { useSession } from '../../session/SessionContext';
+import { DEFAULT_PORTAL_URL } from '../operations/shared/portal-url';
 import { AccountFrame } from './AccountFrame';
 import { useAccountCopy } from './use-account-copy';
 
@@ -14,23 +15,20 @@ import { useAccountCopy } from './use-account-copy';
 export function BlockedScreen({ navigation }: MobileScreenProps) {
   const copy = useAccountCopy();
   const session = useSession();
-  const reason =
-    session.blockedReason ??
-    'Sign-in could not finish. Use the web portal if this keeps happening.';
+  const reason = session.blockedReason ?? copy.blocked.fallbackReason;
 
   return (
-    <AccountFrame title="Sign-in blocked" subtitle="Access verification required">
+    <AccountFrame title={copy.blocked.title} subtitle={copy.blocked.subtitle}>
       <View style={styles.content}>
-        <StatusPill label="Blocked" tone="error" icon="shield-alert-outline" />
+        <StatusPill label={copy.blocked.status} tone="error" icon="shield-alert-outline" />
         <UiText variant="bodyMedium" tone="muted" style={styles.reason}>
           {reason}
         </UiText>
         <Button
           icon="web"
-          label="Open web portal"
+          label={copy.blocked.openPortal}
           onPress={() => {
-            const portal =
-              process.env.EXPO_PUBLIC_PORTAL_URL ?? 'https://portal.localhost:3102';
+            const portal = process.env.EXPO_PUBLIC_PORTAL_URL ?? DEFAULT_PORTAL_URL;
             void Linking.openURL(portal).catch(() => undefined);
           }}
           style={styles.primaryAction}

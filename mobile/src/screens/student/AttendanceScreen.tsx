@@ -49,6 +49,8 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
       error={preview ? null : summaryQuery.error}
       warning={preview ? null : summaryQuery.warning}
       onRetry={() => { void summaryQuery.reload(); void recordsQuery.reload(); }}
+      onRefresh={preview ? undefined : () => { void semestersQuery.reload(); void summaryQuery.reload(); void recordsQuery.reload(); }}
+      refreshing={!preview && (semestersQuery.isStale || summaryQuery.isStale || recordsQuery.isStale)}
 
       list={{ data: [...((summary.length === 0) ? [] : contentRows("section-1", rows, (item, index) => String(item.sectionId), (row) => (
             <Card key={row.sectionId} style={academicStyles.card}>

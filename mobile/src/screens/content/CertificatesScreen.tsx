@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { Button, Card, ProgressBar, ScreenShell, StatePanel, UiText } from '../../components/Ui';
+import { Button, Card, DataNotice, ProgressBar, ScreenShell, StatePanel, UiText } from '../../components/Ui';
 import { apiClient } from '../../api/client';
 import { tokens } from '../../design/tokens';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -33,20 +33,29 @@ export function CertificatesScreen({ navigation }: MobileScreenProps) {
   }, [conductQuery.data, curriculumQuery.data, locale, preview]);
 
   const loading = !preview && apiClient.mode === 'live' && (conductQuery.isLoading || curriculumQuery.isLoading);
-  const failure = preview ? null : conductQuery.error && curriculumQuery.error ? conductQuery.error : null;
-  const reload = () => { void conductQuery.reload(); void curriculumQuery.reload(); };
+  const conductFailure = conductQuery.error ?? conductQuery.warning;
+  const curriculumFailure = curriculumQuery.error ?? curriculumQuery.warning;
+  const failure = preview ? null : conductFailure ?? curriculumFailure;
+  const reloadFailed = () => {
+    if (conductFailure) void conductQuery.reload();
+    if (curriculumFailure) void curriculumQuery.reload();
+  };
   const missing = copy.missing;
 
   return (
     <ScreenShell title={copy.certificatesTitle}>
       {loading ? (
         <StatePanel kind="loading" title={t('loading')} />
-      ) : failure ? (
-        <StatePanel kind="error" title={shared.errorTitle} description={failure} actionLabel={t('retry')} onAction={reload} />
+      ) : failure && !info.hasData ? (
+        <StatePanel kind="error" title={shared.errorTitle} description={failure} actionLabel={t('retry')} onAction={reloadFailed} />
       ) : !info.hasData ? (
         <StatePanel kind="empty" title={copy.certificatesEmpty} />
       ) : (
         <View style={styles.stack}>
+          {failure ? <>
+            <DataNotice message={failure} />
+            <Button label={t('retry')} variant="text" onPress={reloadFailed} />
+          </> : null}
           <Card>
             <MetaRow label={copy.certificatesStudent} value={info.fullName ?? missing} />
             <MetaRow label={copy.certificatesCode} value={info.studentCode ?? missing} />

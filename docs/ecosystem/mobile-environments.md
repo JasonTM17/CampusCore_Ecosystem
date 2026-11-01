@@ -4,8 +4,11 @@ App di động (`mobile/`, Expo ~57 / React Native 0.86) có đúng ba cách ch�
 chọn bằng hai biến công khai trong `mobile/.env` (gitignored; mẫu ở
 `mobile/.env.example`):
 
-- `EXPO_PUBLIC_API_MODE` — `preview` (mặc định an toàn) hoặc `live`.
-- `EXPO_PUBLIC_API_URL` — base URL đến REST API, ví dụ `http://10.0.2.2:4010/api/v1`.
+| Biến | Hành vi |
+| --- | --- |
+| `EXPO_PUBLIC_API_MODE` | `preview` (mặc định an toàn) hoặc `live`. |
+| `EXPO_PUBLIC_API_URL` | Bản phát hành bắt buộc HTTPS; nếu thiếu hoặc không hợp lệ, API live fail closed. Development mặc định loopback. |
+| `EXPO_PUBLIC_PORTAL_URL` | Tuỳ chọn; bản phát hành mặc định `https://www.campusute.io.vn`, development mặc định portal local. |
 
 `EXPO_PUBLIC_*` được nhúng vào bundle mobile → **public by definition**: tuyệt đối
 không chứa secret. App không bao giờ kết nối database; nó chỉ gọi HTTP API qua

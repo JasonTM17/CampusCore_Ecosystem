@@ -1,6 +1,10 @@
 // Web hand-off targets. Pure so the URL rules run under `node --test`.
 
-export const DEFAULT_PORTAL_URL = 'https://portal.localhost:3102';
+export function defaultPortalUrl(development: boolean): string {
+  return development ? 'https://portal.localhost:3102' : 'https://www.campusute.io.vn';
+}
+
+export const DEFAULT_PORTAL_URL = defaultPortalUrl(typeof __DEV__ !== 'undefined' && __DEV__);
 
 /**
  * Same-path hand-off: the portal route that owns the work the app does not

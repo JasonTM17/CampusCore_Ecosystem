@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Card, StatePanel, UiText } from '../../components/Ui';
+import { Card, DataNotice, StatePanel, UiText } from '../../components/Ui';
 import { ChoiceField, SegmentedControl, StatusPill } from '../../components/ui/index';
 import { apiClient } from '../../api/client';
 import type { MobileLearningAssignment, MobileLearningMaterial, MobileLearningSection } from '../../api/client';
@@ -79,6 +79,7 @@ export function LearningScreen(_props: MobileScreenProps) {
         onChange={(value) => { setPicked(value); setAssignmentId(null); }}
         options={sections.map((entry) => ({ value: entry.sectionId, label: `${entry.courseCode} · ${entry.courseName}` }))}
       />
+      {live && sectionsQuery.warning ? <DataNotice message={sectionsQuery.warning} /> : null}
       <SegmentedControl
         accessibilityLabel={copy.title}
         value={tab}

@@ -148,6 +148,19 @@ const vi = {
     idempotencyRetry: 'Yêu cầu đang được xử lý. Hãy thử lại sau giây lát.',
     generic: 'Chưa thể hoàn tất. Vui lòng thử lại.',
   } as Record<string, string>,
+  studentErrors: {
+    ACCESS_DENIED: 'Bạn không có quyền thực hiện thao tác này.',
+    COHORT_INELIGIBLE: 'Khóa của bạn chưa được đăng ký ở đợt này.',
+    CONFLICT: 'Thay đổi này xung đột với dữ liệu hiện tại.',
+    HTTP_400: 'Hãy kiểm tra thông tin rồi thử lại.',
+    HTTP_401: 'Vui lòng đăng nhập lại để tiếp tục.',
+    HTTP_403: 'Bạn không có quyền thực hiện thao tác này.',
+    HTTP_404: 'Không tìm thấy nội dung này.',
+    INVALID_REQUEST: 'Hãy kiểm tra thông tin rồi thử lại.',
+    ROUND_NOT_FOUND: 'Đợt đăng ký hiện không mở.',
+    UNAUTHENTICATED: 'Vui lòng đăng nhập lại để tiếp tục.',
+    WINDOW_CLOSED: 'Đợt đăng ký hiện không mở.',
+  } as Record<string, string>,
 };
 
 export type AcademicCopy = typeof vi;
@@ -299,6 +312,19 @@ const en: AcademicCopy = {
     cohortIneligible: 'Your cohort cannot register in this round.',
     idempotencyRetry: 'The request is still being processed. Try again shortly.',
     generic: 'Could not complete this. Please try again.',
+  },
+  studentErrors: {
+    ACCESS_DENIED: 'You do not have access to this action.',
+    COHORT_INELIGIBLE: 'Registration is not available for your year group yet.',
+    CONFLICT: 'This change conflicts with your current record.',
+    HTTP_400: 'Please review the information and try again.',
+    HTTP_401: 'Please sign in again to continue.',
+    HTTP_403: 'You do not have access to this action.',
+    HTTP_404: 'We could not find that item.',
+    INVALID_REQUEST: 'Please review the information and try again.',
+    ROUND_NOT_FOUND: 'Registration is not open right now.',
+    UNAUTHENTICATED: 'Please sign in again to continue.',
+    WINDOW_CLOSED: 'Registration is not open right now.',
   },
 };
 

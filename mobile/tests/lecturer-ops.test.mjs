@@ -10,7 +10,7 @@ const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 const webLib = path.resolve(mobileRoot, '..', 'frontend', 'src', 'lib');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cu-lecturer-'));
 
-async function load(file, name) {
+async function load(file, name, development) {
   const source = fs.readFileSync(file, 'utf8');
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
@@ -18,13 +18,24 @@ async function load(file, name) {
   });
   const out = path.join(tmp, `${name}.mjs`);
   fs.writeFileSync(out, outputText);
-  return import(pathToFileURL(out).href);
+  const previousDev = globalThis.__DEV__;
+  if (development !== undefined) globalThis.__DEV__ = development;
+  try {
+    return await import(pathToFileURL(out).href);
+  } finally {
+    if (development !== undefined) {
+      if (previousDev === undefined) delete globalThis.__DEV__;
+      else globalThis.__DEV__ = previousDev;
+    }
+  }
 }
 
 const ops = path.join(mobileRoot, 'src', 'screens', 'operations');
 const model = await load(path.join(ops, 'lecturer-model.ts'), 'lecturer-model');
 const csv = await load(path.join(ops, 'lecturer-csv.ts'), 'lecturer-csv');
 const portal = await load(path.join(ops, 'shared', 'portal-url.ts'), 'portal-url');
+const portalDevelopment = await load(path.join(ops, 'shared', 'portal-url.ts'), 'portal-url-development', true);
+const portalRelease = await load(path.join(ops, 'shared', 'portal-url.ts'), 'portal-url-release', false);
 const opsMessages = await load(path.join(mobileRoot, 'src', 'i18n', 'operations-messages.ts'), 'operations-messages');
 const laneMessages = await load(path.join(mobileRoot, 'src', 'i18n', 'lanes-messages.ts'), 'lanes-messages');
 const webAttendance = await load(path.join(webLib, 'attendance-export.ts'), 'web-attendance-export');
@@ -150,6 +161,14 @@ test('portal hand-off joins only a fixed same-path onto the configured base', ()
   for (const bad of ['//evil.com', '/a/../b', '/a?x=1', 'https://evil.com', '', '/a b']) {
     assert.equal(portal.portalUrl(bad, 'https://portal.example.edu'), 'https://portal.example.edu', bad);
   }
+});
+
+test('the default portal URL follows the build mode', () => {
+  assert.equal(portal.defaultPortalUrl(true), 'https://portal.localhost:3102');
+  assert.equal(portal.defaultPortalUrl(false), 'https://www.campusute.io.vn');
+  assert.equal(portal.DEFAULT_PORTAL_URL, 'https://www.campusute.io.vn');
+  assert.equal(portalDevelopment.DEFAULT_PORTAL_URL, 'https://portal.localhost:3102');
+  assert.equal(portalRelease.DEFAULT_PORTAL_URL, 'https://www.campusute.io.vn');
 });
 
 const keyShape = (value) =>

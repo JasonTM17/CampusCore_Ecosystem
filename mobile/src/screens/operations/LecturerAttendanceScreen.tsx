@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
@@ -53,6 +53,8 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   const today = localIsoDate();
   const [date, setDate] = useState(today);
   const sheetKey = `${sectionId}:${date}`;
+  const currentSheetKey = useRef(sheetKey);
+  currentSheetKey.current = sheetKey;
 
   const sheetQuery = useOpsQuery(
     `lecturer:sheet:${sheetKey}`,
@@ -74,6 +76,7 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   const [search, setSearch] = useState('');
   const [pages, setPages] = useState(1);
+  const editRevisionByKey = useRef<Record<string, number>>({});
 
   const applySheet = (next: AttendanceSheet) => {
     setRows(buildRosterRows(next.roster, next.marks));
@@ -105,11 +108,13 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   const busy = save.kind === 'saving';
 
   const change = (studentId: string, status: MarkStatus | null) => {
+    editRevisionByKey.current[sheetKey] = (editRevisionByKey.current[sheetKey] ?? 0) + 1;
     setRows((current) => setRowStatus(current, studentId, status));
     setSave({ kind: 'idle' });
   };
 
   const markAll = () => {
+    editRevisionByKey.current[sheetKey] = (editRevisionByKey.current[sheetKey] ?? 0) + 1;
     setRows((current) => setAllStatus(current, 'PRESENT', new Set(visible.map((row) => row.studentId))));
     setSave({ kind: 'idle' });
   };
@@ -126,15 +131,21 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
       setSave({ kind: 'error', message: copy.nothingToSave });
       return;
     }
+    const savingKey = sheetKey;
+    const savingRevision = editRevisionByKey.current[savingKey] ?? 0;
     setSave({ kind: 'saving' });
     try {
       const count = await lecturerApi.saveAttendance(sectionId, date, records, baseline);
+      if (currentSheetKey.current !== savingKey) return;
       setSave({ kind: 'saved', count });
-      setRows((current) => commitRows(current));
-      setBaseline(savedBaseline(rows));
-      setRemoteChanged(false);
+      if ((editRevisionByKey.current[savingKey] ?? 0) === savingRevision) {
+        setRows(commitRows(rows));
+        setBaseline(savedBaseline(rows));
+        setRemoteChanged(false);
+      }
       void sheetQuery.reload();
     } catch (error) {
+      if (currentSheetKey.current !== savingKey) return;
       if (error instanceof StaleAttendanceError) {
         setRemoteChanged(true);
         setSave({ kind: 'idle' });
