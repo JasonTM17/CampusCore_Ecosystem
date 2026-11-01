@@ -123,7 +123,7 @@ test('docker web bake cannot interpolate host NEXT_PUBLIC_API_URL=http://127.0.0
     assert.doesNotMatch(dockerfile, /127\.0\.0\.1:4010/);
     assert.match(apiClient, /resolvePublicApiBaseUrl\(process\.env\.NEXT_PUBLIC_API_URL\)/);
     assert.doesNotMatch(nextConfig, /rewrites|JAVA_API_ORIGIN/);
-    assert.match(runtimeProxy, /process\.env\.JAVA_API_ORIGIN/);
+    assert.match(runtimeProxy, /resolveJavaApiOrigin\(\)/);
     assert.match(runtimeProxy, /export const dynamic = 'force-dynamic'/);
     assert.equal(process.env.NEXT_PUBLIC_API_URL, LIVE_FAIL_ORIGIN);
   } finally {
