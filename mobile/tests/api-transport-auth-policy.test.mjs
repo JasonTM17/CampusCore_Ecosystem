@@ -96,6 +96,8 @@ const authorizedWith = (token) => (call) => call.headers.get('authorization') ==
 
 test('base URL fallback is development-only and release config must use HTTPS', () => {
   const previousDev = globalThis.__DEV__;
+  const previousAllowCleartextLocal = process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+  delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
   try {
     globalThis.__DEV__ = true;
     assert.equal(
@@ -112,6 +114,31 @@ test('base URL fallback is development-only and release config must use HTTPS', 
     );
   } finally {
     globalThis.__DEV__ = previousDev;
+    if (previousAllowCleartextLocal === undefined) delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+    else process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL = previousAllowCleartextLocal;
+  }
+});
+
+test('release HTTP bases need the explicit local-only opt-in; HTTPS stays accepted', () => {
+  const previousDev = globalThis.__DEV__;
+  const previousAllowCleartextLocal = process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+  try {
+    globalThis.__DEV__ = false;
+    delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+    assert.equal(createApiClient({ baseUrl: 'http://10.0.2.2:4010/api/v1', mode: 'live' }).baseUrl, '');
+    assert.equal(createApiClient({ baseUrl: 'https://api.example.test/api/v1', mode: 'live' }).baseUrl, 'https://api.example.test/api/v1');
+
+    process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL = '1';
+    for (const host of ['localhost', '127.0.0.1', '10.0.2.2', '[::1]']) {
+      const client = createApiClient({ baseUrl: `http://${host}:4010/api/v1`, mode: 'live' });
+      assert.equal(client.baseUrl, `http://${host}:4010/api/v1`, host);
+    }
+    assert.equal(createApiClient({ baseUrl: 'http://api.example.test/api/v1', mode: 'live' }).baseUrl, '');
+    assert.equal(createApiClient({ baseUrl: 'https://api.example.test/api/v1', mode: 'live' }).baseUrl, 'https://api.example.test/api/v1');
+  } finally {
+    globalThis.__DEV__ = previousDev;
+    if (previousAllowCleartextLocal === undefined) delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+    else process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL = previousAllowCleartextLocal;
   }
 });
 
@@ -586,6 +613,104 @@ test('an HTTPS transfer refuses an HTTP redirect before following it', async () 
     assert.equal(net.calls.length, 1);
   } finally {
     net.restore();
+  }
+});
+
+test('release cleartext redirects stay loopback-only and require the local opt-in', async () => {
+  const previousDev = globalThis.__DEV__;
+  const previousAllowCleartextLocal = process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+  globalThis.__DEV__ = false;
+  try {
+    delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+    const strictClient = createApiClient({ baseUrl: 'https://api.example.test/api/v1', mode: 'live' });
+    const strictNet = installFetch(() => new Response(null, {
+      status: 302,
+      headers: { location: 'http://127.0.0.1:4010/blob/1' },
+    }));
+    try {
+      await assert.rejects(strictClient.download('/doc/file'), (error) => error.code === 'INSECURE_REDIRECT');
+      assert.equal(strictNet.calls.length, 1);
+    } finally {
+      strictNet.restore();
+    }
+
+    process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL = '1';
+    const localClient = createApiClient({ baseUrl: 'http://10.0.2.2:4010/api/v1', mode: 'live' });
+    const localNet = installFetch((call, index) => (index === 1
+      ? new Response(null, { status: 302, headers: { location: 'http://localhost:4010/blob/1' } })
+      : new Response(new Uint8Array([1]), { status: 200 })));
+    try {
+      await localClient.download('/doc/file');
+      assert.equal(localNet.calls.length, 2);
+      assert.equal(localNet.calls[1].url, 'http://localhost:4010/blob/1');
+    } finally {
+      localNet.restore();
+    }
+
+    const publicNet = installFetch(() => new Response(null, {
+      status: 302,
+      headers: { location: 'http://files.example.test/blob/1' },
+    }));
+    try {
+      await assert.rejects(localClient.download('/doc/file'), (error) => error.code === 'INSECURE_REDIRECT');
+      assert.equal(publicNet.calls.length, 1);
+    } finally {
+      publicNet.restore();
+    }
+  } finally {
+    globalThis.__DEV__ = previousDev;
+    if (previousAllowCleartextLocal === undefined) delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+    else process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL = previousAllowCleartextLocal;
+  }
+});
+
+test('release JSON redirects enforce HTTPS except opted-in loopback targets', async () => {
+  const previousDev = globalThis.__DEV__;
+  const previousAllowCleartextLocal = process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+  globalThis.__DEV__ = false;
+  try {
+    delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+    const strictClient = createApiClient({ baseUrl: 'https://api.example.test/api/v1', mode: 'live' });
+    const strictNet = installFetch(() => new Response(null, {
+      status: 302,
+      headers: { location: 'http://api.example.test/api/v1/private-next' },
+    }));
+    try {
+      await assert.rejects(strictClient.get('/private'), (error) => error.code === 'INSECURE_REDIRECT');
+      assert.equal(strictNet.calls.length, 1);
+      assert.equal(strictNet.calls[0].init.redirect, 'manual');
+    } finally {
+      strictNet.restore();
+    }
+
+    process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL = '1';
+    const localClient = createApiClient({ baseUrl: 'http://10.0.2.2:4010/api/v1', mode: 'live' });
+    const localNet = installFetch((call, index) => (index === 1
+      ? new Response(null, { status: 302, headers: { location: '/api/v1/private-next' } })
+      : json(200, { ok: true })));
+    try {
+      assert.deepEqual(await localClient.get('/private'), { ok: true });
+      assert.equal(localNet.calls.length, 2);
+      assert.equal(localNet.calls[0].init.redirect, 'manual');
+      assert.equal(localNet.calls[1].url, 'http://10.0.2.2:4010/api/v1/private-next');
+    } finally {
+      localNet.restore();
+    }
+
+    const publicNet = installFetch(() => new Response(null, {
+      status: 302,
+      headers: { location: 'http://api.example.test/private-next' },
+    }));
+    try {
+      await assert.rejects(localClient.get('/private'), (error) => error.code === 'INSECURE_REDIRECT');
+      assert.equal(publicNet.calls.length, 1);
+    } finally {
+      publicNet.restore();
+    }
+  } finally {
+    globalThis.__DEV__ = previousDev;
+    if (previousAllowCleartextLocal === undefined) delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+    else process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL = previousAllowCleartextLocal;
   }
 });
 

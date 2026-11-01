@@ -15,7 +15,6 @@ jest.mock('../../src/session/SessionContext', () => ({
 }));
 
 import { accountMessages } from '../../src/i18n/account-messages';
-import { DEFAULT_PORTAL_URL } from '../../src/screens/operations/shared/portal-url';
 import { BlockedScreen } from '../../src/screens/account/BlockedScreen';
 import type { MobileScreenProps } from '../../src/navigation/types';
 
@@ -66,16 +65,34 @@ describe('blocked sign-in screen', () => {
     expect(navigation.navigate).toHaveBeenCalledWith('auth.signIn');
   });
 
-  test('the portal hand-off uses the shared mode-aware default', async () => {
+  test('the portal hand-off uses the configured portal URL', async () => {
     const configured = process.env.EXPO_PUBLIC_PORTAL_URL;
-    delete process.env.EXPO_PUBLIC_PORTAL_URL;
+    process.env.EXPO_PUBLIC_PORTAL_URL = 'https://portal.example.edu';
     const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
     try {
       await renderScreen('en');
       await fireEvent.press(screen.getByRole('button', { name: accountMessages.en.blocked.openPortal }));
-      expect(openURL).toHaveBeenCalledWith(DEFAULT_PORTAL_URL);
+      expect(openURL).toHaveBeenCalledWith('https://portal.example.edu');
     } finally {
       openURL.mockRestore();
+      if (configured === undefined) delete process.env.EXPO_PUBLIC_PORTAL_URL;
+      else process.env.EXPO_PUBLIC_PORTAL_URL = configured;
+    }
+  });
+
+  test('an unconfigured release hides the portal action and keeps back to sign-in', async () => {
+    const configured = process.env.EXPO_PUBLIC_PORTAL_URL;
+    const runtime = globalThis as typeof globalThis & { __DEV__?: boolean };
+    const previousDev = runtime.__DEV__;
+    delete process.env.EXPO_PUBLIC_PORTAL_URL;
+    runtime.__DEV__ = false;
+    try {
+      await renderScreen('en');
+      expect(screen.queryByRole('button', { name: accountMessages.en.blocked.openPortal })).toBeNull();
+      expect(screen.getByRole('button', { name: accountMessages.en.common.backToSignIn })).toBeOnTheScreen();
+    } finally {
+      if (previousDev === undefined) delete runtime.__DEV__;
+      else runtime.__DEV__ = previousDev;
       if (configured === undefined) delete process.env.EXPO_PUBLIC_PORTAL_URL;
       else process.env.EXPO_PUBLIC_PORTAL_URL = configured;
     }
