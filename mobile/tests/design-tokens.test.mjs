@@ -83,7 +83,7 @@ describe('design tokens contract', () => {
     assert.equal(tokens.windowClasses.compactMax, 600);
     assert.equal(tokens.windowClasses.mediumMax, 840);
     assert.ok(tokens.layout.touchTarget >= 44);
-    assert.ok(tokens.typography.maxFontScale >= 1);
+    assert.equal(tokens.typography.maxFontScale, 2);
   });
 
   it('window classes expose semantic content width caps', () => {

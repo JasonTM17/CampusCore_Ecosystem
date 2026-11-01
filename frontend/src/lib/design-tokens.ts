@@ -97,7 +97,7 @@ const contract = {
       "lineHeight": 16,
       "fontWeight": "600"
     },
-    "maxFontScale": 1.5
+    "maxFontScale": 2
   },
   "messages": {
     "loading": "ui.state.loading",

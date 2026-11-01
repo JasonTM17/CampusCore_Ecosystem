@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 
 import { apiClient } from '../api/client';
+import { chromeFontScaleCap } from '../design/font-scale';
 import { chromeFor } from '../design/chrome';
 import { tokens } from '../design/tokens';
 import { useTheme } from '../design/theme';
@@ -54,14 +55,14 @@ export function AppBar({ role, onProfile, onSignIn }: AppBarProps) {
           />
         </View>
         <View style={styles.copy}>
-          <UiText variant={brandVariant} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ color: chrome.onSurface }}>
+          <UiText variant={brandVariant} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.onSurface }}>
             CampusUTE
           </UiText>
-          {roleLabel && window.fontScale >= 1.3 ? <UiText variant="meta" style={{ color: chrome.onSurfaceMuted }}>{roleLabel}</UiText> : null}
+          {roleLabel && window.fontScale >= 1.3 ? <UiText variant="meta" maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.onSurfaceMuted }}>{roleLabel}</UiText> : null}
         </View>
         {roleLabel && window.fontScale < 1.3 && !preview ? (
           <View style={[styles.rolePill, { backgroundColor: chrome.overlay }]}>
-            <UiText variant="meta" style={{ color: chrome.onSurface }}>
+            <UiText variant="meta" maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.onSurface }}>
               {roleLabel}
             </UiText>
           </View>
@@ -83,7 +84,7 @@ export function AppBar({ role, onProfile, onSignIn }: AppBarProps) {
             onPress={onSignIn}
             style={({ pressed }) => [styles.signIn, { backgroundColor: pressed ? chrome.overlay : chrome.accent }]}
           >
-            <UiText variant="label" style={{ color: chrome.surfaceStrong }}>{copy.guestSignIn}</UiText>
+            <UiText variant="label" maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.surfaceStrong }}>{copy.guestSignIn}</UiText>
           </Pressable>
         ) : null}
       </View>

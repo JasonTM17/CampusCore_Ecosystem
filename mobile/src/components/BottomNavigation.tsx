@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { tokens } from '../design/tokens';
+import { chromeFontScaleCap } from '../design/font-scale';
 import { useThemedStyles, useTheme } from '../design/theme';
 import type { ThemeColors } from '../design/theme';
 import {
@@ -50,6 +51,7 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: Bott
                 </View>
                 <UiText
                   adjustsFontSizeToFit={false}
+                  maxFontSizeMultiplier={chromeFontScaleCap}
                   minimumFontScale={1}
                   numberOfLines={2}
                   variant="meta"
@@ -71,7 +73,7 @@ export function BottomNavigation({ activeRoute, role, onNavigate, onMenu }: Bott
           <View style={styles.icon}>
             <MaterialCommunityIcons color={colors.textMuted} name="menu" size={20} />
           </View>
-          <UiText variant="meta" tone="muted" style={styles.label}>
+          <UiText variant="meta" tone="muted" maxFontSizeMultiplier={chromeFontScaleCap} style={styles.label}>
             {copy.menu}
           </UiText>
         </Pressable>
