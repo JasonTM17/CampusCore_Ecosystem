@@ -442,8 +442,10 @@ public class AdminUserMutationService {
         Map<String, Object> before = null;
         try {
             before = find(id);
-        } catch (RuntimeException ignored) {
+        } catch (EmptyResultDataAccessException ignored) {
             // Left null; the audit row then records the id and the action only.
+            // A real data-access failure must propagate: on PostgreSQL it aborts
+            // the transaction, so every following statement fails anyway.
         }
         // Revoke live sessions while the row still exists: after the hard
         // delete there is no account state left for the filter to consult.
