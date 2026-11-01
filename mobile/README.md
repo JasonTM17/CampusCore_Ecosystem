@@ -50,9 +50,10 @@ The app uses one base URL for all requests and does not embed credentials. The
 local preview entry point is deliberately labeled as a preview; it does not
 represent a successful Java authentication. When live mode is selected, sign
 in runs an OIDC authorization-code + PKCE flow against the identity issuer
-(`EXPO_PUBLIC_ISSUER_URL`, mandatory when the issuer host differs from the API
-host) inside the system browser for the `cu-mobile` public client — the app
-never sees a password. The access token lives in session-store memory only;
+(`EXPO_PUBLIC_ISSUER_URL`, required for release builds and when the development
+issuer differs from the API host) inside the system browser for the `cu-mobile`
+public client — the app never sees a password. The access token lives in
+session-store memory only;
 the refresh token persists solely in `expo-secure-store` (`cu.refresh`,
 `WHEN_UNLOCKED_THIS_DEVICE_ONLY`), and a two-layer install marker
 (`cu.install` + an AsyncStorage `installMarker` twin) wipes stale refresh

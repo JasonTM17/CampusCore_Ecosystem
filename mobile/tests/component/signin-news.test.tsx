@@ -37,6 +37,7 @@ jest.mock('../../src/auth/oidc-session', () => ({
 jest.mock('../../src/auth/mobile-session-store', () => ({
   sessionStore: {
     issuer: 'http://issuer.test',
+    sessionEpoch: jest.fn(() => 0),
     saveRefresh: jest.fn(async () => {}),
     setAccessToken: jest.fn(),
     bumpEpoch: jest.fn(),
@@ -50,6 +51,7 @@ jest.mock('../../src/api/parity-api', () => ({
 import { SignInScreen } from '../../src/screens/auth/SignInScreen';
 import type { MobileScreenProps } from '../../src/navigation/types';
 import { shellMessages } from '../../src/i18n/shell-messages';
+import { signInWithOidc } from '../../src/auth/oidc-session';
 
 const navigation = { navigate: jest.fn() } as unknown as MobileScreenProps['navigation'];
 const props = { navigation, role: 'student', selectedThesisTopicId: null } as MobileScreenProps;
@@ -172,5 +174,23 @@ describe('sign-in guest news feed', () => {
     expect(screen.getByText('CAMPUS PRESS & MAGAZINE')).toBeOnTheScreen();
     expect(screen.getByRole('header', { name: 'HCMUTE Academic Life & Innovation' })).toBeOnTheScreen();
     expect(screen.getByText('No articles yet')).toBeOnTheScreen();
+  });
+
+  test.each([
+    { locale: 'vi' as const, message: 'Đăng nhập chưa được cấu hình cho bản này.' },
+    { locale: 'en' as const, message: 'Sign-in is not configured for this build.' },
+  ])('shows the localized unavailable message for a missing issuer ($locale)', async ({ locale, message }) => {
+    jest.mocked(signInWithOidc).mockResolvedValueOnce({
+      kind: 'unavailable',
+      code: 'issuer_not_configured',
+    });
+    await renderScreen(locale);
+    await fireEvent.press(screen.getByRole('button', {
+      name: locale === 'vi' ? 'Đăng nhập bằng CampusUTE ID' : 'Sign in with CampusUTE ID',
+    }));
+
+    expect(await screen.findByText(message)).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: shellMessages[locale].screens.news })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: shellMessages[locale].screens.docs })).toBeOnTheScreen();
   });
 });
