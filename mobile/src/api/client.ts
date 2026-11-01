@@ -5,7 +5,7 @@ import {
   type AssistantTransport,
 } from './assistant-stream';
 import { recordApiMetric, pathTemplate } from './observability';
-import { resolveApiBaseUrl } from './base-url';
+import { isLocalCleartextUrl, resolveApiBaseUrl } from './base-url';
 import type {
   PushDeviceRegistrationBody,
   PushDeviceRegistrationResponse,
@@ -926,9 +926,12 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     catch { /* Web/node or an older native binary keeps the existing bytes lane. */ }
   }
   const developmentBuild = typeof __DEV__ !== 'undefined' && __DEV__;
+  const allowCleartextLocal = process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL === '1';
   const baseUrl = resolveApiBaseUrl(
     options.baseUrl ?? configuredApiBaseUrl,
     developmentBuild,
+    Platform.OS,
+    allowCleartextLocal,
   );
   const resolvedBaseUrl = baseUrl ?? '';
   const apiMode = options.mode ?? configuredApiMode;
@@ -974,18 +977,19 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     headers: Headers,
     transfer: boolean,
   ): Promise<{ response: Response; sameOrigin: boolean }> {
-    if (!transfer) {
-      return { response: await fetch(url, { ...fetchInit, headers }), sameOrigin: true };
-    }
     const apiOrigin = originOf(resolvedBaseUrl);
     const requireHttpsRedirects = !developmentBuild || /^https:\/\//i.test(resolvedBaseUrl);
+    const allowLocalCleartextRedirects = !developmentBuild
+      && allowCleartextLocal
+      && isLocalCleartextUrl(resolvedBaseUrl);
     const requestId = headers.get('X-Request-Id') ?? '';
+    const fetchRequest = transfer ? (nativeFiles?.fetch ?? fetch) : fetch;
     let currentUrl = url;
     let currentInit: RequestInit = { ...fetchInit, redirect: 'manual' };
     let currentHeaders = headers;
     let sameOrigin = true;
     for (let hop = 0; ; hop += 1) {
-      const response = await (nativeFiles?.fetch ?? fetch)(currentUrl, { ...currentInit, headers: currentHeaders });
+      const response = await fetchRequest(currentUrl, { ...currentInit, headers: currentHeaders });
       if (response.type === 'opaqueredirect') {
         throw new ApiClientError('The server redirect could not be followed', 0, requestId, 'REDIRECT_UNSUPPORTED');
       }
@@ -999,7 +1003,8 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       }
       await response.body?.cancel().catch(() => {});
       currentUrl = resolveLocation(currentUrl, location);
-      if (requireHttpsRedirects && !/^https:\/\//i.test(currentUrl)) {
+      const localCleartextRedirect = allowLocalCleartextRedirects && isLocalCleartextUrl(currentUrl);
+      if (requireHttpsRedirects && !/^https:\/\//i.test(currentUrl) && !localCleartextRedirect) {
         throw new ApiClientError('The server redirect must use HTTPS', 0, requestId, 'INSECURE_REDIRECT');
       }
       if (originOf(currentUrl) !== apiOrigin) {
