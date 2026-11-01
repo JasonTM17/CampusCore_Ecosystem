@@ -53,7 +53,7 @@ EXPO_PUBLIC_API_URL=https://www.campusute.io.vn/api/v1
 - Được: đọc nội dung công khai/ẩn danh từ backend production.
 - **Không được: đăng nhập.** Production sign-in đi qua OIDC issuer
   `id.campusute.io.vn` (xem `docs/ecosystem/identity-contract.md`,
-  `docs/ecosystem/mobile-policy.md`); khi issuer host khác API host, app còn cần
+  `docs/ecosystem/mobile-policy.md`); bản phát hành bắt buộc có
   `EXPO_PUBLIC_ISSUER_URL` trỏ đến issuer đó.
 - **Open infrastructure item (2026-10-29):** DNS của `id.campusute.io.vn` không
   resolve tại thời điểm audit — luồng đăng nhập production trên mobile đang bị
