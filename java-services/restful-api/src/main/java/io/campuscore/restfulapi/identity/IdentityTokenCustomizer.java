@@ -49,8 +49,18 @@ public class IdentityTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodin
         context.getClaims()
                 .claim("tokenType", "access")
                 .claim("credentialVersion", state.credentialVersion())
+                // Same identity claims the legacy access token carries
+                // (AuthTokenService) — resource endpoints rely on them.
+                .claim("email", state.email())
+                .claim("status", state.status())
                 .claim("roles", new ArrayList<>(state.roles()))
                 .claim("permissions", new ArrayList<>(state.permissions()));
+        if (state.firstName() != null) {
+            context.getClaims().claim("firstName", state.firstName());
+        }
+        if (state.lastName() != null) {
+            context.getClaims().claim("lastName", state.lastName());
+        }
         if ("ACTIVE".equals(state.status())) {
             context.getClaims().claim("capabilities", SELF_CAPABILITIES);
         }

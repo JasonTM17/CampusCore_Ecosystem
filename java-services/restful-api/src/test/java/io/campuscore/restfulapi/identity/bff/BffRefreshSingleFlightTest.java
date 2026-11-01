@@ -41,7 +41,7 @@ class BffRefreshSingleFlightTest {
                         "portal-client", "grant", null, Instant.now().plusSeconds(3600), null));
         when(users.findAccountAuthorization("user")).thenReturn(Optional.of(
                 new AuthUserRepository.AccountAuthorization("ACTIVE", false, null, null, null,
-                        Set.of(), Set.of(), 0)));
+                        Set.of(), Set.of(), 0, null, null, null)));
         // Every new request observes expiry (including expiry after a previous rotation).
         when(grants.findById("grant")).thenReturn(grant(true));
         when(grants.findByToken(anyString(), any())).thenReturn(grant(false));

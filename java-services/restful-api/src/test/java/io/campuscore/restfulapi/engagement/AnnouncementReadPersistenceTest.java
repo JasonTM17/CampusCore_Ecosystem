@@ -465,6 +465,13 @@ class AnnouncementReadPersistenceTest {
                 .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.meta.total").value(2));
 
+        // OIDC-shaped token: fixtureJwt mints from the same account data the
+        // customizer reads (sub, email, roles, permissions, credentialVersion,
+        // studentId, student.year) — /my must accept it now that email is minted.
+        mvc.perform(get("/api/v1/announcements/my")
+                        .with(fixtureJwt(jdbc, "student-user", "STUDENT")))
+                .andExpect(status().isOk());
+
         mvc.perform(get("/api/v1/announcements/my")
                         .with(fixtureJwt(jdbc, "missing-email", token -> token.subject("missing-email").claims(claims -> claims.remove("email")))))
                 .andExpect(status().isUnauthorized())
