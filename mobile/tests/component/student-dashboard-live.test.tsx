@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, jest, test } from '@jest/globals';
-import { act, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider, useLocale } from '../../src/i18n/locale-provider';
 
 const mockApi = { mode: 'live' as 'preview' | 'live' };
 const mockRequests = { announcements: jest.fn() };
+const mockReload = jest.fn();
 const mockPendingRequests = new Set<string>();
 type QueryValue = {
   data?: unknown;
@@ -32,7 +33,7 @@ jest.mock('../../src/hooks/useScreenQuery', () => ({
       isLoading: false,
       errorStatus: null,
       ...(mockQueries[key] ?? {}),
-      reload: jest.fn(),
+      reload: () => mockReload(key),
       setData: jest.fn(),
     };
   },
@@ -68,6 +69,7 @@ const renderScreen = (locale: 'vi' | 'en' = 'vi') => render(screenElement(locale
 afterEach(() => {
   jest.restoreAllMocks();
   jest.clearAllMocks();
+  mockReload.mockClear();
   mockPendingRequests.clear();
   for (const key of Object.keys(mockQueries)) delete mockQueries[key];
 });
@@ -102,7 +104,9 @@ describe('student dashboard live mode', () => {
     mockQueries.enrollments = { data: [] };
     mockQueries.announcements = { error: 'Không tải được thông báo.' };
     await renderScreen();
-    expect(screen.getByText('Không tải được thông báo.')).toBeOnTheScreen();
+    expect(screen.getAllByText('Không tải được thông báo.')).toHaveLength(1);
+    await fireEvent.press(screen.getByRole('button', { name: 'Thử lại' }));
+    expect(mockReload).toHaveBeenCalledWith('announcements');
     expect(screen.queryByText('0 thông báo của trường')).toBeNull();
   });
 

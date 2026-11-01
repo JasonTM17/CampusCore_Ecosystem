@@ -351,8 +351,8 @@ export function ListRow({ title, subtitle, meta, leading, trailing, onPress, unr
   ].filter(Boolean).join('. ');
   const content = (
     <View
-      accessible={!onPress}
-      accessibilityLabel={!onPress ? accessibilityLabel : undefined}
+      accessible={!onPress && !trailing}
+      accessibilityLabel={!onPress && !trailing ? accessibilityLabel : undefined}
       style={styles.listRow}
     >
       {icon ? <IconChip icon={icon} tone={unread ? 'primary' : 'neutral'} /> : leading ? (

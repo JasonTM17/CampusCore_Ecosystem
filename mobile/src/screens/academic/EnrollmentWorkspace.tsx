@@ -62,6 +62,8 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
       error={error}
       warning={preview ? null : enrollmentsQuery.warning}
       onRetry={() => void enrollmentsQuery.reload()}
+      onRefresh={preview ? undefined : () => { void enrollmentsQuery.reload(); void semestersQuery.reload(); }}
+      refreshing={!preview && (enrollmentsQuery.isStale || semestersQuery.isStale)}
 
       list={{ data: selected ? [] : rows, keyExtractor: (item) => `${item.semesterId}:${item.id}`,
         testID: 'course-grid', style: gridStyle(windowClass, largeText),

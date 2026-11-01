@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import {
@@ -54,8 +54,13 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
     errorMessage: copy.errors.unknown,
     mapError: (failure) => errorMessage(classifyError(failure), copy.errors),
   });
+  const accountRef = useRef(account);
+  accountRef.current = account;
+  const seededAccountId = useRef<string | null | undefined>(undefined);
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const phoneRef = useRef(phone);
+  const addressRef = useRef(address);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -66,10 +71,27 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
   const [confirmPasswordChange, setConfirmPasswordChange] = useState(false);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
 
+  const updatePhone = (value: string) => {
+    phoneRef.current = value;
+    setPhone(value);
+  };
+  const updateAddress = (value: string) => {
+    addressRef.current = value;
+    setAddress(value);
+  };
+
   useEffect(() => {
-    setPhone(account?.phone ?? '');
-    setAddress(account?.address ?? '');
-  }, [account]);
+    const currentAccount = accountRef.current;
+    const accountId = currentAccount?.id ?? null;
+    if (seededAccountId.current === accountId) return;
+    seededAccountId.current = accountId;
+    const nextPhone = currentAccount?.phone ?? '';
+    const nextAddress = currentAccount?.address ?? '';
+    phoneRef.current = nextPhone;
+    addressRef.current = nextAddress;
+    setPhone(nextPhone);
+    setAddress(nextAddress);
+  }, [account?.id]);
 
   const endSession = useCallback(
     (notice: ExitNotice) => {
@@ -86,13 +108,17 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
 
   const saveProfile = async () => {
     setProfileMessage(null);
-    if (!PHONE_PATTERN.test(phone.trim())) {
+    const submittedPhone = phone.trim();
+    const submittedAddress = address.trim();
+    if (!PHONE_PATTERN.test(submittedPhone)) {
       setProfileMessage(copy.profile.phoneInvalid);
       return;
     }
     setIsSavingProfile(true);
     try {
-      await campusApi.updateProfile({ phone: phone.trim(), address: address.trim() });
+      await campusApi.updateProfile({ phone: submittedPhone, address: submittedAddress });
+      if (phoneRef.current === phone) updatePhone(submittedPhone);
+      if (addressRef.current === address) updateAddress(submittedAddress);
       setProfileMessage(copy.profile.saved);
       void reload();
     } catch {
@@ -187,8 +213,8 @@ export function ProfileScreen({ navigation, role }: MobileScreenProps) {
         {isLive ? (
           <>
             <Divider />
-            <Field label={copy.profile.phone} value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" />
-            <Field label={copy.profile.address} value={address} onChangeText={setAddress} autoComplete="street-address" />
+            <Field label={copy.profile.phone} value={phone} onChangeText={updatePhone} keyboardType="phone-pad" autoComplete="tel" />
+            <Field label={copy.profile.address} value={address} onChangeText={updateAddress} autoComplete="street-address" />
             {profileMessage ? (
               <UiText accessibilityLiveRegion="polite" variant="bodySmall" style={styles.cardCopy}>{profileMessage}</UiText>
             ) : null}

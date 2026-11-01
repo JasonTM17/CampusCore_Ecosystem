@@ -93,7 +93,10 @@ function signinHarness(overrides = {}) {
     sessionStore: { bumpEpoch() {}, saveRefresh: async () => {}, setAccessToken() {}, sessionEpoch: () => 1 },
     session: { markBlocked: (value) => blocked.push(value) },
     navigation: { completeSignIn: (...args) => completed.push(args) },
-    copy: { unreachable: 'network', storage: 'storage', invalid: 'validation' },
+    copy: {
+      signIn: { unreachable: 'network', storage: 'storage', invalid: 'validation' },
+      errors: { issuerNotConfigured: 'issuer' },
+    },
     signInFlight: { current: false },
     ...overrides,
   };

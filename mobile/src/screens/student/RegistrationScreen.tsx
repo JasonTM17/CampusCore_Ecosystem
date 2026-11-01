@@ -96,6 +96,8 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
       error={preview ? null : query.error}
       warning={preview ? null : query.warning}
       onRetry={() => void query.reload()}
+      onRefresh={preview ? undefined : () => { void query.reload(); }}
+      refreshing={!preview && query.isStale}
 
       list={{ data: groupedRows(groups.slice(0, visibleGroups), (group) => group.courseKey, (group) => group.sections, (item) => item.id), keyExtractor: (entry) => entry.key,
         renderItem: ({ item: entry }) => { const group = entry.group;

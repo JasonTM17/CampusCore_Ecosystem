@@ -10,6 +10,7 @@ import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi, type CurriculumCourse } from './academic-api';
 import { localizedName } from './academic-model';
+import { previewCurriculum } from './academic-preview';
 import { AcademicShell, academicStyles, isPreviewMode, useAcademicCopy, useAcademicQuery } from './academic-ui';
 
 type StatusFilter = 'ALL' | CurriculumCourse['status'];
@@ -32,7 +33,7 @@ export function CurriculumScreen({ navigation }: MobileScreenProps) {
   const preview = isPreviewMode();
   const query = useAcademicQuery('academic.curriculum', () => academicApi.curriculum(), copy);
   const [filter, setFilter] = useState<StatusFilter>('ALL');
-  const data = preview ? null : query.data ?? null;
+  const data = preview ? previewCurriculum : query.data ?? null;
 
   const groups = useMemo(
     () => groupByTerm((data?.courses ?? []).filter((course) => filter === 'ALL' || course.status === filter)),
@@ -47,8 +48,10 @@ export function CurriculumScreen({ navigation }: MobileScreenProps) {
       title={copy.curriculumTitle}
       loading={!preview && query.isLoading}
       error={preview ? null : query.error}
-      warning={preview ? null : query.warning}
+      warning={preview ? copy.previewNotice : query.warning}
       onRetry={() => void query.reload()}
+      onRefresh={preview ? undefined : () => { void query.reload(); }}
+      refreshing={!preview && query.isStale}
 
       list={{ data: groupedRows(groups, (group) => group.key, (group) => group.courses, (item) => item.courseId), keyExtractor: (entry) => entry.key,
         renderItem: ({ item: entry }) => { const group = entry.group;

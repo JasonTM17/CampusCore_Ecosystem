@@ -46,6 +46,12 @@ TypeScript gate.
 The default mode is `live`: API calls target the Java REST API at
 `EXPO_PUBLIC_API_URL`. Preview mode remains an explicit local-only option for
 design inspection and is never treated as authenticated evidence.
+
+| Variable | Release behavior |
+| --- | --- |
+| `EXPO_PUBLIC_API_URL` | Required and must use HTTPS; without a valid value, live API requests fail closed. |
+| `EXPO_PUBLIC_PORTAL_URL` | Optional; defaults to `https://www.campusute.io.vn` in release builds and the local portal in development. |
+
 The app uses one base URL for all requests and does not embed credentials. The
 local preview entry point is deliberately labeled as a preview; it does not
 represent a successful Java authentication. When live mode is selected, sign

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
@@ -39,6 +39,8 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
 
   const [picked, setPicked] = useState(typeof params.sectionId === 'string' ? params.sectionId : '');
   const sectionId = sections.some((section) => section.sectionId === picked) ? picked : sections[0]?.sectionId ?? '';
+  const currentSectionId = useRef(sectionId);
+  currentSectionId.current = sectionId;
   const section = sections.find((item) => item.sectionId === sectionId);
 
   const gradesQuery = useOpsQuery(`lecturer:grades:${sectionId}`, () => lecturerApi.sectionGrades(sectionId), copy, Boolean(sectionId));
@@ -56,6 +58,7 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
   const [message, setMessage] = useState<Banner>(null);
   const [search, setSearch] = useState('');
   const [pages, setPages] = useState(1);
+  const editRevisionBySection = useRef<Record<string, number>>({});
 
   useEffect(() => {
     setEdits({});
@@ -63,6 +66,7 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
     setMessage(null);
     setSearch('');
     setPages(1);
+    setBusy(null);
   }, [sectionId]);
 
   const dirty = dirtyGradeCount(rows, edits);
@@ -78,6 +82,7 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
   const status = section?.gradeStatus === 'PUBLISHED' || locked ? 'PUBLISHED' : 'DRAFT';
 
   const edit = (enrollmentId: string, field: 'processScore' | 'finalExamScore', text: string) => {
+    editRevisionBySection.current[sectionId] = (editRevisionBySection.current[sectionId] ?? 0) + 1;
     setEdits((current) => ({ ...current, [enrollmentId]: { ...current[enrollmentId], [field]: text } }));
     setMessage(null);
     if (problems[enrollmentId]) {
@@ -91,6 +96,8 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
   const reload = () => { void sectionsQuery.reload(); void gradesQuery.reload(); };
 
   const saveScores = async () => {
+    const savingSectionId = sectionId;
+    const savingRevision = editRevisionBySection.current[savingSectionId] ?? 0;
     const draft = buildGradeDraft(rows, edits);
     if (Object.keys(draft.problems).length > 0) {
       setProblems(draft.problems);
@@ -104,32 +111,39 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
     setBusy('save');
     setMessage(null);
     try {
-      await lecturerApi.saveGrades(sectionId, draft.changes);
-      setEdits({});
-      setProblems(NO_PROBLEMS);
+      await lecturerApi.saveGrades(savingSectionId, draft.changes);
+      if (currentSectionId.current !== savingSectionId) return;
+      if ((editRevisionBySection.current[savingSectionId] ?? 0) === savingRevision) {
+        setEdits({});
+        setProblems(NO_PROBLEMS);
+      }
       setMessage({ tone: 'success', message: fillCopy(copy.scoresSaved, { n: draft.changes.length }) });
       reload();
     } catch (error) {
+      if (currentSectionId.current !== savingSectionId) return;
       setMessage({ tone: 'error', message: opsErrorMessage(copy, error, copy.saveScoresFailed) });
       if ((error as { status?: number } | null)?.status === 409) reload();
     } finally {
-      setBusy(null);
+      if (currentSectionId.current === savingSectionId) setBusy(null);
     }
   };
 
   const publish = async () => {
+    const savingSectionId = sectionId;
     setConfirming(false);
     setBusy('publish');
     setMessage(null);
     try {
-      await lecturerApi.publishGrades(sectionId);
+      await lecturerApi.publishGrades(savingSectionId);
+      if (currentSectionId.current !== savingSectionId) return;
       setMessage({ tone: 'success', message: copy.publishedOk });
       reload();
     } catch (error) {
+      if (currentSectionId.current !== savingSectionId) return;
       setMessage({ tone: 'error', message: opsErrorMessage(copy, error, copy.publishFailed) });
       if ((error as { status?: number } | null)?.status === 409) reload();
     } finally {
-      setBusy(null);
+      if (currentSectionId.current === savingSectionId) setBusy(null);
     }
   };
 
