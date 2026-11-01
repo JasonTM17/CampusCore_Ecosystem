@@ -4,7 +4,7 @@ set -euo pipefail
 archive="${1:?Usage: restore-postgres.sh <custom-archive.dump> <isolated-db-name>}"
 target_db="${2:?Usage: restore-postgres.sh <custom-archive.dump> <isolated-db-name>}"
 project="${COMPOSE_PROJECT_NAME:-campuscore-production}"
-compose_file="${COMPOSE_FILE:-docker-compose.prod.yml}"
+compose_file="${COMPOSE_FILE:-docker-compose.yml}"
 db_user="${POSTGRES_USER:-campuscore}"
 source_db="${POSTGRES_DB:-campuscore_restful}"
 
