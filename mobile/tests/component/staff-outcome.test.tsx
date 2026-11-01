@@ -8,6 +8,9 @@ import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { operationsMessages } from '../../src/i18n/operations-messages';
 import { UiText } from '../../src/components/Ui';
 import { Sheet } from '../../src/components/ui/primitives';
+import { WebOnlyPanel } from '../../src/screens/operations/shared/helpers';
+import { HandoffButton } from '../../src/screens/operations/lecturer-ui';
+import { HandoffLink } from '../../src/screens/lanes/HandoffLink';
 
 const mockApi = { mode: 'live' as 'live' | 'preview' };
 
@@ -102,6 +105,30 @@ describe('directory handoff', () => {
       expect(screen.getAllByText('Không mở được liên kết.').length).toBeGreaterThan(0),
     );
     openURL.mockRestore();
+  });
+
+  test('web-only and lane handoffs hide their action when a release portal is unconfigured', async () => {
+    const configured = process.env.EXPO_PUBLIC_PORTAL_URL;
+    const runtime = globalThis as typeof globalThis & { __DEV__?: boolean };
+    const previousDev = runtime.__DEV__;
+    delete process.env.EXPO_PUBLIC_PORTAL_URL;
+    runtime.__DEV__ = false;
+    try {
+      await renderEnglish(<WebOnlyPanel title="Admin directory" path="/admin/users" />);
+      expect(screen.queryByText('Open on web')).toBeNull();
+      expect(screen.getByText('Admin directory')).toBeTruthy();
+
+      await renderEnglish(<HandoffLink label="Open on web" path="/admin/users" />);
+      expect(screen.queryByText('Open on web')).toBeNull();
+
+      await renderEnglish(<HandoffButton label="Open on web" path="/admin/users" />);
+      expect(screen.queryByText('Open on web')).toBeNull();
+    } finally {
+      if (previousDev === undefined) delete runtime.__DEV__;
+      else runtime.__DEV__ = previousDev;
+      if (configured === undefined) delete process.env.EXPO_PUBLIC_PORTAL_URL;
+      else process.env.EXPO_PUBLIC_PORTAL_URL = configured;
+    }
   });
 });
 

@@ -14,6 +14,7 @@ import type { OperationsCopy } from '../../i18n/operations-messages';
 import { csvShareAvailable, shareCsv } from './lecturer-api';
 import { courseTitle, normalizeDay, type SectionLike } from './lecturer-model';
 import { openPortalPath, opsErrorMessage, useOpsCopy } from './shared/helpers';
+import { configuredPortalUrl } from './shared/portal-url';
 import { useOpsStyles } from './shared/styles';
 
 export const isOpsPreview = (): boolean => apiClient.mode === 'preview';
@@ -105,6 +106,7 @@ export function HandoffButton({ label, path }: HandoffButtonProps) {
   const { copy } = useOpsCopy();
   const styles = useOpsStyles();
   const [failed, setFailed] = useState(false);
+  if (!configuredPortalUrl()) return null;
   return (
     <View>
       <Button

@@ -7,10 +7,8 @@ import { ListGap, type PerformanceListProps } from '../../../components/perf/per
 import { useLocale } from '../../../i18n/locale-provider';
 import { fillCopy } from '../../../i18n/academic-messages';
 import { operationsMessages, type OperationsCopy } from '../../../i18n/operations-messages';
-import { DEFAULT_PORTAL_URL, portalUrl } from './portal-url';
+import { configuredPortalUrl, portalUrl } from './portal-url';
 import { useOpsStyles } from './styles';
-
-export const PORTAL_URL = process.env.EXPO_PUBLIC_PORTAL_URL ?? DEFAULT_PORTAL_URL;
 
 export function useOpsCopy(): { copy: OperationsCopy; locale: 'vi' | 'en' } {
   const { locale } = useLocale();
@@ -19,7 +17,8 @@ export function useOpsCopy(): { copy: OperationsCopy; locale: 'vi' | 'en' } {
 
 /** Opens the portal route that owns the work; resolves false when the link cannot be opened. */
 export function openPortalPath(path: string): Promise<boolean> {
-  return Linking.openURL(portalUrl(path, PORTAL_URL)).then(() => true, () => false);
+  const url = portalUrl(path, configuredPortalUrl());
+  return url ? Linking.openURL(url).then(() => true, () => false) : Promise.resolve(false);
 }
 
 /**
@@ -50,19 +49,22 @@ export function WebOnlyPanel<T>({ title, path, children, list }: WebOnlyPanelPro
   const styles = useOpsStyles();
   const { copy } = useOpsCopy();
   const [failed, setFailed] = useState(false);
+  const portalAvailable = configuredPortalUrl() !== undefined;
   return (
     <ScreenShell title={title} list={list && { ItemSeparatorComponent: ListGap, ...list }}>
       <Card tone="primary" style={styles.webOnlyCard}>
         <UiText variant="headlineSmall">{fillCopy(copy.webOnlyTitle, { title })}</UiText>
         <UiText variant="bodySmall" tone="muted" style={styles.webOnlyCopy}>{copy.webOnlyBody}</UiText>
-        <Button
-          label={copy.openOnWeb}
-          onPress={() => {
-            setFailed(false);
-            void openPortalPath(path).then((opened) => setFailed(!opened));
-          }}
-          style={styles.submit}
-        />
+        {portalAvailable ? (
+          <Button
+            label={copy.openOnWeb}
+            onPress={() => {
+              setFailed(false);
+              void openPortalPath(path).then((opened) => setFailed(!opened));
+            }}
+            style={styles.submit}
+          />
+        ) : null}
         {failed ? <UiText accessibilityRole="alert" variant="bodySmall" tone="error">{copy.webOpenFailed}</UiText> : null}
       </Card>
       {children}

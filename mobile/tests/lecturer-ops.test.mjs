@@ -165,10 +165,15 @@ test('portal hand-off joins only a fixed same-path onto the configured base', ()
 
 test('the default portal URL follows the build mode', () => {
   assert.equal(portal.defaultPortalUrl(true), 'https://portal.localhost:3102');
-  assert.equal(portal.defaultPortalUrl(false), 'https://www.campusute.io.vn');
-  assert.equal(portal.DEFAULT_PORTAL_URL, 'https://www.campusute.io.vn');
+  assert.equal(portal.defaultPortalUrl(false), undefined);
+  assert.equal(portal.DEFAULT_PORTAL_URL, undefined);
   assert.equal(portalDevelopment.DEFAULT_PORTAL_URL, 'https://portal.localhost:3102');
-  assert.equal(portalRelease.DEFAULT_PORTAL_URL, 'https://www.campusute.io.vn');
+  assert.equal(portalRelease.DEFAULT_PORTAL_URL, undefined);
+  assert.equal(portal.resolvePortalBaseUrl(undefined, true), 'https://portal.localhost:3102');
+  assert.equal(portal.resolvePortalBaseUrl('', false), undefined);
+  assert.equal(portal.resolvePortalBaseUrl(undefined, false), undefined);
+  assert.equal(portal.resolvePortalBaseUrl('https://portal.example.edu', false), 'https://portal.example.edu');
+  assert.equal(portal.portalUrl('/admin/users', undefined), undefined);
 });
 
 const keyShape = (value) =>

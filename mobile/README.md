@@ -47,17 +47,22 @@ The default mode is `live`: API calls target the Java REST API at
 `EXPO_PUBLIC_API_URL`. Preview mode remains an explicit local-only option for
 design inspection and is never treated as authenticated evidence.
 
-| Variable | Release behavior |
+This repository is local-first. Production API, portal, and identity issuer
+values are not configured here; the ecosystem hosts will be assigned later.
+
+| Variable | Behavior |
 | --- | --- |
-| `EXPO_PUBLIC_API_URL` | Required and must use HTTPS; without a valid value, live API requests fail closed. |
-| `EXPO_PUBLIC_PORTAL_URL` | Optional; defaults to `https://www.campusute.io.vn` in release builds and the local portal in development. |
+| `EXPO_PUBLIC_API_MODE` | `live` calls the configured API; `preview` uses bundled sample data without network calls. |
+| `EXPO_PUBLIC_API_URL` | Android emulator local API is `http://10.0.2.2:4010/api/v1`. Non-development builds require HTTPS unless the local cleartext flag and a loopback/emulator host are used. |
+| `EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL` | `1` only in the `local` EAS profile; permits HTTP only for `localhost`, `127.0.0.1`, `10.0.2.2`, or `::1`. Android cleartext traffic is enabled only for that profile. |
+| `EXPO_PUBLIC_PORTAL_URL` | Optional. Development defaults to `https://portal.localhost:3102`; if unset in a non-development build, web hand-off actions are unavailable. |
 
 The app uses one base URL for all requests and does not embed credentials. The
 local preview entry point is deliberately labeled as a preview; it does not
 represent a successful Java authentication. When live mode is selected, sign
 in runs an OIDC authorization-code + PKCE flow against the identity issuer
-(`EXPO_PUBLIC_ISSUER_URL`, required for release builds and when the development
-issuer differs from the API host) inside the system browser for the `cu-mobile`
+(`EXPO_PUBLIC_ISSUER_URL` when a local issuer differs from the API host) inside
+the system browser for the `cu-mobile`
 public client — the app never sees a password. The access token lives in
 session-store memory only;
 the refresh token persists solely in `expo-secure-store` (`cu.refresh`,
@@ -74,6 +79,62 @@ For live API access, Android Emulator uses `http://10.0.2.2:4010/api/v1`.
 iOS Simulator and Expo web can use `http://127.0.0.1:4010/api/v1`. A physical
 device must set `EXPO_PUBLIC_API_URL` to the development machine's LAN address,
 and the host firewall must allow that development port.
+
+## Local sign-in against the Docker stack (verified)
+
+The default `docker-compose.yml` leaves the OIDC lane off — `/oauth2/authorize`
+does not exist and sign-in cannot complete. The opt-in overlay
+`docker-compose.mobile-local.yml` turns it on with the issuer the emulator
+uses (`MOBILE_LOCAL_ISSUER`, default `http://10.0.2.2:4010`):
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.mobile-local.yml up -d --build
+node scripts/mobile-local-oidc-verify.mjs   # end-to-end smoke, no browser
+```
+
+A physical device needs `MOBILE_LOCAL_ISSUER=http://<LAN-IP>:4010` on the same
+command line, matching `EXPO_PUBLIC_API_URL`/`EXPO_PUBLIC_ISSUER_URL`.
+
+Verified release-type build (replicates the `local` EAS profile; `mobile/android`
+is the generated prebuild directory — reuse it, never commit it):
+
+```powershell
+cd mobile/android
+$env:JAVA_TOOL_OPTIONS='--enable-native-access=ALL-UNNAMED'
+$env:CAMPUSUTE_MOBILE_PROFILE='local'
+$env:EXPO_PUBLIC_API_MODE='live'
+$env:EXPO_PUBLIC_API_URL='http://10.0.2.2:4010/api/v1'
+$env:EXPO_PUBLIC_ISSUER_URL='http://10.0.2.2:4010'
+$env:EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL='1'
+./gradlew assembleRelease     # APK: app/build/outputs/apk/release/app-release.apk
+adb install app/build/outputs/apk/release/app-release.apk
+```
+
+`EXPO_PUBLIC_ISSUER_URL` is required in non-dev builds (the build fails closed
+without it). The `CAMPUSUTE_MOBILE_PROFILE=local` +
+`EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL=1` pair is what enables cleartext HTTP; the
+generated `AndroidManifest.xml` needs `android:usesCleartextTraffic="true"` on
+`<application>` when the android/ tree predates that plugin. The `npx expo
+start --android` dev-client path is equivalent in dev mode (dev falls back to
+the default issuer when unset) but is not part of this verification.
+
+Sign in with `student@campuscore.edu` and the public demo password documented
+in `docs/DEMO_RUNBOOK.md`. Expected: guest Home → Đăng nhập bằng CampusUTE ID →
+system browser opens the local login page at `10.0.2.2:4010` → the app returns
+to the student dashboard populated from the local DB.
+
+Troubleshooting:
+
+- `bind: address already in use` on 5432/1025/8025 → set
+  `POSTGRES_HOST_PORT`/`MAILPIT_SMTP_HOST_PORT`/`MAILPIT_UI_HOST_PORT`
+  (e.g. 55432/11025/18025).
+- Sign-in button does nothing / 404 on authorize → the overlay is missing from
+  the compose command.
+- `INSTALL_FAILED_UPDATE_INCOMPATIBLE` → uninstall the older build first
+  (`adb uninstall io.campuscore.mobile`), signatures differ.
+- First dashboard load may show a transient "sign in again" retry chip on one
+  widget right after the token exchange — the rest of the screen is populated;
+  a reload recovers it.
 
 ## API seam
 

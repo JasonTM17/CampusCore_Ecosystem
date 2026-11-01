@@ -15,18 +15,24 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      }
+    },
+    "local": {
+      "developmentClient": false,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://www.campusute.io.vn/api/v1",
-        "EXPO_PUBLIC_PORTAL_URL": "https://www.campusute.io.vn"
+        "CAMPUSUTE_MOBILE_PROFILE": "local",
+        "EXPO_PUBLIC_API_MODE": "live",
+        "EXPO_PUBLIC_API_URL": "http://10.0.2.2:4010/api/v1",
+        "EXPO_PUBLIC_ISSUER_URL": "http://10.0.2.2:4010",
+        "EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL": "1"
       }
     },
     "production": {
-      "autoIncrement": true,
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://www.campusute.io.vn/api/v1",
-        "EXPO_PUBLIC_PORTAL_URL": "https://www.campusute.io.vn"
-      }
+      "autoIncrement": true
     }
   }
 }

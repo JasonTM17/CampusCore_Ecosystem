@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test, { after } from 'node:test';
+import { createRequire } from 'node:module';
 import ts from 'typescript';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -151,4 +152,55 @@ test('notifications module manifest supplies Android POST_NOTIFICATIONS without 
 
   assert.equal(modulePermissionCount, 1);
   assert.equal(appPermissions.includes('android.permission.POST_NOTIFICATIONS'), false);
+});
+
+test('Android cleartext manifest plugin is selected only by the explicit local profile', async () => {
+  const require = createRequire(import.meta.url);
+  const appConfig = require('../app.config.js');
+  const withLocalCleartextTraffic = require('../plugins/with-local-cleartext-traffic.js');
+  const appJson = JSON.parse(fs.readFileSync(path.join(mobileRoot, 'app.json'), 'utf8'));
+  const eas = JSON.parse(fs.readFileSync(path.join(mobileRoot, 'eas.json'), 'utf8'));
+  const localProfile = eas.build.local;
+  assert.equal(localProfile.developmentClient, false);
+  assert.equal(localProfile.distribution, 'internal');
+  assert.equal(localProfile.android.buildType, 'apk');
+  assert.equal(localProfile.env.CAMPUSUTE_MOBILE_PROFILE, 'local');
+  assert.equal(localProfile.env.EXPO_PUBLIC_API_MODE, 'live');
+  assert.equal(localProfile.env.EXPO_PUBLIC_API_URL, 'http://10.0.2.2:4010/api/v1');
+  assert.equal(localProfile.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL, '1');
+  assert.equal(eas.build.preview.env, undefined);
+  assert.equal(eas.build.production.env, undefined);
+  const previousProfile = process.env.CAMPUSUTE_MOBILE_PROFILE;
+  const previousAllowCleartextLocal = process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+  try {
+    process.env.CAMPUSUTE_MOBILE_PROFILE = 'local';
+    process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL = '1';
+    const localConfig = appConfig({ config: appJson.expo });
+    assert.ok(localConfig.plugins.includes('./plugins/with-local-cleartext-traffic'));
+
+    const manifestConfig = withLocalCleartextTraffic({ mods: {} });
+    const result = await manifestConfig.mods.android.manifest({
+      modResults: { manifest: { application: [{ $: {} }] } },
+    });
+    assert.equal(result.modResults.manifest.application[0].$['android:usesCleartextTraffic'], 'true');
+
+    process.env.CAMPUSUTE_MOBILE_PROFILE = 'production';
+    const productionConfig = appConfig({ config: appJson.expo });
+    assert.equal(productionConfig.plugins.includes('./plugins/with-local-cleartext-traffic'), false);
+    assert.equal(appJson.expo.android.usesCleartextTraffic, undefined);
+
+    process.env.CAMPUSUTE_MOBILE_PROFILE = 'preview';
+    const previewConfig = appConfig({ config: appJson.expo });
+    assert.equal(previewConfig.plugins.includes('./plugins/with-local-cleartext-traffic'), false);
+
+    process.env.CAMPUSUTE_MOBILE_PROFILE = 'local';
+    delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+    const unoptedLocalConfig = appConfig({ config: appJson.expo });
+    assert.equal(unoptedLocalConfig.plugins.includes('./plugins/with-local-cleartext-traffic'), false);
+  } finally {
+    if (previousProfile === undefined) delete process.env.CAMPUSUTE_MOBILE_PROFILE;
+    else process.env.CAMPUSUTE_MOBILE_PROFILE = previousProfile;
+    if (previousAllowCleartextLocal === undefined) delete process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL;
+    else process.env.EXPO_PUBLIC_ALLOW_CLEARTEXT_LOCAL = previousAllowCleartextLocal;
+  }
 });
