@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-nat
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { apiClient } from '../api/client';
+import { chromeFontScaleCap } from '../design/font-scale';
 import { chromeFor } from '../design/chrome';
 import { tokens } from '../design/tokens';
 import { useTheme } from '../design/theme';
@@ -35,7 +36,7 @@ export function PreviewPill({ style }: PreviewPillProps) {
         style={({ pressed }) => [styles.pill, { backgroundColor: pressed ? chrome.surfaceStrong : chrome.overlay }, style]}
       >
         <MaterialCommunityIcons accessible={false} importantForAccessibility="no" color={chrome.gold} name="information-outline" size={15} />
-        <UiText variant="meta" numberOfLines={1} style={{ color: chrome.onSurface }}>{copy.previewLabel}</UiText>
+        <UiText variant="meta" numberOfLines={1} maxFontSizeMultiplier={chromeFontScaleCap} style={{ color: chrome.onSurface }}>{copy.previewLabel}</UiText>
       </Pressable>
       <Sheet
         visible={open}

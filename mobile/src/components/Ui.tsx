@@ -12,6 +12,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { chromeFor } from '../design/chrome';
+import { compactFontScaleCap } from '../design/font-scale';
 import { tokens } from '../design/tokens';
 import { useTheme } from '../design/theme';
 import { useShellCopy } from '../i18n/use-shell-copy';
@@ -89,7 +90,7 @@ function buildStyles(colors: ThemeColors) {
     unreadLabel: { backgroundColor: colors.primaryFixed, borderRadius: tokens.radii.pill, paddingHorizontal: tokens.spacing.xs, paddingVertical: 2 },
     rowPressed: { backgroundColor: colors.surfaceLow, borderRadius: tokens.radii.control },
     progressGroup: { marginTop: tokens.spacing.sm },
-    progressHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing.xs },
+    progressHeader: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.xs, justifyContent: 'space-between', marginBottom: tokens.spacing.xs },
     progressTrack: { backgroundColor: colors.primaryFixed, borderRadius: tokens.spacing.xs, height: tokens.spacing.sm, overflow: 'hidden' },
     progressFill: { borderRadius: tokens.spacing.xs, height: '100%' },
     divider: { backgroundColor: colors.outlineVariant, height: 1, marginVertical: tokens.spacing.sm },
@@ -196,7 +197,7 @@ export function Badge({ label, tone = 'neutral' }: BadgeProps) {
     tone === 'primary' ? 'primary' : tone === 'neutral' ? 'muted' : tone;
   return (
     <View style={[styles.badge, { backgroundColor: bg[tone] }]}>
-      <UiText variant="meta" tone={textTone} style={{ flexShrink: 1 }}>
+      <UiText variant="meta" tone={textTone} maxFontSizeMultiplier={compactFontScaleCap} style={{ flexShrink: 1 }}>
         {label}
       </UiText>
     </View>
@@ -357,18 +358,18 @@ export function ListRow({ title, subtitle, meta, leading, trailing, onPress, unr
     >
       {icon ? <IconChip icon={icon} tone={unread ? 'primary' : 'neutral'} /> : leading ? (
         <View style={[styles.leading, unread ? styles.leadingUnread : undefined]}>
-          <UiText variant="label" tone={unread ? 'primary' : 'muted'}>
+          <UiText variant="label" tone={unread ? 'primary' : 'muted'} maxFontSizeMultiplier={compactFontScaleCap}>
             {leading}
           </UiText>
         </View>
       ) : null}
-      <View style={styles.listCopy}>
+      <View testID="list-row-copy" style={styles.listCopy}>
         <View style={styles.listTitleRow}>
           <UiText variant="bodyMedium" style={unread ? styles.unreadTitle : styles.listTitle}>
             {title}
           </UiText>
           {unread ? (
-            <UiText variant="meta" tone="primary" style={styles.unreadLabel}>
+            <UiText variant="meta" tone="primary" maxFontSizeMultiplier={compactFontScaleCap} style={styles.unreadLabel}>
               {copy.unread}
             </UiText>
           ) : null}
@@ -520,7 +521,7 @@ export function DataNotice({ message }: { message: string }) {
       accessibilityLiveRegion="polite"
       style={[styles.statePanel, styles.dataNotice]}
     >
-      <UiText variant="bodySmall" tone="warning">
+      <UiText variant="bodySmall" tone="warning" style={{ flex: 1 }}>
         {message}
       </UiText>
     </View>

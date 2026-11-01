@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { requestAssistantEntryScope } from '../../assistant/entry-scope';
 import { Button, Card, DataNotice, Divider, StatePanel, UiText } from '../../components/Ui';
 import { IconChip, StatusPill } from '../../components/ui/index';
+import { compactFontScaleCap } from '../../design/font-scale';
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { useLocale } from '../../i18n/locale-provider';
@@ -63,7 +64,7 @@ export function ThesisStepper({
               backgroundColor: step.state === 'done' ? colors.successFixed : step.state === 'current' ? colors.primaryFixed : colors.surfaceLow,
               borderColor: step.state === 'done' ? colors.success : step.state === 'current' ? colors.primary : colors.outlineVariant,
             }]}>
-              <UiText variant="meta" tone={iconTone(step.state)}>{index + 1}</UiText>
+              <UiText variant="meta" tone={iconTone(step.state)} maxFontSizeMultiplier={compactFontScaleCap}>{index + 1}</UiText>
             </View>
             {index < steps.length - 1 ? <View style={[styles.stepConnector, { backgroundColor: colors.outlineVariant }]} /> : null}
           </View>
@@ -163,7 +164,7 @@ const styles = StyleSheet.create({
   stepper: { gap: tokens.spacing.sm },
   stepRow: { alignItems: 'stretch', flexDirection: 'row', gap: tokens.spacing.sm, minWidth: 0 },
   stepTrack: { alignItems: 'center', width: 32 },
-  stepNode: { alignItems: 'center', borderRadius: tokens.radii.pill, borderWidth: 1, height: 28, justifyContent: 'center', width: 28 },
+  stepNode: { alignItems: 'center', borderRadius: tokens.radii.pill, borderWidth: 1, justifyContent: 'center', minHeight: 28, minWidth: 28, paddingHorizontal: tokens.spacing.xs },
   stepConnector: { flex: 1, marginVertical: tokens.spacing.xs, width: 2 },
   stepCopy: { alignItems: 'flex-start', flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm, minWidth: 0, paddingVertical: tokens.spacing.xs },
   stepLabel: { flexShrink: 1, minWidth: 120 },
