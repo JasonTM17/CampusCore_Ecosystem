@@ -120,5 +120,6 @@ retroactively identify password changes made before the revision existed.
 Published development secrets are unsuitable for deployment, and access and
 refresh credentials must remain separate token families. The startup policy is
 owned by [JwtSecretPolicy](../../java-services/restful-api/src/main/java/io/campuscore/restfulapi/security/JwtSecretPolicy.java)
-and `SecurityConfig`; deployment configuration is in
-[docker-compose.prod.yml](../../docker-compose.prod.yml).
+and `SecurityConfig`; local stack configuration is in
+[docker-compose.yml](../../docker-compose.yml). A hosted deployment stack is not
+part of this repository (production is deferred).

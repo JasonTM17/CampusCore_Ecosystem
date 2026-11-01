@@ -1,5 +1,9 @@
 # Identity contract — một session authority (P04)
 
+> **Status: deferred — the ecosystem runs local-first; nothing here is deployed.**
+> Issuer `id.campusute.io.vn` dưới đây là **host go-live tương lai**; local demo dùng
+> `http://127.0.0.1:4010`. Local quick start: [README.md](../../README.md#quick-start-local).
+
 Pha: P04 step 1–3 · Owner: controller · Review: Kongming R1 PASS_WITH_CONDITIONS
 (findings 1–15 đã vá vào bản này), Wukong falsification sau implementation.
 Liên quan: `selected-design.md` §ADR-B (dòng 67–77), `domain-contracts.md`,
@@ -39,7 +43,7 @@ endpoint trực tiếp của business chain, không trở thành ROPC grant.
 | Contract | Implementation | Ghi chú |
 | --- | --- | --- |
 | Authorization server | `spring-security-oauth2-authorization-server:7.1.1` + Boot module `4.1.1` (pom đã có, compile PASS) | không SAS 1.5/EOL |
-| Issuer | `AuthorizationServerSettings.issuer = ${identity.issuer-uri}`; local demo `http://127.0.0.1:4010`, prod `https://id.campusute.io.vn` | §2.6 proxy constraint |
+| Issuer | `AuthorizationServerSettings.issuer = ${identity.issuer-uri}`; local demo `http://127.0.0.1:4010`, future go-live host `https://id.campusute.io.vn` (deferred) | §2.6 proxy constraint |
 | Registered clients | `RegisteredClientRepository` custom đọc `identity.clients[]` config: exact `redirectUris`/`postLogoutRedirectUris`, no wildcard. **Browser surface = confidential** (secret hash qua env); **native = public + PKCE S256 bắt buộc** (KM finding 10 — native không giữ secret được) | config-driven, không DB |
 | Ký bất đối xứng | `identity.keys[]` RSA PEM qua env (không vào repo/DB): `kid`, `active`, key material. `JWKSource` public toàn ring qua `/oauth2/jwks`; rollover = add key + flip active, key cũ verify trong overlap | dev/test sinh RSA in-memory khi `identity.dev-keygen=true` |
 | Auth-code + PKCE + nonce | SAS `OAuth2AuthorizationService`: code one-time, `code_challenge_method=S256` required trên mọi client, state/nonce do client gửi — server embed nonce vào id_token | SAS-native |

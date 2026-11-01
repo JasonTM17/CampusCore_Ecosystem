@@ -1,5 +1,9 @@
 # Host policy — Browser BFF, host isolation và SSO xuyên miền (P05)
 
+> **Status: deferred — the ecosystem runs local-first; nothing here is deployed.**
+> Các host `*.campusute.io.vn` dưới đây là **thiết kế host đích tương lai**; local quick start:
+> [README.md](../../README.md#quick-start-local).
+
 Contract implementation của ADR-B phần browser surface (selected-design §ADR-B,
 §trust boundaries). P04 đã có identity authority (`identity-contract.md`); P05
 thêm **browser-facing BFF lane**: mỗi host là confidential OIDC client riêng,
@@ -17,7 +21,7 @@ preview SSO: `www` (portal) + `learn` (dummy protected route) + `apply`
 Single source server-side; frontend `src/lib/surfaces.ts` là projection đọc
 config cùng shape (không tự khai client).
 
-| Surface | Host production | Host local preview | Mode | OIDC client |
+| Surface | Host production (future) | Host local preview | Mode | OIDC client |
 | --- | --- | --- | --- | --- |
 | `apex` | `campusute.io.vn` | `apex.localhost` | redirect→portal, legacy lane | — |
 | `portal` | `www.campusute.io.vn` | `portal.localhost` | BFF | `cu-portal` |
@@ -31,8 +35,8 @@ config cùng shape (không tự khai client).
 `portal/learn/apply.localhost:3102` (cùng Next HTTPS dev, phân biệt Host),
 `id.localhost:PORT` → TLS terminator → Java, `apex/news/docs.localhost` → Next.
 
-**Surface resolution (KM-H2):** Host header của caller **không đủ** — prod là
-Vercel→Render, custom host Java chỉ có `id`/`api`, `Host: www.campusute.io.vn`
+**Surface resolution (KM-H2):** Host header của caller **không đủ** — ở topology
+go-live dự kiến (edge proxy → Java), custom host Java chỉ có `id`/`api`, `Host: www.campusute.io.vn`
 không tới được Java BFF. Nên Next edge proxy (điểm duy nhất biết public host)
 resolve surface từ Host, strip mọi `x-campuscore-*` do caller đưa, rồi set
 `x-campuscore-surface: <surface>` + `x-campuscore-scheme: https` kèm
@@ -282,8 +286,8 @@ session path vẫn 401, stale cookie trên public path vẫn 401.
 
 ## 7. `id` host surface
 
-Java trên `id.localhost` (TLS terminator dev) / `id.campusute.io.vn` (prod —
-Java custom host trực tiếp): `/oauth2/**`, `/.well-known/**`,
+Java trên `id.localhost` (TLS terminator dev) / `id.campusute.io.vn` (host go-live
+tương lai — Java custom host trực tiếp): `/oauth2/**`, `/.well-known/**`,
 `/connect/logout`, `/login` (minimal HTML form — POST
 `/api/v1/auth/login` qua fetch, success → `continue` allowlisted:
 chỉ `/oauth2/authorize?…` cùng host), `/api/v1/auth/login|refresh|logout|

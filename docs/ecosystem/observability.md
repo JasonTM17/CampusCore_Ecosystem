@@ -1,5 +1,9 @@
 # Observability contract — correlation id, metrics, log redaction, SLOs & alerts
 
+> **Status: deferred — the ecosystem runs local-first; nothing here is deployed.**
+> Phần cold-start/hosted-platform và severity runbook là **chuẩn bị cho go-live tương lai**;
+> local quick start: [README.md](../../README.md#quick-start-local).
+
 Pha: P03 step 3 · Owner: controller · Review: Kongming + tester contract
 Audit reference: AUD-26 (Service SLOs, Operational Alert Definitions, and Probe Semantics)
 Liên quan: `contracts/ecosystem/domain-contracts.md`, gate `contracts` trong
@@ -224,11 +228,11 @@ flowchart TD
 4. **Web Frontend Health (`/health`)**:
    - Được định nghĩa tại `frontend/src/app/health/route.ts`. Proxy trực tiếp tới `/api/v1/health/liveness` với `X-Request-Id` tương ứng.
 
-### 5.2 Cơ chế giảm thiểu Cold-Start (Render / Serverless)
+### 5.2 Cơ chế giảm thiểu Cold-Start (hosted platform — tương lai)
 
-- Trên Render free-tier, container bị sleep sau thời gian nhàn rỗi. Thời gian đánh thức JVM và khởi tạo Hibernate/HikariCP mất từ 15 đến 40 giây.
+- Trên một hosted platform có chế độ sleep theo thời gian nhàn rỗi (ví dụ Render free-tier), thời gian đánh thức JVM và khởi tạo Hibernate/HikariCP mất từ 15 đến 40 giây. Local-first stack hiện tại không có cold start kiểu này.
 - **Client-side Absorption**: Interceptor axios của frontend tự động retry một lần (với 3s backoff) đối với các request GET idempotent khi nhận mã 502/503/504 từ gateway trong quá trình cold start.
-- **Warm Ping Mitigation**: Database migration `supabase/migrations/20260920210000_render_keepalive_warm_ping.sql` hỗ trợ gửi ping định kỳ 10 phút qua `pg_cron` + `pg_net` nhằm giữ container không bị sleep (xem chi tiết tại [PRODUCTION_RUNBOOK.md](../PRODUCTION_RUNBOOK.md#render-cold-start-mitigation)).
+- **Warm Ping Mitigation**: migration `supabase/migrations/20260920210000_render_keepalive_warm_ping.sql` là di sản của mô hình host cũ (ping định kỳ 10 phút qua `pg_cron` + `pg_net` để giữ container không bị sleep). Không dùng cho stack local-first và không còn runbook vận hành tương ứng trong repo này.
 
 ---
 
@@ -289,8 +293,8 @@ Tất cả các định nghĩa cảnh báo được lưu trữ dạng tệp cấ
 
 | Mức độ | Thời gian Phản hồi | Kênh Thông báo | Hành động Xử lý & Liên kết Runbook |
 | :--- | :--- | :--- | :--- |
-| `critical` | **< 15 phút** | On-call Paging, Kênh Khẩn cấp | Can thiệp tức thời. Tra cứu tại [PRODUCTION_RUNBOOK.md](../PRODUCTION_RUNBOOK.md#start-and-smoke). |
-| `warning` | **< 2 giờ** | Kênh Triage Kỹ thuật | Phân tích nguyên nhân suy giảm hiệu năng trước khi thành outage. Xem [PRODUCTION_RUNBOOK.md](../PRODUCTION_RUNBOOK.md#render--neon-operating-notes). |
+| `critical` | **< 15 phút** | On-call Paging, Kênh Khẩn cấp | Can thiệp tức thời. Quy trình go-live/rollback tương lai: [release-runbook.md](release-runbook.md). |
+| `warning` | **< 2 giờ** | Kênh Triage Kỹ thuật | Phân tích nguyên nhân suy giảm hiệu năng trước khi thành outage. Xem [release-runbook.md](release-runbook.md) và gate `verification` trong [verification.md](verification.md). |
 | `info` | Trong ngày | Dashboard Review | Theo dõi xu hướng sử dụng tài nguyên hoặc reset quota. Xem [deepseek-assistant.md](../integrations/deepseek-assistant.md). |
 
 ---

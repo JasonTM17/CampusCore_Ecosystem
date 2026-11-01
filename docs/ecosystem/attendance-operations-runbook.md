@@ -95,9 +95,11 @@ Lecturers conduct attendance check-in directly from the web portal at `/dashboar
 
 ### 3.2 Sharing the Code-Free Link & Security Architecture
 
-Upon opening, the panel displays a shareable link (`buildCheckinShareUrl`):
+Upon opening, the panel displays a shareable link (`buildCheckinShareUrl`, built from the
+current web origin):
 ```text
-https://www.campusute.io.vn/attendance/checkin/<sessionId>
+http://127.0.0.1:3000/attendance/checkin/<sessionId>        # local stack
+https://www.campusute.io.vn/attendance/checkin/<sessionId>  # future go-live host (deferred)
 Deep link: campuscore://attendance/checkin/<sessionId>
 ```
 
