@@ -44,7 +44,7 @@ class ScheduledAnnouncementNotifyTest {
         when(announcements.approveForPublication(eq("notice-1"), eq(0), eq("admin-2"), any())).thenReturn(1);
         when(announcements.findById("notice-1")).thenReturn(Optional.of(announcement(null)));
 
-        service.approve("admin-2", "Admin Two", List.of("ADMIN"), "notice-1");
+        service.approve("admin-2", "Admin Two", List.of("ADMIN"), null, "notice-1");
 
         verify(notifier).notifyAfterPublication("notice-1");
     }
@@ -73,7 +73,7 @@ class ScheduledAnnouncementNotifyTest {
         when(announcements.findById("notice-1")).thenReturn(Optional.of(announcement(null)));
         when(notifier.notifyAfterPublication(any())).thenThrow(new RuntimeException("inbox down"));
 
-        service.approve("admin-2", "Admin Two", List.of("ADMIN"), "notice-1");
+        service.approve("admin-2", "Admin Two", List.of("ADMIN"), null, "notice-1");
 
         // Claim and inbox write are owned by the notifier's one new transaction.
         // Its rollback/retry eligibility is checked by the persistence test.

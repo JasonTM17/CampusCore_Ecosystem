@@ -220,6 +220,10 @@ public class PublicDocumentService {
             throw conflict("REVIEWER_EQUALS_AUTHOR",
                     "The revision author cannot approve their own document");
         }
+        if (!isGovernance(roles)) {
+            throw new DomainException(HttpStatus.FORBIDDEN, "DOCUMENT_APPROVAL_FORBIDDEN",
+                    "Public document approval requires a governance role");
+        }
         Instant now = Instant.now(clock);
         documents.supersedePublishedRevision(id);
         if (documents.approveHead(id, head.revision(), actor, now) != 1) {
@@ -247,6 +251,10 @@ public class PublicDocumentService {
         RevisionRow head = requireHeadRevision(id);
         if (!"IN_REVIEW".equals(head.state())) {
             throw invalidState();
+        }
+        if (!isGovernance(roles)) {
+            throw new DomainException(HttpStatus.FORBIDDEN, "DOCUMENT_APPROVAL_FORBIDDEN",
+                    "Public document review requires a governance role");
         }
         Instant now = Instant.now(clock);
         if (documents.returnHead(id, head.revision(), actor, note, now) != 1) {
