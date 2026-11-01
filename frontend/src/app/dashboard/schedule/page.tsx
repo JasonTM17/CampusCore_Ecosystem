@@ -59,6 +59,7 @@ import {
 import { useRovingTabs } from '@/components/ui/use-roving-tabs';
 
 const SCHEDULE_VIEW_MODES = ['grid', 'day', 'list'] as const;
+const DAY_TAB_VALUES = ORDERED_DAYS.map(String);
 
 type DayAgendaItem = {
   id: string;
@@ -101,6 +102,11 @@ export default function SchedulePage() {
   const todayDow = useCampusDayOfWeek();
 
   const [selectedDayTab, setSelectedDayTab] = useState<number>(todayDow);
+  const dayTabs = useRovingTabs(
+    DAY_TAB_VALUES,
+    String(selectedDayTab),
+    (value) => setSelectedDayTab(Number(value)),
+  );
 
   /** Loads semester choices and selects the best current term for the weekly agenda. */
   const fetchSemesters = useCallback(async () => {
@@ -644,7 +650,7 @@ export default function SchedulePage() {
           {viewMode === 'day' && (
             <div id="schedule-panel-day" role="tabpanel" aria-labelledby="schedule-tab-day" className="space-y-6">
               {/* Day Selector Pills */}
-              <div className="flex flex-wrap items-center gap-2">
+              <div role="tablist" aria-label={copy.viewDay} className="flex flex-wrap items-center gap-2">
                 {ORDERED_DAYS.map((dayNum) => {
                   const dayName = locale === 'vi' ? DAY_LABELS_VI[dayNum] : DAY_LABELS_EN[dayNum];
                   const count = (agendaByDay[dayNum] ?? []).length;
@@ -655,6 +661,13 @@ export default function SchedulePage() {
                     <button
                       key={`day-tab-${dayNum}`}
                       type="button"
+                      role="tab"
+                      id={`schedule-day-tab-${dayNum}`}
+                      aria-controls="schedule-day-panel"
+                      aria-selected={isSelected}
+                      ref={dayTabs.tabRef(String(dayNum))}
+                      tabIndex={dayTabs.tabIndex(String(dayNum))}
+                      onKeyDown={(event) => dayTabs.onKeyDown(event, ORDERED_DAYS.indexOf(dayNum))}
                       onClick={() => setSelectedDayTab(dayNum)}
                       className={`flex min-h-10 items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition-all ${
                         isSelected
@@ -681,6 +694,13 @@ export default function SchedulePage() {
               </div>
 
               {/* Day Details Card */}
+              <div
+                id="schedule-day-panel"
+                role="tabpanel"
+                aria-labelledby={`schedule-day-tab-${selectedDayTab}`}
+                tabIndex={0}
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
               <Card variant="muted" className="border-border/80 shadow-sm">
                 <CardHeader className="border-b border-border/70 pb-4">
                   <div className="flex items-center justify-between">
@@ -761,6 +781,7 @@ export default function SchedulePage() {
                   )}
                 </CardContent>
               </Card>
+              </div>
             </div>
           )}
 

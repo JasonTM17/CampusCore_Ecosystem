@@ -80,6 +80,7 @@ function loadWorkspaceComponent() {
     '@/lib/thesis-api': {},
     '@/features/thesis/components/thesis-helpers': helpers,
     '@/lib/thesis-text': thesisText,
+    '@/lib/safe-url': loadModule('src/lib/safe-url.ts'),
   }).default;
 }
 

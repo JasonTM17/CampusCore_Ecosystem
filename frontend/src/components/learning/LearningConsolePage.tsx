@@ -37,6 +37,7 @@ import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { statusToneClass } from '@/components/ui/status';
 import { UPLOAD_ACCEPT_COURSEWORK } from '@/lib/upload-validation';
+import { createRequestEpoch } from '@/lib/request-epoch';
 import { learningMessages } from '@/i18n/learning-messages';
 import { useI18n } from '@/i18n';
 import { cn } from '@/lib/utils';
@@ -97,6 +98,7 @@ export function StudentLearningPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [workAssignment, setWorkAssignment] = useState<LearningAssignment | null>(null);
+  const sectionEpoch = useRef(createRequestEpoch()).current;
 
   const loadSections = useCallback(async () => {
     setIsLoading(true);
@@ -113,6 +115,7 @@ export function StudentLearningPage() {
   }, [copy]);
 
   const loadSection = useCallback(async (id: string) => {
+    const epoch = sectionEpoch.begin();
     if (!id) {
       setMaterials([]);
       setAssignments([]);
@@ -123,15 +126,20 @@ export function StudentLearningPage() {
         learningApi.materials(id),
         learningApi.assignments(id),
       ]);
+      if (!sectionEpoch.isCurrent(epoch)) return;
       setMaterials(materialRows);
       setAssignments(assignmentRows);
     } catch (cause) {
+      if (!sectionEpoch.isCurrent(epoch)) return;
+      setMaterials([]);
+      setAssignments([]);
       toast.error(friendlyError(copy, cause));
     }
-  }, [copy]);
+  }, [copy, sectionEpoch]);
 
   useEffect(() => { if (!authLoading) void loadSections(); }, [authLoading, loadSections]);
   useEffect(() => { void loadSection(sectionId); }, [sectionId, loadSection]);
+  useEffect(() => () => { sectionEpoch.invalidate(); }, [sectionEpoch]);
 
   if (authLoading || isLoading) return <LoadingState label={copy.loading} />;
   if (error) return <ErrorState title={copy.failed} description={error} onRetry={() => void loadSections()} />;
@@ -281,6 +289,7 @@ function StudentWorkModal({
   const [feedback, setFeedback] = useState<LearningFeedback[]>([]);
   const [textBody, setTextBody] = useState('');
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const idemKey = useRef(newLearningIdempotencyKey());
 
@@ -309,7 +318,8 @@ function StudentWorkModal({
   const editable = submission == null || submission.status === 'DRAFT' || submission.status === 'RETURNED';
 
   const run = async (action: () => Promise<LearningSubmission>, ok: string) => {
-    if (!assignment) return;
+    if (!assignment || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
       const result = await action();
@@ -320,6 +330,7 @@ function StudentWorkModal({
     } catch (cause) {
       toast.error(friendlyError(copy, cause));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
@@ -467,6 +478,9 @@ export function LecturerLearningPage() {
   const [materialOpen, setMaterialOpen] = useState(false);
   const [assignmentOpen, setAssignmentOpen] = useState(false);
   const [rosterAssignment, setRosterAssignment] = useState<LearningAssignment | null>(null);
+  const sectionEpoch = useRef(createRequestEpoch()).current;
+  const pendingActionRef = useRef<string | null>(null);
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
 
   const loadSections = useCallback(async () => {
     setIsLoading(true);
@@ -484,6 +498,7 @@ export function LecturerLearningPage() {
   }, [copy]);
 
   const loadSection = useCallback(async (id: string) => {
+    const epoch = sectionEpoch.begin();
     if (!id) {
       setMaterials([]);
       setAssignments([]);
@@ -494,46 +509,60 @@ export function LecturerLearningPage() {
         learningApi.staffMaterials(id),
         learningApi.staffAssignments(id),
       ]);
+      if (!sectionEpoch.isCurrent(epoch)) return;
       setMaterials(materialRows);
       setAssignments(assignmentRows);
     } catch (cause) {
+      if (!sectionEpoch.isCurrent(epoch)) return;
+      setMaterials([]);
+      setAssignments([]);
       toast.error(friendlyError(copy, cause));
     }
-  }, [copy]);
+  }, [copy, sectionEpoch]);
 
   useEffect(() => { if (!authLoading) void loadSections(); }, [authLoading, loadSections]);
   useEffect(() => { void loadSection(sectionId); }, [sectionId, loadSection]);
+  useEffect(() => () => { sectionEpoch.invalidate(); }, [sectionEpoch]);
 
   if (authLoading || isLoading) return <LoadingState label={copy.loading} />;
   if (error) return <ErrorState title={copy.failed} description={error} onRetry={() => void loadSections()} />;
 
-  const lifecycle = (assignment: LearningAssignment) => (
-    <div className="flex flex-wrap gap-1">
-      {assignment.status === 'DRAFT' ? (
-        <Button size="sm" variant="outline" onClick={() => void staffAction(() => learningApi.staffPublish(assignment.id), copy.updated)}>
-          {copy.publish}
-        </Button>
-      ) : null}
-      {assignment.status === 'PUBLISHED' ? (
-        <Button size="sm" variant="outline" onClick={() => void staffAction(() => learningApi.staffClose(assignment.id), copy.updated)}>
-          {copy.closeAssignment}
-        </Button>
-      ) : null}
-      {assignment.status === 'CLOSED' ? (
-        <Button size="sm" variant="outline" onClick={() => void staffAction(() => learningApi.staffArchive(assignment.id), copy.updated)}>
-          {copy.archive}
-        </Button>
-      ) : null}
-    </div>
-  );
+  const lifecycle = (assignment: LearningAssignment) => {
+    const actionKey = `lifecycle:${assignment.id}`;
+    return (
+      <div className="flex flex-wrap gap-1">
+        {assignment.status === 'DRAFT' ? (
+          <Button size="sm" variant="outline" disabled={pendingActionId === actionKey} onClick={() => void staffAction(actionKey, () => learningApi.staffPublish(assignment.id), copy.updated)}>
+            {copy.publish}
+          </Button>
+        ) : null}
+        {assignment.status === 'PUBLISHED' ? (
+          <Button size="sm" variant="outline" disabled={pendingActionId === actionKey} onClick={() => void staffAction(actionKey, () => learningApi.staffClose(assignment.id), copy.updated)}>
+            {copy.closeAssignment}
+          </Button>
+        ) : null}
+        {assignment.status === 'CLOSED' ? (
+          <Button size="sm" variant="outline" disabled={pendingActionId === actionKey} onClick={() => void staffAction(actionKey, () => learningApi.staffArchive(assignment.id), copy.updated)}>
+            {copy.archive}
+          </Button>
+        ) : null}
+      </div>
+    );
+  };
 
-  const staffAction = async (action: () => Promise<unknown>, ok: string) => {
+  const staffAction = async (actionKey: string, action: () => Promise<unknown>, ok: string) => {
+    if (pendingActionRef.current !== null) return;
+    pendingActionRef.current = actionKey;
+    setPendingActionId(actionKey);
     try {
       await action();
       toast.success(ok);
       await loadSection(sectionId);
     } catch (cause) {
       toast.error(friendlyError(copy, cause));
+    } finally {
+      pendingActionRef.current = null;
+      setPendingActionId(null);
     }
   };
 
@@ -606,7 +635,8 @@ export function LecturerLearningPage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => void staffAction(() => learningApi.staffDeleteMaterial(material.id, material.version), copy.deleted)}
+                          disabled={pendingActionId === `material:${material.id}`}
+                          onClick={() => void staffAction(`material:${material.id}`, () => learningApi.staffDeleteMaterial(material.id, material.version), copy.deleted)}
                         >
                           ×
                         </Button>
@@ -694,9 +724,12 @@ function MaterialModal({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const create = async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
       const file = await pickFile(fileRef.current);
@@ -714,6 +747,7 @@ function MaterialModal({
     } catch (cause) {
       toast.error(friendlyError(copy, cause));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
@@ -745,8 +779,11 @@ function AssignmentModal({
   const [deadline, setDeadline] = useState('');
   const [maxScore, setMaxScore] = useState('');
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
 
   const create = async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
       await learningApi.staffCreateAssignment(sectionId, {
@@ -765,6 +802,7 @@ function AssignmentModal({
     } catch (cause) {
       toast.error(friendlyError(copy, cause));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
@@ -810,6 +848,7 @@ function RosterModal({
   const [comment, setComment] = useState('');
   const [score, setScore] = useState('');
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
 
   const load = useCallback(async () => {
     if (!assignment) return;
@@ -846,7 +885,8 @@ function RosterModal({
   };
 
   const grade = async (action: 'return' | 'review') => {
-    if (!work) return;
+    if (!work || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
       const payload = {
@@ -864,6 +904,7 @@ function RosterModal({
     } catch (cause) {
       toast.error(friendlyError(copy, cause));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };

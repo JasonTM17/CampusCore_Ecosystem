@@ -70,6 +70,7 @@ import {
 import { getLocalizedName } from '@/lib/academic-content';
 import { findAnnouncementLengthViolation } from '@/lib/announcement-limits';
 import { campusErrorCode, campusErrorMessage } from '@/lib/campus-error';
+import { createRequestEpoch } from '@/lib/request-epoch';
 import { cn } from '@/lib/utils';
 import {
   fetchSiteAppearance,
@@ -237,7 +238,7 @@ function ReorderGuardNotice({ copy, blockedBy, extra }: ReorderGuardNoticeProps)
 
 export default function AdminAnnouncementsPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: authLoading, isLoggingOut } = useAuth();
-  const { href, locale, formatDateTime, messages } = useI18n();
+  const { href, locale, formatDateTime, formatNumber, messages } = useI18n();
   const router = useRouter();
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const vi = locale === 'vi';
@@ -284,6 +285,11 @@ export default function AdminAnnouncementsPage() {
   const [reorderList, setReorderList] = useState<AnnouncementRecord[]>([]);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
   const [editorEngine, setEditorEngine] = useState<'tinymce' | 'markdown'>('tinymce');
+  const announcementsEpoch = useRef(createRequestEpoch()).current;
+
+  useEffect(() => () => {
+    announcementsEpoch.invalidate();
+  }, [announcementsEpoch]);
 
   const reorderCopy = vi ? reorderCopyVi : reorderCopyEn;
   const reorderGuard = useMemo(() => canReorder({ page, filters }), [filters, page]);
@@ -419,7 +425,7 @@ export default function AdminAnnouncementsPage() {
         invalidYears: 'Năm học phải là các số nguyên dương, cách nhau bằng dấu phẩy.',
         invalidDates: 'Ngày kết thúc phải sau ngày bắt đầu.',
         contentTooLong: (excess: number, limit: number) =>
-          `Nội dung vượt quá giới hạn ${limit.toLocaleString('vi-VN')} ký tự (cần bỏ bớt ${excess.toLocaleString('vi-VN')} ký tự). Hãy rút gọn văn bản hoặc bỏ bớt hình ảnh trước khi lưu.`,
+          `Nội dung vượt quá giới hạn ${formatNumber(limit)} ký tự (cần bỏ bớt ${formatNumber(excess)} ký tự). Hãy rút gọn văn bản hoặc bỏ bớt hình ảnh trước khi lưu.`,
         conflict: 'Bản ghi đã thay đổi. Hãy tải lại và thử lại để không ghi đè dữ liệu mới.',
         archivedEdit: 'Thông báo đã lưu trữ. Hãy khôi phục trước khi chỉnh sửa.',
         genericError: 'Hiện chưa thể hoàn tất thao tác. Hãy thử lại sau.',
@@ -558,6 +564,7 @@ export default function AdminAnnouncementsPage() {
   );
 
   const fetchAnnouncements = useCallback(async () => {
+    const epoch = announcementsEpoch.begin();
     setIsLoading(true);
     setError('');
     try {
@@ -569,14 +576,17 @@ export default function AdminAnnouncementsPage() {
         status: filters.status,
         search: filters.search || undefined,
       });
+      if (!announcementsEpoch.isCurrent(epoch)) return;
       setItems(response.data ?? []);
       setTotalPages(Math.max(response.meta?.totalPages ?? 1, 1));
     } catch (cause) {
+      if (!announcementsEpoch.isCurrent(epoch)) return;
       setError(friendlyError(cause));
     } finally {
+      if (!announcementsEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [filters.priority, filters.search, filters.semesterId, filters.status, friendlyError, page]);
+  }, [announcementsEpoch, filters.priority, filters.search, filters.semesterId, filters.status, friendlyError, page]);
 
   useEffect(() => {
     const trimmed = searchInput.trim();

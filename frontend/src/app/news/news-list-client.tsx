@@ -1,19 +1,24 @@
 'use client';
 
+import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { announcementsApi, type AnnouncementRecord } from '@/lib/api';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { PublicChrome } from '@/components/content/PublicChrome';
+import { Button } from '@/components/ui/button';
 import { SectionEyebrow } from '@/components/ui/page-header';
 import { HomeNewsBentoSkeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/ui/state-block';
 import { useI18n } from '@/i18n';
 import { useApiQuery } from '@/lib/query';
+import { clampPage, hasNextPage } from '@/lib/pager';
 import {
   extractAnnouncementExcerpt,
   formatAnnouncementPublisher,
   formatRelativeTime,
 } from '@/lib/announcement-presentation';
+
+const PAGE_SIZE = 50;
 
 /**
  * Anonymous campus news feed (publication-policy §6): only rows the backend
@@ -22,11 +27,15 @@ import {
 export default function NewsPage() {
   const { locale, messages } = useI18n();
   const copy = messages.content.news;
+  const [page, setPage] = useState(1);
   const query = useApiQuery(
-    ['public-news'],
-    () => announcementsApi.getPublic({ page: 1, limit: 50 }),
+    ['public-news', page],
+    () => announcementsApi.getPublic({ page, limit: PAGE_SIZE }),
   );
   const items = (query.data?.data ?? []) as AnnouncementRecord[];
+  const totalPages = Math.max(1, query.data?.meta?.totalPages ?? 1);
+  const hasPreviousPage = page > 1;
+  const goToPage = (nextPage: number) => setPage(clampPage(nextPage, totalPages));
 
   return (
     <PublicChrome>
@@ -91,6 +100,34 @@ export default function NewsPage() {
           })}
         </ul>
       )}
+
+      {!query.isLoading && !query.isError && items.length > 0 ? (
+        <div className="mt-8 flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+            {messages.common.states.page} {page} / {totalPages}
+          </p>
+          {hasPreviousPage || hasNextPage(page, totalPages) ? (
+            <nav aria-label={messages.common.states.page} className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!hasPreviousPage}
+                onClick={() => goToPage(page - 1)}
+              >
+                {messages.common.states.goToPreviousPage}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!hasNextPage(page, totalPages)}
+                onClick={() => goToPage(page + 1)}
+              >
+                {messages.common.states.goToNextPage}
+              </Button>
+            </nav>
+          ) : null}
+        </div>
+      ) : null}
     </PublicChrome>
   );
 }

@@ -116,3 +116,10 @@ test('the profile update payload type no longer advertises dateOfBirth', () => {
   const code = codeOnly(read('src/lib/api.ts'));
   assert.doesNotMatch(code, /dateOfBirth/, 'no client payload may type or send a birth date');
 });
+
+// W13 audit A11Y-04: the uploaded avatar is a meaningful image, not decoration.
+test('the profile avatar carries an accessible name', () => {
+  const code = codeOnly(read('src/app/dashboard/profile/page.tsx'));
+  assert.match(code, /<img src=\{avatarPreview\} alt=\{messages\.profile\.photoLabel\}/);
+  assert.doesNotMatch(code, /<img src=\{avatarPreview\} alt=""/);
+});

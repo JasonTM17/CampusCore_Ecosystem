@@ -142,6 +142,8 @@ function loadStudioDraftActions(state, storage, updates) {
   }).outputText;
   const scope = {
     ...state, copy: {}, locale: 'vi', isVi: true, useCallback: fn => fn,
+    publishInFlightRef: { current: false },
+    isPublishingNotice: false,
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
     STORAGE_KEY: 'campuscore_editor_document', EDITOR_TYPE_KEY: 'campuscore_editor_engine',
     toast: { success() {}, error() {} }, parseStoredEditorDocument: editorDraft.parseStoredEditorDocument,

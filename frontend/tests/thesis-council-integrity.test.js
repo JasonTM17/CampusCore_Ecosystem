@@ -4,7 +4,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
 
-const root = path.resolve(__dirname, '..');
+const root = process.env.W13_SRC_ROOT
+  ? path.resolve(process.env.W13_SRC_ROOT)
+  : path.resolve(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 // Render the real module under test with its imports replaced by stubs; the
@@ -20,12 +22,24 @@ function loadModule(relative, aliases = {}) {
     fileName: relative,
   }).outputText;
   const moduleRecord = { exports: {} };
-  const resolve = (name) => Object.prototype.hasOwnProperty.call(aliases, name)
-    ? aliases[name]
-    : require(name);
+  const resolve = (name) => {
+    if (name === '@/lib/safe-url') return safeUrlModule;
+    return Object.prototype.hasOwnProperty.call(aliases, name)
+      ? aliases[name]
+      : require(name);
+  };
   Function('module', 'exports', 'require', output)(moduleRecord, moduleRecord.exports, resolve);
   return moduleRecord.exports;
 }
+
+const safeUrlModule = (() => {
+  const output = ts.transpileModule(read('src/lib/safe-url.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const moduleRecord = { exports: {} };
+  Function('module', 'exports', output)(moduleRecord, moduleRecord.exports);
+  return moduleRecord.exports;
+})();
 
 // Execute the actual async page callback, supplying its hook/API dependencies.
 function pageFunction(file, name, dependencies) {
@@ -473,6 +487,7 @@ function loadWorkspaceComponent() {
     '@/lib/thesis-api': {},
     '@/features/thesis/components/thesis-helpers': helpers,
     '@/lib/thesis-text': thesisText,
+    '@/lib/safe-url': loadModule('src/lib/safe-url.ts'),
   }).default;
 }
 
@@ -677,4 +692,31 @@ test('the rendered retry control invokes the page retry handler', () => {
   assert.equal(typeof onRetry, 'function', 'the error state element carries a retry handler');
   onRetry();
   assert.equal(retried, true, 'the rendered retry invokes the page retry handler');
+});
+
+// ---------- W13-DEEPSEEK-WEB-B: council report link safety ----------
+
+test('council defense report links render only absolute http(s) URLs', () => {
+  const workspace = read('src/features/thesis/components/CouncilDefenseWorkspace.tsx');
+  const { isHttpUrl } = loadModule('src/lib/safe-url.ts');
+  for (const safe of ['https://files.example.edu/report.pdf', 'http://localhost:8080/report.pdf']) {
+    assert.equal(isHttpUrl(safe), true, safe);
+  }
+  for (const unsafe of [
+    'javascript:alert(1)',
+    'data:text/html;base64,PHNjcmlwdD4=',
+    'mailto:lecturer@example.edu',
+    '/dashboard/thesis',
+    '//evil.example/report.pdf',
+    'not a url',
+  ]) {
+    assert.equal(isHttpUrl(unsafe), false, unsafe);
+  }
+  assert.match(workspace, /import \{ isHttpUrl \} from '@\/lib\/safe-url'/, 'the workspace imports the guard');
+  assert.match(
+    workspace,
+    /topicReports\[tid\]\?\.url && isHttpUrl\(topicReports\[tid\]\?\.url\)/,
+    'the report href is gated on an absolute http(s) URL',
+  );
+  assert.match(workspace, /rel="noopener noreferrer"/, 'noopener also closes the window.opener path');
 });

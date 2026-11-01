@@ -140,6 +140,8 @@ export default function AdminSectionsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSection, setEditingSection] = useState<Section | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingSectionId, setDeletingSectionId] = useState<string | null>(null);
+  const deletingRef = useRef(false);
   const [formData, setFormData] = useState({
     courseId: '',
     semesterId: '',
@@ -552,21 +554,24 @@ export default function AdminSectionsPage() {
   };
 
   const handleDelete = async (section: Section) => {
-    const shouldDelete = await confirm({
-      title: copy.deleteTitle,
-      message: copy.deleteMessage(
-        section.sectionNumber,
-        section.course?.code || copy.unknownCourse,
-      ),
-      confirmText: copy.deleteConfirm,
-      variant: 'destructive',
-    });
-
-    if (!shouldDelete) {
-      return;
-    }
-
+    if (deletingRef.current) return;
+    deletingRef.current = true;
     try {
+      const shouldDelete = await confirm({
+        title: copy.deleteTitle,
+        message: copy.deleteMessage(
+          section.sectionNumber,
+          section.course?.code || copy.unknownCourse,
+        ),
+        confirmText: copy.deleteConfirm,
+        variant: 'destructive',
+      });
+
+      if (!shouldDelete) {
+        return;
+      }
+
+      setDeletingSectionId(section.id);
       await adminSectionsApi.delete(section.id);
       toast.success(copy.deleted);
       if (sections.length === 1 && page > 1) {
@@ -576,6 +581,9 @@ export default function AdminSectionsPage() {
       }
     } catch {
       toast.error(copy.deleteFailed);
+    } finally {
+      deletingRef.current = false;
+      setDeletingSectionId(null);
     }
   };
 
@@ -853,6 +861,7 @@ export default function AdminSectionsPage() {
                           variant="ghost"
                           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => void handleDelete(section)}
+                          disabled={deletingSectionId !== null}
                           aria-label={copy.deleteLabel(
                             section.sectionNumber,
                             section.course?.code || copy.unknownCourse,
@@ -979,6 +988,7 @@ export default function AdminSectionsPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(section)}
+                              disabled={deletingSectionId !== null}
                               aria-label={copy.deleteLabel(
                                 section.sectionNumber,
                                 section.course?.code || copy.unknownCourse,

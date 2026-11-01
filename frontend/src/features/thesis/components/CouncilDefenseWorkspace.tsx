@@ -16,6 +16,7 @@ import {
 } from '@/lib/thesis-api';
 import { fillCopy } from '@/features/thesis/components/thesis-helpers';
 import { plainTextThesisDescription } from '@/lib/thesis-text';
+import { isHttpUrl } from '@/lib/safe-url';
 
 interface CouncilDefenseWorkspaceProps {
   messages: I18nMessages;
@@ -228,11 +229,11 @@ export default function CouncilDefenseWorkspace({
                               <div className="pt-1.5 flex flex-wrap items-center gap-2">
                                 {/* A report is a link, an attached document,
                                     or both (feedback item 7). */}
-                                {topicReports[tid]?.url ? (
+                                {topicReports[tid]?.url && isHttpUrl(topicReports[tid]?.url) ? (
                                   <a
-                                    href={topicReports[tid]?.url || undefined}
+                                    href={topicReports[tid]?.url ?? undefined}
                                     target="_blank"
-                                    rel="noreferrer"
+                                    rel="noopener noreferrer"
                                     className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:underline"
                                   >
                                     <FileText className="h-3.5 w-3.5" />

@@ -252,3 +252,76 @@ test('the report window renders four honest states', () => {
     'closedFinalTitle must be localized in en + vi',
   );
 });
+
+// ---------------------------------------------------------------------------
+// W13 audit SEC-01/SEC-02/A11Y-03/STATE-03 — report link and prefetch safety
+// ---------------------------------------------------------------------------
+
+function loadSafeUrl() {
+  const ts = require('typescript');
+  const output = ts.transpileModule(read('src/lib/safe-url.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const moduleRecord = { exports: {} };
+  Function('module', 'exports', output)(moduleRecord, moduleRecord.exports);
+  return moduleRecord.exports;
+}
+
+test('the report URL guard accepts only absolute http(s) URLs', () => {
+  const { isHttpUrl } = loadSafeUrl();
+  for (const safe of [
+    'https://files.example.edu/report.pdf',
+    'http://localhost:8080/report.pdf',
+    'HTTPS://EXAMPLE.EDU/report.pdf',
+  ]) {
+    assert.equal(isHttpUrl(safe), true, safe);
+  }
+  for (const unsafe of [
+    'javascript:alert(1)',
+    'JaVaScRiPt:alert(1)',
+    'java\tscript:alert(1)',
+    'data:text/html;base64,PHNjcmlwdD4=',
+    'mailto:lecturer@example.edu',
+    'tel:+84900000000',
+    '/dashboard/thesis',
+    '//evil.example/report.pdf',
+    '',
+    '   ',
+    null,
+    undefined,
+    'not a url',
+  ]) {
+    assert.equal(isHttpUrl(unsafe), false, String(unsafe));
+  }
+});
+
+test('the student report card renders the stored URL only through the http(s) guard', () => {
+  assert.match(page, /import \{ isHttpUrl \} from '@\/lib\/safe-url'/, 'the page imports the guard');
+  assert.match(page, /groupReport\.url && isHttpUrl\(groupReport\.url\)/, 'href is gated on http(s)');
+  assert.match(page, /rel="noopener noreferrer"/, 'noopener also closes the window.opener path');
+});
+
+test('supervised report prefetch cannot apply after unmount', () => {
+  const effectStart = page.indexOf(
+    'if (!isSupervisorOrAdmin || supervisedGroups.length === 0) return;',
+  );
+  assert.ok(effectStart > -1, 'the supervised report effect exists');
+  const effectEnd = page.indexOf(
+    '}, [isSupervisorOrAdmin, supervisedGroups, supervisedReports]);',
+    effectStart,
+  );
+  assert.ok(effectEnd > effectStart, 'the effect dependency list is intact');
+  const effect = page.slice(effectStart, effectEnd);
+  assert.match(effect, /let active = true/, 'the effect owns a cancellation flag');
+  assert.match(effect, /return \(\) => \{\s*active = false;\s*\};/, 'teardown clears the flag');
+  assert.equal(
+    (effect.match(/if \(!active\) return;/g) || []).length,
+    2,
+    'both the resolve and reject paths check the flag before setState',
+  );
+});
+
+test('the below-average badge keeps AA contrast in the light theme', () => {
+  assert.match(page, /BELOW_AVERAGE: '[^']*text-yellow-800/);
+  assert.doesNotMatch(page, /BELOW_AVERAGE: '[^']*text-yellow-700/);
+});

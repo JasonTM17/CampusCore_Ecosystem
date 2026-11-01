@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FileText, GraduationCap, Users } from 'lucide-react';
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { useRequireAuth } from '@/context/AuthContext';
@@ -21,6 +21,7 @@ import {
 } from '@/components/dashboard/WorkspaceSurface';
 import { metricToneClass } from '@/components/ui/status';
 import { useI18n } from '@/i18n';
+import { createRequestEpoch } from '@/lib/request-epoch';
 
 export default function LecturerGradesPage() {
   const { user, hasAccess, isLoading: authLoading } = useRequireAuth(['LECTURER']);
@@ -31,6 +32,11 @@ export default function LecturerGradesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [semesterError, setSemesterError] = useState('');
+  const sectionsEpoch = useRef(createRequestEpoch()).current;
+
+  useEffect(() => () => {
+    sectionsEpoch.invalidate();
+  }, [sectionsEpoch]);
 
   const fetchSemesters = useCallback(async () => {
     setSemesterError('');
@@ -43,6 +49,7 @@ export default function LecturerGradesPage() {
   }, [messages.lecturerGrades.errors.semestersFailed]);
 
   const fetchSections = useCallback(async () => {
+    const epoch = sectionsEpoch.begin();
     setIsLoading(true);
     setError('');
 
@@ -50,13 +57,16 @@ export default function LecturerGradesPage() {
       const data = await sectionsApi.getMyGradingSections(
         selectedSemester || undefined,
       );
+      if (!sectionsEpoch.isCurrent(epoch)) return;
       setSections(data);
     } catch {
+      if (!sectionsEpoch.isCurrent(epoch)) return;
       setError(messages.lecturerGrades.errors.loadFailed);
     } finally {
+      if (!sectionsEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [messages.lecturerGrades.errors.loadFailed, selectedSemester]);
+  }, [messages.lecturerGrades.errors.loadFailed, sectionsEpoch, selectedSemester]);
 
   useEffect(() => {
     if (hasAccess) {
