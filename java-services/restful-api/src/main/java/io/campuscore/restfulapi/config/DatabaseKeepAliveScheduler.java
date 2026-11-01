@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Profile("persistence")
-@ConditionalOnProperty(prefix = "app.keepalive", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "app.keepalive", name = "enabled", havingValue = "true", matchIfMissing = false)
 public class DatabaseKeepAliveScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(DatabaseKeepAliveScheduler.class);

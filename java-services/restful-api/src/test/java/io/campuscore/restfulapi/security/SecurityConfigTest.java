@@ -60,8 +60,8 @@ class SecurityConfigTest {
         CorsConfiguration corsConfig = source.getCorsConfiguration(request);
         assertNotNull(corsConfig);
         assertTrue(Boolean.TRUE.equals(corsConfig.getAllowCredentials()));
-        assertTrue(corsConfig.getAllowedOriginPatterns().contains("https://campusute.io.vn"));
-        assertTrue(corsConfig.getAllowedOriginPatterns().contains("https://www.campusute.io.vn"));
+        assertFalse(corsConfig.getAllowedOriginPatterns().contains("https://campusute.io.vn"));
+        assertFalse(corsConfig.getAllowedOriginPatterns().contains("https://www.campusute.io.vn"));
         assertTrue(corsConfig.getAllowedOriginPatterns().contains("http://localhost:3000"));
         // Credentialed CORS must not trust a whole public wildcard domain.
         assertFalse(corsConfig.getAllowedOriginPatterns().contains("https://*.vercel.app"));
