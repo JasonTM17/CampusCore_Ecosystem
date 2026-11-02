@@ -4,6 +4,7 @@ import com.nimbusds.jwt.JWTParser;
 import io.campuscore.restfulapi.auth.repository.AuthUserRepository;
 import java.text.ParseException;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcOperations;
@@ -59,16 +60,21 @@ public class LockingIdentityAuthorizationService extends JdbcOAuth2Authorization
     /** Deterministic-AEAD class tag shared by every token column. */
     static final String TOKEN_AAD = "oauth2_authorization.token_value";
 
+    private final JdbcOperations jdbc;
     private final DeterministicTokenCipher cipher;
     private final AuthUserRepository users;
     private final IdentitySessionMirror mirror;
     private final RegisteredClientRepository clients;
+
+    private record LogoutFence(boolean pending, long epoch) {
+    }
 
     public LockingIdentityAuthorizationService(JdbcOperations jdbcOperations,
             RegisteredClientRepository registeredClientRepository,
             DeterministicTokenCipher cipher, AuthUserRepository users,
             IdentitySessionMirror mirror) {
         super(jdbcOperations, registeredClientRepository);
+        this.jdbc = jdbcOperations;
         this.cipher = cipher;
         this.users = users;
         this.mirror = mirror;
@@ -89,9 +95,20 @@ public class LockingIdentityAuthorizationService extends JdbcOAuth2Authorization
     @Transactional(propagation = Propagation.REQUIRED)
     public void save(OAuth2Authorization authorization) {
         String userId = authorization.getPrincipalName();
+        String clientId = authorization.getRegisteredClientId();
+        // Snapshot before the User lock: a code-stage save can wait behind
+        // logout, then resume after SAS clears the pending bit. The retained
+        // epoch still makes that pre-logout save stale.
+        long epochAtSaveStart = logoutFence(userId, clientId).epoch();
         users.lockUserRow(userId);
         OAuth2Authorization prepared = portablePrincipal(authorization);
         try {
+            LogoutFence currentFence = logoutFence(userId, prepared.getRegisteredClientId());
+            if (currentFence.pending() || epochAtSaveStart != currentFence.epoch()) {
+                throw new OAuth2AuthenticationException(new OAuth2Error(
+                        OAuth2ErrorCodes.INVALID_GRANT,
+                        "identity client logout fence changed", null));
+            }
             assertCurrentCredentials(prepared, userId);
         } catch (OAuth2AuthenticationException exception) {
             // SAS's authorize failure handler requires its endpoint-specific
@@ -139,6 +156,17 @@ public class LockingIdentityAuthorizationService extends JdbcOAuth2Authorization
         // Deterministic encryption keeps the single-value lookup valid across
         // every token column in SAS's fixed WHERE clause.
         return decrypt(super.findByToken(cipher.encrypt(token, TOKEN_AAD), tokenType));
+    }
+
+    private LogoutFence logoutFence(String userId, String clientId) {
+        List<LogoutFence> rows = jdbc.query(
+                "SELECT surface, verifier FROM campuscore_identity.bff_transaction"
+                        + " WHERE tx_id = ? AND nonce = ?",
+                (rs, row) -> new LogoutFence(
+                        BffLogoutMarker.SURFACE.equals(rs.getString("surface")),
+                        BffLogoutMarker.epoch(rs.getString("verifier"))),
+                BffLogoutMarker.TX_ID, BffLogoutMarker.nonce(userId, clientId));
+        return rows.isEmpty() ? new LogoutFence(false, 0) : rows.get(0);
     }
 
     /**

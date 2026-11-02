@@ -177,12 +177,10 @@ public class BffSessionController {
                     .body(Map.of("error", "SURFACE_UNKNOWN"));
         }
         String opaque = sessionCookieValue(request);
-        // Idempotent logout (host-policy §3): when the session row is already
-        // gone — revoked, expired, or swept by an earlier logout — the token
-        // leg is meaningless, so only the Origin check applies and the id
-        // logout URL is still returned (hint null). Skipping this left a
-        // retried/double logout stranded: the browser never reached
-        // /connect/logout and the id session silently re-authenticated.
+        // Idempotent logout (host-policy §3): when the session row is missing
+        // or already revoked, only the Origin check applies. The
+        // response still clears the local cookie but never recovers an ID
+        // token hint from a dead session.
         BffSessionStore.Session live = opaque == null
                 ? null
                 : sessions.findByOpaque(surface, opaque);

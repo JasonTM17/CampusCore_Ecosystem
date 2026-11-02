@@ -232,11 +232,24 @@ commit sau thắng deterministic. Phân biệt hai trường hợp authorize đa
   "logout giết những gì đã tồn tại". Test: `secondStageSaveCannotResurrect
   AfterPerClientLogout`, `codeStageSaveAfterCommittedRevokeIsRejected`,
   `grantMintedAfterRevokeStillDiesOnExchange`.
-- **Authorize save code-stage SAU revoke commit**: đây là một login MỚI hợp
-  lệ — user thực sự re-authenticate sau logout, session mới được phép sống.
-  Logout không thể veto một login diễn ra sau nó (UX contract: tab authorize
-  treo sẵn từ trước logout vẫn hoàn tất được **như một phiên mới**, không
-  phải hồi sinh phiên cũ).
+- **BFF local logout đang chờ SAS end-session**: dưới User lock, BFF tăng
+  epoch per-client và đánh dấu pending bằng một reserved row trong
+  `bff_transaction`; `nonce` chỉ giữ digest của user+client. Cùng transaction,
+  BFF xóa mọi session của client và trả ID-token hint. Callback vẫn đọc lại
+  grant dưới lock và từ chối khi pending. Grant save lấy epoch trước User lock,
+  rồi so sánh lại dưới lock; save đang chờ từ trước logout bị từ chối kể cả
+  khi end-session đã xóa pending bit.
+- **Fence tồn tại qua grant revoke và retention**: OAuth2 `/revoke` chỉ xóa
+  grant; retention bỏ qua reserved row. Khi SAS chấp nhận end-session, giao
+  dịch xóa grant/session mirror sẽ chỉ clear pending bit và giữ epoch. Nếu
+  revoke không có BFF hint, authority tăng epoch và ghi trạng thái cleared
+  ngay trong giao dịch revoke.
+- **Authorize save code-stage SAU revoke commit**: save bắt đầu sau logout sẽ
+  đọc epoch hiện tại; nếu pending đã clear thì login mới được phép. Một save
+  đã lấy epoch cũ trước logout vẫn bị từ chối sau khi marker clear. Nếu local
+  transaction lỗi, marker và thay đổi BFF session cùng rollback, controller
+  không phát cookie xóa. Nhánh không có hint thực hiện revoke grant trong cùng
+  transaction đó.
 - **Per-client vs account-wide**: `revokeClientGrants` chỉ xóa grants +
   `bff_session` của client đó — session legacy và surface khác sống tiếp
   (`perClientLogoutKeepsOtherLanesAlive`); `revokeAccount` xóa mọi lane +
@@ -297,7 +310,7 @@ they do not certify the stricter AUD-06 acceptance criteria.
 | Legacy cleanup paths | Login, two-factor verification, forgot/reset-password, refresh and logout bypass the current credential-state gate. Repeated legacy logout may return 200 with a stale access token; protected reads still reject it. Double-submit is cookie/header equality, not session binding; Referer alone is not checked. |
 | Public identity MVC handlers | `/login`, `/session/login`, `/session/callback`, `/session/logged-out`, `/session/state`, `/session/logout`, `/bff/api/**` are filter-permitted. Callback state/transaction-cookie/PKCE/nonce, opaque sessions, proxy credentials and handler CSRF remain the authority. The landing page itself does not revoke anything. |
 | Dead/no-cookie BFF logout | Origin-only idempotence intentionally skips the token check after session deletion/revocation. It returns 200 and expires both BFF cookies; stale business mutations return 403. Requiring stale logout itself to reject conflicts with this policy. |
-| BFF-to-SAS logout bridge gap | BFF deletes the hint's grant before returning `logoutUrl`; SAS rejects that now-unresolvable hint with 400. Retry omits the hint, which SAS 7.1 also rejects with 400. The host-policy §3 claim that hint-null end-session succeeds needs owner reconciliation; BFF cookie deletion alone does not prove central end-session completion. |
+| BFF-to-SAS logout bridge | Under the User lock, BFF increments a per-client epoch in a reserved `bff_transaction` row keyed by the user/client digest, marks it pending, deletes that client's BFF sessions and returns the ID-token hint in one transaction. Same-client grant saves fail while pending or when their pre-lock epoch snapshot is stale. OAuth2 revoke and retention preserve the row. Accepted end-session revokes the grant/session mirror and clears only pending, retaining epoch; a central revoke failure rolls back grant/session-mirror/fence changes and retains central cookies, although the existing handler still redirects. Local failure rolls back marker/session changes and emits no cookie clears. Dead/unknown-session retries still omit the hint and SAS 7.1 rejects that URL with 400; no hint is recovered from a revoked BFF session. |
 | BFF Origin fallback | A live mutation without Origin requires `Sec-Fetch-Site: same-origin` plus session-bound CSRF. Reads/dead-session logout allow absent Origin. Referer is currently ignored; foreign Origin and cross-site metadata are rejected. |
 | BFF anonymous reads | No-cookie GET/HEAD only: default prefixes `/api/v1/announcements/public`, `/api/v1/public/docs`, `/api/v1/article-taxonomy/v2/categories`, `/api/v1/site-appearance`. Upstream public policy still applies; an invalid present cookie cannot downgrade to anonymous. |
 | BFF return/redirect inputs | Configured `/` return prefix allows local relative paths; absolute/protocol-relative/backslash/reserved paths fall back to `/`. Logout ignores `returnTo` and caller `post_logout_redirect_uri`, including duplicates, and builds the fixed registered landing URL. Runtime registry configuration is external authority, not verified by the source inventory. |
