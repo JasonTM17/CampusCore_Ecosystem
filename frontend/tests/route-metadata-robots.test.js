@@ -158,6 +158,37 @@ test('every authenticated surface declares noindex while public routes stay inde
   }
 });
 
+test('docs pages publish their own metadata instead of the homepage fallback', async () => {
+  const catalog = loadCatalog();
+
+  for (const locale of ['vi', 'en']) {
+    const messages = catalog.getMessages(locale);
+    const otherLocale = catalog.getMessages(locale === 'vi' ? 'en' : 'vi');
+    assert.ok(messages.meta.docs, `${locale} catalogue carries the docs metadata`);
+    assert.ok(messages.meta.docs.title.trim(), `${locale} docs title is non-empty`);
+    assert.ok(messages.meta.docs.description.trim(), `${locale} docs description is non-empty`);
+    assert.notEqual(
+      messages.meta.docs.title,
+      otherLocale.meta.docs.title,
+      `${locale} docs title is localized`,
+    );
+
+    for (const pathname of ['/docs', '/docs/registration-policy']) {
+      const metadata = await loadMetadata(pathname, locale, catalog);
+      assert.equal(
+        metadata.title.default,
+        messages.meta.docs.title,
+        `${locale} ${pathname} carries the docs title, not the homepage title`,
+      );
+      assert.notEqual(metadata.title.default, messages.meta.home.title);
+      assert.equal(metadata.description, messages.meta.docs.description);
+      assert.equal(metadata.openGraph.title, messages.meta.docs.title);
+      assert.equal(metadata.robots.index, true, `${locale} ${pathname} is a public lane`);
+      assert.equal(metadata.robots.follow, true);
+    }
+  }
+});
+
 test('robots.txt disallows every authenticated desk root and keeps public content crawlable', () => {
   const robots = loadTsModule('src/app/robots.ts', {
     '@/lib/site': {

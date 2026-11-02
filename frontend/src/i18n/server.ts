@@ -129,6 +129,16 @@ function getRouteMetadata(pathname: string, locale: Locale) {
     };
   }
 
+  // The public documentation lane is submitted in the sitemap, so its list
+  // and detail pages must not inherit the homepage title/description.
+  if (pathname === '/docs' || pathname.startsWith('/docs/')) {
+    return {
+      title: messages.meta.docs.title,
+      description: messages.meta.docs.description,
+      robots: { index: true, follow: true },
+    };
+  }
+
   return {
     title: messages.meta.home.title,
     description: messages.meta.home.description,

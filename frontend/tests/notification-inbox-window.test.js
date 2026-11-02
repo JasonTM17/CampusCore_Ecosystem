@@ -223,6 +223,7 @@ function loadNotificationsPage(api, fakeReact) {
       stripNotificationTagPrefix: (value) => value || '',
     },
     '@/lib/safe-url': { safeInternalPath: (value) => value || '' },
+    '@/lib/notification-sync': { publishNotificationsChanged: () => {} },
     '@/context/AuthContext': {
       useRequireAuth: () => ({
         user: { id: 'u1' },

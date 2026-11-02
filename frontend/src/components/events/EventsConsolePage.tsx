@@ -80,6 +80,7 @@ export function EventsConsolePage() {
   const loadSequence = useRef(0);
   const rosterSequence = useRef(0);
   const selectedRef = useRef<string | null>(null);
+  const deepLinkConsumed = useRef(false);
   const [staffEvents, setStaffEvents] = useState<CampusEvent[]>([]);
   const [studentEvents, setStudentEvents] = useState<CampusEvent[]>([]);
   const [myRegistrations, setMyRegistrations] = useState<MyEventRegistration[]>([]);
@@ -171,6 +172,7 @@ export function EventsConsolePage() {
   useEffect(() => {
     invalidateReads();
     selectedRef.current = null;
+    deepLinkConsumed.current = false;
     setSelectedEventId(null);
     setRoster([]);
     setRosterError(false);
@@ -230,17 +232,25 @@ export function EventsConsolePage() {
     }
   };
 
-  // Notification deep links carry ?event=<id> — expand that card once the
-  // mode resolves (roster only loads for the staff surface).
+  // Notification deep links carry ?event=<id> - expand that card once the
+  // mode resolves; the student surface highlights the matching card instead
+  // of loading a roster it may not read.
   useEffect(() => {
-    if (mode !== 'staff') return;
+    if (mode === 'loading' || deepLinkConsumed.current) return;
     const id = new URLSearchParams(window.location.search).get('event');
-    if (id) {
-      selectedRef.current = id;
-      setSelectedEventId(id);
-      if (mode === 'staff') void loadRoster(id);
-    }
+    if (!id) return;
+    deepLinkConsumed.current = true;
+    selectedRef.current = id;
+    setSelectedEventId(id);
+    if (mode === 'staff') void loadRoster(id);
   }, [mode, loadRoster]);
+
+  useEffect(() => {
+    if (mode !== 'student' || !selectedEventId) return;
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-event-id]'));
+    const target = cards.find((card) => card.dataset.eventId === selectedEventId);
+    target?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [mode, selectedEventId, studentEvents]);
 
   const runStaffAction = useCallback(
     async (actionKey: string, action: () => Promise<unknown>, message: string) => {
@@ -636,7 +646,12 @@ export function EventsConsolePage() {
               {studentEvents.map((event) => (
                 <div
                   key={event.id}
-                  className="flex flex-col justify-between rounded-xl border border-border/60 bg-card/60 p-4 shadow-sm"
+                  data-event-id={event.id}
+                  aria-current={selectedEventId === event.id ? 'true' : undefined}
+                  className={cn(
+                    'flex flex-col justify-between rounded-xl border border-border/60 bg-card/60 p-4 shadow-sm',
+                    selectedEventId === event.id && 'border-primary ring-2 ring-ring',
+                  )}
                 >
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">

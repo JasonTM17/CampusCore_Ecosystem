@@ -223,6 +223,7 @@ function baseStubs(extra = {}) {
       stripNotificationTagPrefix: (value) => value || '',
     },
     '@/lib/safe-url': { safeInternalPath: (value) => value || '' },
+    '@/lib/notification-sync': { publishNotificationsChanged: () => {} },
     '@/lib/campus-error': { campusErrorKind: () => 'server' },
     ...extra,
   };

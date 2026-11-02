@@ -14,6 +14,7 @@ import {
   BookMarked,
   BookOpen,
   BrainCircuit,
+  Briefcase,
   Building2,
   Calendar,
   CalendarCheck,
@@ -67,6 +68,8 @@ import { cn, htmlToPlainText, stripNotificationTagPrefix } from '@/lib/utils';
 import { stripLocaleFromPathname } from '@/i18n/paths';
 import { isDemoUser, loginHref, portalFromPathname } from '@/lib/login-portal';
 import { safeInternalPath } from '@/lib/safe-url';
+import { noticeBoardHrefFor } from '@/lib/notification-targets';
+import { subscribeNotificationsChanged } from '@/lib/notification-sync';
 
 type DashboardMenuLabelKey =
   | 'dashboard'
@@ -88,6 +91,7 @@ type DashboardMenuLabelKey =
   | 'mailCompose'
   | 'events'
   | 'learning'
+  | 'staffDesks'
   | 'deanOverview';
 
 type DashboardMenuSectionKey = 'overview' | 'academic' | 'teaching' | 'campus';
@@ -130,6 +134,7 @@ const studentMenuSections: readonly DashboardMenuSectionConfig[] = [
       { href: '/dashboard/thesis', icon: ScrollText, labelKey: 'thesis' },
       { href: '/dashboard/certificates', icon: ClipboardCheck, labelKey: 'certificates' },
       { href: '/dashboard/events', icon: Users, labelKey: 'events' },
+      { href: '/staff', icon: Briefcase, labelKey: 'staffDesks' },
       { href: '/dashboard/announcements', icon: Megaphone, labelKey: 'announcements' },
       { href: '/dashboard/notifications', icon: Bell, labelKey: 'notifications' },
     ],
@@ -158,6 +163,7 @@ const lecturerMenuSections: readonly DashboardMenuSectionConfig[] = [
     items: [
       { href: '/dashboard/thesis', icon: ScrollText, labelKey: 'thesis' },
       { href: '/dashboard/events', icon: Users, labelKey: 'events' },
+      { href: '/staff', icon: Briefcase, labelKey: 'staffDesks' },
       { href: '/dashboard/lecturer/announcements', icon: Megaphone, labelKey: 'announcements' },
       { href: '/dashboard/notifications', icon: Bell, labelKey: 'notifications' },
     ],
@@ -259,6 +265,26 @@ function unreadAriaLabel(label: string, unreadCount: number, unreadLabel: string
   return unreadCount > 0 ? `${label}, ${unreadCount} ${unreadLabel.toLowerCase()}` : label;
 }
 
+// Full admins are bounced out of the student/lecturer dashboard because their
+// workspace is the admin console. The shared self-service surfaces the admin
+// shell still links are the exceptions; /dashboard/profile hosts two-factor
+// setup and the self-service password change, which have no /admin twin.
+const FULL_ADMIN_DASHBOARD_PATHS = [
+  '/dashboard/editor',
+  '/dashboard/profile',
+  '/dashboard/sign-out',
+] as const;
+
+export function adminDashboardRedirectTarget(pathname: string): string | null {
+  if (FULL_ADMIN_DASHBOARD_PATHS.some((path) => pathname === path)) {
+    return null;
+  }
+  if (pathname.startsWith('/dashboard/thesis')) {
+    return null;
+  }
+  return '/admin';
+}
+
 export default function DashboardLayout({
   children,
 }: {
@@ -345,6 +371,7 @@ export default function DashboardLayout({
         items: [
           { href: '/admin/thesis', icon: GraduationCap, label: messages.admin.menuItems[0]?.[0] },
           { href: '/dashboard/editor', icon: FileEdit, label: messages.adminShell.menuSiteEditor },
+          { href: '/staff', icon: Briefcase, label: menuLabels.staffDesks },
           { href: '/admin/announcements', icon: Megaphone, label: messages.admin.menuItems[9]?.[0] },
           { href: '/admin/notifications', icon: Bell, label: messages.adminShell.menuSystemNotifications },
           { href: '/admin/assistant-knowledge', icon: BrainCircuit, label: messages.admin.menuItems[10]?.[0] },
@@ -366,6 +393,7 @@ export default function DashboardLayout({
       messages.adminShell.menuSections.people,
       messages.adminShell.menuSiteEditor,
       messages.adminShell.menuSystemNotifications,
+      menuLabels.staffDesks,
     ],
   );
   const fullAdminAccess = isAdmin || isSuperAdmin;
@@ -510,13 +538,10 @@ export default function DashboardLayout({
       router.replace(loginHref(href, portal, 'unauthorized'));
       return;
     }
-    if (
-      fullAdminAccess &&
-      pathname !== '/dashboard/editor' &&
-      pathname !== '/dashboard/sign-out' &&
-      !pathname.startsWith('/dashboard/thesis')
-    ) {
-      router.replace(href('/admin'));
+    if (!fullAdminAccess) return;
+    const redirectTarget = adminDashboardRedirectTarget(pathname);
+    if (redirectTarget) {
+      router.replace(href(redirectTarget));
     }
   }, [href, user, isLoading, isLoggingOut, fullAdminAccess, isLecturer, router, pathname]);
 
@@ -791,6 +816,19 @@ export default function DashboardLayout({
       }
     }
   }, [user]);
+
+  // The centre marks rows read through the same API the bell previews, but it
+  // owns no reference to this shell. Its writes publish a change event so the
+  // badge and the preview rows refresh immediately instead of waiting for the
+  // 3-minute count poll (which never refetches the rows).
+  useEffect(() => {
+    return subscribeNotificationsChanged(() => {
+      if (notificationSessionRef.current.isLoggingOut) {
+        return;
+      }
+      void reloadNotifications({ force: true });
+    });
+  }, [reloadNotifications]);
 
   // Periodic unread count polling (3 minutes) while the tab is visible;
   // hidden tabs pause polling. Avoids redundant heavy fetches on every tab switch.
@@ -1407,7 +1445,7 @@ export default function DashboardLayout({
                     </div>
                     <div className="border-t border-border/70 px-4 py-3 flex flex-col gap-2">
                       <LocalizedLink
-                        href="/dashboard/announcements"
+                        href={noticeBoardHrefFor(user?.roles)}
                         className="text-xs font-semibold text-primary hover:underline flex items-center justify-between"
                         onClick={() => setNotificationsOpen(false)}
                       >

@@ -374,6 +374,11 @@ export const en = {
       title: 'Admin portal | CampusUTE',
       description: 'Protected administration routes for CampusUTE.',
     },
+    docs: {
+      title: 'Public documents | CampusUTE',
+      description:
+        'Regulations, guides, and reference material published by HCMUTE, current revisions only.',
+    },
     checkinLanding: {
       title: 'Check in with the CampusUTE app | CampusUTE',
       description:
@@ -1578,6 +1583,7 @@ export const en = {
       deanOverview: 'Faculty thesis overview',
       events: 'Events & union activities',
       learning: 'Materials & assignments',
+      staffDesks: 'Staff desks',
       profileSettings: 'Profile settings',
       profile: 'Profile',
       settings: 'Settings',
@@ -3456,6 +3462,11 @@ export const vi: I18nMessages = {
       title: 'Cổng quản trị học vụ | CampusUTE',
       description: 'Khu vực quản trị đào tạo và cấu hình hệ thống CampusUTE.',
     },
+    docs: {
+      title: 'Tài liệu công khai | CampusUTE',
+      description:
+        'Quy định, hướng dẫn và tài liệu tham khảo do HCMUTE công bố, chỉ các bản hiện hành.',
+    },
     checkinLanding: {
       title: 'Điểm danh bằng ứng dụng CampusUTE | CampusUTE',
       description:
@@ -4655,6 +4666,7 @@ export const vi: I18nMessages = {
       deanOverview: 'Quan sát khóa luận khoa',
       events: 'Sự kiện & hoạt động Đoàn–Hội',
       learning: 'Học liệu & bài tập',
+      staffDesks: 'Bàn làm việc cán bộ',
       profileSettings: 'Cài đặt hồ sơ',
       profile: 'Hồ sơ',
       settings: 'Cài đặt',
