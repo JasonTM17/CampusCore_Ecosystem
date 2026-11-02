@@ -113,6 +113,7 @@ jobs:
             scripts/ecosystem-backup-drill.test.mjs \
             scripts/ecosystem-devices-verify.test.mjs \
             scripts/ecosystem-doc-index.test.mjs \
+            scripts/ecosystem-verify-shared.test.mjs \
             scripts/flyway-lineage-check.test.mjs \
             scripts/local-dev.test.mjs \
             scripts/locale-keys.test.mjs \
