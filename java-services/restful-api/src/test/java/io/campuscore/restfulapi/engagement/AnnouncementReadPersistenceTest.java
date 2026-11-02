@@ -114,7 +114,21 @@ class AnnouncementReadPersistenceTest {
                     "reviewedAt" TIMESTAMP WITH TIME ZONE,
                     "reviewNote" VARCHAR(500),
                     "publishedRevision" INTEGER,
-                    "displayOrder" INTEGER
+                    "displayOrder" INTEGER,
+                    "foldedTitle" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("title", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
+                    "foldedContent" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("content", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
+                    "foldedSlug" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("slug", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
+                    "foldedCourseCode" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("courseCode", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
+                    "foldedCourseName" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("courseName", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
+                    "foldedSemesterName" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("semesterName", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd')),
+                    "foldedLecturerDisplayName" VARCHAR
+                        GENERATED ALWAYS AS (TRANSLATE(LOWER(COALESCE("lecturerDisplayName", '')), 'áàảãạăằắẳẵặâầấẩẫậéèẻẽẹêềếểễệíìỉĩịóòỏõọôồốổỗộơờớởỡợúùủũụưừứửữựýỳỷỹỵđ', 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd'))
                 )
                 """);
         fixtureJwt(jdbc, "student-user", "STUDENT");
