@@ -1,6 +1,12 @@
 import type { NextRequest } from 'next/server';
 
-import { buildApiProxyUrl, resolveJavaApiOrigin } from '@/lib/proxy-url';
+import {
+  buildApiProxyUrl,
+  encodeProxyPathSegments,
+  InvalidProxyPathError,
+  resolveJavaApiOrigin,
+} from '@/lib/proxy-url';
+import { checkProxyRequestOrigin } from '@/lib/proxy-request-origin';
 import { surfaceFromHost } from '@/lib/surfaces';
 
 export const runtime = 'nodejs';
@@ -16,12 +22,19 @@ type RouteContext = {
 // never gain a cache directive here.
 const PUBLIC_GET_PATHS = new Set(['site-appearance', 'article-taxonomy/v2/categories']);
 
+function rejected(status: number, body: Record<string, string>): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 async function handle(request: NextRequest, context: RouteContext) {
   const { path } = await context.params;
   const origin = resolveJavaApiOrigin();
-  const headers = new Headers(request.headers);
-  headers.delete('host');
-  headers.set('accept-encoding', 'identity');
 
   // BFF lane (docs/ecosystem/host-policy.md §5): on a BFF surface host the
   // browser's opaque __Host-cu_session rides the cookie header as usual, but
@@ -32,6 +45,45 @@ async function handle(request: NextRequest, context: RouteContext) {
   const surface = surfaceFromHost(request.headers.get('host'));
   const bffLane = surface?.mode === 'bff'
     && process.env.NEXT_PUBLIC_BFF_LANE !== 'false';
+
+  // /bff/api/<suffix> maps to /api/v1<suffix> on the Java side — the v1
+  // prefix lives in the Java mapping, so the leading v1 segment of the
+  // public path is dropped here instead of doubled upstream.
+  const bffSuffix = path[0] === 'v1' ? path.slice(1) : path;
+
+  // Every segment is validated (dot segments, separators, query/fragment
+  // markers) and encoded before it can reach either upstream path. A crafted
+  // segment must not be able to escape the prefix or inject a query.
+  let upstreamUrl: string | URL;
+  try {
+    upstreamUrl = bffLane
+      ? `${origin}/bff/api/${encodeProxyPathSegments(bffSuffix).join('/')}${request.nextUrl.search}`
+      : buildApiProxyUrl(origin, path, request.nextUrl.search);
+  } catch (error) {
+    if (error instanceof InvalidProxyPathError
+      || (error instanceof Error && error.name === 'InvalidProxyPathError')) {
+      return rejected(400, { error: 'INVALID_PROXY_PATH' });
+    }
+    throw error;
+  }
+
+  // P4e origin guard: mutating methods only, before any body buffering or
+  // upstream fetch. Headerless server/native callers stay compatible; the
+  // Java BFF's authentication and CSRF checks still run upstream.
+  if (request.headers.has('origin') || request.headers.has('sec-fetch-site')) {
+    const originCheck = checkProxyRequestOrigin(request);
+    if (!originCheck.allowed) {
+      return rejected(403, {
+        error: 'REQUEST_ORIGIN_REJECTED',
+        reason: originCheck.reason,
+      });
+    }
+  }
+
+  const headers = new Headers(request.headers);
+  headers.delete('host');
+  headers.set('accept-encoding', 'identity');
+
   if (bffLane) {
     for (const name of [...headers.keys()]) {
       if (name.toLowerCase().startsWith('x-campuscore-')) {
@@ -68,14 +120,6 @@ async function handle(request: NextRequest, context: RouteContext) {
     headers.set('x-campuscore-client-ip', clientIp);
   }
 
-  // /bff/api/<suffix> maps to /api/v1<suffix> on the Java side — the v1
-  // prefix lives in the Java mapping, so the leading v1 segment of the
-  // public path is dropped here instead of doubled upstream.
-  const bffSuffix = path[0] === 'v1' ? path.slice(1) : path;
-  const upstreamUrl = bffLane
-    ? `${origin}/bff/api/${bffSuffix.join('/')}${request.nextUrl.search}`
-    : buildApiProxyUrl(origin, path, request.nextUrl.search);
-
   const response = await fetch(upstreamUrl, {
     method: request.method,
     headers,
@@ -90,12 +134,17 @@ async function handle(request: NextRequest, context: RouteContext) {
   responseHeaders.delete('content-length');
   responseHeaders.delete('connection');
 
-  if (request.method === 'GET' && PUBLIC_GET_PATHS.has(path.join('/'))) {
+  const publicGet = request.method === 'GET' && PUBLIC_GET_PATHS.has(path.join('/'));
+  if (publicGet) {
     const upstreamCacheControl = response.headers.get('cache-control');
     responseHeaders.set(
       'Cache-Control',
       upstreamCacheControl || 'public, max-age=300, stale-while-revalidate=600',
     );
+  } else {
+    // Authenticated/private API traffic must never be stored by a browser or
+    // shared cache, even when upstream omits the directive.
+    responseHeaders.set('Cache-Control', 'no-store');
   }
 
   // The BFF lane must never hand an upstream Set-Cookie to the browser
@@ -108,9 +157,6 @@ async function handle(request: NextRequest, context: RouteContext) {
         responseHeaders.append('set-cookie', cookie);
       }
     }
-  }
-  if (bffLane) {
-    responseHeaders.set('Cache-Control', 'no-store');
   }
 
   // Fetch forbids even an empty ArrayBuffer for these statuses. In particular,
@@ -126,7 +172,7 @@ async function handle(request: NextRequest, context: RouteContext) {
   // SSE must reach the caller before upstream EOF: buffering hides every
   // delta and heartbeat until the complete answer has been generated.
   if (response.headers.get('content-type')?.split(';')[0].trim().toLowerCase() === 'text/event-stream') {
-    responseHeaders.set('Cache-Control', 'no-cache, no-transform');
+    responseHeaders.set('Cache-Control', 'no-store, no-transform');
     responseHeaders.set('X-Accel-Buffering', 'no');
     return new Response(response.body, {
       status: response.status,

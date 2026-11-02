@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const ts = require('typescript');
 
 const root = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(root, '..');
@@ -13,6 +14,50 @@ function read(relativePath) {
 function readFromRepo(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
 }
+
+/** Transpile and evaluate a TS/TSX module with the same stub resolver the
+ *  route-metadata suite uses. */
+function loadTsModule(relativePath, stubs = {}) {
+  const output = ts.transpileModule(read(relativePath), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      esModuleInterop: true,
+    },
+  }).outputText;
+  const moduleRecord = { exports: {} };
+  const resolve = (specifier) =>
+    Object.prototype.hasOwnProperty.call(stubs, specifier)
+      ? stubs[specifier]
+      : require(specifier);
+  Function('module', 'exports', 'require', output)(moduleRecord, moduleRecord.exports, resolve);
+  return moduleRecord.exports;
+}
+
+/** Extract one declaration from a page and run it with injected dependencies,
+ *  the convention the thesis governance suite established. */
+function executeDeclaration(file, name, dependencies) {
+  const source = fs.readFileSync(path.join(root, 'src', file), 'utf8');
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let declaration;
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === name) declaration = node;
+    if (ts.isFunctionDeclaration(node) && node.name?.getText(tree) === name) declaration = node;
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);
+  assert.ok(declaration, `${file} contains ${name}`);
+  const text = ts.isVariableDeclaration(declaration)
+    ? `const ${declaration.getText(tree)};`
+    : declaration.getText(tree).replace(/^export\s+/, '');
+  const output = ts.transpileModule(text, {
+    compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  return Function(...Object.keys(dependencies), 'useCallback', `${output}; return ${name};`)(
+    ...Object.values(dependencies), (fn) => fn,
+  );
+}
+
 
 // ---------------------------------------------------------------------------
 // Phase 03 — the certificate surface mints nothing official and invents nobody
@@ -621,4 +666,115 @@ test('event staff lifecycle mutations use per-action pending state and reject re
   assert.match(source, /runStaffAction\('create',/);
   assert.match(source, /runStaffAction\(\s*`attendance:/);
   assert.match(source, /runStaffAction\(\s*`cancel:/);
+});
+
+// ---------------------------------------------------------------------------
+// W14 / F-17 — password recovery answers uniformly, never "no such account"
+// ---------------------------------------------------------------------------
+
+test('forgot-password folds every lookup answer into the same confirmation', () => {
+  const { campusErrorCode } = loadTsModule('src/lib/campus-error.ts');
+  const { AxiosError } = require('axios');
+  const outcome = executeDeclaration('app/forgot-password/page.tsx', 'forgotPasswordOutcome', {
+    campusErrorCode,
+    AxiosError,
+  });
+
+  const response = (status, data = {}) =>
+    new AxiosError('request failed', AxiosError.ERR_BAD_RESPONSE, undefined, undefined, {
+      status,
+      statusText: '',
+      headers: {},
+      config: {},
+      data,
+    });
+
+  // The audit's premise (400/404 for an unknown mailbox) is what the page must
+  // survive: both become the uniform "check your email" banner.
+  for (const status of [400, 404, 409, 422]) {
+    assert.equal(outcome(response(status)), 'sent', `${status} must not reveal the mailbox state`);
+  }
+
+  // Genuine service and gate conditions stay visible: they say nothing about
+  // the account, and a fake success would strand someone waiting for a mail
+  // that never queued.
+  assert.equal(outcome(response(401)), 'failed');
+  assert.equal(outcome(response(403)), 'failed');
+  assert.equal(outcome(response(429)), 'rate-limited');
+  assert.equal(outcome(response(429, { code: 'RATE_LIMIT_EXCEEDED' })), 'rate-limited');
+  assert.equal(outcome(response(400, { code: 'RATE_LIMIT_EXCEEDED' })), 'rate-limited');
+  assert.equal(outcome(response(500)), 'failed');
+  assert.equal(outcome(response(503)), 'failed');
+  assert.equal(outcome(new AxiosError('Network Error', AxiosError.ERR_NETWORK)), 'network');
+  assert.equal(outcome(new Error('unexpected client error')), 'failed');
+
+  const page = read('src/app/forgot-password/page.tsx');
+  // The 'sent' branch renders the shared conditional banner, not a new claim,
+  // and the honest branches are the only visible failure copy.
+  assert.match(page, /if \(outcome === 'sent'\) \{[\s\S]*?setSent\(true\);/);
+  assert.match(page, /setFormError\(copy\.rateLimited\)/);
+  assert.match(page, /setFormError\(messages\.common\.campusErrors\.network\)/);
+  assert.match(page, /setFormError\(copy\.failedToast\)/);
+
+  // Both dictionaries keep the banner conditional instead of asserting delivery.
+  const messages = read('src/i18n/messages.ts');
+  assert.match(messages, /sentBanner:\s*\n?\s*'If an account matches \{email\}, a reset link is on the way\.'/);
+  assert.match(messages, /sentBanner:\s*\n?\s*'Nếu có tài khoản khớp với \{email\}, một liên kết đặt lại đang được gửi đi\.'/);
+});
+
+// ---------------------------------------------------------------------------
+// W14 / F-15 — a 403 on sign-in is an infrastructure gate, not an account oracle
+// ---------------------------------------------------------------------------
+
+test('sign-in 403 semantics cannot enumerate accounts, so the generic blocked copy stays', () => {
+  const service = readFromRepo(
+    'java-services/restful-api/src/main/java/io/campuscore/restfulapi/auth/service/AuthLoginService.java',
+  );
+  const handler = readFromRepo(
+    'java-services/restful-api/src/main/java/io/campuscore/restfulapi/exception/GlobalExceptionHandler.java',
+  );
+  const accountState = readFromRepo(
+    'java-services/restful-api/src/main/java/io/campuscore/restfulapi/security/AccountStateFilter.java',
+  );
+  const login = read('src/app/login/page.tsx');
+  const messages = read('src/i18n/messages.ts');
+
+  // Inactive and locked accounts answer exactly like a wrong password, and that
+  // gate runs BEFORE the password comparison, so it is not a "correct password
+  // revealed the account is disabled" answer either.
+  const stateGate = service.indexOf('!"ACTIVE".equals(user.status()) || locked');
+  const passwordCheck = service.indexOf('passwordEncoder.matches(password, user.passwordHash())');
+  assert.ok(stateGate > 0, 'the account-state gate exists');
+  assert.ok(passwordCheck > stateGate, 'the account-state gate runs before the password comparison');
+  assert.match(
+    service.slice(stateGate, stateGate + 160),
+    /throw new BadCredentialsException\("Invalid credentials"\)/,
+    'a disabled or locked account answers as invalid credentials, not 403',
+  );
+
+  // AuthenticationException is mapped to 401 by the shared handler.
+  assert.match(
+    handler,
+    /@ExceptionHandler\(AuthenticationException\.class\)[\s\S]*?HttpStatus\.UNAUTHORIZED/,
+  );
+
+  // The one filter that does answer 403 for account state never sees /auth/login.
+  assert.match(accountState, /"\/api\/v1\/auth\/login"\.equals\(uri\)/);
+
+  // So the page keeps its generic "attempt blocked" copy for the residual 403
+  // (CSRF, origin, or a proxy in front), and that copy claims nothing about the
+  // account: no locked/disabled/exists wording, in either locale.
+  assert.match(login, /error\.response\.status === 403\) \{\s*return messages\.login\.errors\.blocked;/);
+  const english = /invalidCredentials: 'The email address or password is incorrect\.',\s*blocked: '([^']+)'/.exec(messages);
+  const vietnamese = /invalidCredentials: 'Email hoặc mật khẩu không đúng\.',\s*blocked: '([^']+)'/.exec(messages);
+  assert.ok(english, 'the English blocked copy exists');
+  assert.ok(vietnamese, 'the Vietnamese blocked copy exists');
+  for (const copy of [english[1], vietnamese[1]]) {
+    assert.match(copy, /blocked|bị chặn/i, 'the copy says the attempt was blocked');
+    assert.doesNotMatch(
+      copy,
+      /\b(account|locked|disabled|exists)\b|wrong password|tài khoản|bị khóa|không tồn tại/i,
+      `the copy must not name account state, but reads: ${copy}`,
+    );
+  }
 });

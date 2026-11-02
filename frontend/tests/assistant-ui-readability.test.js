@@ -146,6 +146,44 @@ test('localized page title survives replacement by navigation metadata and relea
   assert.equal(document.title, 'Next route title');
 });
 
+test('assistant stream progress uses a dedicated polite live region and updates', () => {
+  const { AssistantStreamProgress } = load('src/components/assistant/AssistantStreamProgress.tsx');
+
+  const idle = renderToStaticMarkup(React.createElement(AssistantStreamProgress, {
+    active: false, characters: 0, locale: 'en',
+  }));
+  assert.match(idle, /role="status"/);
+  assert.match(idle, /aria-live="polite"/);
+  assert.match(idle, /data-assistant-stream-progress/);
+  assert.doesNotMatch(idle, /Receiving reply/);
+
+  const started = renderToStaticMarkup(React.createElement(AssistantStreamProgress, {
+    active: true, characters: 0, locale: 'en',
+  }));
+  assert.match(started, /Receiving reply…/);
+
+  const progressing = renderToStaticMarkup(React.createElement(AssistantStreamProgress, {
+    active: true, characters: 240, locale: 'en',
+  }));
+  assert.match(progressing, /Receiving reply… 240 characters/);
+
+  const slow = renderToStaticMarkup(React.createElement(AssistantStreamProgress, {
+    active: true, characters: 240, slow: true, locale: 'en',
+  }));
+  assert.match(slow, /Still receiving the reply… 240 characters/);
+});
+
+test('assistant log keeps role=log and a polite live region beside the progress region', () => {
+  const panel = fs.readFileSync(
+    path.join(root, 'src/components/assistant/AssistantPanel.tsx'),
+    'utf8',
+  );
+  assert.match(panel, /role="log"/);
+  assert.match(panel, /aria-live="polite"/);
+  assert.doesNotMatch(panel, /aria-live=\{isSending \? 'off' : 'polite'\}/);
+  assert.match(panel, /<AssistantStreamProgress\s+active=\{isSending\}/);
+});
+
 test('user and assistant bubbles stay shrinkable so fenced code cannot overflow the log', () => {
   const { AssistantMessages } = load('src/components/assistant/AssistantMessages.tsx');
   const code = '```java\npublic OrderService(PaymentGateway gateway) { this.gateway = gateway; }\n```';
