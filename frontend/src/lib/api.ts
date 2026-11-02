@@ -30,6 +30,7 @@ import {
   Lecturer,
   GradingSection,
   LecturerSection,
+  GradeUpdate,
   SectionGrades,
   SectionSchedule,
   MyCurriculumResponse,
@@ -820,7 +821,7 @@ export const sectionsApi = {
     sectionId: string,
     // null+null clears a saved draft grade; partial nulls are rejected by the
     // backend, and published grades stay locked.
-    grades: { enrollmentId: string; processScore: number | null; finalExamScore: number | null }[],
+    grades: GradeUpdate[],
   ): Promise<{ message: string }> => {
     const response = await api.put<{ message: string }>(
       `/sections/${sectionId}/grades`,

@@ -294,8 +294,9 @@ export interface StudentGrade {
 
 export interface GradeUpdate {
   enrollmentId: string;
-  processScore: number;
-  finalExamScore: number;
+  processScore: number | null;
+  finalExamScore: number | null;
+  version?: number;
 }
 
 export interface GradingSection {
@@ -377,6 +378,7 @@ export interface SectionGrades {
     email?: string;
     processScore?: number;
     finalExamScore?: number;
+    version?: number;
     finalGrade?: number;
     letterGrade?: string;
     gradeStatus?: 'DRAFT' | 'PUBLISHED' | 'APPEALED';

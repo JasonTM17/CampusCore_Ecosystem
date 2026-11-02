@@ -9,7 +9,7 @@ import { metricToneClass } from '@/components/ui/status';
 import { useRequireAuth } from '@/context/AuthContext';
 import { sectionsApi } from '@/lib/api';
 import { getLocalizedFlatLabel } from '@/lib/academic-content';
-import { SectionGrades } from '@/types/api';
+import { GradeUpdate, SectionGrades } from '@/types/api';
 import { GradeImportPanel } from '@/components/lecturer/GradeImportPanel';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,14 +33,91 @@ import {
 } from '@/lib/grade-export';
 import { toast } from 'sonner';
 
-type GradeUpdate = {
-  enrollmentId: string;
-  processScore: number | null;
-  finalExamScore: number | null;
-};
-
 function hasCompletedGrade(update: GradeUpdate | undefined) {
   return Boolean(update && update.processScore !== null && update.finalExamScore !== null);
+}
+
+function createGradeDrafts(enrollments: SectionGrades['enrollments']) {
+  const drafts = new Map<string, GradeUpdate>();
+  enrollments.forEach((enrollment) => {
+    drafts.set(enrollment.id, {
+      enrollmentId: enrollment.id,
+      processScore: enrollment.processScore ?? null,
+      finalExamScore: enrollment.finalExamScore ?? null,
+      ...(typeof enrollment.version === 'number' ? { version: enrollment.version } : {}),
+    });
+  });
+  return drafts;
+}
+
+function applyImportedGradeRows(
+  previous: Map<string, GradeUpdate>,
+  rows: { enrollmentId: string; processScore: number; finalExamScore: number }[],
+) {
+  const next = new Map(previous);
+  for (const row of rows) {
+    const current = next.get(row.enrollmentId) ?? {
+      enrollmentId: row.enrollmentId,
+      processScore: null,
+      finalExamScore: null,
+    };
+    next.set(row.enrollmentId, {
+      ...current,
+      processScore: row.processScore,
+      finalExamScore: row.finalExamScore,
+    });
+  }
+  return next;
+}
+
+function preserveGradeDraftRows(
+  nextGrades: Map<string, GradeUpdate>,
+  updates: GradeUpdate[],
+) {
+  const next = new Map(nextGrades);
+  updates.forEach((update) => next.set(update.enrollmentId, update));
+  return next;
+}
+
+function buildGradeSaveRows(
+  enrollments: SectionGrades['enrollments'],
+  editedIds: Set<string>,
+  grades: Map<string, GradeUpdate>,
+) {
+  const editedRows = enrollments.filter((enrollment) => editedIds.has(enrollment.id));
+  const clearedRows = editedRows.filter((enrollment) => {
+    const update = grades.get(enrollment.id);
+    const nowEmpty = !update || (update.processScore === null && update.finalExamScore === null);
+    const hadSaved = enrollment.processScore !== null || enrollment.finalExamScore !== null;
+    return nowEmpty && hadSaved;
+  });
+  const clearedIds = new Set(clearedRows.map((enrollment) => enrollment.id));
+  const partialRows = editedRows.filter(
+    (enrollment) => !clearedIds.has(enrollment.id) && !hasCompletedGrade(grades.get(enrollment.id)),
+  );
+  const updates: GradeUpdate[] = [
+    ...editedRows
+      .filter((enrollment) => hasCompletedGrade(grades.get(enrollment.id)))
+      .map((enrollment) => grades.get(enrollment.id))
+      .filter((update): update is GradeUpdate => hasCompletedGrade(update)),
+    ...clearedRows.map((enrollment) => {
+      const update = grades.get(enrollment.id);
+      return {
+        enrollmentId: enrollment.id,
+        processScore: null,
+        finalExamScore: null,
+        ...(typeof update?.version === 'number' ? { version: update.version } : {}),
+      };
+    }),
+  ];
+
+  return { editedRows, partialRows, updates };
+}
+
+function isStaleVersionError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const response = (error as { response?: { data?: { code?: unknown } } }).response;
+  return response?.data?.code === 'STALE_VERSION';
 }
 
 // Score drafts stay strings until commit so "9." and empty inputs survive
@@ -88,6 +165,8 @@ export default function SectionGradingPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [staleVersionConflict, setStaleVersionConflict] = useState(false);
+  const [remoteChangedRows, setRemoteChangedRows] = useState<string[] | null>(null);
   const [error, setError] = useState('');
   const [scoreErrors, setScoreErrors] = useState<Map<string, string>>(new Map());
   const publishGuard = useRef({ sectionId: '', ready: false });
@@ -154,7 +233,12 @@ export default function SectionGradingPage() {
   }, [locale, sectionData, gradeEntry.print.department]);
 
   const fetchSectionGrades = useCallback(
-    async (options?: { silent?: boolean; preserveLocalRows?: GradeUpdate[] }) => {
+    async (options?: {
+      silent?: boolean;
+      preserveLocalRows?: GradeUpdate[];
+      preserveMissingLocalRows?: boolean;
+      compareBaseline?: SectionGrades;
+    }) => {
     const requestId = ++gradeRequestRef.current;
     const loadSectionId = sectionId;
     const isCurrent = () =>
@@ -180,6 +264,8 @@ export default function SectionGradingPage() {
       setGrades(new Map());
       setEditedIds(new Set());
       setScoreErrors(new Map());
+      setStaleVersionConflict(false);
+      setRemoteChangedRows(null);
       // A save/publish of the old section may still be in flight; reset its
       // busy flags here because its finally skips a newer operation's state.
       setIsSaving(false);
@@ -192,28 +278,47 @@ export default function SectionGradingPage() {
       loadedSectionRef.current = loadSectionId;
       setSectionData(data);
 
-      const nextGrades = new Map<string, GradeUpdate>();
-      data.enrollments.forEach((enrollment) => {
-        nextGrades.set(enrollment.id, {
-          enrollmentId: enrollment.id,
-          processScore: enrollment.processScore ?? null,
-          finalExamScore: enrollment.finalExamScore ?? null,
+      const nextGrades = createGradeDrafts(data.enrollments);
+
+      if (options?.compareBaseline) {
+        const previousById = new Map(
+          options.compareBaseline.enrollments.map((enrollment) => [enrollment.id, enrollment]),
+        );
+        const latestById = new Map(data.enrollments.map((enrollment) => [enrollment.id, enrollment]));
+        const changedRows: string[] = [];
+        data.enrollments.forEach((enrollment) => {
+          const previous = previousById.get(enrollment.id);
+          if (
+            !previous
+            || previous.version !== enrollment.version
+            || (previous.processScore ?? null) !== (enrollment.processScore ?? null)
+            || (previous.finalExamScore ?? null) !== (enrollment.finalExamScore ?? null)
+            || previous.gradeStatus !== enrollment.gradeStatus
+          ) {
+            changedRows.push(`${enrollment.studentCode} (${enrollment.studentName})`);
+          }
         });
-      });
+        options.compareBaseline.enrollments.forEach((enrollment) => {
+          if (!latestById.has(enrollment.id)) {
+            changedRows.push(`${enrollment.studentCode} (${enrollment.studentName})`);
+          }
+        });
+        setRemoteChangedRows(changedRows);
+      }
 
       // LEC-P3-B3: after a partial save the server copy of the skipped rows
       // is older than what is on screen, so overlay the local half-entered
       // drafts instead of wiping them, and keep those rows flagged as edited
       // so the marker and the save-count stay truthful.
-      const preservedIds = new Set<string>();
+      const preservedRows: GradeUpdate[] = [];
       (options?.preserveLocalRows ?? []).forEach((update) => {
-        if (nextGrades.has(update.enrollmentId)) {
-          nextGrades.set(update.enrollmentId, update);
-          preservedIds.add(update.enrollmentId);
+        if (nextGrades.has(update.enrollmentId) || options?.preserveMissingLocalRows) {
+          preservedRows.push(update);
         }
       });
+      const preservedIds = new Set(preservedRows.map((update) => update.enrollmentId));
 
-      setGrades(nextGrades);
+      setGrades(preserveGradeDraftRows(nextGrades, preservedRows));
       if (options?.preserveLocalRows) {
         setEditedIds(preservedIds);
         // Saved rows keep no stale inline errors; preserved rows keep theirs.
@@ -397,18 +502,7 @@ export default function SectionGradingPage() {
   /** Feedback item 9: an imported sheet lands in the same table the lecturer
    *  reviews, so the existing save path and its validation stay authoritative. */
   const applyImportedRows = (rows: { enrollmentId: string; processScore: number; finalExamScore: number }[]) => {
-    setGrades((previous) => {
-      const next = new Map(previous);
-      for (const row of rows) {
-        const current = next.get(row.enrollmentId) ?? {
-          enrollmentId: row.enrollmentId,
-          processScore: null,
-          finalExamScore: null,
-        };
-        next.set(row.enrollmentId, { ...current, processScore: row.processScore, finalExamScore: row.finalExamScore });
-      }
-      return next;
-    });
+    setGrades((previous) => applyImportedGradeRows(previous, rows));
     setScoreErrors((previous) => {
       const next = new Map(previous);
       for (const row of rows) {
@@ -422,7 +516,7 @@ export default function SectionGradingPage() {
 
   const handleSave = async () => {
     if (!sectionId || !sectionData || sectionData.sectionId !== sectionId
-        || isSaving || isPublishing || isRefreshing) {
+        || isSaving || isPublishing || isRefreshing || staleVersionConflict) {
       return;
     }
     const saveSectionId = sectionId;
@@ -433,30 +527,11 @@ export default function SectionGradingPage() {
 
     // The backend upserts only the rows it receives, so submit just the
     // enrollments the lecturer actually edited instead of the whole roster.
-    const editedRows = sectionData.enrollments.filter((enrollment) => editedIds.has(enrollment.id));
-    // A row cleared of both scores on an enrollment that already carried a
-    // grade is a delete request, not a half-typed row.
-    const clearedRows = editedRows.filter((enrollment) => {
-      const update = grades.get(enrollment.id);
-      const nowEmpty = !update || (update.processScore === null && update.finalExamScore === null);
-      const hadSaved = enrollment.processScore !== null || enrollment.finalExamScore !== null;
-      return nowEmpty && hadSaved;
-    });
-    const clearedIds = new Set(clearedRows.map((enrollment) => enrollment.id));
-    const partialRows = editedRows.filter(
-      (enrollment) => !clearedIds.has(enrollment.id) && !hasCompletedGrade(grades.get(enrollment.id)),
+    const { editedRows, partialRows, updates } = buildGradeSaveRows(
+      sectionData.enrollments,
+      editedIds,
+      grades,
     );
-    const updates: GradeUpdate[] = [
-      ...editedRows
-        .filter((enrollment) => hasCompletedGrade(grades.get(enrollment.id)))
-        .map((enrollment) => grades.get(enrollment.id))
-        .filter((update): update is GradeUpdate => hasCompletedGrade(update)),
-      ...clearedRows.map((enrollment) => ({
-        enrollmentId: enrollment.id,
-        processScore: null,
-        finalExamScore: null,
-      })),
-    ];
 
     // An out-of-range entry keeps the previous value in state, so saving now
     // would persist something other than what the lecturer sees on screen.
@@ -480,6 +555,8 @@ export default function SectionGradingPage() {
     try {
       await sectionsApi.updateSectionGrades(saveSectionId, updates);
       if (!saveIsCurrent()) return;
+      setStaleVersionConflict(false);
+      setRemoteChangedRows(null);
       if (partialRows.length > 0) {
         toast.warning(gradeEntry.partialRowsSkipped.replace('{count}', formatNumber(partialRows.length)));
       }
@@ -493,13 +570,55 @@ export default function SectionGradingPage() {
       await fetchSectionGrades({ silent: true, preserveLocalRows: skippedDrafts });
     } catch (requestError: any) {
       if (saveIsCurrent()) {
-        toast.error(
-          campusErrorMessage(requestError, messages.common.campusErrors, gradeEntry.saveFailed),
-        );
+        if (isStaleVersionError(requestError)) {
+          setStaleVersionConflict(true);
+          setRemoteChangedRows(null);
+        } else {
+          toast.error(
+            campusErrorMessage(requestError, messages.common.campusErrors, gradeEntry.saveFailed),
+          );
+        }
       }
     } finally {
       if (saveIsCurrent()) setIsSaving(false);
     }
+  };
+
+  const handleReloadStaleGrades = () => {
+    if (!sectionId || !sectionData || !staleVersionConflict || isRefreshing) return;
+    const localRows = Array.from(editedIds)
+      .map((enrollmentId) => grades.get(enrollmentId))
+      .filter((update): update is GradeUpdate => Boolean(update));
+    setRemoteChangedRows(null);
+    void fetchSectionGrades({
+      silent: true,
+      preserveLocalRows: localRows,
+      preserveMissingLocalRows: true,
+      compareBaseline: sectionData,
+    });
+  };
+
+  const rebaseLocalGradeVersions = () => {
+    if (!sectionData || remoteChangedRows === null) return;
+    const latestById = new Map(sectionData.enrollments.map((enrollment) => [enrollment.id, enrollment]));
+    setGrades((previous) => {
+      const next = new Map(previous);
+      editedIds.forEach((enrollmentId) => {
+        const update = previous.get(enrollmentId);
+        const latest = latestById.get(enrollmentId);
+        if (!update || !latest) return;
+        const rebased = { ...update };
+        if (typeof latest.version === 'number') {
+          rebased.version = latest.version;
+        } else {
+          delete rebased.version;
+        }
+        next.set(enrollmentId, rebased);
+      });
+      return next;
+    });
+    setStaleVersionConflict(false);
+    setRemoteChangedRows(null);
   };
 
   const handlePublish = async () => {
@@ -709,7 +828,7 @@ export default function SectionGradingPage() {
               <Button
                 type="button"
                 variant={hasChanges ? 'default' : 'outline'}
-                disabled={!hasChanges || isSaving || isPublishing || isRefreshing}
+                disabled={!hasChanges || isSaving || isPublishing || isRefreshing || staleVersionConflict}
                 onClick={() => void handleSave()}
               >
                 <Save className="mr-2 h-4 w-4" />
@@ -731,6 +850,35 @@ export default function SectionGradingPage() {
             </div>
           }
         />
+        {staleVersionConflict ? (
+          <div role="alert" className="mt-3 rounded-lg border border-status-warning/40 bg-status-warning/10 p-3 text-sm text-foreground">
+            <p>{gradeEntry.staleVersionMessage}</p>
+            {remoteChangedRows !== null ? (
+              remoteChangedRows.length > 0 ? (
+                <p className="mt-2 break-words text-muted-foreground">
+                  {gradeEntry.remoteChangedRows.replace('{rows}', remoteChangedRows.join(', '))}
+                </p>
+              ) : (
+                <p className="mt-2 text-muted-foreground">{gradeEntry.noRemoteChangedRows}</p>
+              )
+            ) : null}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isRefreshing}
+                onClick={handleReloadStaleGrades}
+              >
+                {isRefreshing ? gradeEntry.loading : gradeEntry.reloadStaleGrades}
+              </Button>
+              {remoteChangedRows !== null ? (
+                <Button type="button" disabled={isRefreshing} onClick={rebaseLocalGradeVersions}>
+                  {gradeEntry.keepEditsOnLatestVersions}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         {hasChanges && (
           <p role="status" className="mt-3 text-sm text-muted-foreground">{gradeEntry.saveBeforePublish}</p>
         )}
