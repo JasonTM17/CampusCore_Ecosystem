@@ -23,10 +23,14 @@ tree, không phải snapshot đã commit.
 
 ## 2. Backup/restore drill
 
+Drill chạy trên **fixture disposable** (không dùng stack demo chung): container mang label
+`io.campusute.drill.disposable=true` và tên theo hợp đồng ở
+[ops/backup/README.md](../../ops/backup/README.md). Guard từ chối mọi tên khác.
+
 ```powershell
-# demo stack đang chạy (compose project bất kỳ):
-$env:ECO_DRILL_CONTAINER='campuscore-demo-p14-postgres-1'
-$env:ECO_DRILL_DB='campuscore_restful_e2e'
+$env:ECO_DRILL_CONTAINER='campusute-drill-p14-postgres'
+$env:ECO_DRILL_DB='campusute_drill_p14'
+$env:ECO_DRILL_DISPOSABLE='1'
 node scripts/ecosystem-backup-drill.mjs --out artifacts/verification/demo
 # → demo-<ts>.dump + .sha256 + backup-drill.json (row-count parity mọi
 #   bảng, FK parity, orphan checks library/careers/events/admissions).
@@ -99,7 +103,8 @@ resolve/404 phản ánh go-live chưa mở, không phải lỗi cần sửa tron
 
 - Data corrupt → fence writer → `ops/backup/restore-postgres.sh` vào
   isolated target → verify parity → re-point → kiểm delta trước reopen.
-- Frontend deployment trước trong schema-expand window; API image digest
-  phải nằm trong manifest candidate.
+- Thứ tự rollout frontend-trước-API trong schema-expand window và việc API image
+  digest nằm trong manifest candidate chỉ áp dụng cho **future go-live**
+  (deferred); recovery local không cần bước này.
 - Supabase cũ **không** là fallback target.
 - Không đổi bundle ID/package name để né lỗi (mobile-policy).

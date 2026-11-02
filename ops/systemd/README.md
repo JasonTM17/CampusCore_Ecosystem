@@ -1,5 +1,12 @@
-Copy the service and timer to `/etc/systemd/system/` on the VPS only after
-adjusting `WorkingDirectory` and the deployment user. Then run:
+# systemd backup units (deferred)
+
+These units are a **future always-on host** artifact. No unit is installed by
+the local-first workflow, and today's executed recovery path is the disposable
+drill in [../backup/README.md](../backup/README.md).
+
+If an owned, always-on host target is ever approved, copy the service and timer
+to `/etc/systemd/system/` only after adjusting `WorkingDirectory` and the
+running user, then run:
 
 ```sh
 sudo systemctl daemon-reload

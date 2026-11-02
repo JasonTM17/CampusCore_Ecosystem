@@ -118,8 +118,9 @@ groups:
           summary: "Service instance unready for > 90s after startup"
           description: >-
             Instance {{ $labels.instance }} is alive but not ready after 90 seconds.
-            Render free-tier cold-starts typically finish in 15-40s. A 90s delay indicates
-            database lock contention, slow Flyway migration, or pool exhaustion.
+            A hosted platform's cold start typically finishes in 15-40s; the local compose
+            stack has no sleep/wake cycle. A 90s delay indicates database lock contention,
+            slow Flyway migration, or pool exhaustion.
           runbook_url: "ops/monitoring/README.md"
           instrumentation_status: "EXTERNAL_EXPORTER_REQUIRED; endpoint exists (HealthController.java probes)"
 
