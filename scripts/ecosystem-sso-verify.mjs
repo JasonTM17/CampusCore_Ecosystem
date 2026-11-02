@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { installKillGuard, stopChildrenTree } from './ecosystem-verify-shared.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRONTEND = path.join(REPO, 'frontend');
@@ -29,6 +30,7 @@ const API_PORT = 4100;
 const BOOT_TIMEOUT_MS = 240000;
 
 const children = [];
+installKillGuard(children);
 
 function usage(msg) {
   if (msg) console.error(`USAGE_FAIL ${msg}`);
@@ -142,16 +144,7 @@ function generateCerts(dir) {
 }
 
 function stopChildren() {
-  for (const child of children) {
-    if (child.exitCode !== null || child.signalCode !== null) continue;
-    try { child.kill('SIGTERM'); } catch { /* best effort */ }
-    if (process.platform === 'win32' && child.pid) {
-      try {
-        execFileSync('taskkill', ['/pid', String(child.pid), '/t', '/f'],
-          { stdio: 'ignore' });
-      } catch { /* best effort */ }
-    }
-  }
+  stopChildrenTree(children);
 }
 
 // Shell-spawned children (npm.cmd -> node) can survive a tree kill on
