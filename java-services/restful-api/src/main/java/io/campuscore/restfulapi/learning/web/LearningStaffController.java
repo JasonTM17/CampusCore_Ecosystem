@@ -19,6 +19,7 @@ import java.util.Map;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -281,10 +282,20 @@ public class LearningStaffController {
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename*=UTF-8''" + encoded)
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
-                .contentType(MediaType.parseMediaType(
-                        contentType == null ? MediaType.APPLICATION_OCTET_STREAM_VALUE
-                                : String.valueOf(contentType)))
+                .contentType(downloadMediaType(contentType))
                 .body(bytes);
+    }
+
+    /** Stored types predate write-time validation, so a bad value must not fail the download. */
+    private static MediaType downloadMediaType(Object contentType) {
+        if (contentType == null) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+        try {
+            return MediaType.parseMediaType(String.valueOf(contentType));
+        } catch (InvalidMediaTypeException exception) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
     }
 
     private static MaterialUpsertRequest materialUpsert(String title, String description, Integer version,
