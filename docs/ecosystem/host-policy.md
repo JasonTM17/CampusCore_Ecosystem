@@ -121,7 +121,7 @@ surface resolution theo §1:
 - `GET /session/logged-out` — trả landing page metadata (owner của page
   là **Next static route** — endpoint này chỉ là API probe nếu cần; chọn
   Next làm owner — KM-L13).
-- `ANY /bff/api/**` — business proxy (§5).
+- `ANY /bff/api/**` — business proxy (§5). Mọi response lỗi từ `/session/*` và `/bff/api/**` đều trả body JSON chứa trường `code` song song với `error` (ví dụ `{"error":"...","code":"..."}`).
 
 Authorization server dùng chung machinery P04: grant BFF nằm trong
 `oauth2_authorization` (`campuscore_identity`), mirror Session + lineage qua
@@ -252,6 +252,17 @@ Browser → Next edge (set `x-campuscore-surface` + proxy token) → BFF chain:
    `proxy-authenticate`, `authorization`).
 6. Response pass-through + `Cache-Control: no-store` cho private; không
    bao giờ serialize token ra body.
+   - **Giới hạn body request**: JSON giới hạn ở 1 MB (`MAX_JSON_BODY_BYTES`).
+     Yêu cầu `multipart/form-data` bỏ qua bộ giải mã multipart của servlet
+     ([`BffMultipartConfiguration`](../../java-services/restful-api/src/main/java/io/campuscore/restfulapi/identity/bff/BffMultipartConfiguration.java))
+     để chuyển nguyên vẹn stream tải lên upstream, với trần kiểm soát từ
+     `spring.servlet.multipart.max-request-size` (`application.yml` đặt 21 MB, tệp
+     tối đa 20 MB). Request vượt trần bị từ chối với
+     413 `REQUEST_BODY_TOO_LARGE`.
+   - **Giới hạn body response upstream**: response từ upstream được đệm có giới
+     hạn theo giá trị lớn hơn giữa `spring.servlet.multipart.max-request-size` và
+     `spring.servlet.multipart.max-file-size` (21 MB theo `application.yml`). Response
+     vượt trần bị từ chối với 502 `UPSTREAM_RESPONSE_TOO_LARGE`.
 
 Allowlist path: `identity.bff.api-allowlist` prefix list — path khác → 404.
 Không proxy `/bff/**`, `/oauth2/**`, `/connect/**`, actuator. Loopback call
