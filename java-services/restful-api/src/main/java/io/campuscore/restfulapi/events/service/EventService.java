@@ -103,15 +103,20 @@ public class EventService {
     public ListPaging.Result<StaffGrantResponse> listGrants(String actorId,
             ListPaging.Window window) {
         requireStaffGrant(actorId);
-        MapSqlParameterSource params = new MapSqlParameterSource("scope", EVENT_SCOPE);
+        MapSqlParameterSource params = new MapSqlParameterSource("scope", EVENT_SCOPE)
+                .addValue("actor", actorId);
         Long total = null;
         if (window != null) {
             total = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope",
+                    "SELECT COUNT(*) FROM " + STAFF_GRANT
+                            + " WHERE \"scope\" = :scope AND \"userId\" = :actor",
                     params, Long.class);
         }
+        // Self-view over the grant table: a staffer sees only its own rows,
+        // never a staff directory.
         String sql = "SELECT \"id\", \"userId\", \"scope\", \"grantedBy\", \"createdAt\""
-                + " FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope ORDER BY \"createdAt\"";
+                + " FROM " + STAFF_GRANT
+                + " WHERE \"scope\" = :scope AND \"userId\" = :actor ORDER BY \"createdAt\"";
         if (window != null) {
             sql += ", \"id\" LIMIT :limit OFFSET :offset";
             params.addValue("limit", window.limit()).addValue("offset", window.offset());

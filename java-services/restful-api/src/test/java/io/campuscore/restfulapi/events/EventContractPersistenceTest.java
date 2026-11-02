@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -559,6 +560,41 @@ class EventContractPersistenceTest {
         // The newly granted outsider can now use staff operations.
         mvc.perform(get("/api/v1/events/staff").with(outsiderJwt))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void staffSeeOnlyTheirOwnGrantRows() throws Exception {
+        // Two staffers granted by distinct grantors: neither can enumerate
+        // the other's row.
+        jdbc.update("UPDATE events.\"StaffGrant\" SET \"grantedBy\" = 'admin-user-2'"
+                + " WHERE \"userId\" = 'staff-user-2'");
+
+        mvc.perform(get("/api/v1/events/staff/grants").with(staffJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].userId").value("staff-user"))
+                .andExpect(jsonPath("$[0].grantedBy").value("test-fixture"));
+        mvc.perform(get("/api/v1/events/staff/grants").with(secondStaffJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].userId").value("staff-user-2"))
+                .andExpect(jsonPath("$[0].grantedBy").value("admin-user-2"));
+
+        // Paged totals are scoped to the caller's own row.
+        mvc.perform(get("/api/v1/events/staff/grants")
+                        .param("page", "0").param("limit", "1").with(staffJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "1"))
+                .andExpect(jsonPath("$.length()").value(1));
+
+        // The staff-grant gate is preserved for ungranted callers, including
+        // the ADMIN role alone.
+        mvc.perform(get("/api/v1/events/staff/grants").with(outsiderJwt))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("EVENTS_STAFF_REQUIRED"));
+        mvc.perform(get("/api/v1/events/staff/grants").with(adminJwt))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("EVENTS_STAFF_REQUIRED"));
     }
 
     @Test
