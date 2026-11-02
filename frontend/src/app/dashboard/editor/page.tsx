@@ -81,12 +81,12 @@ import {
   type StoredEditorDocument,
 } from '@/lib/editor-document';
 import {
-  EDITOR_BLOCK_HTML,
   EDITOR_BLOCK_TYPES,
   EDITOR_SEED_HTML,
   EDITOR_SEED_MARKDOWN,
-  EDITOR_TEMPLATE_HTML,
   EDITOR_TEMPLATE_IDS,
+  getEditorBlockHtml,
+  getEditorTemplateHtml,
   type EditorBlockType,
   type EditorTemplateId,
 } from '@/lib/editor-templates';
@@ -110,14 +110,17 @@ interface EditorBlockCopy {
  * The block list is metadata (titles/descriptions) from the `editor.blocks`
  * messages plus the shared HTML bodies from lib/editor-templates.ts.
  */
-function buildDefaultBlocks(copy: Record<EditorBlockType, EditorBlockCopy>): ContentBlock[] {
+function buildDefaultBlocks(
+  copy: Record<EditorBlockType, EditorBlockCopy>,
+  isVi: boolean,
+): ContentBlock[] {
   return EDITOR_BLOCK_TYPES.map((type) => ({
     id: `block-${type}`,
     type,
     title: copy[type].title,
     description: copy[type].description,
     enabled: true,
-    htmlContent: EDITOR_BLOCK_HTML[type],
+    htmlContent: getEditorBlockHtml(type, isVi),
   }));
 }
 
@@ -189,6 +192,9 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
   const EDITOR_TYPE_KEY = `${EDITOR_TYPE_KEY_PREFIX}:${encodeURIComponent(draftOwnerId)}`;
   const isVi = locale === 'vi';
   const editorCopy = messages.editor;
+  // Author fallback for drafts and previews with no publisher: the English
+  // workspace must not print a Vietnamese office name.
+  const fallbackPublisher = isVi ? 'Phòng Đào tạo' : 'Academic Affairs Office';
 
   // Navigation tab state: 'announcement' (Editor) | 'hero' (Site Controls) | 'templates' (Document Library)
   const [activeTab, setActiveTab] = useState<'announcement' | 'hero' | 'templates'>('announcement');
@@ -245,8 +251,8 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
   // the `editor.blocks` messages, HTML bodies from lib/editor-templates.ts.
   const [showBlockBuilder, setShowBlockBuilder] = useState(true);
   const defaultBlocks = useMemo(
-    () => buildDefaultBlocks(messages.editor.blocks),
-    [messages.editor.blocks],
+    () => buildDefaultBlocks(messages.editor.blocks, isVi),
+    [messages.editor.blocks, isVi],
   );
   const [blocks, setBlocks] = useState<ContentBlock[]>(defaultBlocks);
   const [hasUnsavedNoticeOrder, setHasUnsavedNoticeOrder] = useState(false);
@@ -865,7 +871,9 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
   const handlePreviewCurrentDraft = () => {
     const authorName = user
       ? (`${user.lastName || ''} ${user.firstName || ''}`.trim() || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email)
-      : 'Phòng Đào Tạo & Ban Giám Hiệu';
+      : isVi
+        ? 'Phòng Đào Tạo & Ban Giám Hiệu'
+        : 'Academic Affairs Office & Board of Directors';
     setPreviewingNotice({
       id: editingId || 'draft-preview',
       title: title || (isVi ? 'THÔNG BÁO HỌC VỤ & HƯỚNG DẪN ĐÀO TẠO' : 'Official Academic Notice'),
@@ -1929,8 +1937,8 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                                 : (isVi ? 'Giảng viên' : 'Lecturers')}
                             </span>
                           </td>
-                          <td className="py-3 px-3 whitespace-nowrap text-muted-foreground text-[11.5px] max-w-[160px] truncate" title={ann.publishedBy || 'Phòng Đào tạo'}>
-                            {ann.publishedBy || 'Phòng Đào tạo'}
+                          <td className="py-3 px-3 whitespace-nowrap text-muted-foreground text-[11.5px] max-w-[160px] truncate" title={ann.publishedBy || fallbackPublisher}>
+                            {ann.publishedBy || fallbackPublisher}
                           </td>
                           <td className="py-3 px-3 whitespace-nowrap text-muted-foreground text-[11.5px]">
                             {ann.createdAt ? formatDate(ann.createdAt) : '—'}
@@ -1994,7 +2002,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
                     type="button"
                     variant="default"
                     size="sm"
-                    onClick={() => applyTemplate(EDITOR_TEMPLATE_HTML[templateId], templateCopy.name)}
+                    onClick={() => applyTemplate(getEditorTemplateHtml(templateId, isVi), templateCopy.name)}
                     className="gap-1.5 text-xs font-semibold"
                   >
                     <Send className="h-3.5 w-3.5" />

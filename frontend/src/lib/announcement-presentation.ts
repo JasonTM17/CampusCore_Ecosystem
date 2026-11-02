@@ -379,6 +379,20 @@ export const INSTITUTIONAL_ARTICLE_CATEGORIES: Record<ArticleCategoryCode, Artic
   },
 };
 
+/**
+ * The reader-facing label for an institutional article category.
+ *
+ * Homepage filter tabs, feed cards and reader headers all resolve through this
+ * function, so a category code can never be called two different things again.
+ */
+export function articleCategoryLabel(
+  code: ArticleCategoryCode,
+  locale: Locale = 'vi',
+): string {
+  const meta = INSTITUTIONAL_ARTICLE_CATEGORIES[code];
+  return locale === 'vi' ? meta.nameVi : meta.nameEn;
+}
+
 export type AnnouncementDomainType = 'OFFICIAL_DISPATCH' | 'EDITORIAL_ARTICLE';
 
 export interface DomainResolution {
@@ -460,7 +474,6 @@ export function resolveAnnouncementDomain(
   locale: Locale = 'vi',
   categories?: readonly TaxonomyCategory[],
 ): DomainResolution {
-  const isVi = locale === 'vi';
   const title = (announcement.title || '').toLowerCase();
   const publisher = (announcement.publishedBy || '').toLowerCase();
   const content = (announcement.content || '').toLowerCase();
@@ -480,7 +493,7 @@ export function resolveAnnouncementDomain(
       return {
         domain: 'EDITORIAL_ARTICLE',
         categoryCode: 'RESEARCH_TECH',
-        categoryLabel: isVi ? 'Nghiên cứu & Công nghệ' : 'Research & Tech',
+        categoryLabel: articleCategoryLabel('RESEARCH_TECH', locale),
         categoryTone: 'info',
         iconType: 'flask',
         accentGradient: 'from-cyan-600 via-blue-600 to-indigo-700',
@@ -490,7 +503,7 @@ export function resolveAnnouncementDomain(
       return {
         domain: 'EDITORIAL_ARTICLE',
         categoryCode: 'AWARDS_HONORS',
-        categoryLabel: isVi ? 'Học bổng & Khen thưởng' : 'Scholarships & Honors',
+        categoryLabel: articleCategoryLabel('AWARDS_HONORS', locale),
         categoryTone: 'success',
         iconType: 'award',
         accentGradient: 'from-emerald-600 via-teal-600 to-green-700',
@@ -500,7 +513,7 @@ export function resolveAnnouncementDomain(
       return {
         domain: 'EDITORIAL_ARTICLE',
         categoryCode: 'STUDENT_LIFE',
-        categoryLabel: isVi ? 'Đời sống Sinh viên' : 'Student Life',
+        categoryLabel: articleCategoryLabel('STUDENT_LIFE', locale),
         categoryTone: 'warning',
         iconType: 'users',
         accentGradient: 'from-amber-600 via-orange-600 to-red-600',
@@ -510,7 +523,7 @@ export function resolveAnnouncementDomain(
       return {
         domain: 'EDITORIAL_ARTICLE',
         categoryCode: 'CULTURE_ARTS',
-        categoryLabel: isVi ? 'Văn hóa & Nghệ thuật' : 'Culture & Arts',
+        categoryLabel: articleCategoryLabel('CULTURE_ARTS', locale),
         categoryTone: 'primary',
         iconType: 'sparkles',
         accentGradient: 'from-rose-600 via-pink-600 to-purple-700',
@@ -520,7 +533,7 @@ export function resolveAnnouncementDomain(
       return {
         domain: 'EDITORIAL_ARTICLE',
         categoryCode: 'CAREER_OPPORTUNITIES',
-        categoryLabel: isVi ? 'Cơ hội Việc làm' : 'Career & Industry',
+        categoryLabel: articleCategoryLabel('CAREER_OPPORTUNITIES', locale),
         categoryTone: 'primary',
         iconType: 'briefcase',
         accentGradient: 'from-purple-600 via-violet-600 to-indigo-700',
@@ -530,7 +543,7 @@ export function resolveAnnouncementDomain(
       return {
         domain: 'EDITORIAL_ARTICLE',
         categoryCode: 'ACADEMIC_AFFAIRS',
-        categoryLabel: isVi ? 'Đào tạo & Học vụ' : 'Academic Affairs',
+        categoryLabel: articleCategoryLabel('ACADEMIC_AFFAIRS', locale),
         categoryTone: 'primary',
         iconType: 'book',
         accentGradient: 'from-indigo-600 via-blue-700 to-slate-800',
@@ -551,7 +564,7 @@ export function resolveAnnouncementDomain(
     return {
       domain: 'OFFICIAL_DISPATCH',
       categoryCode: 'ACADEMIC_AFFAIRS',
-      categoryLabel: isVi ? 'Công văn Đào tạo & Khảo thí' : 'Academic Dispatch',
+      categoryLabel: articleCategoryLabel('ACADEMIC_AFFAIRS', locale),
       categoryTone: 'danger',
       iconType: 'document',
       accentGradient: 'from-red-600 to-amber-600',
@@ -563,7 +576,7 @@ export function resolveAnnouncementDomain(
     return {
       domain: 'EDITORIAL_ARTICLE',
       categoryCode: 'CULTURE_ARTS',
-      categoryLabel: isVi ? 'Văn hóa & Nghệ thuật' : 'Culture & Arts',
+      categoryLabel: articleCategoryLabel('CULTURE_ARTS', locale),
       categoryTone: 'primary',
       iconType: 'sparkles',
       accentGradient: 'from-rose-600 via-pink-600 to-purple-700',
@@ -584,7 +597,7 @@ export function resolveAnnouncementDomain(
     return {
       domain: 'EDITORIAL_ARTICLE',
       categoryCode: 'STUDENT_LIFE',
-      categoryLabel: isVi ? 'Đời sống Sinh viên' : 'Student Life',
+      categoryLabel: articleCategoryLabel('STUDENT_LIFE', locale),
       categoryTone: 'warning',
       iconType: 'users',
       accentGradient: 'from-amber-600 via-orange-600 to-red-600',
@@ -596,7 +609,7 @@ export function resolveAnnouncementDomain(
     return {
       domain: 'EDITORIAL_ARTICLE',
       categoryCode: 'AWARDS_HONORS',
-      categoryLabel: isVi ? 'Học bổng & Khen thưởng' : 'Scholarships & Honors',
+      categoryLabel: articleCategoryLabel('AWARDS_HONORS', locale),
       categoryTone: 'success',
       iconType: 'award',
       accentGradient: 'from-emerald-600 to-teal-700',
@@ -623,7 +636,7 @@ export function resolveAnnouncementDomain(
     return {
       domain: 'EDITORIAL_ARTICLE',
       categoryCode: 'RESEARCH_TECH',
-      categoryLabel: isVi ? 'Nghiên cứu & Công nghệ' : 'Research & Tech',
+      categoryLabel: articleCategoryLabel('RESEARCH_TECH', locale),
       categoryTone: 'info',
       iconType: 'flask',
       accentGradient: 'from-cyan-600 to-blue-700',
@@ -641,7 +654,7 @@ export function resolveAnnouncementDomain(
     return {
       domain: 'EDITORIAL_ARTICLE',
       categoryCode: 'CAREER_OPPORTUNITIES',
-      categoryLabel: isVi ? 'Sự kiện & Hướng nghiệp' : 'Career & Events',
+      categoryLabel: articleCategoryLabel('CAREER_OPPORTUNITIES', locale),
       categoryTone: 'warning',
       iconType: 'briefcase',
       accentGradient: 'from-amber-600 to-orange-700',
@@ -660,7 +673,7 @@ export function resolveAnnouncementDomain(
     return {
       domain: 'EDITORIAL_ARTICLE',
       categoryCode: 'ACADEMIC_AFFAIRS',
-      categoryLabel: isVi ? 'Đào tạo & Học vụ' : 'Academic Affairs',
+      categoryLabel: articleCategoryLabel('ACADEMIC_AFFAIRS', locale),
       categoryTone: 'primary',
       iconType: 'book',
       accentGradient: 'from-indigo-600 to-blue-700',
@@ -671,7 +684,7 @@ export function resolveAnnouncementDomain(
   return {
     domain: 'OFFICIAL_DISPATCH',
     categoryCode: 'ACADEMIC_AFFAIRS',
-    categoryLabel: isVi ? 'Văn bản Hành chính' : 'Official Notice',
+    categoryLabel: articleCategoryLabel('ACADEMIC_AFFAIRS', locale),
     categoryTone: 'danger',
     iconType: 'document',
     accentGradient: 'from-blue-700 to-slate-800',

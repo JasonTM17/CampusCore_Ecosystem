@@ -26,6 +26,7 @@ import { useArticleTaxonomy } from '@/lib/use-article-taxonomy';
 import { useApiQuery } from '@/lib/query';
 import { cn } from '@/lib/utils';
 import {
+  articleCategoryLabel,
   resolveAnnouncementDomain,
   resolveArticleCover,
   calculateReadingTime,
@@ -41,54 +42,20 @@ type CategoryFilter = 'ALL' | ArticleCategoryCode;
 
 interface CategoryTab {
   key: CategoryFilter;
-  labelVi: string;
-  labelEn: string;
   icon: React.ReactNode;
 }
 
+// Labels are not stored here: every tab resolves its copy from
+// INSTITUTIONAL_ARTICLE_CATEGORIES through `articleCategoryLabel`, so the
+// homepage can never drift from the feed badges or the reader.
 const CATEGORY_TABS: CategoryTab[] = [
-  {
-    key: 'ALL',
-    labelVi: 'Tất cả bài viết',
-    labelEn: 'All Stories',
-    icon: <Newspaper className="h-4 w-4" />,
-  },
-  {
-    key: 'RESEARCH_TECH',
-    labelVi: 'Nghiên cứu & Công nghệ',
-    labelEn: 'Research & Tech',
-    icon: <FlaskConical className="h-4 w-4" />,
-  },
-  {
-    key: 'AWARDS_HONORS',
-    labelVi: 'Học bổng & Khen thưởng',
-    labelEn: 'Scholarships & Honors',
-    icon: <Award className="h-4 w-4" />,
-  },
-  {
-    key: 'STUDENT_LIFE',
-    labelVi: 'Đời sống Sinh viên',
-    labelEn: 'Student Life',
-    icon: <Users className="h-4 w-4" />,
-  },
-  {
-    key: 'CULTURE_ARTS',
-    labelVi: 'Văn hóa & Nghệ thuật',
-    labelEn: 'Culture & Arts',
-    icon: <Sparkles className="h-4 w-4" />,
-  },
-  {
-    key: 'ACADEMIC_AFFAIRS',
-    labelVi: 'Đào tạo & Học vụ',
-    labelEn: 'Academic Affairs',
-    icon: <BookOpen className="h-4 w-4" />,
-  },
-  {
-    key: 'CAREER_OPPORTUNITIES',
-    labelVi: 'Việc làm & Doanh nghiệp',
-    labelEn: 'Career & Industry',
-    icon: <Briefcase className="h-4 w-4" />,
-  },
+  { key: 'ALL', icon: <Newspaper className="h-4 w-4" /> },
+  { key: 'RESEARCH_TECH', icon: <FlaskConical className="h-4 w-4" /> },
+  { key: 'AWARDS_HONORS', icon: <Award className="h-4 w-4" /> },
+  { key: 'STUDENT_LIFE', icon: <Users className="h-4 w-4" /> },
+  { key: 'CULTURE_ARTS', icon: <Sparkles className="h-4 w-4" /> },
+  { key: 'ACADEMIC_AFFAIRS', icon: <BookOpen className="h-4 w-4" /> },
+  { key: 'CAREER_OPPORTUNITIES', icon: <Briefcase className="h-4 w-4" /> },
 ];
 
 export function HomeNewsSection() {
@@ -193,7 +160,11 @@ export function HomeNewsSection() {
                 )}
               >
                 {tab.icon}
-                <span>{isVi ? tab.labelVi : tab.labelEn}</span>
+                <span>
+                  {tab.key === 'ALL'
+                    ? (isVi ? 'Tất cả bài viết' : 'All Stories')
+                    : articleCategoryLabel(tab.key, locale)}
+                </span>
                 <span
                   className={cn(
                     'rounded-md px-1.5 py-0.5 text-[11px] font-bold',
