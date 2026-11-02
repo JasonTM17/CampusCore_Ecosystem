@@ -1,6 +1,6 @@
 import { localizedNavLabel, shellMessages } from '../../src/i18n/shell-messages';
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Dimensions, StyleSheet, Text } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 
@@ -145,6 +145,30 @@ describe('adaptive app navigation', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Mở menu' }));
     expect(screen.queryByText('Vai trò xem thử')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Giảng viên' })).toBeNull();
+  });
+
+  test('an applicant session can end its session from its only screen', async () => {
+    setWindow(360);
+    const signOut = jest.fn(async () => {});
+    jest.mocked(useSession).mockReturnValue({
+      kind: 'authenticated', role: 'student', switchRole, epoch: 0, booted: true,
+      accountId: 'acct-applicant', blockedReason: null,
+      capabilities: ['admissions.self', 'applicant.surface'],
+      enterPreview: () => true,
+      completeSignIn: () => {},
+      signOut,
+      markBlocked: () => {},
+      setRole: () => {},
+    });
+    jest.mocked(usePathname).mockReturnValue('/apply');
+
+    await renderLayout();
+
+    const signOutControl = screen.getByRole('button', { name: shellMessages.vi.signOut });
+    expect(screen.queryByRole('button', { name: shellMessages.vi.screens.profile })).toBeNull();
+    await fireEvent.press(signOutControl);
+    expect(signOut).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/session/logged-out'));
   });
 
   test.each(['signedOut', 'authenticated'] as const)('%s keeps the protected-route guard', async (kind) => {

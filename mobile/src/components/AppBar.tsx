@@ -21,6 +21,8 @@ export interface AppBarProps {
   /** Signed-in view: role and a profile shortcut. */
   role?: UserRole;
   onProfile?: () => void;
+  /** Signed-in view without a profile screen: the session-ending control. */
+  onSignOut?: () => void;
   /** Guest view: a way back to sign-in. */
   onSignIn?: () => void;
 }
@@ -29,7 +31,7 @@ export interface AppBarProps {
  * Brand top bar shared by every (app) screen: the web portal navy chrome with
  * the CampusUTE mark, the role and a profile shortcut. It owns the status-bar inset so the navy runs under the clock.
  */
-export function AppBar({ role, onProfile, onSignIn }: AppBarProps) {
+export function AppBar({ role, onProfile, onSignOut, onSignIn }: AppBarProps) {
   const { scheme, window } = useTheme();
   const chrome = chromeFor(scheme);
   const insets = useContext(AppBarInsetsContext);
@@ -76,6 +78,16 @@ export function AppBar({ role, onProfile, onSignIn }: AppBarProps) {
             style={({ pressed }) => [styles.iconButton, { backgroundColor: pressed ? chrome.overlay : 'transparent' }]}
           >
             <MaterialCommunityIcons color={chrome.onSurface} name="account-circle-outline" size={26} />
+          </Pressable>
+        ) : null}
+        {onSignOut ? (
+          <Pressable
+            accessibilityLabel={copy.signOut}
+            accessibilityRole="button"
+            onPress={onSignOut}
+            style={({ pressed }) => [styles.iconButton, { backgroundColor: pressed ? chrome.overlay : 'transparent' }]}
+          >
+            <MaterialCommunityIcons color={chrome.onSurface} name="logout" size={26} />
           </Pressable>
         ) : null}
         {onSignIn ? (

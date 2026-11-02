@@ -1,6 +1,6 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Linking, Platform, View } from 'react-native';
+import { AccessibilityInfo, AppState, Linking, Platform, View } from 'react-native';
 
 import { createNativeCheckinMachine, type CheckinMachine, type CheckinSnapshot, type CheckinState } from '../../attendance-checkin';
 import { Button, Card, IconChip, StatePanel, UiText } from '../../components/Ui';
@@ -281,6 +281,20 @@ export function CheckinScreen({ machine: injected }: CheckinScreenProps) {
   const lastStateRef = useRef<CheckinState['type']>('idle');
 
   useEffect(() => machine.subscribe(setSnapshot), [machine]);
+
+  // Settings may change while the app is backgrounded; only the two states
+  // whose action leaves the app re-check, and the machine re-reads permission
+  // and services before acquiring a fix.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') return;
+      const state = machine.getSnapshot().state.type;
+      if (state === 'permissionBlocked' || state === 'servicesOff') {
+        void machine.acquireLocation();
+      }
+    });
+    return () => subscription.remove();
+  }, [machine]);
 
   // Deep link: the route param becomes the lecturer link the machine parses.
   const link = sessionId ? `campuscore://attendance/checkin/${sessionId}` : undefined;
