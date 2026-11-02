@@ -6,6 +6,7 @@ import io.campuscore.restfulapi.thesis.domain.TopicStatus;
 import io.campuscore.restfulapi.thesis.repository.ThesisRoundReadPort;
 import io.campuscore.restfulapi.thesis.repository.ThesisTopicReadRepository;
 import io.campuscore.restfulapi.thesis.repository.ThesisTopicRepository;
+import io.campuscore.restfulapi.thesis.search.ThesisTopicCatalogSearch;
 import io.campuscore.restfulapi.thesis.web.ThesisTopicDtos.TopicResponse;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -57,6 +58,16 @@ public class ThesisTopicService {
      */
     @Transactional(readOnly = true)
     public List<TopicResponse> list(UUID roundId, TopicStatus status, Jwt actor) {
+        return list(roundId, status, actor, null);
+    }
+
+    /**
+     * Legacy unpaged read plus the optional catalogue filter. The filter runs
+     * over the already authorised list, so it can only remove rows; ordering,
+     * masking and the empty-parameter behaviour stay untouched.
+     */
+    @Transactional(readOnly = true)
+    public List<TopicResponse> list(UUID roundId, TopicStatus status, Jwt actor, String search) {
         rounds.requireExisting(roundId);
         TopicStatus requestedStatus = status == null ? TopicStatus.PUBLISHED : status;
         List<ThesisTopic> result;
@@ -104,6 +115,12 @@ public class ThesisTopicService {
             String departmentId = ThesisDepartmentScope.departmentId(jdbc, actor);
             result = result.stream().filter(topic -> topic.getDepartmentId().equals(departmentId)).toList();
         }
+        ThesisTopicCatalogSearch catalogSearch = ThesisTopicCatalogSearch.parse(search);
+        if (catalogSearch.isActive()) {
+            result = result.stream()
+                    .filter(topic -> catalogSearch.matches(topic.getTitle(), topic.getDescription()))
+                    .toList();
+        }
         boolean published = isRoundResultsPublished(roundId);
         // One query for every topic the caller grades as a council member, so
         // the mask check below does not turn into per-topic round-trips.
@@ -142,6 +159,23 @@ public class ThesisTopicService {
         if (window == null) {
             return new ListPaging.Result<>(list(roundId, status, actor), null);
         }
+        CatalogPage page = listPage(roundId, status, actor, window, null);
+        return new ListPaging.Result<>(page.items(), page.total());
+    }
+
+    /**
+     * Catalogue-aware paged read. Both totals come from the same authorised
+     * snapshot: {@code catalogTotal} counts visible topics before the search
+     * predicate (the screen's "this catalogue is empty" signal) and {@code total}
+     * counts the filtered set that pages. When search is active the lightweight
+     * scan additionally reads {@code description}; the predicate still runs in
+     * Java over exactly the visible rows, so no full row is hydrated before
+     * paging and ordering stays the legacy title/UUID order.
+     */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public CatalogPage listPage(UUID roundId, TopicStatus status, Jwt actor,
+            ListPaging.Window window, String search) {
+        Objects.requireNonNull(window, "a catalogue page requires a paging window");
         rounds.requireExisting(roundId);
         TopicStatus requestedStatus = status == null ? TopicStatus.PUBLISHED : status;
         List<TopicStatus> statuses;
@@ -186,14 +220,22 @@ public class ThesisTopicService {
             statuses = List.of(requestedStatus);
             visibility = ThesisTopicReadRepository.Visibility.owner(subject(actor));
         }
-        List<ThesisTopicReadRepository.TopicRef> refs =
-                new ArrayList<>(reads.findVisibleRefs(roundId, statuses, visibility));
+        ThesisTopicCatalogSearch catalogSearch = ThesisTopicCatalogSearch.parse(search);
+        List<ThesisTopicReadRepository.TopicRef> refs = new ArrayList<>(catalogSearch.isActive()
+                ? reads.findVisibleRefsWithDescription(roundId, statuses, visibility)
+                : reads.findVisibleRefs(roundId, statuses, visibility));
+        long catalogTotal = refs.size();
+        if (catalogSearch.isActive()) {
+            refs = new ArrayList<>(refs.stream()
+                    .filter(ref -> catalogSearch.matches(ref.title(), ref.description()))
+                    .toList());
+        }
         refs.sort(Comparator.comparing(ThesisTopicReadRepository.TopicRef::title)
                 .thenComparing(ref -> ref.id().toString()));
         long total = refs.size();
         long from = window.offset();
         if (from >= total) {
-            return new ListPaging.Result<>(List.of(), total);
+            return new CatalogPage(List.of(), total, catalogTotal);
         }
         int to = (int) Math.min(total, from + window.limit());
         List<UUID> pageIds = refs.subList((int) from, to).stream()
@@ -206,7 +248,11 @@ public class ThesisTopicService {
                 .map(hydrated::get)
                 .filter(Objects::nonNull)
                 .toList();
-        return new ListPaging.Result<>(maskPage(roundId, actor, page), total);
+        return new CatalogPage(maskPage(roundId, actor, page), total, catalogTotal);
+    }
+
+    /** One catalogue page plus the two totals the HTTP contract exposes. */
+    public record CatalogPage(List<TopicResponse> items, long total, long catalogTotal) {
     }
 
     private List<TopicResponse> maskPage(UUID roundId, Jwt actor, List<TopicResponse> page) {

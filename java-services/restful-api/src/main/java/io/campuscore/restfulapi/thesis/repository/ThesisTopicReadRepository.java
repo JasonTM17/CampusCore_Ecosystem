@@ -14,10 +14,15 @@ import org.springframework.stereotype.Repository;
  * Focused JDBC projection for the paged thesis topic catalogue.
  *
  * <p>The paged read keeps the legacy Java title order without loading JPA
- * entities: one lightweight {@code (id, title)} query covers every visible
- * match, the service sorts and slices that list, and only the selected page is
- * hydrated into {@link TopicResponse}. The legacy unpaged path in
- * {@code ThesisTopicService} remains on the JPA repository.
+ * entities: one lightweight query covers every visible match, the service sorts
+ * and slices that list, and only the selected page is hydrated into
+ * {@link TopicResponse}. The legacy unpaged path in {@code ThesisTopicService}
+ * remains on the JPA repository.
+ *
+ * <p>Catalogue search adds one column to the same lightweight projection
+ * ({@code description}) and filters in Java, so the searchable set is exactly
+ * the authorised one and no full row is hydrated before paging. The plain
+ * paging path keeps the narrower {@code (id, title)} read.
  */
 @Repository
 @Profile("persistence")
@@ -29,8 +34,13 @@ public class ThesisTopicReadRepository {
         this.jdbc = jdbc;
     }
 
-    /** Identity and title of one visible topic; the only columns read before paging. */
-    public record TopicRef(UUID id, String title) {
+    /**
+     * Identity, title and (only for catalogue search) description of one visible
+     * topic. The plain title scan leaves {@code description} null; the search
+     * scan reads it so the catalogue predicate can run in Java over exactly the
+     * visible set without hydrating full rows.
+     */
+    public record TopicRef(UUID id, String title, String description) {
     }
 
     /**
@@ -77,13 +87,31 @@ public class ThesisTopicReadRepository {
      */
     public List<TopicRef> findVisibleRefs(UUID roundId, List<TopicStatus> statuses,
             Visibility visibility) {
+        return queryVisibleRefs(roundId, statuses, visibility, false);
+    }
+
+    /**
+     * Same authorised set, plus {@code description} for the catalogue search
+     * predicate. This is the only extra column the search path reads before
+     * paging: it is a bounded-memory projection over visible rows, not a
+     * full-row hydration. The plain paging path keeps the narrower read.
+     */
+    public List<TopicRef> findVisibleRefsWithDescription(UUID roundId, List<TopicStatus> statuses,
+            Visibility visibility) {
+        return queryVisibleRefs(roundId, statuses, visibility, true);
+    }
+
+    private List<TopicRef> queryVisibleRefs(UUID roundId, List<TopicStatus> statuses,
+            Visibility visibility, boolean withDescription) {
         if (visibility.scope() == Visibility.Scope.NONE || statuses.isEmpty()) {
             return List.of();
         }
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("roundId", roundId)
                 .addValue("statuses", statuses.stream().map(Enum::name).toList());
-        StringBuilder sql = new StringBuilder("SELECT t.id, t.title FROM thesis.thesis_topic t")
+        StringBuilder sql = new StringBuilder("SELECT t.id, t.title")
+                .append(withDescription ? ", t.description" : "")
+                .append(" FROM thesis.thesis_topic t")
                 .append(" WHERE t.round_id = :roundId AND t.status IN (:statuses)");
         switch (visibility.scope()) {
             case ALL -> {
@@ -103,7 +131,8 @@ public class ThesisTopicReadRepository {
             }
         }
         return jdbc.query(sql.toString(), params,
-                (row, index) -> new TopicRef(row.getObject("id", UUID.class), row.getString("title")));
+                (row, index) -> new TopicRef(row.getObject("id", UUID.class), row.getString("title"),
+                        withDescription ? row.getString("description") : null));
     }
 
     private static void appendFacultyFilter(StringBuilder sql, MapSqlParameterSource params,
