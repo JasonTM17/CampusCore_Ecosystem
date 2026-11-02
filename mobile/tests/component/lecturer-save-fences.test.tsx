@@ -6,7 +6,7 @@ import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { fillCopy } from '../../src/i18n/academic-messages';
 import { operationsMessages } from '../../src/i18n/operations-messages';
 import type { MobileScreenProps } from '../../src/navigation/types';
-import { localIsoDate } from '../../src/screens/operations/lecturer-model';
+import { campusIsoDate } from '../../src/i18n/locale';
 
 const mockRuntime = {
   mode: 'live' as 'live' | 'preview',
@@ -118,7 +118,7 @@ const sections = [
   { sectionId: 'section-a', sectionNumber: '01', courseCode: 'CS-A', courseNameVi: 'Course A', courseNameEn: 'Course A' },
   { sectionId: 'section-b', sectionNumber: '02', courseCode: 'CS-B', courseNameVi: 'Course B', courseNameEn: 'Course B' },
 ];
-const today = localIsoDate();
+const today = campusIsoDate();
 const attendanceSheetA = {
   sectionId: 'section-a', date: today,
   roster: [{ studentId: 'a1', studentCode: 'A1', firstName: 'Alpha' }], marks: [],
@@ -312,6 +312,31 @@ test('a grading save for a revisited section preserves its new draft', async () 
 
   expect(screen.getByText(fillCopy(operationsMessages.en.scoresSaved, { n: 1 }))).toBeTruthy();
   expect(screen.getByLabelText(processLabelA).props.value).toBe('8');
+});
+
+test('a note-only server edit is stale and keeps the attendance draft', async () => {
+  const sheetWithNote = (notes: string) => ({
+    sectionId: 'section-a',
+    date: today,
+    roster: [{ studentId: 'a1', studentCode: 'A1', firstName: 'Alpha' }],
+    marks: [{ studentId: 'a1', status: 'EXCUSED', notes }],
+  });
+  mockRuntime.queries[`lecturer:sheet:section-a:${today}`] = sheetWithNote('sick');
+  const view = await renderScreen(<LecturerAttendanceScreen {...props} />);
+  await screen.findByText('Alpha');
+
+  const markPresent = fillCopy(operationsMessages.vi.markStatusFor, {
+    name: 'Alpha',
+    status: operationsMessages.vi.statusPresent,
+  });
+  await fireEvent.press(screen.getByRole('radio', { name: markPresent }));
+
+  mockRuntime.queries[`lecturer:sheet:section-a:${today}`] = sheetWithNote('medical leave');
+  await view.rerender(screenElement(<LecturerAttendanceScreen {...props} />));
+
+  expect(screen.getByText(operationsMessages.vi.stale)).toBeTruthy();
+  expect(screen.getByText(fillCopy(operationsMessages.vi.unsaved, { n: 1 }))).toBeTruthy();
+  expect(screen.getByRole('radio', { name: markPresent }).props.accessibilityState?.checked).toBe(true);
 });
 
 test('attendance refresh during a pending save preserves the dirty rows and baseline', async () => {
