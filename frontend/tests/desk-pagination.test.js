@@ -444,14 +444,16 @@ test('careers desk keeps denials separate from retryable failures', () => {
   assert.match(source, /onRetry=\{\(\) => void load\(\)\}/);
 });
 
-test('library desk fences out-of-order status filters without adding paging params', () => {
+test('library desk pages the queue and fences out-of-order status filters and pages', () => {
   const source = read('src/components/library/LibraryDeskPage.tsx');
 
+  assert.match(source, /const PAGE_SIZE = 20/);
+  assert.match(source, /libraryApi\.queuePage\(status \|\| undefined, requestedPage, PAGE_SIZE\)/);
   assert.match(source, /requestSequence\.current/);
   assert.match(source, /requestSequence\.current\.isCurrent\(requestId\)/);
-  assert.match(source, /libraryApi\.queue\(status \|\| undefined\)/);
-  assert.doesNotMatch(source, /queuePage|PAGE_SIZE/, 'P4b owns library paging');
-  assert.match(source, /onRetry=\{\(\) => void load\(filter\)\}/);
+  assert.match(source, /currentSelection\.current\.page === requestedPage/,
+    'a late response is fenced by the page it was requested for');
+  assert.match(source, /onRetry=\{\(\) => void reloadCurrent\(\)\}/);
   assert.match(source, /setDenied\(true\)/);
 });
 

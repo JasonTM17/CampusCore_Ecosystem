@@ -475,7 +475,7 @@ test('library desk separates staff denial from retryable failures', () => {
   const source = read('src/components/library/LibraryDeskPage.tsx');
   assert.match(source, /<ForbiddenState/);
   assert.match(source, /<LinkButton href="\/dashboard"/);
-  assert.match(source, /onRetry=\{\(\) => void load\(filter\)\}/);
+  assert.match(source, /onRetry=\{\(\) => void reloadCurrent\(\)\}/);
   assert.match(source, /setDenied\(true\)/);
 });
 
@@ -637,6 +637,22 @@ test('a conduct summary failure keeps the certificate preview usable and offers 
   assert.match(source, /if \(!cancelled\) setConductError\(true\)/);
   assert.match(source, /conductError \? \([\s\S]*?sectionErrorDescription[\s\S]*?onRetry=\{\(\) => setConductReloadToken/);
   assert.match(source, /\}, \[hasAccess, conductReloadToken\]\);/);
+});
+
+test('a conduct summary failure on the certificate page leaves the other sections rendered', () => {
+  const source = read('src/app/dashboard/certificates/page.tsx');
+  assert.doesNotMatch(source, /if \(conductError\)\s*\{?\s*return/);
+  assert.match(source, /conductError \? \(/);
+  // The printable preview and the curriculum notice still render independently.
+  assert.match(source, /curriculumError \? \(/);
+  assert.match(source, /!hasIdentity \? \(/);
+  assert.match(source, /certCopy\.previewBanner/);
+});
+
+test('the notifications load-older action reads the dedicated fragment key', () => {
+  const source = read('src/components/dashboard/NotificationsCenterPage.tsx');
+  assert.match(source, /messages\.studentPages\.notifications\.loadMore/);
+  assert.doesNotMatch(source, /messages\.assistant\.loadMoreMessages/);
 });
 
 test('student learning section-list loads are retired on unmount', () => {

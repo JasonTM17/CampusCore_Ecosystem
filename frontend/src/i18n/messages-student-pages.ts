@@ -144,6 +144,9 @@ export const studentPagesEn = {
       campusPortal: 'HCMUTE Campus Portal',
     },
   },
+  notifications: {
+    loadMore: 'Load older notifications',
+  },
   schedule: {
     eyebrow: 'Student area',
     title: 'Schedule',
@@ -449,6 +452,9 @@ export const studentPagesVi: Widen<typeof studentPagesEn> = {
       imageAlt: 'HCMUTE Campus Banner',
       campusPortal: 'HCMUTE Campus Portal',
     },
+  },
+  notifications: {
+    loadMore: 'Tải thông báo cũ hơn',
   },
   schedule: {
     eyebrow: 'Cổng Sinh viên',

@@ -446,7 +446,7 @@ export default function NotificationsCenterPage() {
               onClick={() => void loadOlder()}
               disabled={isLoadingMore}
             >
-              {isLoadingMore ? messages.common.states.loading : messages.assistant.loadMoreMessages}
+              {isLoadingMore ? messages.common.states.loading : messages.studentPages.notifications.loadMore}
             </Button>
             {olderError ? (
               <p role="alert" className="text-xs text-destructive">{olderError}</p>
