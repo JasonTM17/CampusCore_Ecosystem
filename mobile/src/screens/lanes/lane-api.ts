@@ -5,9 +5,11 @@
 // stale tap is a 409/412 conflict instead of a second action.
 
 import { apiClient } from '../../api/client';
-import { buildQuery } from '../../api/paging';
+import { buildQuery, toPagedResult, type PagedResult } from '../../api/paging';
 import { notificationBody, parseList, parseMetaPage, transitionBody } from './lane-model';
 import type { MetaPage, NotificationDraft } from './lane-model';
+
+export { LANE_PAGE_SIZE } from './lane-paging';
 
 const id = encodeURIComponent;
 
@@ -91,12 +93,17 @@ export interface NotificationRow {
 
 export interface Page { page: number; limit: number }
 
-export const LANE_PAGE_SIZE = 20;
-
 async function metaPage<T>(path: string, filters: Record<string, string | undefined>, paging: Page): Promise<MetaPage<T>> {
   const query = buildQuery({ ...filters, page: paging.page, limit: paging.limit });
   const body = await apiClient.get<unknown>(`${path}${query}`);
   return parseMetaPage<T>(body, paging.page, paging.limit);
+}
+
+/** Bare-array desk list with the optional zero-based window and `X-Total-Count`. */
+async function pagedList<T>(path: string, filters: Record<string, string | undefined>, paging: Page): Promise<PagedResult<T>> {
+  const query = buildQuery({ ...filters, page: paging.page, limit: paging.limit });
+  const { data, headers } = await apiClient.requestWithMeta<unknown>(`${path}${query}`, { method: 'GET' });
+  return toPagedResult<T>(data, headers, paging);
 }
 
 const list = async <T>(path: string, filters: Record<string, string | undefined> = {}) =>
@@ -109,6 +116,8 @@ export const laneApi = {
 
   /* admissions desk */
   admissionsQueue: (status?: string) => list<AdmissionApp>('/admissions/staff/queue', { status }),
+  admissionsQueuePaged: (status: string | undefined, paging: Page) =>
+    pagedList<AdmissionApp>('/admissions/staff/queue', { status }, paging),
   admissionsClaim: (row: AdmissionApp) =>
     apiClient.post<AdmissionApp>(`/admissions/staff/applications/${id(row.id)}/claim`, { expectedVersion: row.version }),
   admissionsReturn: (row: AdmissionApp, note: string) =>
@@ -120,12 +129,14 @@ export const laneApi = {
 
   /* careers desk */
   careersApplications: (status?: string) => list<CareerApp>('/careers/staff/applications', { status }),
+  careersApplicationsPaged: (status: string | undefined, paging: Page) =>
+    pagedList<CareerApp>('/careers/staff/applications', { status }, paging),
   careersTransition: (row: CareerApp, toStatus: string) =>
     apiClient.post<CareerApp>(`/careers/staff/applications/${id(row.id)}/transition`, { toStatus, expectedVersion: row.version }),
   careersReject: (row: CareerApp, reason: string) =>
     apiClient.post<CareerApp>(`/careers/staff/applications/${id(row.id)}/reject`, transitionBody(row, reason)),
 
-  /* library desk */
+  /* library desk: still an unpaged queue on the server, so this stays one read */
   libraryRequests: (status?: string) => list<LoanRequest>('/library/staff/requests', { status }),
   libraryApprove: (row: LoanRequest) => apiClient.post<LoanRequest>(`/library/staff/requests/${id(row.id)}/approve`, transitionBody(row)),
   libraryIssue: (row: LoanRequest) => apiClient.post<LoanRequest>(`/library/staff/requests/${id(row.id)}/issue`, transitionBody(row)),

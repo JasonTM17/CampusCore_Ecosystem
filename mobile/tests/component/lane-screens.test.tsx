@@ -94,6 +94,9 @@ describe('library desk', () => {
     api.libraryApprove.mockResolvedValue({});
     await renderThemed(<LaneRoute id="staff.libraryDesk" />);
     await waitFor(() => expect(screen.getByText('Giải tích')).toBeTruthy());
+    // The library queue is still read whole: no page window and no pager control.
+    expect(api.libraryRequests).toHaveBeenCalledWith(undefined);
+    expect(screen.queryByText('Trang sau')).toBeNull();
     expect(screen.queryByText('Phát sách')).toBeNull();
     await fireEvent.press(screen.getByText('Duyệt'));
     expect(api.libraryApprove).not.toHaveBeenCalled();
