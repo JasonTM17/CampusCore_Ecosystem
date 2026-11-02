@@ -14,6 +14,10 @@
 
 ### A. Khởi động cụm dịch vụ và xác nhận trạng thái
 ```powershell
+# 0. Bắt buộc một lần cho mỗi bản clone: compose không có giá trị mặc định cho khóa này.
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+$s = (openssl rand -base64 48); Add-Content .env "ASSISTANT_RAG_OWNER_ASSERTION_SECRET=$s"
+
 # 1. Khởi động toàn bộ cụm (compose tự chạy assistant-db-provisioner một lần rồi thoát)
 docker compose up -d --build
 

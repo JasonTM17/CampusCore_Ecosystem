@@ -18,6 +18,7 @@ import {
   ensureEnvFile,
   formatPortAdvice,
   formatUrlTable,
+  main,
   mobileRecipeFromEas,
   parseArgs,
   pollHealth,
@@ -300,4 +301,52 @@ test('ensureEnvFile refuses to overwrite an existing .env', (t) => {
   assert.equal(result.created, false);
   assert.equal(fs.readFileSync(path.join(root, '.env'), 'utf8'), 'POSTGRES_HOST_PORT=15432\n');
   assert.match(messages.join('\n'), /keeping it unchanged/);
+});
+
+function upFixture(t, envContent) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'local-dev-up-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(root, 'docker-compose.yml'), 'services: {}\n', 'utf8');
+  fs.writeFileSync(path.join(root, '.env.example'), 'POSTGRES_HOST_PORT=5432\n', 'utf8');
+  if (envContent !== undefined) fs.writeFileSync(path.join(root, '.env'), envContent, 'utf8');
+  return root;
+}
+
+function runUp(root) {
+  const messages = [];
+  const run = () => ({ code: 0, stdout: '', stderr: '' });
+  return main(['up', '--no-build'], {
+    root,
+    run,
+    fetch: async () => ({ status: 200 }),
+    sleep: async () => {},
+    now: () => 0,
+    log: (message) => messages.push(message),
+    errorLog: (message) => messages.push(message),
+  }).then((code) => ({ code, messages }));
+}
+
+test('up generates the compose owner-assertion secret into the git-ignored .env', async (t) => {
+  const root = upFixture(t);
+
+  const { code, messages } = await runUp(root);
+
+  assert.equal(code, 0);
+  const env = fs.readFileSync(path.join(root, '.env'), 'utf8');
+  const values = [...env.matchAll(/^ASSISTANT_RAG_OWNER_ASSERTION_SECRET=(.*)$/gm)].map((match) => match[1]);
+  assert.equal(values.length, 1, '.env must carry exactly one generated owner-assertion secret');
+  assert.ok(values[0].trim().length >= 32, 'the generated key must satisfy the HS256 minimum');
+  assert.equal(messages.join('\n').includes(values[0]), false, 'the generated key must never be logged');
+});
+
+test('up keeps an existing owner-assertion secret instead of rotating it', async (t) => {
+  const existing = 'local-owner-assertion-value-0123456789abcdef';
+  const root = upFixture(t, `POSTGRES_HOST_PORT=5432\nASSISTANT_RAG_OWNER_ASSERTION_SECRET=${existing}\n`);
+
+  const { code } = await runUp(root);
+
+  assert.equal(code, 0);
+  const env = fs.readFileSync(path.join(root, '.env'), 'utf8');
+  assert.equal(env.match(/^ASSISTANT_RAG_OWNER_ASSERTION_SECRET=/gm).length, 1);
+  assert.match(env, new RegExp(`^ASSISTANT_RAG_OWNER_ASSERTION_SECRET=${existing}$`, 'm'));
 });

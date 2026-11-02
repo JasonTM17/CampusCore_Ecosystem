@@ -89,6 +89,9 @@ does not exist and sign-in cannot complete. The opt-in overlay
 uses (`MOBILE_LOCAL_ISSUER`, default `http://10.0.2.2:4010`):
 
 ```powershell
+# Once per clone: the base compose file requires the owner-assertion key.
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+$s = (openssl rand -base64 48); Add-Content .env "ASSISTANT_RAG_OWNER_ASSERTION_SECRET=$s"
 docker compose -f docker-compose.yml -f docker-compose.mobile-local.yml up -d --build
 node scripts/mobile-local-oidc-verify.mjs   # end-to-end smoke, no browser
 ```

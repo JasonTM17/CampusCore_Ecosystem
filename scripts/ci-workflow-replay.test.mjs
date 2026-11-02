@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -111,6 +113,42 @@ test('source-only checks run once and compose keeps its runtime probes', () => {
   assert.match(composeRuns, /docker compose config/, 'compose configuration validation must remain');
   assert.match(composeRuns, /docker compose up -d --build --wait/, 'fresh stack runtime validation must remain');
   assert.match(composeRuns, /flyway_schema_history/, 'the runtime Flyway boundary must remain');
+});
+
+test('portal viewport gate rejects skipped or unlaunched tests', () => {
+  const doc = loadWorkflow(workflowPath, repoRoot);
+  const job = doc.jobs?.['portal-viewport'];
+  assert.ok(job, 'portal-viewport job exists');
+  assert.equal(job.env?.PORTAL_REQUIRE_BROWSER, '1', 'CI must require a real browser run');
+
+  const step = (job.steps ?? []).find(
+    (candidate) => typeof candidate.run === 'string' && candidate.run.includes('tests/portal-shell.viewport.test.js'),
+  );
+  assert.ok(step, 'portal viewport test step exists');
+  const marker = "node -e '";
+  const start = step.run.lastIndexOf(marker);
+  assert.notEqual(start, -1, 'portal viewport guard script exists');
+  const bodyStart = start + marker.length;
+  const bodyEnd = step.run.indexOf("'", bodyStart);
+  assert.notEqual(bodyEnd, -1, 'portal viewport guard script is closed');
+  const script = step.run.slice(bodyStart, bodyEnd);
+
+  const runGuard = (summary) => {
+    const directory = mkdtempSync(path.join(os.tmpdir(), 'portal-guard-'));
+    try {
+      const logPath = path.join(directory, 'portal.log').replace(/\\/g, '/');
+      writeFileSync(logPath, summary, 'utf8');
+      const result = spawnSync(process.execPath, ['-e', script.replaceAll('/tmp/portal-viewport.log', logPath)], {
+        encoding: 'utf8',
+      });
+      return result.status;
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  };
+
+  assert.equal(runGuard('ℹ tests 2\nℹ pass 2\nℹ skipped 0\n'), 0, 'a full pass must stay green');
+  assert.notEqual(runGuard('ℹ tests 2\nℹ pass 0\nℹ skipped 2\n'), 0, 'a fully skipped run must fail the gate');
 });
 
 test('timing steps enforce continue-on-error and always execution condition with matching upload path', () => {

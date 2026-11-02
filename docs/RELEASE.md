@@ -18,6 +18,9 @@ authorize production deployment.
 ## API and database
 
 ```powershell
+# Once per clone: docker-compose.yml has no default for the owner-assertion key.
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+$s = (openssl rand -base64 48); Add-Content .env "ASSISTANT_RAG_OWNER_ASSERTION_SECRET=$s"
 mvn -q -f java-services/pom.xml verify
 docker compose config
 docker compose up -d --build postgres mailpit rag-service restful-api web
