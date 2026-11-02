@@ -59,6 +59,13 @@ import { useAssistantStream } from './useAssistantStream';
 // - Preserves thesisApi.chat(message, locale) fallback compatibility when stream disconnects.
 export { TRANSIENT_TERMINAL_CODES };
 
+/**
+ * A failure of an older page, the latest page, or conversation creation keeps
+ * its own retry action: the chat banner retry re-sends the last prompt, which
+ * is a different request from the one that failed.
+ */
+type HistoryLoadFailure = 'older-page' | 'latest-page' | 'new-conversation';
+
 export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
   const { locale, messages, href } = useI18n();
   const router = useRouter();
@@ -107,6 +114,8 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
   const [userScrolled, setUserScrolled] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [announcement, setAnnouncement] = useState('');
+  const [historyLoadFailure, setHistoryLoadFailure] =
+    useState<HistoryLoadFailure>();
 
   // Focus returns to whichever control opened the panel (header or sidebar launcher)
   const triggerRef = useRef<HTMLElement | null>(null);
@@ -171,6 +180,9 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
   const handleNewExchange = useCallback(() => {
     userScrolledRef.current = false;
     setUserScrolled(false);
+    // A new turn replaces the failed page/creation action as the latest
+    // recoverable operation.
+    setHistoryLoadFailure(undefined);
   }, []);
 
   const {
@@ -208,6 +220,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
     setHistoryStatus('idle');
     setMessageCursor(undefined);
     messageCursorStaleRef.current = false;
+    setHistoryLoadFailure(undefined);
     // Keep an explicit older-history lock across a scope change: the displaced
     // tail must not be treated as live just because the corpus changed.
     setLoadingLatest(false);
@@ -218,6 +231,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
     messageCursorStaleRef.current = false;
     setIsBrowsingHistory(false);
     setLoadingLatest(false);
+    setHistoryLoadFailure(undefined);
   }, [invalidateHistoryRequests, state.conversationId]);
 
   // Live eviction discards messages the old cursor was positioned relative to;
@@ -240,6 +254,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
     setHistoryStatus('idle');
     setHistoryCursor(undefined);
     setLoadingLatest(false);
+    setHistoryLoadFailure(undefined);
     requestAnimationFrame(() => {
       const trigger = triggerRef.current;
       (trigger?.isConnected ? trigger : floatingLauncherRef.current)?.focus();
@@ -518,6 +533,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
       return;
     }
     setLoadingMoreMessages(true);
+    setHistoryLoadFailure(undefined);
     const request = beginHistoryRequest(state.conversationId);
     try {
       let cursor = messageCursor;
@@ -579,7 +595,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
       if (evictedIds.length > 0) setIsBrowsingHistory(true);
     } catch {
       if (!isCurrentHistoryRequest(request)) return;
-      dispatch({ type: 'error', kind: 'unavailable' });
+      setHistoryLoadFailure('older-page');
     } finally {
       setLoadingMoreMessages(false);
     }
@@ -606,6 +622,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
       return;
     }
     setLoadingLatest(true);
+    setHistoryLoadFailure(undefined);
     const request = beginHistoryRequest(state.conversationId);
     try {
       const latest = await thesisApi.getConversationMessages(
@@ -622,13 +639,12 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
       setIsBrowsingHistory(false);
     } catch {
       if (!isCurrentHistoryRequest(request)) return;
-      dispatch({ type: 'error', kind: 'unavailable' });
+      setHistoryLoadFailure('latest-page');
     } finally {
       setLoadingLatest(false);
     }
   }, [
     beginHistoryRequest,
-    dispatch,
     isCurrentHistoryRequest,
     isReconciling,
     isSending,
@@ -744,6 +760,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
       setAnnouncement(messages.assistant.busyNotice);
       return;
     }
+    setHistoryLoadFailure(undefined);
     if (state.messages.length === 0) {
       invalidateHistoryRequests();
       selectedHistoryRef.current = true;
@@ -767,7 +784,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
       setIsBrowsingHistory(false);
       setShowHistory(false);
     } catch {
-      dispatch({ type: 'error', kind: 'unavailable' });
+      setHistoryLoadFailure('new-conversation');
     }
   };
 
@@ -838,6 +855,13 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
   // Older-history browsing pauses sending/retry until the latest page is
   // restored; a latest reload is itself a navigation lock.
   const historyLocked = isBrowsingHistory || loadingLatest;
+  const retryHistoryLoad = () => {
+    const failed = historyLoadFailure;
+    setHistoryLoadFailure(undefined);
+    if (failed === 'older-page') void loadMoreMessages();
+    else if (failed === 'latest-page') void returnToLatest();
+    else if (failed === 'new-conversation') void createConversation();
+  };
   const feedbackPendingIds = state.messages
     .filter((message) => message.feedbackPending)
     .map((message) => message.id);
@@ -1161,6 +1185,24 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
                       {messages.assistant.retry}
                     </Button>
                   ) : null}
+                </div>
+              ) : historyLoadFailure ? (
+                <div
+                  className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+                  role="alert"
+                >
+                  <p>{messages.assistant.unavailable}</p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={isSending || isReconciling}
+                    className="mt-2 min-h-10 px-0 text-destructive hover:bg-transparent hover:underline"
+                    onClick={retryHistoryLoad}
+                  >
+                    <RotateCcw className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                    {messages.assistant.retry}
+                  </Button>
                 </div>
               ) : null}
 

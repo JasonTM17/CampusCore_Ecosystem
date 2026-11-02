@@ -354,15 +354,22 @@ export function useAssistantStream({
       onNewExchange?.();
       const controller = new AbortController();
       casResolvedRef.current = false;
+      // Read the retry key before it is replaced: a live key means this retry
+      // replays the same turn and must keep that turn's canonical conversation
+      // value (which may be "no conversation" even after meta revealed one).
+      // A retired key means the previous turn already settled, so the retry is
+      // a new turn in the conversation currently on screen.
+      const retriedRequestId = isRetry ? retryRequestIdRef.current : undefined;
       const clientRequestId =
         activeRequestIdRef.current ??
-        (isRetry ? retryRequestIdRef.current : undefined) ??
+        retriedRequestId ??
         createAssistantRequestId();
       activeRequestIdRef.current = clientRequestId;
       retryRequestIdRef.current = clientRequestId;
-      const requestedConversationId = isRetry
-        ? retryConversationIdRef.current
-        : state.conversationId;
+      const requestedConversationId =
+        retriedRequestId !== undefined
+          ? retryConversationIdRef.current
+          : state.conversationId;
       activeConversationIdRef.current = requestedConversationId;
       retryConversationIdRef.current = requestedConversationId;
       activePromptRef.current = message;
