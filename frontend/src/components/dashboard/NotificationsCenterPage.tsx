@@ -26,6 +26,7 @@ import { statusToneClass } from '@/components/ui/status';
 import { StatusPill } from '@/components/ui/status-pill';
 import { cn, htmlToPlainText, stripNotificationTagPrefix } from '@/lib/utils';
 import { safeInternalPath } from '@/lib/safe-url';
+import { publishNotificationsChanged } from '@/lib/notification-sync';
 import { studentPortalEn, studentPortalVi } from '@/i18n/messages-student-portal';
 
 type NotificationItem = {
@@ -214,6 +215,7 @@ export default function NotificationsCenterPage() {
     setFailedAction(null);
     try {
       await notificationsApi.markRead(id);
+      publishNotificationsChanged();
       setItems((current) =>
         current.map((item) =>
           item.id === id ? { ...item, isRead: true } : item,
@@ -237,6 +239,7 @@ export default function NotificationsCenterPage() {
     setStatus('');
     try {
       const response = await notificationsApi.markAllRead();
+      publishNotificationsChanged();
       const updated = response.updated ?? unreadCount;
       await fetchNotifications();
       setStatus(copy.updatedCount.replace('{count}', String(updated)));

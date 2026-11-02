@@ -16,16 +16,16 @@ import { useI18n } from '@/i18n';
  * admin shell chrome must not wrap a non-admin audience.
  */
 export default function AdminEventsPage() {
-  const { locale } = useI18n();
+  const { href, locale } = useI18n();
   const { isAdmin, isSuperAdmin, isLoading } = useAuth();
   const router = useRouter();
   const fullAdminAccess = isAdmin || isSuperAdmin;
 
   useEffect(() => {
     if (!isLoading && !fullAdminAccess) {
-      router.replace('/dashboard/events');
+      router.replace(href('/dashboard/events'));
     }
-  }, [isLoading, fullAdminAccess, router]);
+  }, [href, isLoading, fullAdminAccess, router]);
 
   if (!fullAdminAccess) {
     return null;
