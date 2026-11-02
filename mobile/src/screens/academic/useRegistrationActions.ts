@@ -35,44 +35,53 @@ export function useRegistrationActions({ copy, locale, preview, knownOffline, re
 
   const blocked = useCallback(async (): Promise<boolean> => {
     if (preview || inFlight.current) return true;
-    if (knownOffline || (await isDeviceOffline())) {
-      setNotice({ tone: 'error', text: copy.offlineNoMutation });
-      return true;
+    // Take the lock before the offline probe: a second tap inside that await
+    // window must not start a parallel mutation loop.
+    inFlight.current = true;
+    let offline = false;
+    try {
+      offline = knownOffline || (await isDeviceOffline());
+    } catch {
+      offline = true;
     }
-    return false;
+    if (!offline) return false;
+    setNotice({ tone: 'error', text: copy.offlineNoMutation });
+    inFlight.current = false;
+    return true;
   }, [copy, knownOffline, preview]);
 
   const registerSelected = useCallback(async () => {
     if (await blocked()) return;
-    inFlight.current = true;
     setBusy(true);
     setNotice(null);
-    let registered = 0;
-    let offline = false;
-    for (const sectionId of basket.selected) {
-      try {
-        await enrollInSection(sectionId, locale);
-        dispatch({ type: 'succeed', sectionId });
-        registered += 1;
-      } catch (error) {
-        if (isOfflineError(error)) {
-          offline = true;
-          break;
+    try {
+      let registered = 0;
+      let offline = false;
+      for (const sectionId of basket.selected) {
+        try {
+          await enrollInSection(sectionId, locale);
+          dispatch({ type: 'succeed', sectionId });
+          registered += 1;
+        } catch (error) {
+          if (isOfflineError(error)) {
+            offline = true;
+            break;
+          }
+          const code = (error as { code?: string } | null)?.code ?? null;
+          dispatch({ type: 'fail', sectionId, failure: { code, messageKey: registrationErrorKey(code) ?? 'generic' } });
         }
-        const code = (error as { code?: string } | null)?.code ?? null;
-        dispatch({ type: 'fail', sectionId, failure: { code, messageKey: registrationErrorKey(code) ?? 'generic' } });
       }
+      if (offline) setNotice({ tone: 'error', text: copy.offlineNoMutation });
+      else if (registered > 0) setNotice({ tone: 'success', text: fillCopy(copy.registered, { n: registered }) });
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
     }
-    if (offline) setNotice({ tone: 'error', text: copy.offlineNoMutation });
-    else if (registered > 0) setNotice({ tone: 'success', text: fillCopy(copy.registered, { n: registered }) });
-    inFlight.current = false;
-    setBusy(false);
     await reload();
   }, [basket.selected, blocked, copy, locale, reload]);
 
   const drop = useCallback(async (enrollmentId: string) => {
     if (await blocked()) return;
-    inFlight.current = true;
     setBusy(true);
     setNotice(null);
     try {
@@ -81,9 +90,10 @@ export function useRegistrationActions({ copy, locale, preview, knownOffline, re
     } catch (error) {
       const code = (error as { code?: string } | null)?.code ?? null;
       setNotice({ tone: 'error', text: isOfflineError(error) ? copy.offlineNoMutation : copy.errors[registrationErrorKey(code) ?? 'generic'] });
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
     }
-    inFlight.current = false;
-    setBusy(false);
     await reload();
   }, [blocked, copy, reload]);
 

@@ -17,7 +17,7 @@ import {
 } from '../../components/Ui';
 import { apiClient, campusApi, type JsonObject, type MobileEnrollment } from '../../api/client';
 import { fillShellCopy, shellMessages } from '../../i18n/shell-messages';
-import { localizedName } from '../academic/academic-model';
+import { buildAgenda, localizedName, nextMeetings } from '../academic/academic-model';
 import { useLocale } from '../../i18n/locale-provider';
 import type { MobileScreenProps } from '../../navigation/types';
 import { useLiveResource } from './shared/useLiveResource';
@@ -55,19 +55,31 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
     c.announcementsError,
   );
   const activeEnrollments = liveEnrollments.filter((item) => item.status === 'ENROLLED');
+  const upcoming = apiClient.mode === 'preview'
+    ? []
+    : nextMeetings(buildAgenda(activeEnrollments, locale), new Date(), 3);
+  const pendingRows = activeEnrollments
+    .filter((item) => !(item.section?.schedules?.length))
+    .slice(0, Math.max(0, 3 - upcoming.length))
+    .map((item) => ({
+      code: item.section?.course?.code ?? item.section?.sectionNumber ?? c.course,
+      name: localizedName(item.section?.course, locale, c.course),
+      time: c.schedulePending,
+      room: c.roomTba,
+      semesterId: item.semesterId,
+    }));
   const dashboardClasses: Array<{ semesterId?: string; code: string; name: string; time: string; room: string }> = apiClient.mode === 'preview'
     ? upcomingClasses
-    : activeEnrollments.slice(0, 3).map((item) => ({
-        code: item.section?.course?.code ?? item.section?.sectionNumber ?? c.course,
-        name: localizedName(item.section?.course, locale, c.course),
-        time: item.section?.schedules?.[0]
-          ? `${item.section.schedules[0].startTime} – ${item.section.schedules[0].endTime}`
-          : c.schedulePending,
-        room: item.section?.schedules?.[0]?.classroom
-          ? `${item.section.schedules[0].classroom?.building ?? ''}${item.section.schedules[0].classroom?.roomNumber ? ` ${item.section.schedules[0].classroom.roomNumber}` : ''}`.trim()
-          : c.roomTba,
-        semesterId: item.semesterId,
-      }));
+    : [
+        ...upcoming.map((item) => ({
+          code: item.courseCode || item.sectionNumber || c.course,
+          name: item.courseName || c.course,
+          time: `${item.startTime} – ${item.endTime}`,
+          room: item.room || c.roomTba,
+          semesterId: item.semesterId,
+        })),
+        ...pendingRows,
+      ];
   const scheduledSessions = activeEnrollments.reduce((total, item) => total + (item.section?.schedules?.length ?? 0), 0);
 
   if (isLoading || error) {
