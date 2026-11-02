@@ -35,11 +35,15 @@ public final class LearningDtos {
             Double maxScore, Integer version) {
     }
 
+    /** Draft fields are the owning student's working copy; staff views leave
+     * them null. The storage key is deliberately absent from the contract. */
     public record SubmissionResponse(
             String id, String assignmentId, String studentId, String status,
             String currentRevisionId, Instant submittedAt, Instant returnedAt,
             Instant reviewedAt, Integer version,
-            String studentName, String studentEmail) {
+            String studentName, String studentEmail,
+            String draftText, String draftFileName, String draftContentType,
+            Long draftSizeBytes) {
     }
 
     public record SubmissionRevisionResponse(
