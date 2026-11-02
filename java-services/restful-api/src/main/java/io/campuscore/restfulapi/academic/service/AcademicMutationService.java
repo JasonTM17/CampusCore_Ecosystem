@@ -246,8 +246,7 @@ public class AcademicMutationService {
         // memory. A CSV past this bound would be unusable anyway; the caller
         // narrows filters instead of streaming the entire history.
         parameters.addValue("exportLimit", EXPORT_LIMIT + 1);
-        List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT e.\"id\", student.\"studentId\" AS student_number,"
+        String sql = "SELECT e.\"id\", student.\"studentId\" AS student_number,"
                         + " student_user.\"email\", student_user.\"firstName\", student_user.\"lastName\","
                         + " course.\"code\" AS course_code, course.\"name\" AS course_name,"
                         + " section.\"sectionNumber\", semester.\"name\" AS semester_name,"
@@ -258,31 +257,36 @@ public class AcademicMutationService {
                         + " JOIN " + SECTION + " section ON section.\"id\" = e.\"sectionId\""
                         + " JOIN " + COURSE + " course ON course.\"id\" = section.\"courseId\""
                         + " JOIN " + SEMESTER + " semester ON semester.\"id\" = e.\"semesterId\""
-                        + where + " ORDER BY e.\"enrolledAt\" DESC, e.\"id\" DESC LIMIT :exportLimit",
-                parameters);
-        if (rows.size() > EXPORT_LIMIT) {
-            throw new org.springframework.web.server.ResponseStatusException(
-                    HttpStatus.PAYLOAD_TOO_LARGE,
-                    "Enrollment export exceeds the supported row limit");
-        }
-        StringBuilder csv = new StringBuilder(
-                "id,studentNumber,email,studentName,courseCode,courseName,section,semester,status,enrolledAt,finalGrade,letterGrade\r\n");
-        for (Map<String, Object> row : rows) {
-            csv.append(csv(row.get("id"))).append(',')
-                    .append(csv(row.get("student_number"))).append(',')
-                    .append(csv(row.get("email"))).append(',')
-                    .append(csv((String.valueOf(row.get("lastName")) + " "
-                            + String.valueOf(row.get("firstName"))).trim())).append(',')
-                    .append(csv(row.get("course_code"))).append(',')
-                    .append(csv(row.get("course_name"))).append(',')
-                    .append(csv(row.get("sectionNumber"))).append(',')
-                    .append(csv(row.get("semester_name"))).append(',')
-                    .append(csv(row.get("status"))).append(',')
-                    .append(csv(row.get("enrolledAt"))).append(',')
-                    .append(csv(row.get("finalGrade"))).append(',')
-                    .append(csv(row.get("letterGrade"))).append("\r\n");
-        }
-        return csv.toString();
+                        + where + " ORDER BY e.\"enrolledAt\" DESC, e.\"id\" DESC LIMIT :exportLimit";
+        return jdbc.execute(sql, parameters, statement -> {
+            statement.setFetchSize(256);
+            StringBuilder csv = new StringBuilder(
+                    "id,studentNumber,email,studentName,courseCode,courseName,section,semester,status,enrolledAt,finalGrade,letterGrade\r\n");
+            try (java.sql.ResultSet rows = statement.executeQuery()) {
+                int rowCount = 0;
+                while (rows.next()) {
+                    if (++rowCount > EXPORT_LIMIT) {
+                        throw new org.springframework.web.server.ResponseStatusException(
+                                HttpStatus.PAYLOAD_TOO_LARGE,
+                                "Enrollment export exceeds the supported row limit");
+                    }
+                    csv.append(csv(rows.getObject("id"))).append(',')
+                            .append(csv(rows.getObject("student_number"))).append(',')
+                            .append(csv(rows.getObject("email"))).append(',')
+                            .append(csv((String.valueOf(rows.getObject("lastName")) + " "
+                                    + String.valueOf(rows.getObject("firstName"))).trim())).append(',')
+                            .append(csv(rows.getObject("course_code"))).append(',')
+                            .append(csv(rows.getObject("course_name"))).append(',')
+                            .append(csv(rows.getObject("sectionNumber"))).append(',')
+                            .append(csv(rows.getObject("semester_name"))).append(',')
+                            .append(csv(rows.getObject("status"))).append(',')
+                            .append(csv(rows.getObject("enrolledAt"))).append(',')
+                            .append(csv(rows.getObject("finalGrade"))).append(',')
+                            .append(csv(rows.getObject("letterGrade"))).append("\r\n");
+                }
+            }
+            return csv.toString();
+        });
     }
 
     /** Compatibility entry point; grade saves without a known actor record no audit trail. */

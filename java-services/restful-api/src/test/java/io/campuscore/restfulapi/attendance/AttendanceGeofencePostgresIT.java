@@ -41,11 +41,15 @@ class AttendanceGeofencePostgresIT {
     private String id;
     static boolean localTargetConfigured() {
         String url=System.getenv("ATTENDANCE_LOCAL_POSTGRES_URL");
-        return url!=null && url.matches("jdbc:postgresql://(127\\.0\\.0\\.1|localhost):[0-9]+/attendance_g1_test");
+        String user=System.getenv("ATTENDANCE_LOCAL_POSTGRES_USER");
+        String password=System.getenv("ATTENDANCE_LOCAL_POSTGRES_PASSWORD");
+        return url!=null && url.matches("jdbc:postgresql://(127\\.0\\.0\\.1|localhost):[0-9]+/attendance_g1_test")
+                && user!=null && !user.isBlank() && password!=null && !password.isEmpty();
     }
     @BeforeEach void fixture() {
         if(!localTargetConfigured()) throw new IllegalStateException("Only a disposable loopback attendance_g1_test database is allowed");
-        var ds=new DriverManagerDataSource(System.getenv("ATTENDANCE_LOCAL_POSTGRES_URL"),"postgres","");
+        var ds=new DriverManagerDataSource(System.getenv("ATTENDANCE_LOCAL_POSTGRES_URL"),
+                System.getenv("ATTENDANCE_LOCAL_POSTGRES_USER"),System.getenv("ATTENDANCE_LOCAL_POSTGRES_PASSWORD"));
         jdbc=new JdbcTemplate(ds);manager=new DataSourceTransactionManager(ds);
         AttendanceTestSchema.create(jdbc,true);AttendanceTestSchema.clear(jdbc);
         store=new AttendanceStore(jdbc);
@@ -56,6 +60,10 @@ class AttendanceGeofencePostgresIT {
         checkins=transactional(new CheckinService(store,sessions,academic,attendance,code,new GeofenceVerifier(clock),new RiskEvaluator(p),new RateLimiterService(clock),p,audit,clock));
         id=sessions.open(new OpenSessionRequest("section",LocalDate.parse("2026-10-29"),now.minusSeconds(30),now.plusSeconds(900),10,"ute-main-placeholder",false),"admin",null,List.of("ADMIN")).id();
         for(int i=1;i<=4;i++) checkins.acceptConsent("student"+i,"1");
+    }
+    @Test void narrowFixtureAppliesV144WithoutDiscoveringLaterMigrations() {
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM academic.flyway_schema_history WHERE version='144' AND success=TRUE",Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT MAX(CAST(version AS INTEGER)) FROM academic.flyway_schema_history WHERE success=TRUE",Integer.class)).isEqualTo(144);
     }
     @SuppressWarnings("unchecked") private <T>T transactional(T target) {
         var factory=new ProxyFactory(target);factory.setProxyTargetClass(true);

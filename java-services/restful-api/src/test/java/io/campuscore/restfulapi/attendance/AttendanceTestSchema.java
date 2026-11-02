@@ -35,7 +35,7 @@ final class AttendanceTestSchema {
             // Earlier catalog migrations are outside this narrow authority fixture.
             org.flywaydb.core.Flyway.configure().dataSource(jdbc.getDataSource()).schemas("academic")
                     .defaultSchema("academic").baselineVersion("143").baselineOnMigrate(true)
-                    .locations("classpath:db/migration").load().migrate();
+                    .locations("classpath:db/migration").target("144").load().migrate();
         } else {
             new ResourceDatabasePopulator(new ClassPathResource("db/migration-h2/V144__attendance_geofence.sql"))
                     .execute(jdbc.getDataSource());

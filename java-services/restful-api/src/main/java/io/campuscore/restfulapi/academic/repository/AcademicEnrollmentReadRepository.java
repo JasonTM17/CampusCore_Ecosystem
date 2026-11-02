@@ -81,7 +81,7 @@ public class AcademicEnrollmentReadRepository {
         MapSqlParameterSource parameters = new MapSqlParameterSource();
         String where = enrollmentWhere(parameters, status, semesterId, studentId, courseId, sectionId, search);
         Long count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM " + ENROLLMENT + " e" + commonJoins() + where,
+                "SELECT COUNT(*) FROM " + ENROLLMENT + " e" + countJoins(courseId, search) + where,
                 parameters,
                 Long.class);
         return Objects.requireNonNullElse(count, 0L);
@@ -283,6 +283,15 @@ public class AcademicEnrollmentReadRepository {
                 + " JOIN " + USER + " student_user ON student_user.\"id\" = student.\"userId\""
                 + " LEFT JOIN " + LECTURER + " lecturer ON lecturer.\"id\" = section.\"lecturerId\""
                 + " LEFT JOIN " + USER + " lecturer_user ON lecturer_user.\"id\" = lecturer.\"userId\"";
+    }
+
+    private static String countJoins(String courseId, String search) {
+        if (!LikePattern.tokens(search).isEmpty()) {
+            return commonJoins();
+        }
+        return courseId == null
+                ? ""
+                : " JOIN " + SECTION + " section ON section.\"id\" = e.\"sectionId\"";
     }
 
     private static String enrollmentWhere(MapSqlParameterSource parameters, String status, String semesterId, String studentId, String courseId, String sectionId, String search) {
