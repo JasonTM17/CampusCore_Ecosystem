@@ -26,6 +26,7 @@ import {
 import { GradeDetailModal } from '@/components/dashboard/GradeDetailModal';
 import { GRADE_POINTS, summarizeGrades } from '@/lib/grade-scale';
 import { useI18n } from '@/i18n';
+import { studentPortalEn, studentPortalVi } from '@/i18n/messages-student-portal';
 
 const gradePoints = GRADE_POINTS;
 
@@ -87,6 +88,7 @@ function GradeMiniBar({
 export default function GradesPage() {
   const { user, hasAccess, isLoading: authLoading } = useRequireAuth(['STUDENT']);
   const { locale, formatNumber, messages } = useI18n();
+  const copy = (locale === 'vi' ? studentPortalVi : studentPortalEn).grades;
   const [grades, setGrades] = useState<StudentGradeRecord[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [transcript, setTranscript] = useState<StudentTranscript | null>(null);
@@ -117,17 +119,13 @@ export default function GradesPage() {
       setGrades(data);
     } catch {
       if (generation !== loadGeneration.current) return;
-      setError(
-        locale === 'vi'
-          ? 'Hiện chưa thể tải dữ liệu điểm số.'
-          : 'Grades could not be loaded.',
-      );
+      setError(copy.loadFailed);
     } finally {
       if (generation === loadGeneration.current) {
         setIsLoading(false);
       }
     }
-  }, [locale, selectedSemester]);
+  }, [copy.loadFailed, selectedSemester]);
 
   useEffect(() => {
     if (!hasAccess) {
@@ -177,11 +175,10 @@ export default function GradesPage() {
       getLocalizedName(
         locale,
         semesters.find((semester) => semester.id === selectedSemester),
-        locale === 'vi' ? 't\u1ea5t c\u1ea3 h\u1ecdc k\u1ef3' : 'all semesters',
-      ) ??
-      (locale === 'vi' ? 'tất cả học kỳ' : 'all semesters')
+        copy.allSemestersFallback,
+      ) ?? copy.allSemestersFallback
     );
-  }, [locale, selectedSemester, semesters]);
+  }, [copy.allSemestersFallback, locale, selectedSemester, semesters]);
 
   const summary = useMemo(() => {
     // GPA and the completed-credit stat share one best-attempt derivation:
@@ -217,78 +214,6 @@ export default function GradesPage() {
     [transcript],
   );
 
-  const copy =
-    locale === 'vi'
-      ? {
-          eyebrow: 'Cổng Sinh viên',
-          title: 'Điểm số',
-          description: `Xem kết quả đã công bố cho ${selectedSemesterName}, rồi chuyển sang bảng điểm khi cần.`,
-          selectSemester: 'Chọn học kỳ cho điểm số',
-          allSemesters: 'Tất cả học kỳ',
-          openTranscript: 'Mở bảng điểm',
-          loading: 'Đang tải điểm số',
-          unavailableTitle: 'Điểm số chưa sẵn sàng',
-          emptyTitle: 'Chưa có điểm được công bố',
-          emptyDescription:
-            'Khi môn học được chấm và công bố, kết quả sẽ xuất hiện tại đây.',
-          currentGpa: 'GPA hiện tại',
-          completedCredits: 'Tín chỉ hoàn tất',
-          gradedCourses: 'Môn đã có điểm',
-          courseWord: 'môn',
-          coursesWord: 'môn',
-          creditsWord: 'tín chỉ',
-          componentSummary: 'Điểm thành phần theo từng môn',
-          openBreakdown: (courseCode: string, courseName: string) =>
-            `Mở chi tiết điểm cho ${courseCode} ${courseName}`,
-          tableHeaders: {
-            course: 'Môn học',
-            section: 'Lớp học phần',
-            lecturer: 'Giảng viên',
-            credits: 'Tín chỉ',
-            processScore: 'Quá trình (50%)',
-            finalExamScore: 'Cuối kỳ (50%)',
-            score: 'Điểm HP (10)',
-            grade: 'Điểm chữ',
-            status: 'Trạng thái',
-          },
-          pendingAssignment: 'Chờ phân công',
-          notPublished: 'Chưa công bố',
-        }
-      : {
-          eyebrow: 'Student area',
-          title: 'Grades',
-          description: `Review published grading outcomes for ${selectedSemesterName}, then open your transcript when you need the full record.`,
-          selectSemester: 'Select semester for grades',
-          allSemesters: 'All semesters',
-          openTranscript: 'Open transcript',
-          loading: 'Loading grades',
-          unavailableTitle: 'Grades unavailable',
-          emptyTitle: 'No grades published yet',
-          emptyDescription:
-            'Once courses are graded and published, the results will appear here.',
-          currentGpa: 'Current GPA',
-          completedCredits: 'Completed credits',
-          gradedCourses: 'Graded courses',
-          courseWord: 'course',
-          coursesWord: 'courses',
-          creditsWord: 'credits',
-          componentSummary: 'Component scores by course',
-          openBreakdown: (courseCode: string, courseName: string) =>
-            `Open grade breakdown for ${courseCode} ${courseName}`,
-          tableHeaders: {
-            course: 'Course',
-            section: 'Class',
-            lecturer: 'Lecturer',
-            credits: 'Credits',
-            processScore: 'In-Course (50%)',
-            finalExamScore: 'Final Exam (50%)',
-            score: 'Total (10)',
-            grade: 'Grade',
-            status: 'Status',
-          },
-          pendingAssignment: 'Pending assignment',
-          notPublished: 'Not published',
-        };
 
   const statusLabel = (status: string | null | undefined) =>
     messages.common.statuses[
@@ -311,7 +236,7 @@ export default function GradesPage() {
       <PageHeader
         eyebrow={<SectionEyebrow>{copy.eyebrow}</SectionEyebrow>}
         title={copy.title}
-        description={copy.description}
+        description={copy.description.replace('{semester}', () => selectedSemesterName)}
         actions={
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="min-w-[220px]">
@@ -481,7 +406,9 @@ export default function GradesPage() {
                         record.courseNameVi,
                         record.courseName,
                       );
-                      const openLabel = copy.openBreakdown(record.courseCode, courseName);
+                      const openLabel = copy.openBreakdown
+                        .replace('{courseCode}', () => record.courseCode)
+                        .replace('{courseName}', () => courseName);
 
                       return (
                         <div key={`${record.id}-mobile`} role="listitem">
@@ -603,7 +530,9 @@ export default function GradesPage() {
                             record.courseNameVi,
                             record.courseName,
                           );
-                          const openLabel = copy.openBreakdown(record.courseCode, courseName);
+                          const openLabel = copy.openBreakdown
+                            .replace('{courseCode}', () => record.courseCode)
+                            .replace('{courseName}', () => courseName);
                           const { processScore, finalExamScore } = record;
 
                           return (

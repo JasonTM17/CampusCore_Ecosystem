@@ -26,6 +26,7 @@ import { statusToneClass } from '@/components/ui/status';
 import { StatusPill } from '@/components/ui/status-pill';
 import { cn, htmlToPlainText, stripNotificationTagPrefix } from '@/lib/utils';
 import { safeInternalPath } from '@/lib/safe-url';
+import { studentPortalEn, studentPortalVi } from '@/i18n/messages-student-portal';
 
 type NotificationItem = {
   id: string;
@@ -81,6 +82,7 @@ export default function NotificationsCenterPage() {
   const { user, isLoading: authLoading, hasAccess, isForbidden } = useRequireAuth();
   const { formatDateTime, messages, locale } = useI18n();
   const copy = messages.dashboardShell.notifications;
+  const portalNotifications = (locale === 'vi' ? studentPortalVi : studentPortalEn).notifications;
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [filter, setFilter] = useState<Filter>('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -413,7 +415,7 @@ export default function NotificationsCenterPage() {
                             if (!item.isRead) void markRead(item.id);
                           }}
                         >
-                          <span>{locale === 'vi' ? 'Mở tính năng liên quan' : 'Open related feature'}</span>
+                          <span>{portalNotifications.openRelated}</span>
                           <ArrowUpRight className="h-3.5 w-3.5" />
                         </LocalizedLink>
                         {!item.isRead ? (
