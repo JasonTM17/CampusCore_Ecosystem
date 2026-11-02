@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Calendar, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -31,6 +31,7 @@ import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
 import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
 import { campusErrorMessage } from '@/lib/campus-error';
+import { createRequestEpoch } from '@/lib/request-epoch';
 import { getLocalizedName } from '@/lib/academic-content';
 import { ACADEMIC_REFERENCE_LIMIT } from '@/lib/reference-data';
 
@@ -83,6 +84,7 @@ export default function AdminSemestersPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSemester, setEditingSemester] = useState<Semester | null>(null);
+  const semestersEpoch = useRef(createRequestEpoch()).current;
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     nameEn: '',
@@ -125,6 +127,7 @@ export default function AdminSemestersPage() {
   }, [copy]);
 
   const fetchSemesters = useCallback(async () => {
+    const epoch = semestersEpoch.begin();
     setIsLoading(true);
     setError('');
 
@@ -134,14 +137,21 @@ export default function AdminSemestersPage() {
       const query = { page, limit: 20, search: search || undefined };
       const response = await adminSemestersApi.getAll(query);
 
+      if (!semestersEpoch.isCurrent(epoch)) return;
       setSemesters(response.data || []);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
+      if (!semestersEpoch.isCurrent(epoch)) return;
       setError(copy.loadFailed);
     } finally {
+      if (!semestersEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [copy, page, search]);
+  }, [copy, page, search, semestersEpoch]);
+
+  useEffect(() => () => {
+    semestersEpoch.invalidate();
+  }, [semestersEpoch]);
 
   const semesterTypeOptions = useMemo(
     () => [

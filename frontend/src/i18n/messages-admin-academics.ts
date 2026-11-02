@@ -202,6 +202,7 @@ interface CoursesPageCopy
   allDepartments: string;
   selectDepartment: string;
   referenceLoadFailed: string;
+  staleEdit: string;
   unassigned: string;
   courseCode: string;
   creditsLabel: string;
@@ -516,6 +517,7 @@ export const adminAcademicsEn: {
     updated: 'Course updated',
     created: 'Course created',
     saveFailed: 'The course could not be saved.',
+    staleEdit: 'This course changed after you opened it. Your edits are still here; reload to compare before saving.',
     editTitle: 'Edit course',
     createTitle: 'Create course',
     courseCode: 'Course code',
@@ -937,6 +939,7 @@ export const adminAcademicsVi: Widen<typeof adminAcademicsEn> = {
     updated: 'Đã cập nhật môn học',
     created: 'Đã tạo môn học',
     saveFailed: 'Hiện chưa thể lưu môn học.',
+    staleEdit: 'Môn học đã thay đổi sau khi bạn mở. Các chỉnh sửa vẫn được giữ; hãy tải lại để so sánh trước khi lưu.',
     editTitle: 'Chỉnh sửa môn học',
     createTitle: 'Tạo môn học',
     courseCode: 'Mã môn học',

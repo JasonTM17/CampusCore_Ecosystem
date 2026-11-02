@@ -1137,3 +1137,184 @@ test('a stale audit page cannot overwrite the newer filter result', async () => 
   assert.deepEqual(new Map(calls.calls).get('rows'), [{ id: 'new' }],
     'the older audit response must not overwrite the newer page');
 });
+
+test('section edits omit unchanged fields and detect a changed schedule snapshot', () => {
+  const scheduleListsEqual = pageHelper('app/admin/sections/page.tsx', 'sectionScheduleListsEqual', {});
+  const buildPayload = pageHelper('app/admin/sections/page.tsx', 'buildSectionUpdatePayload', {
+    sectionScheduleListsEqual: scheduleListsEqual,
+  });
+  const hasChanged = pageHelper('app/admin/sections/page.tsx', 'hasSectionSnapshotChanged', {
+    sectionScheduleListsEqual: scheduleListsEqual,
+  });
+  const baseline = {
+    id: 'section-1',
+    courseId: 'course-1',
+    semesterId: 'semester-1',
+    sectionNumber: '01',
+    lecturerId: 'lecturer-1',
+    capacity: 30,
+    status: 'OPEN',
+    schedules: [{
+      id: 'monday', dayOfWeek: 1, startTime: '08:00', endTime: '10:00', classroom: { id: 'room-1' },
+    }],
+  };
+  const form = {
+    courseId: 'course-1', semesterId: 'semester-1', sectionNumber: '01',
+    lecturerId: 'lecturer-1', capacity: 40, status: 'OPEN',
+  };
+  const meetings = [{
+    rowId: 'monday', dayOfWeek: 1, startTime: '08:00', endTime: '10:00', classroomId: 'room-1',
+  }];
+  assert.deepEqual(buildPayload(baseline, form, meetings, true), { capacity: 40 },
+    'a capacity-only edit must not resend unchanged relations or the schedule list');
+
+  const anotherAdminSchedule = [...baseline.schedules, {
+    id: 'wednesday', dayOfWeek: 3, startTime: '10:00', endTime: '12:00', classroom: { id: 'room-2' },
+  }];
+  assert.equal(hasChanged(baseline, { ...baseline, schedules: anotherAdminSchedule }), true,
+    'a pre-save read must detect a meeting added after the modal opened');
+  assert.deepEqual(buildPayload(baseline, form, [
+    ...meetings,
+    { rowId: 'new', dayOfWeek: 3, startTime: '10:00', endTime: '12:00', classroomId: 'room-2' },
+  ], true).schedules, [
+    { dayOfWeek: 1, startTime: '08:00', endTime: '10:00', classroomId: 'room-1' },
+    { dayOfWeek: 3, startTime: '10:00', endTime: '12:00', classroomId: 'room-2' },
+  ], 'an explicitly changed schedule remains part of the update');
+});
+
+test('course edits send only changed catalogue fields and detect a stale credit value', () => {
+  const buildPayload = pageHelper('app/admin/courses/page.tsx', 'buildCourseUpdatePayload', {});
+  const hasChanged = pageHelper('app/admin/courses/page.tsx', 'hasCourseSnapshotChanged', {});
+  const baseline = {
+    id: 'course-1', code: 'CS101', name: 'Intro', nameEn: 'Intro', nameVi: 'Nhập môn',
+    description: 'Old', descriptionEn: 'Old', descriptionVi: 'Cũ',
+    credits: 3, departmentId: 'department-1', isActive: true,
+  };
+  const form = {
+    code: 'CS101', nameEn: 'Intro', nameVi: 'Nhập môn', credits: 4,
+    departmentId: 'department-1', descriptionEn: 'Old', descriptionVi: 'Cũ',
+  };
+  assert.deepEqual(buildPayload(baseline, form), { credits: 4 },
+    'a credit edit must not resend unchanged department or text fields');
+  assert.equal(hasChanged(baseline, { ...baseline, credits: 5 }), true,
+    'a pre-save read must detect a credit value changed after the form loaded');
+});
+
+test('an unchanged admin user status is omitted from profile updates', () => {
+  const hasChanged = pageHelper('app/admin/users/page.tsx', 'hasUserStatusChanged', {});
+  assert.equal(hasChanged('ACTIVE', 'ACTIVE'), false,
+    'an unchanged loaded status must not become a write that can revive a suspended account');
+  assert.equal(hasChanged('ACTIVE', 'SUSPENDED'), true,
+    'an explicit status change must still be sent');
+});
+
+test('admin catalog and credit-limit lists ignore late responses from older filters', async (t) => {
+  const cases = [
+    {
+      label: 'sections', file: 'app/admin/sections/page.tsx', callback: 'fetchSections',
+      epochName: 'sectionsEpoch', apiName: 'adminSectionsApi', method: 'getAll',
+      setter: 'setSections', oldParams: { page: 2, semesterFilter: 'term-a', search: 'first' },
+      newParams: { page: 1, semesterFilter: 'term-b', search: 'second' },
+    },
+    {
+      label: 'courses', file: 'app/admin/courses/page.tsx', callback: 'fetchCourses',
+      epochName: 'coursesEpoch', apiName: 'coursesApi', method: 'getAll',
+      setter: 'setCourses', oldParams: { page: 2, departmentFilter: 'department-a', search: 'first' },
+      newParams: { page: 1, departmentFilter: 'department-b', search: 'second' },
+    },
+    {
+      label: 'semesters', file: 'app/admin/semesters/page.tsx', callback: 'fetchSemesters',
+      epochName: 'semestersEpoch', apiName: 'adminSemestersApi', method: 'getAll',
+      setter: 'setSemesters', oldParams: { page: 2, search: 'first' },
+      newParams: { page: 1, search: 'second' },
+    },
+    {
+      label: 'credit-limit applications', file: 'app/admin/credit-limit-applications/page.tsx', callback: 'load',
+      epochName: 'applicationsEpoch', apiName: 'adminRegistrationApi', method: 'creditLimitApplications',
+      setter: 'setApplications', oldParams: { filter: 'PENDING' }, newParams: { filter: 'APPROVED' },
+    },
+  ];
+
+  for (const entry of cases) {
+    await t.test(entry.label, async () => {
+      const calls = recorder();
+      const first = deferred();
+      let request = 0;
+      const epoch = createEpoch();
+      const api = {
+        [entry.method]: () => {
+          request += 1;
+          return request === 1 ? first.promise : Promise.resolve(
+            entry.label === 'credit-limit applications'
+              ? [{ id: 'new' }]
+              : { data: [{ id: 'new' }], meta: { totalPages: 2, total: 5 } },
+          );
+        },
+      };
+      const base = {
+        [entry.epochName]: epoch,
+        [entry.apiName]: api,
+        [entry.setter]: calls.record('rows'),
+        setError: calls.record('error'),
+        setTotalPages: calls.record('totalPages'),
+        setIsLoading: calls.record('loading'),
+        setLoading: calls.record('loading'),
+        page: 1,
+        search: '',
+        departmentFilter: '',
+        semesterFilter: '',
+        filter: 'PENDING',
+        copy: { loadFailed: 'FAILED' },
+        messages: { common: { campusErrors: {} } },
+        campusErrorMessage: () => 'ERROR',
+      };
+      const oldLoad = pageFunction(entry.file, entry.callback, { ...base, ...entry.oldParams });
+      const newLoad = pageFunction(entry.file, entry.callback, { ...base, ...entry.newParams });
+      const pending = oldLoad();
+      await newLoad();
+      first.resolve(entry.label === 'credit-limit applications'
+        ? [{ id: 'old' }]
+        : { data: [{ id: 'old' }], meta: { totalPages: 9, total: 99 } });
+      await pending;
+      assert.deepEqual(new Map(calls.calls).get('rows'), [{ id: 'new' }],
+        'the earlier filter or page must not replace the latest result');
+      assert.equal(calls.calls.filter(([name, value]) => name === 'loading' && value === false).length, 1,
+        'a stale finally block must not clear the current loading state');
+    });
+  }
+});
+
+test('an already-reviewed credit-limit request gets specific copy and reloads the list', async () => {
+  const calls = recorder();
+  let reloads = 0;
+  const submitReview = pageFunction('app/admin/credit-limit-applications/page.tsx', 'submitReview', {
+    selected: { id: 'application-1' },
+    note: '',
+    decision: 'APPROVED',
+    setReviewError: calls.record('reviewError'),
+    setSaving: calls.record('saving'),
+    adminRegistrationApi: {
+      reviewCreditLimitApplication: async () => {
+        throw { response: { status: 409, data: { code: 'CREDIT_LIMIT_APPLICATION_NOT_PENDING' } } };
+      },
+    },
+    setSelected: calls.record('selected'),
+    toast: { success: () => {}, error: () => {} },
+    copy: { alreadyReviewed: 'ALREADY_REVIEWED', loadFailed: 'LOAD_FAILED' },
+    messages: { common: { campusErrors: {
+      network: 'NETWORK', validation: 'VALIDATION', conflict: 'GENERIC_CONFLICT',
+      unauthorized: 'UNAUTHORIZED', forbidden: 'FORBIDDEN', notFound: 'NOT_FOUND',
+      server: 'SERVER', unknown: 'UNKNOWN',
+    } } },
+    campusErrorCode: (error) => loadModule('src/lib/campus-error.ts').campusErrorCode(error),
+    campusErrorMessage: (error, copy, fallback) => loadModule('src/lib/campus-error.ts')
+      .campusErrorMessage(error, copy, fallback),
+    campusCodeMessage: (error, copy, fallback) => loadModule('src/lib/campus-error.ts')
+      .campusCodeMessage(error, copy, fallback),
+    load: async () => { reloads += 1; },
+  });
+  await submitReview({ preventDefault() {} });
+  assert.equal(new Map(calls.calls).get('reviewError'), 'ALREADY_REVIEWED',
+    'a reviewed conflict must not be rendered as the generic 409 line');
+  assert.equal(reloads, 1, 'the changed application list must be reloaded');
+});
