@@ -53,7 +53,9 @@ public final class AttendanceDtos {
             @NotBlank @Size(max=60) String campusCode,
             @NotNull @DecimalMin("-90") @DecimalMax("90") Double centerLat,
             @NotNull @DecimalMin("-180") @DecimalMax("180") Double centerLng,
-            @NotNull @Min(30) @Max(1000) Integer radiusMeters, @NotNull Boolean isActive,
+            @NotNull @Min(30) @Max(1000) Integer radiusMeters,
+            @Schema(description="Optional on update; omit to keep the stored activation state. Defaults to inactive on create.")
+            Boolean isActive,
             @Size(max=500) String note) { }
     @Schema(name="AttendanceGeofenceResponse")
     public record GeofenceResponse(String id, String name, String campusCode, double centerLat,

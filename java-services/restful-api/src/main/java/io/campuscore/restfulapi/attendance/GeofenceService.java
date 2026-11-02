@@ -33,7 +33,7 @@ public class GeofenceService {
         store.saveGeofence(id,r,actor,create,clock.instant());
         GeofenceResponse after=store.geofence(id,false);
         audit.record(actor,null,create?"CREATED":"UPDATED","AttendanceGeofence",id,
-                r.isActive()?"Geofence enabled/updated after admin verification":"Geofence saved inactive",before,after);
+                after.isActive()?"Geofence enabled/updated after admin verification":"Geofence saved inactive",before,after);
         return after;
     }
     // There is deliberately no hard-delete route. PUT isActive=false preserves references and audit.

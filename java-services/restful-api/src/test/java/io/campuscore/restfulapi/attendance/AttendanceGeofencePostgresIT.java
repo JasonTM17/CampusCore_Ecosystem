@@ -65,6 +65,18 @@ class AttendanceGeofencePostgresIT {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM academic.flyway_schema_history WHERE version='144' AND success=TRUE",Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT MAX(CAST(version AS INTEGER)) FROM academic.flyway_schema_history WHERE success=TRUE",Integer.class)).isEqualTo(144);
     }
+    @Test void metadataUpdateWithoutActivationKeepsTheStoredState() {
+        store.saveGeofence("ute-main-placeholder",
+                new GeofenceRequest("Verified campus","UTE",10.0,106.0,150,false,"admin note"),
+                "admin",false,now);
+        store.saveGeofence("ute-main-placeholder",
+                new GeofenceRequest("Renamed campus","UTE",10.0,106.0,180,null,"admin note"),
+                "admin",false,now);
+        var saved=store.geofence("ute-main-placeholder",false);
+        assertThat(saved.isActive()).isFalse();
+        assertThat(saved.name()).isEqualTo("Renamed campus");
+        assertThat(saved.radiusMeters()).isEqualTo(180);
+    }
     @SuppressWarnings("unchecked") private <T>T transactional(T target) {
         var factory=new ProxyFactory(target);factory.setProxyTargetClass(true);
         factory.addAdvice(new TransactionInterceptor(manager,new AnnotationTransactionAttributeSource()));
