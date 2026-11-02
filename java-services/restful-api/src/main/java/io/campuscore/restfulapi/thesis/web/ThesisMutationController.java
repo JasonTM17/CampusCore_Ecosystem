@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.thesis.web;
 
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.thesis.domain.RoundStatus;
 import io.campuscore.restfulapi.thesis.service.ThesisMutationService;
 import io.campuscore.restfulapi.thesis.service.ThesisReportService;
@@ -45,6 +46,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -399,12 +402,19 @@ public class ThesisMutationController {
         return reports.listByRound(id, actor);
     }
 
+    @Operation(summary = "Kho báo cáo của đợt",
+            description = "Trả về mảng báo cáo đã được phân quyền; thêm page/limit để phân trang kèm X-Total-Count")
+    @ApiResponse(responseCode = "200", description = "Kho báo cáo", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping("/rounds/{id}/repository")
     @PreAuthorize("hasAnyRole('ADMIN','TRUONG_KHOA','TRUONG_BO_MON','LECTURER','SUPER_ADMIN')")
-    public List<RepositoryReportResponse> listRepository(
+    public org.springframework.http.ResponseEntity<List<RepositoryReportResponse>> listRepository(
             @PathVariable UUID id,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit,
             @AuthenticationPrincipal Jwt actor) {
-        return reports.listRepository(id, actor);
+        return ListPaging.respond(reports.listRepository(id, actor, ListPaging.Window.of(page, limit)));
     }
 
     @PostMapping("/groups/{id}/approve")
