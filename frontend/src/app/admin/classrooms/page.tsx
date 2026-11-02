@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DoorOpen, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -31,6 +31,7 @@ import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
 import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
 import { campusErrorMessage } from '@/lib/campus-error';
+import { createRequestEpoch } from '@/lib/request-epoch';
 
 interface Classroom {
   id: string;
@@ -39,6 +40,18 @@ interface Classroom {
   capacity: number;
   type: string;
   isActive?: boolean;
+}
+
+function buildClassroomUpdatePayload(
+  baseline: Classroom,
+  formData: { building: string; roomNumber: string; capacity: number; type: string },
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (formData.building !== baseline.building) payload.building = formData.building;
+  if (formData.roomNumber !== baseline.roomNumber) payload.roomNumber = formData.roomNumber;
+  if (Number(formData.capacity) !== baseline.capacity) payload.capacity = Number(formData.capacity);
+  if (formData.type !== baseline.type) payload.type = formData.type;
+  return payload;
 }
 
 export default function AdminClassroomsPage() {
@@ -55,6 +68,7 @@ export default function AdminClassroomsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Classroom | null>(null);
+  const classroomsEpoch = useRef(createRequestEpoch()).current;
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     building: '',
@@ -89,6 +103,7 @@ export default function AdminClassroomsPage() {
   }, [href, isAdmin, isSuperAdmin, isAuthLoading, isLoggingOut, router, user]);
 
   const fetchClassrooms = useCallback(async () => {
+    const epoch = classroomsEpoch.begin();
     setIsLoading(true);
     setError('');
 
@@ -98,14 +113,21 @@ export default function AdminClassroomsPage() {
       const query = { page, limit: 20, search: search || undefined };
       const response = await classroomsApi.getAll(query);
 
+      if (!classroomsEpoch.isCurrent(epoch)) return;
       setClassrooms(response.data || []);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
+      if (!classroomsEpoch.isCurrent(epoch)) return;
       setError(copy.loadFailed);
     } finally {
+      if (!classroomsEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [copy, page, search]);
+  }, [classroomsEpoch, copy, page, search]);
+
+  useEffect(() => () => {
+    classroomsEpoch.invalidate();
+  }, [classroomsEpoch]);
 
   const classroomTypeOptions = useMemo(
     () => [
@@ -235,7 +257,10 @@ export default function AdminClassroomsPage() {
 
     try {
       if (editingRoom) {
-        await classroomsApi.update(editingRoom.id, formData);
+        const payload = buildClassroomUpdatePayload(editingRoom, formData);
+        if (Object.keys(payload).length > 0) {
+          await classroomsApi.update(editingRoom.id, payload);
+        }
         toast.success(copy.updated);
       } else {
         await classroomsApi.create(formData);

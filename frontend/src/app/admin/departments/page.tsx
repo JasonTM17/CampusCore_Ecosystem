@@ -31,6 +31,7 @@ import { toast } from 'sonner';
 import { useI18n } from '@/i18n';
 import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
 import { campusErrorMessage } from '@/lib/campus-error';
+import { createRequestEpoch } from '@/lib/request-epoch';
 import {
   getLocalizedDescription,
   getLocalizedName,
@@ -55,6 +56,38 @@ function departmentOverviewCounts(totalItems: number | null, departments: Depart
   };
 }
 
+function buildDepartmentUpdatePayload(
+  baseline: Department,
+  formData: {
+    nameEn: string;
+    nameVi: string;
+    code: string;
+    descriptionEn: string;
+    descriptionVi: string;
+  },
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  const nameEnChanged = formData.nameEn !== (baseline.nameEn || baseline.name);
+  const nameViChanged = formData.nameVi !== (baseline.nameVi || '');
+  const descriptionEnChanged = formData.descriptionEn
+    !== (baseline.descriptionEn || baseline.description || '');
+  const descriptionViChanged = formData.descriptionVi !== (baseline.descriptionVi || '');
+
+  if (formData.code !== baseline.code) payload.code = formData.code;
+  if (nameEnChanged) payload.nameEn = formData.nameEn;
+  if (nameViChanged) payload.nameVi = formData.nameVi;
+  const name = formData.nameEn || formData.nameVi;
+  if ((nameEnChanged || nameViChanged) && name !== baseline.name) payload.name = name;
+  if (descriptionEnChanged) payload.descriptionEn = formData.descriptionEn;
+  if (descriptionViChanged) payload.descriptionVi = formData.descriptionVi;
+  const description = formData.descriptionEn || formData.descriptionVi;
+  if ((descriptionEnChanged || descriptionViChanged)
+      && description !== (baseline.description || '')) {
+    payload.description = description;
+  }
+  return payload;
+}
+
 export default function AdminDepartmentsPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { href, locale, messages } = useI18n();
@@ -75,6 +108,7 @@ export default function AdminDepartmentsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [deletingDepartmentId, setDeletingDepartmentId] = useState<string | null>(null);
   const deletingRef = useRef(false);
+  const departmentsEpoch = useRef(createRequestEpoch()).current;
   const [formData, setFormData] = useState({
     nameEn: '',
     nameVi: '',
@@ -106,6 +140,7 @@ export default function AdminDepartmentsPage() {
   }, [href, isAdmin, isSuperAdmin, isAuthLoading, isLoggingOut, router, user]);
 
   const fetchDepartments = useCallback(async () => {
+    const epoch = departmentsEpoch.begin();
     setIsLoading(true);
     setError('');
 
@@ -115,15 +150,22 @@ export default function AdminDepartmentsPage() {
       const query = { page, limit: 20, search: search || undefined };
       const response = await departmentsApi.getAll(query);
 
+      if (!departmentsEpoch.isCurrent(epoch)) return;
       setDepartments(response.data || []);
       setTotalItems(response.meta?.total ?? null);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
+      if (!departmentsEpoch.isCurrent(epoch)) return;
       setError(copy.loadFailed);
     } finally {
+      if (!departmentsEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [copy, page, search]);
+  }, [copy, departmentsEpoch, page, search]);
+
+  useEffect(() => () => {
+    departmentsEpoch.invalidate();
+  }, [departmentsEpoch]);
 
   useEffect(() => {
     const trimmed = searchInput.trim();
@@ -244,17 +286,20 @@ export default function AdminDepartmentsPage() {
     setIsSaving(true);
 
     try {
-      const payload = {
-        ...formData,
-        name: formData.nameEn || formData.nameVi,
-        description: formData.descriptionEn || formData.descriptionVi,
-        descriptionEn: formData.descriptionEn,
-        descriptionVi: formData.descriptionVi,
-      };
       if (editingDepartment) {
-        await departmentsApi.update(editingDepartment.id, payload);
+        const payload = buildDepartmentUpdatePayload(editingDepartment, formData);
+        if (Object.keys(payload).length > 0) {
+          await departmentsApi.update(editingDepartment.id, payload);
+        }
         toast.success(copy.updated);
       } else {
+        const payload = {
+          ...formData,
+          name: formData.nameEn || formData.nameVi,
+          description: formData.descriptionEn || formData.descriptionVi,
+          descriptionEn: formData.descriptionEn,
+          descriptionVi: formData.descriptionVi,
+        };
         await departmentsApi.create(payload);
         toast.success(copy.created);
       }
