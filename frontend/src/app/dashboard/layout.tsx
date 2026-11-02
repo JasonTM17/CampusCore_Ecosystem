@@ -66,6 +66,7 @@ import { hasCsrfSessionHint } from '@/lib/session-hint';
 import { cn, htmlToPlainText, stripNotificationTagPrefix } from '@/lib/utils';
 import { stripLocaleFromPathname } from '@/i18n/paths';
 import { isDemoUser, loginHref, portalFromPathname } from '@/lib/login-portal';
+import { safeInternalPath } from '@/lib/safe-url';
 
 type DashboardMenuLabelKey =
   | 'dashboard'
@@ -239,7 +240,7 @@ function resolveNotificationTarget(notification: {
   type?: string;
   link?: string;
 }): string {
-  const link = typeof notification.link === 'string' ? notification.link.trim() : '';
+  const link = safeInternalPath(notification.link);
   if (link) {
     return link;
   }

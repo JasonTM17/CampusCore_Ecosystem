@@ -87,6 +87,9 @@ export function ProjectorCodeOverlay({
         timer = setTimeout(load, nextCodeRefreshMs(next, Date.now()));
       } catch {
         if (cancelled) return;
+        // An expired code must not stay on the projector: clear it so the
+        // failure/retry state replaces the dead countdown.
+        setCode(null);
         setCodeFailed(true);
         timer = setTimeout(load, CODE_RETRY_MS);
       }
@@ -231,7 +234,7 @@ export function ProjectorCodeOverlay({
           <p className="text-2xl font-semibold text-muted-foreground sm:text-3xl">
             {copy.projectorNoCode}
           </p>
-        ) : codeFailed && !code ? (
+        ) : codeFailed ? (
           <div className="flex flex-col items-center gap-4">
             <p className="text-xl font-semibold text-muted-foreground sm:text-2xl" role="alert">
               {copy.projectorWaiting}

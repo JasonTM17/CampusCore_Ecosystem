@@ -60,6 +60,7 @@ export default function LecturerSchedulePage() {
   const [selectedDetail, setSelectedDetail] = useState<ScheduleDetailData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [semesterError, setSemesterError] = useState('');
 
   // 3 view options matching student schedule: 'grid' (Lưới tuần), 'day' (Theo ngày), 'list' (Danh sách)
   const [viewMode, setViewMode] = useState<'grid' | 'day' | 'list'>('grid');
@@ -72,14 +73,16 @@ export default function LecturerSchedulePage() {
   const [selectedDayTab, setSelectedDayTab] = useState<number>(todayDow);
 
   const fetchSemesters = useCallback(async () => {
+    setSemesterError('');
     try {
       const response = await semestersApi.getAll();
       setSemesters(response.data ?? []);
     } catch {
-      // Non-fatal: the filter falls back to "all semesters" and the schedule
-      // fetch below still reports its own error state.
+      // The schedule itself still loads, but a silently empty filter hides
+      // why this lecturer's term is missing; surface it with a retry.
+      setSemesterError(messages.lecturerGrades.errors.semestersFailed);
     }
-  }, []);
+  }, [messages.lecturerGrades.errors.semestersFailed]);
 
   // A stale semester response must not land on the newly selected semester —
   // the grid (and print view) would show the wrong term's assignments.
@@ -249,6 +252,15 @@ export default function LecturerSchedulePage() {
           </div>
         }
       />
+
+      {semesterError ? (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive print:hidden">
+          <span>{semesterError}</span>
+          <Button type="button" variant="outline" size="sm" onClick={() => void fetchSemesters()}>
+            {messages.common.actions.retry}
+          </Button>
+        </div>
+      ) : null}
 
       {/* Official University Letterhead for Print */}
       <div className="hidden print:block text-center border-b-2 border-primary pb-4 mb-6">

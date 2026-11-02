@@ -1358,6 +1358,8 @@ export const en = {
       recipientSearchLabel: 'Find a recipient',
       recipientSearchFailed: 'The account directory could not be searched right now.',
       recipientNoMatch: 'No account matches this search.',
+      recipientRefineHint:
+        'Only the first 5 of {total} matching accounts are shown. Refine the search to narrow the list.',
       recipientResultsLabel: 'Search results',
       recipientRemove: 'Remove recipient',
       recipientSingleOnly:
@@ -4381,6 +4383,8 @@ export const vi: I18nMessages = {
       recipientSearchLabel: 'Tìm người nhận',
       recipientSearchFailed: 'Hiện chưa thể tra cứu danh bạ tài khoản.',
       recipientNoMatch: 'Không tìm thấy tài khoản phù hợp.',
+      recipientRefineHint:
+        'Chỉ hiển thị 5 trong {total} tài khoản phù hợp. Tinh chỉnh từ khoá để thu hẹp danh sách.',
       recipientResultsLabel: 'Kết quả tìm kiếm',
       recipientRemove: 'Xoá người nhận',
       recipientSingleOnly:

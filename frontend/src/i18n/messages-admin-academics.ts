@@ -241,6 +241,7 @@ interface DepartmentsPageCopy
     title: string;
     description: string;
     unitsLabel: string;
+    activeOnPage: string;
     curriculumLabel: string;
     imageAlt: string;
     labLabel: string;
@@ -583,6 +584,7 @@ export const adminAcademicsEn: {
       description:
         'Manage university faculties, specialized research laboratories, and academic departments supporting curriculum delivery and thesis mentorship.',
       unitsLabel: 'Academic Units',
+      activeOnPage: 'Active on this page',
       curriculumLabel: 'Curriculum Aligned',
       imageAlt: 'HCMUTE IT Department Research Lab',
       labLabel: 'Smart Systems & Robotics Lab',
@@ -1003,6 +1005,7 @@ export const adminAcademicsVi: Widen<typeof adminAcademicsEn> = {
       description:
         'Phân cấp tổ chức học thuật, quản lý các khoa chuyên ngành, phòng thí nghiệm nghiên cứu công nghệ cao và bộ môn trực thuộc phục vụ đào tạo tín chỉ, phân bổ giảng viên và quản lý đồ án tốt nghiệp.',
       unitsLabel: 'Khoa & Đơn vị trực thuộc',
+      activeOnPage: 'Đang hoạt động trong trang này',
       curriculumLabel: 'Chuẩn hóa tín chỉ',
       imageAlt: 'HCMUTE IT Department Research Lab',
       labLabel: 'Smart Systems & Robotics Lab',
