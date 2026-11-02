@@ -7927,12 +7927,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -8109,9 +8115,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnalyticsOverview"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -8296,6 +8302,13 @@
             "description": "Lưu trữ thành công"
           },
           "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description": "Không tìm thấy tài liệu"
           }
         },
@@ -8332,9 +8345,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KnowledgeDocumentView"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -8418,9 +8431,9 @@
           },
           "409": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KnowledgeRevision"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -8462,9 +8475,9 @@
           },
           "409": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KnowledgeRevision"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -8639,12 +8652,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -8741,9 +8760,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Response"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -8894,6 +8913,13 @@
             "description": "Lưu trữ thành công"
           },
           "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description": "Không tìm thấy tài liệu"
           }
         },
@@ -8930,9 +8956,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KnowledgeDocumentView"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -9016,9 +9042,9 @@
           },
           "409": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KnowledgeRevision"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -9060,9 +9086,9 @@
           },
           "409": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KnowledgeRevision"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -9082,7 +9108,7 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -9256,7 +9282,7 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -9332,7 +9358,7 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -9411,7 +9437,7 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -9459,7 +9485,7 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -9933,12 +9959,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -9954,9 +9986,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnnouncementListResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -9994,9 +10026,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnnouncementResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -10004,9 +10036,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnnouncementResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -10047,12 +10079,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -10068,9 +10106,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnnouncementListResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -10078,9 +10116,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnnouncementListResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -10149,12 +10187,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -10170,9 +10214,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnnouncementPinOptionListResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -10213,12 +10257,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -10266,9 +10316,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PublicAnnouncementResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -10340,9 +10390,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnnouncementResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -10391,9 +10441,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnnouncementResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -10434,9 +10484,9 @@
           },
           "409": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnnouncementResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -10529,12 +10579,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -10593,9 +10649,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnnouncementResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -10603,9 +10659,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnnouncementResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -10699,9 +10755,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnnouncementResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -10709,9 +10765,9 @@
           },
           "409": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnnouncementResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -10752,9 +10808,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnnouncementResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -10762,9 +10818,9 @@
           },
           "409": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnnouncementResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -10866,9 +10922,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ArticleCategory"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -10970,9 +11026,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ArticleTag"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -11093,9 +11149,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CategoryDto"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -11216,9 +11272,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TagDto"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -11258,9 +11314,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChatResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -11268,9 +11324,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChatResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -11667,12 +11723,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -11784,12 +11846,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -11887,12 +11955,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -11931,12 +12005,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -11984,12 +12064,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -12049,9 +12135,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AttendanceMutationResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12059,9 +12145,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AttendanceMutationResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12069,9 +12155,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AttendanceMutationResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12099,12 +12185,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -12143,12 +12235,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -12207,9 +12305,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AttendanceMutationResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12217,9 +12315,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AttendanceMutationResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12227,9 +12325,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AttendanceMutationResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12368,7 +12466,7 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
@@ -12378,7 +12476,7 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
@@ -12388,7 +12486,7 @@
           },
           "409": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
@@ -12398,7 +12496,7 @@
           },
           "410": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
@@ -12408,7 +12506,7 @@
           },
           "422": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
@@ -12418,7 +12516,7 @@
           },
           "429": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
@@ -12597,9 +12695,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MessageResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12639,9 +12737,9 @@
           },
           "429": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MessageResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12681,9 +12779,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12691,9 +12789,9 @@
           },
           "429": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12819,9 +12917,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12861,9 +12959,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MessageResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12903,9 +13001,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12913,9 +13011,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12923,9 +13021,9 @@
           },
           "429": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -12945,7 +13043,7 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -13080,7 +13178,7 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -13188,7 +13286,7 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -14215,12 +14313,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -14397,9 +14501,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StudentConductSummaryDto"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -14440,9 +14544,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ConductSemesterScoreDto"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -14483,9 +14587,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StudentConductSummaryDto"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -14493,9 +14597,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StudentConductSummaryDto"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -14610,12 +14714,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -14803,12 +14913,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -14899,12 +15015,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -15102,12 +15224,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -15153,9 +15281,9 @@
           },
           "409": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DocumentResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -15196,9 +15324,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DocumentResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -15247,9 +15375,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DocumentResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -15257,9 +15385,9 @@
           },
           "409": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DocumentResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -15544,12 +15672,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -15579,7 +15713,7 @@
             "description": "Khóa chống trùng lặp Idempotency",
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -15673,12 +15807,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -15724,12 +15864,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -15768,12 +15914,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -15803,12 +15955,18 @@
         "operationId": "getMyTranscript",
         "parameters": [
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -15853,12 +16011,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -15967,7 +16131,7 @@
             "description": "Khóa chống trùng lặp Idempotency",
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -16119,7 +16283,7 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -16734,7 +16898,7 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -16786,12 +16950,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -16954,12 +17124,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -17123,7 +17299,7 @@
             "description": "Khóa chống gửi trùng",
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -17162,7 +17338,7 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -17238,7 +17414,7 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -18388,12 +18564,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -18657,7 +18839,7 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -18761,7 +18943,7 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -19491,7 +19673,7 @@
             "description": "Khóa chống trùng lặp Idempotency",
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -19520,9 +19702,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EnrollmentResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -19530,9 +19712,9 @@
           },
           "409": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EnrollmentResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -19540,9 +19722,9 @@
           },
           "422": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EnrollmentResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -19573,7 +19755,7 @@
             "description": "Khóa chống trùng lặp Idempotency",
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -19592,9 +19774,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DropResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -19602,9 +19784,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DropResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -19612,9 +19794,9 @@
           },
           "409": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DropResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -19697,9 +19879,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Response"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -19749,9 +19931,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EligibilityResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -19759,9 +19941,9 @@
           },
           "409": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EligibilityResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -19769,9 +19951,9 @@
           },
           "422": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EligibilityResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -19940,9 +20122,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TwoFactorStatusResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -19982,9 +20164,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TwoFactorStatusResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -20024,9 +20206,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChallengeResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -20034,9 +20216,9 @@
           },
           "409": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChallengeResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -20044,9 +20226,9 @@
           },
           "502": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChallengeResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -20086,9 +20268,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChallengeResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -20096,9 +20278,9 @@
           },
           "409": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChallengeResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -20106,9 +20288,9 @@
           },
           "502": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChallengeResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -20592,12 +20774,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -20646,9 +20834,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PublicDocumentResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -20698,9 +20886,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PublicDocumentAttachmentResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -20751,9 +20939,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PublicDocumentResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -20830,12 +21018,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -20953,12 +21147,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -21025,12 +21225,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -21069,12 +21275,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -21358,12 +21570,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -21572,7 +21790,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -21582,7 +21800,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -21592,7 +21810,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -21602,7 +21820,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -21652,12 +21870,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -21673,9 +21897,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StudentListResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -21748,9 +21972,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChatResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -21758,9 +21982,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ChatResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22208,9 +22432,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TopicResult"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22218,9 +22442,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TopicResult"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22228,9 +22452,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TopicResult"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22285,12 +22509,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ScoreResponse"
-                  },
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22298,12 +22519,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ScoreResponse"
-                  },
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22363,9 +22581,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScoreResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22373,9 +22591,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScoreResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22383,9 +22601,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScoreResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22471,9 +22689,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CouncilResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22481,9 +22699,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CouncilResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22491,9 +22709,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CouncilResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22544,9 +22762,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CouncilResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22554,9 +22772,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CouncilResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22608,9 +22826,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CouncilResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22618,9 +22836,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CouncilResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22628,9 +22846,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CouncilResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22672,9 +22890,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeanOverviewResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22682,9 +22900,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeanOverviewResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22692,9 +22910,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeanOverviewResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22768,12 +22986,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/GroupResponse"
-                  },
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22781,12 +22996,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/GroupResponse"
-                  },
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22878,12 +23090,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/GroupResponse"
-                  },
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22891,12 +23100,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/GroupResponse"
-                  },
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -22938,9 +23144,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GroupResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -23443,9 +23649,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProgressResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -23453,9 +23659,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProgressResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -23500,12 +23706,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/StudentResultRow"
-                  },
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -23535,9 +23738,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LecturerWorkload"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -23545,9 +23748,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LecturerWorkload"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -24278,12 +24481,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/TopicResponse"
-                  },
-                  "type": "array"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -24353,9 +24553,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TopicResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -24492,7 +24692,10 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Topic report"
+          },
+          "204": {
+            "description": "No report is available for this topic."
           }
         },
         "tags": [
@@ -24540,10 +24743,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -24551,10 +24753,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -24562,10 +24763,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -24607,9 +24807,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScoreResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -24617,9 +24817,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScoreResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -24627,9 +24827,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScoreResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -24679,9 +24879,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScoreResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -24689,9 +24889,9 @@
           },
           "401": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScoreResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -24699,9 +24899,9 @@
           },
           "403": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ScoreResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -24851,12 +25051,18 @@
             }
           },
           {
+            "description": "Optional free-form map of query parameter names to string values.",
+            "explode": true,
             "in": "query",
             "name": "queryParameters",
-            "required": true,
+            "required": false,
             "schema": {
-              "$ref": "#/components/schemas/MultiValueMapStringString"
-            }
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "style": "form"
           }
         ],
         "responses": {
@@ -24873,10 +25079,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -24915,10 +25120,9 @@
           },
           "400": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -24994,10 +25198,9 @@
           },
           "404": {
             "content": {
-              "*/*": {
+              "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -25297,15 +25500,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            },
-            "description": "OK"
+          "302": {
+            "description": "Redirects the browser to the configured surface."
           }
         },
         "tags": [
@@ -25347,15 +25543,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            },
-            "description": "OK"
+          "302": {
+            "description": "Redirects the browser to the identity provider."
           }
         },
         "tags": [

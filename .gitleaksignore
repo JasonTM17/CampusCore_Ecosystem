@@ -13,3 +13,6 @@ java-services/restful-api/src/test/java/io/campuscore/restfulapi/identity/Identi
 
 # Synthetic in-memory OIDC fixture of the BFF proxy body-cap test (not a credential)
 java-services/restful-api/src/test/java/io/campuscore/restfulapi/identity/bff/BffProxyBodyCapTest.java:generic-api-key:52
+
+# Synthetic in-memory OIDC fixture of the OpenAPI accuracy test (not a credential)
+java-services/restful-api/src/test/java/io/campuscore/restfulapi/web/OpenApiAccuracyContractTest.java:generic-api-key:30
