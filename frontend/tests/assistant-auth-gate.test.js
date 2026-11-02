@@ -16,9 +16,10 @@ const messagesSource = fs.readFileSync(
 
 test('the composer disables its input when the session is unauthorized', () => {
   assert.match(composerSource, /authLocked = false/);
-  assert.match(composerSource, /disabled=\{isSending \|\| authLocked\}/);
+  assert.match(composerSource, /const composerLocked = isSending \|\| authLocked \|\| historyLocked;/);
+  assert.match(composerSource, /disabled=\{composerLocked\}/);
   // The submit button cannot bypass the lock with a leftover draft either.
-  assert.match(composerSource, /disabled=\{!input\.trim\(\) \|\| authLocked\}/);
+  assert.match(composerSource, /disabled=\{!input\.trim\(\) \|\| composerLocked\}/);
 });
 
 test('the locked composer explains the sign-in requirement via aria-live', () => {

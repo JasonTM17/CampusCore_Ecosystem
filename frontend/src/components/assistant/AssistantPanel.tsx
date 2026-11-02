@@ -24,9 +24,25 @@ import { stripLocaleFromPathname } from '@/i18n/paths';
 import { useAuth } from '@/context/AuthContext';
 import { thesisApi, type AssistantConversation } from '@/lib/thesis-api';
 import {
+  ASSISTANT_CONVERSATION_LIMIT,
+  ASSISTANT_HISTORY_PAGE_SIZE,
+  ASSISTANT_HISTORY_WINDOW_SIZE,
+  appendConversationPage,
+  canNavigateHistory,
+  isCurrentHistoryResponse,
+  previewEvictedIds,
+  rebaseCursor,
+  type HistoryRequestIdentity,
+} from '@/lib/assistant-history-window';
+import {
   TRANSIENT_TERMINAL_CODES,
   fromHistoryMessage,
 } from './assistant-reducer';
+import {
+  ASSISTANT_STREAM_PROGRESS_STEP,
+  getAssistantWindowMessages,
+} from './assistant-messages';
+import { AssistantStreamProgress } from './AssistantStreamProgress';
 import { AssistantMascot } from './AssistantMascot';
 import { AssistantMessages } from './AssistantMessages';
 import {
@@ -84,6 +100,8 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
   const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
   const [messageCursor, setMessageCursor] = useState<string>();
   const [loadingMoreMessages, setLoadingMoreMessages] = useState(false);
+  const [loadingLatest, setLoadingLatest] = useState(false);
+  const [isBrowsingHistory, setIsBrowsingHistory] = useState(false);
   const [deletingConversationId, setDeletingConversationId] =
     useState<string>();
   const [userScrolled, setUserScrolled] = useState(false);
@@ -101,8 +119,50 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
   const userScrolledRef = useRef(false);
   const announcedMessageRef = useRef<string>();
   const previousPathnameRef = useRef(pathname);
+  // History responses are fenced by conversation + scope + generation. A
+  // generation bump invalidates every in-flight page/selection response.
+  const historyGenerationRef = useRef(0);
+  const historyRequestRef = useRef<HistoryRequestIdentity | null>(null);
+  const historyListGenerationRef = useRef(0);
+  const conversationIdRef = useRef<string>();
+  const scopeRef = useRef<'academic' | 'specialized'>('academic');
+  const modeRef = useRef<'academic' | 'specialized'>('academic');
+  // A live-window eviction makes the stored older-page cursor unsafe: the
+  // panel rebases from the latest server page before following it again.
+  const messageCursorStaleRef = useRef(false);
+
+  const windowCopy = getAssistantWindowMessages(locale);
+
+  const invalidateHistoryRequests = useCallback(() => {
+    historyGenerationRef.current += 1;
+    historyRequestRef.current = null;
+  }, []);
+
+  const beginHistoryRequest = useCallback(
+    (conversationId?: string): HistoryRequestIdentity => {
+      const identity: HistoryRequestIdentity = {
+        conversationId,
+        scope: scopeRef.current,
+        generation: historyGenerationRef.current + 1,
+      };
+      historyGenerationRef.current = identity.generation;
+      historyRequestRef.current = identity;
+      return identity;
+    },
+    [],
+  );
+
+  const isCurrentHistoryRequest = useCallback(
+    (identity: HistoryRequestIdentity) =>
+      Boolean(
+        historyRequestRef.current &&
+          isCurrentHistoryResponse(identity, historyRequestRef.current),
+      ),
+    [],
+  );
 
   const reconcileHistory = useCallback(() => {
+    historyListGenerationRef.current += 1;
     historyFetchedRef.current = false;
     selectedHistoryRef.current = false;
     setHistoryStatus('idle');
@@ -119,6 +179,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
     input,
     setInput,
     isSending,
+    isReconciling,
     lastPrompt,
     sendMessage,
     stopGeneration,
@@ -133,20 +194,57 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
     onNewExchange: handleNewExchange,
   });
 
+  conversationIdRef.current = state.conversationId;
+  scopeRef.current = mode === 'specialized' ? 'specialized' : 'academic';
+  modeRef.current = mode;
+
+  useEffect(() => {
+    invalidateHistoryRequests();
+    historyListGenerationRef.current += 1;
+    historyFetchedRef.current = false;
+    selectedHistoryRef.current = false;
+    setHistory([]);
+    setHistoryCursor(undefined);
+    setHistoryStatus('idle');
+    setMessageCursor(undefined);
+    messageCursorStaleRef.current = false;
+    // Keep an explicit older-history lock across a scope change: the displaced
+    // tail must not be treated as live just because the corpus changed.
+    setLoadingLatest(false);
+  }, [invalidateHistoryRequests, mode]);
+
+  useEffect(() => {
+    invalidateHistoryRequests();
+    messageCursorStaleRef.current = false;
+    setIsBrowsingHistory(false);
+    setLoadingLatest(false);
+  }, [invalidateHistoryRequests, state.conversationId]);
+
+  // Live eviction discards messages the old cursor was positioned relative to;
+  // the next older-page request must rebase from the latest server page.
+  useEffect(() => {
+    if ((state.windowEvictionCount ?? 0) > 0) {
+      messageCursorStaleRef.current = true;
+    }
+  }, [state.windowEvictionCount]);
+
   const closePanel = useCallback(() => {
     if (isSending) void stopGeneration();
     else abortStream();
+    invalidateHistoryRequests();
+    historyListGenerationRef.current += 1;
     setOpen(false);
     setShowHistory(false);
     selectedHistoryRef.current = false;
     historyFetchedRef.current = false;
     setHistoryStatus('idle');
     setHistoryCursor(undefined);
+    setLoadingLatest(false);
     requestAnimationFrame(() => {
       const trigger = triggerRef.current;
       (trigger?.isConnected ? trigger : floatingLauncherRef.current)?.focus();
     });
-  }, [abortStream, isSending, stopGeneration]);
+  }, [abortStream, invalidateHistoryRequests, isSending, stopGeneration]);
 
   // Follow-up chips follow the domain of the last grounded answer instead of
   // repeating the empty-state suggestions after every reply.
@@ -179,7 +277,9 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
 
   useEffect(() => {
     if (isSending) {
-      setAnnouncement(messages.assistant.thinking);
+      // The dedicated stream-progress region owns live announcements; this
+      // region is reserved for the settled answer-ready message.
+      setAnnouncement('');
       return;
     }
     if (
@@ -195,7 +295,6 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
     isSending,
     latestSettledAssistantId,
     messages.assistant.answerReady,
-    messages.assistant.thinking,
   ]);
 
   useEffect(() => {
@@ -205,12 +304,16 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
       }>).detail;
       triggerRef.current = detail?.trigger ?? document.activeElement as HTMLElement | null;
       const requestedMode = detail?.mode;
+      if (requestedMode !== modeRef.current) {
+        invalidateHistoryRequests();
+        modeRef.current = requestedMode === 'specialized' ? 'specialized' : 'academic';
+      }
       setMode(requestedMode === 'specialized' ? 'specialized' : 'academic');
       setOpen(true);
     };
     window.addEventListener('open-campus-assistant', handleOpen);
     return () => window.removeEventListener('open-campus-assistant', handleOpen);
-  }, []);
+  }, [invalidateHistoryRequests]);
 
   // The specialized workspace is itself a full-page assistant — an open
   // drawer carried over from another route would cover its composer. Only a
@@ -334,6 +437,8 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
 
   const loadHistory = useCallback(() => {
     if (historyStatus === 'loading') return;
+    const generation = ++historyListGenerationRef.current;
+    const scope = mode === 'specialized' ? 'specialized' : 'academic';
     setHistoryStatus('loading');
     void thesisApi
       .listConversationsPage({
@@ -341,16 +446,34 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
         scope: mode === 'specialized' ? 'specialized' : 'academic',
       })
       .then(({ items, nextCursor }) => {
-        setHistory(items);
-        setHistoryCursor(nextCursor);
+        if (
+          generation !== historyListGenerationRef.current ||
+          scope !== scopeRef.current
+        )
+          return;
+        // The sidebar is newest-first: keep the newest 100 and stop offering
+        // older cursors once the bound is reached.
+        const bounded = appendConversationPage([], items);
+        setHistory(bounded.items);
+        setHistoryCursor(bounded.truncated ? undefined : nextCursor);
         setHistoryStatus('loaded');
         historyFetchedRef.current = true;
       })
-      .catch(() => setHistoryStatus('error'));
+      .catch(() => {
+        if (generation !== historyListGenerationRef.current) return;
+        setHistoryStatus('error');
+      });
   }, [historyStatus, mode]);
 
   const loadMoreHistory = useCallback(async () => {
-    if (!historyCursor || loadingMoreHistory) return;
+    if (
+      !historyCursor ||
+      loadingMoreHistory ||
+      history.length >= ASSISTANT_CONVERSATION_LIMIT
+    )
+      return;
+    const generation = ++historyListGenerationRef.current;
+    const scope = mode === 'specialized' ? 'specialized' : 'academic';
     setLoadingMoreHistory(true);
     try {
       const { items, nextCursor } = await thesisApi.listConversationsPage({
@@ -358,34 +481,162 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
         cursor: historyCursor,
         scope: mode === 'specialized' ? 'specialized' : 'academic',
       });
-      setHistory((current) => [...current, ...items]);
-      setHistoryCursor(nextCursor);
+      if (
+        generation !== historyListGenerationRef.current ||
+        scope !== scopeRef.current
+      )
+        return;
+      const bounded = appendConversationPage(history, items);
+      setHistory(bounded.items);
+      setHistoryCursor(bounded.truncated ? undefined : nextCursor);
     } catch {
+      if (generation !== historyListGenerationRef.current) return;
       setHistoryStatus('error');
     } finally {
       setLoadingMoreHistory(false);
     }
-  }, [historyCursor, loadingMoreHistory, mode]);
+  }, [history, historyCursor, loadingMoreHistory, mode]);
 
   const loadMoreMessages = useCallback(async () => {
-    if (!state.conversationId || !messageCursor || loadingMoreMessages) return;
+    if (!state.conversationId || loadingMoreMessages || loadingLatest) return;
+    const feedbackPendingIds = state.messages
+      .filter((message) => message.feedbackPending)
+      .map((message) => message.id);
+    if (
+      !canNavigateHistory({
+        isSending,
+        isReconciling,
+        loading: loadingMoreMessages || loadingLatest,
+        feedbackPendingIds,
+        evictedIds: previewEvictedIds(
+          state.messages,
+          ASSISTANT_HISTORY_PAGE_SIZE,
+        ),
+      })
+    ) {
+      setAnnouncement(windowCopy.historyNavigationLocked);
+      return;
+    }
     setLoadingMoreMessages(true);
+    const request = beginHistoryRequest(state.conversationId);
     try {
-      const page = await thesisApi.getConversationMessages(state.conversationId, {
-        limit: 50,
-        cursor: messageCursor,
-      });
+      let cursor = messageCursor;
+      if (messageCursorStaleRef.current) {
+        // A live eviction invalidated the stored cursor. Rebase from the latest
+        // server page before following older pages so discarded messages
+        // cannot be skipped.
+        const latest = await thesisApi.getConversationMessages(
+          state.conversationId,
+          { limit: ASSISTANT_HISTORY_PAGE_SIZE },
+        );
+        if (!isCurrentHistoryRequest(request)) return;
+        const rebased = rebaseCursor({
+          cursor: messageCursor,
+          stale: true,
+          latestPage: latest,
+        });
+        if (rebased.needsLatestPage) return;
+        if (!rebased.cursor) {
+          // The latest page is the whole conversation. If the reader was
+          // browsing a displaced tail, restore the live page before unlocking
+          // sending; never leave an older slice masquerading as live.
+          if (isBrowsingHistory) {
+            resetConversation(
+              state.conversationId,
+              latest.items.map(fromHistoryMessage),
+            );
+            setIsBrowsingHistory(false);
+          }
+          setMessageCursor(undefined);
+          return;
+        }
+        cursor = rebased.cursor;
+        messageCursorStaleRef.current = false;
+        setMessageCursor(cursor);
+      }
+      if (!cursor) return;
+      const page = await thesisApi.getConversationMessages(
+        state.conversationId,
+        {
+          limit: ASSISTANT_HISTORY_PAGE_SIZE,
+          cursor,
+        },
+      );
+      if (!isCurrentHistoryRequest(request)) return;
+      const knownIds = new Set(state.messages.map((message) => message.id));
+      const incoming = page.items.filter(
+        (message) => !knownIds.has(message.id),
+      ).length;
+      // Prepend the requested older page; the reducer evicts from the newest
+      // end once the window is full, which is what turns this into an explicit
+      // older-history view with a Return-to-latest control.
+      const evictedIds = previewEvictedIds(state.messages, incoming);
       dispatch({
         type: 'prepend',
         messages: page.items.map(fromHistoryMessage),
       });
       setMessageCursor(page.nextCursor);
+      if (evictedIds.length > 0) setIsBrowsingHistory(true);
     } catch {
+      if (!isCurrentHistoryRequest(request)) return;
       dispatch({ type: 'error', kind: 'unavailable' });
     } finally {
       setLoadingMoreMessages(false);
     }
-  }, [dispatch, loadingMoreMessages, messageCursor, state.conversationId]);
+  }, [
+    beginHistoryRequest,
+    dispatch,
+    isBrowsingHistory,
+    isCurrentHistoryRequest,
+    isReconciling,
+    isSending,
+    loadingLatest,
+    loadingMoreMessages,
+    messageCursor,
+    resetConversation,
+    state.conversationId,
+    state.messages,
+    windowCopy.historyNavigationLocked,
+  ]);
+
+  const returnToLatest = useCallback(async () => {
+    if (!state.conversationId || loadingLatest) return;
+    if (isSending || isReconciling) {
+      setAnnouncement(messages.assistant.busyNotice);
+      return;
+    }
+    setLoadingLatest(true);
+    const request = beginHistoryRequest(state.conversationId);
+    try {
+      const latest = await thesisApi.getConversationMessages(
+        state.conversationId,
+        { limit: ASSISTANT_HISTORY_PAGE_SIZE },
+      );
+      if (!isCurrentHistoryRequest(request)) return;
+      resetConversation(
+        state.conversationId,
+        latest.items.map(fromHistoryMessage),
+      );
+      setMessageCursor(latest.nextCursor);
+      messageCursorStaleRef.current = false;
+      setIsBrowsingHistory(false);
+    } catch {
+      if (!isCurrentHistoryRequest(request)) return;
+      dispatch({ type: 'error', kind: 'unavailable' });
+    } finally {
+      setLoadingLatest(false);
+    }
+  }, [
+    beginHistoryRequest,
+    dispatch,
+    isCurrentHistoryRequest,
+    isReconciling,
+    isSending,
+    loadingLatest,
+    messages.assistant.busyNotice,
+    resetConversation,
+    state.conversationId,
+  ]);
 
   useEffect(() => {
     if (
@@ -464,34 +715,42 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
   };
 
   const selectConversation = async (conversation: AssistantConversation) => {
-    if (isSending) {
+    if (isSending || isReconciling) {
       setAnnouncement(messages.assistant.busyNotice);
       return;
     }
     setHistoryStatus('loading');
     selectedHistoryRef.current = true;
+    const request = beginHistoryRequest(conversation.id);
     try {
       const loaded = await thesisApi.getConversationMessages(conversation.id, {
-        limit: 50,
+        limit: ASSISTANT_HISTORY_PAGE_SIZE,
       });
+      if (!isCurrentHistoryRequest(request)) return;
       resetConversation(conversation.id, loaded.items.map(fromHistoryMessage));
       setMessageCursor(loaded.nextCursor);
+      messageCursorStaleRef.current = false;
+      setIsBrowsingHistory(false);
       setShowHistory(false);
       setHistoryStatus('loaded');
     } catch {
+      if (!isCurrentHistoryRequest(request)) return;
       setHistoryStatus('error');
     }
   };
 
   const createConversation = async () => {
-    if (isSending) {
+    if (isSending || isReconciling) {
       setAnnouncement(messages.assistant.busyNotice);
       return;
     }
     if (state.messages.length === 0) {
+      invalidateHistoryRequests();
       selectedHistoryRef.current = true;
       resetConversation(state.conversationId);
       setMessageCursor(undefined);
+      messageCursorStaleRef.current = false;
+      setIsBrowsingHistory(false);
       setShowHistory(false);
       return;
     }
@@ -500,9 +759,12 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
         locale,
         mode === 'specialized' ? 'specialized' : 'academic',
       );
+      invalidateHistoryRequests();
       selectedHistoryRef.current = true;
       resetConversation(conversation.id);
       setMessageCursor(undefined);
+      messageCursorStaleRef.current = false;
+      setIsBrowsingHistory(false);
       setShowHistory(false);
     } catch {
       dispatch({ type: 'error', kind: 'unavailable' });
@@ -510,7 +772,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
   };
 
   const deleteConversation = async (conversationId: string) => {
-    if (isSending) {
+    if (isSending || isReconciling) {
       setAnnouncement(messages.assistant.busyNotice);
       return;
     }
@@ -532,9 +794,12 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
         current.filter((item) => item.id !== conversationId),
       );
       if (state.conversationId === conversationId) {
+        invalidateHistoryRequests();
         selectedHistoryRef.current = true;
         resetConversation();
         setMessageCursor(undefined);
+        messageCursorStaleRef.current = false;
+        setIsBrowsingHistory(false);
       }
     } catch {
       setHistoryStatus('error');
@@ -569,6 +834,35 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
   const authRequired = state.error === 'unauthorized';
   const goSignIn = () =>
     router.push(`${href('/login')}?reason=session-expired`);
+
+  // Older-history browsing pauses sending/retry until the latest page is
+  // restored; a latest reload is itself a navigation lock.
+  const historyLocked = isBrowsingHistory || loadingLatest;
+  const feedbackPendingIds = state.messages
+    .filter((message) => message.feedbackPending)
+    .map((message) => message.id);
+  const historyNavigationAllowed = canNavigateHistory({
+    isSending,
+    isReconciling,
+    loading: loadingMoreMessages || loadingLatest,
+    feedbackPendingIds,
+    evictedIds: previewEvictedIds(state.messages, ASSISTANT_HISTORY_PAGE_SIZE),
+  });
+
+  // F-14: announce reply progress in a dedicated polite region. Bucketing by
+  // ASSISTANT_STREAM_PROGRESS_STEP keeps a token-level rewrite out of the live
+  // region while still escalating if the provider stalls.
+  const streamingAssistant = isSending
+    ? [...state.messages]
+        .reverse()
+        .find(
+          (message) => message.role === 'assistant' && message.pending,
+        )
+    : undefined;
+  const streamedCharacters = streamingAssistant?.content.length ?? 0;
+  const progressCharacters =
+    Math.floor(streamedCharacters / ASSISTANT_STREAM_PROGRESS_STEP) *
+    ASSISTANT_STREAM_PROGRESS_STEP;
 
   // Notify the lazy shell only after all mount effects (including the open
   // listener and route suppression) have run, before replaying the first open.
@@ -704,25 +998,56 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
             <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
               {announcement}
             </div>
+            {/* F-14: a dedicated polite region reports stream progress while
+                the log itself stays a polite, busy log rather than switching
+                aria-live off for the whole turn. */}
+            <AssistantStreamProgress
+              active={isSending}
+              characters={progressCharacters}
+              slow={slowResponse}
+              locale={locale}
+            />
             <div className="relative min-h-0 flex-1 overflow-hidden">
               <div
                 ref={logRef}
                 onScroll={handleLogScroll}
                 role="log"
-                // Announce only settled answers; streaming deltas would flood
-                // screen readers with partial tokens.
-                aria-live={isSending ? 'off' : 'polite'}
+                // Keep the log live; aria-busy defers token announcements until
+                // the turn settles, while the dedicated progress region above
+                // reports that a reply is arriving.
+                aria-live="polite"
                 aria-relevant="additions text"
                 aria-busy={isSending}
                 className="absolute inset-0 space-y-3 overflow-y-auto bg-background px-3.5 py-3.5 pb-20 md:pb-4 bg-[radial-gradient(120%_55%_at_50%_0%,rgba(0,94,202,0.055),transparent)] dark:bg-[radial-gradient(120%_55%_at_50%_0%,rgba(96,165,250,0.07),transparent)]"
               >
+              {/* Older-history browsing displaces the live tail; sending stays
+                  paused until Return to latest reloads the newest page. */}
+              {isBrowsingHistory || loadingLatest ? (
+                <div className="flex flex-col items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={loadingLatest || isSending || isReconciling}
+                    className="min-h-11 text-xs"
+                    onClick={() => void returnToLatest()}
+                  >
+                    {loadingLatest
+                      ? windowCopy.returningToLatest
+                      : windowCopy.returnToLatest}
+                  </Button>
+                  <p className="px-2 text-center text-[11px] text-muted-foreground">
+                    {windowCopy.returnToLatestHint}
+                  </p>
+                </div>
+              ) : null}
               {messageCursor && state.messages.length > 0 ? (
                 <div className="flex justify-center">
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    disabled={loadingMoreMessages}
+                    disabled={!historyNavigationAllowed}
                     className="min-h-11 text-xs text-muted-foreground"
                     onClick={() => void loadMoreMessages()}
                   >
@@ -731,6 +1056,15 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
                       : messages.assistant.loadMoreMessages}
                   </Button>
                 </div>
+              ) : null}
+              {isBrowsingHistory || (state.windowEvictionCount ?? 0) > 0 ? (
+                <p
+                  className="px-2 text-center text-[11px] text-muted-foreground"
+                  data-assistant-window-notice
+                  data-assistant-window-limit={ASSISTANT_HISTORY_WINDOW_SIZE}
+                >
+                  {windowCopy.windowTrimmed}
+                </p>
               ) : null}
               {state.messages.length === 0 ? (
                 <div className="flex min-h-44 flex-col items-center justify-center gap-3.5 text-center p-3 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300">
@@ -760,7 +1094,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
                         key={suggestion}
                         type="button"
                         onClick={() => void sendMessage(undefined, suggestion)}
-                        disabled={isSending || authRequired}
+                        disabled={isSending || authRequired || historyLocked}
                         className="min-h-11 rounded-full border border-primary/20 bg-primary/5 px-3.5 py-2 text-[11px] font-medium text-primary transition-all hover:-translate-y-px hover:border-primary/40 hover:bg-primary/10 hover:shadow-xs motion-reduce:transform-none motion-reduce:transition-none"
                       >
                         {suggestion}
@@ -775,7 +1109,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
                     void setFeedback(messageId, rating, reason)
                   }
                   followUps={followUps}
-                  followUpsDisabled={authRequired}
+                  followUpsDisabled={authRequired || historyLocked}
                   followUpsLabel={messages.assistant.followUpsLabel}
                   onFollowUp={(suggestion) =>
                     void sendMessage(undefined, suggestion)
@@ -817,6 +1151,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
                       type="button"
                       variant="ghost"
                       size="sm"
+                      disabled={historyLocked}
                       className="mt-2 min-h-10 px-0 text-destructive hover:bg-transparent hover:underline"
                       onClick={(event) =>
                         void sendMessage(event, lastPrompt, { retry: true })
@@ -850,6 +1185,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
                     that completed through the fallback chain) stay
                     retryable. */}
               {!state.error &&
+              !historyLocked &&
               lastPrompt &&
               (() => {
                 const last = state.messages[state.messages.length - 1];
@@ -868,6 +1204,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
                     type="button"
                     variant="ghost"
                     size="sm"
+                    disabled={historyLocked}
                     className="min-h-10 px-0 text-muted-foreground hover:bg-transparent hover:underline"
                     onClick={(event) =>
                       void sendMessage(event, lastPrompt, { retry: true })
@@ -905,6 +1242,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
               onStop={() => void stopGeneration()}
               scope={mode}
               authLocked={authRequired}
+              historyLocked={historyLocked}
             />
           </section>
         ) : (

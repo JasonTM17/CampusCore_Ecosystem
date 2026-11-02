@@ -11,6 +11,7 @@ import {
 import { Send, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n';
+import { getAssistantWindowMessages } from './assistant-messages';
 import { AssistantMascot } from './AssistantMascot';
 
 interface AssistantComposerProps {
@@ -23,6 +24,11 @@ interface AssistantComposerProps {
   scope?: 'academic' | 'specialized';
   /** Session ended: asks are refused until the user signs in again. */
   authLocked?: boolean;
+  /**
+   * Older-history browsing or a latest-page reload: sending and retry stay
+   * paused until the live tail is restored.
+   */
+  historyLocked?: boolean;
 }
 
 function handleComposerSubmitKeyDown(
@@ -48,21 +54,24 @@ export function AssistantComposer({
   onStop,
   scope = 'academic',
   authLocked = false,
+  historyLocked = false,
 }: AssistantComposerProps) {
-  const { messages } = useI18n();
+  const { locale, messages } = useI18n();
   const composerId = useId();
   const placeholder = scope === 'specialized'
     ? messages.assistant.specializedPlaceholder
     : messages.assistant.placeholder;
+  const windowCopy = getAssistantWindowMessages(locale);
+  const composerLocked = isSending || authLocked || historyLocked;
 
   // While a turn is in flight the textarea is disabled (locked panel), which
-  // also drops focus; hand focus back the moment the turn finishes so the
+  // also drops focus; hand focus back the moment the composer unlocks so the
   // student can keep typing without an extra click.
-  const wasSendingRef = useRef(false);
+  const wasLockedRef = useRef(false);
   useEffect(() => {
-    if (wasSendingRef.current && !isSending) inputRef.current?.focus();
-    wasSendingRef.current = isSending;
-  }, [inputRef, isSending]);
+    if (wasLockedRef.current && !composerLocked) inputRef.current?.focus();
+    wasLockedRef.current = composerLocked;
+  }, [composerLocked, inputRef]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (!handleComposerSubmitKeyDown(event)) return;
@@ -85,7 +94,7 @@ export function AssistantComposer({
           autoComplete="off"
           rows={2}
           maxLength={2000}
-          disabled={isSending || authLocked}
+          disabled={composerLocked}
           className="min-h-12 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-1 text-base leading-6 text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-70 md:text-sm"
           aria-label={placeholder}
           aria-describedby={`${composerId}-hint ${composerId}-count`}
@@ -106,7 +115,7 @@ export function AssistantComposer({
             type="submit"
             size="icon"
             className="min-h-11 min-w-11 rounded-xl bg-gradient-to-br from-primary via-[#004eab] to-[#005fcf] shadow-sm transition-transform hover:scale-105 active:scale-95 motion-reduce:transform-none motion-reduce:transition-none"
-            disabled={!input.trim() || authLocked}
+            disabled={!input.trim() || composerLocked}
             aria-label={messages.assistant.send}
           >
             <Send className="h-4 w-4" aria-hidden="true" />
@@ -125,9 +134,11 @@ export function AssistantComposer({
           <span id={`${composerId}-hint`} aria-live="polite">
             {authLocked
               ? messages.assistant.signInRequired
-              : isSending
-                ? messages.assistant.respondingHint
-                : messages.assistant.composerHint}
+              : historyLocked
+                ? windowCopy.returnToLatestHint
+                : isSending
+                  ? messages.assistant.respondingHint
+                  : messages.assistant.composerHint}
           </span>
         </span>
         <span id={`${composerId}-count`} className="ml-2 shrink-0">{input.length}/2000</span>

@@ -2,11 +2,29 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const ts = require('typescript');
 
 const root = path.resolve(__dirname, '..');
 
 function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');
+}
+
+function loadTsModule(relativePath, stubs = {}) {
+  const output = ts.transpileModule(read(relativePath), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      esModuleInterop: true,
+    },
+  }).outputText;
+  const moduleRecord = { exports: {} };
+  const resolve = (specifier) =>
+    Object.prototype.hasOwnProperty.call(stubs, specifier)
+      ? stubs[specifier]
+      : require(specifier);
+  Function('module', 'exports', 'require', output)(moduleRecord, moduleRecord.exports, resolve);
+  return moduleRecord.exports;
 }
 
 test('student status badges use localized labels instead of raw service enums', () => {
@@ -627,4 +645,52 @@ test('thesis workflow stepper exposes its disclosure and stage tabs to assistive
   assert.match(stepper, /onKeyDown=\{\(event\) => stageTabs\.onKeyDown\(event, stage\.step - 1\)\}/);
   assert.match(stepper, /role="tabpanel"/);
   assert.match(stepper, /animate-ping[^"]*motion-reduce:animate-none/);
+});
+
+test('root error-boundary copy lives in one locale-keyed module instead of an inline dictionary', () => {
+  const globalError = read('src/app/global-error.tsx');
+
+  // The boundary imports the shared module and no longer defines its own dict.
+  assert.match(globalError, /import \{ ERROR_BOUNDARY_COPY \} from '@\/lib\/error-boundary-copy';/);
+  assert.doesNotMatch(globalError, /const COPY = \{/);
+  assert.match(globalError, /const copy = ERROR_BOUNDARY_COPY\[readLocale\(\)\];/);
+
+  const { ERROR_BOUNDARY_COPY } = loadTsModule('src/lib/error-boundary-copy.ts', {
+    '@/i18n/config': {},
+  });
+
+  assert.deepEqual(Object.keys(ERROR_BOUNDARY_COPY).sort(), ['en', 'vi']);
+  for (const locale of ['en', 'vi']) {
+    assert.deepEqual(
+      Object.keys(ERROR_BOUNDARY_COPY[locale]).sort(),
+      ['body', 'home', 'retry', 'title'],
+      `${locale} carries the four keys the boundary renders`,
+    );
+    for (const [key, value] of Object.entries(ERROR_BOUNDARY_COPY[locale])) {
+      assert.ok(
+        typeof value === 'string' && value.trim().length > 0,
+        `${locale}.${key} must be real copy`,
+      );
+    }
+  }
+
+  // Wording is unchanged from the inline dictionary this replaced.
+  assert.equal(ERROR_BOUNDARY_COPY.vi.title, 'Đã xảy ra sự cố không mong muốn');
+  assert.equal(
+    ERROR_BOUNDARY_COPY.vi.body,
+    'Cổng học vụ đã ghi nhận lỗi nghiêm trọng. Bạn có thể thử tải lại ứng dụng.',
+  );
+  assert.equal(ERROR_BOUNDARY_COPY.vi.retry, 'Thử lại');
+  assert.equal(ERROR_BOUNDARY_COPY.vi.home, 'Về trang chủ');
+  assert.equal(ERROR_BOUNDARY_COPY.en.title, 'Something went wrong');
+  assert.equal(
+    ERROR_BOUNDARY_COPY.en.body,
+    'The academic portal logged a critical error. You can try reloading the application.',
+  );
+  assert.equal(ERROR_BOUNDARY_COPY.en.retry, 'Try again');
+  assert.equal(ERROR_BOUNDARY_COPY.en.home, 'Back to home');
+
+  // The copy stays out of the main dictionary for a reason: that provider is
+  // one of the things global-error has to survive.
+  assert.doesNotMatch(read('src/i18n/messages.ts'), /title: 'Something went wrong'/);
 });

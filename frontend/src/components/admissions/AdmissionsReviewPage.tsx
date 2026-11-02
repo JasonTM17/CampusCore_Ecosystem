@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useRequireAuth } from '@/context/AuthContext';
 import {
@@ -19,9 +19,11 @@ import { campusErrorKind } from '@/lib/campus-error';
 import { statusToneClass, type StatusTone } from '@/components/ui/status';
 import { admissionsMessages } from '@/i18n/admissions-messages';
 import { useI18n } from '@/i18n';
+import { correctEmptyPage, createSequenceGuard } from '@/lib/array-list-page';
 import { cn } from '@/lib/utils';
 
 type Copy = (typeof admissionsMessages)['vi'];
+const PAGE_SIZE = 20;
 
 const STATUS_TONE: Record<ApplicationStatus, StatusTone> = {
   DRAFT: 'neutral',
@@ -60,6 +62,8 @@ export function AdmissionsReviewPage() {
   const copy = admissionsMessages[locale];
   const [queue, setQueue] = useState<AdmissionApplication[]>([]);
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | ''>('');
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState('');
   const [detail, setDetail] = useState<AdmissionApplication | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -69,15 +73,46 @@ export function AdmissionsReviewPage() {
   const [returnNote, setReturnNote] = useState('');
   const [decisionNote, setDecisionNote] = useState('');
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const queueSequence = useRef(createSequenceGuard());
+  const detailSequence = useRef(createSequenceGuard());
+  const currentQueueSelection = useRef<{ status: ApplicationStatus | ''; page: number }>({
+    status: '',
+    page: 0,
+  });
 
-  const loadQueue = useCallback(async () => {
+  const loadQueue = useCallback(async (
+    status: ApplicationStatus | '' = currentQueueSelection.current.status,
+    requestedPage: number = currentQueueSelection.current.page,
+  ) => {
+    const requestId = queueSequence.current.begin();
+    currentQueueSelection.current = { status, page: requestedPage };
     setIsLoading(true);
     setError('');
     setForbidden(false);
     try {
-      const rows = await admissionsApi.queue(statusFilter || undefined);
-      setQueue(rows);
+      let result = await admissionsApi.queuePage(status || undefined, requestedPage, PAGE_SIZE);
+      if (!queueSequence.current.isCurrent(requestId)) return;
+
+      let resultPage = requestedPage;
+      const correction = correctEmptyPage(requestedPage, result, PAGE_SIZE);
+      if (correction) {
+        resultPage = correction.page;
+        if (correction.refetch) {
+          result = await admissionsApi.queuePage(status || undefined, resultPage, PAGE_SIZE);
+          if (!queueSequence.current.isCurrent(requestId)) return;
+        }
+      }
+      if (result.items.length === 0 && result.total !== undefined && result.total > 0) {
+        setError(copy.failed);
+        return;
+      }
+
+      setQueue(result.items);
+      setTotal(result.total ?? null);
+      setPage(resultPage);
+      currentQueueSelection.current = { status, page: resultPage };
     } catch (cause) {
+      if (!queueSequence.current.isCurrent(requestId)) return;
       const kind = campusErrorKind(cause);
       if (errorCode(cause) === 'ADMISSIONS_STAFF_REQUIRED'
         || kind === 'forbidden' || kind === 'unauthorized') {
@@ -86,33 +121,46 @@ export function AdmissionsReviewPage() {
         setError(friendlyError(copy, cause));
       }
     } finally {
-      setIsLoading(false);
+      if (queueSequence.current.isCurrent(requestId)) setIsLoading(false);
     }
-  }, [copy, statusFilter]);
+  }, [copy]);
 
   const loadDetail = useCallback(async (id: string) => {
+    const requestId = detailSequence.current.begin();
     if (!id) {
       setDetail(null);
       return;
     }
     try {
       const row = await admissionsApi.staffApplication(id);
+      if (!detailSequence.current.isCurrent(requestId)) return;
       setDetail(row);
       setChecklist([]);
       setReturnNote('');
       setDecisionNote('');
     } catch (cause) {
+      if (!detailSequence.current.isCurrent(requestId)) return;
       setError(friendlyError(copy, cause));
     }
   }, [copy]);
 
   useEffect(() => {
-    void loadQueue();
+    void loadQueue('', 0);
   }, [loadQueue]);
 
   useEffect(() => {
     void loadDetail(selectedId);
   }, [selectedId, loadDetail]);
+
+  const changeFilter = (filter: ApplicationStatus | '') => {
+    setStatusFilter(filter);
+    setPage(0);
+    void loadQueue(filter, 0);
+  };
+
+  const goToPage = (nextPage: number) => {
+    void loadQueue(currentQueueSelection.current.status, nextPage);
+  };
 
   const act = async (action: () => Promise<unknown>, okMessage: string) => {
     if (!detail) {
@@ -138,6 +186,17 @@ export function AdmissionsReviewPage() {
   const decide = (decision: 'ACCEPTED' | 'REJECTED') => act(
     () => admissionsApi.decide(detail!.id, decision, decisionNote, detail!.version),
     copy.decidedOk);
+
+  const totalPages = total === null ? null : Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const hasPreviousPage = page > 0;
+  const hasNextPage = totalPages === null
+    ? queue.length === PAGE_SIZE
+    : page + 1 < totalPages;
+  const firstVisible = queue.length === 0 ? 0 : page * PAGE_SIZE + 1;
+  const lastVisible = page * PAGE_SIZE + queue.length;
+  const paginationSummary = total === null
+    ? `${messages.common.states.showingResults} ${firstVisible} ${messages.common.states.to} ${lastVisible} ${messages.common.states.results}`
+    : `${messages.common.states.showingResults} ${firstVisible} ${messages.common.states.to} ${lastVisible} ${messages.common.states.of} ${total} ${messages.common.states.results}`;
 
   if (authLoading) {
     return <LoadingState />;
@@ -186,7 +245,7 @@ export function AdmissionsReviewPage() {
                   size="sm"
                   variant={statusFilter === filter ? 'default' : 'outline'}
                   data-testid={`admissions-filter-${filter || 'all'}`}
-                  onClick={() => setStatusFilter(filter)}
+                  onClick={() => changeFilter(filter)}
                 >
                   {filter === '' ? copy.filterAll : copy.statusLabels[filter]}
                 </Button>
@@ -226,6 +285,28 @@ export function AdmissionsReviewPage() {
                 ))}
               </ul>
             )}
+            <div className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p role="status" aria-live="polite" data-testid="admissions-pagination-summary"
+                className="text-sm text-muted-foreground">
+                {paginationSummary}
+                <span className="ml-2">
+                  {messages.common.states.page} {page + 1}
+                  {totalPages === null ? '' : ` / ${totalPages}`}
+                </span>
+              </p>
+              {hasPreviousPage || hasNextPage ? (
+                <nav aria-label={messages.common.states.page} className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" disabled={!hasPreviousPage}
+                    onClick={() => goToPage(page - 1)}>
+                    {messages.common.states.goToPreviousPage}
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={!hasNextPage}
+                    onClick={() => goToPage(page + 1)}>
+                    {messages.common.states.goToNextPage}
+                  </Button>
+                </nav>
+              ) : null}
+            </div>
           </section>
 
           <section>

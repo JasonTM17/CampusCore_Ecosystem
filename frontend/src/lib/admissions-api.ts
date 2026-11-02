@@ -1,4 +1,5 @@
 import api from '@/lib/api';
+import { fetchArrayListPage, type ArrayListPage } from '@/lib/array-list-page';
 
 /**
  * Simulated admissions client (contract §7, phase-10). Applicants are auth
@@ -148,6 +149,14 @@ export const admissionsApi = {
     });
     return response.data;
   },
+  queuePage: async (status: ApplicationStatus | '' | undefined, page: number,
+      limit: number): Promise<ArrayListPage<AdmissionApplication>> =>
+    fetchArrayListPage(page, limit, async (requestPage, requestLimit) => {
+      const response = await api.get<AdmissionApplication[]>('/admissions/staff/queue', {
+        params: { ...(status ? { status } : {}), page: requestPage, limit: requestLimit },
+      });
+      return { data: response.data, headers: response.headers };
+    }),
   staffApplication: async (id: string): Promise<AdmissionApplication> => {
     const response = await api.get<AdmissionApplication>(`/admissions/staff/applications/${id}`);
     return response.data;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useRequireAuth } from '@/context/AuthContext';
 import {
@@ -17,6 +17,7 @@ import { campusErrorKind } from '@/lib/campus-error';
 import { statusToneClass, type StatusTone } from '@/components/ui/status';
 import { libraryMessages } from '@/i18n/library-messages';
 import { useI18n } from '@/i18n';
+import { createSequenceGuard } from '@/lib/array-list-page';
 import { cn } from '@/lib/utils';
 
 type Copy = (typeof libraryMessages)['vi'];
@@ -58,14 +59,19 @@ export function LibraryDeskPage() {
   // The circulation desk is staff-only; a denied queue read gets its own
   // state instead of a retryable error.
   const [denied, setDenied] = useState(false);
+  const requestSequence = useRef(createSequenceGuard());
 
   const load = useCallback(async (status?: LoanStatus | '') => {
+    const requestId = requestSequence.current.begin();
     setIsLoading(true);
     setError('');
     setDenied(false);
     try {
-      setLoans(await libraryApi.queue(status || undefined));
+      const rows = await libraryApi.queue(status || undefined);
+      if (!requestSequence.current.isCurrent(requestId)) return;
+      setLoans(rows);
     } catch (cause) {
+      if (!requestSequence.current.isCurrent(requestId)) return;
       const kind = campusErrorKind(cause);
       if (kind === 'forbidden' || kind === 'unauthorized') {
         setDenied(true);
@@ -73,7 +79,7 @@ export function LibraryDeskPage() {
         setError(friendlyError(copy, cause));
       }
     } finally {
-      setIsLoading(false);
+      if (requestSequence.current.isCurrent(requestId)) setIsLoading(false);
     }
   }, [copy]);
 

@@ -46,6 +46,15 @@ function loadCatalog() {
   return loadTsModule('src/i18n/messages.ts', messageFragments);
 }
 
+// The logged-out page resolves its home link with the same path helper the
+// LocalizedLink component uses, so the test exercises the real implementation
+// instead of re-stating the rule.
+function loadPathsModule() {
+  return loadTsModule('src/i18n/paths.ts', {
+    '@/i18n/config': loadTsModule('src/i18n/config.ts'),
+  });
+}
+
 async function loadMetadata(pathname, locale, catalog) {
   const requestHeaders = new Map([
     ['x-cc-locale', locale],
@@ -106,29 +115,134 @@ test('auth-gated surfaces use localized noindex metadata while public routes rem
   }
 });
 
-test('logged-out page renders its locale copy and preserves the home link', async () => {
+test('every authenticated surface declares noindex while public routes stay indexable', async () => {
   const catalog = loadCatalog();
+  // Every gated surface the app router exposes: credentials and recovery,
+  // dashboards, the admin console (including the events console), the three
+  // staff desks, the staff start page, applications, check-in, and the
+  // post-logout landing. None of them may reach a search index.
+  const privateRoutes = [
+    ['/login', 'login'],
+    ['/forgot-password', 'forgotPassword'],
+    ['/reset-password', 'resetPassword'],
+    ['/register', 'register'],
+    ['/dashboard', 'dashboard'],
+    ['/dashboard/lecturer/grades', 'dashboard'],
+    ['/dashboard/thesis/topics', 'dashboard'],
+    ['/admin', 'admin'],
+    ['/admin/events', 'admin'],
+    ['/apply', 'apply'],
+    ['/apply/review', 'apply'],
+    ['/careers/desk', 'careers'],
+    ['/library/desk', 'library'],
+    ['/session/logged-out', 'session'],
+    ['/staff', 'staff'],
+    ['/attendance/checkin/session-1', 'checkinLanding'],
+  ];
+
+  for (const locale of ['vi', 'en']) {
+    const messages = catalog.getMessages(locale);
+    for (const [pathname, key] of privateRoutes) {
+      const metadata = await loadMetadata(pathname, locale, catalog);
+      assert.equal(metadata.robots.index, false, `${locale} ${pathname} must not be indexed`);
+      assert.equal(metadata.robots.googleBot.index, false, `${locale} ${pathname} must not reach Google`);
+      assert.equal(metadata.title.default, messages.meta[key].title, `${locale} ${pathname} title`);
+    }
+
+    // Marketing, news, docs, and the hub directory stay crawlable.
+    for (const pathname of ['/', '/hub', '/news', '/docs', '/news/some-story']) {
+      const metadata = await loadMetadata(pathname, locale, catalog);
+      assert.equal(metadata.robots.index, true, `${locale} public route ${pathname} stays indexable`);
+      assert.equal(metadata.robots.googleBot.index, true, `${locale} ${pathname} stays indexable for Google`);
+    }
+  }
+});
+
+test('robots.txt disallows every authenticated desk root and keeps public content crawlable', () => {
+  const robots = loadTsModule('src/app/robots.ts', {
+    '@/lib/site': {
+      buildSiteUrl: (pathValue) => new URL(pathValue, 'https://campusute.example').toString(),
+      getSiteUrl: () => 'https://campusute.example',
+    },
+  }).default();
+
+  const rule = robots.rules.find((entry) => entry.userAgent === '*');
+  assert.ok(rule, 'the wildcard rule exists');
+  const disallowed = new Set(rule.disallow);
+
+  // Desk roots come from STAFF_DESKS (admissions = /apply/review, careers,
+  // library); the events and admin consoles sit under /admin/.
+  const protectedRoots = [
+    '/admin/',
+    '/dashboard/',
+    '/apply/review',
+    '/careers/desk',
+    '/library/desk',
+    '/staff',
+    '/forgot-password',
+    '/register',
+    '/reset-password',
+    '/attendance/checkin/',
+  ];
+  for (const root of protectedRoots) {
+    for (const path of [root, `/en${root}`, `/vi${root}`]) {
+      assert.ok(disallowed.has(path), `robots must disallow ${path}`);
+    }
+  }
+  // The canonical desk URLs the audit named are spelled out as well.
+  for (const path of ['/apply/review/', '/careers/desk/', '/library/desk/']) {
+    assert.ok(disallowed.has(path), `robots must disallow ${path}`);
+  }
+
+  // Public marketing, news, docs, and the hub stay reachable for crawlers.
+  for (const path of ['/', '/en/', '/vi/', '/login', '/en/login', '/vi/login']) {
+    assert.ok(rule.allow.includes(path), `robots must keep ${path} in the allow list`);
+  }
+  for (const path of ['/news', '/en/news', '/docs', '/en/docs', '/hub', '/careers', '/library', '/apply']) {
+    assert.equal(disallowed.has(path), false, `${path} must stay crawlable`);
+  }
+
+  assert.equal(robots.sitemap, 'https://campusute.example/sitemap.xml');
+});
+
+test('logged-out page renders its locale copy and keeps the home link in that locale', async () => {
+  const catalog = loadCatalog();
+  const paths = loadPathsModule();
 
   for (const locale of ['vi', 'en']) {
     const messages = catalog.getMessages(locale);
     const copy = messages.session?.loggedOut;
     assert.ok(copy, `${locale} logged-out copy is required`);
 
-    const page = loadTsModule('src/app/session/logged-out/page.tsx', {
-      'next/link': 'a',
-      '@/i18n/server': { getRequestLocale: async () => locale },
-      '@/i18n/messages': catalog,
-      'react/jsx-runtime': require('react/jsx-runtime'),
-    }, { jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true }).default;
-    const markup = renderToStaticMarkup(await page());
+    // Unprefixed visit: the default locale keeps '/' and English moves to
+    // '/en'; a prefixed visit keeps its own prefix.
+    for (const [prefixed, expectedHref] of [
+      [false, locale === 'vi' ? '/' : '/en'],
+      [true, `/${locale}`],
+    ]) {
+      const page = loadTsModule('src/app/session/logged-out/page.tsx', {
+        'next/link': 'a',
+        '@/i18n/server': {
+          getRequestLocale: async () => locale,
+          isPrefixedRequest: async () => prefixed,
+        },
+        '@/i18n/messages': catalog,
+        '@/i18n/paths': paths,
+        'react/jsx-runtime': require('react/jsx-runtime'),
+      }, { jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true }).default;
+      const markup = renderToStaticMarkup(await page());
 
-    assert.ok(markup.includes(copy.title), `${locale} heading is rendered`);
-    assert.ok(markup.includes(copy.body), `${locale} sign-out message is rendered`);
-    assert.ok(markup.includes(copy.returnHome), `${locale} home action is rendered`);
-    assert.match(markup, /<a href="\/"/);
-    const otherLocale = catalog.getMessages(locale === 'en' ? 'vi' : 'en');
-    const otherTitle = otherLocale.session.loggedOut.title;
-    assert.notEqual(copy.title, otherTitle);
-    assert.equal(markup.includes(otherTitle), false, `${locale} page does not render the other locale heading`);
+      assert.ok(markup.includes(copy.title), `${locale} heading is rendered`);
+      assert.ok(markup.includes(copy.body), `${locale} sign-out message is rendered`);
+      assert.ok(markup.includes(copy.returnHome), `${locale} home action is rendered`);
+      assert.ok(
+        markup.includes(`<a href="${expectedHref}"`),
+        `${locale}${prefixed ? ' prefixed' : ''} home link points at ${expectedHref}`,
+      );
+      const otherLocale = catalog.getMessages(locale === 'en' ? 'vi' : 'en');
+      const otherTitle = otherLocale.session.loggedOut.title;
+      assert.notEqual(copy.title, otherTitle);
+      assert.equal(markup.includes(otherTitle), false, `${locale} page does not render the other locale heading`);
+    }
   }
 });

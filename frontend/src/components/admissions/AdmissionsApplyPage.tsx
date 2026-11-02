@@ -20,6 +20,7 @@ import { assertUploadFile, UPLOAD_ACCEPT_DOCUMENTS } from '@/lib/upload-validati
 import { statusToneClass, type StatusTone } from '@/components/ui/status';
 import { admissionsMessages } from '@/i18n/admissions-messages';
 import { useI18n } from '@/i18n';
+import { createSingleFlight } from '@/lib/array-list-page';
 import { cn } from '@/lib/utils';
 
 type Copy = (typeof admissionsMessages)['vi'];
@@ -110,6 +111,7 @@ export function AdmissionsApplyPage() {
   // the forbidden state instead of a retryable error.
   const [denied, setDenied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const savingRef = useRef(createSingleFlight());
 
   const selected = applications.find((application) => application.id === selectedId) ?? null;
 
@@ -211,34 +213,44 @@ export function AdmissionsApplyPage() {
     if (!selected) {
       return;
     }
-    try {
-      const payload = await pickFileBase64(fileInputRef.current);
-      if (!payload) {
-        return;
+    await savingRef.current.run(async () => {
+      setIsSaving(true);
+      try {
+        const payload = await pickFileBase64(fileInputRef.current);
+        if (!payload) {
+          return;
+        }
+        await admissionsApi.uploadAttachment(selected.id, payload.fileName, payload.contentType,
+          payload.dataBase64, newAdmissionsIdempotencyKey());
+        toast.success(copy.uploaded);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        await load();
+      } catch (cause) {
+        setError(friendlyError(copy, cause));
+      } finally {
+        setIsSaving(false);
       }
-      await admissionsApi.uploadAttachment(selected.id, payload.fileName, payload.contentType,
-        payload.dataBase64, newAdmissionsIdempotencyKey());
-      toast.success(copy.uploaded);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      await load();
-    } catch (cause) {
-      setError(friendlyError(copy, cause));
-    }
+    });
   };
 
   const removeAttachment = async (attachmentId: string) => {
     if (!selected) {
       return;
     }
-    try {
-      await admissionsApi.deleteAttachment(selected.id, attachmentId, newAdmissionsIdempotencyKey());
-      toast.success(copy.removedAttachment);
-      await load();
-    } catch (cause) {
-      setError(friendlyError(copy, cause));
-    }
+    await savingRef.current.run(async () => {
+      setIsSaving(true);
+      try {
+        await admissionsApi.deleteAttachment(selected.id, attachmentId, newAdmissionsIdempotencyKey());
+        toast.success(copy.removedAttachment);
+        await load();
+      } catch (cause) {
+        setError(friendlyError(copy, cause));
+      } finally {
+        setIsSaving(false);
+      }
+    });
   };
 
   if (authLoading) {
@@ -450,6 +462,8 @@ export function AdmissionsApplyPage() {
                                 size="sm"
                                 variant="ghost"
                                 className="text-destructive"
+                                data-testid={`admissions-remove-${attachment.id}`}
+                                disabled={isSaving}
                                 onClick={() => void removeAttachment(attachment.id)}
                               >
                                 {copy.remove}
@@ -470,7 +484,8 @@ export function AdmissionsApplyPage() {
                         className="text-sm"
                         aria-label={copy.attachFile}
                       />
-                      <Button size="sm" variant="outline" data-testid="admissions-upload" onClick={() => void upload()}>
+                      <Button size="sm" variant="outline" data-testid="admissions-upload"
+                        disabled={isSaving} onClick={() => void upload()}>
                         {copy.attachFile}
                       </Button>
                     </div>
