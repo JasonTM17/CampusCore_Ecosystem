@@ -254,12 +254,12 @@ test('attendance save ignores completion after the selection changed', () => {
 
   assert.match(
     source,
-    /onChange=\{\(e\) => setSelectedSemester\(e\.target\.value\)\}\s+className="w-full"\s+disabled=\{isSaving\}/,
+    /onChange=\{\(e\) => handleSemesterChange\(e\.target\.value\)\}\s+className="w-full"\s+disabled=\{isSaving\}/,
   );
   assert.match(source, /disabled=\{isSaving \|\| isLoadingSections \|\| sections\.length === 0\}/);
   assert.match(
     source,
-    /onChange=\{\(e\) => setSelectedDate\(e\.target\.value\)\}\s+className="w-full"\s+disabled=\{isSaving\}/,
+    /onChange=\{\(e\) => handleDateChange\(e\.target\.value\)\}\s+className="w-full"\s+disabled=\{isSaving\}/,
   );
 });
 
