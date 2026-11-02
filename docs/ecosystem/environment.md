@@ -108,7 +108,7 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | `IDENTITY_OIDC_ENABLED` | Enable in-app OIDC issuer (`id.campusute.io.vn`) | config | optional | safe default `false` |
 | `IDENTITY_OIDC_AUTHORIZE_PAUSED` | Pause authorize endpoint while issuer up | config | rollout | safe default |
 | `IDENTITY_DEV_KEYGEN` | Generate ephemeral dev signing keys | config | local only | **forbidden in prod** |
-| `IDENTITY_ISSUER_URI` | Public issuer URL (prod `https://id.campusute.io.vn`) | config | sso-preview, prod issuer | required when OIDC on |
+| `IDENTITY_ISSUER_URI` | Public issuer URL (future go-live host `https://id.campusute.io.vn`, deferred) | config | sso-preview, future go-live | required when OIDC on |
 | `IDENTITY_LOGIN_PAGE` | Hosted login page URL | config | OIDC on | safe default |
 | `IDENTITY_TOKEN_ENCRYPTION_KEY` | Encrypts stored OIDC tokens at rest | secret | OIDC on | required |
 | `IDENTITY_NATIVE_REFRESH_CLIENT_IDS` | Client ids allowed native refresh | config | mobile prod | safe default |

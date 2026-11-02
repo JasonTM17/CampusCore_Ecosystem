@@ -3,8 +3,9 @@
 > **Operational Notice:**
 > The Prometheus alert rules defined in this directory (`alerts-api-slo.yml`, `alerts-infrastructure.yml`, `alerts-assistant.yml`)
 > are **declarative specifications only** (**NOT_RUN** against a live monitoring backend in this audit phase).
-> They establish the service level objectives (SLOs), threshold baselines, and runbook linkage required
-> for production deployment (Wave 3 / Backlog Lane F).
+> They establish the service level objectives (SLOs), threshold baselines, and runbook linkage a future
+> hosted target would need. This workspace runs local-first and wires no Prometheus/Alertmanager:
+> shipping the collector is **deferred — future deployment work**.
 
 ---
 
@@ -90,12 +91,14 @@ Monitors AI campus assistant service health, provider availability, and quotas:
 
 ## 4. Cold-Start & Probe Best Practices
 
-When deploying onto platforms with container sleep/wake cycles (such as Render free tier or serverless containers):
+The local compose stack keeps its containers running, so there is no cold start to tune today.
+The guidance below applies only to a future hosted target with container sleep/wake cycles
+(**deferred — future deployment work**); the endpoints it relies on are live in the local stack.
 
 1. **Health is NOT Readiness**:
    - `/api/v1/health/liveness` confirms the Spring Boot process is alive.
    - `/api/v1/health/readiness` confirms the database connection pool is warm, migrations are settled, and queries succeed.
-2. **Probe Timing**:
+2. **Probe Timing** (hosted targets only):
    - Set orchestrator `initialDelaySeconds: 45` for liveness probes to avoid reboot loops while the JVM warms up and Flyway runs.
    - Configure readiness probe interval to `10s` with `failureThreshold: 3`.
 3. **Client-Side Absorption**:
@@ -109,12 +112,12 @@ When an alert fires or a user reports an error:
 1. Extract `requestId` from the client response envelope (`ErrorResponse.requestId`), response header `X-Request-Id`, or client metric ring.
 2. Search application logs:
    ```bash
-   # Docker Compose / local container logs
-   docker compose logs api | grep "<requestId>"
-
-   # Production / aggregator log query (Loki / CloudWatch)
-   {service="restful-api"} |= "<requestId>"
+   # Local compose stack (service name from docker-compose.yml)
+   docker compose logs restful-api | grep "<requestId>"
    ```
+
+   Hosted log aggregation (Loki / CloudWatch) does not exist in this workspace; wiring it is
+   **deferred — future deployment work**.
 3. Join with web/mobile logs using the exact same identifier.
 4. **Redaction Notice:** All logs pass through `redactForLog()`. Passwords, Bearer tokens, cookies, and student PII are redacted. Verify log hygiene using `node scripts/check-assistant-secrets.mjs`.
 

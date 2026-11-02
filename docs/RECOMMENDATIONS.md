@@ -1,5 +1,12 @@
 # Khuyến nghị hoàn thiện — CampusUTE sau v1.0.0
 
+> **Trạng thái: tài liệu lịch sử (vòng 7–9, 2026-09).** Workspace đã chuyển sang
+> **local-first**: repo này không có môi trường production, DNS hay bước deploy.
+> Các câu như "Render LIVE, prod 200/200" mô tả trạng thái **tại thời điểm viết**,
+> không phải hiện trạng; mọi bước deploy/DNS/promote nhắc trong tài liệu là
+> **deferred — future deployment work**. Quick start local:
+> [README.md](../README.md#quick-start-local).
+
 > Tài liệu duy nhất tổng hợp kết quả vòng 7 (deep E2E + audit toàn chức năng bằng 8 subagents chuyên
 > trách + hội đồng Kongming/Advisor/Wukong) và vòng 8 (UI/UX deep sweep toàn frontend, 2026-09-23 —
 > mục 8). Trạng thái nền: `v1.0.0` tại `2b785aab` (đã phát hành,

@@ -1,9 +1,19 @@
 # Backup, restore, and rollback
 
-The production database backup is a PostgreSQL custom archive plus a SHA-256
-sidecar. Run it from the repository checkout on the VPS:
+This workspace runs local-first and has no production database. The backup
+scripts operate on whichever Compose project you point them at: they write a
+PostgreSQL custom archive plus a SHA-256 sidecar, and restore always refuses to
+overwrite the source database.
+
+The recovery path actually executed here is the disposable drill in
+[Disposable recovery drill (MP38)](#disposable-recovery-drill-mp38). The manual
+archive/verify/restore flow is for a local or otherwise reachable stack:
 
 ```sh
+# COMPOSE_PROJECT_NAME must name the running project:
+#   campusute            -> node scripts/local-dev.mjs up
+#   <checkout-directory> -> plain docker compose up
+export COMPOSE_PROJECT_NAME=campusute
 BACKUP_RETENTION_DAYS=14 ./ops/backup/backup-postgres.sh
 ./ops/backup/verify-backup.sh ops/backups/campuscore-<timestamp>.dump
 ./ops/backup/restore-postgres.sh ops/backups/campuscore-<timestamp>.dump campuscore_restore_<timestamp>
@@ -14,13 +24,15 @@ script refuses an in-place overwrite. After an isolated restore, verify the
 latest successful Flyway version, readiness, authentication, representative
 JSON/SSE assistant calls, and row counts before approving a recovery.
 
-Rollback is an application/image operation: stop the edge, set
-`CAMPUSCORE_IMAGE_TAG` to the previous verified full commit SHA, pull the four
-matching digests, run `docker compose -f docker-compose.yml up -d --wait`,
-and repeat the smoke checks. Never use `latest`, and never run `down -v` on a
-production volume. If a migration is irreversible, restore into an isolated
-database first and obtain an explicit recovery decision before changing the
-live volume.
+Rollback is an application/image operation. Locally that means returning the
+working tree to the previous reviewed commit and rebuilding the stack
+(`git switch --detach <full-commit-sha>`, then `node scripts/local-dev.mjs up`).
+If an external publisher produced images for that commit, the no-build overlay
+pins the same immutable tag across services. Never use `latest`, and never run
+`down -v` on a volume that still holds data you need. If a migration is
+irreversible, restore into an isolated database first and obtain an explicit
+recovery decision before touching the original volume. Publishing images and
+rolling back a hosted deployment are **deferred — future deployment work**.
 
 ## Disposable recovery drill (MP38)
 
