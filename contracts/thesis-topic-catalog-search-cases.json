@@ -1,0 +1,615 @@
+{
+  "description": "Golden cases for GET /api/v1/thesis/topics?search=. Generated from the real web predicate in frontend/src/components/dashboard/thesis/ThesisTopicCatalogPage.tsx with the real plainTextThesisDescription and normalizeVietnameseText helpers. Java must reproduce these ids exactly.",
+  "generatedFrom": {
+    "predicate": "src/components/dashboard/thesis/ThesisTopicCatalogPage.tsx",
+    "plainText": "frontend/src/lib/thesis-text.ts",
+    "fold": "frontend/src/lib/registration-browse.ts"
+  },
+  "topics": [
+    {
+      "id": "c0000000-0000-4000-8000-000000000001",
+      "title": "Trí tuệ nhân tạo trong chẩn đoán hình ảnh",
+      "description": "<p>Ứng dụng <strong>học sâu</strong> để phân loại ảnh y tế.</p>"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000002",
+      "title": "AI hỗ trợ phân tích dữ liệu",
+      "description": "<p>Mô hình <em>machine learning</em> cho dự báo.</p>"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000003",
+      "title": "Phần mềm quản lý thư viện",
+      "description": "<p>Thiết kế cơ sở dữ liệu và giao diện.</p>"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000004",
+      "title": "Web application for campus services",
+      "description": "<p>Next.js and <code>React</code> with PostgreSQL.</p>"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000005",
+      "title": "Robot tự hành trong nhà máy",
+      "description": "<p>Cơ điện tử và điều khiển.</p>"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000006",
+      "title": "Hệ thống thông tin quản lý đào tạo",
+      "description": "<p>Tích hợp dữ liệu học vụ.</p>"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000007",
+      "title": "IoT giám sát nông nghiệp",
+      "description": "<p>Cảm biến và viễn thông.</p>"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000008",
+      "title": "Xe ô tô tự hành cấp độ 3",
+      "description": "<p>An toàn và kiểm thử trên đường.</p>"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000009",
+      "title": "Kết cấu xây dựng bền vững",
+      "description": "<p>Vật liệu <strong>bê tông</strong> tái chế.</p>"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000010",
+      "title": "Điện toán đám mây",
+      "description": null
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000011",
+      "title": "An toàn thông tin",
+      "description": "<p>Mã hoá &amp;nbsp; khoá công khai.</p>"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000012",
+      "title": "Thị giác máy tính",
+      "description": "<p>Nhận dạng &lt;b&gt;vật thể&lt;/b&gt;.</p>"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000013",
+      "title": "Blockchain và tài chính",
+      "description": ""
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000014",
+      "title": "Mạng máy tính nâng cao",
+      "description": "<p>   </p>"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000015",
+      "title": "Quản trị dự án",
+      "description": "<p>Kỹ năng lãnh đạo</p>"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000016",
+      "title": "Fintech - ngân hàng số",
+      "description": "<p>Thanh toán điện tử.</p>"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000017",
+      "title": "Chỉ tiêu 100% và mã A_B\\C",
+      "description": null
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000018",
+      "title": "Khoảng trắng",
+      "description": "<p>Alpha&nbsp;&nbsp; Beta</p>"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000019",
+      "title": "Tiếng Việt",
+      "description": "<p>Ngữ âm</p>"
+    }
+  ],
+  "dictionary": {
+    "artificial intelligence": [
+      "artificial intelligence",
+      "ai",
+      "trí tuệ nhân tạo"
+    ],
+    "software & web": [
+      "software",
+      "web",
+      "phần mềm"
+    ],
+    "robotics & mechatronics": [
+      "robotics",
+      "mechatronics",
+      "cơ điện tử",
+      "robot"
+    ],
+    "information systems": [
+      "information systems",
+      "hệ thống thông tin"
+    ],
+    "iot & telecom": [
+      "iot",
+      "telecom",
+      "viễn thông"
+    ],
+    "automotive": [
+      "automotive",
+      "ô tô"
+    ],
+    "civil engineering": [
+      "civil engineering",
+      "xây dựng"
+    ]
+  },
+  "cases": [
+    {
+      "name": "dictionary key: artificial intelligence",
+      "search": "artificial intelligence",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000001",
+        "c0000000-0000-4000-8000-000000000002",
+        "c0000000-0000-4000-8000-000000000009",
+        "c0000000-0000-4000-8000-000000000011",
+        "c0000000-0000-4000-8000-000000000013"
+      ]
+    },
+    {
+      "name": "dictionary key: software & web",
+      "search": "software & web",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000003",
+        "c0000000-0000-4000-8000-000000000004"
+      ]
+    },
+    {
+      "name": "dictionary key: robotics & mechatronics",
+      "search": "robotics & mechatronics",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000005"
+      ]
+    },
+    {
+      "name": "dictionary key: information systems",
+      "search": "information systems",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000006"
+      ]
+    },
+    {
+      "name": "dictionary key: iot & telecom",
+      "search": "iot & telecom",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000007"
+      ]
+    },
+    {
+      "name": "dictionary key: automotive",
+      "search": "automotive",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000008",
+        "c0000000-0000-4000-8000-000000000009",
+        "c0000000-0000-4000-8000-000000000010",
+        "c0000000-0000-4000-8000-000000000011",
+        "c0000000-0000-4000-8000-000000000016"
+      ]
+    },
+    {
+      "name": "dictionary key: civil engineering",
+      "search": "civil engineering",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000009"
+      ]
+    },
+    {
+      "name": "partial key art expands the AI entry",
+      "search": "art",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000001",
+        "c0000000-0000-4000-8000-000000000002",
+        "c0000000-0000-4000-8000-000000000009",
+        "c0000000-0000-4000-8000-000000000011",
+        "c0000000-0000-4000-8000-000000000013"
+      ]
+    },
+    {
+      "name": "partial key robot expands robotics",
+      "search": "robot",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000005"
+      ]
+    },
+    {
+      "name": "partial key mecha expands robotics",
+      "search": "mecha",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000005"
+      ]
+    },
+    {
+      "name": "partial key systems expands information systems",
+      "search": "systems",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000006"
+      ]
+    },
+    {
+      "name": "partial key telecom expands iot",
+      "search": "telecom",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000007"
+      ]
+    },
+    {
+      "name": "expansion happens before accent folding (accented fragment)",
+      "search": "mềm",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000003"
+      ]
+    },
+    {
+      "name": "expansion happens before accent folding (key is ASCII)",
+      "search": "phần mềm",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000003"
+      ]
+    },
+    {
+      "name": "asymmetry: synonym value does not expand back to its key",
+      "search": "trí tuệ",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000001"
+      ]
+    },
+    {
+      "name": "asymmetry: synonym value ai does not expand to the AI entry",
+      "search": "ai",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000001",
+        "c0000000-0000-4000-8000-000000000002",
+        "c0000000-0000-4000-8000-000000000009",
+        "c0000000-0000-4000-8000-000000000011",
+        "c0000000-0000-4000-8000-000000000013"
+      ]
+    },
+    {
+      "name": "diacritic-insensitive phrase",
+      "search": "he thong thong tin",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000006"
+      ]
+    },
+    {
+      "name": "tokens may match different parts of the text",
+      "search": "quan tri lanh dao",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000015"
+      ]
+    },
+    {
+      "name": "description-only phrase",
+      "search": "học sâu",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000001"
+      ]
+    },
+    {
+      "name": "title plus description tokens",
+      "search": "ngan hang dien tu",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000016"
+      ]
+    },
+    {
+      "name": "ordered decoding keeps the literal nbsp entity",
+      "search": "nbsp",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000011"
+      ]
+    },
+    {
+      "name": "ordered decoding keeps decoded angle brackets as text",
+      "search": "<b>",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000012"
+      ]
+    },
+    {
+      "name": "tag stripping happens before entity decoding",
+      "search": "strong",
+      "showAll": false,
+      "expectedIds": []
+    },
+    {
+      "name": "all keyword disables filtering",
+      "search": "all",
+      "showAll": true,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000001",
+        "c0000000-0000-4000-8000-000000000002",
+        "c0000000-0000-4000-8000-000000000003",
+        "c0000000-0000-4000-8000-000000000004",
+        "c0000000-0000-4000-8000-000000000005",
+        "c0000000-0000-4000-8000-000000000006",
+        "c0000000-0000-4000-8000-000000000007",
+        "c0000000-0000-4000-8000-000000000008",
+        "c0000000-0000-4000-8000-000000000009",
+        "c0000000-0000-4000-8000-000000000010",
+        "c0000000-0000-4000-8000-000000000011",
+        "c0000000-0000-4000-8000-000000000012",
+        "c0000000-0000-4000-8000-000000000013",
+        "c0000000-0000-4000-8000-000000000014",
+        "c0000000-0000-4000-8000-000000000015",
+        "c0000000-0000-4000-8000-000000000016",
+        "c0000000-0000-4000-8000-000000000017",
+        "c0000000-0000-4000-8000-000000000018",
+        "c0000000-0000-4000-8000-000000000019"
+      ]
+    },
+    {
+      "name": "all keyword is case-insensitive after lowering",
+      "search": "ALL",
+      "showAll": true,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000001",
+        "c0000000-0000-4000-8000-000000000002",
+        "c0000000-0000-4000-8000-000000000003",
+        "c0000000-0000-4000-8000-000000000004",
+        "c0000000-0000-4000-8000-000000000005",
+        "c0000000-0000-4000-8000-000000000006",
+        "c0000000-0000-4000-8000-000000000007",
+        "c0000000-0000-4000-8000-000000000008",
+        "c0000000-0000-4000-8000-000000000009",
+        "c0000000-0000-4000-8000-000000000010",
+        "c0000000-0000-4000-8000-000000000011",
+        "c0000000-0000-4000-8000-000000000012",
+        "c0000000-0000-4000-8000-000000000013",
+        "c0000000-0000-4000-8000-000000000014",
+        "c0000000-0000-4000-8000-000000000015",
+        "c0000000-0000-4000-8000-000000000016",
+        "c0000000-0000-4000-8000-000000000017",
+        "c0000000-0000-4000-8000-000000000018",
+        "c0000000-0000-4000-8000-000000000019"
+      ]
+    },
+    {
+      "name": "all keyword is trimmed",
+      "search": "  all  ",
+      "showAll": true,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000001",
+        "c0000000-0000-4000-8000-000000000002",
+        "c0000000-0000-4000-8000-000000000003",
+        "c0000000-0000-4000-8000-000000000004",
+        "c0000000-0000-4000-8000-000000000005",
+        "c0000000-0000-4000-8000-000000000006",
+        "c0000000-0000-4000-8000-000000000007",
+        "c0000000-0000-4000-8000-000000000008",
+        "c0000000-0000-4000-8000-000000000009",
+        "c0000000-0000-4000-8000-000000000010",
+        "c0000000-0000-4000-8000-000000000011",
+        "c0000000-0000-4000-8000-000000000012",
+        "c0000000-0000-4000-8000-000000000013",
+        "c0000000-0000-4000-8000-000000000014",
+        "c0000000-0000-4000-8000-000000000015",
+        "c0000000-0000-4000-8000-000000000016",
+        "c0000000-0000-4000-8000-000000000017",
+        "c0000000-0000-4000-8000-000000000018",
+        "c0000000-0000-4000-8000-000000000019"
+      ]
+    },
+    {
+      "name": "blank search maps to the page view-all state",
+      "search": "",
+      "showAll": true,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000001",
+        "c0000000-0000-4000-8000-000000000002",
+        "c0000000-0000-4000-8000-000000000003",
+        "c0000000-0000-4000-8000-000000000004",
+        "c0000000-0000-4000-8000-000000000005",
+        "c0000000-0000-4000-8000-000000000006",
+        "c0000000-0000-4000-8000-000000000007",
+        "c0000000-0000-4000-8000-000000000008",
+        "c0000000-0000-4000-8000-000000000009",
+        "c0000000-0000-4000-8000-000000000010",
+        "c0000000-0000-4000-8000-000000000011",
+        "c0000000-0000-4000-8000-000000000012",
+        "c0000000-0000-4000-8000-000000000013",
+        "c0000000-0000-4000-8000-000000000014",
+        "c0000000-0000-4000-8000-000000000015",
+        "c0000000-0000-4000-8000-000000000016",
+        "c0000000-0000-4000-8000-000000000017",
+        "c0000000-0000-4000-8000-000000000018",
+        "c0000000-0000-4000-8000-000000000019"
+      ]
+    },
+    {
+      "name": "whitespace-only search maps to view-all",
+      "search": "   \t\n",
+      "showAll": true,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000001",
+        "c0000000-0000-4000-8000-000000000002",
+        "c0000000-0000-4000-8000-000000000003",
+        "c0000000-0000-4000-8000-000000000004",
+        "c0000000-0000-4000-8000-000000000005",
+        "c0000000-0000-4000-8000-000000000006",
+        "c0000000-0000-4000-8000-000000000007",
+        "c0000000-0000-4000-8000-000000000008",
+        "c0000000-0000-4000-8000-000000000009",
+        "c0000000-0000-4000-8000-000000000010",
+        "c0000000-0000-4000-8000-000000000011",
+        "c0000000-0000-4000-8000-000000000012",
+        "c0000000-0000-4000-8000-000000000013",
+        "c0000000-0000-4000-8000-000000000014",
+        "c0000000-0000-4000-8000-000000000015",
+        "c0000000-0000-4000-8000-000000000016",
+        "c0000000-0000-4000-8000-000000000017",
+        "c0000000-0000-4000-8000-000000000018",
+        "c0000000-0000-4000-8000-000000000019"
+      ]
+    },
+    {
+      "name": "non-breaking-space-only search maps to view-all",
+      "search": " ",
+      "showAll": true,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000001",
+        "c0000000-0000-4000-8000-000000000002",
+        "c0000000-0000-4000-8000-000000000003",
+        "c0000000-0000-4000-8000-000000000004",
+        "c0000000-0000-4000-8000-000000000005",
+        "c0000000-0000-4000-8000-000000000006",
+        "c0000000-0000-4000-8000-000000000007",
+        "c0000000-0000-4000-8000-000000000008",
+        "c0000000-0000-4000-8000-000000000009",
+        "c0000000-0000-4000-8000-000000000010",
+        "c0000000-0000-4000-8000-000000000011",
+        "c0000000-0000-4000-8000-000000000012",
+        "c0000000-0000-4000-8000-000000000013",
+        "c0000000-0000-4000-8000-000000000014",
+        "c0000000-0000-4000-8000-000000000015",
+        "c0000000-0000-4000-8000-000000000016",
+        "c0000000-0000-4000-8000-000000000017",
+        "c0000000-0000-4000-8000-000000000018",
+        "c0000000-0000-4000-8000-000000000019"
+      ]
+    },
+    {
+      "name": "combining-mark-only query matches everything",
+      "search": "́",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000001",
+        "c0000000-0000-4000-8000-000000000002",
+        "c0000000-0000-4000-8000-000000000003",
+        "c0000000-0000-4000-8000-000000000004",
+        "c0000000-0000-4000-8000-000000000005",
+        "c0000000-0000-4000-8000-000000000006",
+        "c0000000-0000-4000-8000-000000000007",
+        "c0000000-0000-4000-8000-000000000008",
+        "c0000000-0000-4000-8000-000000000009",
+        "c0000000-0000-4000-8000-000000000010",
+        "c0000000-0000-4000-8000-000000000011",
+        "c0000000-0000-4000-8000-000000000012",
+        "c0000000-0000-4000-8000-000000000013",
+        "c0000000-0000-4000-8000-000000000014",
+        "c0000000-0000-4000-8000-000000000015",
+        "c0000000-0000-4000-8000-000000000016",
+        "c0000000-0000-4000-8000-000000000017",
+        "c0000000-0000-4000-8000-000000000018",
+        "c0000000-0000-4000-8000-000000000019"
+      ]
+    },
+    {
+      "name": "no matches",
+      "search": "quantum annealing",
+      "showAll": false,
+      "expectedIds": []
+    },
+    {
+      "name": "percent stays literal",
+      "search": "%",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000017"
+      ]
+    },
+    {
+      "name": "underscore stays literal",
+      "search": "_",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000017"
+      ]
+    },
+    {
+      "name": "backslash stays literal",
+      "search": "\\",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000017"
+      ]
+    },
+    {
+      "name": "nbsp entities collapse to one space",
+      "search": "alpha beta",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000018"
+      ]
+    },
+    {
+      "name": "decomposed stored title folds like composed text",
+      "search": "tieng viet",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000019"
+      ]
+    },
+    {
+      "name": "decomposed stored description folds like composed text",
+      "search": "ngu am",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000019"
+      ]
+    },
+    {
+      "name": "internal query whitespace collapses into tokens",
+      "search": "  he   thong  ",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000006"
+      ]
+    },
+    {
+      "name": "uppercase query is lowered",
+      "search": "ĐIỆN TOÁN",
+      "showAll": false,
+      "expectedIds": [
+        "c0000000-0000-4000-8000-000000000010",
+        "c0000000-0000-4000-8000-000000000016"
+      ]
+    }
+  ],
+  "emptyCatalogue": {
+    "cases": [
+      {
+        "name": "empty catalogue with a dictionary key",
+        "search": "artificial intelligence",
+        "expectedIds": []
+      },
+      {
+        "name": "empty catalogue with the all keyword",
+        "search": "all",
+        "showAll": true,
+        "expectedIds": []
+      },
+      {
+        "name": "empty catalogue with a blank search",
+        "search": "   ",
+        "showAll": true,
+        "expectedIds": []
+      }
+    ]
+  }
+}
