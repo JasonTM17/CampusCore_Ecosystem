@@ -5,7 +5,11 @@ import { useRouter } from 'next/navigation';
 import { ArrowDown, ArrowUp, Palette } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
-import { announcementsApi } from '@/lib/api';
+import {
+  fetchPinOptionPage,
+  fetchPinnedAnnouncementRows,
+  type PinOptionRow,
+} from '@/lib/appearance-pin-catalog';
 import { AdminFrame } from '@/components/admin/AdminFrame';
 import { Button } from '@/components/ui/button';
 import { DragHandle, SortableList } from '@/components/ui/sortable-list';
@@ -31,10 +35,7 @@ import {
 } from '@/lib/site-appearance-client';
 import { cn } from '@/lib/utils';
 
-type AnnouncementRow = {
-  id: string;
-  title: string;
-};
+type AnnouncementRow = PinOptionRow;
 
 function mergeSavedAppearanceMetadata(current: SiteAppearance, saved: SiteAppearance): SiteAppearance {
   return {
@@ -66,6 +67,14 @@ export default function AdminAppearancePage() {
   const [copyLocale, setCopyLocale] = useState<'en' | 'vi'>(locale);
   const copyLocaleTabs = useRovingTabs(['en', 'vi'], copyLocale, setCopyLocale);
   const [posts, setPosts] = useState<AnnouncementRow[]>([]);
+  const [pinnedPosts, setPinnedPosts] = useState<AnnouncementRow[]>([]);
+  const [postsPage, setPostsPage] = useState(1);
+  const [postsTotalPages, setPostsTotalPages] = useState(0);
+  const [isLoadingMorePosts, setIsLoadingMorePosts] = useState(false);
+  const [postSearch, setPostSearch] = useState('');
+  // The catalog is paged: the search the rows on screen belong to lives in a
+  // ref so reloads and load-more stay on the same term.
+  const catalogSearchRef = useRef('');
   const [postsLoadFailed, setPostsLoadFailed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -89,22 +98,8 @@ export default function AdminAppearancePage() {
     }
   }, [href, isAdmin, isSuperAdmin, isAuthLoading, isLoggingOut, router, user]);
 
-  // The pinned-order editor needs the whole catalog — a limit-20 page made
-  // announcements 21+ unreachable, and a swallowed fetch error rendered the
-  // same "no announcements" empty state as an actually empty catalog.
-  const fetchAllAnnouncementRows = useCallback(async (): Promise<AnnouncementRow[]> => {
-    const first = await announcementsApi.getAll({ page: 1, limit: 100 });
-    const totalPages = first.meta?.totalPages ?? 1;
-    if (totalPages <= 1) {
-      return first.data ?? [];
-    }
-    const rest = await Promise.all(
-      Array.from({ length: totalPages - 1 }, (_, index) =>
-        announcementsApi.getAll({ page: index + 2, limit: 100 })),
-    );
-    return [first.data ?? [], ...rest.map((page) => page.data ?? [])].flat();
-  }, []);
-
+  // The picker pages through the lightweight catalog one bounded page at a
+  // time; pins resolve by id so they stay visible off-page and under search.
   const load = useCallback(async () => {
     setIsLoading(true);
     setError('');
@@ -112,27 +107,24 @@ export default function AdminAppearancePage() {
 
     let postsFailed = false;
     try {
-      const [snapshot, announcements] = await Promise.all([
+      const [snapshot, firstPage] = await Promise.all([
         fetchSiteAppearanceSnapshot(),
-        fetchAllAnnouncementRows().catch(() => {
+        fetchPinOptionPage(1, catalogSearchRef.current).catch(() => {
           postsFailed = true;
-          return [] as AnnouncementRow[];
+          return null;
         }),
       ]);
-      const rows = announcements.map((item) => ({
-        id: item.id,
-        title: item.title,
-      }));
-      // The fetched rows arrive in server display order. Re-seating the pinned
-      // order against them here overwrote every relative move the admin had
-      // made — and broadcasting the draft then pushed that clobbered order to
-      // the live homepage without the admin doing anything. Loading must keep
-      // the stored pin exactly as saved; the list below is rendered through
-      // the `orderedPosts` rank map instead, and a broadcast only happens on
-      // an explicit save (persist/reorder).
-      setPosts(rows);
+      const appearance = sanitizeSiteAppearance(snapshot.appearance);
+      const pinned = await fetchPinnedAnnouncementRows(appearance.postOrder).catch(() => {
+        postsFailed = true;
+        return [] as AnnouncementRow[];
+      });
+      setPosts(firstPage?.data ?? []);
+      setPostsPage(firstPage?.meta.page ?? 1);
+      setPostsTotalPages(firstPage?.meta.totalPages ?? 0);
+      setPinnedPosts(pinned);
       setPostsLoadFailed(postsFailed);
-      updateDraft(sanitizeSiteAppearance(snapshot.appearance));
+      updateDraft(appearance);
       storedVersionRef.current = snapshot.expectedVersion;
       staleConflictRef.current = false;
       setStaleConflict(false);
@@ -141,13 +133,53 @@ export default function AdminAppearancePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [copy.loadFailed, fetchAllAnnouncementRows, updateDraft]);
+  }, [copy.loadFailed, updateDraft]);
 
   useEffect(() => {
     if (canAccess) {
       void load();
     }
   }, [canAccess, load]);
+
+  // Title search runs on the server: filtering the rows on screen would hide
+  // every match beyond the loaded pages.
+  useEffect(() => {
+    if (postSearch === catalogSearchRef.current) {
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      catalogSearchRef.current = postSearch;
+      void fetchPinOptionPage(1, postSearch)
+        .then((result) => {
+          setPosts(result.data);
+          setPostsPage(result.meta.page);
+          setPostsTotalPages(result.meta.totalPages);
+          setPostsLoadFailed(false);
+        })
+        .catch(() => setPostsLoadFailed(true));
+    }, 250);
+    return () => window.clearTimeout(handle);
+  }, [postSearch]);
+
+  const loadMorePosts = useCallback(async () => {
+    if (isLoadingMorePosts || postsPage >= postsTotalPages) {
+      return;
+    }
+    setIsLoadingMorePosts(true);
+    try {
+      const next = await fetchPinOptionPage(postsPage + 1, catalogSearchRef.current);
+      setPosts((current) => {
+        const seen = new Set(current.map((row) => row.id));
+        return [...current, ...next.data.filter((row) => !seen.has(row.id))];
+      });
+      setPostsPage(next.meta.page);
+      setPostsTotalPages(next.meta.totalPages);
+    } catch {
+      toast.error(copy.postsLoadFailed);
+    } finally {
+      setIsLoadingMorePosts(false);
+    }
+  }, [copy.postsLoadFailed, isLoadingMorePosts, postsPage, postsTotalPages]);
 
   const pendingAppearanceSaveRef = useRef<SiteAppearance | null>(null);
   const appearanceSaveInFlightRef = useRef(false);
@@ -208,12 +240,29 @@ export default function AdminAppearancePage() {
 
   const orderedPosts = useMemo(() => {
     const rank = new Map(draft.postOrder.map((id, index) => [id, index]));
-    return [...posts].sort((left, right) => {
+    const seen = new Set<string>();
+    const ordered: AnnouncementRow[] = [];
+    // Resolved pins keep their saved order and stay visible off-page; ids that
+    // no longer resolve (archived or deleted) render nothing.
+    for (const row of pinnedPosts) {
+      if (rank.has(row.id) && !seen.has(row.id)) {
+        seen.add(row.id);
+        ordered.push(row);
+      }
+    }
+    const rest = [...posts].sort((left, right) => {
       const leftRank = rank.get(left.id) ?? Number.MAX_SAFE_INTEGER;
       const rightRank = rank.get(right.id) ?? Number.MAX_SAFE_INTEGER;
       return leftRank - rightRank;
     });
-  }, [draft.postOrder, posts]);
+    for (const row of rest) {
+      if (!seen.has(row.id)) {
+        seen.add(row.id);
+        ordered.push(row);
+      }
+    }
+    return ordered;
+  }, [draft.postOrder, posts, pinnedPosts]);
 
   const handleSortableReorder = useCallback(
     (_newItems: AnnouncementRow[], newKeys: string[]) => {
@@ -469,6 +518,12 @@ export default function AdminAppearancePage() {
                 <h2 className="text-lg font-semibold text-foreground">{copy.postsTitle}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">{copy.postsDescription}</p>
               </div>
+              <Input
+                type="search"
+                value={postSearch}
+                onChange={(event) => setPostSearch(event.target.value)}
+                aria-label={copy.postSearchLabel}
+              />
               {postsLoadFailed ? (
                 <ErrorState
                   title={copy.loadFailed}
@@ -548,6 +603,16 @@ export default function AdminAppearancePage() {
                   )}
                 />
               )}
+              {!postsLoadFailed && postsPage < postsTotalPages ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSaving || isLoadingMorePosts}
+                  onClick={() => void loadMorePosts()}
+                >
+                  {copy.postsLoadMore}
+                </Button>
+              ) : null}
             </section>
           </div>
 

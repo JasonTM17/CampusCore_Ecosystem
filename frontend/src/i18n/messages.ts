@@ -1380,6 +1380,8 @@ export const en = {
       postsDescription:
         'Move a notice up or down. Student and lecturer feeds follow this order as soon as it is saved.',
       postsEmpty: 'Publish a notice first, then arrange it here.',
+      postSearchLabel: 'Search notices',
+      postsLoadMore: 'Load more',
       moveUp: 'Move up',
       moveDown: 'Move down',
       openAnnouncements: 'Open notices',
@@ -4466,6 +4468,8 @@ export const vi: I18nMessages = {
       postsDescription:
         'Đưa thông báo lên hoặc xuống. Bảng tin sinh viên và giảng viên theo thứ tự này ngay khi được lưu.',
       postsEmpty: 'Hãy phát hành một thông báo trước, rồi sắp xếp tại đây.',
+      postSearchLabel: 'Tìm thông báo',
+      postsLoadMore: 'Tải thêm',
       moveUp: 'Đưa lên',
       moveDown: 'Đưa xuống',
       openAnnouncements: 'Mở thông báo',
