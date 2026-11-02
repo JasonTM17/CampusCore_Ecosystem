@@ -340,7 +340,7 @@ export default function DashboardLayout({
         label: messages.adminShell.menuSections.campus,
         items: [
           { href: '/admin/thesis', icon: GraduationCap, label: messages.admin.menuItems[0]?.[0] },
-          { href: '/dashboard/editor', icon: FileEdit, label: locale === 'vi' ? 'Trình soạn thảo website' : 'Site Editor & CMS' },
+          { href: '/dashboard/editor', icon: FileEdit, label: messages.adminShell.menuSiteEditor },
           { href: '/admin/announcements', icon: Megaphone, label: messages.admin.menuItems[9]?.[0] },
           { href: '/admin/notifications', icon: Bell, label: messages.adminShell.menuSystemNotifications },
           { href: '/admin/assistant-knowledge', icon: BrainCircuit, label: messages.admin.menuItems[10]?.[0] },
@@ -351,7 +351,6 @@ export default function DashboardLayout({
       },
     ],
     [
-      locale,
       messages.admin.menuItems,
       messages.admin.title,
       messages.adminShell.academicYears,
@@ -361,6 +360,7 @@ export default function DashboardLayout({
       messages.adminShell.menuSections.campus,
       messages.adminShell.menuSections.overview,
       messages.adminShell.menuSections.people,
+      messages.adminShell.menuSiteEditor,
       messages.adminShell.menuSystemNotifications,
     ],
   );
@@ -1086,7 +1086,7 @@ export default function DashboardLayout({
                     {isDemoUser(user) && (
                       <span className="inline-flex items-center gap-1 rounded-md border border-portal-brand-gold/35 bg-portal-brand-gold/15 px-2 py-0.5 text-[11px] font-medium text-portal-sidebar-text">
                         <span className="h-1.5 w-1.5 rounded-full bg-portal-brand-gold shadow-xs" />
-                        {locale === 'vi' ? 'TK Demo trải nghiệm' : 'Demo account'}
+                        {messages.dashboardShell.demoTag}
                       </span>
                     )}
                   </div>
@@ -1402,7 +1402,7 @@ export default function DashboardLayout({
                       >
                         <span className="flex items-center gap-1.5">
                           <Megaphone className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                          <span>{locale === 'vi' ? 'Bảng tin Phòng Đào tạo' : 'Academic Affairs Notice Board'}</span>
+                          <span>{messages.dashboardShell.notifications.academicAffairsNoticeBoard}</span>
                         </span>
                         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                       </LocalizedLink>
@@ -1461,7 +1461,7 @@ export default function DashboardLayout({
                             className="h-1.5 w-1.5 rounded-full bg-portal-brand-gold"
                             aria-hidden="true"
                           />
-                          {locale === 'vi' ? 'Demo trải nghiệm' : 'Demo'}
+                          {messages.adminShell.demoTag}
                         </span>
                       )}
                     </div>
@@ -1511,7 +1511,7 @@ export default function DashboardLayout({
                           {isDemoUser(user) && (
                             <div className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300">
                               <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                              {locale === 'vi' ? 'Tài khoản demo để trải nghiệm' : 'Demo experience account'}
+                              {messages.dashboardShell.demoAccount}
                             </div>
                           )}
                         </div>

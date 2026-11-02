@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import type { AnnouncementRecord } from '@/lib/api';
 import type { Locale } from '@/i18n/config';
 import { localeCodes } from '@/i18n/config';
+import { getMessages } from '@/i18n/messages';
 import { RichContentRenderer } from '@/components/ui/rich-content-renderer';
 import {
   calculateReadingTime,
@@ -58,6 +59,7 @@ export function EditorialArticleMagazine({
   locale = 'vi',
 }: EditorialArticleMagazineProps) {
   const isVi = locale === 'vi';
+  const metaMessages = getMessages(locale).meta;
   const copy = { en: announcementWorkspaceEn, vi: announcementWorkspaceVi }[locale].reader.magazine;
   const { categories } = useArticleTaxonomy();
   const domain = resolveAnnouncementDomain(announcement, locale, categories);
@@ -172,7 +174,7 @@ export function EditorialArticleMagazine({
           <div className="relative h-10 w-10 overflow-hidden rounded-full border border-border/80 bg-background p-0.5 shadow-xs">
             <Image
               src="/hcmute-logo.png"
-              alt="HCMUTE Emblem"
+              alt={metaMessages.emblemAlt}
               fill
               sizes="40px"
               className="object-contain"

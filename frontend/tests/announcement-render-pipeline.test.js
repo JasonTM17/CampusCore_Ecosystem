@@ -91,6 +91,13 @@ function rendererStubs() {
       }),
     },
     '@/i18n/config': { localeCodes: { vi: 'vi-VN', en: 'en-US' } },
+    '@/i18n/messages': {
+      getMessages: (locale) => ({
+        meta: {
+          emblemAlt: locale === 'vi' ? 'Biểu trưng HCMUTE' : 'HCMUTE Emblem',
+        },
+      }),
+    },
     '@/i18n/messages-editor': editorSurfaces,
   };
 }

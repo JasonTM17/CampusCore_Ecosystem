@@ -114,7 +114,7 @@ def run_deep_qa_audit():
                 time.sleep(1)
 
         # Test clicking announcement on Homepage
-        announcement_card = page.locator('article[role="button"], button:has-text("HCMUTE Emblem Watermark")').first
+        announcement_card = page.locator('article[role="button"], button:has(img[alt*="HCMUTE"])').first
         if announcement_card.is_visible():
             announcement_card.click()
             time.sleep(2)
