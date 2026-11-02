@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.library.service;
 
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.library.web.LibraryDtos.CopyResponse;
 import io.campuscore.restfulapi.library.web.LibraryDtos.CreateCopyRequest;
 import io.campuscore.restfulapi.library.web.LibraryDtos.CreateTitleRequest;
@@ -363,17 +364,36 @@ public class LibraryService {
 
     /** Request queue — materializes at most one expiry batch before reading persisted state. */
     @Transactional
-    public List<LoanRequestResponse> queue(String actorId, String status) {
+    public ListPaging.Result<LoanRequestResponse> queue(String actorId, String status,
+            ListPaging.Window window) {
         requireStaffGrant(actorId);
         expireOverdue(actorId);
         MapSqlParameterSource params = new MapSqlParameterSource();
-        StringBuilder sql = new StringBuilder(requestSelect());
+        StringBuilder where = new StringBuilder();
         if (status != null && !status.isBlank()) {
-            sql.append(" WHERE r.\"status\" = :status");
+            where.append(" WHERE r.\"status\" = :status");
             params.addValue("status", status);
         }
-        sql.append(" ORDER BY r.\"requestedAt\" NULLS LAST, r.\"createdAt\"");
-        return jdbc.query(sql.toString(), params, (row, index) -> mapRequest(row));
+        Long total = null;
+        if (window != null) {
+            total = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM " + LOAN_REQUEST + " r" + where, params, Long.class);
+        }
+        StringBuilder sql = new StringBuilder(requestSelect())
+                .append(where)
+                .append(" ORDER BY r.\"requestedAt\" NULLS LAST, r.\"createdAt\"");
+        if (window != null) {
+            sql.append(", r.\"id\" LIMIT :limit OFFSET :offset");
+            params.addValue("limit", window.limit()).addValue("offset", window.offset());
+        }
+        return new ListPaging.Result<>(
+                jdbc.query(sql.toString(), params, (row, index) -> mapRequest(row)), total);
+    }
+
+    /** Legacy array-returning queue read; no paging, no count, original order. */
+    @Transactional
+    public List<LoanRequestResponse> queue(String actorId, String status) {
+        return queue(actorId, status, null).items();
     }
 
     public LoanRequestResponse staffRequest(String actorId, String requestId) {

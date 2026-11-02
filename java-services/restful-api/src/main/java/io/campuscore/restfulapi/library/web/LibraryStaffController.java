@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.library.web;
 
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.library.service.LibraryService;
 import io.campuscore.restfulapi.library.web.LibraryDtos.CancelRequest;
 import io.campuscore.restfulapi.library.web.LibraryDtos.CopyResponse;
@@ -11,11 +12,17 @@ import io.campuscore.restfulapi.library.web.LibraryDtos.StaffGrantResponse;
 import io.campuscore.restfulapi.library.web.LibraryDtos.TitleResponse;
 import io.campuscore.restfulapi.library.web.LibraryDtos.TransitionRequest;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -49,12 +56,19 @@ public class LibraryStaffController {
     }
 
     @Operation(summary = "Hàng đợi đơn mượn (lọc theo trạng thái)")
+    @ApiResponse(responseCode = "200", description = "Hàng đợi đơn mượn", headers = @Header(
+            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+            schema = @Schema(type = "integer")))
     @GetMapping("/requests")
     @PreAuthorize("isAuthenticated()")
-    public List<LoanRequestResponse> queue(
+    public ResponseEntity<List<LoanRequestResponse>> queue(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestParam(required = false) String status) {
-        return library.queue(staff(jwt), status);
+            HttpServletRequest request,
+            @RequestParam(required = false) String status,
+            @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
+            @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit) {
+        ListPaging.Window window = ListPaging.Window.of(page, limit, request);
+        return ListPaging.respond(library.queue(staff(jwt), status, window));
     }
 
     @Operation(summary = "Chi tiết đơn mượn (staff)")

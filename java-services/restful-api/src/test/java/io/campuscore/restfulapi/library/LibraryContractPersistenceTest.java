@@ -4,10 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -139,9 +145,251 @@ class LibraryContractPersistenceTest {
                 "SELECT \"status\" FROM library.\"Copy\" WHERE \"id\" = ?", String.class, copyId);
     }
 
+    /**
+     * Seeds {@code count} REQUESTED rows with unique {@code requestedAt}
+     * values, inserted backwards so only the ORDER BY can produce the expected
+     * ascending sequence. Every row has a null {@code expiresAt} so the
+     * queue's single expiry batch never touches them.
+     */
+    private void seedQueue(int count) {
+        for (int i = count; i >= 1; i--) {
+            jdbc.update("INSERT INTO library.\"Copy\" (\"id\", \"titleId\", \"barcode\")"
+                            + " VALUES (?, 'title-1', ?)",
+                    "qcopy-" + i, "QBC-" + i);
+            jdbc.update("INSERT INTO library.\"LoanRequest\" (\"id\", \"copyId\", \"borrowerUserId\","
+                            + " \"status\", \"requestedAt\", \"createdAt\")"
+                            + " VALUES (?, ?, 'borrower-1', 'REQUESTED', ?, ?)",
+                    queueId(i), "qcopy-" + i,
+                    java.sql.Timestamp.from(queueRequestedAt(i)),
+                    java.sql.Timestamp.from(queueCreatedAt(i)));
+        }
+    }
+
+    /**
+     * Seeds tied rows: groups of three share {@code requestedAt}, two of each
+     * group share {@code createdAt}, and the remaining full tie is broken by
+     * id. Inserted backwards so neither insertion order nor id order alone can
+     * satisfy the expected paged sequence.
+     */
+    private void seedTiedQueue(int count) {
+        for (int i = count; i >= 1; i--) {
+            jdbc.update("INSERT INTO library.\"Copy\" (\"id\", \"titleId\", \"barcode\")"
+                            + " VALUES (?, 'title-1', ?)",
+                    "tcopy-" + i, "TBC-" + i);
+            jdbc.update("INSERT INTO library.\"LoanRequest\" (\"id\", \"copyId\", \"borrowerUserId\","
+                            + " \"status\", \"requestedAt\", \"createdAt\")"
+                            + " VALUES (?, ?, 'borrower-1', 'REQUESTED', ?, ?)",
+                    queueId(i), "tcopy-" + i,
+                    java.sql.Timestamp.from(tiedRequestedAt(i)),
+                    java.sql.Timestamp.from(tiedCreatedAt(i)));
+        }
+    }
+
+    private void nullableQueueRow(String id, String copyId, Instant requestedAt, Instant createdAt) {
+        jdbc.update("INSERT INTO library.\"Copy\" (\"id\", \"titleId\", \"barcode\")"
+                + " VALUES (?, 'title-1', ?)", copyId, "NBC-" + copyId);
+        jdbc.update("INSERT INTO library.\"LoanRequest\" (\"id\", \"copyId\", \"borrowerUserId\","
+                + " \"status\", \"requestedAt\", \"createdAt\")"
+                + " VALUES (?, ?, 'borrower-1', 'REQUESTED', ?, ?)",
+                id, copyId,
+                requestedAt == null ? null : java.sql.Timestamp.from(requestedAt),
+                createdAt == null ? null : java.sql.Timestamp.from(createdAt));
+    }
+
+    private static String queueId(int i) {
+        return String.format("req-%02d", i);
+    }
+
+    private static Instant queueRequestedAt(int i) {
+        return Instant.parse("2030-01-01T00:00:00Z").plusSeconds(60L * (100 + i));
+    }
+
+    private static Instant queueCreatedAt(int i) {
+        return Instant.parse("2030-01-01T00:00:00Z");
+    }
+
+    private static Instant tiedRequestedAt(int i) {
+        return Instant.parse("2030-01-01T00:00:00Z").plusSeconds(60L * (100 - (i + 2) / 3));
+    }
+
+    private static Instant tiedCreatedAt(int i) {
+        return Instant.parse("2030-01-01T00:00:00Z").plusSeconds(i % 3 == 0 ? 10 : 20);
+    }
+
+    private static List<String> expectedQueueOrder(int count) {
+        return IntStream.rangeClosed(1, count)
+                .mapToObj(LibraryContractPersistenceTest::queueId)
+                .toList();
+    }
+
+    private static List<String> expectedTiedOrder(int count) {
+        return IntStream.rangeClosed(1, count)
+                .boxed()
+                .sorted(Comparator.comparing(LibraryContractPersistenceTest::tiedRequestedAt)
+                        .thenComparing(LibraryContractPersistenceTest::tiedCreatedAt)
+                        .thenComparingInt(i -> i))
+                .map(LibraryContractPersistenceTest::queueId)
+                .toList();
+    }
+
+    private List<String> queueIds(MvcResult result) throws Exception {
+        List<String> ids = new ArrayList<>();
+        for (JsonNode row : objectMapper.readTree(result.getResponse().getContentAsString())) {
+            ids.add(row.get("id").asText());
+        }
+        return ids;
+    }
+
     // ---------------------------------------------------------------
     // contract coverage
     // ---------------------------------------------------------------
+
+    @Test
+    void staffQueueKeepsLegacyFullListAndPagesWithMatchingTotal() throws Exception {
+        seedQueue(45);
+
+        // No params: the exact legacy body — every row, legacy order, no header.
+        List<String> legacy = queueIds(mvc.perform(get("/api/v1/library/staff/requests").with(staffJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("X-Total-Count"))
+                .andReturn());
+        assertThat(legacy).containsExactlyElementsOf(expectedQueueOrder(45));
+
+        // Pages concatenate back to the legacy body: no skipped or duplicated
+        // row.
+        List<String> paged = new ArrayList<>();
+        for (int page = 0; page <= 3; page++) {
+            MvcResult result = mvc.perform(get("/api/v1/library/staff/requests?page=" + page + "&limit=20")
+                            .with(staffJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("X-Total-Count", "45"))
+                    .andReturn();
+            List<String> ids = queueIds(result);
+            assertThat(ids).hasSize(page < 2 ? 20 : page == 2 ? 5 : 0);
+            paged.addAll(ids);
+        }
+        assertThat(paged).containsExactlyElementsOf(legacy);
+
+        // limit alone is an explicit page 0 under the shared desk convention.
+        List<String> firstPage = queueIds(mvc.perform(get("/api/v1/library/staff/requests?limit=7")
+                        .with(staffJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "45"))
+                .andReturn());
+        assertThat(firstPage).containsExactlyElementsOf(legacy.subList(0, 7));
+    }
+
+    @Test
+    void staffQueueOrdersTiedTimestampsDeterministically() throws Exception {
+        seedTiedQueue(45);
+
+        // No params keeps the legacy statement, which has no id key; it still
+        // returns every row, but tie order is the database's implicit order.
+        assertThat(queueIds(mvc.perform(get("/api/v1/library/staff/requests").with(staffJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("X-Total-Count"))
+                .andReturn())).containsExactlyInAnyOrderElementsOf(expectedTiedOrder(45));
+
+        // Paged reads add the id key after both legacy timestamp keys, so every
+        // page boundary is deterministic: requestedAt, then createdAt, then id.
+        List<String> paged = new ArrayList<>();
+        for (int page = 0; page <= 2; page++) {
+            paged.addAll(queueIds(mvc.perform(get("/api/v1/library/staff/requests?page=" + page + "&limit=20")
+                            .with(staffJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("X-Total-Count", "45"))
+                    .andReturn()));
+        }
+        assertThat(paged).containsExactlyElementsOf(expectedTiedOrder(45));
+
+        // The nullable-key leg below exercises the retained NULLS LAST clause.
+    }
+
+    @Test
+    void staffQueueKeepsNullRequestedAtLastWhenTheKeyIsNullable() throws Exception {
+        // Production DDL declares requestedAt and createdAt NOT NULL; this
+        // H2-only leg drops that for the fixture so the retained NULLS LAST
+        // clause is exercised directly, as it would be if the column ever
+        // became nullable.
+        jdbc.execute("ALTER TABLE library.\"LoanRequest\" ALTER COLUMN \"requestedAt\" SET NULL");
+        jdbc.execute("ALTER TABLE library.\"LoanRequest\" ALTER COLUMN \"createdAt\" SET NULL");
+        nullableQueueRow("null-a", "nc-1", null, Instant.parse("2030-01-01T00:03:00Z"));
+        nullableQueueRow("set-a", "nc-2", Instant.parse("2030-01-01T00:05:00Z"),
+                Instant.parse("2030-01-01T00:01:00Z"));
+        nullableQueueRow("null-b", "nc-3", null, Instant.parse("2030-01-01T00:02:00Z"));
+        nullableQueueRow("set-b", "nc-4", Instant.parse("2030-01-01T00:04:00Z"),
+                Instant.parse("2030-01-01T00:01:00Z"));
+        List<String> expected = List.of("set-b", "set-a", "null-b", "null-a");
+
+        assertThat(queueIds(mvc.perform(get("/api/v1/library/staff/requests").with(staffJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("X-Total-Count"))
+                .andReturn())).containsExactlyElementsOf(expected);
+        assertThat(queueIds(mvc.perform(get("/api/v1/library/staff/requests?page=0&limit=2").with(staffJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "4"))
+                .andReturn())).containsExactly("set-b", "set-a");
+        assertThat(queueIds(mvc.perform(get("/api/v1/library/staff/requests?page=1&limit=2").with(staffJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "4"))
+                .andReturn())).containsExactly("null-b", "null-a");
+    }
+
+    @Test
+    void staffQueueCountsOnlyTheStatusFilteredRows() throws Exception {
+        seedQueue(45);
+        for (int i = 1; i <= 45; i += 3) {
+            jdbc.update("UPDATE library.\"LoanRequest\" SET \"status\" = 'CANCELLED' WHERE \"id\" = ?",
+                    queueId(i));
+        }
+        List<String> requested = expectedQueueOrder(45).stream()
+                .filter(id -> Integer.parseInt(id.substring("req-".length())) % 3 != 1)
+                .toList();
+        List<String> cancelled = expectedQueueOrder(45).stream()
+                .filter(id -> Integer.parseInt(id.substring("req-".length())) % 3 == 1)
+                .toList();
+        assertThat(requested).hasSize(30);
+        assertThat(cancelled).hasSize(15);
+
+        List<String> requestedPages = new ArrayList<>();
+        for (int page = 0; page <= 1; page++) {
+            requestedPages.addAll(queueIds(mvc.perform(get("/api/v1/library/staff/requests?status=REQUESTED"
+                                    + "&page=" + page + "&limit=20").with(staffJwt))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("X-Total-Count", "30"))
+                    .andReturn()));
+        }
+        assertThat(requestedPages).containsExactlyElementsOf(requested);
+
+        List<String> legacyFiltered = queueIds(mvc.perform(get("/api/v1/library/staff/requests?status=CANCELLED")
+                        .with(staffJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("X-Total-Count"))
+                .andReturn());
+        assertThat(legacyFiltered).containsExactlyElementsOf(cancelled);
+
+        List<String> cancelledPage = queueIds(mvc.perform(get("/api/v1/library/staff/requests?status=CANCELLED"
+                                + "&page=2&limit=5").with(staffJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "15"))
+                .andReturn());
+        assertThat(cancelledPage).containsExactlyElementsOf(cancelled.subList(10, 15));
+    }
+
+    @Test
+    void staffQueueRejectsInvalidPagingLikeTheOtherDeskQueues() throws Exception {
+        for (String query : List.of("?limit=0", "?limit=-1", "?limit=101", "?page=-1&limit=5", "?page=0")) {
+            mvc.perform(get("/api/v1/library/staff/requests" + query).with(staffJwt))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_PAGING"));
+        }
+        mvc.perform(get("/api/v1/library/staff/requests?page=x&limit=5").with(staffJwt))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        mvc.perform(get("/api/v1/library/staff/requests?page=0&page=1&limit=5").with(staffJwt))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PAGING"));
+    }
 
     @Test
     void fullLifecycleReservesIssuesAndRestoresStock() throws Exception {
