@@ -2,6 +2,7 @@ package io.campuscore.restfulapi.thesis.web;
 
 import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.thesis.domain.RoundStatus;
+import io.campuscore.restfulapi.thesis.service.ThesisArchiveSearch;
 import io.campuscore.restfulapi.thesis.service.ThesisMutationService;
 import io.campuscore.restfulapi.thesis.service.ThesisReportService;
 import io.campuscore.restfulapi.thesis.service.ThesisSupervisorService;
@@ -403,18 +404,39 @@ public class ThesisMutationController {
     }
 
     @Operation(summary = "Kho báo cáo của đợt",
-            description = "Trả về mảng báo cáo đã được phân quyền; thêm page/limit để phân trang kèm X-Total-Count")
-    @ApiResponse(responseCode = "200", description = "Kho báo cáo", headers = @Header(
-            name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
-            schema = @Schema(type = "integer")))
+            description = "Trả về mảng báo cáo đã được phân quyền; thêm page/limit để phân trang kèm "
+                    + "X-Total-Count và ba tổng X-Archive-*; thêm search để lọc theo đúng quy tắc tìm kiếm trên web")
+    @ApiResponse(responseCode = "200", description = "Kho báo cáo", headers = {
+            @Header(name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
+                    schema = @Schema(type = "integer")),
+            @Header(name = ThesisArchiveSearch.ARCHIVE_TOTAL_HEADER,
+                    description = ThesisArchiveSearch.ARCHIVE_TOTAL_DOC, schema = @Schema(type = "integer")),
+            @Header(name = ThesisArchiveSearch.ARCHIVE_FILE_HEADER,
+                    description = ThesisArchiveSearch.ARCHIVE_FILE_DOC, schema = @Schema(type = "integer")),
+            @Header(name = ThesisArchiveSearch.ARCHIVE_URL_HEADER,
+                    description = ThesisArchiveSearch.ARCHIVE_URL_DOC, schema = @Schema(type = "integer"))})
     @GetMapping("/rounds/{id}/repository")
     @PreAuthorize("hasAnyRole('ADMIN','TRUONG_KHOA','TRUONG_BO_MON','LECTURER','SUPER_ADMIN')")
     public org.springframework.http.ResponseEntity<List<RepositoryReportResponse>> listRepository(
             @PathVariable UUID id,
+            @Parameter(description = ThesisArchiveSearch.SEARCH_DOC) @RequestParam(required = false) String search,
             @Parameter(description = ListPaging.PAGE_DOC) @RequestParam(required = false) Integer page,
             @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit,
+            jakarta.servlet.http.HttpServletRequest request,
             @AuthenticationPrincipal Jwt actor) {
-        return ListPaging.respond(reports.listRepository(id, actor, ListPaging.Window.of(page, limit)));
+        String term = ThesisArchiveSearch.singleValued(search, request.getParameterValues("search"));
+        ListPaging.Window window = ListPaging.Window.of(page, limit);
+        ThesisReportService.RepositoryArchivePage pageResult = reports.listRepository(id, actor, window, term);
+        if (window == null) {
+            return org.springframework.http.ResponseEntity.ok(pageResult.items());
+        }
+        ThesisReportService.RepositoryArchiveSummary summary = pageResult.summary();
+        return org.springframework.http.ResponseEntity.ok()
+                .header(ListPaging.TOTAL_COUNT_HEADER, String.valueOf(pageResult.total()))
+                .header(ThesisArchiveSearch.ARCHIVE_TOTAL_HEADER, String.valueOf(summary.archiveTotal()))
+                .header(ThesisArchiveSearch.ARCHIVE_FILE_HEADER, String.valueOf(summary.fileCount()))
+                .header(ThesisArchiveSearch.ARCHIVE_URL_HEADER, String.valueOf(summary.urlCount()))
+                .body(pageResult.items());
     }
 
     @PostMapping("/groups/{id}/approve")
