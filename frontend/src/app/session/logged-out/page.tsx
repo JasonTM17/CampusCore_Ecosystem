@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getMessages } from '@/i18n/messages';
-import { getRequestLocale } from '@/i18n/server';
+import { getRequestLocale, isPrefixedRequest } from '@/i18n/server';
+import { localizePathname } from '@/i18n/paths';
 
 /**
  * Post-logout landing owned by Next (docs/ecosystem/host-policy.md §3 —
@@ -8,8 +9,14 @@ import { getRequestLocale } from '@/i18n/server';
  * destination the `id` host's /connect/logout redirects back to).
  */
 export default async function LoggedOutPage() {
-  const messages = getMessages(await getRequestLocale());
+  const locale = await getRequestLocale();
+  const messages = getMessages(locale);
   const copy = messages.session.loggedOut;
+  // Same rule the LocalizedLink component applies: a prefixed visit keeps its
+  // prefix, an unprefixed default-locale visit stays unprefixed, and a
+  // non-default locale reached through the cookie keeps its /en (or /vi)
+  // address. Landing on a bare '/' would reset an English visitor to Vietnamese.
+  const homeHref = localizePathname('/', locale, await isPrefixedRequest());
 
   return (
     <main
@@ -29,7 +36,7 @@ export default async function LoggedOutPage() {
           {copy.body}
         </p>
         <Link
-          href="/"
+          href={homeHref}
           style={{
             color: '#1d4ed8',
             textDecoration: 'none',

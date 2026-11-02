@@ -13,6 +13,44 @@ import { campusErrorCode } from '@/lib/campus-error';
 
 export const dynamic = 'force-dynamic';
 
+type ForgotPasswordOutcome = 'sent' | 'rate-limited' | 'network' | 'failed';
+
+/**
+ * Classifies a reset-request failure without ever answering "does this mailbox
+ * exist?". The Java endpoint already returns 200 for every address, but a proxy
+ * or a future lookup could answer a lookup-status 4xx for an unknown account;
+ * those answers are folded into the same uniform confirmation. Conditions that
+ * say nothing about the mailbox stay visible instead of faking a success: a
+ * transport failure, a rate limit, a gate/config rejection (401/403), and a
+ * 5xx outage.
+ */
+function forgotPasswordOutcome(error: unknown): ForgotPasswordOutcome {
+  if (campusErrorCode(error) === 'RATE_LIMIT_EXCEEDED') {
+    return 'rate-limited';
+  }
+  if (!(error instanceof AxiosError)) {
+    return 'failed';
+  }
+  const status = error.response?.status;
+  if (status === undefined) {
+    return 'network';
+  }
+  if (status === 429) {
+    return 'rate-limited';
+  }
+  // Authorization and gate rejections are infrastructure answers, not mailbox
+  // answers: hiding a CSRF/WAF block behind "check your email" would strand the
+  // user waiting for a message that was never queued.
+  if (status === 401 || status === 403) {
+    return 'failed';
+  }
+  if (status >= 500) {
+    return 'failed';
+  }
+  // A lookup answer (400/404/409/422) must never become an existence oracle.
+  return 'sent';
+}
+
 /**
  * Anonymous self-service recovery. The backend answers every eligible request
  * with the same 200 body, so the UI shows one generic banner for any accepted
@@ -51,11 +89,15 @@ export default function ForgotPasswordPage() {
       await authApi.forgotPassword(email.trim());
       setSent(true);
     } catch (error: unknown) {
-      const code = campusErrorCode(error);
-      if (code === 'RATE_LIMIT_EXCEEDED' ||
-          (error instanceof AxiosError && error.response?.status === 429)) {
+      const outcome = forgotPasswordOutcome(error);
+      if (outcome === 'sent') {
+        // A lookup-status answer (400/404/409/422) is accepted like a 200: the
+        // banner copy is conditional ("If an account matches …"), so it
+        // confirms nothing about the mailbox.
+        setSent(true);
+      } else if (outcome === 'rate-limited') {
         setFormError(copy.rateLimited);
-      } else if (error instanceof AxiosError && !error.response) {
+      } else if (outcome === 'network') {
         setFormError(messages.common.campusErrors.network);
       } else {
         setFormError(copy.failedToast);

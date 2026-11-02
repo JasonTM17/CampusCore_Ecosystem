@@ -5,14 +5,27 @@ const path = require('node:path');
 const ts = require('typescript');
 
 const root = path.resolve(__dirname, '..');
+const moduleCache = new Map();
 
 function load(relativePath) {
+  if (moduleCache.has(relativePath)) return moduleCache.get(relativePath);
   const source = fs.readFileSync(path.join(root, relativePath), 'utf8');
   const output = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText;
   const moduleRecord = { exports: {} };
-  Function('module', 'exports', output)(moduleRecord, moduleRecord.exports);
+  const dependency = (name) => {
+    if (name === '@/lib/assistant-history-window') {
+      return load('src/lib/assistant-history-window.ts');
+    }
+    throw new Error(`Unexpected module import in reducer test loader: ${name}`);
+  };
+  Function('require', 'module', 'exports', output)(
+    dependency,
+    moduleRecord,
+    moduleRecord.exports,
+  );
+  moduleCache.set(relativePath, moduleRecord.exports);
   return moduleRecord.exports;
 }
 
