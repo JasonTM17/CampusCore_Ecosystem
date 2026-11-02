@@ -395,6 +395,56 @@ test('JSON path is unchanged: headers, bodies, 204, text and failed refresh brid
   }
 });
 
+test('a transient refresh outage keeps the session and surfaces a retryable failure', async () => {
+  const { state, options } = makeSession();
+  const client = createApiClient({
+    ...options,
+    refreshSession: async () => {
+      state.refreshCalls += 1;
+      return 'unavailable';
+    },
+  });
+  const net = installFetch(() => json(401, { message: 'expired' }));
+  try {
+    await assert.rejects(
+      client.get('/me'),
+      (error) => error instanceof ApiClientError && error.kind === 'network' && error.retryable === true,
+    );
+    assert.equal(state.expired, 0, 'a transient refresh failure must not sign the user out');
+    assert.equal(state.token, 'old-token', 'the session token survives an issuer outage');
+    assert.equal(state.refreshCalls, 1);
+    assert.equal(net.calls.length, 1, 'no replay without a rotated token');
+  } finally {
+    net.restore();
+  }
+});
+
+test('a recovered issuer is retried by the next request after a transient refresh failure', async () => {
+  const { state, options } = makeSession();
+  let recovered = false;
+  const client = createApiClient({
+    ...options,
+    refreshSession: async () => {
+      state.refreshCalls += 1;
+      if (!recovered) return 'unavailable';
+      state.token = 'new-token';
+      return 'refreshed';
+    },
+  });
+  const net = installFetch((call) => authorizedWith('new-token')(call)
+    ? json(200, { ok: true })
+    : json(401, { message: 'expired' }));
+  try {
+    await assert.rejects(client.get('/one'), (error) => error.code === 'NETWORK_ERROR');
+    assert.equal(state.expired, 0);
+    recovered = true;
+    assert.deepEqual(await client.get('/one'), { ok: true });
+    assert.equal(state.refreshCalls, 2, 'the next request starts a fresh flight');
+  } finally {
+    net.restore();
+  }
+});
+
 test('a rate-limited response keeps Retry-After on the error for the caller', async () => {
   const { options } = makeSession();
   const client = createApiClient(options);

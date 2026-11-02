@@ -8,6 +8,7 @@ import { ChoiceField } from '../../components/ui/choice-field';
 import { useLocale } from '../../i18n/locale-provider';
 import { countForm } from '../../i18n/locale';
 import { fillCopy } from '../../i18n/academic-messages';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi, type CurriculumCourse } from './academic-api';
 import { localizedName } from './academic-model';
@@ -33,6 +34,7 @@ export function CurriculumScreen({ navigation }: MobileScreenProps) {
   const { formatNumber } = useLocale();
   const preview = isPreviewMode();
   const query = useAcademicQuery('academic.curriculum', () => academicApi.curriculum(), copy);
+  const pull = usePullToRefresh(() => query.reload());
   const [filter, setFilter] = useState<StatusFilter>('ALL');
   const data = preview ? previewCurriculum : query.data ?? null;
 
@@ -51,8 +53,8 @@ export function CurriculumScreen({ navigation }: MobileScreenProps) {
       error={preview ? null : query.error}
       warning={preview ? copy.previewNotice : query.warning}
       onRetry={() => void query.reload()}
-      onRefresh={preview ? undefined : () => { void query.reload(); }}
-      refreshing={!preview && query.isStale}
+      onRefresh={preview ? undefined : pull.onRefresh}
+      refreshing={!preview && pull.refreshing}
 
       list={{ data: groupedRows(groups, (group) => group.key, (group) => group.courses, (item) => item.courseId), keyExtractor: (entry) => entry.key,
         renderItem: ({ item: entry }) => { const group = entry.group;

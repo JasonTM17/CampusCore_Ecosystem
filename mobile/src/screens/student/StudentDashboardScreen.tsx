@@ -39,7 +39,7 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
     isLoading,
     reload,
   } = useLiveResource<MobileEnrollment[]>(
-    'enrollments',
+    'academic.enrollments',
     [],
     () => campusApi.enrollments(),
     c.loadError,

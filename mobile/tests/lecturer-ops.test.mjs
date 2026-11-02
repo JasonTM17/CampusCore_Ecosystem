@@ -13,8 +13,9 @@ const webSrc = path.resolve(mobileRoot, '..', 'frontend', 'src');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cu-lecturer-'));
 const loadWeb = createWebModuleLoader(webSrc, tmp);
 
-async function load(file, name, development) {
-  const source = fs.readFileSync(file, 'utf8');
+async function load(file, name, development, rewrites = {}) {
+  let source = fs.readFileSync(file, 'utf8');
+  for (const [from, to] of Object.entries(rewrites)) source = source.split(`'${from}'`).join(`'${to}'`);
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
     fileName: `${name}.ts`,
@@ -34,14 +35,15 @@ async function load(file, name, development) {
 }
 
 const ops = path.join(mobileRoot, 'src', 'screens', 'operations');
-const model = await load(path.join(ops, 'lecturer-model.ts'), 'lecturer-model');
+const localeUrl = pathToFileURL(path.join(tmp, 'locale.mjs')).href;
+const locale = await load(path.join(mobileRoot, 'src', 'i18n', 'locale.ts'), 'locale');
+const model = await load(path.join(ops, 'lecturer-model.ts'), 'lecturer-model', undefined, { '../../i18n/locale': localeUrl });
 const csv = await load(path.join(ops, 'lecturer-csv.ts'), 'lecturer-csv');
 const portal = await load(path.join(ops, 'shared', 'portal-url.ts'), 'portal-url');
 const portalDevelopment = await load(path.join(ops, 'shared', 'portal-url.ts'), 'portal-url-development', true);
 const portalRelease = await load(path.join(ops, 'shared', 'portal-url.ts'), 'portal-url-release', false);
 const opsMessages = await load(path.join(mobileRoot, 'src', 'i18n', 'operations-messages.ts'), 'operations-messages');
 const laneMessages = await load(path.join(mobileRoot, 'src', 'i18n', 'lanes-messages.ts'), 'lanes-messages');
-const locale = await load(path.join(mobileRoot, 'src', 'i18n', 'locale.ts'), 'locale');
 const webAttendance = await import(pathToFileURL(loadWeb(path.join(webLib, 'attendance-export.ts'))).href);
 const webGrade = await import(pathToFileURL(loadWeb(path.join(webLib, 'grade-export.ts'))).href);
 
@@ -150,6 +152,18 @@ test('the attendance day is the fixed UTC+07 campus day', () => {
   const screen = fs.readFileSync(path.join(ops, 'LecturerAttendanceScreen.tsx'), 'utf8');
   assert.match(screen, /const today = campusIsoDate\(\);/);
   assert.doesNotMatch(screen, /localIsoDate/);
+});
+
+test('lecturer today follows the fixed UTC+07 campus day', () => {
+  const getDay = Date.prototype.getDay;
+  Date.prototype.getDay = Date.prototype.getUTCDay;
+  try {
+    assert.equal(model.dayNumberOf(new Date('2026-11-02T23:00:00Z')), 3);
+    assert.equal(model.dayNumberOf(new Date('2026-11-03T16:59:00Z')), 3);
+    assert.equal(model.dayNumberOf(new Date('2026-11-03T17:00:00Z')), 4);
+  } finally {
+    Date.prototype.getDay = getDay;
+  }
 });
 
 test('attendance metrics use present plus late over the whole roster', () => {

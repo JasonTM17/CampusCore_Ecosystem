@@ -8,6 +8,7 @@ import { GroupCard } from '../../components/perf/group-card';
 import { useLocale } from '../../i18n/locale-provider';
 import { countForm } from '../../i18n/locale';
 import { fillCopy } from '../../i18n/academic-messages';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi } from './academic-api';
 import { cumulativeTrend, isPublishedGrade, parseTranscript, type TranscriptRecord, type TranscriptTerm } from './gpa';
@@ -77,6 +78,7 @@ export function TranscriptScreen(_props: MobileScreenProps) {
   const gpa = useGpaFormat();
   const preview = isPreviewMode();
   const query = useAcademicQuery('academic.transcript', () => academicApi.transcript(), copy);
+  const pull = usePullToRefresh(() => query.reload());
   const [term, setTerm] = useState('');
 
   const model = useMemo(() => (query.data === undefined ? null : parseTranscript(query.data, locale)), [query.data, locale]);
@@ -91,8 +93,8 @@ export function TranscriptScreen(_props: MobileScreenProps) {
       error={preview ? null : malformed ? copy.generic : query.error}
       warning={preview ? null : query.warning}
       onRetry={() => void query.reload()}
-      onRefresh={preview ? undefined : () => { void query.reload(); }}
-      refreshing={!preview && query.isStale}
+      onRefresh={preview ? undefined : pull.onRefresh}
+      refreshing={!preview && pull.refreshing}
 
       list={{ data: groupedRows(visibleTerms, (entry) => entry.semesterId, (entry) => entry.records, (record) => record.id), keyExtractor: (entry) => entry.key,
         renderItem: ({ item: entry }) => <TermCard entry={entry} />,

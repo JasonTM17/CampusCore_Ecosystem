@@ -2,6 +2,8 @@
 // parsing and the changed-rows-only save payload. No React or native imports so
 // the same code runs under `node --test`.
 
+import { campusDayOfWeek } from '../../i18n/locale';
+
 export type MarkStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
 
 export const MARK_STATUSES: readonly MarkStatus[] = ['PRESENT', 'LATE', 'ABSENT', 'EXCUSED'];
@@ -68,7 +70,7 @@ export function termOptions(sections: readonly SectionLike[]): TermOption[] {
 /** Backend day numbers run 1 = Sunday … 7 = Saturday; 0 is read as Sunday. */
 export const normalizeDay = (day: number): number => (day === 0 ? 1 : day);
 
-export const dayNumberOf = (date: Date): number => date.getDay() + 1;
+export const dayNumberOf = (date: Date): number => campusDayOfWeek(date);
 
 /** `limit` rows of `items`, growing by `limit` each time the lecturer asks for more. */
 export const windowOf = <T>(items: readonly T[], pages: number, limit: number): { rows: T[]; hasMore: boolean } => ({

@@ -26,20 +26,27 @@ import {
  * expo-native surfaces (PKCE generation, system browser).
  */
 
+export type OidcBlockedCode = 'no_mobile_surface';
+
 export type OidcOutcome =
   | { kind: 'signedIn'; accessToken: string; refreshToken: string; accountId: string; role: UserRole }
   | { kind: 'unavailable'; code: 'issuer_not_configured' }
-  | { kind: 'blocked'; reason: string }
+  | { kind: 'blocked'; reason: string; code?: OidcBlockedCode }
   | { kind: 'cancelled' };
 
 export interface OidcDeps {
   issuer: string;
   fetchImpl?: typeof fetch;
+  /** App-level deadline for the code exchange; an abort surfaces as the sign-in failure state. */
+  timeoutMs?: number;
   openSession?: (url: string, redirectUri: string) => Promise<WebBrowser.WebBrowserAuthSessionResult>;
   now?: () => number;
 }
 
 export { decodeJwtPayload, roleFromClaims };
+
+/** App-level deadline for the code exchange, independent of the platform fetch timeout. */
+const DEFAULT_TOKEN_TIMEOUT_MS = 10_000;
 
 function parseJson(raw: string | null): Record<string, unknown> | null {
   if (!raw) {
@@ -83,22 +90,35 @@ export async function signInWithOidc(deps: OidcDeps): Promise<OidcOutcome> {
     return { kind: 'blocked', reason: callback.reason };
   }
 
-  const tokenResponse = await fetchImpl(`${issuer}/oauth2/token`, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: buildTokenRequestBody(callback.code, codeVerifier),
-  });
-  const body = parseJson(await tokenResponse.text());
+  const { ok, status, body } = await (async (): Promise<{
+    ok: boolean;
+    status: number;
+    body: Record<string, unknown> | null;
+  }> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), deps.timeoutMs ?? DEFAULT_TOKEN_TIMEOUT_MS);
+    try {
+      const response = await fetchImpl(`${issuer}/oauth2/token`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: buildTokenRequestBody(callback.code, codeVerifier),
+        signal: controller.signal,
+      });
+      return { ok: response.ok, status: response.status, body: parseJson(await response.text()) };
+    } finally {
+      clearTimeout(timer);
+    }
+  })();
 
-  if (!tokenResponse.ok) {
+  if (!ok) {
     const detail = typeof body?.error_description === 'string'
       ? body.error_description
       : typeof body?.error === 'string'
         ? body.error
-        : `HTTP ${tokenResponse.status}`;
+        : `HTTP ${status}`;
     return { kind: 'blocked', reason: `Token exchange failed: ${detail}` };
   }
 
@@ -121,6 +141,7 @@ export async function signInWithOidc(deps: OidcDeps): Promise<OidcOutcome> {
   if (entry === null) {
     return {
       kind: 'blocked',
+      code: 'no_mobile_surface',
       reason: 'This account has no mobile surface — sign in on the web portal.',
     };
   }
