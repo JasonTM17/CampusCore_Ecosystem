@@ -19,6 +19,7 @@ import {
   isUnverifiedGeofence,
   validateGeofenceDraft,
   type GeofenceDraft,
+  type ParsedGeofenceValues,
 } from '@/lib/attendance-checkin';
 import { campusCodeMessage } from '@/lib/campus-error';
 import { AdminFrame } from '@/components/admin/AdminFrame';
@@ -66,6 +67,18 @@ function draftFromRow(row: GeofenceRow): GeofenceDraft {
     isActive: Boolean(row.isActive),
     note: row.note ?? '',
   };
+}
+
+/**
+ * Editing name, coordinates or note must not resend the activation state: an
+ * omitted isActive keeps the stored value even if another admin toggled it.
+ */
+function buildGeofenceUpdatePayload(
+  values: ParsedGeofenceValues,
+  baselineIsActive: boolean,
+): Omit<ParsedGeofenceValues, 'isActive'> & { isActive?: boolean } {
+  const { isActive, ...metadata } = values;
+  return isActive === baselineIsActive ? metadata : values;
 }
 
 export default function AdminAttendanceGeofencesPage() {
@@ -172,7 +185,7 @@ export default function AdminAttendanceGeofencesPage() {
       if (editor?.mode === 'edit' && editor.row.id) {
         const updated = await geofencedAttendanceApi.updateAdminGeofence(
           editor.row.id,
-          values,
+          buildGeofenceUpdatePayload(values, Boolean(editor.row.isActive)),
         );
         setRows((prev) => prev.map((row) => (row.id === updated.id ? updated : row)));
       } else {

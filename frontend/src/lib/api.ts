@@ -1654,8 +1654,11 @@ export const siteAppearanceApi = {
     });
     return response.data;
   },
-  put: async (appearance: unknown): Promise<unknown> => {
-    const response = await api.put<unknown>('/site-appearance', appearance);
+  put: async (appearance: unknown, expectedVersion?: number | null): Promise<unknown> => {
+    const body = expectedVersion == null || typeof appearance !== 'object' || appearance === null
+      ? appearance
+      : { ...(appearance as Record<string, unknown>), expectedVersion };
+    const response = await api.put<unknown>('/site-appearance', body);
     return response.data;
   },
 };
@@ -2322,7 +2325,7 @@ export const geofencedAttendanceApi = {
   },
   updateAdminGeofence: async (
     geofenceId: string,
-    request: GeofencedAttendanceGeofenceRequest,
+    request: Omit<GeofencedAttendanceGeofenceRequest, 'isActive'> & { isActive?: boolean },
   ): Promise<GeofencedAttendanceGeofenceResponse> => {
     const response = await api.put<GeofencedAttendanceGeofenceResponse>(
       `/admin/attendance/geofences/${encodeURIComponent(geofenceId)}`,

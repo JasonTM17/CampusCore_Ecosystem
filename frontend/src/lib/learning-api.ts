@@ -56,6 +56,10 @@ export interface LearningSubmission {
   version: number;
   studentName: string | null;
   studentEmail: string | null;
+  draftText: string | null;
+  draftFileName: string | null;
+  draftContentType: string | null;
+  draftSizeBytes: number | null;
 }
 
 export interface LearningRevision {
