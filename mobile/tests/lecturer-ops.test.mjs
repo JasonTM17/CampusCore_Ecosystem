@@ -154,6 +154,12 @@ test('the attendance day is the fixed UTC+07 campus day', () => {
   assert.doesNotMatch(screen, /localIsoDate/);
 });
 
+test('grade CSV file names follow the fixed UTC+07 campus day', () => {
+  const screen = fs.readFileSync(path.join(ops, 'LecturerGradingScreen.tsx'), 'utf8');
+  assert.match(screen, /gradeCsvFilename\([^)]*campusIsoDate\(\)/);
+  assert.doesNotMatch(screen, /localIsoDate/);
+});
+
 test('lecturer today follows the fixed UTC+07 campus day', () => {
   const getDay = Date.prototype.getDay;
   Date.prototype.getDay = Date.prototype.getUTCDay;

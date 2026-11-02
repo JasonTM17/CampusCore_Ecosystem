@@ -5,6 +5,7 @@ import { Button, StatePanel, UiText } from '../../components/Ui';
 import { ScrollableScreenShell as ScreenShell } from '../../components/perf/list-screen-shell';
 import { SearchBar, SegmentedControl } from '../../components/ui/primitives';
 import { tokens } from '../../design/tokens';
+import { countForm } from '../../i18n/locale';
 import { fillThesisCopy, type ThesisCopy } from '../../i18n/thesis-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { ThesisAdvisorsView } from './ThesisAdvisorsView';
@@ -34,6 +35,7 @@ export function ThesisTopicsScreen({ navigation }: MobileScreenProps) {
   const visible = useMemo(() => filterTopics(topics.items, query), [topics.items, query]);
   const searching = query.trim().length > 0;
   const topicsIdle = !topics.loading && !topics.error;
+  const topicCount = searching ? visible.length : topics.total ?? topics.items.length;
 
   return (
     <ScreenShell
@@ -97,7 +99,7 @@ export function ThesisTopicsScreen({ navigation }: MobileScreenProps) {
               <QueryNotices state={{ ...topics, preview: false }} copy={copy} />
               {topicsIdle ? (
                 <UiText variant="meta" tone="muted" style={styles.count}>
-                  {fillThesisCopy(copy.topicCount, { count: searching ? visible.length : topics.total ?? topics.items.length })}
+                  {fillThesisCopy(countForm(topicCount, copy.topicCountOne, copy.topicCount), { count: topicCount })}
                 </UiText>
               ) : null}
               {topicsIdle && visible.length === 0 ? (

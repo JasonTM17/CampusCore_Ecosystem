@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { Card, StatePanel, UiText } from '../../components/Ui';
 import { tokens } from '../../design/tokens';
+import { countForm } from '../../i18n/locale';
 import { fillThesisCopy, type ThesisCopy } from '../../i18n/thesis-messages';
 import { THESIS_ADVISOR_TOPIC_CAP } from './thesis-model';
 import { QueryNotices } from './thesis-ui';
@@ -17,7 +18,7 @@ export function ThesisAdvisorsView({ roundId, copy }: { roundId: string | null; 
       <QueryNotices state={directory} copy={copy} />
       {idle && directory.capped ? (
         <UiText variant="meta" tone="muted" style={styles.gap}>
-          {fillThesisCopy(copy.advisorsCapped, { count: THESIS_ADVISOR_TOPIC_CAP })}
+          {fillThesisCopy(countForm(THESIS_ADVISOR_TOPIC_CAP, copy.advisorsCappedOne, copy.advisorsCapped), { count: THESIS_ADVISOR_TOPIC_CAP })}
         </UiText>
       ) : null}
       {idle && directory.failed > 0 ? (
@@ -29,7 +30,7 @@ export function ThesisAdvisorsView({ roundId, copy }: { roundId: string | null; 
           <UiText variant="label">{advisor.name}</UiText>
           {advisor.email ? <UiText variant="bodySmall" tone="muted" selectable>{advisor.email}</UiText> : null}
           <UiText variant="meta" tone="primary" style={styles.count}>
-            {fillThesisCopy(copy.advisorTopics, { count: advisor.topics.length })}
+            {fillThesisCopy(countForm(advisor.topics.length, copy.advisorTopicsOne, copy.advisorTopics), { count: advisor.topics.length })}
           </UiText>
           {advisor.topics.map((topic) => (
             <UiText key={topic.id} variant="bodySmall" tone="muted">{`• ${topic.title}`}</UiText>

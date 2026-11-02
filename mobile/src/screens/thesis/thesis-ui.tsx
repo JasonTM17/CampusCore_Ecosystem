@@ -6,6 +6,7 @@ import { IconChip, StatusPill } from '../../components/ui/index';
 import { compactFontScaleCap } from '../../design/font-scale';
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
+import { countForm } from '../../i18n/locale';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillThesisCopy, thesisMessages, type ThesisCopy } from '../../i18n/thesis-messages';
 import type { MobileNavigation } from '../../navigation/types';
@@ -119,7 +120,7 @@ export function TopicCard({ topic, copy, onOpen }: { topic: ThesisTopic; copy: T
         <ThesisStatusBadge status={topic.status} copy={copy} />
       </View>
       <UiText variant="bodySmall" tone="muted" style={styles.brief}>{topic.description}</UiText>
-      <UiText variant="meta" tone="muted">{fillThesisCopy(copy.topicGroupsMax, { count: topic.maxGroups })}</UiText>
+      <UiText variant="meta" tone="muted">{fillThesisCopy(countForm(topic.maxGroups, copy.topicGroupsMaxOne, copy.topicGroupsMax), { count: topic.maxGroups })}</UiText>
       <Button label={copy.openTopic} onPress={onOpen} variant="secondary" accessibilityLabel={`${copy.openTopic}: ${topic.title}`} />
     </Card>
   );

@@ -4,6 +4,7 @@ import { Badge, Button, Card, Divider, ListRow, ProgressBar, ScreenShell, Sectio
 import { IconChip, StatusPill } from '../../components/ui/index';
 import { tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
+import { countForm } from '../../i18n/locale';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillThesisCopy } from '../../i18n/thesis-messages';
 import type { MobileScreenProps } from '../../navigation/types';
@@ -114,7 +115,7 @@ export function ThesisProgressScreen({ navigation }: MobileScreenProps) {
               <Card style={styles.card}>
                 <View style={styles.header}>
                   <UiText variant="bodySmall" tone="muted" style={styles.grow}>
-                    {fillThesisCopy(copy.groupMembersCount, { count: group.memberStudentIds.length })}
+                    {fillThesisCopy(countForm(group.memberStudentIds.length, copy.groupMembersCountOne, copy.groupMembersCount), { count: group.memberStudentIds.length })}
                   </UiText>
                   <Badge label={copy.status[group.approvalStatus] ?? group.approvalStatus} tone={statusTone(group.approvalStatus)} />
                 </View>

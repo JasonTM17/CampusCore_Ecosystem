@@ -32,6 +32,7 @@ jest.mock('../../src/screens/lanes/lane-api', () => ({
 }));
 
 import { laneApi } from '../../src/screens/lanes/lane-api';
+import { Pager } from '../../src/screens/lanes/lane-ui';
 import { LaneRoute } from '../../src/screens/lanes/lane-registry';
 import { lanesMessages } from '../../src/i18n/lanes-messages';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
@@ -247,5 +248,42 @@ describe('lane literals follow the locale', () => {
     await renderEnglish(<LaneRoute id="admin.creditLimits" />);
     await waitFor(() => expect(screen.getByText('25 credits')).toBeTruthy());
     expect(screen.queryByText('25 tín')).toBeNull();
+  });
+
+  test('a single group and member keep the singular English noun', async () => {
+    mockFlags.dean = true;
+    mockSession.capabilities = ['dean.overview'];
+    api.thesisRounds.mockResolvedValue([{ id: 'r1', name: 'Round 1', status: 'OPEN' }]);
+    api.deanOverview.mockResolvedValue({
+      supervisors: [{ lecturerId: 'gv1', displayName: 'Lecturer One', supervisedGroups: 1, supervisedTopics: 1 }],
+      groups: [{
+        id: 'g1',
+        topicTitle: 'Topic',
+        approvalStatus: 'APPROVED',
+        departmentName: 'CS',
+        members: [{ studentId: 's1' }],
+        supervisors: [],
+      }],
+    });
+    await renderEnglish(<LaneRoute id="dean.overview" />);
+    await waitFor(() => expect(screen.getByText('1 group')).toBeTruthy());
+    expect(screen.getByText('1 group · 1 topic')).toBeTruthy();
+    expect(screen.getByText('1 member')).toBeTruthy();
+  });
+
+  test('a single requested credit keeps the singular English noun', async () => {
+    mockFlags.admin = true;
+    mockSession.role = 'admin';
+    mockSession.capabilities = ['admin.oversight'];
+    api.creditApplications.mockResolvedValue([{ id: 'c1', studentName: 'An', requestedLimit: 1, status: 'PENDING' }]);
+    await renderEnglish(<LaneRoute id="admin.creditLimits" />);
+    await waitFor(() => expect(screen.getAllByText('1 credit').length).toBeGreaterThan(0));
+    expect(screen.queryByText('1 credits')).toBeNull();
+  });
+
+  test('a one-item page keeps the singular English noun', async () => {
+    await renderEnglish(<Pager copy={lanesMessages.en} page={1} totalPages={1} total={1} onPage={() => {}} />);
+    expect(screen.getByText('Page 1/1 · 1 item')).toBeTruthy();
+    expect(screen.queryByText('Page 1/1 · 1 items')).toBeNull();
   });
 });

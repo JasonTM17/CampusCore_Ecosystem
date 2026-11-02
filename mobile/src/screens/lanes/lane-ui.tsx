@@ -9,6 +9,7 @@ import { ChoiceField } from '../../components/ui/choice-field';
 import { FormField, Sheet } from '../../components/ui/primitives';
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
+import { countForm } from '../../i18n/locale';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillCopy } from '../../i18n/academic-messages';
 import { lanesMessages, type LanesCopy } from '../../i18n/lanes-messages';
@@ -353,7 +354,7 @@ export function Pager({ copy, page, totalPages, total, hasMore = false, onPage, 
     <View style={styles.pager}>
       <UiText variant="bodySmall" tone="muted" accessibilityLiveRegion="polite">
         {known
-          ? fillCopy(copy.pageOf, { page, pages: Math.max(totalPages, 1), total })
+          ? fillCopy(countForm(total, copy.pageOfOne, copy.pageOf), { page, pages: Math.max(totalPages, 1), total })
           : fillCopy(copy.pageOnly, { page })}
       </UiText>
       <View style={styles.actions}>
