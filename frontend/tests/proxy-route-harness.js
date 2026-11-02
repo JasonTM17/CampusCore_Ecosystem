@@ -147,24 +147,43 @@ function setHeader(headers, name, value) {
   }
 }
 
+function toBodyStream(body) {
+  if (body && typeof body.getReader === 'function') return body;
+  const bytes = typeof body === 'string'
+    ? new TextEncoder().encode(body)
+    : new Uint8Array(body);
+  return new ReadableStream({
+    start(controller) {
+      if (bytes.byteLength > 0) controller.enqueue(bytes);
+      controller.close();
+    },
+  });
+}
+
 function makeRequest({
   method = 'POST',
   host = 'localhost:3000',
   protocol = 'http:',
   search = '',
   headers = {},
+  body,
 } = {}) {
   const values = new Headers();
   if (host !== null) values.set('host', host);
   for (const [name, value] of Object.entries(headers)) setHeader(values, name, value);
-  return {
+  const request = {
     method,
     headers: values,
     nextUrl: { protocol, search },
     signal: new AbortController().signal,
-    arrayBuffer: async () => new ArrayBuffer(0),
+    body: body === undefined ? null : toBodyStream(body),
     json: async () => ({}),
   };
+  request.arrayBuffer = async () => {
+    if (request.body === null) return new ArrayBuffer(0);
+    return new Response(request.body).arrayBuffer();
+  };
+  return request;
 }
 
 function contextFor(pathArray = []) {
