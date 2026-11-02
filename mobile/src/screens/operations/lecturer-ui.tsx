@@ -20,6 +20,9 @@ import { useOpsStyles } from './shared/styles';
 
 export const isOpsPreview = (): boolean => apiClient.mode === 'preview';
 
+/** The unavailable portal action is disabled, so its handler is unreachable. */
+const NOOP = () => {};
+
 /** Live-only query: preview sessions never fetch and screens fall back to labelled preview data. */
 export function useOpsQuery<T>(key: string, fetcher: () => Promise<T>, copy: OperationsCopy, enabled = true) {
   return useScreenQuery<T>(key, fetcher, {
@@ -113,7 +116,15 @@ export function HandoffButton({ label, path }: HandoffButtonProps) {
   const { copy } = useOpsCopy();
   const styles = useOpsStyles();
   const [failed, setFailed] = useState(false);
-  if (!configuredPortalUrl()) return null;
+  if (!configuredPortalUrl()) {
+    // Never a silent no-op: the build has no portal, so the action stays visible and explains itself.
+    return (
+      <View>
+        <Button label={label} variant="secondary" disabled onPress={NOOP} style={styles.topButton} />
+        <UiText variant="bodySmall" tone="muted">{copy.webUnavailable}</UiText>
+      </View>
+    );
+  }
   return (
     <View>
       <Button

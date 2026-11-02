@@ -19,6 +19,7 @@ function emit(rel, name, rewrite = (text) => text) {
 
 emit('src/i18n/locale.ts', 'locale.mjs');
 emit('src/i18n/academic-messages.ts', 'academic-messages.mjs');
+emit('src/screens/student/shared/resource-error.ts', 'resource-error.mjs');
 emit('src/screens/student/shared/errors.ts', 'errors.mjs', (text) => text
   .replace(/from '\.\.\/\.\.\/\.\.\/api\/client'/g, "from './client-stub.mjs'")
   .replace(/from '\.\.\/\.\.\/\.\.\/i18n\/academic-messages'/g, "from './academic-messages.mjs'")
@@ -33,6 +34,7 @@ export class ApiClientError extends Error {
 `);
 
 const { studentFriendlyErrorMessage } = await import(pathToFileURL(path.join(tmp, 'errors.mjs')).href);
+const { isResourceUnauthorizedError } = await import(pathToFileURL(path.join(tmp, 'resource-error.mjs')).href);
 const { academicMessages } = await import(pathToFileURL(path.join(tmp, 'academic-messages.mjs')).href);
 const { ApiClientError } = await import(pathToFileURL(path.join(tmp, 'client-stub.mjs')).href);
 
@@ -83,4 +85,24 @@ test('the live resource passes the active locale into the mapper', () => {
   const source = fs.readFileSync(path.join(mobileRoot, 'src/screens/student/shared/useLiveResource.ts'), 'utf8');
   assert.match(source, /const \{ locale \} = useLocale\(\)/);
   assert.match(source, /studentFriendlyErrorMessage\(error, fallbackMessage, locale\)/);
+  assert.match(source, /isResourceUnauthorizedError/);
+  assert.match(source, /from '\.\/resource-error'/);
+});
+
+test('the shared 401 predicate covers every unauthorized shape the client emits', () => {
+  assert.equal(isResourceUnauthorizedError(Object.assign(new ApiClientError('x', 'HTTP_401'), { status: 401 })), true);
+  assert.equal(isResourceUnauthorizedError(Object.assign(new ApiClientError('x', undefined), { status: 401 })), true);
+  assert.equal(isResourceUnauthorizedError(new ApiClientError('x', 'UNAUTHENTICATED')), true);
+  assert.equal(isResourceUnauthorizedError(new ApiClientError('x', 'HTTP_403')), false);
+  assert.equal(isResourceUnauthorizedError(new ApiClientError('x', undefined)), false);
+  assert.equal(isResourceUnauthorizedError(new Error('boom')), false);
+  assert.equal(isResourceUnauthorizedError(null), false);
+});
+
+test('the academic and operations mappers reuse the shared 401 rule instead of claiming sign-in', () => {
+  for (const rel of ['src/screens/academic/academic-ui.tsx', 'src/screens/operations/shared/helpers.tsx']) {
+    const source = fs.readFileSync(path.join(mobileRoot, rel), 'utf8');
+    assert.match(source, /isResourceUnauthorizedError/, rel);
+    assert.doesNotMatch(source, /status === 401/, rel);
+  }
 });

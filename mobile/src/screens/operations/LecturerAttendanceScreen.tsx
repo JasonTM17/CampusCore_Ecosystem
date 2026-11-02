@@ -76,6 +76,7 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   const [search, setSearch] = useState('');
   const [pages, setPages] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
   const editRevisionByKey = useRef<Record<string, number>>({});
 
   const applySheet = (next: AttendanceSheet) => {
@@ -124,7 +125,14 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
     if (sheet) applySheet(sheet);
     void sheetQuery.reload();
   };
-  const refreshSheet = () => { void sheetQuery.reload(); };
+  // The pull refreshes the two live reads this screen shows: the section list and
+  // the active sheet. The spinner tracks exactly those two reloads, so it never
+  // spins for a background revalidation the user did not ask for.
+  const refreshAll = () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    void Promise.all([sectionsQuery.reload(), sheetQuery.reload()]).finally(() => setRefreshing(false));
+  };
 
   const saveAttendance = async () => {
     const records = buildAttendanceRecords(rows);
@@ -180,8 +188,8 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
       error={queryError}
       warning={preview ? null : sectionsQuery.warning ?? sheetQuery.warning}
       onRetry={() => { void sectionsQuery.reload(); void sheetQuery.reload(); }}
-      onRefresh={preview ? undefined : refreshSheet}
-      refreshing={!preview && sheetQuery.isStale}
+      onRefresh={preview ? undefined : refreshAll}
+      refreshing={!preview && refreshing}
 
       list={{ data: shown, keyExtractor: (item, index) => String(item.studentId),
         renderItem: ({ item: row }) => (

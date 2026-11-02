@@ -202,6 +202,22 @@ describe('service screens in live mode', () => {
     await renderThemed(<LibraryScreen {...props} />);
     expect(screen.getAllByText('Không thể tải dữ liệu').length).toBeGreaterThan(0);
     expect(screen.queryByText(libraryMessages.vi.emptyCatalogue)).toBeNull();
+    expect(screen.queryByText(libraryMessages.vi.simulatedBanner)).toBeNull();
+  });
+
+  test('a failed admissions read is a retryable error with no simulated banner', async () => {
+    mockApi.mode = 'live';
+    mockQuery.value = {
+      data: (key: string) => (key === 'content.admissions.mine' ? undefined : []),
+      error: (key: string) => (key === 'content.admissions.mine' ? 'Không thể tải dữ liệu' : null),
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<AdmissionsScreen {...props} />);
+    expect(screen.getAllByText('Không thể tải dữ liệu').length).toBeGreaterThan(0);
+    expect(screen.queryByText(admissionsMessages.vi.emptyApplications)).toBeNull();
+    expect(screen.queryByText(admissionsMessages.vi.simulatedBanner)).toBeNull();
   });
 
   test('learning shows its own error state when sections cannot be read', async () => {
@@ -221,5 +237,6 @@ describe('service screens in live mode', () => {
     setWidth(360);
     await renderThemed(<CareersScreen {...props} />);
     expect(screen.getByText(careersMessages.vi.emptyBoard)).toBeOnTheScreen();
+    expect(screen.queryByText(careersMessages.vi.simulatedBanner)).toBeNull();
   });
 });
