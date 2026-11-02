@@ -289,7 +289,7 @@ test('conduct controller no longer aliases literal demo ids to a real student', 
 test('grade component inputs have distinct screen-reader labels', () => {
   const source = read('src/app/dashboard/lecturer/grades/[id]/page.tsx');
   const catalog = read('src/i18n/messages-teaching-pages.ts');
-  assert.ok(catalog.includes("processScoreLabel: 'Process score (50%) for {studentName}'"));
+  assert.ok(catalog.includes("processScoreLabel: 'Coursework (50%) for {studentName}'"));
   assert.ok(catalog.includes("finalExamScoreLabel: 'Final exam score (50%) for {studentName}'"));
   assert.match(source, /aria-label=\{gradeEntry\.processScoreLabel\.replace\(/);
   assert.match(source, /aria-label=\{gradeEntry\.finalExamScoreLabel\.replace\(/);

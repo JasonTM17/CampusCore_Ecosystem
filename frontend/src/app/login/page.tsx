@@ -442,13 +442,7 @@ export default function LoginPage() {
             </p>
           ) : null}
           <p className="text-[11px] text-muted-foreground pt-1 border-t border-primary/10">
-            {portal === 'student'
-              ? (locale === 'vi'
-                ? '💡 Bốn tài khoản là 4 thành viên cùng một nhóm KLTN — chọn từng tài khoản để xem nhóm chung.'
-                : '💡 These four accounts are members of the same KLTN thesis group — sign in as each to see the shared group.')
-              : (locale === 'vi'
-                ? '💡 Đây là tài khoản demo dùng để trải nghiệm đầy đủ các tính năng của hệ thống CampusUTE.'
-                : '💡 This is a demo account provided to experience all features of CampusUTE.')}
+            {portal === 'student' ? messages.login.demoGroupNote : messages.login.demoAccountNote}
           </p>
         </div>
         ) : null}
@@ -508,11 +502,7 @@ export default function LoginPage() {
                       : 'text-muted-foreground'
                   )}
                 >
-                  {reason === 'signed-out'
-                    ? (locale === 'vi'
-                        ? 'Bạn đã đăng xuất khỏi cổng học vụ thành công. Phiên làm việc đã kết thúc và dữ liệu bảo mật đã được xóa an toàn khỏi trình duyệt này.'
-                        : 'You have signed out of the academic portal. The session has terminated and security tokens have been safely cleared.')
-                    : notice.body}
+                  {notice.body}
                 </p>
               </div>
 

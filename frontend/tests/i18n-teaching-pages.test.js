@@ -160,11 +160,11 @@ test('grade entry copy is an exact extraction of the old English and Vietnamese 
       tableTitle: 'Student grades',
       headers: {
         number: 'STT', student: 'Student', studentId: 'Student ID', email: 'Email',
-        processScore: 'Process (50%)', finalExamScore: 'Final (50%)', total: 'Total', letter: 'Letter', status: 'Status',
+        processScore: 'Coursework (50%)', finalExamScore: 'Final (50%)', total: 'Total', letter: 'Letter', status: 'Status',
       },
       unavailableEmail: 'Unavailable',
       noLetterGrade: 'Not selected',
-      processScoreLabel: 'Process score (50%) for {studentName}',
+      processScoreLabel: 'Coursework (50%) for {studentName}',
       finalExamScoreLabel: 'Final exam score (50%) for {studentName}',
       letterGradeLabel: 'Letter grade for {studentName}',
       publishedStatus: 'Published',
@@ -315,7 +315,7 @@ test('teaching print and thesis link templates render the exact prior copy', () 
   assert.equal(vi.teachingPages.gradeEntry.processScoreLabel.replace('{studentName}', () => 'Nguyễn Văn An'),
     'ĐQT (50%) cho Nguyễn Văn An');
   assert.equal(en.teachingPages.gradeEntry.processScoreLabel.replace('{studentName}', () => 'John Smith'),
-    'Process score (50%) for John Smith');
+    'Coursework (50%) for John Smith');
   assert.equal(vi.teachingPages.gradeEntry.finalExamScoreLabel.replace('{studentName}', () => 'Nguyễn Văn An'),
     'ĐCK (50%) cho Nguyễn Văn An');
   assert.equal(en.teachingPages.gradeEntry.finalExamScoreLabel.replace('{studentName}', () => 'John Smith'),
@@ -422,7 +422,7 @@ test('CSV exports remain byte-identical to the prior Vietnamese and English outp
   };
   const expectedGrade = {
     vi: `\uFEFF"TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP. HỒ CHÍ MINH — CAMPUSUTE"\r\n"BẢNG ĐIỂM TỔNG KẾT HỌC PHẦN"\r\n\r\n"Lớp học phần:","CS101-01","Học phần:","CS101 - Intro to ""CS"", A"\r\n"Học kỳ:","Fall 2026","Giảng viên:","Nguyen, A"\r\n\r\n"'--- THỐNG KÊ KẾT QUẢ ĐÁNH GIÁ ---"\r\n"Sĩ số:","1","Đã chấm:","1","Chưa chấm:","0","Đạt (>= 4.0):","1","Không đạt (< 4.0):","0","Tỷ lệ đạt:","100.0%","Điểm trung bình:","8.75"\r\n"A+ / A:","1","B+ / B:","0","C+ / C:","0","D+ / D:","0","F:","0"\r\n\r\n"STT","Mã sinh viên","Họ và tên","Email","Điểm quá trình (50%)","Điểm thi kết thúc (50%)","Tổng kết (Hệ 10)","Điểm chữ","Trạng thái"\r\n"1","SV001","Nguyen ""An""","an@example.test","8.5","9.0","8.75","A","Đã công bố"\r\n`,
-    en: `\uFEFF"HO CHI MINH CITY UNIVERSITY OF TECHNOLOGY AND ENGINEERING — CAMPUSUTE"\r\n"COURSE SECTION FINAL GRADE ROSTER"\r\n\r\n"Section:","CS101-01","Course:","CS101 - Intro to ""CS"", A"\r\n"Semester:","Fall 2026","Instructor:","Nguyen, A"\r\n\r\n"'--- GRADE DISTRIBUTION SUMMARY ---"\r\n"Total:","1","Graded:","1","Ungraded:","0","Passed:","1","Failed:","0","Pass Rate:","100.0%","Average:","8.75"\r\n"A+ / A:","1","B+ / B:","0","C+ / C:","0","D+ / D:","0","F:","0"\r\n\r\n"No.","Student ID","Full Name","Email","Process Score (50%)","Final Exam Score (50%)","Total (Scale 10)","Letter Grade","Status"\r\n"1","SV001","Nguyen ""An""","an@example.test","8.5","9.0","8.75","A","Published"\r\n`,
+    en: `\uFEFF"HO CHI MINH CITY UNIVERSITY OF TECHNOLOGY AND ENGINEERING — CAMPUSUTE"\r\n"COURSE SECTION FINAL GRADE ROSTER"\r\n\r\n"Section:","CS101-01","Course:","CS101 - Intro to ""CS"", A"\r\n"Semester:","Fall 2026","Instructor:","Nguyen, A"\r\n\r\n"'--- GRADE DISTRIBUTION SUMMARY ---"\r\n"Total:","1","Graded:","1","Ungraded:","0","Passed:","1","Failed:","0","Pass Rate:","100.0%","Average:","8.75"\r\n"A+ / A:","1","B+ / B:","0","C+ / C:","0","D+ / D:","0","F:","0"\r\n\r\n"No.","Student ID","Full Name","Email","Coursework (50%)","Final Exam Score (50%)","Total (Scale 10)","Letter Grade","Status"\r\n"1","SV001","Nguyen ""An""","an@example.test","8.5","9.0","8.75","A","Published"\r\n`,
   };
   for (const locale of ['vi', 'en']) {
     assert.equal(generateAttendanceCsv({ ...attendanceOptions, locale }), expectedAttendance[locale], `${locale} attendance CSV`);

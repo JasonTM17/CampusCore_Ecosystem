@@ -147,6 +147,7 @@ export interface StudentPortalCopy {
     colSection: string;
     colSchedule: string;
     colStatus: string;
+    colActions: string;
     dropCourse: string;
     droppingCourse: string;
     confirmTitle: string;
@@ -259,7 +260,7 @@ export const studentPortalEn: StudentPortalCopy = {
       section: 'Class',
       lecturer: 'Lecturer',
       credits: 'Credits',
-      processScore: 'In-Course (50%)',
+      processScore: 'Coursework (50%)',
       finalExamScore: 'Final Exam (50%)',
       score: 'Total (10)',
       grade: 'Grade',
@@ -316,6 +317,7 @@ export const studentPortalEn: StudentPortalCopy = {
     colSection: 'Class',
     colSchedule: 'Schedule',
     colStatus: 'Status',
+    colActions: 'Actions',
     dropCourse: 'Drop course',
     droppingCourse: 'Dropping course',
     confirmTitle: 'Drop course',
@@ -335,8 +337,8 @@ export const studentPortalEn: StudentPortalCopy = {
     emptyValue: 'N/A',
     title: 'Course Grade Breakdown',
     credits: 'credits',
-    componentsTitle: 'Course Grade Components (50% In-Course + 50% Final)',
-    formula: 'Final = Process × 50% + Exam × 50%',
+    componentsTitle: 'Course Grade Components (50% Coursework + 50% Final)',
+    formula: 'Final = Coursework × 50% + Exam × 50%',
     detailFailed:
       'Could not load the latest component scores — the table below shows saved summary scores and may be incomplete.',
     loading: 'Loading grade breakdown...',
@@ -347,7 +349,7 @@ export const studentPortalEn: StudentPortalCopy = {
     finalScore: 'Final Score (10)',
     letterGrade: 'Letter Grade',
     gradePoint: 'Grade Point',
-    processItem: 'Process score (50%)',
+    processItem: 'Coursework (50%)',
     finalItem: 'Final exam score (50%)',
   },
   profile: {
@@ -485,6 +487,7 @@ export const studentPortalVi: StudentPortalCopy = {
     colSection: 'Lớp HP',
     colSchedule: 'Lịch học',
     colStatus: 'Trạng thái',
+    colActions: 'Tác vụ',
     dropCourse: 'Hủy môn học',
     droppingCourse: 'Đang hủy môn',
     confirmTitle: 'Hủy môn học',

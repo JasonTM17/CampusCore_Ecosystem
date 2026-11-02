@@ -231,7 +231,7 @@ export default function StudentGroupCard({
                         </div>
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                           {member.identifier && !member.isExternal ? (
-                            <span>MSSV: <strong className="font-mono text-foreground/80">{member.identifier}</strong></span>
+                            <span>{messages.thesis.studentIdLabel}: <strong className="font-mono text-foreground/80">{member.identifier}</strong></span>
                           ) : null}
                           {member.contact ? (
                             <span>{member.contact}</span>

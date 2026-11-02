@@ -58,6 +58,7 @@ import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { WeeklyGrid, shortDayLabel, type WeeklyGridAgendaItem } from '@/components/schedule/weekly-grid';
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { campusCodeMessage, campusErrorCode } from '@/lib/campus-error';
+import { countLabel } from '@/lib/plural';
 import { toast } from 'sonner';
 import { RegisteredCoursesPanel } from '@/components/registration/registered-courses-panel';
 import { RegistrationTabs, type RegistrationTab } from '@/components/registration/registration-tabs';
@@ -1002,7 +1003,11 @@ export default function RegisterPage() {
                 </span>
                 {creditLimit !== null && creditLimit - totalRegisteredCredits > 0 ? (
                   <span className="hidden shrink-0 font-medium text-muted-foreground md:inline">
-                    {copy.headerCreditsRemaining.replace('{count}', formatNumber(creditLimit - totalRegisteredCredits))}
+                    {countLabel(
+                      creditLimit - totalRegisteredCredits,
+                      copy.headerCreditRemaining,
+                      copy.headerCreditsRemaining,
+                    ).replace('{count}', formatNumber(creditLimit - totalRegisteredCredits))}
                   </span>
                 ) : null}
                 {railWarnings.length > 0 ? (
@@ -1187,7 +1192,11 @@ export default function RegisterPage() {
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm font-semibold text-foreground">
-                      {copy.sectionCount.replace('{count}', formatNumber(filteredSections.length))}
+                      {countLabel(
+                        filteredSections.length,
+                        copy.sectionCountSingular,
+                        copy.sectionCount,
+                      ).replace('{count}', formatNumber(filteredSections.length))}
                     </p>
                     <label className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{copy.sortLabel}</span>

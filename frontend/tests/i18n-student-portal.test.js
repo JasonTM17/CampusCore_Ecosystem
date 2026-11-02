@@ -75,7 +75,7 @@ test('studentPortal keeps the exact previously inline copy', () => {
     ['enrollments.confirmMessage', 'Hủy {courseLabel}? Hành động này giữ cho việc đổi lịch học luôn rõ ràng và có chủ đích.', 'Drop {courseLabel}? This keeps the action explicit and prevents accidental schedule changes.'],
     ['enrollments.exportSlip', 'Xuất phiếu đăng ký (PDF)', 'Download registration slip (PDF)'],
     ['gradeDetail.title', 'Chi tiết điểm học phần', 'Course Grade Breakdown'],
-    ['gradeDetail.formula', 'ĐHP = ĐQT × 50% + ĐCK × 50%', 'Final = Process × 50% + Exam × 50%'],
+    ['gradeDetail.formula', 'ĐHP = ĐQT × 50% + ĐCK × 50%', 'Final = Coursework × 50% + Exam × 50%'],
     ['profile.demoAccount', 'Tài khoản demo để trải nghiệm', 'Demo experience account'],
     ['notifications.openRelated', 'Mở tính năng liên quan', 'Open related feature'],
     ['identity.student', 'Vào Cổng Sinh viên', 'Enter Student Portal'],

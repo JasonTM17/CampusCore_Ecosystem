@@ -243,6 +243,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
       [title, content, defaultBodyFor],
     ),
     enabled: !isPublishingNotice,
+    interceptRouteChanges: true,
   });
 
   // Sortable Content Blocks Builder State. Block labels come from the local

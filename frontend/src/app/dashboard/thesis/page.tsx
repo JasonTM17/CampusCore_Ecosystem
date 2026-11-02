@@ -3501,7 +3501,7 @@ export default function ThesisPage() {
                         <div className="min-w-0 space-y-0.5">
                           <p className="truncate text-sm font-semibold text-foreground" title={fullName}>{fullName}</p>
                           <p className="truncate text-xs text-muted-foreground">
-                            MSSV: <span className="font-mono">{student.studentNumber}</span>
+                            {messages.thesis.studentIdLabel}: <span className="font-mono">{student.studentNumber}</span>
                           </p>
                           {curriculumLabel ? (
                             <p className="truncate text-xs text-muted-foreground" title={curriculumLabel}>

@@ -16,6 +16,7 @@ import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { curriculumApi, registrationApi, type RegistrationSection } from '@/lib/api';
 import { campusCodeMessage, campusErrorCode } from '@/lib/campus-error';
 import { getLocalizedName } from '@/lib/academic-content';
+import { countLabel } from '@/lib/plural';
 import { useApiQuery } from '@/lib/query';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -317,7 +318,7 @@ export default function CurriculumPage() {
                 <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
                   <span className="font-medium">{copy.progressLabel}</span>
                   <span className="font-semibold tabular-nums text-foreground">
-                    {formatNumber(completedCredits)} / {formatNumber(totalCredits)} {copy.creditsLabel}
+                    {formatNumber(completedCredits)} / {formatNumber(totalCredits)} {countLabel(totalCredits, copy.creditLabel, copy.creditsLabel)}
                     {' · '}
                     {progressPercent}%
                   </span>
@@ -439,7 +440,7 @@ export default function CurriculumPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-mono text-xs font-bold text-primary">{course.code}</span>
                           <span className="text-xs text-muted-foreground">
-                            {course.credits} {copy.creditsLabel}
+                            {course.credits} {countLabel(course.credits, copy.creditLabel, copy.creditsLabel)}
                           </span>
                           <span
                             className={`rounded px-2 py-0.5 text-[11px] font-medium ${
@@ -558,7 +559,7 @@ export default function CurriculumPage() {
                                   {course.code}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                  {course.credits} {copy.creditsLabel}
+                                  {course.credits} {countLabel(course.credits, copy.creditLabel, copy.creditsLabel)}
                                 </span>
                                 <span
                                   className={`rounded px-2 py-0.5 text-[11px] font-medium ${
