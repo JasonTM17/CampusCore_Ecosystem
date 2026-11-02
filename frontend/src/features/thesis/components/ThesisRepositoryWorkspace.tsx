@@ -22,6 +22,7 @@ import { thesisWorkflowEn, thesisWorkflowVi } from '@/i18n/messages-thesis-workf
 import type { Locale } from '@/i18n/config';
 import { type ThesisRepositoryReport, type ThesisRepositorySummary } from '@/lib/thesis-api';
 import { fillCopy, formatReportFileSize } from '@/features/thesis/components/thesis-helpers';
+import { countLabel } from '@/lib/plural';
 import { isHttpUrl } from '@/lib/safe-url';
 import { archiveEmptyState } from '@/lib/thesis-page-list';
 
@@ -90,7 +91,7 @@ export default function ThesisRepositoryWorkspace({
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
               <FileStack className="h-3.5 w-3.5" />
-              {fillCopy(pageCopy.reportsCount, { count: totalReports })}
+              {fillCopy(countLabel(typeof totalReports === 'number' ? totalReports : 0, pageCopy.reportsCountOne, pageCopy.reportsCount), { count: totalReports })}
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
               <FileDown className="h-3.5 w-3.5" />

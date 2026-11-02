@@ -968,7 +968,7 @@ export default function RegisterPage() {
               <div className="inline-flex max-w-full items-center gap-2.5 rounded-lg border border-border/70 bg-secondary/40 px-3 py-1.5 text-xs">
                 <span className="inline-flex shrink-0 items-center gap-1.5 font-semibold text-foreground">
                   <BookOpen className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                  {copy.groupSectionCount.replace('{count}', formatNumber(registered.length))}
+                  {countLabel(registered.length, copy.groupSectionCountOne, copy.groupSectionCount).replace('{count}', formatNumber(registered.length))}
                 </span>
                 <span className="text-border" aria-hidden="true">|</span>
                 <span className="inline-flex shrink-0 items-center gap-1.5">
@@ -1257,7 +1257,7 @@ export default function RegisterPage() {
                                 </span>
                                 <span className="block text-xs text-muted-foreground">
                                   {formatNumber(group.credits)} {copy.creditsUnit} ·{' '}
-                                  {copy.groupSectionCount.replace('{count}', formatNumber(group.sections.length))}
+                                  {countLabel(group.sections.length, copy.groupSectionCountOne, copy.groupSectionCount).replace('{count}', formatNumber(group.sections.length))}
                                 </span>
                               </span>
                             </button>
@@ -1269,7 +1269,7 @@ export default function RegisterPage() {
                               }`}
                             >
                               {openSeats > 0
-                                ? copy.seatsOpen.replace('{count}', formatNumber(openSeats))
+                                ? countLabel(openSeats, copy.seatsOpenOne, copy.seatsOpen).replace('{count}', formatNumber(openSeats))
                                 : copy.full}
                             </span>
                           </div>
@@ -1434,7 +1434,7 @@ export default function RegisterPage() {
                 <CardTitle className="mr-auto whitespace-nowrap">{copy.enrolledRail}</CardTitle>
                 <div className="flex shrink-0 items-center gap-1.5">
                   <span className="whitespace-nowrap rounded-md bg-secondary px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
-                    {copy.groupSectionCount.replace('{count}', formatNumber(registered.length))}
+                    {countLabel(registered.length, copy.groupSectionCountOne, copy.groupSectionCount).replace('{count}', formatNumber(registered.length))}
                   </span>
                   <span className="whitespace-nowrap rounded-md bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
                     {formatNumber(totalRegisteredCredits)} / {creditLimit === null ? copy.creditLimitUnavailable : formatNumber(creditLimit)}{' '}
@@ -1493,7 +1493,11 @@ export default function RegisterPage() {
                           ? copy.creditLimitExceeded.replace('{limit}', formatNumber(creditLimit))
                           : totalRegisteredCredits === creditLimit
                             ? copy.creditLimitReached.replace('{limit}', formatNumber(creditLimit))
-                            : copy.creditLimitRemaining.replace(
+                            : countLabel(
+                                creditLimit - totalRegisteredCredits,
+                                copy.creditLimitRemainingOne,
+                                copy.creditLimitRemaining,
+                              ).replace(
                                 '{count}',
                                 formatNumber(creditLimit - totalRegisteredCredits),
                               )}

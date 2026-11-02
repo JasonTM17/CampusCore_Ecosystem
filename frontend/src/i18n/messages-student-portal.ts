@@ -43,6 +43,7 @@ export interface StudentPortalCopy {
     creditsEarnedOnly: string;
     /** `{count}` is the number of PENDING registrations. */
     pendingBadge: string;
+    pendingBadgeOne: string;
     quickAccessTitle: string;
     coursesUnit: string;
     shifts: {
@@ -215,6 +216,7 @@ export const studentPortalEn: StudentPortalCopy = {
     creditsCapped: 'Maximum credit limit reached',
     creditsEarnedOnly: 'Credits registered this term',
     pendingBadge: '{count} registrations pending',
+    pendingBadgeOne: '{count} registration pending',
     quickAccessTitle: 'Quick access',
     coursesUnit: 'courses',
     shifts: {
@@ -387,6 +389,7 @@ export const studentPortalVi: StudentPortalCopy = {
     creditsCapped: 'Đã đạt hạn mức tín chỉ tối đa',
     creditsEarnedOnly: 'Tín chỉ đã đăng ký kỳ này',
     pendingBadge: '{count} đăng ký chờ xử lý',
+    pendingBadgeOne: '{count} đăng ký chờ xử lý',
     quickAccessTitle: 'Truy cập nhanh',
     coursesUnit: 'môn',
     shifts: {

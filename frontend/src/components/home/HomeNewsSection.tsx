@@ -22,6 +22,7 @@ import { HomeNewsBentoSkeleton } from '@/components/ui/skeleton';
 import { SectionEyebrow } from '@/components/ui/page-header';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { useI18n } from '@/i18n';
+import { countLabel } from '@/lib/plural';
 import { useArticleTaxonomy } from '@/lib/use-article-taxonomy';
 import { useApiQuery } from '@/lib/query';
 import { cn } from '@/lib/utils';
@@ -256,7 +257,7 @@ export function HomeNewsSection() {
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
                 <span>{homeMarketingCopy.news.specialFeatures}</span>
-                <span className="text-xs font-normal text-muted-foreground">({homeMarketingCopy.news.articleCount.replace('{count}', String(galleryGrid.length))})</span>
+                <span className="text-xs font-normal text-muted-foreground">({countLabel(galleryGrid.length, homeMarketingCopy.news.articleCountOne, homeMarketingCopy.news.articleCount).replace('{count}', String(galleryGrid.length))})</span>
               </h3>
             </div>
 
@@ -351,7 +352,7 @@ export function HomeNewsSection() {
                     </>
                   ) : (
                     <>
-                      <span>{homeMarketingCopy.news.viewMore.replace('{count}', String(galleryGrid.length - 6))}</span>
+                      <span>{countLabel(galleryGrid.length - 6, homeMarketingCopy.news.viewMoreOne, homeMarketingCopy.news.viewMore).replace('{count}', String(galleryGrid.length - 6))}</span>
                       <ChevronDown className="h-4 w-4" />
                     </>
                   )}
