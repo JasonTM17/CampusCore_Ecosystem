@@ -75,6 +75,18 @@ function hasUserStatusChanged(loadedStatus: string | undefined, formStatus: stri
   return normalize(loadedStatus) !== normalize(formStatus);
 }
 
+function buildUserProfileUpdatePayload(
+  baseline: Pick<UserRecord, 'firstName' | 'lastName'>,
+  formData: { firstName: string; lastName: string },
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  const firstName = formData.firstName.trim();
+  const lastName = formData.lastName.trim();
+  if (firstName !== baseline.firstName) payload.firstName = firstName;
+  if (lastName !== baseline.lastName) payload.lastName = lastName;
+  return payload;
+}
+
 function usesLecturerProfileRole(role: string): boolean {
   const normalized = role.trim().toUpperCase();
   return (
@@ -573,8 +585,7 @@ export default function AdminUsersPage() {
         setFieldErrors({});
 
         const payload: Record<string, any> = {
-          firstName: formData.firstName.trim(),
-          lastName: formData.lastName.trim(),
+          ...buildUserProfileUpdatePayload(editingUser, formData),
         };
         if (hasUserStatusChanged(editingUser.status, formData.status)) {
           payload.status = formData.status;

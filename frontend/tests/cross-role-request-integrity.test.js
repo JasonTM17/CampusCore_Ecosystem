@@ -1233,6 +1233,30 @@ test('admin catalog and credit-limit lists ignore late responses from older filt
       epochName: 'applicationsEpoch', apiName: 'adminRegistrationApi', method: 'creditLimitApplications',
       setter: 'setApplications', oldParams: { filter: 'PENDING' }, newParams: { filter: 'APPROVED' },
     },
+    {
+      label: 'departments', file: 'app/admin/departments/page.tsx', callback: 'fetchDepartments',
+      epochName: 'departmentsEpoch', apiName: 'departmentsApi', method: 'getAll',
+      setter: 'setDepartments', oldParams: { page: 2, search: 'first' },
+      newParams: { page: 1, search: 'second' },
+    },
+    {
+      label: 'classrooms', file: 'app/admin/classrooms/page.tsx', callback: 'fetchClassrooms',
+      epochName: 'classroomsEpoch', apiName: 'classroomsApi', method: 'getAll',
+      setter: 'setClassrooms', oldParams: { page: 2, search: 'first' },
+      newParams: { page: 1, search: 'second' },
+    },
+    {
+      label: 'academic years', file: 'app/admin/academic-years/page.tsx', callback: 'fetchAcademicYears',
+      epochName: 'academicYearsEpoch', apiName: 'academicYearsApi', method: 'getAll',
+      setter: 'setAcademicYears', oldParams: { page: 2, search: 'first' },
+      newParams: { page: 1, search: 'second' },
+    },
+    {
+      label: 'lecturers', file: 'app/admin/lecturers/page.tsx', callback: 'fetchLecturers',
+      epochName: 'lecturersEpoch', apiName: 'lecturersApi', method: 'getAll',
+      setter: 'setLecturers', oldParams: { page: 2, search: 'first' },
+      newParams: { page: 1, search: 'second' },
+    },
   ];
 
   for (const entry of cases) {
@@ -1255,6 +1279,7 @@ test('admin catalog and credit-limit lists ignore late responses from older filt
         [entry.epochName]: epoch,
         [entry.apiName]: api,
         [entry.setter]: calls.record('rows'),
+        setTotalItems: calls.record('totalItems'),
         setError: calls.record('error'),
         setTotalPages: calls.record('totalPages'),
         setIsLoading: calls.record('loading'),
@@ -1317,4 +1342,238 @@ test('an already-reviewed credit-limit request gets specific copy and reloads th
   assert.equal(new Map(calls.calls).get('reviewError'), 'ALREADY_REVIEWED',
     'a reviewed conflict must not be rendered as the generic 409 line');
   assert.equal(reloads, 1, 'the changed application list must be reloaded');
+});
+
+test('academic-year edits send only changed fields so a stale form cannot revert another admin', async () => {
+  const buildPayload = pageHelper('app/admin/academic-years/page.tsx', 'buildAcademicYearUpdatePayload', {});
+  let saved = null;
+  const handleSubmit = pageFunction('app/admin/academic-years/page.tsx', 'handleSubmit', {
+    formData: { year: 2026, startDate: '2026-09-01', endDate: '2027-01-20' },
+    copy: { endDateBeforeStart: 'ORDER', saveFailed: 'FAILED' },
+    setIsSaving: () => {},
+    editingYear: {
+      id: 'year-1', year: 2026,
+      startDate: '2026-09-01T00:00:00.000Z', endDate: '2027-01-15T00:00:00.000Z',
+    },
+    academicYearsApi: {
+      update: async (id, payload) => { saved = { id, payload }; },
+    },
+    toast: { success: () => {}, error: () => {} },
+    closeModal: () => {},
+    fetchAcademicYears: async () => {},
+    campusErrorMessage: () => 'ERR',
+    messages: { common: { campusErrors: {} } },
+    buildAcademicYearUpdatePayload: buildPayload,
+  });
+  await handleSubmit({ preventDefault() {} });
+  assert.deepEqual(saved, { id: 'year-1', payload: { endDate: '2027-01-20' } },
+    'an end-date edit must not resend the unchanged year or start date');
+});
+
+test('semester edits send only changed fields so a stale form cannot revert another admin', async () => {
+  const buildPayload = pageHelper('app/admin/semesters/page.tsx', 'buildSemesterUpdatePayload', {});
+  let saved = null;
+  const handleSubmit = pageFunction('app/admin/semesters/page.tsx', 'handleSubmit', {
+    formData: {
+      nameEn: 'Fall 2026', nameVi: 'Học kỳ 1', type: 'FIRST',
+      academicYearId: 'year-1', startDate: '2026-09-01', endDate: '2027-01-20',
+    },
+    copy: { updated: 'UPDATED', created: 'CREATED', saveFailed: 'FAILED' },
+    setIsSaving: () => {},
+    editingSemester: {
+      id: 'semester-1', name: 'Fall 2026', nameEn: 'Fall 2026', nameVi: 'Học kỳ 1',
+      type: 'FIRST', academicYearId: 'year-1',
+      startDate: '2026-09-01T00:00:00.000Z', endDate: '2027-01-15T00:00:00.000Z',
+      status: 'DRAFT',
+    },
+    adminSemestersApi: {
+      update: async (id, payload) => { saved = { id, payload }; },
+    },
+    toast: { success: () => {}, error: () => {} },
+    closeModal: () => {},
+    fetchSemesters: async () => {},
+    campusErrorMessage: () => 'ERR',
+    messages: { common: { campusErrors: {} } },
+    buildSemesterUpdatePayload: buildPayload,
+  });
+  await handleSubmit({ preventDefault() {} });
+  assert.deepEqual(saved, { id: 'semester-1', payload: { endDate: '2027-01-20' } },
+    'an end-date edit must not resend the unchanged names, type, year, or start date');
+});
+
+test('classroom edits send only changed fields so a stale form cannot revert another admin', async () => {
+  const buildPayload = pageHelper('app/admin/classrooms/page.tsx', 'buildClassroomUpdatePayload', {});
+  let saved = null;
+  const handleSubmit = pageFunction('app/admin/classrooms/page.tsx', 'handleSubmit', {
+    formData: { building: 'A', roomNumber: '101', capacity: 40, type: 'LECTURE' },
+    copy: { updated: 'UPDATED', created: 'CREATED', saveFailed: 'FAILED' },
+    setIsSaving: () => {},
+    editingRoom: {
+      id: 'room-1', building: 'A', roomNumber: '101', capacity: 30, type: 'LECTURE', isActive: true,
+    },
+    classroomsApi: {
+      update: async (id, payload) => { saved = { id, payload }; },
+    },
+    toast: { success: () => {}, error: () => {} },
+    closeModal: () => {},
+    fetchClassrooms: async () => {},
+    campusErrorMessage: () => 'ERR',
+    messages: { common: { campusErrors: {} } },
+    buildClassroomUpdatePayload: buildPayload,
+  });
+  await handleSubmit({ preventDefault() {} });
+  assert.deepEqual(saved, { id: 'room-1', payload: { capacity: 40 } },
+    'a capacity edit must not resend the unchanged building, room, or type');
+});
+
+test('department edits send only changed fields so a stale form cannot revert another admin', async () => {
+  const buildPayload = pageHelper('app/admin/departments/page.tsx', 'buildDepartmentUpdatePayload', {});
+  let saved = null;
+  const handleSubmit = pageFunction('app/admin/departments/page.tsx', 'handleSubmit', {
+    formData: {
+      nameEn: 'Computing', nameVi: 'Khoa học máy tính', code: 'CS',
+      descriptionEn: 'Old', descriptionVi: 'Cũ',
+    },
+    copy: { updated: 'UPDATED', created: 'CREATED', saveFailed: 'FAILED' },
+    setIsSaving: () => {},
+    editingDepartment: {
+      id: 'department-1', name: 'Computing', nameEn: 'Computing', nameVi: 'Máy tính', code: 'CS',
+      description: 'Old', descriptionEn: 'Old', descriptionVi: 'Cũ', isActive: true,
+    },
+    departmentsApi: {
+      update: async (id, payload) => { saved = { id, payload }; },
+    },
+    toast: { success: () => {}, error: () => {} },
+    closeModal: () => {},
+    fetchDepartments: async () => {},
+    campusErrorMessage: () => 'ERR',
+    messages: { common: { campusErrors: {} } },
+    buildDepartmentUpdatePayload: buildPayload,
+  });
+  await handleSubmit({ preventDefault() {} });
+  assert.deepEqual(saved, { id: 'department-1', payload: { nameVi: 'Khoa học máy tính' } },
+    'a Vietnamese-name edit must not resend the unchanged code, fallback name, or descriptions');
+});
+
+test('lecturer edits send only changed profile fields so a stale form cannot revert another admin', async () => {
+  const buildPayload = pageHelper('app/admin/lecturers/page.tsx', 'buildLecturerUpdatePayload', {});
+  let saved = null;
+  const handleSubmit = pageFunction('app/admin/lecturers/page.tsx', 'handleSubmit', {
+    formData: {
+      employeeId: 'E1', userId: 'user-1', departmentId: 'department-2', specialization: 'AI',
+    },
+    copy: { updated: 'UPDATED', created: 'CREATED', saveFailed: 'FAILED' },
+    setIsSaving: () => {},
+    editingLecturer: {
+      id: 'lecturer-1', employeeId: 'E1', userId: 'user-1', departmentId: 'department-1',
+      specialization: 'AI', isActive: true,
+    },
+    lecturersApi: {
+      update: async (id, payload) => { saved = { id, payload }; },
+    },
+    toast: { success: () => {}, error: () => {} },
+    closeModal: () => {},
+    fetchLecturers: async () => {},
+    campusErrorMessage: () => 'ERR',
+    messages: { common: { campusErrors: {} } },
+    buildLecturerUpdatePayload: buildPayload,
+  });
+  await handleSubmit({ preventDefault() {} });
+  assert.deepEqual(saved, { id: 'lecturer-1', payload: { departmentId: 'department-2' } },
+    'a department edit must not resend the unchanged employee, user, or specialization');
+});
+
+test('catalogue edits with no changed fields do not call the update endpoint', async (t) => {
+  const cases = [
+    {
+      label: 'academic years', file: 'app/admin/academic-years/page.tsx',
+      helper: 'buildAcademicYearUpdatePayload', apiName: 'academicYearsApi',
+      editingName: 'editingYear',
+      baseline: {
+        id: 'year-1', year: 2026,
+        startDate: '2026-09-01T00:00:00.000Z', endDate: '2027-01-15T00:00:00.000Z',
+      },
+      formData: { year: 2026, startDate: '2026-09-01', endDate: '2027-01-15' },
+      extraDeps: { fetchAcademicYears: async () => {} },
+    },
+    {
+      label: 'semesters', file: 'app/admin/semesters/page.tsx',
+      helper: 'buildSemesterUpdatePayload', apiName: 'adminSemestersApi',
+      editingName: 'editingSemester',
+      baseline: {
+        id: 'semester-1', name: 'Fall 2026', nameEn: 'Fall 2026', nameVi: 'Học kỳ 1',
+        type: 'FIRST', academicYearId: 'year-1',
+        startDate: '2026-09-01T00:00:00.000Z', endDate: '2027-01-15T00:00:00.000Z',
+        status: 'DRAFT',
+      },
+      formData: {
+        nameEn: 'Fall 2026', nameVi: 'Học kỳ 1', type: 'FIRST',
+        academicYearId: 'year-1', startDate: '2026-09-01', endDate: '2027-01-15',
+      },
+      extraDeps: { fetchSemesters: async () => {} },
+    },
+    {
+      label: 'classrooms', file: 'app/admin/classrooms/page.tsx',
+      helper: 'buildClassroomUpdatePayload', apiName: 'classroomsApi',
+      editingName: 'editingRoom',
+      baseline: {
+        id: 'room-1', building: 'A', roomNumber: '101', capacity: 30, type: 'LECTURE',
+      },
+      formData: { building: 'A', roomNumber: '101', capacity: 30, type: 'LECTURE' },
+      extraDeps: { fetchClassrooms: async () => {} },
+    },
+    {
+      label: 'departments', file: 'app/admin/departments/page.tsx',
+      helper: 'buildDepartmentUpdatePayload', apiName: 'departmentsApi',
+      editingName: 'editingDepartment',
+      baseline: {
+        id: 'department-1', name: 'Computing', nameEn: 'Computing', nameVi: 'Máy tính',
+        code: 'CS', description: 'Old', descriptionEn: 'Old', descriptionVi: 'Cũ',
+      },
+      formData: {
+        nameEn: 'Computing', nameVi: 'Máy tính', code: 'CS',
+        descriptionEn: 'Old', descriptionVi: 'Cũ',
+      },
+      extraDeps: { fetchDepartments: async () => {} },
+    },
+    {
+      label: 'lecturers', file: 'app/admin/lecturers/page.tsx',
+      helper: 'buildLecturerUpdatePayload', apiName: 'lecturersApi',
+      editingName: 'editingLecturer',
+      baseline: {
+        id: 'lecturer-1', employeeId: 'E1', userId: 'user-1',
+        departmentId: 'department-1', specialization: 'AI',
+      },
+      formData: {
+        employeeId: 'E1', userId: 'user-1', departmentId: 'department-1', specialization: 'AI',
+      },
+      extraDeps: { fetchLecturers: async () => {} },
+    },
+  ];
+
+  for (const entry of cases) {
+    await t.test(entry.label, async () => {
+      const buildPayload = pageHelper(entry.file, entry.helper, {});
+      let updates = 0;
+      let success = '';
+      const handleSubmit = pageFunction(entry.file, 'handleSubmit', {
+        formData: entry.formData,
+        copy: { updated: 'UPDATED', created: 'CREATED', saveFailed: 'FAILED' },
+        setIsSaving: () => {},
+        [entry.editingName]: entry.baseline,
+        [entry.apiName]: {
+          update: async () => { updates += 1; },
+        },
+        toast: { success: (message) => { success = message; }, error: () => {} },
+        closeModal: () => {},
+        campusErrorMessage: () => 'ERR',
+        messages: { common: { campusErrors: {} } },
+        [entry.helper]: buildPayload,
+        ...entry.extraDeps,
+      });
+      await handleSubmit({ preventDefault() {} });
+      assert.equal(updates, 0, 'no field changed means there is nothing to write');
+      assert.equal(success, 'UPDATED', 'the no-op save still reports success');
+    });
+  }
 });

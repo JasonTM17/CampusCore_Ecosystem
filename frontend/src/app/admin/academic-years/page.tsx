@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CalendarRange, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -30,6 +30,7 @@ import { useI18n } from '@/i18n';
 import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
 import { toast } from 'sonner';
 import { campusErrorMessage } from '@/lib/campus-error';
+import { createRequestEpoch } from '@/lib/request-epoch';
 
 interface AcademicYear {
   id: string;
@@ -38,6 +39,18 @@ interface AcademicYear {
   endDate: string;
   isActive?: boolean;
   isCurrent?: boolean;
+}
+
+function buildAcademicYearUpdatePayload(
+  baseline: AcademicYear,
+  formData: { year: number; startDate: string; endDate: string },
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  const dateOnly = (value: string) => value.split('T')[0];
+  if (Number(formData.year) !== baseline.year) payload.year = Number(formData.year);
+  if (formData.startDate !== dateOnly(baseline.startDate)) payload.startDate = formData.startDate;
+  if (formData.endDate !== dateOnly(baseline.endDate)) payload.endDate = formData.endDate;
+  return payload;
 }
 
 export default function AdminAcademicYearsPage() {
@@ -54,6 +67,7 @@ export default function AdminAcademicYearsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingYear, setEditingYear] = useState<AcademicYear | null>(null);
+  const academicYearsEpoch = useRef(createRequestEpoch()).current;
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     year: new Date().getFullYear(),
@@ -83,6 +97,7 @@ export default function AdminAcademicYearsPage() {
   }, [href, isAdmin, isSuperAdmin, isAuthLoading, isLoggingOut, router, user]);
 
   const fetchAcademicYears = useCallback(async () => {
+    const epoch = academicYearsEpoch.begin();
     setIsLoading(true);
     setError('');
 
@@ -91,14 +106,21 @@ export default function AdminAcademicYearsPage() {
       // them in the browser reports "no results" for anything on another page.
       const query = { page, limit: 20, search: search || undefined };
       const response = await academicYearsApi.getAll(query);
+      if (!academicYearsEpoch.isCurrent(epoch)) return;
       setAcademicYears(response.data || []);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
+      if (!academicYearsEpoch.isCurrent(epoch)) return;
       setError(copy.loadFailed);
     } finally {
+      if (!academicYearsEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [copy, page, search]);
+  }, [academicYearsEpoch, copy, page, search]);
+
+  useEffect(() => () => {
+    academicYearsEpoch.invalidate();
+  }, [academicYearsEpoch]);
 
   useEffect(() => {
     const trimmed = searchInput.trim();
@@ -214,7 +236,10 @@ export default function AdminAcademicYearsPage() {
 
     try {
       if (editingYear) {
-        await academicYearsApi.update(editingYear.id, formData);
+        const payload = buildAcademicYearUpdatePayload(editingYear, formData);
+        if (Object.keys(payload).length > 0) {
+          await academicYearsApi.update(editingYear.id, payload);
+        }
         toast.success(copy.updated);
       } else {
         await academicYearsApi.create(formData);

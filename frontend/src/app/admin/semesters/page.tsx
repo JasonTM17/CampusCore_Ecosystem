@@ -68,6 +68,35 @@ function semesterStatusTone(status: string): StatusTone {
   }
 }
 
+function buildSemesterUpdatePayload(
+  baseline: Semester,
+  formData: {
+    nameEn: string;
+    nameVi: string;
+    type: string;
+    academicYearId: string;
+    startDate: string;
+    endDate: string;
+  },
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  const dateOnly = (value: string) => value.split('T')[0];
+  const nameEnChanged = formData.nameEn !== (baseline.nameEn || baseline.name);
+  const nameViChanged = formData.nameVi !== (baseline.nameVi || '');
+
+  if (nameEnChanged) payload.nameEn = formData.nameEn;
+  if (nameViChanged) payload.nameVi = formData.nameVi;
+  const name = formData.nameEn || formData.nameVi;
+  if ((nameEnChanged || nameViChanged) && name !== baseline.name) payload.name = name;
+  if (formData.type !== baseline.type) payload.type = formData.type;
+  if (formData.academicYearId !== baseline.academicYearId) {
+    payload.academicYearId = formData.academicYearId;
+  }
+  if (formData.startDate !== dateOnly(baseline.startDate)) payload.startDate = formData.startDate;
+  if (formData.endDate !== dateOnly(baseline.endDate)) payload.endDate = formData.endDate;
+  return payload;
+}
+
 export default function AdminSemestersPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { href, locale, formatDate, messages } = useI18n();
@@ -301,14 +330,17 @@ export default function AdminSemestersPage() {
     setIsSaving(true);
 
     try {
-      const payload = {
-        ...formData,
-        name: formData.nameEn || formData.nameVi,
-      };
       if (editingSemester) {
-        await adminSemestersApi.update(editingSemester.id, payload);
+        const payload = buildSemesterUpdatePayload(editingSemester, formData);
+        if (Object.keys(payload).length > 0) {
+          await adminSemestersApi.update(editingSemester.id, payload);
+        }
         toast.success(copy.updated);
       } else {
+        const payload = {
+          ...formData,
+          name: formData.nameEn || formData.nameVi,
+        };
         await adminSemestersApi.create(payload);
         toast.success(copy.created);
       }

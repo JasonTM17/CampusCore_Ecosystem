@@ -97,30 +97,37 @@ test('primaryManagedRole returns null for custom-only or empty role sets', async
   assert.equal(primaryManagedRole(undefined), null);
 });
 
-async function submitExistingUser({ roles, nextRole, self = false, needsLecturerProfile = false, needsStudentProfile = false, fields = {} }) {
+async function submitExistingUser({ roles, nextRole, self = false, needsLecturerProfile = false, needsStudentProfile = false, fields = {}, baseline = {} }) {
   const { primaryManagedRole } = await loadGuardsModule();
   const primary = primaryManagedRole(roles);
   const source = fs.readFileSync(path.join(root, 'src/app/admin/users/page.tsx'), 'utf8');
   const tree = ts.createSourceFile('page.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let handler;
   let statusHelper;
+  let profileHelper;
   function visit(node) {
     if (ts.isVariableDeclaration(node) && node.name.getText(tree) === 'handleSubmit') handler = node.initializer;
     if (ts.isFunctionDeclaration(node) && node.name?.getText(tree) === 'hasUserStatusChanged') statusHelper = node;
+    if (ts.isFunctionDeclaration(node) && node.name?.getText(tree) === 'buildUserProfileUpdatePayload') profileHelper = node;
     ts.forEachChild(node, visit);
   }
   visit(tree);
   assert.ok(handler && ts.isArrowFunction(handler), 'Actual account submit handler required');
   assert.ok(statusHelper, 'Actual account status comparison required');
+  assert.ok(profileHelper, 'Actual account profile comparison required');
   const statusOutput = ts.transpileModule(statusHelper.getText(tree), {
     compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None },
   }).outputText;
   const hasUserStatusChanged = Function(`${statusOutput}; return hasUserStatusChanged;`)();
+  const profileOutput = ts.transpileModule(profileHelper.getText(tree), {
+    compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None },
+  }).outputText;
+  const buildUserProfileUpdatePayload = Function(`${profileOutput}; return buildUserProfileUpdatePayload;`)();
   const updates = [];
   const errors = [];
   const noop = () => {};
   const dependencies = {
-    editingUser: { id: 'target', email: 'target@example.invalid', roles },
+    editingUser: { id: 'target', email: 'target@example.invalid', roles, ...baseline },
     user: { id: self ? 'target' : 'actor', email: self ? 'target@example.invalid' : 'actor@example.invalid' },
     formData: { firstName: 'Renamed', lastName: 'Synthetic', status: 'ACTIVE', role: nextRole ?? primary ?? 'STUDENT', employeeId: '', departmentId: '', studentId: '', curriculumId: '', year: 2, ...fields },
     editingPrimaryRole: primary, roleUnsupported: primary === null,
@@ -128,6 +135,7 @@ async function submitExistingUser({ roles, nextRole, self = false, needsLecturer
     setFormError: value => { if (value) errors.push(value); },
     setIsSaving: noop, setFieldErrors: value => { if (Object.keys(value).length) errors.push(value); },
     hasUserStatusChanged,
+    buildUserProfileUpdatePayload,
     usersApi: { update: async (id, payload) => updates.push({ id, payload }) },
     toast: { success: noop, error: noop },
     copy: adminPagesEn.users,
@@ -208,4 +216,14 @@ test('unchanged student role carries valid missing student profile without a con
     firstName: 'Renamed', lastName: 'Synthetic',
     studentId: 'SYNTHETIC-STUDENT', curriculumId: 'synthetic-curriculum', year: 3,
   } }]);
+});
+
+test('a status-only edit does not resend the loaded names', async () => {
+  const { updates, errors } = await submitExistingUser({
+    roles: ['STUDENT'],
+    baseline: { firstName: 'Renamed', lastName: 'Synthetic' },
+    fields: { status: 'SUSPENDED' },
+  });
+  assert.deepEqual(errors, []);
+  assert.deepEqual(updates, [{ id: 'target', payload: { status: 'SUSPENDED' } }]);
 });
