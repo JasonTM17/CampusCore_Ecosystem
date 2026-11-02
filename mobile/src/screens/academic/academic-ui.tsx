@@ -13,6 +13,7 @@ import { useLocale } from '../../i18n/locale-provider';
 import { academicMessages, type AcademicCopy } from '../../i18n/academic-messages';
 import type { MobileNavigation } from '../../navigation/types';
 import type { ScreenName } from '../../navigation/routes';
+import { isResourceUnauthorizedError } from '../student/shared/resource-error';
 import { gradeScaleRows } from './gpa';
 
 /** Opens a route that the navigator registers (transcript, curriculum, enrollments); a no-op until it does. */
@@ -33,9 +34,10 @@ export const isPreviewMode = (): boolean => apiClient.mode === 'preview';
 
 /** Localised, student-safe message for a failed read; never the raw server text. */
 export function academicErrorMessage(copy: AcademicCopy, error: unknown, fallback: string): string {
+  // A screen-local 401 stays inline and retryable; the session lane owns sign-in.
+  if (isResourceUnauthorizedError(error)) return fallback;
   const status = (error as { status?: number } | null)?.status;
   if (status === 0 || error instanceof TypeError) return copy.offline;
-  if (status === 401) return copy.signIn;
   if (status === 403) return copy.denied;
   return fallback;
 }

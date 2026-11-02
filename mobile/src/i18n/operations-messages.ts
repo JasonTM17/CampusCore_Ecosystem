@@ -24,6 +24,7 @@ const vi = {
   untitled: 'Học phần chưa đặt tên',
   openOnWeb: 'Mở trên web',
   webOpenFailed: 'Không mở được liên kết.',
+  webUnavailable: 'Bản dựng này chưa cấu hình cổng web.',
 
   dashboardTitle: 'Giảng viên',
   metricSections: 'Lớp phụ trách',
@@ -168,6 +169,7 @@ const en: Shape = {
   untitled: 'Untitled course',
   openOnWeb: 'Open on web',
   webOpenFailed: 'Could not open the link.',
+  webUnavailable: 'The web portal is not configured in this build.',
 
   dashboardTitle: 'Lecturer',
   metricSections: 'Sections',

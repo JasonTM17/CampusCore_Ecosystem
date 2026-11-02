@@ -3,12 +3,13 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { RefreshControl } from 'react-native';
 import type { ReactElement } from 'react';
 
-import { apiClient } from '../../src/api/client';
+import { apiClient, ApiClientError } from '../../src/api/client';
 import { ThemeProvider } from '../../src/design/theme';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
+import { academicMessages } from '../../src/i18n/academic-messages';
 import { auditTree } from '../a11y/audit';
 
-type QueryState = { data?: unknown; error?: string | null; warning?: string | null; errorStatus?: number | null; isLoading?: boolean; isStale?: boolean };
+type QueryState = { data?: unknown; error?: string | null; errorInput?: unknown; warning?: string | null; errorStatus?: number | null; isLoading?: boolean; isStale?: boolean };
 
 const mockQueries: Record<string, QueryState> = {};
 const mockReload = jest.fn(async () => {});
@@ -32,15 +33,25 @@ jest.mock('../../src/api/client', () => ({
     registrationSections: jest.fn(async () => []),
   },
   createAssistantClientRequestId: () => `key-${++mockKeyCounter}`,
+  ApiClientError: class ApiClientError extends Error {
+    status: number;
+    code?: string;
+
+    constructor(message: string, status: number, _requestId: string, code?: string) {
+      super(message);
+      this.status = status;
+      this.code = code;
+    }
+  },
 }));
 
 jest.mock('../../src/hooks/useScreenQuery', () => ({
-  useScreenQuery: (key: string) => {
+  useScreenQuery: (key: string, _request: () => Promise<unknown>, options?: { mapError?: (error: unknown) => string }) => {
     const match = Object.keys(mockQueries).find((name) => key === name || key.startsWith(`${name}.`));
     const state = (match ? mockQueries[match] : {}) as QueryState;
     return {
       data: state.data,
-      error: state.error ?? null,
+      error: state.errorInput === undefined ? state.error ?? null : options?.mapError?.(state.errorInput) ?? state.error ?? null,
       warning: state.warning ?? null,
       errorStatus: state.errorStatus ?? null,
       isLoading: state.isLoading ?? false,
@@ -181,6 +192,18 @@ describe('enrollments and courses', () => {
     await render(wrap(<CoursesScreen {...props} />));
     expect(screen.getByText('Bạn không có quyền xem nội dung này.')).toBeOnTheScreen();
     expect(screen.queryByText('Nhập môn lập trình')).toBeNull();
+  });
+
+  test('a widget-level 401 stays a retryable error instead of session-expiry copy', async () => {
+    mockQueries['academic.enrollments'] = {
+      errorInput: new ApiClientError('unauthorized', 401, 'req-w15', 'HTTP_401'),
+      errorStatus: 401,
+    };
+    await render(wrap(<CoursesScreen {...props} />));
+    expect(screen.getByText(academicMessages.vi.generic)).toBeOnTheScreen();
+    expect(screen.queryByText(academicMessages.vi.signIn)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: academicMessages.vi.retry }));
+    expect(mockReload).toHaveBeenCalledTimes(1);
   });
 });
 

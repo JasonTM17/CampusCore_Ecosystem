@@ -28,6 +28,7 @@ export function LibraryScreen(_props: MobileScreenProps) {
   const [loanTab, setLoanTab] = useState<LoanTab>('active');
   const [input, setInput] = useState('');
   const [search, setSearch] = useState('');
+  const live = apiClient.mode === 'live';
   const [selected, setSelected] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [filter, setFilter] = useState<{ availability?: string[] }>({});
@@ -118,7 +119,8 @@ export function LibraryScreen(_props: MobileScreenProps) {
       options={[{ value: 'catalogue', label: copy.catalogue }, { value: 'loans', label: copy.myLoans }]}
     />
   );
-  const banner = <DataNotice message={copy.simulatedBanner} />;
+  // The banner labels preview fixtures only; a live read shows data, an empty state or a retryable error.
+  const banner = live ? null : <DataNotice message={copy.simulatedBanner} />;
   const rows = availableOnly ? catalogue.items.filter((item) => item.availableCopies > 0) : catalogue.items;
 
   return (
