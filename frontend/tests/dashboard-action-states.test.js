@@ -316,6 +316,7 @@ test('a failed mark-read keeps the inbox visible and retries the action', async 
       markReadCalls += 1;
       throw new Error('500');
     },
+    unreadCount: async () => 1,
     markAllRead: async () => ({ updated: 0 }),
   };
 
@@ -363,6 +364,7 @@ test('mark-all success is visible after the list reload', async () => {
       meta: { totalPages: 1 },
     }),
     markRead: async () => undefined,
+    unreadCount: async () => (allRead ? 0 : 1),
     markAllRead: async () => {
       allRead = true;
       return { updated: 1 };
@@ -388,6 +390,7 @@ test('the empty all-notifications tab shows only the empty-inbox sentence', asyn
   const api = {
     getMy: async () => ({ data: [], meta: { totalPages: 1 } }),
     markRead: async () => undefined,
+    unreadCount: async () => 0,
     markAllRead: async () => ({ updated: 0 }),
   };
 

@@ -306,19 +306,18 @@ test('supervised report prefetch cannot apply after unmount', () => {
     'if (!isSupervisorOrAdmin || supervisedGroups.length === 0) return;',
   );
   assert.ok(effectStart > -1, 'the supervised report effect exists');
-  const effectEnd = page.indexOf(
-    '}, [isSupervisorOrAdmin, supervisedGroups, supervisedReports]);',
-    effectStart,
-  );
+  const effectEnd = page.indexOf('\n  ]);', effectStart);
   assert.ok(effectEnd > effectStart, 'the effect dependency list is intact');
   const effect = page.slice(effectStart, effectEnd);
   assert.match(effect, /let active = true/, 'the effect owns a cancellation flag');
   assert.match(effect, /return \(\) => \{\s*active = false;\s*\};/, 'teardown clears the flag');
-  assert.equal(
-    (effect.match(/if \(!active\) return;/g) || []).length,
-    2,
-    'both the resolve and reject paths check the flag before setState',
+  assert.ok(
+    (effect.match(/if \(!active\) return;/g) || []).length >= 2,
+    'the resolve and reject paths check the flag before setState',
   );
+  assert.match(effect, /supervisedReportGroupIds/, 'the effect is keyed on the stable id list');
+  assert.doesNotMatch(effect, /\bsupervisedReports\b/,
+    'the effect must not depend on the map it writes');
 });
 
 test('the below-average badge keeps AA contrast in the light theme', () => {
