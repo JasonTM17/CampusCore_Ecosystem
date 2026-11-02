@@ -1,6 +1,7 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useReducer, useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 
+import type { PagedResult } from '../../api/paging';
 import { StatePanel, UiText } from '../../components/Ui';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -15,8 +16,16 @@ import {
   type QueueAction,
 } from './lane-model';
 import {
+  correctionTarget,
+  deskPageView,
+  deskPagingReducer,
+  deskWindow,
+  initialDeskPaging,
+} from './lane-paging';
+import {
   ConfirmSheet,
   LaneShell,
+  Pager,
   QueueCard,
   StatusFilter,
   laneStyles,
@@ -40,16 +49,19 @@ interface DeskProps<T extends { id: string }> {
   onReload: () => void;
   runner: ActionRunner;
   webPath: string;
+  /** Paging control for a server-paged queue; absent when the queue is read whole. */
+  pager?: ReactNode;
   renderItem: (item: T) => ReactNode;
 }
 
 /** Queue frame shared by the three staff desks: status filter, list, confirmation sheet, web hand-off. */
-function Desk<T extends { id: string }>({ title, copy, statuses, items, loading, error, status, onStatus, onReload, runner, webPath, renderItem }: DeskProps<T>) {
+function Desk<T extends { id: string }>({ title, copy, statuses, items, loading, error, status, onStatus, onReload, runner, webPath, pager, renderItem }: DeskProps<T>) {
   return (
     <LaneShell title={title} loading={loading} error={error} onRetry={onReload} banner={runner.banner}
       list={{ data: items, keyExtractor: (item, index) => String(item.id),
         renderItem: ({ item }) => <>{renderItem(item)}</>,
         footer: <><View><View style={laneStyles.stack}></View>
+        {pager}
         <UiText variant="bodySmall" tone="muted">{copy.webForAttachments}</UiText>
         <HandoffLink label={copy.openOnWeb} path={webPath} />
       </View>
@@ -62,6 +74,32 @@ function Desk<T extends { id: string }>({ title, copy, statuses, items, loading,
         {items.length === 0 ? <StatePanel kind="empty" title={copy.empty} /> : null}
         <View style={laneStyles.stack}></View></View></LaneShell>
   );
+}
+
+/**
+ * Status filter plus zero-based page for a queue the server pages. The status
+ * and page are part of the request key, so a response for another window can
+ * never land; an empty page past the end steps back once.
+ */
+function usePagedDesk<T>(label: string, fetchPage: (status: string | undefined, page: number) => Promise<PagedResult<T>>) {
+  const [query, dispatch] = useReducer(deskPagingReducer, initialDeskPaging);
+  const request = useLaneRequest(
+    () => fetchPage(query.status || undefined, query.page),
+    `${label}:${query.status}:${query.page}`,
+  );
+  const target = request.data ? correctionTarget(request.data, query.page) : null;
+  const correcting = target !== null && !query.corrected;
+  useEffect(() => {
+    if (correcting && target !== null) dispatch({ type: 'emptyPage', target, lastPage: query.page - 1 });
+  }, [correcting, target, query.page]);
+  return {
+    status: query.status,
+    request,
+    view: request.data ? deskPageView(request.data, query.page, query.lastPage) : null,
+    correcting,
+    onStatus: (status: string) => dispatch({ type: 'filter', status }),
+    onPage: (page: number) => dispatch({ type: 'page', page }),
+  };
 }
 
 const ACTION_LABEL = (copy: LanesCopy, action: QueueAction): string => ({
@@ -86,13 +124,34 @@ const action = (copy: LanesCopy, kind: QueueAction, subject: string, run: (text:
   run,
 });
 
+/** Pager data is only rendered for a settled known page. */
+function DeskPager({ copy, view, loading, onPage }: {
+  copy: LanesCopy;
+  view: ReturnType<typeof deskPageView> | null;
+  loading: boolean;
+  onPage: (wirePage: number) => void;
+}) {
+  if (!view) return null;
+  return (
+    <Pager
+      copy={copy}
+      page={view.page}
+      total={view.total}
+      totalPages={view.totalPages}
+      hasMore={view.hasMore}
+      onPage={(page) => onPage(page - 1)}
+      disabled={loading}
+    />
+  );
+}
+
 export function ApplyReviewScreen() {
   const { copy } = useLanesCopy();
   const { formatDateTime } = useLocale();
-  const [status, setStatus] = useState('');
-  const request = useLaneRequest(() => laneApi.admissionsQueue(status || undefined), `apply:${status}`);
-  const runner = useActionRunner(copy, () => void request.reload());
-  const items = useMemo(() => request.data ?? [], [request.data]);
+  const desk = usePagedDesk<AdmissionApp>('apply', (status, page) =>
+    laneApi.admissionsQueuePaged(status, deskWindow(page)));
+  const runner = useActionRunner(copy, () => void desk.request.reload());
+  const items = useMemo(() => desk.request.data?.items ?? [], [desk.request.data]);
 
   const run = (kind: QueueAction, row: AdmissionApp): PendingAction => {
     const subject = row.fullName ?? row.applicantEmail ?? row.id;
@@ -107,13 +166,14 @@ export function ApplyReviewScreen() {
       copy={copy}
       statuses={['SUBMITTED', 'IN_REVIEW', 'RETURNED', 'ACCEPTED', 'REJECTED']}
       items={items}
-      loading={request.loading}
-      error={request.error}
-      status={status}
-      onStatus={setStatus}
-      onReload={() => void request.reload()}
+      loading={desk.request.loading || desk.correcting}
+      error={desk.request.error}
+      status={desk.status}
+      onStatus={desk.onStatus}
+      onReload={() => void desk.request.reload()}
       runner={runner}
       webPath="/apply/review"
+      pager={<DeskPager copy={copy} view={desk.view} loading={desk.request.loading} onPage={desk.onPage} />}
       renderItem={(row) => (
         <QueueCard
           key={row.id}
@@ -141,10 +201,10 @@ export function ApplyReviewScreen() {
 export function CareersDeskScreen() {
   const { copy } = useLanesCopy();
   const { formatDateTime } = useLocale();
-  const [status, setStatus] = useState('');
-  const request = useLaneRequest(() => laneApi.careersApplications(status || undefined), `careers:${status}`);
-  const runner = useActionRunner(copy, () => void request.reload());
-  const items = useMemo(() => request.data ?? [], [request.data]);
+  const desk = usePagedDesk<CareerApp>('careers', (status, page) =>
+    laneApi.careersApplicationsPaged(status, deskWindow(page)));
+  const runner = useActionRunner(copy, () => void desk.request.reload());
+  const items = useMemo(() => desk.request.data?.items ?? [], [desk.request.data]);
 
   const run = (kind: QueueAction, row: CareerApp): PendingAction => {
     const subject = `${row.candidateEmail ?? row.id} · ${row.opportunityTitle ?? ''}`.trim();
@@ -158,13 +218,14 @@ export function CareersDeskScreen() {
       copy={copy}
       statuses={['SUBMITTED', 'REVIEWING', 'INTERVIEW', 'OFFER', 'REJECTED', 'WITHDRAWN']}
       items={items}
-      loading={request.loading}
-      error={request.error}
-      status={status}
-      onStatus={setStatus}
-      onReload={() => void request.reload()}
+      loading={desk.request.loading || desk.correcting}
+      error={desk.request.error}
+      status={desk.status}
+      onStatus={desk.onStatus}
+      onReload={() => void desk.request.reload()}
       runner={runner}
       webPath="/careers/desk"
+      pager={<DeskPager copy={copy} view={desk.view} loading={desk.request.loading} onPage={desk.onPage} />}
       renderItem={(row) => (
         <QueueCard
           key={row.id}
@@ -189,6 +250,11 @@ export function CareersDeskScreen() {
   );
 }
 
+/**
+ * Library keeps the one unbounded read the server offers. A pager would have to
+ * slice the full list on the device or claim a total nobody measured, so the
+ * screen deliberately shows no page control until the queue API can page.
+ */
 export function LibraryDeskScreen() {
   const { copy } = useLanesCopy();
   const { formatDateTime } = useLocale();
