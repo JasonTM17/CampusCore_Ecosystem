@@ -138,6 +138,19 @@ function composeTry(args, argv, opts = {}) {
   return tryRun('docker', composeArgs(args, argv), opts);
 }
 
+export function preflightComposeProject(args, runCommand = tryRun) {
+  const containers = runCommand('docker', composeArgs(args, ['ps', '-aq']));
+  if (!containers.ok) throw new Error('Compose project ownership preflight failed; refusing startup.');
+  if (containers.out.trim()) throw new Error('Refusing to adopt a Compose project that already contains containers.');
+
+  const volumes = runCommand('docker', [
+    'volume', 'ls', '-q', '--filter', `label=com.docker.compose.project=${args.project}`,
+  ]);
+  if (!volumes.ok) throw new Error('Compose volume ownership preflight failed; refusing startup.');
+  if (volumes.out.trim()) throw new Error('Refusing to adopt a Compose project that already contains volumes.');
+  return true;
+}
+
 let args_env = null; // compose env for the active subcommand (set in main)
 
 async function allocPort() {
@@ -261,7 +274,10 @@ async function caseStack(args) {
     case: 'stack', target: 'local', project: args.project, image: IMAGE_TAG,
     ports: { ...args_env }, startedAt: new Date(started).toISOString(),
   };
+  let stackStarted = false;
   try {
+    preflightComposeProject(args);
+    stackStarted = true;
     const up = composeTry(args, ['up', '-d', '--build', 'postgres', 'assistant-db-provisioner', 'restful-api']);
     if (!up.ok) throw new Error(`compose up failed\n${up.out.slice(-3000)}`);
     const api = await waitServiceHealthy(args, /restful-api/, 480000);
@@ -288,7 +304,10 @@ async function caseStack(args) {
     }
     console.log(`PASS stack up=${api.healthyMs}ms rss=${result.memory.memUsage} fits512Mb=${result.fits512Mb} probes=${JSON.stringify(result.probes)}`);
   } finally {
-    try { composeTry(args, ['down', '-v', '--remove-orphans']); } catch { /* best-effort */ }
+    if (stackStarted) {
+      const down = composeTry(args, ['down', '-v', '--remove-orphans']);
+      if (!down.ok) throw new Error('Owned Compose stack cleanup failed.');
+    }
   }
 }
 
@@ -302,7 +321,9 @@ async function casePgit(args) {
     E2E_API_HOST_PORT: String(await allocPort()),
   };
   const result = { case: 'pgit', target: 'local', project: args.project, ports: { ...args_env } };
+  let stackStarted = false;
   try {
+    preflightComposeProject(args);
     // One IT pins the historical audit rig at 127.0.0.1:5452 — publish the same
     // disposable postgres on that fixed port too when it is free; if taken,
     // proceed without the override and that class stays skipped (honest).
@@ -328,6 +349,7 @@ async function casePgit(args) {
       // compose recreate postgres without the 5452 binding mid-run.
       args.composeFiles = [path.join(REPO, COMPOSE_FILE), overrideFile];
     }
+    stackStarted = true;
     const up = composeTry(args, ['up', '-d', 'postgres']);
     if (!up.ok) throw new Error(`compose up failed\n${up.out.slice(-3000)}`);
     await waitServiceHealthy(args, /postgres/, 240000);
@@ -485,7 +507,10 @@ async function casePgit(args) {
     }
     console.log(`PASS pgit tests=${totals[0]} failures=${totals[1]} errors=${totals[2]} skipped=${totals[3]} in ${result.mvnMs}ms`);
   } finally {
-    try { composeTry(args, ['down', '-v', '--remove-orphans']); } catch { /* best-effort */ }
+    if (stackStarted) {
+      const down = composeTry(args, ['down', '-v', '--remove-orphans']);
+      if (!down.ok) throw new Error('Owned Compose stack cleanup failed.');
+    }
   }
 }
 
