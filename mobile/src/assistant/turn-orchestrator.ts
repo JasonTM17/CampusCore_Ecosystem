@@ -8,7 +8,7 @@ import {
   systemAssistantClock,
 } from '../api/assistant-limits';
 import type { AssistantClock } from '../api/assistant-limits';
-import { AssistantStreamError, bufferedReplyEvents } from '../api/assistant-stream';
+import { AssistantStreamError, bufferedReplyEvents, parseRetryAfterSeconds } from '../api/assistant-stream';
 import type {
   AssistantChatRequest,
   AssistantErrorEvent,
@@ -81,6 +81,11 @@ function statusOf(error: unknown): number {
 function codeOf(error: unknown): string | undefined {
   const code = (error as { code?: unknown } | null)?.code;
   return typeof code === 'string' ? code : undefined;
+}
+
+function retryAfterOf(error: unknown): number | null {
+  const retryAfter = (error as { retryAfter?: unknown } | null)?.retryAfter;
+  return typeof retryAfter === 'string' ? parseRetryAfterSeconds(retryAfter) : null;
 }
 
 /** A 4xx the server will repeat: the same key never produces a different answer. */
@@ -189,7 +194,13 @@ export function createTurnOrchestrator(deps: TurnDeps) {
     if (!isCurrent(turn)) return turn.outcome ?? release(turn, 'aborted');
     if (isDefinitiveClientError(last)) {
       const retryable = statusOf(last) === 429 && codeOf(last) === 'RATE_LIMIT_EXCEEDED';
-      emit(turn, { type: 'error', code: codeOf(last) ?? 'HTTP_ERROR', retryable });
+      const retryAfter = retryAfterOf(last) ?? failureEvent?.retryAfterSeconds ?? null;
+      emit(turn, {
+        type: 'error',
+        code: codeOf(last) ?? 'HTTP_ERROR',
+        retryable,
+        ...(retryAfter === null ? {} : { retryAfterSeconds: retryAfter }),
+      });
       return release(turn, 'failed');
     }
     if (failureEvent && last === failure) {
@@ -223,7 +234,13 @@ export function createTurnOrchestrator(deps: TurnDeps) {
       // 400/403/429 are definitive before any turn exists; 401 still reconciles so the JSON client can refresh.
       if (isCurrent(turn) && [400, 403, 429].includes(statusOf(error))) {
         const retryable = (error as AssistantStreamError).retryable === true;
-        emit(turn, { type: 'error', code: codeOf(error) ?? 'HTTP_ERROR', retryable });
+        const retryAfter = retryAfterOf(error);
+        emit(turn, {
+          type: 'error',
+          code: codeOf(error) ?? 'HTTP_ERROR',
+          retryable,
+          ...(retryAfter === null ? {} : { retryAfterSeconds: retryAfter }),
+        });
         return release(turn, 'failed');
       }
     }

@@ -5,6 +5,7 @@ import { Button, Card, IconChip, StatePanel, StatusPill, UiText } from '../../co
 import { ChoiceField } from '../../components/ui/choice-field';
 import { SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
 import type { MobileScreenProps } from '../../navigation/types';
 import { lecturerApi } from './lecturer-api';
 import { courseTitle, filterSections, termOptions, windowOf } from './lecturer-model';
@@ -56,7 +57,7 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
                   ) : null}
                 </View>
                 <StatusPill
-                  label={fillCopy(copy.studentsCount, { n: section.enrolledCount ?? 0 })}
+                  label={fillCopy(countForm(section.enrolledCount ?? 0, copy.studentsCountOne, copy.studentsCount), { n: section.enrolledCount ?? 0 })}
                   tone="neutral"
                   icon="account-group-outline"
                 />

@@ -9,26 +9,13 @@ import { tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 import type { MobileScreenProps } from '../../navigation/types';
 import { fillAssistantCopy, assistantMessages } from '../../i18n/assistant-messages';
+import { failureTitle } from './failure-title';
 import { MarkdownText } from './MarkdownText';
 import { AssistantComposer } from './AssistantComposer';
 import { AssistantHistorySheet } from './AssistantHistorySheet';
 import { KeyboardSafeView } from './KeyboardSafeView';
 import { MessageBubble } from './MessageBubble';
-import { useAssistantChat, type AssistantChat, type ChatMessage } from './useAssistantChat';
-
-function failureTitle(chat: AssistantChat): string {
-  const msg = assistantMessages[chat.locale];
-  switch (chat.failure?.kind) {
-    case 'session': return msg.sessionExpired;
-    case 'forbidden': return msg.forbidden;
-    case 'rate': return msg.rateLimited.replace('{seconds}', '30');
-    case 'quota': return msg.quotaExceeded;
-    case 'interrupted': return msg.interruptedStatus;
-    case 'invalid': return msg.streamInvalid;
-    case 'unavailable': return msg.unavailable;
-    default: return chat.copy.errorTitle;
-  }
-}
+import { useAssistantChat, type ChatMessage } from './useAssistantChat';
 
 function suggestionLabels(text: string, locale: string): string[] {
   const separator = locale === 'vi' ? /\s*,\s*|\s+(?:hoặc|và)\s+/i : /\s*,\s*|\s+(?:or|and)\s+/i;
@@ -135,7 +122,7 @@ export function AssistantChatScreen({ navigation }: MobileScreenProps) {
           {failure ? (
             <StatePanel
               kind="error"
-              title={failureTitle(chat)}
+              title={failureTitle(msg, failure, copy.errorTitle)}
               description={failure.kind === 'generic' ? copy.errorBody : undefined}
               actionLabel={failure.resubmittable && chat.canRetry ? msg.retryAction : undefined}
               onAction={failure.resubmittable && chat.canRetry ? () => void chat.retry() : undefined}

@@ -6,7 +6,7 @@ import { Button, Notice, StatePanel, StatStrip, UiText } from '../../components/
 import { DateField } from '../../components/ui/date-field';
 import { SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
-import { campusIsoDate } from '../../i18n/locale';
+import { campusIsoDate, countForm } from '../../i18n/locale';
 import type { MobileScreenProps } from '../../navigation/types';
 import { AttendanceRosterRow } from './AttendanceRosterRow';
 import { StaleAttendanceError, lecturerApi, type AttendanceSheet } from './lecturer-api';
@@ -229,10 +229,10 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
 
               <View style={styles.saveBar}>
                 {save.kind === 'error' ? <Notice tone="error" message={save.message} /> : null}
-                {save.kind === 'saved' ? <Notice tone="success" message={fillCopy(copy.saved, { n: save.count })} /> : null}
+                {save.kind === 'saved' ? <Notice tone="success" message={fillCopy(countForm(save.count, copy.savedOne, copy.saved), { n: save.count })} /> : null}
                 {changes > 0 ? (
                   <UiText variant="bodySmall" tone="muted">
-                    {fillCopy(copy.unsaved, { n: changes })}
+                    {fillCopy(countForm(changes, copy.unsavedOne, copy.unsaved), { n: changes })}
                   </UiText>
                 ) : null}
                 <Button

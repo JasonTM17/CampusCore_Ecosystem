@@ -6,6 +6,7 @@ import { Button, Card, ScreenSpacer, StatePanel, StatusPill, UiText } from '../.
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { useLocale } from '../../i18n/locale-provider';
+import { countForm } from '../../i18n/locale';
 import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi } from '../academic/academic-api';
@@ -63,7 +64,7 @@ const SessionCard = memo(function SessionCard({ item, expanded, onToggle }: { it
           <View style={academicStyles.actions}>
             {item.sectionNumber ? <UiText variant="bodySmall">{copy.sectionLabel}: {item.sectionNumber}</UiText> : null}
             {item.lecturer ? <UiText variant="bodySmall">{copy.lecturer}: {item.lecturer}</UiText> : null}
-            {item.credits > 0 ? <UiText variant="bodySmall">{fillCopy(copy.credits, { n: item.credits })}</UiText> : null}
+            {item.credits > 0 ? <UiText variant="bodySmall">{fillCopy(countForm(item.credits, copy.creditsOne, copy.credits), { n: item.credits })}</UiText> : null}
           </View>
         ) : null}
       </Card>
