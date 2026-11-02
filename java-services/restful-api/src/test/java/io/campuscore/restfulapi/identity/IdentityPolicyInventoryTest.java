@@ -40,10 +40,10 @@ class IdentityPolicyInventoryTest {
     // Digests cover executable policy bodies, ignoring comments and whitespace.
     // They intentionally require review even for a contract-preserving policy edit.
     private static final java.util.List<ExceptionPolicy> EXCEPTIONS = java.util.List.of(
-            new ExceptionPolicy("identity/IdentitySecurityConfig.java", "identityServerChain", "96b0524911d1c0bbdf36507b817c9b057e692ea73e0f987643b59dd4af922e70",
-                    "SAS framework CSRF disabled for protocol clients; cookie filter runs before endpoints; GET is safe-method exempt"),
-            new ExceptionPolicy("identity/IdentitySecurityConfig.java", "handleLogout", "a41823ad839bbe50d65146509a491e66f77f20118ac107750a5d5d6aca09ed80",
-                    "GET/POST exact registered redirect; best-effort revoke failure still reports success (AUD-06 proposal)"),
+            new ExceptionPolicy("identity/IdentitySecurityConfig.java", "identityServerChain", "087fb4a9c50f734d6eb9f715273f41d1cac5029f8a2caa3a1d2ef89974203eec",
+                    "SAS framework CSRF disabled for protocol clients; cookie filter runs before endpoints; accepted logout clears central cookies after per-client revoke"),
+            new ExceptionPolicy("identity/IdentitySecurityConfig.java", "handleLogout", "7b3a91639540ff208b9bfe251654d26d643afb6e82b101b42c3e007fcb977053",
+                    "GET/POST exact registered redirect; revoke failure still redirects without clearing central cookies; success clears browser cookies"),
             new ExceptionPolicy("security/CsrfCookieFilter.java", "doFilterInternal", "ec3dd921a2eefda5e92a4ab20958e74f99f8a1dd2265c356b64f42764f6bdc22",
                     "Safe methods, Bearer, no legacy auth cookies, /bff/ and /session/ bypass legacy double-submit"),
             new ExceptionPolicy("security/AccountStateFilter.java", "isSessionCleanupEndpoint", "60104c1a3af7f0832756cd39ff1221442b29efdadf3af871f0d439f2ae394226",

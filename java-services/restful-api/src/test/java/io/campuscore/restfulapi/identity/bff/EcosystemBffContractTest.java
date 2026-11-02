@@ -19,6 +19,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
+import io.campuscore.restfulapi.identity.bff.BffSessionStore;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -310,7 +311,8 @@ class EcosystemBffContractTest {
 
     @Test
     void secondLogoutIsIdempotent() throws Exception {
-        String sessionCookie = establishSession();
+        String centralCookies = legacyLogin();
+        String sessionCookie = establishSession(centralCookies);
         Map<String, String> sessionHeaders = edgePortal();
         sessionHeaders.put("Cookie", sessionCookie);
         String csrf = mapper.readTree(
@@ -319,17 +321,48 @@ class EcosystemBffContractTest {
 
         HttpResponse<String> first = postLogout(sessionCookie, csrf);
         assertThat(first.statusCode()).isEqualTo(200);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM campuscore_identity.oauth2_authorization", Integer.class))
+                .as("the central grant remains available until SAS accepts the first hint")
+                .isEqualTo(1);
 
-        // The first logout sweeps the session row (revokeClientGrants), so
-        // the browser's inevitable retry must still get the id logout URL —
-        // a 403 here strands the cc_session on the id host and the next
-        // /session/login silently re-authenticates (tester DEFECT-1).
+        // The first BFF request deletes its session row but leaves the grant
+        // for the returned central end-session URL. A retry has no live
+        // session from which to recover another hint, so it remains idempotent
+        // without exposing the stale ID token.
         HttpResponse<String> second = postLogout(sessionCookie, csrf);
         assertThat(second.statusCode()).as("second logout: %s", second.body())
                 .isEqualTo(200);
         String logoutUrl = mapper.readTree(second.body()).get("logoutUrl").asText();
         assertThat(logoutUrl).startsWith(BASE + "/connect/logout")
                 .doesNotContain("id_token_hint=");
+        assertThat(first.headers().allValues("Set-Cookie"))
+                .anyMatch(h -> h.startsWith(SESSION_COOKIE + "=") && h.contains("Max-Age=0"));
+        assertThat(second.headers().allValues("Set-Cookie"))
+                .anyMatch(h -> h.startsWith(SESSION_COOKIE + "=") && h.contains("Max-Age=0"));
+        assertThat(get(logoutUrl, Map.of("Cookie", centralCookies)).statusCode())
+                .as("the no-hint retry keeps the current SAS 7.1 failure behavior")
+                .isEqualTo(400);
+    }
+
+    @Test
+    void unknownSessionLogoutDoesNotLeakAnotherGrantHintAndClearsItsCookie() throws Exception {
+        String activeCookie = establishSession();
+        String unknownCookie = SESSION_COOKIE + "=unknown-session-value";
+
+        HttpResponse<String> logout = postLogout(unknownCookie, "not-used-for-dead-session");
+
+        assertThat(logout.statusCode()).isEqualTo(200);
+        String logoutUrl = mapper.readTree(logout.body()).get("logoutUrl").asText();
+        assertThat(logoutUrl).startsWith(BASE + "/connect/logout")
+                .doesNotContain("id_token_hint=");
+        assertThat(logout.headers().allValues("Set-Cookie"))
+                .anyMatch(h -> h.startsWith(SESSION_COOKIE + "=") && h.contains("Max-Age=0"));
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM campuscore_identity.oauth2_authorization", Integer.class))
+                .isEqualTo(1);
+        assertThat(get(BASE + "/session/state", withCookie(activeCookie)).statusCode())
+                .isEqualTo(200);
     }
 
     @Test
@@ -606,23 +639,19 @@ class EcosystemBffContractTest {
 
     // ---- AUD-06 fault and negative matrix ----------------------------------
 
-    @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(strings = {"session-store", "grant-store"})
-    void logoutStoreFailureRollsBackCookiesAndSessionThenRetrySucceeds(String fault) throws Exception {
-        String cookie = establishSession();
+    @Test
+    void logoutStoreFailureRollsBackCookiesAndSessionThenRetrySucceeds() throws Exception {
+        String centralCookies = legacyLogin();
+        String cookie = establishSession(centralCookies);
         String csrf = csrfFor(cookie);
         int grants = jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_identity.oauth2_authorization",
                 Integer.class);
-        if ("session-store".equals(fault)) {
-            org.mockito.Mockito.doThrow(new IllegalStateException("AUD06 synthetic session-store failure"))
-                    .when(logoutStore).revokeSession(org.mockito.ArgumentMatchers.anyString(),
-                            org.mockito.ArgumentMatchers.eq("portal"));
-        } else {
-            // The session marker and grant deletion have already executed in
-            // the transaction: failure here must roll BOTH back.
-            org.mockito.Mockito.doThrow(new IllegalStateException("AUD06 synthetic grant-store failure"))
-                    .when(logoutMirror).deleteOidcSessionsForClient("student-user", "cu-portal");
-        }
+        org.mockito.Mockito.doAnswer(invocation -> {
+            invocation.callRealMethod();
+              throw new IllegalStateException("synthetic post-delete session-store failure");
+        }).when(logoutStore).deleteSessionsForClient(
+                org.mockito.ArgumentMatchers.eq("student-user"),
+                org.mockito.ArgumentMatchers.eq("cu-portal"));
         HttpResponse<String> failed = postLogout(cookie, csrf);
         assertThat(failed.statusCode()).isEqualTo(500);
         assertThat(failed.headers().allValues("Set-Cookie")).isEmpty();
@@ -630,18 +659,27 @@ class EcosystemBffContractTest {
                 + " WHERE revoked_at IS NULL", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_identity.oauth2_authorization",
                 Integer.class)).isEqualTo(grants);
+        assertThat(logoutStore.isClientLogoutPending("student-user", "cu-portal")).isFalse();
         Map<String, String> stateHeaders = edgePortal();
         stateHeaders.put("Cookie", cookie);
         assertThat(get(BASE + "/session/state", stateHeaders).statusCode()).isEqualTo(200);
         org.mockito.Mockito.doCallRealMethod().when(logoutStore)
-                .revokeSession(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq("portal"));
-        org.mockito.Mockito.doCallRealMethod().when(logoutMirror)
-                .deleteOidcSessionsForClient("student-user", "cu-portal");
+                .deleteSessionsForClient("student-user", "cu-portal");
         HttpResponse<String> recovered = postLogout(cookie, csrf);
         assertThat(recovered.statusCode()).isEqualTo(200);
         assertThat(recovered.headers().allValues("Set-Cookie")).hasSize(2)
                 .allMatch(value -> value.contains("Max-Age=0"));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_identity.bff_session",
+                Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_identity.oauth2_authorization",
+                Integer.class)).isEqualTo(grants);
+        assertThat(logoutStore.isClientLogoutPending("student-user", "cu-portal")).isTrue();
+        String logoutUrl = mapper.readTree(recovered.body()).get("logoutUrl").asText();
+        assertThat(logoutUrl).contains("id_token_hint=");
+        HttpResponse<String> centralLogout = get(logoutUrl, Map.of("Cookie", centralCookies));
+        assertThat(centralLogout.statusCode()).as("central end-session accepts the retained hint")
+                .isEqualTo(302);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_identity.oauth2_authorization",
                 Integer.class)).isZero();
         assertThat(postLogout(cookie, csrf).statusCode()).as("documented idempotent retry").isEqualTo(200);
     }
@@ -721,19 +759,83 @@ class EcosystemBffContractTest {
     }
 
     @Test
-    void returnedLogoutUrlCannotCompleteEndSessionAfterGrantDeletionKnownContractGap() throws Exception {
-        String cookie = establishSession();
+    void returnedLogoutUrlCompletesEndSessionAndTerminatesCentralBrowserSession() throws Exception {
+        String centralCookies = legacyLogin();
+        String cookie = establishSession(centralCookies);
         String csrf = csrfFor(cookie);
         HttpResponse<String> first = postLogout(cookie, csrf);
         assertThat(first.statusCode()).isEqualTo(200);
         String firstUrl = mapper.readTree(first.body()).get("logoutUrl").asText();
-        assertThat(get(firstUrl, Map.of()).statusCode())
-                .as("known gap: SAS cannot resolve the hint after the BFF deleted its grant").isEqualTo(400);
-        HttpResponse<String> retry = postLogout(cookie, csrf);
-        assertThat(retry.statusCode()).isEqualTo(200);
-        String retryUrl = mapper.readTree(retry.body()).get("logoutUrl").asText();
-        assertThat(get(retryUrl, Map.of()).statusCode())
-                .as("known gap: SAS 7.1 requires a hint, contrary to host-policy hint-null claim").isEqualTo(400);
+        assertThat(firstUrl).startsWith(BASE + "/connect/logout")
+                .contains("id_token_hint=")
+                .contains("post_logout_redirect_uri=");
+        int grantsBeforeCentralLogout = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM campuscore_identity.oauth2_authorization", Integer.class);
+        int oidcSessionsBeforeCentralLogout = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM campuscore_auth.\"Session\""
+                        + " WHERE \"userId\" = 'student-user' AND \"lane\" = 'OIDC'"
+                        + " AND \"clientId\" = 'cu-portal'", Integer.class);
+        assertThat(first.headers().allValues("Set-Cookie"))
+                .anyMatch(h -> h.startsWith(SESSION_COOKIE + "=") && h.contains("Max-Age=0"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_identity.bff_session",
+                Integer.class)).isZero();
+
+        // The BFF phase has committed its local logout. A failure in the
+        // central end-session transaction must preserve the grant, mirrored
+        // OIDC session and central browser cookies for a retry.
+        org.mockito.Mockito.doThrow(new IllegalStateException("synthetic central revoke-store failure"))
+                .when(logoutMirror).deleteOidcSessionsForClient("student-user", "cu-portal");
+        HttpResponse<String> failedCentralLogout = get(firstUrl, Map.of("Cookie", centralCookies));
+        assertThat(failedCentralLogout.statusCode()).isEqualTo(302);
+        assertThat(failedCentralLogout.headers().allValues("Set-Cookie"))
+                .noneMatch(h -> h.startsWith("cc_access_token=") && h.contains("Max-Age=0"))
+                .noneMatch(h -> h.startsWith("cc_refresh_token=") && h.contains("Max-Age=0"))
+                .noneMatch(h -> h.startsWith("cc_csrf=") && h.contains("Max-Age=0"));
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM campuscore_identity.oauth2_authorization", Integer.class))
+                .isEqualTo(grantsBeforeCentralLogout);
+        assertThat(logoutStore.isClientLogoutPending("student-user", "cu-portal")).isTrue();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM campuscore_auth.\"Session\""
+                        + " WHERE \"userId\" = 'student-user' AND \"lane\" = 'OIDC'"
+                        + " AND \"clientId\" = 'cu-portal'", Integer.class))
+                .isEqualTo(oidcSessionsBeforeCentralLogout);
+        assertThat(oidcSessionsBeforeCentralLogout).isGreaterThan(0);
+
+        org.mockito.Mockito.doCallRealMethod().when(logoutMirror)
+                .deleteOidcSessionsForClient("student-user", "cu-portal");
+
+        HttpResponse<String> centralLogout = get(firstUrl, Map.of("Cookie", centralCookies));
+        assertThat(centralLogout.statusCode()).as("central RP-initiated end-session")
+                .isEqualTo(302);
+        assertThat(grantsBeforeCentralLogout)
+                .as("the ID token hint must still resolve in the central authorization store")
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM campuscore_identity.bff_session",
+                Integer.class)).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM campuscore_auth.\"Session\""
+                        + " WHERE \"userId\" = 'student-user' AND \"lane\" = 'OIDC'"
+                        + " AND \"clientId\" = 'cu-portal'", Integer.class)).isZero();
+        assertThat(centralLogout.headers().firstValue("Location"))
+                .hasValue("http://portal.test/session/logged-out");
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM campuscore_identity.oauth2_authorization", Integer.class))
+                .isZero();
+        assertThat(logoutStore.isClientLogoutPending("student-user", "cu-portal")).isFalse();
+        assertThat(centralLogout.headers().allValues("Set-Cookie"))
+                .anyMatch(h -> h.startsWith("cc_access_token=") && h.contains("Max-Age=0"))
+                .anyMatch(h -> h.startsWith("cc_refresh_token=") && h.contains("Max-Age=0"))
+                .anyMatch(h -> h.startsWith("cc_csrf=") && h.contains("Max-Age=0"));
+
+        // Once the OP clears its browser cookies, a new authorization request
+        // must return to login rather than silently mint another grant.
+        HttpResponse<String> newLogin = get(BASE + "/session/login", edgePortal());
+        String newAuthorize = newLogin.headers().firstValue("Location").orElseThrow();
+        HttpResponse<String> reauthentication = get(newAuthorize, Map.of());
+        assertThat(reauthentication.statusCode()).isEqualTo(302);
+        assertThat(reauthentication.headers().firstValue("Location").orElseThrow())
+                .startsWith(BASE + "/login?return=");
     }
 
     @Test
@@ -823,7 +925,10 @@ class EcosystemBffContractTest {
 
     /** Full login journey — returns the opaque session cookie. */
     private String establishSession() throws Exception {
-        String legacyCookies = legacyLogin();
+        return establishSession(legacyLogin());
+    }
+
+    private String establishSession(String legacyCookies) throws Exception {
         HttpResponse<String> login = get(BASE + "/session/login", edgePortal());
         String authorize = login.headers().firstValue("Location").orElseThrow();
         String txCookie = setCookie(login, TX_PREFIX);
@@ -836,6 +941,12 @@ class EcosystemBffContractTest {
                 BASE + callbackUri.getPath() + "?" + callbackUri.getQuery(), headers);
         assertThat(cb.statusCode()).as("callback: %s", cb.body()).isEqualTo(302);
         return setCookie(cb, SESSION_COOKIE);
+    }
+
+    private Map<String, String> withCookie(String cookie) {
+        Map<String, String> headers = edgePortal();
+        headers.put("Cookie", cookie);
+        return headers;
     }
 
     /** Legacy login on the id host — the SSO authority the authorize leg sees. */

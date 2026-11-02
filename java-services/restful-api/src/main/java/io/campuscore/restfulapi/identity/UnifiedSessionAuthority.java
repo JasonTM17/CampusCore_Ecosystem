@@ -2,6 +2,7 @@ package io.campuscore.restfulapi.identity;
 
 import io.campuscore.restfulapi.auth.repository.AuthUserRepository;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,9 @@ public class UnifiedSessionAuthority {
     private static final String AUTHZ_TABLE = "campuscore_identity.oauth2_authorization";
     private static final String AUDIT_TABLE = "campuscore_identity.logout_audit";
     private static final String SESSION_TABLE = "campuscore_auth.\"Session\"";
+
+    private record LogoutFence(String stateHash, String surface, String verifier) {
+    }
 
     private final AuthUserRepository users;
     private final NamedParameterJdbcTemplate jdbc;
@@ -115,11 +119,53 @@ public class UnifiedSessionAuthority {
                 "DELETE FROM " + AUTHZ_TABLE
                         + " WHERE principal_name = :userId AND registered_client_id = :clientId",
                 params);
+        consumeOrAdvanceClientLogoutFence(userId, clientId);
         int sessions = mirror.deleteOidcSessionsForClient(userId, clientId);
         insertAudit(userId, "OIDC", reason, requestId);
         log.info("UNIFIED_SESSION_CLIENT_REVOKE user={} client={} reason={} sessions={} grants={} bffSessions={}",
                 userId, clientId, reason, sessions, grants, bffSessions);
         return grants;
+    }
+
+    /**
+     * Accepted end-session consumes only the pending bit. A revoke without a
+     * BFF hint advances the epoch itself so a pre-revoke code save cannot
+     * resume after this transaction and recreate a grant.
+     */
+    private void consumeOrAdvanceClientLogoutFence(String userId, String clientId) {
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("markerTx", BffLogoutMarker.TX_ID)
+                .addValue("markerNonce", BffLogoutMarker.nonce(userId, clientId));
+        List<LogoutFence> rows = jdbc.query(
+                "SELECT state_hash, surface, verifier FROM campuscore_identity.bff_transaction"
+                        + " WHERE tx_id = :markerTx AND nonce = :markerNonce FOR UPDATE",
+                params,
+                (rs, row) -> new LogoutFence(rs.getString("state_hash"),
+                        rs.getString("surface"), rs.getString("verifier")));
+        if (rows.isEmpty()) {
+            long epoch = 1;
+            jdbc.update("INSERT INTO campuscore_identity.bff_transaction"
+                            + " (state_hash, tx_id, surface, nonce, verifier, return_path, expires_at)"
+                            + " VALUES (:stateHash, :markerTx, :surface, :markerNonce, :verifier, '/', :expiresAt)",
+                    params.addValue("stateHash", IdentitySessionMirror.sha256Hex(UUID.randomUUID().toString()))
+                            .addValue("surface", BffLogoutMarker.CLEARED_SURFACE)
+                            .addValue("verifier", BffLogoutMarker.encodeEpoch(epoch))
+                            .addValue("expiresAt", BffLogoutMarker.expiresAt()));
+            return;
+        }
+        LogoutFence fence = rows.get(0);
+        boolean wasPending = BffLogoutMarker.SURFACE.equals(fence.surface());
+        long epoch = wasPending
+                ? BffLogoutMarker.epoch(fence.verifier())
+                : BffLogoutMarker.nextEpoch(fence.verifier());
+        jdbc.update("UPDATE campuscore_identity.bff_transaction"
+                        + " SET surface = :surface, verifier = :verifier, expires_at = :expiresAt"
+                        + " WHERE state_hash = :stateHash",
+                new MapSqlParameterSource()
+                        .addValue("surface", BffLogoutMarker.CLEARED_SURFACE)
+                        .addValue("verifier", BffLogoutMarker.encodeEpoch(epoch))
+                        .addValue("expiresAt", BffLogoutMarker.expiresAt())
+                        .addValue("stateHash", fence.stateHash()));
     }
 
     /**
