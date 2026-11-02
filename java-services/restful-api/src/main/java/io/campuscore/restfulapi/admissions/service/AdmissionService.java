@@ -551,8 +551,18 @@ public class AdmissionService {
         notifications.create(new CreateNotificationCommand(
                 UUID.randomUUID().toString(),
                 String.valueOf(application.get("applicantUserId")),
-                title, message, type,
+                capNotificationText(title, 240), capNotificationText(message, 2000), type,
                 "/apply", Instant.now()));
+    }
+
+    /** Fits notification columns in both supported databases without splitting surrogate pairs. */
+    private static String capNotificationText(String value, int maxLength) {
+        int end = Math.min(value.length(), maxLength);
+        if (end < value.length() && Character.isHighSurrogate(value.charAt(end - 1))
+                && Character.isLowSurrogate(value.charAt(end))) {
+            end--;
+        }
+        return value.substring(0, end);
     }
 
     private String serializeChecklist(List<ChecklistItemRequest> checklist) {
