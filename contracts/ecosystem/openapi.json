@@ -344,6 +344,57 @@
         },
         "type": "object"
       },
+      "AnnouncementPinOption": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "isGlobal": {
+            "type": "boolean"
+          },
+          "publishAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "enum": [
+              "DRAFT",
+              "IN_REVIEW",
+              "PUBLISHED",
+              "ARCHIVED"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AnnouncementPinOptionListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AnnouncementPinOption"
+            },
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMeta"
+          }
+        },
+        "type": "object"
+      },
       "AnnouncementResponse": {
         "properties": {
           "archivedAt": {
@@ -10037,6 +10088,98 @@
           }
         },
         "summary": "Lấy danh sách thông báo dành riêng cho người dùng",
+        "tags": [
+          "Announcements & Campus News"
+        ]
+      }
+    },
+    "/api/v1/announcements/pin-options": {
+      "get": {
+        "description": "Truy vấn danh sách thông báo chỉ gồm id, tiêu đề, trạng thái và thời điểm sắp xếp — không trả nội dung — để trình chỉnh giao diện duyệt, tìm và định danh các thông báo đã ghim",
+        "operationId": "getPinOptions",
+        "parameters": [
+          {
+            "description": "Số trang phân trang (bắt đầu từ 1)",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số lượng thông báo trên một trang",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Trạng thái thông báo (ACTIVE, ARCHIVED, ALL, DRAFT, IN_REVIEW, PUBLISHED)",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "ACTIVE",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Từ khóa tìm kiếm theo tiêu đề",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Danh sách mã thông báo cách nhau bởi dấu phẩy, dùng để định danh các mục đã ghim",
+            "in": "query",
+            "name": "ids",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "queryParameters",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/MultiValueMapStringString"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnouncementPinOptionListResponse"
+                }
+              }
+            },
+            "description": "Truy vấn danh mục thành công"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnouncementPinOptionListResponse"
+                }
+              }
+            },
+            "description": "Chỉ quản trị viên mới có quyền truy cập"
+          }
+        },
+        "summary": "Danh mục rút gọn cho trình ghim thông báo (Admin/SuperAdmin)",
         "tags": [
           "Announcements & Campus News"
         ]

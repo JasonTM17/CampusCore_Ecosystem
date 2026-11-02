@@ -260,6 +260,13 @@ export interface paths {
      */
     get: operations["getMyAnnouncements"];
   };
+  "/api/v1/announcements/pin-options": {
+    /**
+     * Danh mục rút gọn cho trình ghim thông báo (Admin/SuperAdmin)
+     * @description Truy vấn danh sách thông báo chỉ gồm id, tiêu đề, trạng thái và thời điểm sắp xếp — không trả nội dung — để trình chỉnh giao diện duyệt, tìm và định danh các thông báo đã ghim
+     */
+    get: operations["getPinOptions"];
+  };
   "/api/v1/announcements/public": {
     /**
      * Bản tin công khai cho khách truy cập (không cần đăng nhập)
@@ -2241,6 +2248,21 @@ export interface components {
     };
     AnnouncementListResponse: {
       data?: components["schemas"]["AnnouncementResponse"][];
+      meta?: components["schemas"]["PageMeta"];
+    };
+    AnnouncementPinOption: {
+      /** Format: date-time */
+      createdAt?: string;
+      id?: string;
+      isGlobal?: boolean;
+      /** Format: date-time */
+      publishAt?: string | null;
+      /** @enum {string|null} */
+      status?: "DRAFT" | "IN_REVIEW" | "PUBLISHED" | "ARCHIVED";
+      title?: string;
+    };
+    AnnouncementPinOptionListResponse: {
+      data?: components["schemas"]["AnnouncementPinOption"][];
       meta?: components["schemas"]["PageMeta"];
     };
     AnnouncementResponse: {
@@ -6070,6 +6092,41 @@ export interface operations {
       403: {
         content: {
           "*/*": components["schemas"]["AnnouncementListResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Danh mục rút gọn cho trình ghim thông báo (Admin/SuperAdmin)
+   * @description Truy vấn danh sách thông báo chỉ gồm id, tiêu đề, trạng thái và thời điểm sắp xếp — không trả nội dung — để trình chỉnh giao diện duyệt, tìm và định danh các thông báo đã ghim
+   */
+  getPinOptions: {
+    parameters: {
+      query: {
+        /** @description Số trang phân trang (bắt đầu từ 1) */
+        page?: number;
+        /** @description Số lượng thông báo trên một trang */
+        limit?: number;
+        /** @description Trạng thái thông báo (ACTIVE, ARCHIVED, ALL, DRAFT, IN_REVIEW, PUBLISHED) */
+        status?: string;
+        /** @description Từ khóa tìm kiếm theo tiêu đề */
+        search?: string;
+        /** @description Danh sách mã thông báo cách nhau bởi dấu phẩy, dùng để định danh các mục đã ghim */
+        ids?: string;
+        queryParameters: components["schemas"]["MultiValueMapStringString"];
+      };
+    };
+    responses: {
+      /** @description Truy vấn danh mục thành công */
+      200: {
+        content: {
+          "*/*": components["schemas"]["AnnouncementPinOptionListResponse"];
+        };
+      };
+      /** @description Chỉ quản trị viên mới có quyền truy cập */
+      403: {
+        content: {
+          "*/*": components["schemas"]["AnnouncementPinOptionListResponse"];
         };
       };
     };
