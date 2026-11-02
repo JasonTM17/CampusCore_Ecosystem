@@ -56,6 +56,7 @@ test('council report 200 then 204 clears stale document links', async () => {
     setTopicReports: update => { reports = update(reports); },
     setTopicReportErrors: update => { errors = update(errors); },
     setDraftScores: () => {}, setDraftComments: () => {},
+    COUNCIL_TOPIC_CONCURRENCY: 4,
   });
   const councils = [{ id: 'council', topicIds: ['topic'] }];
   await load(councils);
@@ -79,6 +80,7 @@ test('council report failure is distinct from no report, and retry restores it',
     setTopicReports: update => { reports = update(reports); },
     setTopicReportErrors: update => { errors = update(errors); },
     setDraftScores: () => {}, setDraftComments: () => {},
+    COUNCIL_TOPIC_CONCURRENCY: 4,
   });
   const councils = [{ id: 'council', topicIds: ['topic'] }];
   await load(councils);

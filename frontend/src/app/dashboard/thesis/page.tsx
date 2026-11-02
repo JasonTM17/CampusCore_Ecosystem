@@ -88,6 +88,7 @@ import {
   type ThesisTopicSupervisor,
 } from '@/lib/thesis-api';
 import { useThesisPagedList } from '@/components/dashboard/thesis/useThesisPagedList';
+import { buildTopicHistoryIds } from '@/components/dashboard/thesis/topic-history';
 import { archiveEmptyState } from '@/lib/thesis-page-list';
 
 /** Shape of the API error envelope (`{ code, message }`) used for domain conflicts. */
@@ -113,6 +114,14 @@ type GradeBand =
 
 const THESIS_LECTURER_TABS = ['supervision', 'defense', 'repository'] as const;
 const THESIS_SUPERVISION_TAB_ONLY = ['supervision'] as const;
+
+// A round can hold thousands of groups; the workspace only needs one bounded
+// page for its review list, and the server total for the KPI.
+const GROUP_PAGE_LIMIT = 100;
+// Detail hydration fans out per group/topic. Keep the bursts small so one
+// screen cannot saturate the browser's connection pool.
+const SUPERVISED_REPORT_CONCURRENCY = 4;
+const COUNCIL_TOPIC_CONCURRENCY = 4;
 
 // Feedback item 2: one classification source. The 10-point bands live in
 // grade-scale.ts now, matching the official conversion table end to end.
@@ -177,10 +186,12 @@ export default function ThesisPage() {
   const [rounds, setRounds] = useState<ThesisRound[]>([]);
   const [topics, setTopics] = useState<ThesisTopic[]>([]);
   const [groups, setGroups] = useState<ThesisGroup[]>([]);
+  const [groupTotal, setGroupTotal] = useState(0);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedRoundId, setSelectedRoundId] = useState('');
   const topicRequestRef = useRef(0);
   const councilRequestRef = useRef(0);
+  const councilDetailsRoundRef = useRef('');
   const selectedRoundRef = useRef(selectedRoundId);
   selectedRoundRef.current = selectedRoundId;
   const [viewingTopic, setViewingTopic] = useState<ThesisTopic | null>(null);
@@ -340,6 +351,9 @@ export default function ThesisPage() {
   const [gvpbDraftScores, setGvpbDraftScores] = useState<Record<string, string>>({});
   const [gvpbDraftComments, setGvpbDraftComments] = useState<Record<string, string>>({});
   const [supervisedReports, setSupervisedReports] = useState<Record<string, ThesisGroupReport | null>>({});
+  // The report effect must not depend on the map it writes: this ref answers
+  // "already loaded?" without re-running the effect per resolution.
+  const supervisedReportsRef = useRef<Record<string, ThesisGroupReport | null>>({});
   const [topicReports, setTopicReports] = useState<Record<string, ThesisGroupReport | null>>({});
   const [topicReportErrors, setTopicReportErrors] = useState<Record<string, boolean>>({});
 
@@ -424,43 +438,95 @@ export default function ThesisPage() {
     for (const c of councilsList) {
       if (!isCurrent()) return;
       const isMemberOrAdmin = isAdmin || c.members?.some((m) => m.lecturerId === myLecturerId);
-      const tids = (c as unknown as { topicIds?: string[] }).topicIds || [];
-      for (const tid of tids) {
-        if (!isCurrent()) return;
-        const key = `${c.id}:${tid}`;
-        try {
-          const [scoresResult, sups, reportResult] = await Promise.all([
-            isMemberOrAdmin
-              ? thesisApi.listScores(c.id, tid).then(
-                  (scores) => ({ scores, failed: false }),
-                  () => ({ scores: [] as ThesisCouncilScore[], failed: true }),
-                )
-              : Promise.resolve({ scores: [] as ThesisCouncilScore[], failed: false }),
-            thesisApi.listSupervisors(tid).catch(() => []),
-            thesisApi.getTopicReport(tid).then(
-              (report) => ({ report, failed: false }),
-              () => ({ report: null, failed: true }),
-            ),
-          ]);
+      const tids = c.topicIds ?? [];
+      if (tids.length === 0) continue;
+
+      // Accumulate the whole council first so every map is committed in one
+      // synchronous block; resolving per topic re-rendered the page once per
+      // pair and made a defense board wait pair by pair.
+      const scoresPatch: Record<string, ThesisCouncilScore[]> = {};
+      const scoreErrorPatch: Record<string, boolean> = {};
+      const supervisorPatch: Record<string, string[]> = {};
+      const reportPatch: Record<string, ThesisGroupReport | null> = {};
+      const reportErrorPatch: Record<string, boolean> = {};
+      const draftScorePatch: Record<string, string> = {};
+      const draftCommentPatch: Record<string, string> = {};
+
+      let cursor = 0;
+      const loadTopic = async () => {
+        while (cursor < tids.length) {
           if (!isCurrent()) return;
-          setCouncilScores((prev) => ({ ...prev, [key]: scoresResult.scores }));
-          setCouncilScoreErrors((prev) => ({ ...prev, [key]: scoresResult.failed }));
-          setTopicSupervisors((prev) => ({ ...prev, [tid]: sups.map((s) => s.lecturerId) }));
-          setTopicReports((prev) => ({ ...prev, [tid]: reportResult.report }));
-          setTopicReportErrors((prev) => ({ ...prev, [tid]: reportResult.failed }));
-          const myScore = scoresResult.scores.find((s) => s.lecturerId === myLecturerId);
-          if (myScore != null) {
-            setDraftScores((prev) => ({ ...prev, [key]: String(myScore.score) }));
-            if (myScore.comment) {
-              setDraftComments((prev) => ({ ...prev, [key]: myScore.comment ?? '' }));
+          const tid = tids[cursor];
+          cursor += 1;
+          const key = `${c.id}:${tid}`;
+          try {
+            const [scoresResult, sups, reportResult] = await Promise.all([
+              isMemberOrAdmin
+                ? thesisApi.listScores(c.id, tid).then(
+                    (scores) => ({ scores, failed: false }),
+                    () => ({ scores: [] as ThesisCouncilScore[], failed: true }),
+                  )
+                : Promise.resolve({ scores: [] as ThesisCouncilScore[], failed: false }),
+              thesisApi.listSupervisors(tid).catch(() => []),
+              thesisApi.getTopicReport(tid).then(
+                (report) => ({ report, failed: false }),
+                () => ({ report: null, failed: true }),
+              ),
+            ]);
+            scoresPatch[key] = scoresResult.scores;
+            scoreErrorPatch[key] = scoresResult.failed;
+            supervisorPatch[tid] = sups.map((s) => s.lecturerId);
+            reportPatch[tid] = reportResult.report;
+            reportErrorPatch[tid] = reportResult.failed;
+            const myScore = scoresResult.scores.find((s) => s.lecturerId === myLecturerId);
+            if (myScore != null) {
+              draftScorePatch[key] = String(myScore.score);
+              if (myScore.comment) {
+                draftCommentPatch[key] = myScore.comment ?? '';
+              }
             }
+          } catch {
+            // ignore
           }
-        } catch {
-          // ignore
         }
-      }
+      };
+
+      await Promise.all(
+        Array.from(
+          { length: Math.min(COUNCIL_TOPIC_CONCURRENCY, tids.length) },
+          () => loadTopic(),
+        ),
+      );
+      if (!isCurrent()) return;
+      setCouncilScores((prev) => ({ ...prev, ...scoresPatch }));
+      setCouncilScoreErrors((prev) => ({ ...prev, ...scoreErrorPatch }));
+      setTopicSupervisors((prev) => ({ ...prev, ...supervisorPatch }));
+      setTopicReports((prev) => ({ ...prev, ...reportPatch }));
+      setTopicReportErrors((prev) => ({ ...prev, ...reportErrorPatch }));
+      setDraftScores((prev) => ({ ...prev, ...draftScorePatch }));
+      setDraftComments((prev) => ({ ...prev, ...draftCommentPatch }));
     }
   }, [isAdmin, myLecturerId]);
+
+  // Council details are only read by the defense tab, so the workspace sweep
+  // no longer pays for them. The round ref makes selection idempotent: a
+  // tab switch back, or the retry that loaded them, does not repeat the burst.
+  useEffect(() => {
+    if (!canLoadStaffRelations || lecturerTab !== 'defense' || visibleCouncils.length === 0) return;
+    if (councilDetailsRoundRef.current === selectedRoundId) return;
+    councilDetailsRoundRef.current = selectedRoundId;
+    const requestId = councilRequestRef.current;
+    const roundId = selectedRoundRef.current;
+    const isCurrent = () =>
+      requestId === councilRequestRef.current && roundId === selectedRoundRef.current;
+    void loadCouncilDetails(visibleCouncils, isCurrent);
+  }, [
+    canLoadStaffRelations,
+    lecturerTab,
+    loadCouncilDetails,
+    selectedRoundId,
+    visibleCouncils,
+  ]);
 
   const handleSubmitScore = async (councilId: string, topicId: string) => {
     const key = `${councilId}:${topicId}`;
@@ -838,6 +904,7 @@ export default function ThesisPage() {
   useEffect(() => {
     setTopics([]);
     setGroups([]);
+    setGroupTotal(0);
     // Round-scoped UI state must not leak across rounds: the topic detail
     // modal and action banners belonged to the previous round's objects.
     setViewingTopic(null);
@@ -855,6 +922,9 @@ export default function ThesisPage() {
     setTopicSupervisors({});
     setTopicReports({});
     setTopicReportErrors({});
+    setSupervisedReports({});
+    supervisedReportsRef.current = {};
+    councilDetailsRoundRef.current = '';
     setCouncilLoadError('');
     if (!selectedRoundId) {
       return;
@@ -872,11 +942,17 @@ export default function ThesisPage() {
       try {
         const promises: Promise<unknown>[] = [refreshTopics(selectedRoundId)];
         if (isStudent || canLoadStaffRelations) {
-          promises.push(thesisApi.listGroups(selectedRoundId).then((next) => {
-            if (!cancelled) setGroups(next);
-          }));
+          promises.push(
+            thesisApi.listGroupsPage(selectedRoundId, { page: 0, limit: GROUP_PAGE_LIMIT }).then((next) => {
+              if (!cancelled) {
+                setGroups(next.items);
+                setGroupTotal(next.total ?? next.items.length);
+              }
+            }),
+          );
         } else {
           setGroups([]);
+          setGroupTotal(0);
         }
         if (canLoadStaffRelations) {
           promises.push(
@@ -884,7 +960,6 @@ export default function ThesisPage() {
               if (isCouncilCurrent()) {
                 setCouncils(cList);
                 setCouncilLoadError('');
-                void loadCouncilDetails(cList, isCouncilCurrent);
               }
             }).catch(() => {
               if (isCouncilCurrent()) {
@@ -911,7 +986,7 @@ export default function ThesisPage() {
       topicRequestRef.current += 1;
       councilRequestRef.current += 1;
     };
-  }, [canLoadStaffRelations, isStudent, loadCouncilDetails, messages.thesis.loadFailed, refreshTopics, selectedRoundId, workspaceRetryToken]);
+  }, [canLoadStaffRelations, isStudent, messages.thesis.loadFailed, refreshTopics, selectedRoundId, workspaceRetryToken]);
 
   // Retry path for a failed council listing: the defense tab gets the real
   // failure with a way back, instead of a council workspace that silently
@@ -928,6 +1003,9 @@ export default function ThesisPage() {
       const cList = await thesisApi.listCouncils(roundId);
       if (!isCurrent()) return;
       setCouncils(cList);
+      // The retry loads details itself; the defense-tab effect must not repeat
+      // the same burst for this round.
+      councilDetailsRoundRef.current = roundId;
       await loadCouncilDetails(cList, isCurrent);
     } catch {
       if (isCurrent()) {
@@ -1087,6 +1165,12 @@ export default function ThesisPage() {
   );
   const myTopicIds = useMemo(() => new Set(myTopics.map((topic) => topic.id)), [myTopics]);
   const managedTopics = isTopicApprover ? topics : myTopics;
+  // One set per render: the capability mapper runs for every topic, so scanning
+  // the group list inside it made rendering quadratic in a faculty-scale round.
+  const topicHistoryIds = useMemo(
+    () => buildTopicHistoryIds(groups, councils),
+    [groups, councils],
+  );
   const topicCapabilities = (topic: ThesisTopic) => getThesisTopicCapabilities(topic, {
     roles: user?.roles ?? [],
     userId: user?.id,
@@ -1097,8 +1181,7 @@ export default function ThesisPage() {
     inDepartmentCatalog: topics.some((listed) =>
       listed.id === topic.id && listed.departmentId === topic.departmentId,
     ),
-    hasHistory: topic.finalScore != null || groups.some((group) => group.topicId === topic.id) ||
-      councils.some((council) => council.topicIds?.includes(topic.id)),
+    hasHistory: topic.finalScore != null || topicHistoryIds.has(topic.id),
   });
 
   // "Supervised" is the R3 supervisor relationship (thesis_topic_supervisor),
@@ -1122,31 +1205,77 @@ export default function ThesisPage() {
   );
 
 
+  const supervisedReportGroupIds = useMemo(
+    () => supervisedGroups
+      .filter((group) => group.approvalStatus === 'APPROVED')
+      .map((group) => group.id),
+    [supervisedGroups],
+  );
+
   useEffect(() => {
     if (!isSupervisorOrAdmin || supervisedGroups.length === 0) return;
+    // The report links only render on the supervision tab; a reader on the
+    // defense or archive tab must not pay for them.
+    if (lecturerTab !== 'supervision') return;
     let active = true;
-    for (const g of supervisedGroups) {
-      if (g.approvalStatus === 'APPROVED' && !supervisedReports[g.id]) {
-        void thesisApi.getReport(g.id)
-          .then((rep) => {
-            if (!active) return;
-            setSupervisedReports((prev) => ({ ...prev, [g.id]: rep }));
-          })
-          .catch((err: unknown) => {
-            if (!active) return;
-            // 404 REPORT_NOT_FOUND means the group has not submitted yet —
-            // an expected state, not a data error.
-            const status = (err as { response?: { status?: number } })?.response?.status;
-            if (status !== 404 && status !== 204) {
-              setSecondaryDataError(true);
-            }
-          });
+    // The effect is keyed on the id list, never on the map it writes: keying
+    // on the map re-ran the whole scan once per resolution.
+    const pending = supervisedReportGroupIds.filter(
+      (id) => supervisedReportsRef.current[id] === undefined,
+    );
+    if (pending.length === 0) return;
+    const queue = [...pending];
+    const results: Record<string, ThesisGroupReport | null> = {};
+    let failed = false;
+    const loadNextReport = async () => {
+      while (queue.length > 0) {
+        if (!active) return;
+        const id = queue.shift();
+        if (id === undefined) return;
+        try {
+          const rep = await thesisApi.getReport(id);
+          if (!active) return;
+          results[id] = rep;
+        } catch (err: unknown) {
+          if (!active) return;
+          results[id] = null;
+          // 404 REPORT_NOT_FOUND means the group has not submitted yet —
+          // an expected state, not a data error.
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          if (status !== 404 && status !== 204) {
+            failed = true;
+          }
+        }
       }
-    }
+    };
+    void Promise.all(
+      Array.from(
+        { length: Math.min(SUPERVISED_REPORT_CONCURRENCY, queue.length) },
+        () => loadNextReport(),
+      ),
+    ).then(() => {
+      if (!active) return;
+      // One commit for the whole page keeps the parent render count flat.
+      setSupervisedReports((prev) => {
+        const next = { ...prev, ...results };
+        supervisedReportsRef.current = next;
+        return next;
+      });
+      if (failed) {
+        setSecondaryDataError(true);
+      }
+    });
     return () => {
       active = false;
     };
-  }, [isSupervisorOrAdmin, supervisedGroups, supervisedReports]);
+  }, [
+    isSupervisorOrAdmin,
+    lecturerTab,
+    setSecondaryDataError,
+    setSupervisedReports,
+    supervisedGroups.length,
+    supervisedReportGroupIds,
+  ]);
 
   const handleDownloadRepositoryReport = async (report: ThesisRepositoryReport) => {
     try {
@@ -1297,7 +1426,9 @@ export default function ThesisPage() {
   const refreshGroups = async () => {
     if (!selectedRoundId) return;
     try {
-      setGroups(await thesisApi.listGroups(selectedRoundId));
+      const page = await thesisApi.listGroupsPage(selectedRoundId, { page: 0, limit: GROUP_PAGE_LIMIT });
+      setGroups(page.items);
+      setGroupTotal(page.total ?? page.items.length);
     } catch {
       // The preceding mutation already succeeded — a failed roster reload must
       // not be reported as "action failed" by the caller's catch block.
@@ -2642,7 +2773,7 @@ export default function ThesisPage() {
             <WorkspaceMetricCard label={messages.thesis.roundStatus} value={statusLabel(selectedRound.status)} icon={<CalendarDays className="h-5 w-5" />} toneClassName={metricToneClass('warning')} />
             <WorkspaceMetricCard label={messages.thesis.topics} value={topics.length} icon={<FileStack className="h-5 w-5" />} toneClassName={metricToneClass('info')} />
             {canLoadStaffRelations || isStudent ? (
-              <WorkspaceMetricCard label={messages.thesis.groups} value={groups.length} icon={<UsersRound className="h-5 w-5" />} toneClassName={metricToneClass('success')} />
+              <WorkspaceMetricCard label={messages.thesis.groups} value={groupTotal} icon={<UsersRound className="h-5 w-5" />} toneClassName={metricToneClass('success')} />
             ) : null}
             {isStudent ? (
               <WorkspaceMetricCard label={messages.thesis.groupsTitle} value={currentGroup ? currentGroup.memberStudentIds.length : 0} icon={<Check className="h-5 w-5" />} toneClassName={metricToneClass('neutral')} />
