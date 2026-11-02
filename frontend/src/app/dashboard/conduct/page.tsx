@@ -30,6 +30,7 @@ import {
 import { pickPreferredSemesterId } from '@/lib/semesters';
 import { getLocalizedName } from '@/lib/academic-content';
 import { displayLabel, formatOptionalDate } from '@/lib/format-display';
+import { countLabel } from '@/lib/plural';
 import type { Semester } from '@/types/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -494,7 +495,7 @@ export default function StudentConductPage() {
               {conductMessages.activitiesPanelTitle}
             </CardTitle>
             <span className="text-xs text-muted-foreground">
-              {conductMessages.activitiesCount.replace('{count}', formatNumber(activeSemesterScore?.activities?.length ?? 0))}
+              {countLabel(activeSemesterScore?.activities?.length ?? 0, conductMessages.activitiesCountOne, conductMessages.activitiesCount).replace('{count}', formatNumber(activeSemesterScore?.activities?.length ?? 0))}
             </span>
           </div>
         </CardHeader>

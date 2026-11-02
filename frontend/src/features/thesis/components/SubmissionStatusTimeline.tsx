@@ -4,6 +4,7 @@ import { CircleDashed, MessageSquareText, Send, UploadCloud } from 'lucide-react
 import type { LucideIcon } from 'lucide-react';
 import type { StatusTone } from '@/components/ui/status';
 import { cn } from '@/lib/utils';
+import { countLabel } from '@/lib/plural';
 import { formatReportFileSize, fillCopy } from '@/features/thesis/components/thesis-helpers';
 import type { ThesisGroupReport } from '@/lib/thesis-api';
 
@@ -22,6 +23,7 @@ import type { ThesisGroupReport } from '@/lib/thesis-api';
 export interface SubmissionStatusTimelineCopy {
   title: string;
   deadlineChip: string;
+  deadlineChipOne: string;
   overdueChip: string;
   notOpenChip: string;
   openNoDeadlineChip: string;
@@ -166,7 +168,7 @@ export default function SubmissionStatusTimeline({
           ? copy.overdueChip
           : daysRemaining == null
             ? copy.openNoDeadlineChip
-            : fillCopy(copy.deadlineChip, { days: daysRemaining });
+            : fillCopy(countLabel(daysRemaining, copy.deadlineChipOne, copy.deadlineChip), { days: daysRemaining });
 
   return (
     <div className="rounded-xl border border-border/70 bg-card p-4">

@@ -40,6 +40,7 @@ for (const locale of ['en', 'vi']) {
     const copy = loadTimelineModule('src/i18n/messages-thesis-workflow.ts');
     const Timeline = loadTimelineModule('src/features/thesis/components/SubmissionStatusTimeline.tsx', {
       '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
+      '@/lib/plural': { countLabel: (count, singular, plural) => (count === 1 ? singular : plural) },
       '@/features/thesis/components/thesis-helpers': helpers,
     }).default;
     const submittedAt = '2026-10-01T02:00:00Z';
@@ -67,6 +68,7 @@ function renderTimeline(locale, props) {
   const copy = (locale === 'vi' ? dictionaries.thesisWorkflowVi : dictionaries.thesisWorkflowEn).page.submissionStatus;
   const Timeline = loadTimelineModule('src/features/thesis/components/SubmissionStatusTimeline.tsx', {
     '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
+    '@/lib/plural': { countLabel: (count, singular, plural) => (count === 1 ? singular : plural) },
     '@/features/thesis/components/thesis-helpers': helpers,
   }).default;
   return {

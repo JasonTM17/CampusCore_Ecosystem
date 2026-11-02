@@ -321,7 +321,7 @@ test('the pages fill template tokens at render time and keep the previous wordin
   );
   assert.match(
     source('src/app/admin/enrollments/page.tsx'),
-    /copy\.enrollmentsCount\.replace\('\{count\}', \(\) => formatNumber\(total\)\)/,
+    /countLabel\(total, copy\.enrollmentsCountOne, copy\.enrollmentsCount\)\.replace\('\{count\}', \(\) => formatNumber\(total\)\)/,
     'the enrollment counter still formats the total for the active locale',
   );
   assert.match(

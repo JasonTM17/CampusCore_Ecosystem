@@ -15,6 +15,7 @@ import {
   type ThesisTopic,
 } from '@/lib/thesis-api';
 import { fillCopy } from '@/features/thesis/components/thesis-helpers';
+import { countLabel } from '@/lib/plural';
 import { plainTextThesisDescription } from '@/lib/thesis-text';
 import { isHttpUrl } from '@/lib/safe-url';
 
@@ -149,7 +150,7 @@ export default function CouncilDefenseWorkspace({
                   </p>
                 </div>
                 <span className="text-xs font-medium text-muted-foreground">
-                  {fillCopy(pageCopy.assignedTopicsCount, { count: topicIds.length })}
+                  {fillCopy(countLabel(topicIds.length, pageCopy.assignedTopicsCountOne, pageCopy.assignedTopicsCount), { count: topicIds.length })}
                 </span>
               </div>
 

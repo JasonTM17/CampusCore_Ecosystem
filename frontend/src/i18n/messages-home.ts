@@ -21,9 +21,11 @@ export const homeMarketingEn = {
     noMoreStories: 'No more stories in this category',
     specialFeatures: 'Special Feature Stories',
     articleCount: '{count} articles',
+    articleCountOne: '{count} article',
     readArticle: 'Read',
     showLess: 'Show Less',
     viewMore: 'View {count} More Stories',
+    viewMoreOne: 'View {count} More Story',
   },
   hero: {
     heroDescription:
@@ -50,9 +52,11 @@ export const homeMarketingVi: HomeMarketingCopy = {
     noMoreStories: 'Không có thêm bài viết trong danh mục này',
     specialFeatures: 'Phóng sự & Chuyên đề Khác',
     articleCount: '{count} bài viết',
+    articleCountOne: '{count} bài viết',
     readArticle: 'Đọc bài',
     showLess: 'Thu gọn bài viết',
     viewMore: 'Xem thêm {count} bài viết khác',
+    viewMoreOne: 'Xem thêm {count} bài viết khác',
   },
   hero: {
     heroDescription:

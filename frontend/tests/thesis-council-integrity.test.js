@@ -516,6 +516,7 @@ const uiStubs = {
     LoadingState: () => null,
   },
   '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
+  '@/lib/plural': { countLabel: (count, singular, plural) => (count === 1 ? singular : plural) },
 };
 
 function loadWorkspaceComponent() {

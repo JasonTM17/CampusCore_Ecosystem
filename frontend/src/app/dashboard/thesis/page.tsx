@@ -46,6 +46,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-bloc
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { cn } from '@/lib/utils';
+import { countLabel } from '@/lib/plural';
 import { useI18n } from '@/i18n';
 import { thesisWorkflowEn, thesisWorkflowVi } from '@/i18n/messages-thesis-workflow';
 import { useNow } from '@/lib/use-now';
@@ -2844,7 +2845,7 @@ export default function ThesisPage() {
                       )}
                     >
                       {canLoadStaffRelations
-                        ? fillCopy(pageCopy.groupsCount, { count: supervisedGroups.length })
+                        ? fillCopy(countLabel(supervisedGroups.length, pageCopy.groupsCountOne, pageCopy.groupsCount), { count: supervisedGroups.length })
                         : managedTopics.length}
                     </span>
                   </button>
@@ -2875,7 +2876,7 @@ export default function ThesisPage() {
                           : 'bg-muted text-foreground',
                       )}
                     >
-                      {fillCopy(pageCopy.councilsCount, { count: visibleCouncils.length })}
+                      {fillCopy(countLabel(visibleCouncils.length, pageCopy.councilsCountOne, pageCopy.councilsCount), { count: visibleCouncils.length })}
                     </span>
                   </button>
                   <button
@@ -2903,7 +2904,7 @@ export default function ThesisPage() {
                           : 'bg-muted text-foreground',
                       )}
                     >
-                      {fillCopy(pageCopy.reportsCount, { count: repositoryPage.summary?.total ?? '—' })}
+                      {fillCopy(countLabel(repositoryPage.summary?.total ?? 0, pageCopy.reportsCountOne, pageCopy.reportsCount), { count: repositoryPage.summary?.total ?? '—' })}
                     </span>
                   </button>
                   </>

@@ -26,6 +26,7 @@ import { statusToneClass } from '@/components/ui/status';
 import { StatusPill } from '@/components/ui/status-pill';
 import { cn, htmlToPlainText, stripNotificationTagPrefix } from '@/lib/utils';
 import { safeInternalPath } from '@/lib/safe-url';
+import { countLabel } from '@/lib/plural';
 import { publishNotificationsChanged } from '@/lib/notification-sync';
 import { studentPortalEn, studentPortalVi } from '@/i18n/messages-student-portal';
 
@@ -242,7 +243,7 @@ export default function NotificationsCenterPage() {
       publishNotificationsChanged();
       const updated = response.updated ?? unreadCount;
       await fetchNotifications();
-      setStatus(copy.updatedCount.replace('{count}', String(updated)));
+      setStatus(countLabel(updated, copy.updatedCountOne, copy.updatedCount).replace('{count}', String(updated)));
     } catch {
       setActionError(copy.updateFailed);
       setFailedAction({ kind: 'markAll' });

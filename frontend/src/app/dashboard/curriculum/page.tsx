@@ -369,7 +369,7 @@ export default function CurriculumPage() {
                     />
                     {chainsOpen
                       ? copy.chainsCollapse
-                      : copy.chainsExpand.replace('{count}', formatNumber(prereqChains.length))}
+                      : countLabel(prereqChains.length, copy.chainsExpandOne, copy.chainsExpand).replace('{count}', formatNumber(prereqChains.length))}
                   </button>
                 </div>
                 {chainsOpen ? (
@@ -460,7 +460,7 @@ export default function CurriculumPage() {
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[11px] font-medium text-muted-foreground">
                           {openCount > 0
-                            ? copy.openSections.replace('{count}', formatNumber(openCount))
+                            ? countLabel(openCount, copy.openSectionsOne, copy.openSections).replace('{count}', formatNumber(openCount))
                             : copy.noOpenSection}
                         </span>
                         {openCount > 0 ? (

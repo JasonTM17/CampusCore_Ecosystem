@@ -74,6 +74,7 @@ import { announcementPriorityLabel } from '@/lib/announcement-presentation';
 import { useUnsavedChangesGuard } from '@/lib/use-unsaved-changes-guard';
 import { replaceCoverBlock, removeCoverBlock } from '@/lib/cover-banner';
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
+import { countLabel } from '@/lib/plural';
 import { cn } from '@/lib/utils';
 import {
   buildDocumentFilename,
@@ -494,7 +495,7 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
     // Document and Cancel — a one-click replace must not bypass the prompt.
     unsaved.requestLeave(() => {
       setContent(compiled);
-      toast.success(copy.notifications.blocksApplied.replace('{count}', String(active.length)));
+      toast.success(countLabel(active.length, copy.notifications.blocksAppliedOne, copy.notifications.blocksApplied).replace('{count}', String(active.length)));
     });
   };
 

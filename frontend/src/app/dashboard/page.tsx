@@ -32,6 +32,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-bloc
 import { WorkspacePanel } from '@/components/dashboard/WorkspaceSurface';
 import { useI18n } from '@/i18n';
 import { studentPortalEn, studentPortalVi } from '@/i18n/messages-student-portal';
+import { countLabel } from '@/lib/plural';
 import { cn } from '@/lib/utils';
 
 interface Enrollment {
@@ -535,7 +536,7 @@ export default function DashboardPage() {
               {pendingCourses.length > 0 ? (
                 <div className="pt-0.5">
                   <span className="inline-flex items-center gap-1.5 rounded-md border border-status-warning/30 bg-status-warning/10 px-2.5 py-1 text-xs font-semibold text-status-warning-foreground">
-                    {copy.pendingBadge.replace('{count}', () => formatNumber(pendingCourses.length))}
+                    {countLabel(pendingCourses.length, copy.pendingBadgeOne, copy.pendingBadge).replace('{count}', () => formatNumber(pendingCourses.length))}
                   </span>
                 </div>
               ) : null}

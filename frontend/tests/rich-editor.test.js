@@ -459,6 +459,7 @@ function loadTinymceEditorModule() {
     }),
     '@/lib/editor-document': loadTs('src/lib/editor-document.ts'),
     '@/lib/utils': { cn: (...args) => args.filter(Boolean).join(' ') },
+    '@/lib/plural': { countLabel: (count, singular, plural) => (count === 1 ? singular : plural) },
     '@/i18n/messages-editor': loadTs('src/i18n/messages-editor.ts'),
     sonner: { toast: { success() {}, error() {}, info() {}, warning() {} } },
   });

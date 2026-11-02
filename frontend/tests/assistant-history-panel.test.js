@@ -18,6 +18,18 @@ const historyWindow = (() => {
   return record.exports;
 })();
 
+const plural = (() => {
+  const output = ts.transpileModule(read('src/lib/plural.ts'), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+    },
+  }).outputText;
+  const record = { exports: {} };
+  Function('module', 'exports', output)(record, record.exports);
+  return record.exports;
+})();
+
 const windowCopy = {
   returnToLatest: 'Return to latest',
   returningToLatest: 'Reloading the latest messages…',
@@ -155,6 +167,8 @@ function loadAssistantPanel({ hooks, stream, thesisApi }) {
       specializedSuggestions: ['specialized'],
       followUpsByDomain: {},
       lecturerFollowUpsByDomain: {},
+      rateLimited: 'Too many requests — please wait {seconds} seconds and retry.',
+      rateLimitedOne: 'Too many requests — please wait {seconds} second and retry.',
     },
     { get: (target, key) => (key in target ? target[key] : String(key)) },
   );
@@ -185,6 +199,7 @@ function loadAssistantPanel({ hooks, stream, thesisApi }) {
     if (name === '@/lib/utils') {
       return { cn: (...values) => values.filter(Boolean).join(' ') };
     }
+    if (name === '@/lib/plural') return plural;
     if (name === '@/i18n') {
       return {
         useI18n: () => ({
@@ -518,6 +533,29 @@ test('a live eviction rebases older history from the latest server page before u
   assert.equal(calls.includes('stale-cursor'), false);
   assert.equal(harness.stream.state.messages.length, 100);
   assert.ok(harness.stream.state.messages.some((message) => message.id === 'older-0'));
+});
+
+test('a one-second rate limit notice uses the singular second', async () => {
+  const harness = createHarness();
+  harness.stream.state = {
+    ...harness.stream.state,
+    error: 'rate-limited',
+    retryAfterSeconds: 1,
+  };
+
+  const tree = await harness.openPanel();
+  const notice = findAll(
+    tree,
+    (node) =>
+      node.type === 'p' &&
+      textOf(node.props?.children).includes('Too many requests'),
+  )[0];
+
+  assert.ok(notice, 'the rate-limit banner renders');
+  assert.equal(
+    textOf(notice.props.children),
+    'Too many requests — please wait 1 second and retry.',
+  );
 });
 
 test('history navigation is disabled while reconciling or when a feedback write would be evicted', async () => {

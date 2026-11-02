@@ -23,6 +23,7 @@ import {
 } from '@/lib/announcement-limits';
 import { buildDocumentFilename } from '@/lib/editor-document';
 import { cn } from '@/lib/utils';
+import { countLabel } from '@/lib/plural';
 import { toast } from 'sonner';
 import { editorSurfacesEn, editorSurfacesVi } from '@/i18n/messages-editor';
 
@@ -1084,7 +1085,7 @@ export function TinyMceEditor({
                 const currentContent = editorRef.current?.getContent({ format: 'raw' }) ?? '';
                 const imagesAlreadyInlined = (currentContent.match(/data:image\//g) ?? []).length;
                 if (imagesAlreadyInlined >= MAX_INLINE_IMAGES) {
-                  reject(copy.tooManyInlineImages.replace('{count}', String(MAX_INLINE_IMAGES)));
+                  reject(countLabel(MAX_INLINE_IMAGES, copy.tooManyInlineImagesOne, copy.tooManyInlineImages).replace('{count}', String(MAX_INLINE_IMAGES)));
                   return;
                 }
                 resolve(`data:${blob.type};base64,${blobInfo.base64()}`);

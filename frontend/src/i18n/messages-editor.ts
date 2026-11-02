@@ -129,6 +129,7 @@ export const editorSurfacesEn = {
     contentNearLimit: 'Content uses {length}/{limit} characters — approaching the server limit.',
     imageTooLarge: 'Image too large (max {size} KB to fit the server character budget). Compress it before inserting.',
     tooManyInlineImages: 'At most {count} inline images per announcement fit the server character budget. Remove one or link to it instead.',
+    tooManyInlineImagesOne: 'At most {count} inline image per announcement fits the server character budget. Remove one or link to it instead.',
     placeholder: 'Start composing content with professional TinyMCE tools...',
     toolbar: {
       headings: {
@@ -267,6 +268,7 @@ export const editorSurfacesEn = {
     notifications: {
       blocksRequired: 'Please enable at least one block!',
       blocksApplied: 'Applied {count} structured blocks into document!',
+      blocksAppliedOne: 'Applied {count} structured block into document!',
       blockInserted: 'Inserted "{title}" into editor!',
       blocksReset: 'Reset blocks to default.',
       bannerChanged: 'Changed cover banner to "{title}"!',
@@ -494,6 +496,7 @@ export const editorSurfacesVi: Widen<typeof editorSurfacesEn> = {
     contentNearLimit: 'Nội dung đã dùng {length}/{limit} ký tự — gần đạt hạn mức của máy chủ.',
     imageTooLarge: 'Ảnh quá lớn (tối đa {size} KB để vừa hạn mức ký tự của máy chủ). Hãy nén ảnh trước khi chèn.',
     tooManyInlineImages: 'Chỉ chèn được tối đa {count} ảnh trực tiếp trong một thông báo cho vừa hạn mức ký tự của máy chủ. Hãy bỏ bớt ảnh hoặc dùng liên kết.',
+    tooManyInlineImagesOne: 'Chỉ chèn được tối đa {count} ảnh trực tiếp trong một thông báo cho vừa hạn mức ký tự của máy chủ. Hãy bỏ bớt ảnh hoặc dùng liên kết.',
     placeholder: 'Bắt đầu soạn thảo nội dung với đầy đủ công cụ TinyMCE chuyên nghiệp...',
     toolbar: {
       headings: {
@@ -632,6 +635,7 @@ export const editorSurfacesVi: Widen<typeof editorSurfacesEn> = {
     notifications: {
       blocksRequired: 'Vui lòng chọn ít nhất một khối để biên dịch!',
       blocksApplied: 'Đã áp dụng {count} khối cấu trúc vào văn bản đang soạn!',
+      blocksAppliedOne: 'Đã áp dụng {count} khối cấu trúc vào văn bản đang soạn!',
       blockInserted: 'Đã chèn khối "{title}" vào nội dung!',
       blocksReset: 'Đã khôi phục các khối cấu trúc mẫu mặc định.',
       bannerChanged: 'Đã đổi ảnh bìa sang "{title}"!',
