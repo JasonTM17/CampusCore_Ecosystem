@@ -45,7 +45,6 @@ import {
   type ThesisCloseRegistrationPreview,
   type ThesisCouncil,
   type ThesisCouncilMemberRole,
-  type ThesisGroup,
   type ThesisRound,
   type ThesisTopic,
 } from '@/lib/thesis-api';
@@ -98,7 +97,7 @@ export default function AdminThesisPage() {
   const { formatDateTime, messages } = useI18n();
   const [rounds, setRounds] = useState<ThesisRound[]>([]);
   const [topics, setTopics] = useState<ThesisTopic[]>([]);
-  const [groups, setGroups] = useState<ThesisGroup[]>([]);
+  const [groupTotal, setGroupTotal] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
@@ -193,7 +192,7 @@ export default function AdminThesisPage() {
     const isCurrent = () => requestId === detailRequestRef.current && expandedRoundRef.current === roundId;
     setDetailLoading(true);
     setTopics([]);
-    setGroups([]);
+    setGroupTotal(null);
     setCouncils([]);
     setCouncilRefreshError('');
     setError('');
@@ -201,17 +200,17 @@ export default function AdminThesisPage() {
       // Draft proposals are exactly what a DRAFT/PROPOSAL_OPEN round holds, so
       // the detail panel must merge both statuses or pending proposals read as
       // an empty round (same merge the staff workspace does).
-      const [published, drafts, g, c] = await Promise.all([
+      const [published, drafts, groupsPage, c] = await Promise.all([
         thesisApi.listTopics(roundId, 'PUBLISHED'),
         thesisApi.listTopics(roundId, 'DRAFT'),
-        thesisApi.listGroups(roundId),
+        thesisApi.listGroupsPage(roundId, { page: 0, limit: 1 }),
         thesisApi.listCouncils(roundId),
       ]);
       if (!isCurrent()) return;
       const byId = new Map<string, (typeof published)[number]>();
       for (const topic of [...published, ...drafts]) byId.set(topic.id, topic);
       setTopics(Array.from(byId.values()));
-      setGroups(g);
+      setGroupTotal(groupsPage.total ?? null);
       if (expandedRoundRef.current === roundId) {
         setCouncils(c);
         setCouncilRefreshError('');
@@ -700,14 +699,10 @@ export default function AdminThesisPage() {
   }
 
   const openRounds = rounds.filter((r) => r.status === 'REGISTRATION_OPEN').length;
-  // `topics`/`groups` are filled by loadRoundDetail for the one expanded
-  // round only — they are not global totals. An unlabeled number therefore
-  // lied twice: 0 at rest, and one round's count otherwise. Name the round
-  // the numbers belong to, and show a dash until a round is expanded (no
-  // extra API calls; the counts simply do not exist yet).
+  // Topic totals remain complete reads; group totals come from the bounded
+  // count response for the one expanded round.
   const detailRound = rounds.find((round) => round.id === expandedRoundId) ?? null;
   const totalTopics = topics.length;
-  const totalGroups = groups.length;
 
   return (
     <AdminFrame
@@ -777,7 +772,7 @@ export default function AdminThesisPage() {
                 ? messages.thesis.admin.groupsForRound.replace('{round}', detailRound.name)
                 : messages.thesis.groups
             }
-            value={detailRound && !detailLoading ? totalGroups : '—'}
+            value={detailRound && !detailLoading && groupTotal !== null ? groupTotal : '—'}
             icon={<UsersRound className="h-5 w-5" />}
             toneClassName={metricToneClass('neutral')}
           />

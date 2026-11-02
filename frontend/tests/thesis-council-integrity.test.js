@@ -107,6 +107,7 @@ function loadThesisApi(getImpl) {
       createRequestId: () => 'req-test',
       refreshSessionSingleFlight: async () => {},
     },
+    '@/lib/array-list-page': loadModule('src/lib/array-list-page.ts'),
     '@/lib/assistant-stream-helpers': { CANCEL_REQUEST_TIMEOUT_MS: 1_000 },
     '@/lib/assistant-stream': {
       createAssistantSseParser: () => ({}),
