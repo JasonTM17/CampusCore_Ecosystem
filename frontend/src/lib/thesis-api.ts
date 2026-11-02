@@ -6,6 +6,7 @@ import {
   parseAssistantStreamEvent,
   AssistantStreamOrder,
 } from '@/lib/assistant-stream';
+import { toArrayListPage, type ArrayListPage } from '@/lib/array-list-page';
 export {
   createAssistantSseParser,
   parseAssistantStreamEvent,
@@ -746,6 +747,23 @@ export const thesisApi = {
     return response.data;
   },
 
+  listTopicsPage: async (
+    roundId: string,
+    options: { status?: ThesisTopicStatus; page: number; limit: number },
+    signal?: AbortSignal,
+  ): Promise<ArrayListPage<ThesisTopic>> => {
+    const response = await api.get<ThesisTopic[]>('/thesis/topics', {
+      params: {
+        roundId,
+        status: options.status ?? 'PUBLISHED',
+        page: options.page,
+        limit: options.limit,
+      },
+      ...(signal ? { signal } : {}),
+    });
+    return toArrayListPage(response.data, options.page, response.headers, options.limit);
+  },
+
   getTopic: async (topicId: string): Promise<ThesisTopic> => {
     const response = await api.get<ThesisTopic>('/thesis/topics/' + topicId);
     return response.data;
@@ -766,6 +784,18 @@ export const thesisApi = {
       params: { roundId },
     });
     return response.data;
+  },
+
+  listGroupsPage: async (
+    roundId: string,
+    options: { page: number; limit: number },
+    signal?: AbortSignal,
+  ): Promise<ArrayListPage<ThesisGroup>> => {
+    const response = await api.get<ThesisGroup[]>('/thesis/groups', {
+      params: { roundId, page: options.page, limit: options.limit },
+      ...(signal ? { signal } : {}),
+    });
+    return toArrayListPage(response.data, options.page, response.headers, options.limit);
   },
 
   createGroup: async (roundId: string): Promise<ThesisGroup> => {
