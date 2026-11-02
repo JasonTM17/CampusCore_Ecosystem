@@ -4,6 +4,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Card, UiText } from '../../components/Ui';
 import { SearchBar, StatusPill } from '../../components/ui/index';
 import type { MobilePublicDoc } from '../../api/client';
+import { chromeFontScaleCap } from '../../design/font-scale';
+import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { campusMessages } from '../../i18n/campus-messages';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -19,6 +21,8 @@ import { usePagedList } from '../content/use-paged-list';
 /** Public documents: server-side search, paging and a published-revision detail view. */
 export function DocsScreen(_props: MobileScreenProps) {
   const { locale, formatDate } = useContentCopy();
+  const { window } = useTheme();
+  const largeText = window.fontScale >= chromeFontScaleCap;
   const copy = campusMessages[locale];
   const categoryLabels = copy.docCategoryLabels as Readonly<Record<string, string>>;
   const [input, setInput] = useState('');
@@ -66,7 +70,7 @@ export function DocsScreen(_props: MobileScreenProps) {
               <ContentIconChip icon="file-document-outline" />
               <View style={styles.rowCopy}>
                 <UiText variant="label">{docTitle(doc, locale)}</UiText>
-                {docSummary(doc, locale) ? <UiText variant="bodySmall" tone="muted" numberOfLines={2}>{docSummary(doc, locale)}</UiText> : null}
+                {docSummary(doc, locale) ? <UiText variant="bodySmall" tone="muted" numberOfLines={largeText ? 4 : 2}>{docSummary(doc, locale)}</UiText> : null}
                 <View style={styles.meta}>
                   <StatusPill label={fillCopy(copy.revision, { n: doc.publishedRevision })} tone="primary" />
                   {doc.categoryId ? <UiText variant="meta" tone="muted">{docCategoryLabel(doc.categoryId, categoryLabels)}</UiText> : null}

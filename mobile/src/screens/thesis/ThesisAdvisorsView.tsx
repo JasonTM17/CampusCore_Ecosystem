@@ -32,7 +32,7 @@ export function ThesisAdvisorsView({ roundId, copy }: { roundId: string | null; 
             {fillThesisCopy(copy.advisorTopics, { count: advisor.topics.length })}
           </UiText>
           {advisor.topics.map((topic) => (
-            <UiText key={topic.id} variant="bodySmall" tone="muted" numberOfLines={2}>{`• ${topic.title}`}</UiText>
+            <UiText key={topic.id} variant="bodySmall" tone="muted">{`• ${topic.title}`}</UiText>
           ))}
         </Card>
       ))}

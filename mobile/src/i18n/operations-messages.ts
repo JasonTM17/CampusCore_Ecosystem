@@ -139,6 +139,7 @@ const vi = {
   groupsCount: '{n} nhóm',
   studentsQuota: '{current}/{max} sinh viên',
   close: 'Đóng',
+  gradesStale: 'Bảng điểm đã thay đổi. Tải lại trước khi lưu.',
 } as const;
 
 type Shape = { -readonly [K in keyof typeof vi]: (typeof vi)[K] extends readonly string[] ? string[] : string };
@@ -282,6 +283,7 @@ const en: Shape = {
   groupsCount: '{n} groups',
   studentsQuota: '{current}/{max} students',
   close: 'Close',
+  gradesStale: 'The gradebook changed. Reload before saving.',
 };
 
 export type OperationsCopy = Shape;

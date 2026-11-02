@@ -12,3 +12,8 @@ export function studentFriendlyErrorMessage(
   }
   return fallbackMessage;
 }
+
+export function isStudentResourceUnauthorizedError(error: unknown) {
+  return error instanceof ApiClientError
+    && (error.status === 401 || error.code === 'HTTP_401' || error.code === 'UNAUTHENTICATED');
+}
