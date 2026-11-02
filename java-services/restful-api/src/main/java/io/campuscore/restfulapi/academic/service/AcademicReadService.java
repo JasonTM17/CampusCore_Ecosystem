@@ -81,20 +81,21 @@ public class AcademicReadService {
     }
 
     @Transactional(readOnly = true)
-    public DepartmentListResponse findDepartments(int page, int limit, String search) {
+    public DepartmentListResponse findDepartments(int page, int limit, String search, List<String> roles) {
         requirePage(page, limit);
         String pattern = LikePattern.contains(search);
         long total = academic.countDepartments(pattern);
         List<DepartmentResponse> departments =
                 academic.findDepartments(offset(page, limit), limit, pattern);
-        return new DepartmentListResponse(hydrateDepartments(departments), meta(total, page, limit));
+        return new DepartmentListResponse(
+                hydrateDepartments(departments, canSeePrivateLecturerContact(roles)), meta(total, page, limit));
     }
 
     @Transactional(readOnly = true)
-    public DepartmentResponse findDepartment(String id) {
+    public DepartmentResponse findDepartment(String id, List<String> roles) {
         DepartmentResponse department = academic.findDepartmentById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Department not found"));
-        return hydrateDepartments(List.of(department)).getFirst();
+        return hydrateDepartments(List.of(department), canSeePrivateLecturerContact(roles)).getFirst();
     }
 
     @Transactional(readOnly = true)
@@ -290,11 +291,16 @@ public class AcademicReadService {
                 .toList();
     }
 
-    private List<DepartmentResponse> hydrateDepartments(List<DepartmentResponse> departments) {
+    private List<DepartmentResponse> hydrateDepartments(
+            List<DepartmentResponse> departments,
+            boolean includePrivateLecturerContact) {
         List<String> ids = departments.stream().map(DepartmentResponse::id).toList();
         Map<String, List<DepartmentLecturerSummary>> lecturersByDepartment = academic
                 .findDepartmentLecturersByDepartmentIds(ids)
                 .stream()
+                .map(lecturer -> includePrivateLecturerContact
+                        ? lecturer
+                        : withoutPrivateContact(lecturer))
                 .collect(Collectors.groupingBy(DepartmentLecturerSummary::departmentId));
         return departments.stream()
                 .map(department -> new DepartmentResponse(
@@ -318,6 +324,26 @@ public class AcademicReadService {
                         lecturersByDepartment.getOrDefault(department.id(), List.of())))
                 .map(AcademicCatalogLocalizer::hydrateDepartmentResponse)
                 .toList();
+    }
+
+    /** DSJ-07: the student-facing catalogue needs names/titles/office, not contact PII. */
+    private static boolean canSeePrivateLecturerContact(List<String> roles) {
+        return roles != null && (roles.contains("ADMIN") || roles.contains("SUPER_ADMIN"));
+    }
+
+    private static DepartmentLecturerSummary withoutPrivateContact(DepartmentLecturerSummary lecturer) {
+        return new DepartmentLecturerSummary(
+                lecturer.id(),
+                null,
+                lecturer.departmentId(),
+                lecturer.employeeId(),
+                lecturer.title(),
+                lecturer.specialization(),
+                lecturer.office(),
+                null,
+                lecturer.createdAt(),
+                lecturer.updatedAt(),
+                lecturer.isActive());
     }
 
     private List<CurriculumResponse> hydrateCurricula(List<CurriculumResponse> curricula, boolean includeCourses) {

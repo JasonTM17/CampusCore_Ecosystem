@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.academic;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -428,6 +429,44 @@ class AcademicReadPersistenceTest {
                 .andExpect(jsonPath("$.lecturers[0].id").value("lecturer-1"))
                 .andExpect(jsonPath("$.lecturers[0].employeeId").value("EMP-01"))
                 .andExpect(jsonPath("$.lecturers[1].id").value("lecturer-2"));
+    }
+
+    @Test
+    void departmentLecturerPrivateContactIsVisibleToAdminsOnly() throws Exception {
+        insertFaculty("faculty-cs", "Computer Science", null, null, "FCS", null, null, null);
+        insertDepartment(
+                "department-se",
+                "Software Engineering",
+                null,
+                null,
+                "SE",
+                null,
+                null,
+                null,
+                "faculty-cs",
+                "Dr. SE");
+        insertLecturer("lecturer-1", "user-1", "department-se", "EMP-01", "Lecturer");
+
+        mvc.perform(get("/api/v1/departments/department-se")
+                        .with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lecturers[0].userId").value("user-1"))
+                .andExpect(jsonPath("$.lecturers[0].phone").value("0123456789"));
+
+        mvc.perform(get("/api/v1/departments/department-se")
+                        .with(studentJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lecturers[0].userId").value(nullValue()))
+                .andExpect(jsonPath("$.lecturers[0].phone").value(nullValue()))
+                .andExpect(jsonPath("$.lecturers[0].employeeId").value("EMP-01"))
+                .andExpect(jsonPath("$.lecturers[0].title").value("Lecturer"))
+                .andExpect(jsonPath("$.lecturers[0].office").value("A-101"));
+
+        mvc.perform(get("/api/v1/departments")
+                        .with(studentJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].lecturers[0].userId").value(nullValue()))
+                .andExpect(jsonPath("$.data[0].lecturers[0].phone").value(nullValue()));
     }
 
     @Test

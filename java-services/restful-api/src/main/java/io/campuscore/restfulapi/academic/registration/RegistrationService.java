@@ -1127,8 +1127,23 @@ public class RegistrationService {
     }
 
     /** Letter ordering used for prerequisite minimum-grade enforcement. */
-    private static final java.util.Map<String, Integer> LETTER_RANK = java.util.Map.of(
-            "F", 0, "D", 1, "D+", 2, "C", 3, "C+", 4, "B", 5, "B+", 6, "A", 7, "A+", 8);
+    private static final java.util.Map<String, Integer> LETTER_RANK = java.util.Map.ofEntries(
+            java.util.Map.entry("F", 0),
+            java.util.Map.entry("D-", 1),
+            java.util.Map.entry("D", 2),
+            java.util.Map.entry("D+", 3),
+            java.util.Map.entry("C-", 4),
+            java.util.Map.entry("C", 5),
+            java.util.Map.entry("C+", 6),
+            java.util.Map.entry("B-", 7),
+            java.util.Map.entry("B", 8),
+            java.util.Map.entry("B+", 9),
+            java.util.Map.entry("A-", 10),
+            java.util.Map.entry("A", 11),
+            java.util.Map.entry("A+", 12));
+
+    /** A malformed floor should not be able to widen a requirement repeatedly. */
+    private static final Set<String> WARNED_UNKNOWN_FLOORS = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private boolean hasCompleted(String studentId, String courseId, String minLetter) {
         List<String> letters = jdbc.queryForList(
@@ -1142,18 +1157,44 @@ public class RegistrationService {
                         + " AND \"letterGrade\" NOT IN ('F', 'W')",
                 new MapSqlParameterSource().addValue("studentId", studentId).addValue("courseId", courseId),
                 String.class);
-        if (letters.isEmpty()) {
-            return false;
+        return satisfiesLetterFloor(letters, minLetter);
+    }
+
+    /**
+     * DSJ-06: a declared floor is enforced against the best passing attempt.
+     * The rank table carries the legacy minus bands (the 10-point bands never
+     * emit them, but transcripts and imported records do). A non-null floor
+     * that is not a known letter is a malformed requirement, so it fails
+     * closed instead of degrading into "no floor".
+     */
+    static boolean satisfiesLetterFloor(List<String> letters, String minLetter) {
+        Integer minimum = null;
+        if (minLetter != null) {
+            String normalizedFloor = minLetter.trim().toUpperCase(Locale.ROOT);
+            minimum = LETTER_RANK.get(normalizedFloor);
+            if (minimum == null) {
+                if (WARNED_UNKNOWN_FLOORS.add(normalizedFloor)) {
+                    log.warn("Unknown prerequisite minLetterGrade '{}'; failing the prerequisite closed",
+                            normalizedFloor);
+                }
+                return false;
+            }
         }
-        // minLetterGrade was a dead column: the gate accepted any non-F/W pass.
-        // When the requirement declares a floor (e.g. 'B'), the student's best
-        // achieved letter must rank at or above it; an unknown floor value is
-        // ignored rather than silently tightening or loosening the rule.
-        int minRank = minLetter == null ? Integer.MIN_VALUE
-                : LETTER_RANK.getOrDefault(minLetter.trim().toUpperCase(java.util.Locale.ROOT), Integer.MIN_VALUE);
-        return letters.stream()
-                .map(letter -> LETTER_RANK.getOrDefault(letter, Integer.MIN_VALUE))
-                .anyMatch(rank -> rank >= minRank);
+        for (String letter : letters) {
+            if (letter == null) {
+                continue;
+            }
+            String normalized = letter.trim().toUpperCase(Locale.ROOT);
+            // F and W are never passing grades, even when no floor is declared.
+            if ("F".equals(normalized) || "W".equals(normalized)) {
+                continue;
+            }
+            Integer rank = LETTER_RANK.get(normalized);
+            if (rank != null && (minimum == null || rank >= minimum)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean hasActiveCourse(String studentId, String semesterId, String courseId) {
