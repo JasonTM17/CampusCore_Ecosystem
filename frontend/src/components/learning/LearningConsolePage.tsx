@@ -83,6 +83,17 @@ async function pickFile(input: HTMLInputElement | null): Promise<FilePayload | n
   return file ? readFilePayload(file) : null;
 }
 
+/** The student-owned working copy restored into the editor on reopen. */
+function draftFromSubmission(submission: LearningSubmission | null): {
+  textBody: string;
+  fileName: string | null;
+} {
+  return {
+    textBody: submission?.draftText ?? '',
+    fileName: submission?.draftFileName ?? null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Student surface — enrolled-section roster → materials → work lifecycle
 // ---------------------------------------------------------------------------
@@ -293,6 +304,7 @@ function StudentWorkModal({
   const [revisions, setRevisions] = useState<LearningRevision[]>([]);
   const [feedback, setFeedback] = useState<LearningFeedback[]>([]);
   const [textBody, setTextBody] = useState('');
+  const [draftFileName, setDraftFileName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -338,6 +350,14 @@ function StudentWorkModal({
       });
     }
   }, [assignment, copy, refresh]);
+
+  // Reopening an assignment must regain the saved working copy, otherwise the
+  // next save would replace a draft the student can no longer see.
+  useEffect(() => {
+    const restoredDraft = draftFromSubmission(submission);
+    setTextBody(restoredDraft.textBody);
+    setDraftFileName(restoredDraft.fileName);
+  }, [submission]);
 
   const activeSubmission = submission?.assignmentId === assignment?.id ? submission : null;
   const editable = activeSubmission == null
@@ -423,6 +443,11 @@ function StudentWorkModal({
                   />
                   <label className="block text-xs font-medium">{copy.attachFile}</label>
                   <input ref={fileRef} type="file" accept={UPLOAD_ACCEPT_COURSEWORK} className="block w-full text-xs" data-testid="learning-file-input" aria-label={copy.attachFile} />
+                  {draftFileName ? (
+                    <p className="truncate text-xs text-muted-foreground" data-testid="learning-draft-file">
+                      {copy.fileLabel}: {draftFileName}
+                    </p>
+                  ) : null}
                   <div className="flex flex-wrap gap-2">
                     {activeSubmission.status === 'DRAFT' ? (
                       <>
