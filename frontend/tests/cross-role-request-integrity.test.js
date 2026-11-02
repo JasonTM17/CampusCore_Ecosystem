@@ -51,6 +51,40 @@ function pageFunction(file, name, dependencies) {
   );
 }
 
+// Extract a module-scope `function` declaration (pure helpers such as
+// createGradeDrafts / buildGradeSaveRows) the same way pageFunction extracts
+// const callbacks — the real production implementation is evaluated, not a stub.
+function pageHelper(file, name, dependencies) {
+  const source = read('src/' + file);
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let declaration;
+  function visit(node) {
+    if (ts.isFunctionDeclaration(node) && node.name && node.name.getText(tree) === name) {
+      declaration = node;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);
+  assert.ok(declaration, `page helper ${name} exists`);
+  const output = ts.transpileModule(declaration.getText(tree), {
+    compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  return Function(...Object.keys(dependencies), `${output}; return ${name};`)(
+    ...Object.values(dependencies),
+  );
+}
+
+const gradeHelpers = (extra = {}) => ({
+  hasCompletedGrade: pageHelper('app/dashboard/lecturer/grades/[id]/page.tsx', 'hasCompletedGrade', {}),
+  createGradeDrafts: pageHelper('app/dashboard/lecturer/grades/[id]/page.tsx', 'createGradeDrafts', {}),
+  preserveGradeDraftRows: pageHelper('app/dashboard/lecturer/grades/[id]/page.tsx', 'preserveGradeDraftRows', {}),
+  isStaleVersionError: pageHelper('app/dashboard/lecturer/grades/[id]/page.tsx', 'isStaleVersionError', {}),
+  buildGradeSaveRows: pageHelper('app/dashboard/lecturer/grades/[id]/page.tsx', 'buildGradeSaveRows', {
+    hasCompletedGrade: pageHelper('app/dashboard/lecturer/grades/[id]/page.tsx', 'hasCompletedGrade', {}),
+  }),
+  ...extra,
+});
+
 // Extract an actual useEffect body (matched by a marker inside the call) and
 // return its setup function — the returned cleanup is then invoked directly.
 function pageEffect(file, marker, dependencies = {}) {
@@ -386,6 +420,9 @@ function gradingDeps(overrides, sharedCalls) {
     setIsRefreshing: calls.record('isRefreshing'),
     setIsSaving: calls.record('isSaving'),
     setIsPublishing: calls.record('isPublishing'),
+    setStaleVersionConflict: calls.record('staleVersionConflict'),
+    setRemoteChangedRows: calls.record('remoteChangedRows'),
+    ...gradeHelpers(),
     ...overrides,
   };
   return { deps, calls };
@@ -507,6 +544,11 @@ test('a save completing after navigation cannot refetch or touch the new sheet',
     isSaving: false,
     isPublishing: false,
     isRefreshing: false,
+    staleVersionConflict: false,
+    remoteChangedRows: null,
+    ...gradeHelpers(),
+    setStaleVersionConflict: () => {},
+    setRemoteChangedRows: () => {},
     editedIds: new Set(['enr-1']),
     grades: new Map([['enr-1', { enrollmentId: 'enr-1', processScore: 9, finalExamScore: 9 }]]),
     scoreErrors: new Map(),
@@ -545,6 +587,8 @@ function saveDeps(shared, overrides = {}) {
     isSaving: false,
     isPublishing: false,
     isRefreshing: false,
+    staleVersionConflict: false,
+    remoteChangedRows: null,
     editedIds: new Set(['enr-1']),
     grades: new Map([['enr-1', { enrollmentId: 'enr-1', processScore: 9, finalExamScore: 9 }]]),
     scoreErrors: new Map(),
@@ -559,7 +603,9 @@ function saveDeps(shared, overrides = {}) {
     setIsSaving: shared.setIsSaving,
     currentSectionRef: shared.currentSectionRef,
     gradeMutationRef: shared.gradeMutationRef,
-    hasCompletedGrade: (u) => u != null && u.processScore != null && u.finalExamScore != null,
+    ...gradeHelpers(),
+    setStaleVersionConflict: () => {},
+    setRemoteChangedRows: () => {},
     focusFirstInvalidCell: () => {},
     focusFirstPartialCell: () => {},
     ...overrides,
