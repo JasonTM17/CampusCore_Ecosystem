@@ -306,27 +306,26 @@ public class LearningService {
         String sectionId = sectionOfAssignment(assignmentId);
         requireSectionLecturer(lecturerId, sectionId);
         return jdbc.query(
-                "SELECT e.\"id\" AS enrollment_id, e.\"studentId\" AS student_id,"
+                "SELECT operative.\"id\" AS enrollment_id, operative.\"studentId\" AS student_id,"
                         + " student_user.\"lastName\" || ' ' || student_user.\"firstName\" AS student_name,"
-                        + " student_user.\"email\" AS student_email, e.\"status\" AS enrollment_status,"
+                        + " student_user.\"email\" AS student_email, operative.\"status\" AS enrollment_status,"
                         + " s.\"id\" AS submission_id, s.\"status\" AS submission_status,"
                         + " s.\"submittedAt\" AS submitted_at"
-                        + " FROM " + ENROLLMENT + " e"
-                        + " JOIN " + STUDENT + " student ON student.\"id\" = e.\"studentId\""
+                        + " FROM (SELECT e.\"id\", e.\"studentId\", e.\"status\", e.\"enrolledAt\","
+                        + "   ROW_NUMBER() OVER (PARTITION BY e.\"studentId\", e.\"sectionId\""
+                        + "   ORDER BY CASE e.\"status\" WHEN 'ENROLLED' THEN 0 WHEN 'CONFIRMED' THEN 1"
+                        + "     WHEN 'PENDING' THEN 2 ELSE 3 END, e.\"enrolledAt\" DESC) AS retake_rank"
+                        + "   FROM " + ENROLLMENT + " e"
+                        + "   WHERE e.\"sectionId\" = :sectionId"
+                        + "   AND e.\"status\" IN " + ROSTER_STATUSES + ") operative"
+                        + " JOIN " + STUDENT + " student ON student.\"id\" = operative.\"studentId\""
                         + " JOIN " + AUTH_USER + " student_user ON student_user.\"id\" = student.\"userId\""
                         + " LEFT JOIN " + SUBMISSION + " s ON s.\"assignmentId\" = :assignmentId"
-                        + " AND s.\"studentId\" = e.\"studentId\""
-                        + " WHERE e.\"sectionId\" = :sectionId"
-                        + " AND e.\"status\" IN " + ROSTER_STATUSES
+                        + " AND s.\"studentId\" = operative.\"studentId\""
                         // One row per student: retake history leaves several
                         // seats on the same section — the operative one
                         // (ENROLLED first) represents them on the roster.
-                        + " AND e.\"id\" = (SELECT e2.\"id\" FROM " + ENROLLMENT + " e2"
-                        + "   WHERE e2.\"studentId\" = e.\"studentId\" AND e2.\"sectionId\" = e.\"sectionId\""
-                        + "   AND e2.\"status\" IN " + ROSTER_STATUSES
-                        + "   ORDER BY CASE e2.\"status\" WHEN 'ENROLLED' THEN 0 WHEN 'CONFIRMED' THEN 1"
-                        + "     WHEN 'PENDING' THEN 2 ELSE 3 END, e2.\"enrolledAt\" DESC"
-                        + "   LIMIT 1)"
+                        + " WHERE operative.retake_rank = 1"
                         + " ORDER BY student_user.\"lastName\", student_user.\"firstName\"",
                 new MapSqlParameterSource("sectionId", sectionId).addValue("assignmentId", assignmentId),
                 LearningService::mapRosterRow);
