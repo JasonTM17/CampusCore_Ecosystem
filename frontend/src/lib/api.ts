@@ -192,6 +192,9 @@ export type AnnouncementRecord = {
   }>;
 };
 
+/** Lightweight pin-picker row: no body, cover, or audience fields. */
+export type AnnouncementPinOption =
+  GeneratedApiComponents['schemas']['AnnouncementPinOption'];
 
 export type CreditLimitApplication = {
   id: string;
@@ -1539,6 +1542,24 @@ export const announcementsApi = {
     const response = await api.get<ApiResponse<AnnouncementRecord[]>>(
       '/announcements',
       { params },
+    );
+    return response.data;
+  },
+  /**
+   * Id/title catalog for the appearance pin picker. `ids` resolves specific
+   * rows (e.g. already-pinned ones) in a single bounded read; the server joins
+   * them into the same status/search filter as a plain page read.
+   */
+  pinOptions: async (params?: {
+    page?: number;
+    limit?: number;
+    status?: 'ACTIVE' | 'ARCHIVED' | 'ALL' | 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED';
+    search?: string;
+    ids?: string[];
+  }): Promise<ApiResponse<AnnouncementPinOption[]>> => {
+    const response = await api.get<ApiResponse<AnnouncementPinOption[]>>(
+      '/announcements/pin-options',
+      { params: params ? { ...params, ids: params.ids?.join(',') } : params },
     );
     return response.data;
   },

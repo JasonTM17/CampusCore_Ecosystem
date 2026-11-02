@@ -2,6 +2,7 @@ package io.campuscore.restfulapi.engagement.web;
 
 import io.campuscore.restfulapi.engagement.service.AnnouncementReadService;
 import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.AnnouncementListResponse;
+import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.AnnouncementPinOptionListResponse;
 import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.AnnouncementResponse;
 import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.PublicAnnouncementListResponse;
 import io.campuscore.restfulapi.engagement.web.AnnouncementReadDtos.PublicAnnouncementResponse;
@@ -176,6 +177,39 @@ public class AnnouncementReadController {
                 authorScope);
     }
 
+    /**
+     * Lightweight catalog for the appearance editor's pin picker: the id/title
+     * projection only — bodies, covers and audience arrays never leave the
+     * database. The picker pages through the catalog with the same
+     * page/limit/meta contract as the admin list, searches titles server-side
+     * and resolves already-pinned rows by id ({@code ids=a,b,c}) instead of
+     * crawling the archive for them.
+     */
+    @Operation(summary = "Danh mục rút gọn cho trình ghim thông báo (Admin/SuperAdmin)", description = "Truy vấn danh sách thông báo chỉ gồm id, tiêu đề, trạng thái và thời điểm sắp xếp — không trả nội dung — để trình chỉnh giao diện duyệt, tìm và định danh các thông báo đã ghim")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Truy vấn danh mục thành công"),
+        @ApiResponse(responseCode = "403", description = "Chỉ quản trị viên mới có quyền truy cập")
+    })
+    @GetMapping("pin-options")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    public AnnouncementPinOptionListResponse getPinOptions(
+            @Parameter(description = "Số trang phân trang (bắt đầu từ 1)") @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = "Số lượng thông báo trên một trang") @RequestParam(defaultValue = "20") int limit,
+            @Parameter(description = "Trạng thái thông báo (ACTIVE, ARCHIVED, ALL, DRAFT, IN_REVIEW, PUBLISHED)") @RequestParam(defaultValue = "ACTIVE") String status,
+            @Parameter(description = "Từ khóa tìm kiếm theo tiêu đề") @RequestParam(required = false) String search,
+            @Parameter(description = "Danh sách mã thông báo cách nhau bởi dấu phẩy, dùng để định danh các mục đã ghim") @RequestParam(required = false) String ids,
+            @RequestParam MultiValueMap<String, String> queryParameters,
+            @AuthenticationPrincipal Jwt jwt) {
+        requireAllowedQuery(queryParameters, Set.of("page", "limit", "status", "search", "ids"));
+        requireIdentity(jwt);
+        return announcements.findPinOptions(
+                page,
+                limit,
+                status,
+                normalizeOptional(search),
+                splitIds(ids));
+    }
+
     private static void requireAllowedQuery(
             MultiValueMap<String, String> queryParameters,
             Set<String> allowed) {
@@ -214,6 +248,15 @@ public class AnnouncementReadController {
 
     private static String normalizeOptional(String value) {
         return value == null || value.isEmpty() ? null : value;
+    }
+
+    private static List<String> splitIds(String ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        // Keep blank segments: the service rejects them so a malformed list
+        // answers 400 instead of silently narrowing the resolution.
+        return List.of(ids.split(",", -1));
     }
 
     private static List<String> values(Jwt jwt, String claimName) {

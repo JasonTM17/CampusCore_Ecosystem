@@ -81,6 +81,30 @@ public final class AnnouncementReadDtos {
     public record AnnouncementListResponse(List<AnnouncementResponse> data, PageMeta meta) {
     }
 
+    /**
+     * Lightweight row for the appearance editor's pin picker: only what the
+     * picker renders plus the timestamps behind the display ordering. Body
+     * columns (content, summary, cover, folded search text) stay in the
+     * database — the pin list pages through the catalog instead of crawling it.
+     */
+    public record AnnouncementPinOption(
+            String id,
+            String title,
+            @Schema(types = {"string", "null"}, allowableValues = {"DRAFT", "IN_REVIEW", "PUBLISHED", "ARCHIVED"})
+            String status,
+            boolean isGlobal,
+            @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSX", timezone = "UTC")
+            @Schema(types = {"string", "null"}, format = "date-time")
+            Instant publishAt,
+            @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSX", timezone = "UTC")
+            Instant createdAt) {
+    }
+
+    public record AnnouncementPinOptionListResponse(
+            List<AnnouncementPinOption> data,
+            PageMeta meta) {
+    }
+
     public record AnnouncementHistoryResponse(
             String id,
             String announcementId,
