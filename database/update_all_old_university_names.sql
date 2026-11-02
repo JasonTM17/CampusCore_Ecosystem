@@ -1,4 +1,17 @@
 -- Update all references from 'Sư phạm Kỹ thuật' to 'Công nghệ Kỹ thuật' in Announcements
+--
+-- Safety guard: one-off demo scratch script with zero runtime authority. It rewrites
+-- live rows, so it must only run when the operator opts in for the session:
+--     SET campuscore.demo_seed = 'on';
+BEGIN;
+
+DO $$
+BEGIN
+    IF current_setting('campuscore.demo_seed', true) IS DISTINCT FROM 'on' THEN
+        RAISE EXCEPTION 'update_all_old_university_names.sql is demo-only: run SET campuscore.demo_seed = ''on''; in this session to opt in';
+    END IF;
+END $$;
+
 UPDATE engagement."Announcement"
 SET content = REPLACE(content, 'Sư phạm Kỹ thuật', 'Công nghệ Kỹ thuật'),
     title = REPLACE(title, 'Sư phạm Kỹ thuật', 'Công nghệ Kỹ thuật'),
@@ -55,3 +68,5 @@ INSERT INTO engagement."Announcement" (
     priority = EXCLUDED.priority,
     "targetRoles" = EXCLUDED."targetRoles",
     "updatedAt" = EXCLUDED."updatedAt";
+
+COMMIT;

@@ -3,6 +3,18 @@
 -- Normalizes course catalog, prerequisites, faculty departments, lecturers,
 -- student conduct scores, thesis topics, campus announcements, and RAG knowledge.
 -- =====================================================================
+--
+-- Safety guard: one-off demo scratch script with zero runtime authority. It rewrites
+-- live rows, so it must only run when the operator opts in for the session:
+--     SET campuscore.demo_seed = 'on';
+BEGIN;
+
+DO $$
+BEGIN
+    IF current_setting('campuscore.demo_seed', true) IS DISTINCT FROM 'on' THEN
+        RAISE EXCEPTION 'seed_big_data_campus_ecosystem_v43.sql is demo-only: run SET campuscore.demo_seed = ''on''; in this session to opt in';
+    END IF;
+END $$;
 
 -- ---------------------------------------------------------------------
 -- 1. SPECIALIZED DEPARTMENTS & ACADEMIC DIVISIONS
@@ -2121,3 +2133,5 @@ INSERT INTO assistant.knowledge_runtime_state (singleton, active_release_id)
 VALUES (TRUE, '00000000-0000-0000-0000-000000000043'::uuid)
 ON CONFLICT (singleton) DO UPDATE
 SET active_release_id = EXCLUDED.active_release_id, updated_at = CURRENT_TIMESTAMP;
+
+COMMIT;
