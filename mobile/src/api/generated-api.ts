@@ -2516,7 +2516,8 @@ export interface components {
       centerLat: number;
       /** Format: double */
       centerLng: number;
-      isActive: boolean;
+      /** @description Optional on update; omit to keep the stored activation state. Defaults to inactive on create. */
+      isActive?: boolean;
       name: string;
       note?: string;
       /** Format: int32 */
@@ -4655,6 +4656,11 @@ export interface components {
     SubmissionResponse: {
       assignmentId?: string;
       currentRevisionId?: string;
+      draftContentType?: string;
+      draftFileName?: string;
+      /** Format: int64 */
+      draftSizeBytes?: number;
+      draftText?: string;
       id?: string;
       /** Format: date-time */
       returnedAt?: string;
@@ -12026,6 +12032,12 @@ export interface operations {
           "application/json": string;
         };
       };
+      /** @description Cấu hình đã được người khác thay đổi; tải lại trước khi sửa */
+      409: {
+        content: {
+          "application/json": string;
+        };
+      };
     };
   };
   /**
@@ -12927,7 +12939,7 @@ export interface operations {
       content: {
         "multipart/form-data": {
           /** Format: binary */
-          file: string;
+          file?: string;
           note?: string;
           title?: string;
         };
