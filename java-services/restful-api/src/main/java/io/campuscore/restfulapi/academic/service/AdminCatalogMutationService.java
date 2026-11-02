@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
@@ -38,6 +39,7 @@ public class AdminCatalogMutationService {
     private static final Set<String> SEMESTER_STATUSES =
             Set.of("DRAFT", "OPEN", "REGISTRATION_OPEN", "ADD_DROP_OPEN", "ACTIVE", "IN_PROGRESS", "CLOSED");
     private static final Set<String> SECTION_STATUSES = Set.of("OPEN", "CLOSED", "CANCELLED");
+    private static final int MAX_SECTION_ID_LENGTH = 109;
 
     private final NamedParameterJdbcTemplate jdbc;
     private final AdminAuditRecorder audit;
@@ -190,6 +192,10 @@ public class AdminCatalogMutationService {
     @Transactional
     public Map<String, Object> createSection(Map<String, Object> input) {
         String id = id(input);
+        if (id.length() > MAX_SECTION_ID_LENGTH) {
+            throw problem(HttpStatus.BAD_REQUEST, "INVALID_SECTION_ID",
+                    "Section id must not exceed " + MAX_SECTION_ID_LENGTH + " characters");
+        }
         int capacity = number(input, "capacity", 30);
         requireSectionCapacity(capacity);
         String status = text(input, "status", "OPEN");
@@ -256,6 +262,16 @@ public class AdminCatalogMutationService {
             if (capacity < 1) {
                 throw problem(HttpStatus.BAD_REQUEST, "INVALID_CAPACITY", "Classroom capacity must be at least 1");
             }
+            Integer largestSectionCapacity = jdbc.queryForObject(
+                    "SELECT MAX(section.\"capacity\") FROM " + SECTION + " section"
+                            + " WHERE section.\"classroomId\" = :id"
+                            + " OR EXISTS (SELECT 1 FROM " + SECTION_SCHEDULE + " schedule"
+                            + " WHERE schedule.\"sectionId\" = section.\"id\" AND schedule.\"classroomId\" = :id)",
+                    new MapSqlParameterSource("id", id), Integer.class);
+            if (largestSectionCapacity != null && capacity < largestSectionCapacity) {
+                throw problem(HttpStatus.CONFLICT, "ROOM_BELOW_SECTION_CAPACITY",
+                        "Classroom capacity cannot be below the capacity of a section scheduled in the room");
+            }
         }
         MapSqlParameterSource parameters = new MapSqlParameterSource("id", id);
         StringBuilder sql = new StringBuilder("UPDATE ").append(table).append(" SET ");
@@ -284,8 +300,18 @@ public class AdminCatalogMutationService {
             requireExists(table, id);
         } else {
             sql.append(", \"updatedAt\" = CURRENT_TIMESTAMP WHERE \"id\" = :id");
+            if (SECTION.equals(table) && input.containsKey("capacity")) {
+                sql.append(" AND \"enrolledCount\" <= :capacity");
+            }
             int updated = jdbc.update(sql.toString(), parameters);
             if (updated == 0) {
+                if (SECTION.equals(table) && input.containsKey("capacity")) {
+                    Map<String, Object> current = requireRow(SECTION, id);
+                    Object enrolledCount = current.get("enrolledCount");
+                    int enrolled = enrolledCount instanceof Number seats ? seats.intValue() : 0;
+                    throw problem(HttpStatus.CONFLICT, "CAPACITY_BELOW_ENROLLED",
+                            "Capacity cannot go below the number of enrolled students (" + enrolled + ")");
+                }
                 throw problem(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "Resource not found");
             }
         }
@@ -688,6 +714,22 @@ public class AdminCatalogMutationService {
         String lecturerId = text(input, "lecturerId", null);
         if (input.containsKey("lecturerId") && lecturerId != null) {
             requireCatalogReference(LECTURER, "lecturerId", lecturerId);
+        }
+        if (input.containsKey("courseId") || input.containsKey("semesterId")) {
+            Map<String, Object> current = requireRow(SECTION, id);
+            boolean placementChanged = input.containsKey("courseId")
+                    && !Objects.equals(input.get("courseId"), current.get("courseId"))
+                    || input.containsKey("semesterId")
+                    && !Objects.equals(input.get("semesterId"), current.get("semesterId"));
+            if (placementChanged) {
+                Long enrollmentCount = jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM \"academic\".\"Enrollment\" WHERE \"sectionId\" = :id",
+                        new MapSqlParameterSource("id", id), Long.class);
+                if (enrollmentCount != null && enrollmentCount > 0) {
+                    throw problem(HttpStatus.CONFLICT, "SECTION_HAS_ENROLLMENTS",
+                            "Course and semester cannot change after enrollments have been recorded");
+                }
+            }
         }
     }
 
