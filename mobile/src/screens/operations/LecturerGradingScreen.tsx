@@ -63,7 +63,15 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
   const [message, setMessage] = useState<Banner>(null);
   const [search, setSearch] = useState('');
   const [pages, setPages] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
   const editRevisionBySection = useRef<Record<string, number>>({});
+  // A dirty section keeps its own draft while the lecturer checks another one.
+  const draftsRef = useRef<Record<string, {
+    baselineSheet: SectionGradeSheet;
+    edits: Record<string, ScoreEdit>;
+    problems: GradeDraft['problems'];
+    remoteChanged: boolean;
+  }>>({});
 
   const rows = useMemo(
     () => baselineSheet?.sectionId === sectionId ? baselineSheet.rows : sheet?.rows ?? [],
@@ -90,8 +98,17 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
   }, [baselineSheet, edits, remoteChanged, sheet]);
 
   useEffect(() => {
-    setEdits({});
-    setProblems(NO_PROBLEMS);
+    const draft = draftsRef.current[sectionId];
+    if (draft) {
+      setBaselineSheet(draft.baselineSheet);
+      setEdits(draft.edits);
+      setProblems(draft.problems);
+      setRemoteChanged(draft.remoteChanged);
+    } else {
+      setEdits({});
+      setProblems(NO_PROBLEMS);
+      setRemoteChanged(false);
+    }
     setMessage(null);
     setSearch('');
     setPages(1);
@@ -99,6 +116,16 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
   }, [sectionId]);
 
   const dirty = dirtyGradeCount(rows, edits);
+
+  const switchSection = (next: string) => {
+    if (next === sectionId) return;
+    if (baselineSheet && dirtyGradeCount(baselineSheet.rows, edits) > 0) {
+      draftsRef.current[sectionId] = { baselineSheet, edits, problems, remoteChanged };
+    } else {
+      delete draftsRef.current[sectionId];
+    }
+    setPicked(next);
+  };
   const locked = rows.length > 0 && rows.every((row) => row.gradeStatus === 'PUBLISHED' || row.gradeStatus === 'APPEALED');
   const needle = search.trim().toLowerCase();
   const visible = needle
@@ -123,7 +150,14 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
   };
 
   const reload = () => { void sectionsQuery.reload(); void gradesQuery.reload(); };
+  // The spinner belongs to the lecturer's pull, not to every SWR revalidation.
+  const refreshAll = () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    void Promise.all([sectionsQuery.reload(), gradesQuery.reload()]).finally(() => setRefreshing(false));
+  };
   const reloadGrades = () => {
+    delete draftsRef.current[sectionId];
     if (sheet) setBaselineSheet(sheet);
     setEdits({});
     setProblems(NO_PROBLEMS);
@@ -148,8 +182,10 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
     setMessage(null);
     try {
       await lecturerApi.saveGrades(savingSectionId, draft.changes);
+      const unchanged = (editRevisionBySection.current[savingSectionId] ?? 0) === savingRevision;
+      if (unchanged) delete draftsRef.current[savingSectionId];
       if (currentSectionId.current !== savingSectionId) return;
-      if ((editRevisionBySection.current[savingSectionId] ?? 0) === savingRevision) {
+      if (unchanged) {
         setEdits({});
         setProblems(NO_PROBLEMS);
       }
@@ -214,8 +250,8 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
       error={queryError}
       warning={preview ? null : sectionsQuery.warning ?? gradesQuery.warning}
       onRetry={reload}
-      onRefresh={preview ? undefined : reload}
-      refreshing={!preview && (sectionsQuery.isStale || gradesQuery.isStale)}
+      onRefresh={preview ? undefined : refreshAll}
+      refreshing={!preview && refreshing}
 
       list={{ data: shown, keyExtractor: (item, index) => String(item.enrollmentId),
         renderItem: ({ item: row }) => (
@@ -288,7 +324,7 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
       {sections.length === 0 ? (
         <StatePanel kind="empty" title={copy.emptySchedule} />
       ) : (<View>
-          <SectionPicker sections={sections} value={sectionId} onChange={setPicked} />
+          <SectionPicker sections={sections} value={sectionId} onChange={switchSection} />
           <Card style={styles.gradingHero}>
             <View style={styles.courseHeader}>
               <View style={styles.topicCopy}>

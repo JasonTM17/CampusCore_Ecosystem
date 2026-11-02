@@ -224,3 +224,23 @@ export function agendaForDate(agenda: readonly AgendaItem[], date: Date, term?: 
   if ((start && key < start) || (end && key > end)) return [];
   return agenda.filter((item) => item.dayOfWeek === dayOfWeekOf(date));
 }
+
+const minutesOfDay = (value: string): number => {
+  const [hours, minutes] = value.split(':');
+  return (Number(hours) || 0) * 60 + (Number(minutes) || 0);
+};
+
+/** The next weekly meetings at or after `now`, ordered by their next occurrence. */
+export function nextMeetings(agenda: readonly AgendaItem[], now: Date, limit: number): AgendaItem[] {
+  if (limit <= 0) return [];
+  const today = dayOfWeekOf(now);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  return agenda
+    .map((item) => {
+      const days = (normalizeDay(item.dayOfWeek) - today + 7) % 7;
+      return { item, days: days === 0 && minutesOfDay(item.startTime) < nowMinutes ? 7 : days };
+    })
+    .sort((left, right) => left.days - right.days || minutesOfDay(left.item.startTime) - minutesOfDay(right.item.startTime))
+    .slice(0, limit)
+    .map(({ item }) => item);
+}
