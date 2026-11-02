@@ -104,15 +104,19 @@ Disable export with `management.prometheus.metrics.export.enabled=false`, or rem
 | `hikaricp_connections_active`, `_max`, `_pending`, `_timeout_total` | Boot/Hikari automatic binding; actual physical `pool` names | Identity's transaction-aware datasource shares the primary physical pool; do not invent or sum a second identity pool. A fail-closed unavailable assistant datasource is not a healthy pool. |
 | `campuscore_assistant_requests_total` | Public and internal response completion boundaries; only `degraded="true|false"` | Both counters start at zero. Each JSON answer or first SSE done event is counted once at its boundary, including local/remote fallback. Error-only/incomplete streams are not answers. |
 | `campuscore_assistant_quota_consumed_daily` | Gauge: committed current campus-day GLOBAL `usage_bucket` row | No user/date labels. Separate actual Assistant-pool borrow and 1-second statement timeout; no charge/refund/readiness policy changes. Empty current bucket is zero; unavailable datasource/query or unverified PostgreSQL RLS state is NaN. Reflects dispatch, standalone charge/refund, restart and Asia/Ho_Chi_Minh day rollover. |
+| `campuscore_assistant_quota_limit_daily` | [`MetricsConfiguration.java`](../../java-services/restful-api/src/main/java/io/campuscore/restfulapi/config/MetricsConfiguration.java): configured `AssistantProperties.globalDailyQuota` | No labels. NaN when the properties bean is unavailable. Used as the denominator for the configured quota alert. |
 | `campuscore_assistant_turn_stale_recovered_total` | Successful repository recovery CAS, incremented after commit | Includes sweep and opportunistic recovery; rollback and lost CAS do not increment. Process-local counter resets on restart. |
 | `campuscore_assistant_rls_verified` | Actual `AssistantRlsState` | 1 only after verification; absent/disabled/degraded verifier is 0. No reason string or raw state detail is exported. |
 | `campuscore_assistant_executor_active`, `_queued`, `_max`, `_rejected_total` | Both direct-handoff executors; only `executor="student|internal"` | Queue remains zero by existing policy; rejection increments before the original exception is rethrown. No new queue/SLO thresholds. |
 | `probe_success` | External blackbox exporter, not the Java registry; rules use its standard `job` and `instance` labels | Configure `blackbox-http-api-liveness`, `blackbox-http-api-readiness`, and `blackbox-http-frontend-health` scrape jobs. The API jobs must use the same stable `instance` value for each service instance so cold-start rules can join them. No custom `endpoint` or `service` labels are required. Send `X-Health-Key` securely for the primary readiness probe. |
 
-The quota alert now uses `max(campuscore_assistant_quota_consumed_daily) > 180`:
-a gauge can decrease after refunds/day rollover, and replicas observe the same
-persisted bucket, so summing replicas would multiply usage. Scrape one shared
-quota domain per alert evaluation. The threshold and five-minute hold are unchanged.
+The quota alert evaluates `max(campuscore_assistant_quota_consumed_daily) /`
+`max(campuscore_assistant_quota_limit_daily > 0) > 0.9`. Missing, zero, and NaN
+limits do not produce a denominator or alert. A gauge can decrease after refunds
+or day rollover, and replicas observe the same persisted bucket, so summing
+replicas would multiply usage. Scrape one shared quota domain per evaluation;
+the five-minute hold is unchanged. The metric names and producer references are
+maintained in the [monitoring README](../../ops/monitoring/README.md).
 All other SLO thresholds and hold durations remain unchanged.
 
 On PostgreSQL the aggregate observation requires a verified runtime state. Its
@@ -276,7 +280,7 @@ Mỗi luồng nghiệp vụ trọng yếu (Critical User Journey) được áp �
 - **Outage & Degraded Contract**: Khi DeepSeek gặp timeout (>15s), provider error hoặc cạn hạn mức, hệ thống tự động suy giảm về lexical RAG với cờ `degraded: true` và `reasonCode` tương ứng (`PROVIDER_TIMEOUT`, `GLOBAL_QUOTA_EXCEEDED`, `CIRCUIT_OPEN`).
 - **Ngưỡng Cảnh báo**:
   - Tỷ lệ câu trả lời degraded `> 20%` trong 10 phút.
-  - Hạn mức toàn hệ thống vượt `180/200` turns (`> 180`, giữ 5 phút).
+  - Tỷ lệ quota toàn hệ thống trên hạn mức đã cấu hình vượt `90%` (giữ 5 phút).
   - Recovery CAS đã commit (sweep hoặc opportunistic) thu hồi `> 5` lease quá hạn trong 10 phút, giữ 2 phút; gồm `FAILED_PRE_DISPATCH` và `FAILED_AMBIGUOUS`.
 
 ---

@@ -75,14 +75,26 @@ test('blackbox alerts and fixtures use only the configured job and instance labe
 });
 
 test('assistant alert metric names match the Micrometer producers', () => {
-  assert.match(metrics, /registry\.counter\("campuscore\.assistant\.requests"/);
-  assert.match(metrics, /Gauge\.builder\("campuscore\.assistant\.quota\.consumed\.daily"/);
-  assert.match(metrics, /Gauge\.builder\("campuscore\.assistant\.rls\.verified"/);
+  const exportedMetrics = new Set([
+    ...[...metrics.matchAll(/registry\.counter\("(campuscore\.assistant\.[^"]+)"/g)]
+      .map(([, name]) => `${name.replaceAll('.', '_')}_total`),
+    ...[...metrics.matchAll(/Gauge\.builder\("(campuscore\.assistant\.[^"]+)"/g)]
+      .map(([, name]) => name.replaceAll('.', '_')),
+  ]);
+  const referencedMetrics = new Set(
+    [...assistant.matchAll(/\bcampuscore_assistant_[a-z0-9_]+\b/g)].map(([name]) => name),
+  );
+
   for (const metric of [
     'campuscore_assistant_requests_total',
     'campuscore_assistant_quota_consumed_daily',
+    'campuscore_assistant_quota_limit_daily',
     'campuscore_assistant_rls_verified',
   ]) {
+    assert.ok(exportedMetrics.has(metric), `MetricsConfiguration must export assistant metric ${metric}`);
     assert.ok(assistant.includes(metric), `assistant alert rules must select exported metric ${metric}`);
+  }
+  for (const metric of referencedMetrics) {
+    assert.ok(exportedMetrics.has(metric), `assistant alert metric ${metric} must be exported by MetricsConfiguration`);
   }
 });
