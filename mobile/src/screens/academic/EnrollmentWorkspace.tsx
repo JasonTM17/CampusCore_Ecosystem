@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Button, Card, IconChip, StatePanel, StatusPill, UiText } from '../../components/Ui';
+import { Button, Card, IconChip, InlineError, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { fillCopy } from '../../i18n/academic-messages';
@@ -54,13 +54,17 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
 
   const loading = !preview && enrollmentsQuery.isLoading;
   const error = preview ? null : enrollmentsQuery.error;
+  const warning = preview
+    ? null
+    : [enrollmentsQuery.warning, semestersQuery.warning].filter(Boolean).join(' ') || null;
+  const semestersFailed = !preview && semestersQuery.error !== null;
 
   return (
     <AcademicShell
       title={copy[title]}
       loading={loading}
       error={error}
-      warning={preview ? null : enrollmentsQuery.warning}
+      warning={warning}
       onRetry={() => void enrollmentsQuery.reload()}
       onRefresh={preview ? undefined : () => { void enrollmentsQuery.reload(); void semestersQuery.reload(); }}
       refreshing={!preview && (enrollmentsQuery.isStale || semestersQuery.isStale)}
@@ -108,7 +112,11 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
       {selected ? (
         <EnrollmentDetail enrollment={selected} onBack={() => setSelectedId(null)} />
       ) : (<View>
-          <TermField options={options} value={term} onChange={setTerm} />
+          {semestersFailed ? (
+            <InlineError message={semestersQuery.error ?? copy.errorTitle} onRetry={() => void semestersQuery.reload()} retryLabel={copy.retry} />
+          ) : (
+            <TermField options={options} value={term} onChange={setTerm} />
+          )}
           <SegmentTabs
             label={copy.tabLabel}
             value={tab}

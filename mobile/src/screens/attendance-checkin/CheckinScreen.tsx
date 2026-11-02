@@ -83,7 +83,9 @@ function PreviewBadge() {
 function openSettings(target: 'app' | 'location') {
   if (target === 'location' && Platform.OS === 'android') {
     // LOCATION_SOURCE_SETTINGS via sendIntent; fall back to app settings.
-    void Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS').catch(() => Linking.openSettings());
+    // The fallback itself is terminal: neither failure may escape the handler.
+    void Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS')
+      .catch(() => Linking.openSettings().catch(() => undefined));
     return;
   }
   void Linking.openSettings().catch(() => undefined);

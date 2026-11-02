@@ -78,8 +78,12 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   const [pages, setPages] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const editRevisionByKey = useRef<Record<string, number>>({});
+  // A dirty sheet stays keyed to its own (section, date) while the lecturer
+  // looks at another one, so switching never silently discards marks.
+  const draftsRef = useRef<Record<string, { rows: RosterRow[]; baseline: AttendanceBaseline }>>({});
 
   const applySheet = (next: AttendanceSheet) => {
+    delete draftsRef.current[`${next.sectionId}:${next.date}`];
     setRows(buildRosterRows(next.roster, next.marks));
     setBaseline(baselineOf(next.roster, next.marks));
     setLoadedKey(`${next.sectionId}:${next.date}`);
@@ -89,6 +93,16 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   useEffect(() => {
     if (!sheet) return;
     if (loadedKey !== sheetKey) {
+      const draft = draftsRef.current[sheetKey];
+      if (draft) {
+        setRows(draft.rows);
+        setBaseline(draft.baseline);
+        setLoadedKey(sheetKey);
+        setRemoteChanged(isStaleAttendance(draft.baseline, sheet.roster, sheet.marks));
+        setSave({ kind: 'idle' });
+        setPages(1);
+        return;
+      }
       applySheet(sheet);
       setSave({ kind: 'idle' });
       setPages(1);
@@ -107,6 +121,18 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   const { rows: shown, hasMore } = windowOf(visible, pages, PAGE_SIZE);
   const ready = loadedKey === sheetKey;
   const busy = save.kind === 'saving';
+
+  const switchSheet = (nextSectionId: string, nextDate: string) => {
+    if (nextSectionId === sectionId && nextDate === date) return;
+    if (loadedKey === sheetKey && changes > 0) {
+      draftsRef.current[sheetKey] = { rows, baseline };
+    }
+    if (nextSectionId !== sectionId) {
+      setPicked(nextSectionId);
+      setSearch('');
+    }
+    if (nextDate !== date) setDate(nextDate);
+  };
 
   const change = (studentId: string, status: MarkStatus | null) => {
     editRevisionByKey.current[sheetKey] = (editRevisionByKey.current[sheetKey] ?? 0) + 1;
@@ -145,9 +171,11 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
     setSave({ kind: 'saving' });
     try {
       const count = await lecturerApi.saveAttendance(sectionId, date, records, baseline);
+      const unchanged = (editRevisionByKey.current[savingKey] ?? 0) === savingRevision;
+      if (unchanged) delete draftsRef.current[savingKey];
       if (currentSheetKey.current !== savingKey) return;
       setSave({ kind: 'saved', count });
-      if ((editRevisionByKey.current[savingKey] ?? 0) === savingRevision) {
+      if (unchanged) {
         setRows(commitRows(rows));
         setBaseline(savedBaseline(rows));
         setRemoteChanged(false);
@@ -224,8 +252,8 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
       {sections.length === 0 ? (
         <StatePanel kind="empty" title={copy.emptySchedule} />
       ) : (<View>
-          <SectionPicker sections={sections} value={sectionId} onChange={(next) => { setPicked(next); setSearch(''); }} />
-          <DateField label={copy.date} value={date} max={today} required onChange={(next) => next && setDate(next)} />
+          <SectionPicker sections={sections} value={sectionId} onChange={(next) => switchSheet(next, date)} />
+          <DateField label={copy.date} value={date} max={today} required onChange={(next) => next && switchSheet(sectionId, next)} />
           {rows.length === 0 ? (
             <StatePanel kind="empty" title={copy.rosterEmpty} />
           ) : (<View>

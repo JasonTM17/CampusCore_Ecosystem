@@ -270,7 +270,9 @@ export function AdminAuditScreen() {
 export function AdminCreditLimitsScreen() {
   const { copy } = useLanesCopy();
   const [status, setStatus] = useState('PENDING');
-  const request = useLaneRequest(() => laneApi.creditApplications(status), `admin:credit:${status}`);
+  // The endpoint defaults a missing status to PENDING; "All" must be explicit.
+  const filter = status || 'ALL';
+  const request = useLaneRequest(() => laneApi.creditApplications(filter), `admin:credit:${filter}`);
   const runner = useActionRunner(copy, () => void request.reload());
   const items = request.data ?? [];
 
