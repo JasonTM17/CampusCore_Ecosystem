@@ -4,13 +4,17 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +24,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeliveryOutboxRepository {
 
     private static final String OUTBOX = "notifications.delivery_outbox";
+    private static final int ENQUEUE_CHUNK_SIZE = 500;
+    private static final String INSERT_OUTBOX_SQL = "INSERT INTO " + OUTBOX
+            + " (id,notification_id,device_id,recipient_user_id,status,attempt_count,"
+            + " next_attempt_at,lease_generation,created_at,updated_at)"
+            + " SELECT :id,:notificationId,d.id,:recipientUserId,'PENDING',0,"
+            + " :createdAt,0,:createdAt,:createdAt"
+            + " FROM notifications.device_registration d"
+            + " WHERE d.id=:deviceId AND d.user_id=:recipientUserId AND d.status='ACTIVE'"
+            + " AND NOT EXISTS (SELECT 1 FROM " + OUTBOX
+            + " o WHERE o.notification_id=:notificationId AND o.device_id=d.id)";
     private final NamedParameterJdbcTemplate jdbc;
     private final PushProperties properties;
     private volatile Boolean postgres;
@@ -42,27 +56,88 @@ public class DeliveryOutboxRepository {
                 (rs, rowNumber) -> rs.getString(1));
         int inserted = 0;
         for (String deviceId : devices) {
-            String conflictClause = isPostgres()
-                    ? " ON CONFLICT (notification_id,device_id) DO NOTHING"
-                    : "";
-            inserted += jdbc.update("INSERT INTO " + OUTBOX
-                            + " (id,notification_id,device_id,recipient_user_id,status,attempt_count,"
-                            + " next_attempt_at,lease_generation,created_at,updated_at)"
-                            + " SELECT :id,:notificationId,d.id,:recipientUserId,'PENDING',0,"
-                            + " :createdAt,0,:createdAt,:createdAt"
-                            + " FROM notifications.device_registration d"
-                            + " WHERE d.id=:deviceId AND d.user_id=:recipientUserId AND d.status='ACTIVE'"
-                            + " AND NOT EXISTS (SELECT 1 FROM " + OUTBOX
-                            + " o WHERE o.notification_id=:notificationId AND o.device_id=d.id)"
-                            + conflictClause,
-                    new MapSqlParameterSource()
-                            .addValue("id", UUID.randomUUID().toString())
-                            .addValue("notificationId", notificationId)
-                            .addValue("deviceId", deviceId)
-                            .addValue("recipientUserId", recipientUserId)
-                            .addValue("createdAt", Timestamp.from(createdAt)));
+            inserted += jdbc.update(insertSql(),
+                    outboxParameters(notificationId, deviceId, recipientUserId, createdAt));
         }
         return inserted;
+    }
+
+    /**
+     * Enqueues the outbox rows for a notification batch. One device lookup and
+     * one JDBC batch cover each {@value #ENQUEUE_CHUNK_SIZE}-recipient chunk, so
+     * a campus-wide fan-out costs a handful of round trips instead of one query
+     * and one insert per recipient. The insert still re-checks device ownership,
+     * device status and the unique (notification_id, device_id) key, so repeated
+     * calls remain idempotent.
+     */
+    @Transactional
+    public int enqueueBatch(List<EnqueueRequest> requests) {
+        if (!properties.isEnabled() || requests == null || requests.isEmpty()) {
+            return 0;
+        }
+        int inserted = 0;
+        for (int start = 0; start < requests.size(); start += ENQUEUE_CHUNK_SIZE) {
+            inserted += enqueueChunk(requests.subList(
+                    start, Math.min(start + ENQUEUE_CHUNK_SIZE, requests.size())));
+        }
+        return inserted;
+    }
+
+    private int enqueueChunk(List<EnqueueRequest> requests) {
+        List<String> userIds = requests.stream()
+                .map(EnqueueRequest::recipientUserId)
+                .distinct()
+                .toList();
+        List<DeviceRegistration> devices = jdbc.query(
+                "SELECT id,user_id FROM notifications.device_registration"
+                        + " WHERE user_id IN (:userIds) AND status='ACTIVE' ORDER BY id",
+                new MapSqlParameterSource("userIds", userIds),
+                (rs, rowNumber) -> new DeviceRegistration(rs.getString(1), rs.getString(2)));
+        if (devices.isEmpty()) {
+            return 0;
+        }
+        Map<String, List<String>> deviceIdsByUser = new HashMap<>();
+        for (DeviceRegistration device : devices) {
+            deviceIdsByUser.computeIfAbsent(device.userId(), key -> new ArrayList<>())
+                    .add(device.deviceId());
+        }
+        LinkedHashMap<OutboxTarget, MapSqlParameterSource> parameters = new LinkedHashMap<>();
+        for (EnqueueRequest request : requests) {
+            for (String deviceId : deviceIdsByUser.getOrDefault(
+                    request.recipientUserId(), List.of())) {
+                parameters.putIfAbsent(new OutboxTarget(request.notificationId(), deviceId),
+                        outboxParameters(request.notificationId(), deviceId,
+                                request.recipientUserId(), request.createdAt()));
+            }
+        }
+        if (parameters.isEmpty()) {
+            return 0;
+        }
+        int[] counts = jdbc.batchUpdate(insertSql(),
+                parameters.values().toArray(SqlParameterSource[]::new));
+        int inserted = 0;
+        for (int count : counts) {
+            if (count > 0) {
+                inserted += count;
+            }
+        }
+        return inserted;
+    }
+
+    private String insertSql() {
+        return INSERT_OUTBOX_SQL + (isPostgres()
+                ? " ON CONFLICT (notification_id,device_id) DO NOTHING"
+                : "");
+    }
+
+    private static MapSqlParameterSource outboxParameters(
+            String notificationId, String deviceId, String recipientUserId, Instant createdAt) {
+        return new MapSqlParameterSource()
+                .addValue("id", UUID.randomUUID().toString())
+                .addValue("notificationId", notificationId)
+                .addValue("deviceId", deviceId)
+                .addValue("recipientUserId", recipientUserId)
+                .addValue("createdAt", Timestamp.from(createdAt));
     }
 
     @Transactional
@@ -312,7 +387,13 @@ public class DeliveryOutboxRepository {
             Instant leaseUntil,
             int attemptCount) { }
 
+    public record EnqueueRequest(String notificationId, String recipientUserId, Instant createdAt) { }
+
     private record ClaimCandidate(String id, String deviceId, int attemptCount, long leaseGeneration) { }
+
+    private record DeviceRegistration(String deviceId, String userId) { }
+
+    private record OutboxTarget(String notificationId, String deviceId) { }
 
     public record DeliverySnapshot(
             String outboxId,
