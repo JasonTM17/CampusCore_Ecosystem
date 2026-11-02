@@ -669,6 +669,67 @@ class LearningContractPersistenceTest {
                 .andExpect(status().isNoContent());
     }
 
+    @Test
+    void fileLessMaterialTitleEditSucceeds() throws Exception {
+        MvcResult created = mvc.perform(post("/api/v1/learning/staff/sections/sec-a/materials")
+                        .with(lecturerJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Week 1 notes\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String materialId = objectMapper.readTree(created.getResponse().getContentAsString())
+                .get("id").asText();
+
+        mvc.perform(put("/api/v1/learning/staff/materials/" + materialId).with(lecturerJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Week 1 notes (updated)\",\"version\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Week 1 notes (updated)"))
+                .andExpect(jsonPath("$.version").value(2))
+                .andExpect(jsonPath("$.fileName").doesNotExist())
+                .andExpect(jsonPath("$.contentType").doesNotExist());
+
+        assertThat(jdbc.queryForObject("SELECT \"title\" FROM learning.\"Material\" WHERE \"id\" = ?",
+                String.class, materialId)).isEqualTo("Week 1 notes (updated)");
+        assertThat(jdbc.queryForObject("SELECT \"fileKey\" FROM learning.\"Material\" WHERE \"id\" = ?",
+                String.class, materialId)).isNull();
+    }
+
+    @Test
+    void invalidDraftContentTypeStaysDownloadable() throws Exception {
+        String assignmentId = publishedAssignmentId();
+        String submissionId = openDraft(assignmentId, studentJwt, "draft-bad-type");
+        mvc.perform(put("/api/v1/learning/submissions/" + submissionId + "/draft").with(studentJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"textBody\":\"answer\",\"fileName\":\"report.pdf\","
+                                + "\"contentType\":\"report\",\"contentBase64\":\"" + b64("pdf bytes") + "\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/learning/assignments/" + assignmentId + "/submit")
+                        .with(studentJwt).header("Idempotency-Key", "submit-bad-type"))
+                .andExpect(status().isOk());
+        String revisionId = objectMapper.readTree(mvc.perform(
+                        get("/api/v1/learning/submissions/" + submissionId + "/revisions").with(studentJwt))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
+                .get(0).get("id").asText();
+
+        // The write boundary normalises the invalid declared type.
+        assertThat(jdbc.queryForObject(
+                "SELECT \"contentType\" FROM learning.\"SubmissionRevision\" WHERE \"id\" = ?",
+                String.class, revisionId)).isEqualTo(MediaType.APPLICATION_OCTET_STREAM_VALUE);
+
+        mvc.perform(get("/api/v1/learning/staff/revisions/" + revisionId + "/file").with(lecturerJwt))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("Content-Type", MediaType.APPLICATION_OCTET_STREAM_VALUE));
+
+        // A row written before the write boundary existed must still download.
+        jdbc.update("UPDATE learning.\"FileObject\" SET \"contentType\" = 'report' WHERE \"key\" ="
+                + " (SELECT \"fileKey\" FROM learning.\"SubmissionRevision\" WHERE \"id\" = ?)", revisionId);
+        mvc.perform(get("/api/v1/learning/staff/revisions/" + revisionId + "/file").with(lecturerJwt))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("Content-Type", MediaType.APPLICATION_OCTET_STREAM_VALUE));
+    }
+
     // ---------------------------------------------------------------
     // Boundary: LMS never writes the official academic record
     // ---------------------------------------------------------------

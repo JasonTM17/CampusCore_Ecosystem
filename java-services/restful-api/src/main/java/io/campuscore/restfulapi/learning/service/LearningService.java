@@ -18,6 +18,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.text.BreakIterator;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -25,6 +26,8 @@ import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.InvalidMediaTypeException;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -140,14 +143,20 @@ public class LearningService {
             throw problem(HttpStatus.BAD_REQUEST, "MATERIAL_TITLE_REQUIRED", "Material title is required");
         }
         boolean newFile = request.contentBase64() != null && !request.contentBase64().isBlank();
-        Map<String, Object> stored = newFile
-                ? storeFile(lecturerId, String.valueOf(material.get("sectionId")), request.fileName(),
-                        request.contentType(), request.contentBase64(), request.checksum())
-                : Map.of("key", (Object) material.get("fileKey"),
-                        "fileName", material.get("fileName"),
-                        "contentType", material.get("contentType"),
-                        "sizeBytes", material.get("sizeBytes"),
-                        "checksum", material.get("checksum"));
+        Map<String, Object> stored;
+        if (newFile) {
+            stored = storeFile(lecturerId, String.valueOf(material.get("sectionId")), request.fileName(),
+                    request.contentType(), request.contentBase64(), request.checksum());
+        } else {
+            // File columns are nullable: a text-only material keeps them null,
+            // so the holder must tolerate nulls (Map.of would throw).
+            stored = new HashMap<>();
+            stored.put("key", material.get("fileKey"));
+            stored.put("fileName", material.get("fileName"));
+            stored.put("contentType", material.get("contentType"));
+            stored.put("sizeBytes", material.get("sizeBytes"));
+            stored.put("checksum", material.get("checksum"));
+        }
         int updated = jdbc.update("UPDATE " + MATERIAL
                         + " SET \"title\" = :title, \"description\" = :description,"
                         + " \"fileKey\" = :fileKey, \"fileName\" = :fileName,"
@@ -537,17 +546,30 @@ public class LearningService {
                     "File checksum does not match the content");
         }
         String key = "learning/" + scope + "/" + UUID.randomUUID();
+        String mediaType = normaliseContentType(contentType);
         jdbc.update("INSERT INTO " + FILE_OBJECT
                         + " (\"key\", \"contentType\", \"sizeBytes\", \"sha256\", \"data\")"
                         + " VALUES (:key, :contentType, :sizeBytes, :sha256, :data)",
                 new MapSqlParameterSource("key", key)
-                        .addValue("contentType", contentType == null ? "application/octet-stream" : contentType)
+                        .addValue("contentType", mediaType)
                         .addValue("sizeBytes", (long) bytes.length)
                         .addValue("sha256", sha256)
                         .addValue("data", bytes));
         return Map.of("key", key, "fileName", fileName == null ? "" : fileName,
-                "contentType", contentType == null ? "application/octet-stream" : contentType,
+                "contentType", mediaType,
                 "sizeBytes", (long) bytes.length, "checksum", sha256);
+    }
+
+    /** Client-declared media types are untrusted; store only a parseable type. */
+    static String normaliseContentType(String contentType) {
+        if (contentType == null || contentType.isBlank()) {
+            return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        }
+        try {
+            return MediaType.parseMediaType(contentType).toString();
+        } catch (InvalidMediaTypeException exception) {
+            return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        }
     }
 
     static String sha256(byte[] data) {
