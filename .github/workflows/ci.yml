@@ -113,6 +113,7 @@ jobs:
             scripts/ecosystem-devices-verify.test.mjs \
             scripts/ecosystem-doc-index.test.mjs \
             scripts/flyway-lineage-check.test.mjs \
+            scripts/local-dev.test.mjs \
             scripts/locale-keys.test.mjs \
             scripts/mobile-local-oidc-verify.test.mjs \
             scripts/platform-load.test.mjs \
