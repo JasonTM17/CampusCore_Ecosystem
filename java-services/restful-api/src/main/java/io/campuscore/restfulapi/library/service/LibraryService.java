@@ -125,10 +125,12 @@ public class LibraryService {
 
     public List<StaffGrantResponse> listGrants(String actorId) {
         requireStaffGrant(actorId);
+        // Self-view over the grant table: a staffer sees only its own grant.
         return jdbc.query(
                 "SELECT \"id\", \"userId\", \"scope\", \"grantedBy\", \"createdAt\""
-                        + " FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope ORDER BY \"createdAt\"",
-                new MapSqlParameterSource("scope", SCOPE),
+                        + " FROM " + STAFF_GRANT
+                        + " WHERE \"scope\" = :scope AND \"userId\" = :actor ORDER BY \"createdAt\"",
+                new MapSqlParameterSource("scope", SCOPE).addValue("actor", actorId),
                 (row, index) -> mapGrant(row));
     }
 
