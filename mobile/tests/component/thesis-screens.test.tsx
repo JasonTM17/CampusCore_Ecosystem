@@ -64,6 +64,7 @@ jest.mock('../../src/hooks/useScreenQuery', () => {
 import { apiClient } from '../../src/api/client';
 import { peekAssistantEntryScope, consumeAssistantEntryScope } from '../../src/assistant/entry-scope';
 import { createUnavailableFileAdapter, setFileAdapter, type FileAdapter } from '../../src/files/file-adapter';
+import { LocaleProvider } from '../../src/i18n/locale-provider';
 import { thesisMessages } from '../../src/i18n/thesis-messages';
 import type { MobileScreenProps } from '../../src/navigation/types';
 import { selectThesisRound } from '../../src/screens/thesis/thesis-selection';
@@ -82,6 +83,12 @@ const navigate = jest.fn();
 const navigation = { navigate, signOut: jest.fn() } as unknown as MobileScreenProps['navigation'];
 const baseProps = { navigation, role: 'student', selectedThesisTopicId: null } as MobileScreenProps;
 const renderThemed = (el: ReactElement) => render(<ThemeProvider forcedScheme="light">{el}</ThemeProvider>);
+const renderEnglish = (el: ReactElement) =>
+  render(
+    <LocaleProvider initialLocale="en">
+      <ThemeProvider forcedScheme="light">{el}</ThemeProvider>
+    </LocaleProvider>,
+  );
 function setWidth(w: number) {
   jest.spyOn(Dimensions, 'get').mockReturnValue({ width: w, height: 800, scale: 2, fontScale: 1 } as ReturnType<typeof Dimensions.get>);
 }
@@ -236,6 +243,23 @@ describe('topics, round and advisors', () => {
     expect(await screen.findByText('Phạm Nam')).toBeOnTheScreen();
     expect(screen.getByText('Võ Lan')).toBeOnTheScreen();
     expect(screen.getByText('2 đề tài')).toBeOnTheScreen();
+  });
+
+  test('a single topic and its group cap keep the singular English noun', async () => {
+    setWidth(360);
+    seed({ topics: [topic('t1', 'Solo topic', { maxGroups: 1 })] });
+    await renderEnglish(<ThesisTopicsScreen {...baseProps} />);
+    expect(await screen.findByText('1 topic')).toBeOnTheScreen();
+    expect(screen.getByText('Up to 1 group')).toBeOnTheScreen();
+  });
+
+  test('a single advisor topic keeps the singular English noun', async () => {
+    setWidth(360);
+    seed({ topics: [TOPIC_A] });
+    await renderEnglish(<ThesisTopicsScreen {...baseProps} />);
+    await screen.findByText('Trợ lý học vụ');
+    await fireEvent.press(screen.getByRole('tab', { name: thesisMessages.en.tabAdvisors }));
+    expect(await screen.findByText('1 topic')).toBeOnTheScreen();
   });
 
   test('the standalone round screen renders for a route registered later', async () => {
@@ -419,6 +443,16 @@ describe('progress and report', () => {
     seed({ group: approvedGroup(), progress: approvedProgress });
     await renderThemed(<ThesisProgressScreen {...baseProps} />);
     expect((await screen.findByRole('progressbar')).props.accessibilityLabel).toBe('Tiến độ');
+  });
+
+  test('a single group member keeps the singular English noun', async () => {
+    setWidth(360);
+    seed({
+      group: group({ memberStudentIds: ['s1'], members: [member('s1', 'Nguyễn An', true)] }),
+      progress: progress({ groupId: 'g1' }),
+    });
+    await renderEnglish(<ThesisProgressScreen {...baseProps} />);
+    expect(await screen.findByText('1 member')).toBeOnTheScreen();
   });
 
   test('the report is locked until the group is approved', async () => {

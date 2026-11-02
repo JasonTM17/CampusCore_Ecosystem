@@ -5,7 +5,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { Button, Card, Notice, ProgressBar, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { Dialog, SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
-import { countForm } from '../../i18n/locale';
+import { campusIsoDate, countForm } from '../../i18n/locale';
 import type { MobileScreenProps } from '../../navigation/types';
 import { GradeRowCard } from './GradeRowCard';
 import { lecturerApi, type SectionGradeSheet } from './lecturer-api';
@@ -16,7 +16,6 @@ import {
   courseTitle,
   dirtyGradeCount,
   gradedPercent,
-  localIsoDate,
   mergeGradeEdits,
   sameGradeSheet,
   windowOf,
@@ -367,7 +366,7 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
                 />
                 {publishHint ? <UiText variant="bodySmall" tone="muted">{publishHint}</UiText> : null}
                 <CsvExport
-                  name={gradeCsvFilename(section?.courseCode ?? 'section', section?.sectionNumber ?? sectionId, localIsoDate())}
+                  name={gradeCsvFilename(section?.courseCode ?? 'section', section?.sectionNumber ?? sectionId, campusIsoDate())}
                   build={buildCsv}
                   rows={rows.length}
                 />
