@@ -142,6 +142,124 @@ test('the login controls meet the 44px touch target', () => {
   assertTouchTarget(sso, sourceFile, 'SSO link', 'height');
 });
 
+test('the remaining sign-in controls meet the 44px touch target', () => {
+  const sourceFile = readTsx('src/app/login/page.tsx');
+  const buttons = elements(sourceFile, 'button');
+  const links = elements(sourceFile, 'LocalizedLink');
+
+  const quickFill = buttons.find((node) =>
+    className(node, sourceFile).includes('shrink-0'),
+  );
+  assert.ok(quickFill, 'the demo quick-fill button must exist');
+  assertTouchTarget(quickFill, sourceFile, 'demo quick-fill', 'height');
+
+  const demoRows = buttons.filter((node) => {
+    const classes = className(node, sourceFile);
+    return classes.includes('w-full') && classes.includes('text-left');
+  });
+  assert.ok(demoRows.length > 0, 'the demo account rows must exist');
+  for (const row of demoRows) {
+    assertTouchTarget(row, sourceFile, 'demo account row', 'height');
+  }
+
+  for (const hrefValue of ['/forgot-password', '/register', '/']) {
+    const link = links.find(
+      (node) => staticString(attributes(node, sourceFile).get('href')) === hrefValue,
+    );
+    assert.ok(link, `the ${hrefValue} link must exist`);
+    assertTouchTarget(link, sourceFile, `auth link ${hrefValue}`, 'height');
+  }
+});
+
+test('the recovery and logged-out controls meet the 44px touch target', () => {
+  const forgot = readTsx('src/app/forgot-password/page.tsx');
+  const forgotBack = elements(forgot, 'LocalizedLink').filter(
+    (node) => staticString(attributes(node, forgot).get('href')) === '/login',
+  );
+  assert.ok(forgotBack.length > 0, 'the forgot-password back link must exist');
+  for (const link of forgotBack) {
+    assertTouchTarget(link, forgot, 'back-to-sign-in link', 'height');
+  }
+
+  const reset = readTsx('src/app/reset-password/page.tsx');
+  const toggles = elements(reset, 'button').filter((node) =>
+    attributes(node, reset).has('aria-pressed'),
+  );
+  assert.ok(toggles.length > 0, 'the reset password toggles must exist');
+  for (const toggle of toggles) {
+    assertTouchTarget(toggle, reset, 'reset password visibility toggle', 'height');
+    assertTouchTarget(toggle, reset, 'reset password visibility toggle', 'width');
+  }
+  const resetBack = elements(reset, 'LocalizedLink').filter(
+    (node) => staticString(attributes(node, reset).get('href')) === '/login',
+  );
+  assert.equal(resetBack.length, 2, 'both reset-password back links must exist');
+  for (const link of resetBack) {
+    assertTouchTarget(link, reset, 'back-to-sign-in link', 'height');
+  }
+
+  const loggedOut = readTsx('src/app/session/logged-out/page.tsx');
+  const home = elements(loggedOut, 'Link').find((node) =>
+    className(node, loggedOut).includes('no-underline'),
+  );
+  assert.ok(home, 'the logged-out home link must exist');
+  assertTouchTarget(home, loggedOut, 'logged-out home link', 'height');
+});
+
+test('the shared auth chrome toggles meet the 44px touch target', () => {
+  const sourceFile = readTsx('src/components/LanguageToggle.tsx');
+  let chipClassNode = null;
+  function visit(node) {
+    if (
+      ts.isVariableDeclaration(node) &&
+      node.name.getText(sourceFile) === 'chipClass'
+    ) {
+      chipClassNode = node;
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(sourceFile);
+  assert.ok(chipClassNode, 'the LanguageToggle chipClass must exist');
+
+  const literals = [];
+  function collect(node) {
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+      literals.push(node.text);
+    }
+    ts.forEachChild(node, collect);
+  }
+  collect(chipClassNode.initializer);
+  const chipClasses = literals.join(' ');
+  assert.ok(
+    dimension(chipClasses, 'h', 0) >= 44,
+    `the language chip measured ${dimension(chipClasses, 'h', 0)}px on height (${chipClasses})`,
+  );
+  assert.ok(
+    dimension(chipClasses, 'w', 0) >= 44,
+    `the language chip measured ${dimension(chipClasses, 'w', 0)}px on width (${chipClasses})`,
+  );
+});
+
+test('the two-factor surface controls meet the 44px touch target', () => {
+  const sourceFile = readTsx('src/app/dashboard/profile/page.tsx');
+  const buttons = elements(sourceFile, 'button');
+
+  const toggles = buttons.filter((node) =>
+    attributes(node, sourceFile).has('aria-pressed'),
+  );
+  assert.ok(toggles.length > 0, 'the profile password toggles must exist');
+  for (const toggle of toggles) {
+    assertTouchTarget(toggle, sourceFile, 'password visibility toggle', 'height');
+    assertTouchTarget(toggle, sourceFile, 'password visibility toggle', 'width');
+  }
+
+  const retry = buttons.find((node) =>
+    className(node, sourceFile).includes('underline-offset-4'),
+  );
+  assert.ok(retry, 'the two-factor status retry must exist');
+  assertTouchTarget(retry, sourceFile, 'two-factor status retry', 'height');
+});
+
 test('the title-less modal close meets the 44px touch target', () => {
   const sourceFile = readTsx('src/components/ui/modal.tsx');
   const close = elements(sourceFile, 'button').find((node) =>
