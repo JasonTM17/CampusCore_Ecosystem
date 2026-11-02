@@ -10,11 +10,15 @@ import io.campuscore.restfulapi.web.DomainException;
 import java.sql.Timestamp;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
@@ -178,16 +182,15 @@ public class AcademicMutationService {
                     new MapSqlParameterSource("sectionId", enrollment.get("section_id")));
         }
         if (actorId != null && !actorId.isBlank()) {
-            audit.recordDeletion(
-                    actorId,
-                    null,
-                    "ENROLLMENT",
-                    enrollmentId,
-                    Map.of(
-                            "studentId", String.valueOf(enrollment.get("student_id")),
-                            "sectionId", String.valueOf(enrollment.get("section_id")),
-                            "status", status,
-                            "gradeStatus", String.valueOf(enrollment.get("grade_status"))));
+            Map<String, Object> before = new LinkedHashMap<>();
+            before.put("studentId", enrollment.get("student_id"));
+            before.put("sectionId", enrollment.get("section_id"));
+            before.put("status", status);
+            before.put("gradeStatus", enrollment.get("grade_status"));
+            before.put("finalGrade", enrollment.get("final_grade"));
+            before.put("letterGrade", enrollment.get("letter_grade"));
+            before.put("creditsSnapshot", enrollment.get("credits_snapshot"));
+            audit.recordDeletion(actorId, null, "ENROLLMENT", enrollmentId, before);
         }
     }
 
@@ -368,33 +371,35 @@ public class AcademicMutationService {
             // removes the component rows and the enrollment update restores the
             // untouched NOT_GRADED state. A processScore can be saved alone as a
             // mid-term draft, but a finalExamScore without processScore cannot average.
-            boolean cleared = grade.processScore() == null && grade.finalExamScore() == null;
-            if (grade.processScore() == null && grade.finalExamScore() != null) {
+            BigDecimal processScore = storedScore(grade.processScore());
+            BigDecimal finalExamScore = storedScore(grade.finalExamScore());
+            boolean cleared = processScore == null && finalExamScore == null;
+            if (processScore == null && finalExamScore != null) {
                 throw problem(HttpStatus.BAD_REQUEST, "GRADE_PARTIAL_SCORE",
                         "processScore is required when finalExamScore is provided");
             }
             if (!cleared) {
-                requireScoreRange(grade.processScore(), "processScore");
-                if (grade.finalExamScore() != null) {
-                    requireScoreRange(grade.finalExamScore(), "finalExamScore");
+                requireScoreRange(processScore, "processScore");
+                if (finalExamScore != null) {
+                    requireScoreRange(finalExamScore, "finalExamScore");
                 }
             }
-            boolean midTermOnly = grade.processScore() != null && grade.finalExamScore() == null;
-            BigDecimal total = (cleared || midTermOnly) ? null : calculateFinalGrade(grade.processScore(), grade.finalExamScore());
+            boolean midTermOnly = processScore != null && finalExamScore == null;
+            BigDecimal total = (cleared || midTermOnly) ? null : calculateFinalGrade(processScore, finalExamScore);
 
             if (!cleared) {
                 componentBatch.add(new MapSqlParameterSource()
                         .addValue("id", UUID.randomUUID().toString())
                         .addValue("enrollmentId", grade.enrollmentId())
                         .addValue("gradeItemId", processItemId)
-                        .addValue("score", grade.processScore()));
+                        .addValue("score", processScore));
 
                 if (!midTermOnly) {
                     componentBatch.add(new MapSqlParameterSource()
                             .addValue("id", UUID.randomUUID().toString())
                             .addValue("enrollmentId", grade.enrollmentId())
                             .addValue("gradeItemId", finalItemId)
-                            .addValue("score", grade.finalExamScore()));
+                            .addValue("score", finalExamScore));
                 }
             }
 
@@ -486,6 +491,8 @@ public class AcademicMutationService {
         Long incomplete = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM " + ENROLLMENT + " e WHERE e.\"sectionId\" = :sectionId"
                         + " AND e.\"status\" IN (:gradeableStatuses)"
+                        + " AND e.\"semesterId\" = (SELECT \"semesterId\" FROM " + SECTION
+                        + " WHERE \"id\" = :sectionId)"
                         + " AND (SELECT COUNT(DISTINCT gi.\"type\")"
                         + " FROM " + STUDENT_GRADE + " sg JOIN " + GRADE_ITEM + " gi ON gi.\"id\" = sg.\"gradeItemId\""
                         + " WHERE sg.\"enrollmentId\" = e.\"id\" AND sg.\"score\" IS NOT NULL"
@@ -495,6 +502,8 @@ public class AcademicMutationService {
         if (incomplete != null && incomplete > 0) {
             Long blockers = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM " + ENROLLMENT + " e WHERE e.\"sectionId\" = :sectionId"
+                            + " AND e.\"semesterId\" = (SELECT \"semesterId\" FROM " + SECTION
+                            + " WHERE \"id\" = :sectionId)"
                             + " AND e.\"status\" NOT IN ('ENROLLED', 'CONFIRMED', 'COMPLETED', 'DROPPED', 'CANCELLED')",
                     new MapSqlParameterSource("sectionId", sectionId), Long.class);
             String detail = blockers != null && blockers > 0
@@ -510,6 +519,8 @@ public class AcademicMutationService {
                 "SELECT \"id\", \"status\", \"gradeStatus\" AS grade_status,"
                         + " \"finalGrade\" AS final_grade, \"letterGrade\" AS letter_grade"
                         + " FROM " + ENROLLMENT + " WHERE \"sectionId\" = :sectionId"
+                        + " AND \"semesterId\" = (SELECT \"semesterId\" FROM " + SECTION
+                        + " WHERE \"id\" = :sectionId)"
                         + " AND \"status\" IN (:gradeableStatuses)"
                         + " AND \"gradeStatus\" IS DISTINCT FROM 'PUBLISHED'"
                         + " AND \"finalGrade\" IS NOT NULL AND \"letterGrade\" IS NOT NULL"
@@ -522,6 +533,8 @@ public class AcademicMutationService {
                 "UPDATE " + ENROLLMENT + " SET \"gradeStatus\" = 'PUBLISHED', \"status\" = 'COMPLETED',"
                         + " \"updatedAt\" = CURRENT_TIMESTAMP, \"version\" = \"version\" + 1"
                         + " WHERE \"sectionId\" = :sectionId"
+                        + " AND \"semesterId\" = (SELECT \"semesterId\" FROM " + SECTION
+                        + " WHERE \"id\" = :sectionId)"
                         + " AND \"status\" IN (:gradeableStatuses)"
                         // A repeat publish must not re-touch or re-notify rows
                         // already published; IS DISTINCT FROM keeps NULL-gradeStatus
@@ -614,6 +627,8 @@ public class AcademicMutationService {
                 "SELECT DISTINCT student.\"userId\" FROM " + ENROLLMENT + " e"
                         + " JOIN " + STUDENT + " student ON student.\"id\" = e.\"studentId\""
                         + " WHERE e.\"sectionId\" = :sectionId"
+                        + " AND e.\"semesterId\" = (SELECT \"semesterId\" FROM " + SECTION
+                        + " WHERE \"id\" = :sectionId)"
                         + " AND e.\"status\" IN (:gradeableStatuses)"
                         + " AND e.\"gradeStatus\" IS DISTINCT FROM 'PUBLISHED'"
                         + " AND e.\"finalGrade\" IS NOT NULL AND e.\"letterGrade\" IS NOT NULL"
@@ -638,7 +653,17 @@ public class AcademicMutationService {
     }
 
     private String canonicalGradeItem(String sectionId, String type, String name) {
-        String id = sectionId + "-" + type.toLowerCase() + "-50";
+        String suffix = "-" + type.toLowerCase(Locale.ROOT) + "-50";
+        String id = sectionId + suffix;
+        if (id.length() > 120) {
+            try {
+                byte[] digest = MessageDigest.getInstance("MD5")
+                        .digest(sectionId.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                id = "v36-" + type.toLowerCase(Locale.ROOT) + "-" + HexFormat.of().formatHex(digest);
+            } catch (NoSuchAlgorithmException exception) {
+                throw new IllegalStateException("MD5 is unavailable", exception);
+            }
+        }
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("sectionId", sectionId)
@@ -681,6 +706,10 @@ public class AcademicMutationService {
 
     static BigDecimal calculateFinalGrade(BigDecimal processScore, BigDecimal finalExamScore) {
         return processScore.add(finalExamScore).divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal storedScore(BigDecimal score) {
+        return score == null ? null : score.setScale(2, RoundingMode.HALF_UP);
     }
 
     static String letterGrade(BigDecimal score) {
@@ -743,7 +772,9 @@ public class AcademicMutationService {
         try {
             return jdbc.queryForMap(
                     "SELECT \"id\", \"studentId\" AS student_id, \"sectionId\" AS section_id, \"status\","
-                            + " \"semesterId\" AS semester_id, \"gradeStatus\" AS grade_status"
+                            + " \"semesterId\" AS semester_id, \"gradeStatus\" AS grade_status,"
+                            + " \"finalGrade\" AS final_grade, \"letterGrade\" AS letter_grade,"
+                            + " \"creditsSnapshot\" AS credits_snapshot"
                             + " FROM " + ENROLLMENT + " WHERE \"id\" = :id FOR UPDATE",
                     new MapSqlParameterSource("id", enrollmentId));
         } catch (EmptyResultDataAccessException exception) {

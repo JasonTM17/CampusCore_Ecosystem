@@ -875,6 +875,10 @@ public class RegistrationService {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw problem(HttpStatus.BAD_REQUEST, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
         }
+        if (idempotencyKey.length() > 200) {
+            throw problem(HttpStatus.BAD_REQUEST, "IDEMPOTENCY_KEY_INVALID",
+                    "Idempotency-Key must not exceed 200 characters");
+        }
     }
 
     private Map<String, Object> requireStudent(String studentId) {

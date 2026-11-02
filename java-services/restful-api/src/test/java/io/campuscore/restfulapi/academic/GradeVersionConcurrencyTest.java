@@ -52,7 +52,7 @@ class GradeVersionConcurrencyTest {
                 + "\"id\" VARCHAR PRIMARY KEY, \"userId\" VARCHAR)");
         jdbc.execute("CREATE TABLE IF NOT EXISTS \"academic\".\"Enrollment\" ("
                 + "\"id\" VARCHAR PRIMARY KEY, \"studentId\" VARCHAR, \"sectionId\" VARCHAR,"
-                + " \"status\" VARCHAR, \"gradeStatus\" VARCHAR, \"finalGrade\" NUMERIC(5,2),"
+                + " \"semesterId\" VARCHAR, \"status\" VARCHAR, \"gradeStatus\" VARCHAR, \"finalGrade\" NUMERIC(5,2),"
                 + " \"letterGrade\" VARCHAR, \"updatedAt\" TIMESTAMP,"
                 + " \"version\" INTEGER NOT NULL DEFAULT 0)");
         jdbc.execute("CREATE TABLE IF NOT EXISTS \"academic\".\"GradeItem\" ("
@@ -67,8 +67,10 @@ class GradeVersionConcurrencyTest {
         }
         jdbc.execute("INSERT INTO \"academic\".\"Section\" VALUES ('section', 'semester', 'lecturer', 30, 1, 'ACTIVE')");
         jdbc.execute("INSERT INTO \"academic\".\"Student\" VALUES ('student', 'student-user')");
-        jdbc.execute("INSERT INTO \"academic\".\"Enrollment\" VALUES"
-                + " ('enrollment', 'student', 'section', 'ENROLLED', 'DRAFT', 8, 'B+', CURRENT_TIMESTAMP, 0)");
+        jdbc.execute("INSERT INTO \"academic\".\"Enrollment\""
+                + " (\"id\", \"studentId\", \"sectionId\", \"semesterId\", \"status\", \"gradeStatus\","
+                + " \"finalGrade\", \"letterGrade\", \"updatedAt\", \"version\") VALUES"
+                + " ('enrollment', 'student', 'section', 'semester', 'ENROLLED', 'DRAFT', 8, 'B+', CURRENT_TIMESTAMP, 0)");
         jdbc.execute("INSERT INTO \"academic\".\"GradeItem\" (\"id\", \"sectionId\", \"name\", \"type\") VALUES"
                 + " ('section-process-50', 'section', 'DQT', 'PROCESS'),"
                 + " ('section-final-50', 'section', 'DKTHP', 'FINAL')");

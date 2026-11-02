@@ -818,6 +818,23 @@ class AcademicEnrollmentMutationPersistenceTest {
     }
 
     @Test
+    void oversizedIdempotencyKeyIsRejectedBeforePersistence() throws Exception {
+        String key = "k".repeat(240);
+
+        mvc.perform(post("/api/v1/me/enrollments")
+                        .with(studentJwt("student-user-1", "student-1"))
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sectionId\":\"section-open\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_INVALID"));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM \"academic\".\"RegistrationIdempotency\"",
+                Integer.class)).isZero();
+    }
+
+    @Test
     void sameIdempotencyKeyReplaysWithoutSecondActiveRow() throws Exception {
         MvcResult first = mvc.perform(post("/api/v1/me/enrollments")
                         .with(studentJwt("student-user-1", "student-1"))
