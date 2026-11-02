@@ -260,7 +260,7 @@ export default function StudentAnnouncementsPage() {
                 type="button"
                 onClick={() => setViewMode('magazine')}
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all min-h-[32px]',
+                  'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all min-h-11',
                   viewMode === 'magazine'
                     ? 'bg-primary text-primary-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary/70',
@@ -276,7 +276,7 @@ export default function StudentAnnouncementsPage() {
                 type="button"
                 onClick={() => setViewMode('dispatch')}
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all min-h-[32px]',
+                  'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-all min-h-11',
                   viewMode === 'dispatch'
                     ? 'bg-primary text-primary-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary/70',
@@ -373,7 +373,7 @@ export default function StudentAnnouncementsPage() {
               aria-pressed={selectedCategory === tab.id}
               onClick={() => setSelectedCategory(tab.id)}
               className={cn(
-                'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors min-h-[36px]',
+                'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors min-h-11',
                 selectedCategory === tab.id
                   ? 'bg-primary text-primary-foreground shadow-xs'
                   : 'bg-secondary/60 text-muted-foreground hover:bg-secondary hover:text-foreground',
@@ -391,7 +391,7 @@ export default function StudentAnnouncementsPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={announcementMessages.searchPlaceholder}
             aria-label={announcementMessages.searchPlaceholder}
-            className="h-9 rounded-lg pl-9 text-xs"
+            className="rounded-lg pl-9 text-xs"
           />
         </div>
       </div>

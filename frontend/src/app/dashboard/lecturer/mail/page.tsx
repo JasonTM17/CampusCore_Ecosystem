@@ -1172,14 +1172,14 @@ export default function LecturerMailComposePage() {
           {serverError ? (
             <div
               role="alert"
-              className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm leading-6 text-destructive"
+              className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm leading-6 text-status-danger-foreground"
             >
               {serverError}
             </div>
           ) : errorKind ? (
             <div
               role="alert"
-              className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm leading-6 text-destructive"
+              className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm leading-6 text-status-danger-foreground"
             >
               {copy.errors[errorKind]}
             </div>

@@ -278,7 +278,7 @@ export function AnnouncementEditModal({
     >
       <form onSubmit={handleFormSubmit} className="space-y-4">
         {validationError ? (
-          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-xs font-medium text-destructive">
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-xs font-medium text-status-danger-foreground">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{validationError}</span>
           </div>

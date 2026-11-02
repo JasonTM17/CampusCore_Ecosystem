@@ -583,7 +583,7 @@ export default function ProfilePage() {
             </div>
 
             {profileError ? (
-              <div role="alert" aria-live="assertive" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              <div role="alert" aria-live="assertive" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground">
                 {profileError}
               </div>
             ) : null}
@@ -681,7 +681,7 @@ export default function ProfilePage() {
             contentClassName="space-y-4"
           >
               {passwordError ? (
-                <div role="alert" aria-live="assertive" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                <div role="alert" aria-live="assertive" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground">
                   {passwordError}
                 </div>
               ) : null}
@@ -791,7 +791,7 @@ export default function ProfilePage() {
             ) : null}
 
             {twoFactorError ? (
-              <div role="alert" aria-live="assertive" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              <div role="alert" aria-live="assertive" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground">
                 {twoFactorError}
               </div>
             ) : null}

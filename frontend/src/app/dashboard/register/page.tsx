@@ -1118,7 +1118,7 @@ export default function RegisterPage() {
           ) : null}
           {actionError ? (
             <div ref={actionErrorRef} data-testid="registration-action-error" role="alert"
-              className="scroll-mt-[calc(var(--portal-header-height)+5rem)] rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              className="scroll-mt-[calc(var(--portal-header-height)+5rem)] rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-status-danger-foreground">
               {actionError}
             </div>
           ) : null}
@@ -1315,7 +1315,7 @@ export default function RegisterPage() {
                                         </span>
                                       ) : null}
                                       {section.scheduleConflict ? (
-                                        <span className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                                        <span className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-xs font-medium text-status-danger-foreground">
                                           {copy.conflictBadge}
                                         </span>
                                       ) : null}

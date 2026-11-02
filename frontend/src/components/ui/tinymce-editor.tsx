@@ -98,7 +98,7 @@ function EditorLoadError({ isVi, onRetry }: { isVi: boolean; onRetry: () => void
       role="alert"
       className="flex h-96 w-full flex-col items-center justify-center gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center"
     >
-      <TriangleAlert className="h-8 w-8 text-destructive" aria-hidden="true" />
+      <TriangleAlert className="h-8 w-8 text-status-danger-foreground" aria-hidden="true" />
       <p className="max-w-md text-sm font-medium text-foreground">
         {copy.loadError}
       </p>
@@ -864,7 +864,7 @@ export function TinyMceEditor({
           className={cn(
             'flex items-center gap-2 border-b px-3 py-2 text-xs font-medium',
             contentLengthState === 'exceeded'
-              ? 'border-destructive/40 bg-destructive/10 text-destructive'
+              ? 'border-destructive/40 bg-destructive/10 text-status-danger-foreground'
               : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400',
           )}
         >
