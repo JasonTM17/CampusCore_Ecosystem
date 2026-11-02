@@ -41,6 +41,24 @@ public class AdminAuditRecorder {
 
     private static final String AUDIT = "campuscore_audit.\"AdminAudit\"";
 
+    private static final String INSERT_AUDIT =
+            "INSERT INTO " + AUDIT
+                    + " (\"id\", \"actorId\", \"actorLabel\", \"action\", \"entityType\", \"entityId\","
+                    + " \"summary\", \"beforeState\", \"afterState\")"
+                    + " VALUES (:id, :actorId, :actorLabel, :action, :entityType, :entityId,"
+                    + " :summary, :beforeState, :afterState)";
+
+    /** One audit row; the batch path keeps each row's own snapshots. */
+    public record AuditEntry(
+            String actorId,
+            String actorLabel,
+            String action,
+            String entityType,
+            String entityId,
+            String summary,
+            Object beforeState,
+            Object afterState) { }
+
     /**
      * Keys whose values are removed before serialization. Matched case-insensitively
      * and by substring, so `password`, `passwordHash`, `temporaryPassword` and
@@ -77,22 +95,46 @@ public class AdminAuditRecorder {
             String summary,
             Object beforeState,
             Object afterState) {
-        jdbc.update(
-                "INSERT INTO " + AUDIT
-                        + " (\"id\", \"actorId\", \"actorLabel\", \"action\", \"entityType\", \"entityId\","
-                        + " \"summary\", \"beforeState\", \"afterState\")"
-                        + " VALUES (:id, :actorId, :actorLabel, :action, :entityType, :entityId,"
-                        + " :summary, :beforeState, :afterState)",
-                new MapSqlParameterSource()
-                        .addValue("id", UUID.randomUUID().toString())
-                        .addValue("actorId", actorId)
-                        .addValue("actorLabel", truncate(actorLabel, 240))
-                        .addValue("action", action)
-                        .addValue("entityType", entityType)
-                        .addValue("entityId", entityId)
-                        .addValue("summary", truncate(summary, 500))
-                        .addValue("beforeState", serialize(beforeState))
-                        .addValue("afterState", serialize(afterState)));
+        jdbc.update(INSERT_AUDIT,
+                parameters(actorId, actorLabel, action, entityType, entityId, summary, beforeState, afterState));
+    }
+
+    /**
+     * Inserts several audit rows in one batch round trip. Each entry keeps its
+     * own before/after snapshot; an empty batch is a no-op.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void recordAll(List<AuditEntry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return;
+        }
+        MapSqlParameterSource[] batch = entries.stream()
+                .map(entry -> parameters(entry.actorId(), entry.actorLabel(), entry.action(),
+                        entry.entityType(), entry.entityId(), entry.summary(),
+                        entry.beforeState(), entry.afterState()))
+                .toArray(MapSqlParameterSource[]::new);
+        jdbc.batchUpdate(INSERT_AUDIT, batch);
+    }
+
+    private static MapSqlParameterSource parameters(
+            String actorId,
+            String actorLabel,
+            String action,
+            String entityType,
+            String entityId,
+            String summary,
+            Object beforeState,
+            Object afterState) {
+        return new MapSqlParameterSource()
+                .addValue("id", UUID.randomUUID().toString())
+                .addValue("actorId", actorId)
+                .addValue("actorLabel", truncate(actorLabel, 240))
+                .addValue("action", action)
+                .addValue("entityType", entityType)
+                .addValue("entityId", entityId)
+                .addValue("summary", truncate(summary, 500))
+                .addValue("beforeState", serialize(beforeState))
+                .addValue("afterState", serialize(afterState));
     }
 
     /** Convenience for the common "delete this record" case. */
