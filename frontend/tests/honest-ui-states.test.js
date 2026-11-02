@@ -534,8 +534,11 @@ test('the notification inbox exposes older pages instead of silently capping', (
   assert.match(source, /loadedPages < totalPages/, 'the control appears only while older pages exist');
   assert.match(source, /const loadOlder = useCallback|async function loadOlder/);
   assert.match(source, /setLoadedPages\(nextPage\)/);
-  // The first page is still prefetched the same way for the common case.
-  assert.match(source, /const first = await notificationsApi\.getMy\(\{ page: 1, limit: 100 \}\)/);
+  // The first paint reads one bounded page plus the server-side unread count.
+  assert.match(source, /notificationsApi\.getMy\(\{\s*page: 1,\s*limit: INBOX_PAGE_SIZE/);
+  assert.match(source, /notificationsApi\.unreadCount\(\)/);
+  assert.match(source, /activeFilter === 'unread' \? \{ isRead: false \}/,
+    'the unread tab filters on the server');
 });
 
 test('learning section loads are epoch-guarded per surface and cancelled at unmount', () => {

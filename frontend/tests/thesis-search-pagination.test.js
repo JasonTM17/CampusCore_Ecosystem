@@ -361,11 +361,13 @@ test('archive search input and icon-only clear button have explicit accessible n
   assert.match(archive, /<Search[^>]*aria-hidden="true"/);
 });
 
-test('archive paging is independent while complete workspace reads remain legacy', () => {
+test('archive paging is independent while the group read stays bounded', () => {
   const page = read('src/app/dashboard/thesis/page.tsx');
   assert.match(page, /listRoundRepositoryPage/);
   assert.doesNotMatch(page, /listRoundRepository\(selectedRoundId\)/);
   assert.doesNotMatch(page, /filteredRepositoryReports/);
   assert.match(page, /thesisApi\.listTopics\(roundId, 'PUBLISHED'\)/);
-  assert.match(page, /thesisApi\.listGroups\(selectedRoundId\)/);
+  assert.match(page, /thesisApi\.listGroupsPage\(selectedRoundId, \{ page: 0, limit: GROUP_PAGE_LIMIT \}\)/);
+  assert.doesNotMatch(page, /thesisApi\.listGroups\(selectedRoundId\)/,
+    'the complete round group read no longer runs from the workspace');
 });

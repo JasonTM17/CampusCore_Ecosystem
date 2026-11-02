@@ -46,6 +46,10 @@ type NotificationItem = {
 
 type Filter = 'all' | 'unread';
 
+// The inbox renders the newest window only; older rows stay behind an explicit
+// control so the first paint never waits on the whole mailbox.
+const INBOX_PAGE_SIZE = 20;
+
 // Fallback destinations for feature types seen on notification rows without an
 // authored link. Only types whose link is unambiguous across the seeded data
 // are mapped: every `REGISTRATION` row points at course registration and every
@@ -85,6 +89,9 @@ export default function NotificationsCenterPage() {
   const portalNotifications = (locale === 'vi' ? studentPortalVi : studentPortalEn).notifications;
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [filter, setFilter] = useState<Filter>('all');
+  const filterRef = useRef<Filter>('all');
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [allTotal, setAllTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
@@ -98,12 +105,17 @@ export default function NotificationsCenterPage() {
     { kind: 'markRead'; id: string } | { kind: 'markAll' } | null
   >(null);
   const [status, setStatus] = useState('');
+  // Only the newest load may commit: switching tabs while a page is in flight
+  // must not let the previous tab's rows (or its empty state) win.
+  const requestRef = useRef(0);
+  const itemsFilterRef = useRef<Filter>('all');
   const filterRefs = useRef<Record<Filter, HTMLButtonElement | null>>({
     all: null,
     unread: null,
   });
 
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = useCallback(async (activeFilter: Filter = filterRef.current) => {
+    const requestId = ++requestRef.current;
     setIsLoading(true);
     setError('');
     setActionError('');
@@ -111,38 +123,53 @@ export default function NotificationsCenterPage() {
     setStatus('');
 
     try {
-      // Page through the whole inbox: a single first-page fetch used to hide
-      // every notification (and every unread) older than the newest 50.
-      const first = await notificationsApi.getMy({ page: 1, limit: 100 });
-      const rows = [...(first.data ?? [])];
-      const seen = new Set(rows.map((item) => item.id));
-      const fetchedPages = Math.min(Math.max(first.meta?.totalPages ?? 1, 1), 10);
-      for (let p = 2; p <= fetchedPages; p++) {
-        const next = await notificationsApi.getMy({ page: p, limit: 100 });
-        for (const item of next.data ?? []) {
-          if (!seen.has(item.id)) {
-            seen.add(item.id);
-            rows.push(item);
-          }
-        }
-      }
+      // The rows are a bounded window; the badge count is a server aggregate so
+      // it does not truncate at the page size. The unread tab asks the server
+      // to filter instead of scanning a downloaded mailbox.
+      const [listResult, countResult] = await Promise.allSettled([
+        notificationsApi.getMy({
+          page: 1,
+          limit: INBOX_PAGE_SIZE,
+          ...(activeFilter === 'unread' ? { isRead: false } : {}),
+        }),
+        notificationsApi.unreadCount(),
+      ]);
+      if (requestId !== requestRef.current) return;
+      if (listResult.status === 'rejected') throw listResult.reason;
+      const first = listResult.value;
+      const rows = first.data ?? [];
       setItems(rows);
-      setLoadedPages(fetchedPages);
+      setLoadedPages(1);
       setTotalPages(Math.max(first.meta?.totalPages ?? 1, 1));
+      if (activeFilter === 'all') {
+        setAllTotal(first.meta?.total ?? rows.length);
+      }
+      itemsFilterRef.current = activeFilter;
+      if (countResult.status === 'fulfilled') {
+        setUnreadCount(countResult.value);
+      }
     } catch {
+      if (requestId !== requestRef.current) return;
       setError(copy.loadFailed);
     } finally {
-      setIsLoading(false);
+      if (requestId === requestRef.current) setIsLoading(false);
     }
   }, [copy.loadFailed]);
 
   const loadOlder = useCallback(async () => {
     if (isLoadingMore || loadedPages >= totalPages) return;
     const nextPage = loadedPages + 1;
+    const activeFilter = itemsFilterRef.current;
+    const requestId = requestRef.current;
     setIsLoadingMore(true);
     setOlderError('');
     try {
-      const next = await notificationsApi.getMy({ page: nextPage, limit: 100 });
+      const next = await notificationsApi.getMy({
+        page: nextPage,
+        limit: INBOX_PAGE_SIZE,
+        ...(activeFilter === 'unread' ? { isRead: false } : {}),
+      });
+      if (requestId !== requestRef.current) return;
       setItems((current) => {
         const seen = new Set(current.map((item) => item.id));
         const merged = [...current];
@@ -157,9 +184,9 @@ export default function NotificationsCenterPage() {
       setLoadedPages(nextPage);
       setTotalPages(Math.max(nextPage, next.meta?.totalPages ?? totalPages));
     } catch {
-      setOlderError(copy.loadFailed);
+      if (requestId === requestRef.current) setOlderError(copy.loadFailed);
     } finally {
-      setIsLoadingMore(false);
+      if (requestId === requestRef.current) setIsLoadingMore(false);
     }
   }, [copy.loadFailed, isLoadingMore, loadedPages, totalPages]);
 
@@ -169,14 +196,17 @@ export default function NotificationsCenterPage() {
     }
   }, [fetchNotifications, hasAccess]);
 
-  const unreadCount = useMemo(
-    () => items.filter((item) => !item.isRead).length,
-    [items],
-  );
   const visibleItems = useMemo(
     () => (filter === 'unread' ? items.filter((item) => !item.isRead) : items),
     [filter, items],
   );
+
+  function selectFilter(tab: Filter) {
+    if (tab === filterRef.current) return;
+    filterRef.current = tab;
+    setFilter(tab);
+    void fetchNotifications(tab);
+  }
 
   async function markRead(id: string) {
     setBusyId(id);
@@ -189,6 +219,7 @@ export default function NotificationsCenterPage() {
           item.id === id ? { ...item, isRead: true } : item,
         ),
       );
+      setUnreadCount((count) => Math.max(0, count - 1));
     } catch {
       setActionError(copy.updateFailed);
       setFailedAction({ kind: 'markRead', id });
@@ -239,7 +270,7 @@ export default function NotificationsCenterPage() {
           : tab === 'all'
             ? 'unread'
             : 'all';
-    setFilter(next);
+    selectFilter(next);
     filterRefs.current[next]?.focus();
   }
 
@@ -292,7 +323,7 @@ export default function NotificationsCenterPage() {
           {(['all', 'unread'] as const).map((tab) => {
             const selected = filter === tab;
             const label = tab === 'all' ? copy.all : copy.unread;
-            const count = tab === 'all' ? items.length : unreadCount;
+            const count = tab === 'all' ? allTotal : unreadCount;
             return (
               <button
                 key={tab}
@@ -305,7 +336,7 @@ export default function NotificationsCenterPage() {
                 aria-selected={selected}
                 aria-controls="notifications-panel"
                 tabIndex={selected ? 0 : -1}
-                onClick={() => setFilter(tab)}
+                onClick={() => selectFilter(tab)}
                 onKeyDown={(event) => moveFilterFocus(event, tab)}
                 className={cn(
                   'inline-flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',

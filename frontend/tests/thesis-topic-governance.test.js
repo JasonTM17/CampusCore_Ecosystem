@@ -332,6 +332,7 @@ test('department-head-only workspace loading avoids group, council and repositor
       listRoundRepository: async () => { calls.push('repository'); return []; },
     },
     setGroups: value => { groups = value; }, setIsRepositoryLoading: () => {},
+    setGroupTotal: () => {}, GROUP_PAGE_LIMIT: 100,
     setCouncils: () => {}, loadCouncilDetails: () => {}, setRepositoryReports: () => {},
     setRepositoryError: () => {}, messages: { thesis: thesisCopy },
   });
