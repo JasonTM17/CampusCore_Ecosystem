@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cu-lane-'));
-const names = ['routes', 'route-map', 'capabilities', 'lane-flags', 'lane-access', 'lane-model'];
+const names = ['routes', 'route-map', 'capabilities', 'lane-flags', 'lane-access', 'lane-model', 'resource-error'];
 const files = {
   routes: 'src/navigation/routes.ts',
   'route-map': 'src/navigation/route-map.ts',
@@ -16,6 +16,7 @@ const files = {
   'lane-flags': 'src/config/lane-flags.ts',
   'lane-access': 'src/screens/lanes/lane-access.ts',
   'lane-model': 'src/screens/lanes/lane-model.ts',
+  'resource-error': 'src/screens/student/shared/resource-error.ts',
 };
 const specifier = new RegExp(`from '(?:\\.{1,2}/)+(?:[a-z-]+/)*(${names.join('|')})'`, 'g');
 
@@ -241,6 +242,8 @@ test('failures map to the state a lane screen reacts to', () => {
   assert.equal(lane.failureKind({ status: 0 }), 'offline');
   assert.equal(lane.failureKind(new TypeError('network')), 'offline');
   assert.equal(lane.failureKind({ status: 401 }), 'unauthorized');
+  assert.equal(lane.failureKind({ code: 'HTTP_401' }), 'unauthorized');
+  assert.equal(lane.failureKind({ code: 'UNAUTHENTICATED' }), 'unauthorized');
   assert.equal(lane.failureKind({ status: 403 }), 'denied');
   assert.equal(lane.failureKind({ status: 409 }), 'conflict');
   assert.equal(lane.failureKind({ status: 412 }), 'conflict');

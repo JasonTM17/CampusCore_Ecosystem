@@ -3,6 +3,8 @@
 // and never invent data; action rules mirror the server state machines, and the
 // server stays the authority (every write carries the row version it saw).
 
+import { isResourceUnauthorizedError } from '../student/shared/resource-error';
+
 export interface PageMeta {
   total: number;
   page: number;
@@ -170,7 +172,7 @@ export type FailureKind = 'offline' | 'unauthorized' | 'denied' | 'conflict' | '
 export function failureKind(error: unknown): FailureKind {
   const status = (error as { status?: number } | null)?.status;
   if (status === 0 || error instanceof TypeError) return 'offline';
-  if (status === 401) return 'unauthorized';
+  if (isResourceUnauthorizedError(error)) return 'unauthorized';
   if (status === 403) return 'denied';
   if (status === 409 || status === 412) return 'conflict';
   if (status === 400 || status === 422) return 'invalid';
