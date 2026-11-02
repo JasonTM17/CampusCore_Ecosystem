@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Card, UiText } from '../../components/Ui';
@@ -20,6 +21,16 @@ import { usePagedList } from '../content/use-paged-list';
 
 /** Public documents: server-side search, paging and a published-revision detail view. */
 export function DocsScreen(_props: MobileScreenProps) {
+  const router = useRouter();
+  const routeParams = useLocalSearchParams<{ slug?: string | string[]; rev?: string | string[] }>();
+  const routeSlugValue = Array.isArray(routeParams.slug) ? routeParams.slug[0] : routeParams.slug;
+  const routeRevValue = Array.isArray(routeParams.rev) ? routeParams.rev[0] : routeParams.rev;
+  const routeSlug = routeSlugValue && /^[a-z0-9][a-z0-9-]{0,239}$/.test(routeSlugValue)
+    ? routeSlugValue : null;
+  const parsedRouteRev = routeRevValue && /^[0-9]{1,10}$/.test(routeRevValue)
+    ? Number(routeRevValue) : null;
+  const routeRevision = parsedRouteRev !== null && Number.isSafeInteger(parsedRouteRev)
+    ? parsedRouteRev : null;
   const { locale, formatDate } = useContentCopy();
   const { window } = useTheme();
   const largeText = window.fontScale >= chromeFontScaleCap;
@@ -27,7 +38,13 @@ export function DocsScreen(_props: MobileScreenProps) {
   const categoryLabels = copy.docCategoryLabels as Readonly<Record<string, string>>;
   const [input, setInput] = useState('');
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(routeSlug);
+  const [selectedRevision, setSelectedRevision] = useState<number | null>(routeRevision);
+
+  useEffect(() => {
+    setSelected(routeSlug);
+    setSelectedRevision(routeRevision);
+  }, [routeSlug, routeRevision]);
 
   const preview = useMemo(() => previewDocs(locale), [locale]);
   const list = usePagedList<MobilePublicDoc>({
@@ -37,7 +54,11 @@ export function DocsScreen(_props: MobileScreenProps) {
     preview,
   });
 
-  if (selected) return <DocDetail slug={selected} onBack={() => setSelected(null)} />;
+  if (selected) return <DocDetail
+    slug={selected}
+    initialRevision={selectedRevision}
+    onBack={() => { router.replace('/docs'); }}
+  />;
 
   return (
     <ListFrame
@@ -62,7 +83,11 @@ export function DocsScreen(_props: MobileScreenProps) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={joinMeta([docTitle(doc, locale), fillCopy(copy.revision, { n: doc.publishedRevision })])}
-          onPress={() => setSelected(doc.slug)}
+          onPress={() => {
+            router.replace({ pathname: '/docs', params: { slug: doc.slug } });
+            setSelected(doc.slug);
+            setSelectedRevision(null);
+          }}
           style={styles.row}
         >
           <Card>
