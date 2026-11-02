@@ -175,6 +175,154 @@ Migration checksum mismatch for migration version X:
 - **Never Disable `validateOnMigrate`**: Setting `validate-on-migrate=false` masks underlying schema divergence, resulting in unrepeatable deployments and hard-to-diagnose production defects.
 - **Never Run `flyway clean` on Shared or Production Databases**: `clean` completely drops all database objects and schemas.
 
+### 4.4 Pre-Deployment Procedure for Populated Databases (Lock-Heavy Migrations: V146, V147)
+
+When deploying to a populated database, two migrations in the forward sequence introduce heavy table locks if executed inside the default startup Flyway transaction:
+
+- **`V146__w14_hot_read_indexes.sql`**: Contains 6 `CREATE INDEX IF NOT EXISTS` statements without `CONCURRENTLY`. Standard `CREATE INDEX` takes a `SHARE` lock on each target table (`academic."Enrollment"`, `academic."Attendance"`, `academic."AttendanceCheckin"`, `thesis.thesis_topic_supervisor`, `thesis.thesis_group_member`, `notifications.notification`). This blocks concurrent write operations (`INSERT`, `UPDATE`, `DELETE`) for the duration of the migration.
+- **`V147__engagement_folded_search_columns.sql`**: Contains 13 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS ... GENERATED ALWAYS AS (...) STORED` statements across `engagement."Announcement"` (7 columns) and `engagement."PublicDocumentRevision"` (6 columns). PostgreSQL 11+ supports metadata-only column additions for constant defaults, but `GENERATED ALWAYS AS (...) STORED` columns evaluate an expression per row (`TRANSLATE(LOWER(...), ...)`) and rewrite the table heap to store computed values. This takes an `ACCESS EXCLUSIVE` lock on each table, blocking both reads (`SELECT`) and writes (`INSERT`, `UPDATE`, `DELETE`). PostgreSQL does not support a `CONCURRENTLY` modifier for `ALTER TABLE ADD COLUMN`.
+
+Both migrations specify `IF NOT EXISTS` for every index and column. Because applied migrations are immutable and must not be edited in place, the operational procedure is to pre-create the schema objects prior to application deployment so Flyway's startup statements encounter existing objects and execute as sub-millisecond no-ops.
+
+#### Execution Order
+
+1. **Step 1 (Online): Pre-create V146 indexes concurrently**. Run outside any transaction block as the database owner role while the application remains online.
+2. **Step 2 (Maintenance Window): Pre-create V147 generated columns**. Because stored generated columns rewrite tables under `ACCESS EXCLUSIVE` locks without a concurrent alternative, run these statements during a planned maintenance window before booting the updated application image.
+3. **Step 3: Verify pre-created objects**. Execute verification queries against `pg_indexes`, `pg_index`, and `information_schema.columns`.
+4. **Step 4: Boot application service**. Flyway detects all indexes and columns via `IF NOT EXISTS` and skips creation without lock contention.
+
+#### Pre-Creation DDL Statements
+
+##### 1. V146 Concurrent Indexes
+Execute as the database owner role, strictly **outside a transaction block** (`psql` autocommit enabled):
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS academic_enrollment_enrolled_at_idx
+    ON academic."Enrollment" ("enrolledAt" DESC, "id" DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS academic_attendance_date_id_idx
+    ON academic."Attendance" ("date" DESC, "id" ASC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS attendance_checkin_session_created_idx
+    ON academic."AttendanceCheckin" ("sessionId", "createdAt", "id");
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS thesis_topic_supervisor_lecturer_idx
+    ON thesis.thesis_topic_supervisor (lecturer_id);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS thesis_group_member_student_idx
+    ON thesis.thesis_group_member (student_id);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS notification_user_created_id_idx
+    ON notifications.notification (user_id, created_at DESC, id DESC);
+```
+
+##### 2. V147 Stored Generated Columns
+Execute during a scheduled maintenance window (the statements take an `ACCESS EXCLUSIVE` lock while the heap is rewritten). Run the migration file itself as the database owner instead of retyping its statements; every statement uses `ADD COLUMN IF NOT EXISTS`, so a later Flyway run finds the columns and skips them:
+
+```text
+psql -v ON_ERROR_STOP=1 -f java-services/restful-api/src/main/resources/db/migration/V147__engagement_folded_search_columns.sql
+```
+
+#### Verification
+
+##### Verify V146 Indexes
+Confirm existence in `pg_indexes`:
+```sql
+SELECT schemaname, tablename, indexname
+FROM pg_indexes
+WHERE indexname IN (
+    'academic_enrollment_enrolled_at_idx',
+    'academic_attendance_date_id_idx',
+    'attendance_checkin_session_created_idx',
+    'thesis_topic_supervisor_lecturer_idx',
+    'thesis_group_member_student_idx',
+    'notification_user_created_id_idx'
+)
+ORDER BY schemaname, tablename;
+```
+*Expected output:* Exactly 6 rows corresponding to the target indexes.
+
+Confirm index validity (`indisvalid = true` confirms concurrent builds succeeded without errors):
+```sql
+SELECT c.relname AS indexname, i.indisvalid
+FROM pg_index i
+JOIN pg_class c ON c.oid = i.indexrelid
+WHERE c.relname IN (
+    'academic_enrollment_enrolled_at_idx',
+    'academic_attendance_date_id_idx',
+    'attendance_checkin_session_created_idx',
+    'thesis_topic_supervisor_lecturer_idx',
+    'thesis_group_member_student_idx',
+    'notification_user_created_id_idx'
+)
+ORDER BY c.relname;
+```
+*Expected output:* 6 rows, all with `indisvalid = true`.
+
+Verify via `psql` schema inspection:
+```text
+\d academic."Enrollment"
+\d academic."Attendance"
+\d academic."AttendanceCheckin"
+\d thesis.thesis_topic_supervisor
+\d thesis.thesis_group_member
+\d notifications.notification
+```
+*Expected output:* Each table's `Indexes:` block lists the pre-created index.
+
+##### Verify V147 Columns
+Confirm generated column registration:
+```sql
+SELECT table_schema, table_name, column_name, is_generated
+FROM information_schema.columns
+WHERE table_schema = 'engagement'
+  AND table_name IN ('Announcement', 'PublicDocumentRevision')
+  AND column_name LIKE 'folded%'
+ORDER BY table_name, ordinal_position;
+```
+*Expected output:* 7 rows for `Announcement` and 6 rows for `PublicDocumentRevision`, with `is_generated = 'ALWAYS'`.
+
+Verify via `psql` schema inspection:
+```text
+\d engagement."Announcement"
+\d engagement."PublicDocumentRevision"
+```
+*Expected output:* Columns display with type `text` and modifier `generated always as (translate(...)) stored`.
+
+#### Rollback Procedure
+
+##### Rollback V146 Indexes
+If pre-created indexes need to be removed prior to application rollout, drop them concurrently without taking table write locks:
+```sql
+DROP INDEX CONCURRENTLY IF EXISTS academic.academic_enrollment_enrolled_at_idx;
+DROP INDEX CONCURRENTLY IF EXISTS academic.academic_attendance_date_id_idx;
+DROP INDEX CONCURRENTLY IF EXISTS academic.attendance_checkin_session_created_idx;
+DROP INDEX CONCURRENTLY IF EXISTS thesis.thesis_topic_supervisor_lecturer_idx;
+DROP INDEX CONCURRENTLY IF EXISTS thesis.thesis_group_member_student_idx;
+DROP INDEX CONCURRENTLY IF EXISTS notifications.notification_user_created_id_idx;
+```
+
+##### Rollback V147 Columns
+If the release is rolled back, drop the derived generated columns. Note that if the application was already deployed, the application service must be rolled back first because the application queries select these folded column names:
+```sql
+ALTER TABLE engagement."Announcement"
+    DROP COLUMN IF EXISTS "foldedTitle",
+    DROP COLUMN IF EXISTS "foldedContent",
+    DROP COLUMN IF EXISTS "foldedSlug",
+    DROP COLUMN IF EXISTS "foldedCourseCode",
+    DROP COLUMN IF EXISTS "foldedCourseName",
+    DROP COLUMN IF EXISTS "foldedSemesterName",
+    DROP COLUMN IF EXISTS "foldedLecturerDisplayName";
+
+ALTER TABLE engagement."PublicDocumentRevision"
+    DROP COLUMN IF EXISTS "foldedTitleVi",
+    DROP COLUMN IF EXISTS "foldedTitleEn",
+    DROP COLUMN IF EXISTS "foldedSummaryVi",
+    DROP COLUMN IF EXISTS "foldedSummaryEn",
+    DROP COLUMN IF EXISTS "foldedBodyVi",
+    DROP COLUMN IF EXISTS "foldedBodyEn";
+```
+
 ---
 
 ## 5. Automated Verification Tooling
