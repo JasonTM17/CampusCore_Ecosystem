@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.thesis.service;
 
+import io.campuscore.restfulapi.common.LikePattern;
 import io.campuscore.restfulapi.web.DomainException;
 import java.text.Normalizer;
 import java.util.ArrayList;
@@ -13,11 +14,13 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 /**
  * Server-side archive search policy for {@code GET /thesis/rounds/{id}/repository}.
  *
- * <p>It reproduces the round page's client predicate exactly, and deliberately
- * does <b>not</b> reuse {@code common.LikePattern}: that helper truncates at 64
- * characters, caps eight tokens and strips honorifics, while the web predicate
- * does none of those things. Every token of the request is kept and bound as a
- * LIKE literal.
+ * <p>It reproduces the round page's client predicate within the same term
+ * budget as every other list search: {@link LikePattern#MAX_TERM_LENGTH}
+ * characters and at most {@link LikePattern#MAX_TOKENS} words. Each accepted
+ * word multiplies the predicate, so the statement may not grow with the raw
+ * query string. Inside that budget every word is kept and no honorifics are
+ * stripped, unlike {@link LikePattern#tokens(String)} which drops academic
+ * titles for person-name searches.
  *
  * <p><b>Fold.</b> The web folds with {@code normalize('NFD')}, removes
  * U+0300..U+036F, maps {@code đ/Đ} to {@code d} and lower-cases. Tokens are
@@ -136,10 +139,22 @@ public final class ThesisArchiveSearch {
     /**
      * Folded tokens of the request; an empty list means "no predicate". Blank or
      * mark-only input yields no tokens, which matches the web predicate's
-     * {@code every(...)} over an empty token list.
+     * {@code every(...)} over an empty token list. The raw term is cut to the
+     * shared length budget before folding and the word list to the shared token
+     * budget, so the predicate size is bounded by the policy, not by the request.
      */
     static List<String> tokens(String search) {
-        String folded = fold(search);
+        if (search == null || search.isEmpty()) {
+            return List.of();
+        }
+        String trimmed = search.trim();
+        if (trimmed.isEmpty()) {
+            return List.of();
+        }
+        String bounded = trimmed.length() > LikePattern.MAX_TERM_LENGTH
+                ? trimmed.substring(0, LikePattern.MAX_TERM_LENGTH)
+                : trimmed;
+        String folded = fold(bounded);
         if (folded.isEmpty()) {
             return List.of();
         }
@@ -158,7 +173,32 @@ public final class ThesisArchiveSearch {
         if (start >= 0) {
             tokens.add(folded.substring(start));
         }
-        return tokens;
+        return boundedTokens(tokens);
+    }
+
+    /**
+     * The shared list-search budget applied at the statement boundary. Every
+     * accepted word contributes ten {@code LIKE} predicates, so both the word
+     * count and each word's length must be capped regardless of which caller
+     * produced the list.
+     */
+    static List<String> boundedTokens(List<String> tokens) {
+        if (tokens == null || tokens.isEmpty()) {
+            return List.of();
+        }
+        List<String> bounded = new ArrayList<>(Math.min(tokens.size(), LikePattern.MAX_TOKENS));
+        for (String token : tokens) {
+            if (bounded.size() >= LikePattern.MAX_TOKENS) {
+                break;
+            }
+            if (token == null || token.isEmpty()) {
+                continue;
+            }
+            bounded.add(token.length() > LikePattern.MAX_TERM_LENGTH
+                    ? token.substring(0, LikePattern.MAX_TERM_LENGTH)
+                    : token);
+        }
+        return List.copyOf(bounded);
     }
 
     /** NFD, drop U+0300..U+036F, đ/Đ to d, lower case — the web order. */
@@ -195,17 +235,19 @@ public final class ThesisArchiveSearch {
      * Builds the AND-across-tokens / OR-across-fields predicate and binds one
      * LIKE parameter per token plus the shared fold map. Returns an empty string
      * when no token applies, so an omitted or blank search keeps the exact
-     * legacy SQL.
+     * legacy SQL. The list is bounded here as the last gate before SQL, so a
+     * caller cannot turn the statement into a function of its input.
      */
     static String condition(List<String> tokens, MapSqlParameterSource parameters) {
-        if (tokens == null || tokens.isEmpty()) {
+        List<String> accepted = boundedTokens(tokens);
+        if (accepted.isEmpty()) {
             return "";
         }
         parameters.addValue("archiveFoldFrom", FOLD_FROM).addValue("archiveFoldTo", FOLD_TO);
         StringBuilder condition = new StringBuilder();
-        for (int index = 0; index < tokens.size(); index++) {
+        for (int index = 0; index < accepted.size(); index++) {
             String parameter = "archiveSearchToken" + index;
-            parameters.addValue(parameter, likePattern(tokens.get(index)));
+            parameters.addValue(parameter, likePattern(accepted.get(index)));
             String like = " LIKE :" + parameter + " ESCAPE '\\'";
             condition.append(" AND (")
                     .append(sqlFold(TOPIC_TITLE)).append(like)

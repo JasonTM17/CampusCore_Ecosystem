@@ -102,6 +102,8 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | `REGISTRATION_CREDIT_LIMIT_OVERRIDE` | Override credit cap for enrollment (0 = rule-driven) | config | optional | safe default `0` |
 | `ACADEMIC_ENROLLED_COUNT_RECONCILE_DELAY_MS`, `ACADEMIC_ENROLLED_COUNT_RECONCILE_INITIAL_DELAY_MS`, `ACADEMIC_ENROLLED_COUNT_REPAIR` | Enrolled-count reconciliation cadence + repair mode | config | tuning | safe default |
 
+A deployment behind a reverse proxy must set `RATE_LIMIT_TRUST_PROXY_HEADERS=true` (and `RATE_LIMIT_TRUST_REAL_IP=true` only when that proxy overwrites `X-Real-IP`); otherwise every client resolves to the proxy address and all IP-keyed buckets, including the login bucket, are shared by the whole institution.
+
 ## 6. Identity (OIDC issuer + BFF)
 
 | Variable | Purpose | Class | Required in | Default policy |

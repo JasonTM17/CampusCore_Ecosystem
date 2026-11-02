@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.campuscore.restfulapi.common.LikePattern;
+import io.campuscore.restfulapi.events.web.ListPaging;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
@@ -18,6 +20,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -206,6 +210,72 @@ class ThesisArchiveReadBudgetTest {
     }
 
     @Test
+    void oversizedSearchIsBoundedBeforeItReachesTheStatement() throws Exception {
+        String search = IntStream.range(0, 120)
+                .mapToObj(index -> "ab")
+                .collect(Collectors.joining(" "));
+        statements.clear();
+        rowsRead.clear();
+
+        mvc.perform(get("/api/v1/thesis/rounds/{id}/repository", roundId)
+                        .param("search", search)
+                        .with(admin))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("X-Total-Count"));
+
+        assertThat(rootQueries()).hasSize(1);
+        String sql = rootQueries().getFirst();
+        // Ten LIKE predicates per accepted word: seven scalar fields, two for
+        // the member subquery and one for the supervisor subquery.
+        assertThat(likePredicates(sql)).isLessThanOrEqualTo(LikePattern.MAX_TOKENS * 10);
+        assertThat(sql.length()).isLessThan(30_000);
+    }
+
+    @Test
+    void legacyReadStopsAtThePagingCeiling() throws Exception {
+        for (int index = 0; index < 94; index++) {
+            UUID topicId = UUID.randomUUID();
+            jdbc.update("INSERT INTO thesis.thesis_topic "
+                            + "(id, round_id, department_id, title, description, max_groups, status, created_by) "
+                            + "VALUES (?, ?, 'department-demo', ?, 'ceiling fixture', 1, 'PUBLISHED', 'arb')",
+                    topicId, roundId, "Ceiling topic " + index);
+            UUID groupId = UUID.randomUUID();
+            jdbc.update("INSERT INTO thesis.thesis_group "
+                            + "(id, round_id, leader_student_id, topic_id, status, approval_status) "
+                            + "VALUES (?, ?, ?, ?, 'SUBMITTED', 'APPROVED')",
+                    groupId, roundId, tag + "-ceiling-student-" + index, topicId);
+            jdbc.update("INSERT INTO thesis.thesis_group_report "
+                            + "(id, group_id, round_id, submitted_by, title, url, submitted_at, file_name, "
+                            + "file_type, file_size) "
+                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'application/pdf', 4)",
+                    UUID.randomUUID(), groupId, roundId, tag + "-ceiling-submitter",
+                    "Ceiling report " + index, "https://example.test/ceiling-" + index,
+                    Timestamp.from(Instant.now().minusSeconds(index + 1L)), "ceiling-" + index + ".pdf");
+        }
+        statements.clear();
+        rowsRead.clear();
+
+        var response = mvc.perform(get("/api/v1/thesis/rounds/{id}/repository", roundId).with(admin))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertThat(mapper.readTree(response.getResponse().getContentAsString()))
+                .hasSize(ListPaging.MAX_LIMIT);
+    }
+
+    @Test
+    void legacyReadCarriesThePagingCeiling() throws Exception {
+        statements.clear();
+        rowsRead.clear();
+
+        mvc.perform(get("/api/v1/thesis/rounds/{id}/repository", roundId).with(admin))
+                .andExpect(status().isOk());
+
+        assertThat(rootQueries()).hasSize(1);
+        assertThat(rootQueries().getFirst()).contains(" LIMIT " + ListPaging.MAX_LIMIT);
+    }
+
+    @Test
     void countAndPageUseTheSameLecturerScopePredicate() throws Exception {
         String lecturerId = tag + "-lecturer";
         ensureLecturer(lecturerId, "department-demo");
@@ -252,6 +322,16 @@ class ThesisArchiveReadBudgetTest {
         return statements.stream()
                 .filter(sql -> sql.startsWith("SELECT sup.topic_id"))
                 .toList();
+    }
+
+    private static int likePredicates(String sql) {
+        int count = 0;
+        int index = 0;
+        while ((index = sql.indexOf("LIKE ?", index)) >= 0) {
+            count++;
+            index += "LIKE ?".length();
+        }
+        return count;
     }
 
     private void seedRoundWithSevenReports() {
