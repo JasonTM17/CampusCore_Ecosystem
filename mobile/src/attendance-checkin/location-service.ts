@@ -76,13 +76,24 @@ export function createLocationProvider(source: LocationSource, options: {
           if (expired || now() >= deadline) throw new LocationServiceError('TIMEOUT');
           mocked ||= options.platform === 'android' && raw.mocked === true;
           const { latitude, longitude, accuracy } = raw.coords;
-          if (!Number.isFinite(raw.timestamp) || now() - raw.timestamp > Math.min(maxAgeMs, 30000)
-            || raw.timestamp - now() > 10000) throw new LocationServiceError('STALE_FIX');
+          // Refinement stops at the first unusable sample; only reject when no
+          // earlier fix was usable.
+          const stale = !Number.isFinite(raw.timestamp)
+            || now() - raw.timestamp > Math.min(maxAgeMs, 30000)
+            || raw.timestamp - now() > 10000;
+          if (stale) {
+            if (best) break;
+            throw new LocationServiceError('STALE_FIX');
+          }
           const fix: FreshFix = { latitude, longitude, accuracyMeters: accuracy ?? Infinity,
             capturedAt: new Date(raw.timestamp).toISOString(), mocked, ...(provider ? { provider } : {}) };
-          if (!isFreshFix(fix, now(), maxAgeMs)) throw new LocationServiceError('STALE_FIX');
-          if (!Number.isFinite(latitude) || Math.abs(latitude) > 90 || !Number.isFinite(longitude)
-            || Math.abs(longitude) > 180) throw new LocationServiceError('STALE_FIX');
+          const invalid = !isFreshFix(fix, now(), maxAgeMs)
+            || !Number.isFinite(latitude) || Math.abs(latitude) > 90
+            || !Number.isFinite(longitude) || Math.abs(longitude) > 180;
+          if (invalid) {
+            if (best) break;
+            throw new LocationServiceError('STALE_FIX');
+          }
           if (fix.accuracyMeters < 0 || !Number.isFinite(fix.accuracyMeters)) fix.accuracyMeters = Infinity;
           if (!best || fix.accuracyMeters < best.accuracyMeters) best = fix;
           if (best.accuracyMeters <= 50) break;
