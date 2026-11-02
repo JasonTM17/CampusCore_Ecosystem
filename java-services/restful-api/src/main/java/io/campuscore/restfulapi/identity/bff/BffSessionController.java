@@ -23,6 +23,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
 /**
  * Browser-facing session endpoints (host-policy §3). Every response is
@@ -59,6 +61,9 @@ public class BffSessionController {
         this.sessions = sessions;
     }
 
+    @ApiResponses({
+            @ApiResponse(responseCode = "302", description = "Redirects the browser to the identity provider.")
+    })
     @GetMapping("/login")
     public Object login(@RequestParam(name = "return", required = false) String returnPath,
             HttpServletRequest request, HttpServletResponse response) {
@@ -80,6 +85,9 @@ public class BffSessionController {
                 .build();
     }
 
+    @ApiResponses({
+            @ApiResponse(responseCode = "302", description = "Redirects the browser to the configured surface.")
+    })
     @GetMapping("/callback")
     public Object callback(@RequestParam(name = "code", required = false) String code,
             @RequestParam(name = "state", required = false) String state,

@@ -48,6 +48,7 @@ import org.springframework.web.multipart.MultipartFile;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -386,6 +387,11 @@ public class ThesisMutationController {
     }
 
     @GetMapping("/topics/{id}/report")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Topic report",
+                    content = @Content(schema = @Schema(implementation = ReportResponse.class))),
+            @ApiResponse(responseCode = "204", description = "No report is available for this topic.")
+    })
     @PreAuthorize("hasAnyRole('STUDENT','ADMIN','TRUONG_KHOA','TRUONG_BO_MON','LECTURER','SUPER_ADMIN')")
     public org.springframework.http.ResponseEntity<ReportResponse> getReportByTopic(@PathVariable UUID id, @AuthenticationPrincipal Jwt actor) {
         ReportResponse response = reports.getByTopic(id, actor);
