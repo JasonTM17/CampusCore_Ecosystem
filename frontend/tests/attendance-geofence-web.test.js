@@ -53,6 +53,30 @@ async function loadGeofencePanelHelpers() {
   return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 }
 
+async function loadAdminGeofenceUpdateHelper() {
+  const source = read('src/app/admin/attendance-geofences/page.tsx');
+  const ast = ts.createSourceFile(
+    'attendance-geofences/page.tsx',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const declaration = ast.statements.find(
+    (node) => ts.isFunctionDeclaration(node) && node.name?.text === 'buildGeofenceUpdatePayload',
+  );
+  assert.ok(declaration, 'the admin update payload builder must remain directly testable');
+  const helperSource = `${declaration.getFullText(ast)}\nexport { buildGeofenceUpdatePayload };`;
+  const { outputText } = ts.transpileModule(helperSource, {
+    compilerOptions: {
+      module: ts.ModuleKind.ESNext,
+      target: ts.ScriptTarget.ES2022,
+    },
+    fileName: 'attendance-geofences.helpers.ts',
+  });
+  return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+}
+
 const VALID_ID = '9f2c1b7a-3d4e-4a5f-8b6c-0d1e2f3a4b5c';
 const SEEDED_ROW = {
   id: 'ute-main-placeholder',
@@ -488,6 +512,35 @@ test('admin geofence console is role-guarded and uses the external map link only
 
   const frame = read('src/components/admin/AdminFrame.tsx');
   assert.match(frame, /href:\s*'\/admin\/attendance-geofences'/, 'admin nav links the console');
+});
+
+test('admin geofence edits carry the opened version and require a reload after a stale conflict', async () => {
+  const { buildGeofenceUpdatePayload } = await loadAdminGeofenceUpdateHelper();
+  const values = {
+    name: 'Main campus',
+    campusCode: 'UTE-MAIN',
+    centerLat: 10.8506,
+    centerLng: 106.7719,
+    radiusMeters: 150,
+    isActive: true,
+  };
+  assert.deepEqual(buildGeofenceUpdatePayload(values, true, 7), {
+    name: 'Main campus',
+    campusCode: 'UTE-MAIN',
+    centerLat: 10.8506,
+    centerLng: 106.7719,
+    radiusMeters: 150,
+    expectedVersion: 7,
+  });
+
+  const page = read('src/app/admin/attendance-geofences/page.tsx');
+  assert.match(page, /buildGeofenceUpdatePayload\(values, Boolean\(editor\.row\.isActive\), editor\.row\.version\)/);
+  assert.match(page, /expectedVersion: row\.version/, 'activation updates use the row version too');
+  assert.match(page, /isStaleVersionError/);
+  assert.match(page, /messages\.adminPages\.announcements\.conflict/);
+  assert.match(page, /reloadStaleEditor/);
+  assert.match(page, /setEditor\(\{ mode: 'edit', row: latest \}\)/);
+  assert.match(page, /row\.id === updated\.id \? updated : row/, 'the saved row refreshes its returned version');
 });
 
 test('landing page is public, fetch-free, noindex and deep-link only', () => {
