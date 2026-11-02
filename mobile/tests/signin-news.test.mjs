@@ -65,7 +65,7 @@ test('summaryOrExcerpt prefers the authored summary and falls back to the body',
 
 test('formatDate localizes publish dates and degrades invalid input quietly', () => {
   assert.equal(formatDate('2026-10-20', 'vi'), '20/10/2026');
-  assert.equal(formatDate('2026-10-20', 'en'), '10/20/2026');
+  assert.equal(formatDate('2026-10-20', 'en'), 'Oct 20, 2026');
   assert.equal(formatDate('not-a-date', 'vi'), '—');
   assert.equal(formatDate(undefined, 'vi'), '—');
 });

@@ -22,7 +22,7 @@ import { useLocale } from '../../i18n/locale-provider';
 import type { MobileScreenProps } from '../../navigation/types';
 import { useLiveResource } from './shared/useLiveResource';
 import { CheckinEntryCard } from '../attendance-checkin/CheckinEntryCard';
-import { upcomingClasses } from './shared/preview';
+import { upcomingClasses, courses as previewCourses } from './shared/preview';
 import { tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
 
@@ -81,6 +81,7 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
         ...pendingRows,
       ];
   const scheduledSessions = activeEnrollments.reduce((total, item) => total + (item.section?.schedules?.length ?? 0), 0);
+  const activeSectionCount = apiClient.mode === 'preview' ? previewCourses.length : activeEnrollments.length;
 
   if (isLoading || error) {
     return (
@@ -98,14 +99,14 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
 
   return (
     <ScreenShell
-      eyebrow={apiClient.mode === 'preview' ? c.previewEyebrow : c.eyebrow}
+      eyebrow={c.eyebrow}
       title={c.title}
     >
       {warning ? <DataNotice message={warning} /> : null}
       <HeroCard
         icon="school-outline"
         eyebrow={c.currentSemester}
-        title={apiClient.mode === 'preview' ? c.previewSemester : fillShellCopy(c.activeSections, { n: activeEnrollments.length })}
+        title={fillShellCopy(c.activeSections, { n: activeSectionCount })}
         detail={apiClient.mode === 'preview' || announcementsError || announcementsLoading ? undefined : fillShellCopy(c.announcements, { n: liveAnnouncements.length })}
       >
         <Button icon="calendar-week-outline" label={c.openSchedule} onPress={() => navigation.navigate('schedule')} variant="secondary" onBrand />
@@ -118,7 +119,7 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
       ) : null}
 
       <StatStrip style={styles.stats} items={[
-        { icon: 'book-open-page-variant-outline', label: c.activeLabel, value: apiClient.mode === 'preview' ? '3' : String(activeEnrollments.length) },
+        { icon: 'book-open-page-variant-outline', label: c.activeLabel, value: apiClient.mode === 'preview' ? String(previewCourses.length) : String(activeEnrollments.length) },
         { icon: 'calendar-clock-outline', label: c.weeklyLabel, value: apiClient.mode === 'preview' ? '2' : String(scheduledSessions) },
       ]} />
 

@@ -93,10 +93,10 @@ export interface DialogProps {
 }
 
 export function Dialog({ visible, title, description, confirmLabel, cancelLabel, onConfirm, onCancel, destructive = false }: DialogProps) {
-  const { colors, spacing, radii } = useTheme();
+  const { colors, spacing, radii, reducedMotion } = useTheme();
   const close = onCancel ?? onConfirm;
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
+    <Modal visible={visible} transparent animationType={reducedMotion ? 'none' : 'fade'} onRequestClose={close}>
       <View style={dialogStyles.backdrop}>
         <View
           accessibilityRole="alert"

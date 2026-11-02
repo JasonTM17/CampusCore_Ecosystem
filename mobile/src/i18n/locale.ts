@@ -48,6 +48,7 @@ const pad = (n: number, width = 2) => String(n).padStart(width, '0');
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const EMPTY = '—';
 const CAMPUS_TIME_OFFSET_MS = 7 * 60 * 60 * 1000;
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 interface DateParts { y: number; m: number; d: number; hh: number; mm: number }
 
@@ -71,7 +72,9 @@ function toParts(value: string | number | Date | null | undefined): DateParts | 
 }
 
 function datePart(p: DateParts, locale: AppLocale): string {
-  return locale === 'en' ? `${pad(p.m)}/${pad(p.d)}/${p.y}` : `${pad(p.d)}/${pad(p.m)}/${p.y}`;
+  if (locale === 'vi') return `${pad(p.d)}/${pad(p.m)}/${p.y}`;
+  const month = MONTHS_EN[p.m - 1];
+  return month ? `${month} ${p.d}, ${p.y}` : `${pad(p.m)}/${pad(p.d)}/${p.y}`;
 }
 
 /** Date-only strings (YYYY-MM-DD) never shift with the device time zone. */
@@ -184,6 +187,7 @@ const vi = {
   fileFailed: 'Thất bại',
   chartNoData: 'Chưa có số liệu',
   chartRange: 'thấp nhất {min}, cao nhất {max}, mới nhất {last}',
+  progress: 'Tiến độ',
   language: 'Ngôn ngữ',
   avatarLabel: 'Ảnh của {name}',
   avatarLabelRole: 'Ảnh của {name}, {role}',
@@ -223,6 +227,7 @@ const en: Record<UiMessageKey, string> = {
   fileFailed: 'Failed',
   chartNoData: 'No data yet',
   chartRange: 'lowest {min}, highest {max}, latest {last}',
+  progress: 'Progress',
   language: 'Language',
   avatarLabel: 'Photo of {name}',
   avatarLabelRole: 'Photo of {name}, {role}',

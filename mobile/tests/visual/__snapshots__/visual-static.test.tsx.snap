@@ -12643,7 +12643,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "XEM THỬ",
+                        "SINH VIÊN",
                       ],
                       "s": {
                         "color": "#98BDD7",
@@ -12719,7 +12719,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                             },
                             {
                               "c": [
-                                "Học kỳ xem thử",
+                                "3 lớp đang học",
                               ],
                               "s": {
                                 "color": "#EDF0F2",
@@ -13464,7 +13464,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "XEM THỬ",
+                        "SINH VIÊN",
                       ],
                       "s": {
                         "color": "#98BDD7",
@@ -13540,7 +13540,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                             },
                             {
                               "c": [
-                                "Học kỳ xem thử",
+                                "3 lớp đang học",
                               ],
                               "s": {
                                 "color": "#EDF0F2",
@@ -14289,7 +14289,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "XEM THỬ",
+                        "SINH VIÊN",
                       ],
                       "s": {
                         "color": "#003F87",
@@ -14365,7 +14365,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                             },
                             {
                               "c": [
-                                "Học kỳ xem thử",
+                                "3 lớp đang học",
                               ],
                               "s": {
                                 "color": "#FFFFFF",
@@ -15110,7 +15110,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                   "c": [
                     {
                       "c": [
-                        "XEM THỬ",
+                        "SINH VIÊN",
                       ],
                       "s": {
                         "color": "#003F87",
@@ -15186,7 +15186,7 @@ exports[`static visual snapshots (structure/token, not pixels) StudentDashboard 
                             },
                             {
                               "c": [
-                                "Học kỳ xem thử",
+                                "3 lớp đang học",
                               ],
                               "s": {
                                 "color": "#FFFFFF",

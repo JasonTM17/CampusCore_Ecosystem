@@ -414,6 +414,13 @@ describe('progress and report', () => {
     expect(navigate).toHaveBeenCalledWith('assistant.chat');
   });
 
+  test('the progress bar is announced with the Vietnamese progress label', async () => {
+    setWidth(360);
+    seed({ group: approvedGroup(), progress: approvedProgress });
+    await renderThemed(<ThesisProgressScreen {...baseProps} />);
+    expect((await screen.findByRole('progressbar')).props.accessibilityLabel).toBe('Tiến độ');
+  });
+
   test('the report is locked until the group is approved', async () => {
     setWidth(360);
     seed({ group: group(), progress: progress() });
