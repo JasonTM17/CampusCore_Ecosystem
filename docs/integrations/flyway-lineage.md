@@ -80,7 +80,7 @@ The `.sql` files located directly in the root `database/` directory (e.g., `seed
 
 ## 2. Migration Lineage & Version Census
 
-As of version V149, the canonical Flyway migration sequence contains **146 migration files**, spanning from `V1` to `V149`.
+As of version V150, the canonical Flyway migration sequence contains **147 migration files**, spanning from `V1` to `V150`.
 
 ### 2.1 Duplicates
 - **0 duplicate version numbers**. Every migration version number is strictly unique. Duplicate versions cause non-deterministic execution in Flyway and are prevented by CI validation.
@@ -120,7 +120,7 @@ A parallel test migration chain exists under `java-services/restful-api/src/test
 On a newly provisioned PostgreSQL instance:
 1. Ensure the target database exists and the application user has DDL permissions on the relevant schemas (`thesis`, `academic`, `engagement`, `assistant`, `site`, `events`, `learning`, `admissions`, `library`, `careers`, `campuscore_auth`, `campuscore_identity`, `notifications`, `campuscore_audit`, `public`).
 2. Boot the Java RESTful API service with `FLYWAY_ENABLED=true` (the default); Flyway migrates on startup. This repository declares no Flyway Maven plugin and has no root POM, so `mvn flyway:*` goals do not resolve.
-3. Flyway replays all 146 migrations in numerical order (`V1` to `V149`), recording installed versions in `thesis.flyway_schema_history`.
+3. Flyway replays all 147 migrations in numerical order (`V1` to `V150`), recording installed versions in `thesis.flyway_schema_history`.
 4. All checksums match the committed repository files by construction.
 
 ### 4.2 Supported Upgrade from Long-Lived Databases (Stale Checksums)
@@ -167,7 +167,7 @@ Migration checksum mismatch for migration version X:
    the local files.
 
 5. **Apply Forward Migrations**:
-   Boot the Java service. Flyway will seamlessly apply all remaining pending migrations up to `V149`.
+   Boot the Java service. Flyway will seamlessly apply all remaining pending migrations up to `V150`.
 
 ### 4.3 Operational Invariants & Anti-Patterns
 - **No Blind Repair**: Never run a Flyway repair if checksum drift occurs on migrations outside the 12 known legacy versions. Unrecognized drift indicates unauthorized manual SQL edits or file corruption that must be investigated before proceeding.
