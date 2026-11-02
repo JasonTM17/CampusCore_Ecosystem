@@ -102,8 +102,9 @@ public class ThesisAssistantInternalController {
             @RequestHeader(name = "X-Assistant-Owner", required = false) String owner) {
         verify(token);
         String ownerId = ownerAssertions.verifyAssistant(assertion, owner);
-        ChatResponse answer = AssistantRlsContext.withInternalOwner(ownerId, () -> assistant.answer(request.message(),
-                request.locale(), request.conversationId(), ownerId, request.clientRequestId(), request.scope()));
+        ChatResponse answer = AssistantLinkSanitizer.sanitize(AssistantRlsContext.withInternalOwner(ownerId,
+                () -> assistant.answer(request.message(), request.locale(), request.conversationId(), ownerId,
+                        request.clientRequestId(), request.scope())));
         if (answer != null) {
             io.campuscore.restfulapi.config.MetricsConfiguration.recordAnswer(metrics, answer.degraded());
         }
@@ -135,7 +136,7 @@ public class ThesisAssistantInternalController {
         try {
             AssistantRlsContext.withInternalOwner(ownerId, () -> {
                 assistant.stream(request.message(), request.locale(), request.conversationId(), ownerId,
-                        request.clientRequestId(), event -> {
+                        request.clientRequestId(), AssistantLinkSanitizer.sanitizingSink(event -> {
                             if (event instanceof ThesisAssistantService.StreamDone done && answerCounted.compareAndSet(false, true)) {
                                 io.campuscore.restfulapi.config.MetricsConfiguration.recordAnswer(metrics, done.degraded());
                             }
@@ -144,7 +145,7 @@ public class ThesisAssistantInternalController {
                                 terminal.set(true);
                             }
                             if (!transportClosed.get()) send(emitter, event);
-                        }, request.scope());
+                        }), request.scope());
                 if (!transportClosed.get() && terminal.compareAndSet(false, true)) {
                     sendError(emitter, "ASSISTANT_STREAM_INCOMPLETE", true);
                 }
@@ -244,7 +245,7 @@ public class ThesisAssistantInternalController {
         ThesisAssistantRepository.ConversationPage page = AssistantRlsContext.withInternalOwner(ownerId,
                 () -> assistant.conversationPage(ownerId, limit, cursor, scope));
         if (page.nextCursor() != null) response.setHeader("X-Next-Cursor", page.nextCursor());
-        return page.data();
+        return page.data().stream().map(AssistantLinkSanitizer::sanitize).toList();
     }
 
     @PostMapping("/conversations")

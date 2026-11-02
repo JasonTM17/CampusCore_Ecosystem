@@ -1,9 +1,12 @@
 /**
  * Markdown subset for assistant answers: headings, paragraphs, lists, tables,
- * quotes and fenced code, with bold, italic, inline code and https links.
+ * quotes and fenced code, with bold, italic, inline code and assistant-policy
+ * destinations. URLs that fail the policy remain plain text.
  * The output is a plain data tree rendered by native Text; nothing here emits
  * HTML, and raw tags stay literal text.
  */
+
+import { resolveAssistantMobileTarget } from './assistant-link-policy';
 
 export type InlineSpan =
   | { type: 'text'; text: string; bold?: boolean; italic?: boolean; code?: boolean }
@@ -17,14 +20,9 @@ export type MarkdownBlock =
   | { type: 'code'; text: string }
   | { type: 'table'; header: InlineSpan[][]; rows: InlineSpan[][][] };
 
-const HTTPS_URL = /^https:\/\/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?::\d{2,5})?(?:[/?#]\S*)?$/i;
-
-/** Only absolute https links with a DNS host and no embedded credentials open; everything else stays text. */
+/** Compatibility name retained for callers: only an allowed internal route opens. */
 export function safeLinkUrl(raw: string): string | null {
-  const url = raw.trim();
-  if (url.length === 0 || url.length > 2048) return null;
-  if (/[\u0000- \u007F<>"'`\\]/.test(url)) return null;
-  return HTTPS_URL.test(url) ? url : null;
+  return resolveAssistantMobileTarget(raw);
 }
 
 function styled(spans: InlineSpan[], style: { bold?: boolean; italic?: boolean }): InlineSpan[] {
@@ -76,6 +74,24 @@ export function parseInline(text: string): InlineSpan[] {
         else spans.push({ type: 'text', text: match[1] });
         index += match[0].length;
         continue;
+      }
+    }
+    if (text[index] === '/') {
+      const match = /^(\/(?:docs(?:\/[a-z0-9][a-z0-9-]{0,239})?(?:\?rev=[0-9]{1,10})?|dashboard(?:\/[a-z0-9_-]+)*))/u.exec(text.slice(index));
+      if (match) {
+        const following = text[index + match[1].length];
+        const incompleteOrExtended = following !== undefined && (
+          /[\p{L}\p{N}_-]/u.test(following) || ['%', '\\', '/', '?', '#'].includes(following)
+        );
+        if (!incompleteOrExtended) {
+          flush();
+          const target = resolveAssistantMobileTarget(match[1]);
+          spans.push(target
+            ? { type: 'link', text: match[1], url: target }
+            : { type: 'text', text: match[1] });
+          index += match[1].length;
+          continue;
+        }
       }
     }
     buffer += text[index];

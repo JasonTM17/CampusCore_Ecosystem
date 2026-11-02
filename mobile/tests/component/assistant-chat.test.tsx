@@ -36,6 +36,9 @@ jest.mock('../../src/api/assistant-api', () => {
 jest.mock('../../src/hooks/useScreenQuery', () => ({
   useScreenQuery: () => ({ data: undefined, error: null, warning: null, isLoading: false, reload: jest.fn(), setData: jest.fn() }),
 }));
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+}));
 
 import { peekAssistantEntryScope, requestAssistantEntryScope } from '../../src/assistant/entry-scope';
 import { ASSISTANT_MAX_MESSAGE_CHARS } from '../../src/api/assistant-limits';

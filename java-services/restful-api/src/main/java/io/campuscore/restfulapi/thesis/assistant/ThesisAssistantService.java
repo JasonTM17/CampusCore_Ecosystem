@@ -1394,7 +1394,7 @@ public class ThesisAssistantService {
 
     /** Pure lexical path used by tests and by safe fallback when persistence is unavailable. */
     public ChatResponse answer(String message, String locale) {
-        return lexicalAnswer(message, locale);
+        return AssistantLinkSanitizer.sanitize(lexicalAnswer(message, locale));
     }
 
     /** Backward-compatible server entry point; new controllers pass the client key explicitly. */
@@ -1425,15 +1425,16 @@ public class ThesisAssistantService {
      */
     public ChatResponse answer(String message, String locale, String conversationId, String ownerId,
             UUID clientRequestId, Consumer<StreamEvent> streamSink, String scope) {
+        Consumer<StreamEvent> safeSink = AssistantLinkSanitizer.sanitizingSink(streamSink);
         if (turns == null || properties == null) {
             ChatResponse legacy = legacyAnswer(message, locale, conversationId, ownerId);
-            return new ChatResponse(legacy.answer(), legacy.model(), legacy.degraded(),
+            return AssistantLinkSanitizer.sanitize(new ChatResponse(legacy.answer(), legacy.model(), legacy.degraded(),
                     legacy.reasonCode(), legacy.locale(), legacy.citations(), legacy.requestId(),
                     clientRequestId, legacy.turnId(), legacy.replayed(), legacy.terminalStatus(),
-                    legacy.conversationId(), legacy.messageId(), legacy.resetAt());
+                    legacy.conversationId(), legacy.messageId(), legacy.resetAt()));
         }
-        return execute(message, locale, conversationId, ownerId, clientRequestId,
-                streamSink == null ? ignored -> { } : streamSink, scope);
+        return AssistantLinkSanitizer.sanitize(execute(message, locale, conversationId, ownerId, clientRequestId,
+                safeSink, scope));
     }
 
     public ChatResponse stream(String message, String locale, String conversationId, String ownerId,
@@ -1592,7 +1593,8 @@ public class ThesisAssistantService {
 
     public List<ThesisAssistantRepository.Message> messages(UUID conversationId, String ownerId) {
         if (legacyHistory == null) return List.of();
-        return legacyHistory.messages(conversationId, ownerId);
+        return legacyHistory.messages(conversationId, ownerId).stream()
+                .map(AssistantLinkSanitizer::sanitize).toList();
     }
 
     public ThesisAssistantRepository.MessagePage messagePage(UUID conversationId, String ownerId, Integer limit, String cursor) {
@@ -1601,7 +1603,10 @@ public class ThesisAssistantService {
         // make a foreign conversation read answer 200 [] while DELETE on the
         // same id answered 404. Assert ownership first so both verbs agree.
         legacyHistory.requireOwnedConversation(conversationId, ownerId);
-        return legacyHistory.messagesPage(conversationId, ownerId, limit == null ? 50 : limit, cursor);
+        ThesisAssistantRepository.MessagePage page = legacyHistory.messagesPage(
+                conversationId, ownerId, limit == null ? 50 : limit, cursor);
+        return new ThesisAssistantRepository.MessagePage(page.data().stream()
+                .map(AssistantLinkSanitizer::sanitize).toList(), page.nextCursor());
     }
 
     public void deleteConversation(UUID conversationId, String ownerId) {
@@ -1839,6 +1844,8 @@ public class ThesisAssistantService {
                     || "NO_MATCH".equals(reason) || "QUOTA_EXCEEDED".equals(reason))) {
                 emit(sink, new StreamDelta(0, answer, fallbackSourceIds));
             }
+            // Persist the same link-safe text that the API and clients render.
+            answer = AssistantLinkSanitizer.sanitizeMarkdownLinks(answer);
             // A portal-denial answer ("Cổng học vụ chưa công bố …") means the
             // provider explicitly said the retrieval did not cover the topic —
             // attaching those documents as citations would fabricate grounding
@@ -1926,10 +1933,11 @@ public class ThesisAssistantService {
                     response = response.withResetAt(nextQuotaResetAt());
                 }
             }
+            response = AssistantLinkSanitizer.sanitize(response);
             UUID messageId = legacyHistory.appendMessage(conversation, "ASSISTANT", response.answer(), response.model(), response.degraded(), response.reasonCode());
             legacyHistory.appendCitations(messageId, response.citations());
-            return new ChatResponse(response.answer(), response.model(), response.degraded(), response.reasonCode(), response.locale(), response.citations(), conversation.toString(), messageId.toString())
-                    .withResetAt(response.resetAt());
+            return AssistantLinkSanitizer.sanitize(new ChatResponse(response.answer(), response.model(), response.degraded(), response.reasonCode(), response.locale(), response.citations(), conversation.toString(), messageId.toString())
+                    .withResetAt(response.resetAt()));
         } catch (DataAccessException exception) {
             return new ChatResponse(lexical.answer(), MODEL, true, "HISTORY_UNAVAILABLE", requestedLocale, fallbackCitations);
         }
@@ -2778,7 +2786,8 @@ public class ThesisAssistantService {
             UUID requestId, String locale, UUID turnId) {
         emit(sink, new StreamMeta(requestId, clientRequestId, turnId, replay.conversationId(), replay.model(), locale));
         List<Citation> citations = replay.citations().stream().map(citation -> normalizeCitation(citation, locale)).toList();
-        emit(sink, new StreamDelta(0, normalizeAssistantCopy(replay.answer(), locale), citations.stream().map(Citation::sourceId).toList()));
+        emit(sink, new StreamDelta(0, AssistantLinkSanitizer.sanitizeMarkdownLinks(
+                normalizeAssistantCopy(replay.answer(), locale)), citations.stream().map(Citation::sourceId).toList()));
         citations.forEach(citation -> emit(sink, new StreamCitation(citation)));
         emit(sink, new StreamDone(replay.messageId(), replay.reasonCode(), replay.degraded(), replay.terminalStatus()));
     }
@@ -2788,8 +2797,8 @@ public class ThesisAssistantService {
     private static ChatResponse response(ThesisAssistantTurnRepository.ReplayResult replay, UUID clientRequestId, UUID requestId,
             UUID turnId, boolean replayed, String locale) {
         List<Citation> citations = replay.citations().stream().map(citation -> normalizeCitation(citation, locale)).toList();
-        return new ChatResponse(normalizeAssistantCopy(replay.answer(), locale), replay.model(), replay.degraded(), replay.reasonCode(), locale, citations,
-                requestId, clientRequestId, turnId, replayed, replay.terminalStatus(), replay.conversationId().toString(), replay.messageId().toString());
+        return AssistantLinkSanitizer.sanitize(new ChatResponse(normalizeAssistantCopy(replay.answer(), locale), replay.model(), replay.degraded(), replay.reasonCode(), locale, citations,
+                requestId, clientRequestId, turnId, replayed, replay.terminalStatus(), replay.conversationId().toString(), replay.messageId().toString()));
     }
 
     private static UUID parseConversation(String value) { if (value == null || value.isBlank()) return null; try { return UUID.fromString(value); } catch (IllegalArgumentException ignored) { throw problem(400, "INVALID_CONVERSATION_ID", "conversationId must be a UUID"); } }

@@ -2,6 +2,7 @@ package io.campuscore.restfulapi.thesis.assistant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import tools.jackson.databind.ObjectMapper;
@@ -520,6 +521,67 @@ class RagAssistantGatewayTest {
         assertEquals(Instant.parse(resetAt), response.resetAt());
         assertEquals("conv-4", response.conversationId());
         assertEquals("msg-4", response.messageId());
+    }
+
+    @Test
+    void chatSanitizesRemoteAnswerLinksAtTheGatewayBoundary() throws Exception {
+        startServer(exchange -> {
+            byte[] response = ("""
+                    {"answer":"Read [the rule](/docs/registration) and [outside](https://example.edu/policy) after.","model":"m","degraded":false,"reasonCode":"ANSWERED","locale":"en","citations":[]}
+                    """).getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        }, "/chat");
+
+        var response = gateway().chat(new ChatRequest("Find the rule", "en"), "owner-a");
+
+        assertEquals("Read [the rule](/docs/registration) and outside after.", response.answer());
+    }
+
+    @Test
+    void remoteHistoryMessagesAreSanitizedAtTheGatewayBoundary() throws Exception {
+        UUID messageId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        startServer(exchange -> {
+            byte[] response = ("""
+                    [{"id":"%s","role":"ASSISTANT","content":"Read [outside](javascript:alert(1)) after.","model":"m","degraded":false,"reasonCode":"ANSWERED","createdAt":"2026-11-01T00:00:00Z","citations":[]}]
+                    """).formatted(messageId).getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        }, "/conversations/");
+
+        var page = gateway().messages(conversationId, "owner-a", null, null);
+
+        assertEquals("Read outside after.", page.data().getFirst().content());
+        assertNull(page.nextCursor());
+    }
+
+    @Test
+    void remoteSseLinkSplitAcrossDeltaEventsIsSanitizedBeforeForwarding() throws Exception {
+        startServer(exchange -> {
+            String body = "event:meta\ndata:{}\n\n"
+                    + "event:delta\ndata:{\"sequence\":0,\"text\":\"Before [outside](https://exa\",\"sourceIds\":[]}\n\n"
+                    + "event:delta\ndata:{\"sequence\":1,\"text\":\"mple.edu/policy) after.\",\"sourceIds\":[]}\n\n"
+                    + "event:done\ndata:{\"reasonCode\":\"ANSWERED\",\"degraded\":false,\"terminalStatus\":\"COMPLETED\"}\n\n";
+            byte[] response = body.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "text/event-stream");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        }, "/chat/stream");
+
+        List<ThesisAssistantService.StreamEvent> events = new ArrayList<>();
+        gateway().stream(new ChatRequest("Find a policy", "en"), "owner-a", events::add);
+
+        String answer = events.stream().filter(ThesisAssistantService.StreamDelta.class::isInstance)
+                .map(ThesisAssistantService.StreamDelta.class::cast)
+                .map(ThesisAssistantService.StreamDelta::text).reduce("", String::concat);
+        assertEquals("Before outside after.", answer);
+        assertTrue(events.stream().anyMatch(ThesisAssistantService.StreamDone.class::isInstance));
     }
 
     private RagAssistantGateway gateway() {

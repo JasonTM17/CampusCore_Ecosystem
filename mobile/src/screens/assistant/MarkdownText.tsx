@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react';
-import { Linking, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { useRouter, type Href } from 'expo-router';
 
 import { UiText } from '../../components/Ui';
 import type { TextTone } from '../../components/Ui';
@@ -17,6 +18,7 @@ export interface MarkdownTextProps {
 
 function Spans({ spans, tone }: { spans: InlineSpan[]; tone: TextTone }) {
   const { colors } = useTheme();
+  const router = useRouter();
   return (
     <>
       {spans.map((span, index) => {
@@ -28,7 +30,7 @@ function Spans({ spans, tone }: { spans: InlineSpan[]; tone: TextTone }) {
               tone="primary"
               accessibilityRole="link"
               style={styles.link}
-              onPress={() => { void Linking.openURL(span.url).catch(() => undefined); }}
+              onPress={() => router.push(span.url as Href)}
             >
               {span.text}
             </UiText>
@@ -107,7 +109,7 @@ function Block({ block, tone }: { block: MarkdownBlock; tone: TextTone }) {
   }
 }
 
-/** Renders the safe Markdown subset with native Text only: no HTML, no WebView, https links only. */
+/** Renders the safe Markdown subset with native Text and guarded Expo Router destinations. */
 export const MarkdownText = memo(function MarkdownText({ text, streaming = false, tone = 'default' }: MarkdownTextProps) {
   const blocks = useMemo(() => parseMarkdown(text, { streaming }), [text, streaming]);
   return (

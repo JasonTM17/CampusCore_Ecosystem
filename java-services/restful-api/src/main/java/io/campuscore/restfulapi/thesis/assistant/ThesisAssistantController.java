@@ -169,6 +169,7 @@ public class ThesisAssistantController {
      * unpersisted exactly as before.
      */
     private ChatResponse persistPersonalTurn(ChatRequest request, ChatResponse personal, String owner) {
+        personal = AssistantLinkSanitizer.sanitize(personal);
         try {
             // Round-3 cb3-7/cb3-10: a personal turn without a conversationId
             // used to skip persistence entirely — the answer vanished from
@@ -223,7 +224,7 @@ public class ThesisAssistantController {
     @PreAuthorize("hasAnyRole('STUDENT','LECTURER','ADMIN','SUPER_ADMIN','TRUONG_KHOA')")
     public ChatResponse chat(@Valid @RequestBody ChatRequest request, @AuthenticationPrincipal Jwt actor,
             HttpServletRequest httpRequest) {
-        ChatResponse answer = chatAnswer(request, actor, httpRequest);
+        ChatResponse answer = AssistantLinkSanitizer.sanitize(chatAnswer(request, actor, httpRequest));
         if (answer != null) {
             io.campuscore.restfulapi.config.MetricsConfiguration.recordAnswer(metrics, answer.degraded());
         }
@@ -513,12 +514,12 @@ public class ThesisAssistantController {
                 java.util.concurrent.TimeUnit.MILLISECONDS);
         Runnable stopHeartbeat = () -> heartbeat.cancel(false);
         AtomicBoolean answerCounted = new AtomicBoolean(false);
-        Consumer<ThesisAssistantService.StreamEvent> sink = event -> {
+        Consumer<ThesisAssistantService.StreamEvent> sink = AssistantLinkSanitizer.sanitizingSink(event -> {
             if (event instanceof ThesisAssistantService.StreamDone done && answerCounted.compareAndSet(false, true)) {
                 io.campuscore.restfulapi.config.MetricsConfiguration.recordAnswer(metrics, done.degraded());
             }
             if (!transportClosed.get()) send(emitter, event);
-        };
+        });
         var securityContext = SecurityContextHolder.createEmptyContext();
         securityContext.setAuthentication(SecurityContextHolder.getContext().getAuthentication());
         Runnable generation = () -> {
@@ -711,7 +712,7 @@ public class ThesisAssistantController {
         }
         ThesisAssistantRepository.ConversationPage page = assistant.conversationPage(owner, limit, cursor, scope);
         if (page.nextCursor() != null) response.setHeader("X-Next-Cursor", page.nextCursor());
-        return page.data();
+        return page.data().stream().map(AssistantLinkSanitizer::sanitize).toList();
     }
 
     @Operation(summary = "Tạo mới phiên hội thoại", description = "Khởi tạo phiên hội thoại mới với ngôn ngữ chỉ định (vi/en)")

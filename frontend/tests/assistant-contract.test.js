@@ -864,8 +864,10 @@ test('assistant internal route linkification matches after punctuation and space
 
   assert.deepEqual(routeMatches('truy cập mục **Đăng ký học phần** (/dashboard/register).'), ['/dashboard/register']);
   assert.deepEqual(routeMatches('mở trang /dashboard/schedule để xem'), ['/dashboard/schedule']);
-  assert.deepEqual(routeMatches('xem tại /admin/assistant-knowledge nhé'), ['/admin/assistant-knowledge']);
+  assert.deepEqual(routeMatches('đọc tài liệu /docs/quy-che-dang-ky nhé'), ['/docs/quy-che-dang-ky']);
 
+  // Admin paths and routes outside the allowlist stay plain text.
+  assert.equal(re().exec('xem tại /admin/assistant-knowledge nhé'), null);
   // Paths glued to word characters or inside URLs stay plain text.
   assert.equal(re().exec('example.com/dashboard/x'), null);
   assert.equal(re().exec('abc/dashboard/register'), null);
@@ -1300,27 +1302,24 @@ test('assistant markdown links reject unsafe schemes (javascript:, data:)', () =
     path.join(root, 'src/components/assistant/AssistantMarkdownContent.tsx'),
     'utf8',
   );
-  // The link renderer must whitelist internal paths and safe external
-  // schemes; javascript:, data:, and anything else renders as plain text.
+  // The link renderer must route every destination through the shared
+  // assistant link policy; javascript:, data:, external hosts, and any
+  // non-allowlisted route renders as the plain label, never an anchor.
   assert.ok(
-    componentSource.includes("rawUrl.startsWith('/') && !rawUrl.startsWith('//')"),
-    'internal-path detection missing',
+    componentSource.includes('resolveAssistantLinkDestination(rawUrl)'),
+    'markdown-link destinations must go through the shared policy',
   );
   assert.ok(
-    componentSource.includes('/^https?:\\/\\//i.test(rawUrl)'),
-    'http(s) scheme check missing',
+    componentSource.includes('resolveAssistantLinkDestination(path)'),
+    'direct-route destinations must go through the shared policy',
   );
-  assert.ok(
-    componentSource.includes('/^mailto:/i.test(rawUrl)'),
-    'mailto scheme check missing',
-  );
-  assert.ok(
-    componentSource.includes('Guard against javascript:, data:, and other unsafe schemes'),
-    'scheme-guard rationale comment missing',
-  );
-  // Unsafe schemes fall back to the plain label, never an anchor element.
+  // Unsafe or unlisted destinations fall back to the plain label.
   assert.match(componentSource, /elements\.push\(label\)/);
-  assert.doesNotMatch(componentSource, /elements\.push\(\s*createAnchor\(/);
+  assert.match(componentSource, /elements\.push\(path\)/);
+  // No external href escapes the policy: every anchor target comes from
+  // resolveAssistantLinkDestination and navigates internally.
+  assert.doesNotMatch(componentSource, /target=['"]_blank['"]/);
+  assert.doesNotMatch(componentSource, /ExternalLink/);
 });
 
 test('static portal guides and past-thesis content delegate to the backend knowledge base', async () => {
