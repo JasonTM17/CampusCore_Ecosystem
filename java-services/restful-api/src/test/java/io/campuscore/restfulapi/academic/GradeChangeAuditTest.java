@@ -47,7 +47,7 @@ class GradeChangeAuditTest {
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS campuscore_audit");
         jdbc.execute("CREATE TABLE IF NOT EXISTS academic.\"Section\" (\"id\" VARCHAR PRIMARY KEY, \"semesterId\" VARCHAR, \"lecturerId\" VARCHAR, \"capacity\" INT, \"enrolledCount\" INT, \"status\" VARCHAR)");
         jdbc.execute("CREATE TABLE IF NOT EXISTS academic.\"Student\" (\"id\" VARCHAR PRIMARY KEY, \"userId\" VARCHAR)");
-        jdbc.execute("CREATE TABLE IF NOT EXISTS academic.\"Enrollment\" (\"id\" VARCHAR PRIMARY KEY, \"studentId\" VARCHAR, \"sectionId\" VARCHAR, \"status\" VARCHAR, \"gradeStatus\" VARCHAR, \"finalGrade\" NUMERIC(5,2), \"letterGrade\" VARCHAR, \"updatedAt\" TIMESTAMP, \"version\" INTEGER NOT NULL DEFAULT 0)");
+        jdbc.execute("CREATE TABLE IF NOT EXISTS academic.\"Enrollment\" (\"id\" VARCHAR PRIMARY KEY, \"studentId\" VARCHAR, \"sectionId\" VARCHAR, \"semesterId\" VARCHAR, \"status\" VARCHAR, \"gradeStatus\" VARCHAR, \"finalGrade\" NUMERIC(5,2), \"letterGrade\" VARCHAR, \"updatedAt\" TIMESTAMP, \"version\" INTEGER NOT NULL DEFAULT 0)");
         jdbc.execute("CREATE TABLE IF NOT EXISTS academic.\"GradeItem\" (\"id\" VARCHAR PRIMARY KEY, \"type\" VARCHAR, \"sectionId\" VARCHAR, \"name\" VARCHAR, \"maxScore\" DECIMAL, \"weight\" DECIMAL, \"gradedAt\" TIMESTAMP)");
         jdbc.execute("CREATE TABLE IF NOT EXISTS academic.\"StudentGrade\" (\"id\" VARCHAR PRIMARY KEY, \"enrollmentId\" VARCHAR, \"gradeItemId\" VARCHAR, \"score\" NUMERIC(5,2), UNIQUE (\"enrollmentId\", \"gradeItemId\"))");
         jdbc.execute("CREATE TABLE IF NOT EXISTS campuscore_audit.\"AdminAudit\" (\"id\" VARCHAR PRIMARY KEY, \"actorId\" VARCHAR, \"actorLabel\" VARCHAR(240), \"action\" VARCHAR, \"entityType\" VARCHAR, \"entityId\" VARCHAR, \"summary\" VARCHAR(500), \"beforeState\" VARCHAR, \"afterState\" VARCHAR)");
@@ -211,7 +211,10 @@ class GradeChangeAuditTest {
     }
 
     private void enrollment(String id) {
-        jdbc.update("INSERT INTO academic.\"Enrollment\" VALUES (?, 'student', 'section', 'ENROLLED', 'DRAFT', 7, 'B', CURRENT_TIMESTAMP, 0)", id);
+        jdbc.update("INSERT INTO academic.\"Enrollment\""
+                + " (\"id\", \"studentId\", \"sectionId\", \"semesterId\", \"status\", \"gradeStatus\","
+                + " \"finalGrade\", \"letterGrade\", \"updatedAt\", \"version\")"
+                + " VALUES (?, 'student', 'section', 'semester', 'ENROLLED', 'DRAFT', 7, 'B', CURRENT_TIMESTAMP, 0)", id);
         jdbc.update("INSERT INTO academic.\"StudentGrade\" VALUES (?, ?, 'section-process-50', 6), (?, ?, 'section-final-50', 8)", id + "-p", id, id + "-f", id);
     }
 

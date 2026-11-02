@@ -53,7 +53,7 @@ class AcademicGradeVersionTest {
                 + "\"id\" VARCHAR PRIMARY KEY, \"userId\" VARCHAR)");
         jdbc.execute("CREATE TABLE IF NOT EXISTS \"academic\".\"Enrollment\" ("
                 + "\"id\" VARCHAR PRIMARY KEY, \"studentId\" VARCHAR, \"sectionId\" VARCHAR,"
-                + " \"status\" VARCHAR, \"gradeStatus\" VARCHAR, \"finalGrade\" NUMERIC(5,2),"
+                + " \"semesterId\" VARCHAR, \"status\" VARCHAR, \"gradeStatus\" VARCHAR, \"finalGrade\" NUMERIC(5,2),"
                 + " \"letterGrade\" VARCHAR, \"updatedAt\" TIMESTAMP,"
                 + " \"version\" INTEGER NOT NULL DEFAULT 0)");
         jdbc.execute("CREATE TABLE IF NOT EXISTS \"academic\".\"GradeItem\" ("
@@ -274,9 +274,9 @@ class AcademicGradeVersionTest {
 
     private void enrollment(String id, String studentId, String gradeStatus, int version) {
         jdbc.update("INSERT INTO \"academic\".\"Enrollment\""
-                        + " (\"id\", \"studentId\", \"sectionId\", \"status\", \"gradeStatus\","
+                        + " (\"id\", \"studentId\", \"sectionId\", \"semesterId\", \"status\", \"gradeStatus\","
                         + " \"finalGrade\", \"letterGrade\", \"updatedAt\", \"version\")"
-                        + " VALUES (?, ?, 'section', 'ENROLLED', ?, NULL, NULL, CURRENT_TIMESTAMP, ?)",
+                        + " VALUES (?, ?, 'section', 'semester', 'ENROLLED', ?, NULL, NULL, CURRENT_TIMESTAMP, ?)",
                 id, studentId, gradeStatus, version);
     }
 

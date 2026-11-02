@@ -10,6 +10,7 @@ import io.campuscore.restfulapi.academic.web.AcademicMutationDtos.GradeUpdate;
 import io.campuscore.restfulapi.audit.AdminAuditRecorder;
 import io.campuscore.restfulapi.web.DomainException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -92,6 +93,7 @@ class AcademicAdminAuditPersistenceTest {
                 "enrolledAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 "finalGrade" NUMERIC(5,2),
                 "letterGrade" VARCHAR(8),
+                "creditsSnapshot" INTEGER,
                 "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 "version" INTEGER NOT NULL DEFAULT 0
@@ -205,6 +207,64 @@ class AcademicAdminAuditPersistenceTest {
                         + " WHERE \"entityType\" = 'ENROLLMENT' AND \"entityId\" = ?",
                 String.class, "enr-del-1");
         assertThat(beforeState).contains("stu-9").contains("ENROLLED");
+    }
+
+    @Test
+    void publishedEnrollmentDeleteAuditRetainsTheOfficialGradeValues() {
+        seedEnrollment("enr-published-delete", "COMPLETED", "PUBLISHED");
+        jdbc.update("UPDATE \"academic\".\"Enrollment\" SET \"finalGrade\" = 8.50,"
+                + " \"letterGrade\" = 'A', \"creditsSnapshot\" = 3 WHERE \"id\" = ?", "enr-published-delete");
+
+        service.deleteEnrollment("enr-published-delete", "admin-user");
+
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM \"academic\".\"Enrollment\" WHERE \"id\" = ?",
+                Integer.class, "enr-published-delete")).isZero();
+        String beforeState = jdbc.queryForObject(
+                "SELECT \"beforeState\" FROM \"campuscore_audit\".\"AdminAudit\""
+                        + " WHERE \"entityType\" = 'ENROLLMENT' AND \"entityId\" = ?",
+                String.class, "enr-published-delete");
+        assertThat(beforeState)
+                .contains("finalGrade=8.50")
+                .contains("letterGrade=A")
+                .contains("creditsSnapshot=3");
+    }
+
+    @Test
+    void savedGradeUsesTheSamePersistedPrecisionAsThePreview() {
+        seedEnrollment("enr-precision", "ENROLLED", "DRAFT");
+        BigDecimal processScore = new BigDecimal("3.994");
+        BigDecimal finalExamScore = new BigDecimal("3.995");
+        BigDecimal previewProcess = processScore.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal previewFinalExam = finalExamScore.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal previewTotal = previewProcess.add(previewFinalExam)
+                .divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
+        String previewLetter = previewTotal.compareTo(new BigDecimal("4.00")) >= 0 ? "D" : "F";
+
+        service.updateGrades("sec-audit", "lec-01", true, "admin-user",
+                List.of(new GradeUpdate("enr-precision", processScore, finalExamScore)));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT \"score\" FROM \"academic\".\"StudentGrade\""
+                        + " WHERE \"enrollmentId\" = ? AND \"gradeItemId\" = ?",
+                BigDecimal.class, "enr-precision", "sec-audit-process-50"))
+                .isEqualByComparingTo(previewProcess);
+        assertThat(jdbc.queryForObject(
+                "SELECT \"score\" FROM \"academic\".\"StudentGrade\""
+                        + " WHERE \"enrollmentId\" = ? AND \"gradeItemId\" = ?",
+                BigDecimal.class, "enr-precision", "sec-audit-final-50"))
+                .isEqualByComparingTo(previewFinalExam);
+        assertThat(jdbc.queryForObject(
+                "SELECT \"finalGrade\" FROM \"academic\".\"Enrollment\" WHERE \"id\" = ?",
+                BigDecimal.class, "enr-precision")).isEqualByComparingTo(previewTotal);
+        assertThat(jdbc.queryForObject(
+                "SELECT \"letterGrade\" FROM \"academic\".\"Enrollment\" WHERE \"id\" = ?",
+                String.class, "enr-precision")).isEqualTo(previewLetter);
+        String afterState = jdbc.queryForObject(
+                "SELECT \"afterState\" FROM \"campuscore_audit\".\"AdminAudit\""
+                        + " WHERE \"action\" = 'GRADE_UPDATE_BY_ADMIN' AND \"entityId\" = 'sec-audit'",
+                String.class);
+        assertThat(afterState).contains("finalGrade=4.00").contains("letterGrade=D");
     }
 
     @Test
