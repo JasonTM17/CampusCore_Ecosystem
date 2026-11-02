@@ -115,6 +115,53 @@ test('source-only checks run once and compose keeps its runtime probes', () => {
   assert.match(composeRuns, /flyway_schema_history/, 'the runtime Flyway boundary must remain');
 });
 
+test('migration checks enforce a baseline from the main or previous push revision', () => {
+  const migrationStep = workflowSource.slice(
+    workflowSource.indexOf('- name: Migration source checks'),
+    workflowSource.indexOf('- name: Offline assistant evaluation gate'),
+  );
+  assert.match(migrationStep, /base_ref=origin\/main/,
+    'pull requests must compare against the current main migration head');
+  assert.match(migrationStep, /git ls-tree[\s\S]*"\$base_ref"/,
+    'the baseline migration version must come from the selected base revision');
+  assert.match(migrationStep, /GITHUB_EVENT_PATH[\s\S]*event\.before/,
+    'pushes must compare against the prior revision in the webhook payload');
+  assert.match(migrationStep, /not newer than baseline/,
+    'a new migration at or below the baseline must fail CI');
+  assert.match(migrationStep, /node scripts\/check-migrations\.mjs/);
+});
+
+test('push migration baseline uses the standard event payload for its prior commit', () => {
+  const migrationStep = workflowSource.slice(
+    workflowSource.indexOf('- name: Migration source checks'),
+    workflowSource.indexOf('- name: Offline assistant evaluation gate'),
+  );
+  assert.match(migrationStep, /GITHUB_EVENT_PATH/,
+    'push events expose the before revision through the event payload path');
+  assert.match(migrationStep, /event\.before/,
+    'the migration baseline must read the webhook before revision');
+  assert.doesNotMatch(migrationStep, /GITHUB_EVENT_BEFORE/,
+    'GITHUB_EVENT_BEFORE is not a default GitHub Actions environment variable');
+});
+
+test('e2e CI executes the mobile-only unread recovery test on mobile-390', () => {
+  const mobileStep = workflowSource.match(/- name: Run mobile unread recovery on mobile-390\n([\s\S]*?)(?=\n      - name:|\n  [A-Za-z])/);
+  assert.ok(mobileStep, 'a required step selects the mobile-390 Playwright project');
+  assert.match(mobileStep[1], /E2E_PLAYWRIGHT_PROJECT: mobile-390/);
+  assert.match(mobileStep[1], /E2E_PLAYWRIGHT_FILTER: failed mark-read restores the preview row and unread badge without duplicates/);
+  assert.match(mobileStep[1], /scripts\/run-course-e2e\.mjs/);
+});
+
+test('monitoring alerts are checked with the pinned Prometheus promtool fixture', () => {
+  const install = workflowSource.match(/- name: Install pinned Prometheus promtool\n([\s\S]*?)(?=\n      - name:|\n  [A-Za-z])/);
+  const check = workflowSource.match(/- name: Test Prometheus alert rules\n([\s\S]*?)(?=\n      - name:|\n  [A-Za-z])/);
+  assert.ok(install, 'ecosystem-gates installs promtool');
+  assert.match(install[1], /PROMETHEUS_VERSION=2\.55\.1/);
+  assert.match(install[1], /sha256sum --check/);
+  assert.ok(check, 'ecosystem-gates executes alert-tests.yml');
+  assert.match(check[1], /promtool test rules ops\/monitoring\/alert-tests\.yml/);
+});
+
 test('portal viewport gate rejects skipped or unlaunched tests', () => {
   const doc = loadWorkflow(workflowPath, repoRoot);
   const job = doc.jobs?.['portal-viewport'];
