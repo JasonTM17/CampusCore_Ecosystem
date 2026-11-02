@@ -245,7 +245,7 @@ public class LearningStudentService {
             staff.audit(assignmentId, (String) submission.get("id"), studentId,
                     "DRAFT_OPENED", null);
         }
-        SubmissionResponse response = staff.mapSubmission(submission);
+        SubmissionResponse response = LearningService.mapStudentSubmission(submission);
         completeIdempotency(studentId, idempotencyKey, (String) submission.get("id"), response);
         return response;
     }
@@ -286,7 +286,7 @@ public class LearningStudentService {
                         .addValue("contentType", stored == null ? null : stored.get("contentType"))
                         .addValue("sizeBytes", stored == null ? null : stored.get("sizeBytes"))
                         .addValue("checksum", stored == null ? null : stored.get("checksum")));
-        return staff.mapSubmission(staff.getSubmission(submissionId));
+        return LearningService.mapStudentSubmission(staff.getSubmission(submissionId));
     }
 
     /** LMS-T03 + LMS-X01: DRAFT → SUBMITTED under the assignment row lock with
@@ -327,7 +327,7 @@ public class LearningStudentService {
                     "Submission is no longer a draft");
         }
         staff.audit(assignmentId, submissionId, studentId, "SUBMITTED", "revision=" + nextNo);
-        SubmissionResponse response = staff.mapSubmission(staff.getSubmission(submissionId));
+        SubmissionResponse response = LearningService.mapStudentSubmission(staff.getSubmission(submissionId));
         completeIdempotency(studentId, idempotencyKey, submissionId, response);
         return response;
     }
@@ -382,7 +382,7 @@ public class LearningStudentService {
                     "Submission is no longer in returned state");
         }
         staff.audit(assignmentId, submissionId, studentId, "RESUBMITTED", "revision=" + nextNo);
-        SubmissionResponse response = staff.mapSubmission(staff.getSubmission(submissionId));
+        SubmissionResponse response = LearningService.mapStudentSubmission(staff.getSubmission(submissionId));
         completeIdempotency(studentId, idempotencyKey, submissionId, response);
         return response;
     }
@@ -393,7 +393,7 @@ public class LearningStudentService {
 
     @Transactional(readOnly = true)
     public SubmissionResponse mySubmission(String studentId, String submissionId) {
-        return staff.mapSubmission(ownedSubmission(studentId, submissionId));
+        return LearningService.mapStudentSubmission(ownedSubmission(studentId, submissionId));
     }
 
     @Transactional(readOnly = true)
@@ -425,7 +425,7 @@ public class LearningStudentService {
                         + " WHERE s.\"studentId\" = :studentId AND a.\"sectionId\" = :sectionId"
                         + " ORDER BY s.\"updatedAt\" DESC",
                 new MapSqlParameterSource("studentId", studentId).addValue("sectionId", sectionId),
-                (row, n) -> LearningService.mapSubmission(rowToMap(row)));
+                (row, n) -> LearningService.mapStudentSubmission(rowToMap(row)));
     }
 
     // ------------------------------------------------------------------

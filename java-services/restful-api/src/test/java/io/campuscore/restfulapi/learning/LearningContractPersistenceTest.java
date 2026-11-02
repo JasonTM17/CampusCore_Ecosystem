@@ -622,6 +622,144 @@ class LearningContractPersistenceTest {
     }
 
     // ---------------------------------------------------------------
+    // Draft read-back — the owning student's editor state
+    // ---------------------------------------------------------------
+
+    @Test
+    void savedDraftTextIsReturnedToTheOwningStudent() throws Exception {
+        String assignmentId = publishedAssignmentId();
+        String submissionId = openDraft(assignmentId, studentJwt, "draft-readback");
+        String text = "ban nhap chua nop";
+
+        mvc.perform(put("/api/v1/learning/submissions/" + submissionId + "/draft").with(studentJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"textBody\":\"" + text + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.draftText").value(text))
+                .andExpect(jsonPath("$.draftFileName").isEmpty());
+
+        mvc.perform(get("/api/v1/learning/submissions/" + submissionId).with(studentJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.draftText").value(text))
+                .andExpect(jsonPath("$.draftFileName").isEmpty())
+                .andExpect(jsonPath("$.draftContentType").isEmpty())
+                .andExpect(jsonPath("$.draftSizeBytes").isEmpty());
+        mvc.perform(get("/api/v1/learning/sections/sec-a/submissions").with(studentJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].draftText").value(text));
+    }
+
+    @Test
+    void savedDraftFileMetadataIsReturnedWithoutItsStorageKey() throws Exception {
+        String assignmentId = publishedAssignmentId();
+        String submissionId = openDraft(assignmentId, studentJwt, "draft-file-readback");
+        String bytes = "draft attachment";
+        int size = bytes.getBytes(StandardCharsets.UTF_8).length;
+
+        mvc.perform(put("/api/v1/learning/submissions/" + submissionId + "/draft").with(studentJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"draft.txt\",\"contentType\":\"text/plain\","
+                                + "\"contentBase64\":\"" + b64(bytes) + "\","
+                                + "\"checksum\":\"" + sha256(bytes) + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.draftFileName").value("draft.txt"))
+                .andExpect(jsonPath("$.draftContentType").value("text/plain"))
+                .andExpect(jsonPath("$.draftSizeBytes").value(size));
+
+        MvcResult read = mvc.perform(get("/api/v1/learning/submissions/" + submissionId).with(studentJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.draftFileName").value("draft.txt"))
+                .andExpect(jsonPath("$.draftContentType").value("text/plain"))
+                .andExpect(jsonPath("$.draftSizeBytes").value(size))
+                .andReturn();
+        String storageKey = jdbc.queryForObject(
+                "SELECT \"draftFileKey\" FROM learning.\"Submission\" WHERE \"id\" = ?",
+                String.class, submissionId);
+        assertThat(storageKey).isNotBlank();
+        assertThat(read.getResponse().getContentAsString())
+                .doesNotContain(storageKey).doesNotContain("draftFileKey");
+    }
+
+    @Test
+    void submittedWorkReportsTheCurrentDraftState() throws Exception {
+        String assignmentId = publishedAssignmentId();
+        String submissionId = openDraft(assignmentId, studentJwt, "draft-submit-readback");
+        String text = "ban nop cuoi";
+        mvc.perform(put("/api/v1/learning/submissions/" + submissionId + "/draft").with(studentJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"textBody\":\"" + text + "\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/learning/assignments/" + assignmentId + "/submit")
+                        .with(studentJwt).header("Idempotency-Key", "submit-readback"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUBMITTED"))
+                .andExpect(jsonPath("$.draftText").value(text));
+        mvc.perform(get("/api/v1/learning/submissions/" + submissionId).with(studentJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.draftText").value(text));
+
+        returnWork(submissionId);
+        mvc.perform(post("/api/v1/learning/assignments/" + assignmentId + "/resubmit")
+                        .with(studentJwt).header("Idempotency-Key", "resubmit-readback")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"textBody\":\"" + text + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESUBMITTED"))
+                .andExpect(jsonPath("$.draftText").value(text));
+    }
+
+    @Test
+    void classmateCannotReadAnotherStudentsDraft() throws Exception {
+        String assignmentId = publishedAssignmentId();
+        String submissionId = openDraft(assignmentId, studentJwt, "draft-private");
+        String text = "chi minh toi doc duoc";
+        mvc.perform(put("/api/v1/learning/submissions/" + submissionId + "/draft").with(studentJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"textBody\":\"" + text + "\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/v1/learning/submissions/" + submissionId).with(student2Jwt))
+                .andExpect(status().isNotFound());
+        MvcResult list = mvc.perform(
+                        get("/api/v1/learning/sections/sec-a/submissions").with(student2Jwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id=='" + submissionId + "')]").isEmpty())
+                .andReturn();
+        assertThat(list.getResponse().getContentAsString()).doesNotContain(text);
+    }
+
+    @Test
+    void staffSubmissionViewDoesNotExposeTheStudentDraft() throws Exception {
+        String assignmentId = publishedAssignmentId();
+        String submissionId = openDraft(assignmentId, studentJwt, "draft-staff-view");
+        String text = "nhap rieng cua sinh vien";
+        mvc.perform(put("/api/v1/learning/submissions/" + submissionId + "/draft").with(studentJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"textBody\":\"" + text + "\",\"fileName\":\"draft.txt\","
+                                + "\"contentType\":\"text/plain\","
+                                + "\"contentBase64\":\"" + b64("private draft bytes") + "\","
+                                + "\"checksum\":\"" + sha256("private draft bytes") + "\"}"))
+                .andExpect(status().isOk());
+
+        String storageKey = jdbc.queryForObject(
+                "SELECT \"draftFileKey\" FROM learning.\"Submission\" WHERE \"id\" = ?",
+                String.class, submissionId);
+        MvcResult staffView = mvc.perform(
+                        get("/api/v1/learning/staff/submissions/" + submissionId).with(lecturerJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.draftText").isEmpty())
+                .andExpect(jsonPath("$.draftFileName").isEmpty())
+                .andReturn();
+        assertThat(staffView.getResponse().getContentAsString())
+                .doesNotContain(text).doesNotContain(storageKey).doesNotContain("draftFileKey");
+
+        mvc.perform(get("/api/v1/learning/submissions/" + submissionId).with(studentJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.draftText").value(text));
+    }
+
+    // ---------------------------------------------------------------
     // Materials + learning roster read lane
     // ---------------------------------------------------------------
 

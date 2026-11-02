@@ -730,13 +730,27 @@ public class LearningService {
     }
 
     static SubmissionResponse mapSubmission(Map<String, Object> row) {
+        return mapSubmission(row, false);
+    }
+
+    /** Student-facing read: carries the owning student's working-copy draft
+     * columns. Callers must have already proven ownership. */
+    static SubmissionResponse mapStudentSubmission(Map<String, Object> row) {
+        return mapSubmission(row, true);
+    }
+
+    private static SubmissionResponse mapSubmission(Map<String, Object> row, boolean withDraft) {
         return new SubmissionResponse(
                 String.valueOf(row.get("id")), String.valueOf(row.get("assignmentId")),
                 String.valueOf(row.get("studentId")), String.valueOf(row.get("status")),
                 (String) row.get("currentRevisionId"), toInstant(row.get("submittedAt")),
                 toInstant(row.get("returnedAt")), toInstant(row.get("reviewedAt")),
                 ((Number) row.get("version")).intValue(),
-                (String) row.get("student_name"), (String) row.get("student_email"));
+                (String) row.get("student_name"), (String) row.get("student_email"),
+                withDraft ? (String) row.get("draftText") : null,
+                withDraft ? (String) row.get("draftFileName") : null,
+                withDraft ? (String) row.get("draftContentType") : null,
+                withDraft ? toLong(row.get("draftSizeBytes")) : null);
     }
 
     static SubmissionRevisionResponse mapRevision(ResultSet row, int n) throws SQLException {
