@@ -40,6 +40,7 @@ Không thêm: reanimated, gesture-handler, flash-list, expo-image, expo-updates,
 | assistant `retryingStatus` | Đang thử lại cùng yêu cầu… | Retrying the same request… |
 | assistant `busy` | Một câu trả lời đang được xử lý. | An answer is already in progress. |
 | assistant `rateLimited` | Bạn vừa gửi quá nhiều yêu cầu. Hãy thử lại sau {seconds} giây. | Too many requests. Try again in {seconds} seconds. |
+| assistant `rateLimitedOne` | Bạn vừa gửi quá nhiều yêu cầu. Hãy thử lại sau {seconds} giây. | Too many requests. Try again in {seconds} second. |
 | assistant `quotaExceeded` | Bạn đã dùng hết hạn mức trợ lý hôm nay. | You have used today’s assistant allowance. |
 | assistant `streamInvalid` | Không thể đọc đầy đủ câu trả lời. Hãy thử lại. | The answer could not be read completely. Try again. |
 | assistant `sessionExpired` | Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại. | Your session expired. Please sign in again. |
