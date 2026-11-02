@@ -10,7 +10,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -368,23 +367,21 @@ class AcademicAttendanceMutationPersistenceTest {
     }
 
     @Test
-    void campusTodayIsAllowedButCampusTomorrowIsRejected() throws Exception {
-        LocalDate campusToday = Instant.now()
-                .atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
-                .toLocalDate();
-        LocalDate campusTomorrow = campusToday.plusDays(1);
+    void pastCampusDayIsAllowedButFutureCampusDayIsRejected() throws Exception {
+        // Fixed calendar days keep the assertion independent of the wall clock:
+        // the allowed day can never roll into the rejected day mid-test.
+        LocalDate pastDate = LocalDate.of(2026, 8, 25);
+        LocalDate futureDate = LocalDate.of(2999, 12, 31);
 
-        // The boundary is the normalized campus day, not now()+24h: a request
-        // for today must pass while tomorrow must fail at every wall-clock hour.
         mvc.perform(put("/api/v1/attendance/sections/section-1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"date\":\"" + campusToday + "\",\"records\":[{\"studentId\":\"student-1\",\"status\":\"PRESENT\"}]}")
+                        .content("{\"date\":\"" + pastDate + "\",\"records\":[{\"studentId\":\"student-1\",\"status\":\"PRESENT\"}]}")
                         .with(lecturerJwt("lecturer-1")))
                 .andExpect(status().isOk());
 
         mvc.perform(put("/api/v1/attendance/sections/section-1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"date\":\"" + campusTomorrow + "\",\"records\":[{\"studentId\":\"student-2\",\"status\":\"PRESENT\"}]}")
+                        .content("{\"date\":\"" + futureDate + "\",\"records\":[{\"studentId\":\"student-2\",\"status\":\"PRESENT\"}]}")
                         .with(lecturerJwt("lecturer-1")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_ATTENDANCE_DATE"));
