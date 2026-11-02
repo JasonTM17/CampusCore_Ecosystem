@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import org.springframework.context.annotation.Profile;
@@ -118,7 +119,7 @@ public class LibraryStaffController {
     public LoanRequestResponse cancel(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String requestId,
-            @RequestBody(required = false) CancelRequest request) {
+            @Valid @RequestBody(required = false) CancelRequest request) {
         return library.cancelStaff(staff(jwt), requestId,
                 request == null ? null : request.expectedVersion(),
                 request == null ? null : request.reason());
@@ -130,7 +131,7 @@ public class LibraryStaffController {
     @PreAuthorize("isAuthenticated()")
     public TitleResponse createTitle(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestBody CreateTitleRequest request) {
+            @Valid @RequestBody CreateTitleRequest request) {
         return library.createTitle(staff(jwt), request);
     }
 
@@ -149,7 +150,7 @@ public class LibraryStaffController {
     @PreAuthorize("isAuthenticated()")
     public CopyResponse createCopy(
             @AuthenticationPrincipal Jwt jwt,
-            @RequestBody CreateCopyRequest request) {
+            @Valid @RequestBody CreateCopyRequest request) {
         return library.createCopy(staff(jwt), request);
     }
 

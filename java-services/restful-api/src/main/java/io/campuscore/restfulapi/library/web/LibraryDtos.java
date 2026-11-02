@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.library.web;
 
+import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
 
@@ -37,18 +38,18 @@ public final class LibraryDtos {
     }
 
     public record CreateTitleRequest(
-            String title,
-            String author,
-            String isbn,
-            String category,
-            String publisher,
+            @Size(max = 300, message = "title must be at most 300 characters") String title,
+            @Size(max = 300, message = "author must be at most 300 characters") String author,
+            @Size(max = 40, message = "isbn must be at most 40 characters") String isbn,
+            @Size(max = 120, message = "category must be at most 120 characters") String category,
+            @Size(max = 200, message = "publisher must be at most 200 characters") String publisher,
             Integer publishedYear,
             String description) {
     }
 
     public record CreateCopyRequest(
             String titleId,
-            String barcode) {
+            @Size(max = 80, message = "barcode must be at most 80 characters") String barcode) {
     }
 
     // ------------------------------------------------------------------
@@ -89,7 +90,9 @@ public final class LibraryDtos {
     public record IssueRequest(Integer expectedVersion, Integer dueDays) {
     }
 
-    public record CancelRequest(Integer expectedVersion, String reason) {
+    public record CancelRequest(
+            Integer expectedVersion,
+            @Size(max = 300, message = "reason must be at most 300 characters") String reason) {
     }
 
     // ------------------------------------------------------------------

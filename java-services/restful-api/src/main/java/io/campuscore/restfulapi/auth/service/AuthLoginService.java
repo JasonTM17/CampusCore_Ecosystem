@@ -183,7 +183,9 @@ public class AuthLoginService {
     @Transactional(noRollbackFor = BadCredentialsException.class)
     public LoginResult refresh(String refreshTokenValue, String ipAddress, String userAgent) {
         if (refreshTokenValue == null || refreshTokenValue.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Refresh token is required");
+            // A missing credential is the same terminal auth rejection as an
+            // invalid or expired one: clients key session expiry on 401.
+            throw new BadCredentialsException("Invalid refresh token");
         }
 
         Jwt decoded = decodeRefresh(refreshTokenValue);

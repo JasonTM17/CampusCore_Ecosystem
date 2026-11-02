@@ -302,7 +302,7 @@ public class ThesisMutationController {
     @PreAuthorize("hasRole('STUDENT')")
     public ReportResponse submitReportFile(
             @PathVariable UUID id,
-            @RequestPart("file") MultipartFile file,
+            @RequestPart(value = "file", required = false) MultipartFile file,
             @RequestPart(value = "title", required = false) String title,
             @RequestPart(value = "note", required = false) String note,
             @AuthenticationPrincipal Jwt actor) {

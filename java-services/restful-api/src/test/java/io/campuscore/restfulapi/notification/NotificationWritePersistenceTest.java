@@ -52,7 +52,7 @@ class NotificationWritePersistenceTest {
                 CREATE TABLE IF NOT EXISTS notifications.notification (
                     id VARCHAR(120) PRIMARY KEY,
                     user_id VARCHAR(120) NOT NULL,
-                    title VARCHAR(200) NOT NULL,
+                    title VARCHAR(240) NOT NULL,
                     message VARCHAR(2000) NOT NULL,
                     type VARCHAR(40) NOT NULL,
                     link VARCHAR(500),
@@ -201,6 +201,77 @@ class NotificationWritePersistenceTest {
 
         assertThat(totalRows()).isEqualTo(1);
         assertThat(unreadCount(STUDENT)).isEqualTo(1);
+    }
+
+    @Test
+    void adminCreateBoundsPersistedStringsAtTheRequestBoundary() throws Exception {
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody("t".repeat(241), "Message", "/dashboard", STUDENT)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fields.title").value("title must be at most 240 characters"));
+
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody("Title", "m".repeat(2001), "/dashboard", STUDENT)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fields.message").value("message must be at most 2000 characters"));
+
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody("Title", "Message", "/" + "l".repeat(500), STUDENT)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fields.link").value("link must be at most 500 characters"));
+
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody("Title", "Message", "/dashboard", "u".repeat(121))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fields.userId").value("userId must be at most 120 characters"));
+
+        assertThat(totalRows()).isZero();
+    }
+
+    @Test
+    void adminCreateAcceptsStringsAtTheColumnLimit() throws Exception {
+        String title = "t".repeat(240);
+        String message = "m".repeat(2000);
+        String link = "/" + "l".repeat(499);
+
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody(title, message, link, STUDENT)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.title").value(title))
+                .andExpect(jsonPath("$.message").value(message))
+                .andExpect(jsonPath("$.link").value(link));
+
+        assertThat(totalRows()).isEqualTo(1);
+    }
+
+    @Test
+    void adminUpdateBoundsPersistedStringsAtTheRequestBoundary() throws Exception {
+        Instant now = Instant.parse("2026-08-21T01:00:00Z");
+        insert("target", STUDENT, false, now);
+
+        mvc.perform(put("/api/v1/notifications/target")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"" + "t".repeat(241) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fields.title").value("title must be at most 240 characters"));
+
+        assertThat(textValue("target", "title")).isEqualTo("Title target");
     }
 
     @Test
@@ -412,6 +483,11 @@ class NotificationWritePersistenceTest {
 
         assertThat(textValue("target", "title")).isEqualTo("Title target");
         assertThat(textValue("target", "type")).isEqualTo("INFO");
+    }
+
+    private static String createBody(String title, String message, String link, String userId) {
+        return "{\"userId\":\"" + userId + "\",\"title\":\"" + title
+                + "\",\"message\":\"" + message + "\",\"type\":\"INFO\",\"link\":\"" + link + "\"}";
     }
 
     private void insert(String id, String userId, boolean read, Instant createdAt) {

@@ -570,6 +570,79 @@ class LibraryContractPersistenceTest {
     }
 
     @Test
+    void inventoryWritesBoundPersistedStringsBeforeTheDatabase() throws Exception {
+        mvc.perform(post("/api/v1/library/staff/titles").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(titleBody("t".repeat(301), "Author", "isbn", "CS", "Publisher")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fields.title").value("title must be at most 300 characters"));
+        mvc.perform(post("/api/v1/library/staff/titles").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(titleBody("Title", "a".repeat(301), "isbn", "CS", "Publisher")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fields.author").value("author must be at most 300 characters"));
+        mvc.perform(post("/api/v1/library/staff/titles").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(titleBody("Title", "Author", "i".repeat(41), "CS", "Publisher")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.isbn").value("isbn must be at most 40 characters"));
+        mvc.perform(post("/api/v1/library/staff/titles").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(titleBody("Title", "Author", "isbn", "c".repeat(121), "Publisher")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.category").value("category must be at most 120 characters"));
+        mvc.perform(post("/api/v1/library/staff/titles").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(titleBody("Title", "Author", "isbn", "CS", "p".repeat(201))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.publisher").value("publisher must be at most 200 characters"));
+
+        mvc.perform(post("/api/v1/library/staff/copies").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"titleId\":\"title-1\",\"barcode\":\"" + "b".repeat(81) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.barcode").value("barcode must be at most 80 characters"));
+
+        String requestId = requestCopy(borrowerJwt, "copy-3", "lib-bounds-patron-cancel");
+        mvc.perform(post("/api/v1/library/requests/" + requestId + "/cancel")
+                        .with(borrowerJwt).header("Idempotency-Key", "lib-bounds-patron-cancel-2")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":1,\"reason\":\"" + "r".repeat(301) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.reason").value("reason must be at most 300 characters"));
+
+        String staffRequestId = requestCopy(borrower2Jwt, "copy-1", "lib-bounds-staff-cancel");
+        mvc.perform(post("/api/v1/library/staff/requests/" + staffRequestId + "/cancel")
+                        .with(staffJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":1,\"reason\":\"" + "r".repeat(301) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields.reason").value("reason must be at most 300 characters"));
+
+        mvc.perform(post("/api/v1/library/staff/titles").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(titleBody("t".repeat(300), "a".repeat(300), "i".repeat(40),
+                                "c".repeat(120), "p".repeat(200))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.title").value("t".repeat(300)));
+        mvc.perform(post("/api/v1/library/staff/copies").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"titleId\":\"title-1\",\"barcode\":\"" + "b".repeat(80) + "\"}"))
+                .andExpect(status().isCreated());
+        mvc.perform(post("/api/v1/library/requests/" + requestId + "/cancel")
+                        .with(borrowerJwt).header("Idempotency-Key", "lib-bounds-patron-cancel-3")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":1,\"reason\":\"" + "r".repeat(300) + "\"}"))
+                .andExpect(status().isOk());
+    }
+
+    private static String titleBody(String title, String author, String isbn, String category, String publisher) {
+        return "{\"title\":\"" + title + "\",\"author\":\"" + author + "\",\"isbn\":\"" + isbn
+                + "\",\"category\":\"" + category + "\",\"publisher\":\"" + publisher + "\"}";
+    }
+
+    @Test
     void grantsListShowsOnlyTheCallersOwnGrant() throws Exception {
         RequestPostProcessor secondStaff = CurrentAccountJwt.fixtureJwt(jdbc, "staff-2", "STUDENT");
         jdbc.update("INSERT INTO library.\"StaffGrant\" (\"id\", \"userId\", \"scope\", \"grantedBy\")"

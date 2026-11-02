@@ -509,6 +509,13 @@ class AuthLoginPersistenceTest {
         org.junit.jupiter.api.Assertions.assertEquals(sha256(newRefreshToken), storedRefresh);
     }
 
+    @Test
+    void refreshWithoutAnyCredentialIsTheSameUnauthenticatedRejectionAsAnExpiredToken() throws Exception {
+        mvc.perform(post("/api/v1/auth/refresh"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+    }
+
     /**
      * SEC-P1-1: a refresh token that was already rotated (or revoked) and is
      * then replayed is the classic stolen-token signal. The replay must be

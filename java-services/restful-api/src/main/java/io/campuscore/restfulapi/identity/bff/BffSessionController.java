@@ -328,6 +328,7 @@ public class BffSessionController {
             HttpStatus status, String code, String message) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("error", code);
+        body.put("code", code);
         body.put("message", message);
         return ResponseEntity.status(status).body(body);
     }
