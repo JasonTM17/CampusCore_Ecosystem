@@ -95,6 +95,11 @@ export default function LecturerAttendancePage() {
   // the wrong students on Save.
   const sectionsGenerationRef = useRef(0);
   const rosterGenerationRef = useRef(0);
+  // The save completion belongs to the selection it started under; switching
+  // section/date mid-flight must not clear or overwrite the new selection.
+  const saveSelectionRef = useRef(0);
+  const selectionRef = useRef({ sectionId: selectedSectionId, date: selectedDate });
+  selectionRef.current = { sectionId: selectedSectionId, date: selectedDate };
 
   // 1. Fetch semesters
   const fetchSemesters = useCallback(async () => {
@@ -300,19 +305,28 @@ export default function LecturerAttendancePage() {
     }
 
     setIsSaving(true);
+    const saveGeneration = ++saveSelectionRef.current;
+    const savedSectionId = selectedSectionId;
+    const savedDate = selectedDate;
+    const saveIsCurrent = () =>
+      saveSelectionRef.current === saveGeneration
+      && selectionRef.current.sectionId === savedSectionId
+      && selectionRef.current.date === savedDate;
     try {
-      const response = await attendanceApi.saveSectionAttendance(selectedSectionId, {
-        date: selectedDate,
+      const response = await attendanceApi.saveSectionAttendance(savedSectionId, {
+        date: savedDate,
         records,
       });
 
+      if (!saveIsCurrent()) return;
       toast.success(
         attendanceMessages.savedSuccess.replace('{count}', String(response.updatedCount)),
       );
       setResetStudentIds(new Set());
 
       // Refresh section summary after saving
-      const summary = await attendanceApi.getSectionSummary(selectedSectionId).catch(() => null);
+      const summary = await attendanceApi.getSectionSummary(savedSectionId).catch(() => null);
+      if (!saveIsCurrent()) return;
       if (summary) setSectionSummary(summary);
     } catch {
       toast.error(attendanceMessages.saveFailed);
@@ -457,6 +471,7 @@ export default function LecturerAttendancePage() {
               value={selectedSemester}
               onChange={(e) => setSelectedSemester(e.target.value)}
               className="w-full"
+              disabled={isSaving}
             >
               <option value="">{attendanceMessages.allSemesters}</option>
               {semesters.map((s) => (
@@ -477,7 +492,7 @@ export default function LecturerAttendancePage() {
               value={selectedSectionId}
               onChange={(e) => setSelectedSectionId(e.target.value)}
               className="w-full font-medium"
-              disabled={isLoadingSections || sections.length === 0}
+              disabled={isSaving || isLoadingSections || sections.length === 0}
             >
               {sections.length === 0 ? (
                 <option value="">{attendanceMessages.noSectionsTitle}</option>
@@ -502,6 +517,7 @@ export default function LecturerAttendancePage() {
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
               className="w-full"
+              disabled={isSaving}
             />
           </div>
         </div>

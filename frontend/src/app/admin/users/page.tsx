@@ -180,6 +180,8 @@ export default function AdminUsersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const deleteInFlightRef = useRef<string | null>(null);
   const [formError, setFormError] = useState('');
   // One-time office-issued credential shown exactly once after create/reset.
   const [issuedCredential, setIssuedCredential] = useState<{ email: string; secret: string } | null>(null);
@@ -490,6 +492,8 @@ export default function AdminUsersPage() {
   };
 
   const handleDelete = async (userRecord: UserRecord) => {
+    if (deleteInFlightRef.current !== null) return;
+
     if (user && (user.id === userRecord.id || user.email === userRecord.email)) {
       toast.error(copy.cannotDeleteSelf);
       return;
@@ -500,20 +504,22 @@ export default function AdminUsersPage() {
       return;
     }
 
-    const shouldDelete = await confirm({
-      title: copy.deleteTitle,
-      message: copy.deleteMessage
-        .replace('{lastName}', () => userRecord.lastName)
-        .replace('{firstName}', () => userRecord.firstName),
-      confirmText: copy.deleteConfirm,
-      variant: 'destructive',
-    });
-
-    if (!shouldDelete) {
-      return;
-    }
-
+    deleteInFlightRef.current = userRecord.id;
+    setDeletingUserId(userRecord.id);
     try {
+      const shouldDelete = await confirm({
+        title: copy.deleteTitle,
+        message: copy.deleteMessage
+          .replace('{lastName}', () => userRecord.lastName)
+          .replace('{firstName}', () => userRecord.firstName),
+        confirmText: copy.deleteConfirm,
+        variant: 'destructive',
+      });
+
+      if (!shouldDelete) {
+        return;
+      }
+
       await usersApi.delete(userRecord.id);
       toast.success(copy.deleted);
       if (users.length === 1 && page > 1) {
@@ -523,6 +529,9 @@ export default function AdminUsersPage() {
       }
     } catch {
       toast.error(copy.deleteFailed);
+    } finally {
+      deleteInFlightRef.current = null;
+      setDeletingUserId(null);
     }
   };
 
@@ -920,7 +929,8 @@ export default function AdminUsersPage() {
                     {(() => {
                       const isSelf = Boolean(user && (user.id === record.id || user.email === record.email));
                       const isPrivilegedTarget = isRecordPrivileged(record);
-                      const canManageTarget = isSuperAdmin || !isPrivilegedTarget;
+                      const canEditTarget = isSuperAdmin || !isPrivilegedTarget;
+                      const canManageTarget = canEditTarget && deletingUserId === null;
                       return (
                         <>
                           <Button size="sm" variant="outline" onClick={() => openEdit(record)} disabled={!canManageTarget}>
@@ -1012,7 +1022,8 @@ export default function AdminUsersPage() {
                               // can neither edit, reset, nor delete an account
                               // holding an ADMIN, SUPER_ADMIN, or TRUONG_KHOA role.
                               const isPrivilegedTarget = isRecordPrivileged(record);
-                              const canManageTarget = isSuperAdmin || !isPrivilegedTarget;
+                              const canEditTarget = isSuperAdmin || !isPrivilegedTarget;
+                              const canManageTarget = canEditTarget && deletingUserId === null;
                               return (
                                 <>
                                   <Button

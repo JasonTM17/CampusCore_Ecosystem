@@ -150,6 +150,10 @@ export default function AdminEnrollmentsPage() {
     null,
   );
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
+  const [deletingEnrollmentId, setDeletingEnrollmentId] = useState<string | null>(null);
+  const detailRequestRef = useRef(0);
+  const deletingRef = useRef(false);
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const copy = { en: adminAcademicsEn.enrollments, vi: adminAcademicsVi.enrollments }[locale];
@@ -357,30 +361,50 @@ export default function AdminEnrollmentsPage() {
   };
 
   const handleViewDetail = async (enrollment: Enrollment) => {
+    const requestId = ++detailRequestRef.current;
+    const isCurrent = () => requestId === detailRequestRef.current;
+    setDetailLoadingId(enrollment.id);
+    setSelectedEnrollment(null);
+    setIsDetailOpen(true);
     try {
       const fullEnrollment = await enrollmentsApi.getById(enrollment.id);
+      if (!isCurrent()) return;
       setSelectedEnrollment(fullEnrollment);
-      setIsDetailOpen(true);
     } catch {
+      if (!isCurrent()) return;
+      setSelectedEnrollment(null);
+      setIsDetailOpen(false);
       toast.error(copy.detailFailed);
+    } finally {
+      if (isCurrent()) {
+        setDetailLoadingId(null);
+      }
     }
   };
 
+  const closeDetail = () => {
+    detailRequestRef.current += 1;
+    setDetailLoadingId(null);
+    setSelectedEnrollment(null);
+    setIsDetailOpen(false);
+  };
+
   const handleDelete = async (enrollment: Enrollment) => {
-    const learnerLabel = getLearnerLabel(enrollment);
-
-    const shouldDelete = await confirm({
-      title: copy.deleteTitle,
-      message: copy.deleteMessage.replace('{learnerLabel}', () => learnerLabel),
-      confirmText: copy.deleteConfirm,
-      variant: 'destructive',
-    });
-
-    if (!shouldDelete) {
-      return;
-    }
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setDeletingEnrollmentId(enrollment.id);
 
     try {
+      const learnerLabel = getLearnerLabel(enrollment);
+      const shouldDelete = await confirm({
+        title: copy.deleteTitle,
+        message: copy.deleteMessage.replace('{learnerLabel}', () => learnerLabel),
+        confirmText: copy.deleteConfirm,
+        variant: 'destructive',
+      });
+
+      if (!shouldDelete) return;
+
       await enrollmentsApi.delete(enrollment.id);
       toast.success(copy.deleted);
       if (enrollments.length === 1 && page > 1) {
@@ -390,6 +414,9 @@ export default function AdminEnrollmentsPage() {
       }
     } catch {
       toast.error(copy.deleteFailed);
+    } finally {
+      deletingRef.current = false;
+      setDeletingEnrollmentId(null);
     }
   };
 
@@ -583,6 +610,7 @@ export default function AdminEnrollmentsPage() {
                         <button
                           type="button"
                           onClick={() => void handleViewDetail(enrollment)}
+                          disabled={detailLoadingId !== null}
                           className="min-w-0 rounded-md text-left outline-none transition hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                           aria-label={viewStudentLabel(learnerLabel)}
                           title={viewStudentLabel(learnerLabel)}
@@ -649,6 +677,7 @@ export default function AdminEnrollmentsPage() {
                           size="icon"
                           variant="ghost"
                           onClick={() => void handleViewDetail(enrollment)}
+                          disabled={detailLoadingId !== null}
                           aria-label={viewLabel(learnerLabel)}
                           title={viewLabel(learnerLabel)}
                         >
@@ -659,6 +688,7 @@ export default function AdminEnrollmentsPage() {
                           variant="ghost"
                           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => void handleDelete(enrollment)}
+                          disabled={deletingEnrollmentId !== null}
                           aria-label={deleteLabel(learnerLabel)}
                           title={deleteLabel(learnerLabel)}
                         >
@@ -707,6 +737,7 @@ export default function AdminEnrollmentsPage() {
                             <button
                               type="button"
                               onClick={() => void handleViewDetail(enrollment)}
+                              disabled={detailLoadingId !== null}
                               className="space-y-1 rounded-md text-left outline-none transition hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                               aria-label={viewStudentLabel(learnerLabel)}
                               title={viewStudentLabel(learnerLabel)}
@@ -759,6 +790,7 @@ export default function AdminEnrollmentsPage() {
                                 size="icon"
                                 variant="ghost"
                                 onClick={() => void handleViewDetail(enrollment)}
+                                disabled={detailLoadingId !== null}
                                 aria-label={viewLabel(learnerLabel)}
                                 title={viewLabel(learnerLabel)}
                               >
@@ -769,6 +801,7 @@ export default function AdminEnrollmentsPage() {
                                 variant="ghost"
                                 className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                                 onClick={() => void handleDelete(enrollment)}
+                                disabled={deletingEnrollmentId !== null}
                                 aria-label={deleteLabel(learnerLabel)}
                                 title={deleteLabel(learnerLabel)}
                               >
@@ -788,12 +821,14 @@ export default function AdminEnrollmentsPage() {
 
       <Modal
         isOpen={isDetailOpen}
-        onClose={() => setIsDetailOpen(false)}
+        onClose={closeDetail}
         title={copy.detail.title}
         closeLabel={copy.closeDetail}
         className="max-w-2xl"
       >
-        {selectedEnrollment ? (
+        {detailLoadingId !== null ? (
+          <LoadingState label={copy.loading} className="min-h-[150px]" />
+        ) : selectedEnrollment ? (
           <div className="space-y-4">
             <section className="rounded-lg border border-border/70 bg-card p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -942,7 +977,7 @@ export default function AdminEnrollmentsPage() {
             ) : null}
 
             <AdminDialogFooter className="pt-0">
-              <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
+              <Button variant="outline" onClick={closeDetail}>
                 {copy.detail.close}
               </Button>
             </AdminDialogFooter>

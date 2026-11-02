@@ -261,8 +261,10 @@ export default function AdminAnnouncementsPage() {
   const [selected, setSelected] = useState<AnnouncementRecord | null>(null);
   const [draft, setDraft] = useState<AnnouncementDraft>(emptyDraft);
   const [history, setHistory] = useState<AnnouncementHistoryRecord[]>([]);
+  const [historyTotal, setHistoryTotal] = useState<number | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
+  const historyRequestRef = useRef(0);
   const [lifecycle, setLifecycle] = useState<{ item: AnnouncementRecord; action: LifecycleAction } | null>(null);
   const [lifecycleReason, setLifecycleReason] = useState('');
   const [previewRole, setPreviewRole] = useState<AnnouncementRole>('STUDENT');
@@ -511,6 +513,10 @@ export default function AdminAnnouncementsPage() {
       void requestCloseEditor();
       return;
     }
+    if (modal === 'history') {
+      historyRequestRef.current += 1;
+      setHistoryLoading(false);
+    }
     setModal(null);
     setSelected(null);
     setLifecycle(null);
@@ -638,18 +644,27 @@ export default function AdminAnnouncementsPage() {
   };
 
   const openHistory = async (item: AnnouncementRecord) => {
+    const requestId = ++historyRequestRef.current;
+    const isCurrent = () => requestId === historyRequestRef.current;
     setSelected(item);
     setHistory([]);
+    setHistoryTotal(null);
     setHistoryError('');
     setHistoryLoading(true);
     setModal('history');
     try {
       const response = await announcementsApi.history(item.id, { page: 1, limit: 50 });
+      if (!isCurrent()) return;
       setHistory(response.data ?? []);
+      if (!isCurrent()) return;
+      setHistoryTotal(response.meta?.total ?? null);
     } catch (cause) {
+      if (!isCurrent()) return;
       setHistoryError(friendlyError(cause, copy.historyUnavailable));
     } finally {
-      setHistoryLoading(false);
+      if (isCurrent()) {
+        setHistoryLoading(false);
+      }
     }
   };
 
@@ -1253,6 +1268,13 @@ export default function AdminAnnouncementsPage() {
             </div>
             {historyError ? <ErrorState title={copy.historyUnavailable} description={historyError} onRetry={() => void openHistory(selected)} /> : null}
             {historyLoading ? <LoadingState label={copy.history} className="min-h-[150px]" /> : history.length === 0 && !historyError ? <p className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{copy.historyEmpty}</p> : null}
+            {!historyLoading && historyTotal !== null && historyTotal > history.length ? (
+              <p className="text-xs text-muted-foreground">
+                {copy.historyShowing
+                  .replace('{shown}', String(history.length))
+                  .replace('{total}', String(historyTotal))}
+              </p>
+            ) : null}
             {!historyLoading ? (
               <ol className="space-y-4" aria-label={copy.history}>
                 {history.map((entry) => {
