@@ -104,6 +104,14 @@ test('studentPages locale catalogs have matching non-empty values and templates'
   assertCatalogParity(en.studentPages, vi.studentPages);
 });
 
+test('the notifications load-more key resolves in both locales', () => {
+  const { en, vi } = loadMessages();
+  assert.equal(typeof en.studentPages.notifications?.loadMore, 'string');
+  assert.equal(typeof vi.studentPages.notifications?.loadMore, 'string');
+  assert.ok(en.studentPages.notifications.loadMore.trim(), 'English label must not be empty');
+  assert.ok(vi.studentPages.notifications.loadMore.trim(), 'Vietnamese label must not be empty');
+});
+
 test('student page dynamic templates preserve the previous visible output', () => {
   const { en, vi } = loadMessages();
   const date = new Date('2026-11-01T12:00:00.000Z');
