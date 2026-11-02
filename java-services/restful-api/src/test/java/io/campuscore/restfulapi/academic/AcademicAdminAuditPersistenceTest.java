@@ -93,7 +93,8 @@ class AcademicAdminAuditPersistenceTest {
                 "finalGrade" NUMERIC(5,2),
                 "letterGrade" VARCHAR(8),
                 "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                "version" INTEGER NOT NULL DEFAULT 0
             )
         """);
         jdbc.execute("""

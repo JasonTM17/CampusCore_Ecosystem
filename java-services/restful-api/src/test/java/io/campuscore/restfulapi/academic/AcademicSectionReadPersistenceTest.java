@@ -244,6 +244,37 @@ class AcademicSectionReadPersistenceTest {
     }
 
     @Test
+    void gradeSheetExposesPersistedEnrollmentVersionAndTracksChanges() throws Exception {
+        assertThat(enrollmentVersion("enrollment-1")).isZero();
+        mvc.perform(get("/api/v1/sections/section-1/grades").with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enrollments[0].id").value("enrollment-1"))
+                .andExpect(jsonPath("$.enrollments[0].version").value(0));
+
+        // The write path owns the increment; the read must expose whatever the
+        // locked row now carries so a stale editor can be detected.
+        jdbc.update("UPDATE \"academic\".\"Enrollment\" SET \"version\" = \"version\" + 1"
+                + " WHERE \"id\" = 'enrollment-1'");
+        assertThat(enrollmentVersion("enrollment-1")).isEqualTo(1);
+        mvc.perform(get("/api/v1/sections/section-1/grades").with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enrollments[0].version").value(1));
+
+        jdbc.update("UPDATE \"academic\".\"Enrollment\" SET \"version\" = \"version\" + 1"
+                + " WHERE \"id\" = 'enrollment-1'");
+        mvc.perform(get("/api/v1/sections/section-1/grades").with(lecturerJwt("lecturer-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enrollments[0].version").value(2));
+    }
+
+    private Integer enrollmentVersion(String enrollmentId) {
+        return jdbc.queryForObject(
+                "SELECT \"version\" FROM \"academic\".\"Enrollment\" WHERE \"id\" = ?",
+                Integer.class,
+                enrollmentId);
+    }
+
+    @Test
     void sectionReadBoundaryFailsClosedForAnonymousRolesMissingClaimsAndBadQueries() throws Exception {
         mvc.perform(get("/api/v1/sections/my/schedule"))
                 .andExpect(status().isUnauthorized())
@@ -518,6 +549,8 @@ class AcademicSectionReadPersistenceTest {
                     "gradeStatus" VARCHAR(40) NOT NULL,
                     "finalGrade" DECIMAL(5, 2),
                     "letterGrade" VARCHAR(10),
+                    "creditsSnapshot" INTEGER NOT NULL DEFAULT 0,
+                    "version" INTEGER NOT NULL DEFAULT 0,
                     "createdAt" TIMESTAMP NOT NULL,
                     "updatedAt" TIMESTAMP NOT NULL
                 )
