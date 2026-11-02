@@ -32,7 +32,8 @@ against the `java-services/restful-api` and `frontend` source code.
 | `http_server_requests_seconds_*` | `pom.xml`, `GET /actuator/prometheus` (`X-Metrics-Key`) | **VERIFIED_IN_CODE** | Standard Spring Boot HTTP request timer exported via `micrometer-registry-prometheus`. |
 | `hikaricp_connections_*` | `pom.xml`, `GET /actuator/prometheus` (`X-Metrics-Key`) | **VERIFIED_IN_CODE** | HikariCP connection pool metrics exported via Prometheus registry. |
 | `campuscore_assistant_requests_total` | `java-services/restful-api/.../config/MetricsConfiguration.java:86` | **VERIFIED_IN_CODE** | Custom Micrometer counter; the only exported tag is `{degraded="true|false"}` (`reason_code` is intentionally not exported). |
-| `campuscore_assistant_quota_consumed_daily` | `java-services/restful-api/.../config/MetricsConfiguration.java:93` | **VERIFIED_IN_CODE** | Gauge for committed user & global daily quota tracking. |
+| `campuscore_assistant_quota_consumed_daily` | `java-services/restful-api/.../config/MetricsConfiguration.java:93` | **VERIFIED_IN_CODE** | Gauge for the committed GLOBAL daily quota bucket. |
+| `campuscore_assistant_quota_limit_daily` | [`MetricsConfiguration.java`](../../java-services/restful-api/src/main/java/io/campuscore/restfulapi/config/MetricsConfiguration.java) | **VERIFIED_IN_CODE** | Gauge for the configured `AssistantProperties.globalDailyQuota`; used by the quota alert ratio. |
 | `campuscore_assistant_turn_stale_recovered_total` | `java-services/restful-api/.../config/MetricsConfiguration.java:88` | **VERIFIED_IN_CODE** | Counter incremented on recovery sweep of expired `RESERVED`/`DISPATCHED` leases. |
 | `campuscore_assistant_rls_verified` | `java-services/restful-api/.../config/MetricsConfiguration.java:89` | **VERIFIED_IN_CODE** | Gauge tracking verified (1) vs degraded (0) Assistant RLS database state. |
 
@@ -84,7 +85,7 @@ same `instance` value. The alert rules do not depend on custom `endpoint` or
 ### 3. `alerts-assistant.yml`
 Monitors AI campus assistant service health, provider availability, and quotas:
 - **Degraded Response Rate**: > 20% of turns served as degraded lexical fallback over 10m (`AssistantHighDegradedRate`)
-- **Quota Exhaustion**: Global daily synthesis attempts reach >= 90% (180/200) (`AssistantGlobalQuotaExhaustionRisk`)
+- **Quota Exhaustion**: Global daily synthesis attempts exceed 90% of the configured limit (`AssistantGlobalQuotaExhaustionRisk`)
 - **RLS Degraded**: Assistant database RLS state degraded (`AssistantRlsStateDegraded` — causes 503 on chat)
 - **Turn Recovery Surge**: Expired turn leases recovered > 5 in 10m (`AssistantStaleLeaseRecoverySurge`)
 
