@@ -33,6 +33,15 @@ test('omitting the overlay preserves the existing compose file and defaults', ()
   ]);
 });
 
+test('regeneration is opt-in and limited to the probe command', () => {
+  assert.equal(parseArgs(argv('--project', 'campuscore-contract-test'), fixture).regenerate, false);
+  assert.equal(parseArgs(argv('--regenerate'), fixture).regenerate, true);
+  assert.throws(
+    () => parseArgs(['node', 'contract-verify.mjs', 'pgit-real', '--regenerate'], fixture),
+    /only supported by contract-probes/,
+  );
+});
+
 test('a valid repo-relative overlay is appended after the base compose file', () => {
   const parsed = parseArgs(argv('--compose-overlay', 'overlay.yml'), fixture);
   assert.equal(parsed.composeOverlay, path.join(fixture, 'overlay.yml'));
