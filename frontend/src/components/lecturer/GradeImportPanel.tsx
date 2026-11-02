@@ -77,11 +77,11 @@ export function GradeImportPanel({
               : 'Each row is: student code (or email), process score, final score — separated by tab, semicolon or comma. Copy a range from Excel/Google Sheets into a CSV file; .xlsx files are not read directly.'}
           </p>
 
-          <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-foreground">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg text-xs font-semibold text-foreground focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background">
             <input
               type="file"
               accept=".csv,text/csv,.txt,text/plain"
-              className="hidden"
+              className="sr-only"
               onChange={(event) => onFile(event.target.files?.[0] ?? null)}
               disabled={disabled}
               ref={fileRef}

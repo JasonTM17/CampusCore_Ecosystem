@@ -36,12 +36,26 @@ type AnnouncementRow = {
   title: string;
 };
 
+function mergeSavedAppearanceMetadata(current: SiteAppearance, saved: SiteAppearance): SiteAppearance {
+  return {
+    ...current,
+    version: saved.version,
+    updatedAt: saved.updatedAt,
+  };
+}
+
 export default function AdminAppearancePage() {
   const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { href, locale, messages } = useI18n();
   const router = useRouter();
   const copy = messages.admin.appearance;
   const [draft, setDraft] = useState<SiteAppearance>(DEFAULT_SITE_APPEARANCE);
+  const draftRef = useRef<SiteAppearance>(DEFAULT_SITE_APPEARANCE);
+  const updateDraft = useCallback((next: SiteAppearance | ((current: SiteAppearance) => SiteAppearance)) => {
+    const value = typeof next === 'function' ? next(draftRef.current) : next;
+    draftRef.current = value;
+    setDraft(value);
+  }, []);
   const [copyLocale, setCopyLocale] = useState<'en' | 'vi'>(locale);
   const copyLocaleTabs = useRovingTabs(['en', 'vi'], copyLocale, setCopyLocale);
   const [posts, setPosts] = useState<AnnouncementRow[]>([]);
@@ -110,13 +124,13 @@ export default function AdminAppearancePage() {
       // an explicit save (persist/reorder).
       setPosts(rows);
       setPostsLoadFailed(postsFailed);
-      setDraft(sanitizeSiteAppearance(appearance));
+      updateDraft(sanitizeSiteAppearance(appearance));
     } catch {
       setError(copy.loadFailed);
     } finally {
       setIsLoading(false);
     }
-  }, [copy.loadFailed, fetchAllAnnouncementRows]);
+  }, [copy.loadFailed, fetchAllAnnouncementRows, updateDraft]);
 
   useEffect(() => {
     if (canAccess) {
@@ -124,36 +138,51 @@ export default function AdminAppearancePage() {
     }
   }, [canAccess, load]);
 
-  const persistSeq = useRef(0);
+  const pendingAppearanceSaveRef = useRef<SiteAppearance | null>(null);
+  const appearanceSaveInFlightRef = useRef(false);
   const persist = useCallback(async (next: SiteAppearance) => {
-    const seq = persistSeq.current + 1;
-    persistSeq.current = seq;
+    pendingAppearanceSaveRef.current = next;
+    if (appearanceSaveInFlightRef.current) return;
+
+    appearanceSaveInFlightRef.current = true;
     setIsSaving(true);
     try {
-      const saved = await saveSiteAppearance(next);
-      if (seq !== persistSeq.current) {
-        return;
-      }
-      setDraft(saved);
-      broadcastSiteAppearance(saved);
-      setSavedLocally(saved.persisted === false);
-      if (saved.persisted === false) {
-        // The API row is the only store that survives a redeploy; say so
-        // instead of letting the admin believe the whole portal was updated.
-        toast.warning(copy.saveNotDurable);
-      }
-    } catch {
-      setSavedLocally(false);
-      toast.error(copy.saveFailed);
-      if (seq === persistSeq.current) {
-        void load();
+      while (pendingAppearanceSaveRef.current) {
+        const snapshot = pendingAppearanceSaveRef.current;
+        pendingAppearanceSaveRef.current = null;
+        try {
+          const saved = await saveSiteAppearance(snapshot);
+          const current = mergeSavedAppearanceMetadata(draftRef.current, saved);
+          updateDraft(current);
+
+          if (pendingAppearanceSaveRef.current) {
+            pendingAppearanceSaveRef.current = mergeSavedAppearanceMetadata(
+              pendingAppearanceSaveRef.current,
+              saved,
+            );
+          } else {
+            broadcastSiteAppearance(current);
+            setSavedLocally(saved.persisted === false);
+            if (saved.persisted === false) {
+              // The API row is the only store that survives a redeploy; say so
+              // instead of letting the admin believe the whole portal was updated.
+              toast.warning(copy.saveNotDurable);
+            }
+          }
+        } catch {
+          if (pendingAppearanceSaveRef.current) {
+            continue;
+          }
+          setSavedLocally(false);
+          toast.error(copy.saveFailed);
+          break;
+        }
       }
     } finally {
-      if (seq === persistSeq.current) {
-        setIsSaving(false);
-      }
+      appearanceSaveInFlightRef.current = false;
+      setIsSaving(false);
     }
-  }, [copy.saveFailed, copy.saveNotDurable, load]);
+  }, [copy.saveFailed, copy.saveNotDurable, updateDraft]);
 
   const orderedPosts = useMemo(() => {
     const rank = new Map(draft.postOrder.map((id, index) => [id, index]));
@@ -172,11 +201,11 @@ export default function AdminAppearancePage() {
         // straight to postOrder would unpin every post beyond that window.
         postOrder: applyPageOrder(draft.postOrder, newKeys),
       };
-      setDraft(next);
+      updateDraft(next);
       broadcastSiteAppearance(next);
       void persist(next);
     },
-    [draft, persist],
+    [draft, persist, updateDraft],
   );
 
   const preview = draft.hero[locale];
@@ -253,7 +282,7 @@ export default function AdminAppearancePage() {
                 <Input
                   value={draft.hero[copyLocale].eyebrow}
                   onChange={(event) => {
-                    setDraft((current) => ({
+                    updateDraft((current) => ({
                       ...current,
                       hero: {
                         ...current.hero,
@@ -275,7 +304,7 @@ export default function AdminAppearancePage() {
                         },
                       },
                     };
-                    setDraft(next);
+                    updateDraft(next);
                     void persist(next);
                   }}
                 />
@@ -285,7 +314,7 @@ export default function AdminAppearancePage() {
                 <Input
                   value={draft.hero[copyLocale].title}
                   onChange={(event) => {
-                    setDraft((current) => ({
+                    updateDraft((current) => ({
                       ...current,
                       hero: {
                         ...current.hero,
@@ -307,7 +336,7 @@ export default function AdminAppearancePage() {
                         },
                       },
                     };
-                    setDraft(next);
+                    updateDraft(next);
                     void persist(next);
                   }}
                 />
@@ -318,7 +347,7 @@ export default function AdminAppearancePage() {
                   value={draft.hero.image}
                   placeholder="/hero-campus.jpg"
                   onChange={(event) => {
-                    setDraft((current) => ({
+                    updateDraft((current) => ({
                       ...current,
                       hero: { ...current.hero, image: event.target.value },
                     }));
@@ -328,7 +357,7 @@ export default function AdminAppearancePage() {
                       ...draft,
                       hero: { ...draft.hero, image: event.target.value },
                     };
-                    setDraft(next);
+                    updateDraft(next);
                     void persist(next);
                   }}
                 />
@@ -339,7 +368,7 @@ export default function AdminAppearancePage() {
                 <Textarea
                   value={draft.hero[copyLocale].description}
                   onChange={(event) => {
-                    setDraft((current) => ({
+                    updateDraft((current) => ({
                       ...current,
                       hero: {
                         ...current.hero,
@@ -361,7 +390,7 @@ export default function AdminAppearancePage() {
                         },
                       },
                     };
-                    setDraft(next);
+                    updateDraft(next);
                     void persist(next);
                   }}
                 />
@@ -375,9 +404,10 @@ export default function AdminAppearancePage() {
                   <button
                     key={accent}
                     type="button"
+                    disabled={isSaving}
                     onClick={() => {
                       const next = { ...draft, accent };
-                      setDraft(next);
+                      updateDraft(next);
                       broadcastSiteAppearance(next);
                       void persist(next);
                     }}
@@ -419,6 +449,7 @@ export default function AdminAppearancePage() {
                 <SortableList
                   tag="ol"
                   items={orderedPosts}
+                  disabled={isSaving}
                   keyExtractor={(post) => post.id}
                   onOrderChange={handleSortableReorder}
                   className="min-w-0 divide-y divide-border border-y border-border"
@@ -442,13 +473,13 @@ export default function AdminAppearancePage() {
                           variant="outline"
                           size="sm"
                           aria-label={copy.moveUp}
-                          disabled={index === 0}
+                          disabled={isSaving || index === 0}
                           onClick={() => {
                             const next = {
                               ...draft,
                               postOrder: movePostOrder(draft.postOrder, post.id, -1),
                             };
-                            setDraft(next);
+                            updateDraft(next);
                             broadcastSiteAppearance(next);
                             void persist(next);
                           }}
@@ -460,13 +491,13 @@ export default function AdminAppearancePage() {
                           variant="outline"
                           size="sm"
                           aria-label={copy.moveDown}
-                          disabled={index === orderedPosts.length - 1}
+                          disabled={isSaving || index === orderedPosts.length - 1}
                           onClick={() => {
                             const next = {
                               ...draft,
                               postOrder: movePostOrder(draft.postOrder, post.id, 1),
                             };
-                            setDraft(next);
+                            updateDraft(next);
                             broadcastSiteAppearance(next);
                             void persist(next);
                           }}

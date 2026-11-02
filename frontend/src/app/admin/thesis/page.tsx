@@ -111,6 +111,7 @@ export default function AdminThesisPage() {
   const expandedRoundRef = useRef<string | null>(null);
   const detailRequestRef = useRef(0);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [councilRefreshError, setCouncilRefreshError] = useState('');
 
   // Create round form state
   const [formName, setFormName] = useState('');
@@ -123,6 +124,7 @@ export default function AdminThesisPage() {
   const [formGvpb, setFormGvpb] = useState('');
   const [formReportDate, setFormReportDate] = useState('');
   const [formDefenseDate, setFormDefenseDate] = useState('');
+  const [roundFormError, setRoundFormError] = useState('');
 
   // Council management state
   const [councils, setCouncils] = useState<ThesisCouncil[]>([]);
@@ -193,6 +195,7 @@ export default function AdminThesisPage() {
     setTopics([]);
     setGroups([]);
     setCouncils([]);
+    setCouncilRefreshError('');
     setError('');
     try {
       // Draft proposals are exactly what a DRAFT/PROPOSAL_OPEN round holds, so
@@ -209,7 +212,10 @@ export default function AdminThesisPage() {
       for (const topic of [...published, ...drafts]) byId.set(topic.id, topic);
       setTopics(Array.from(byId.values()));
       setGroups(g);
-      if (expandedRoundRef.current === roundId) setCouncils(c);
+      if (expandedRoundRef.current === roundId) {
+        setCouncils(c);
+        setCouncilRefreshError('');
+      }
       if (lecturers.length === 0) {
         await loadLecturers();
       }
@@ -241,23 +247,43 @@ export default function AdminThesisPage() {
   const transitionErrorMessage = (err: unknown): string =>
     campusCodeMessage(err, messages.common.campusErrors, messages.thesis.actionFailed);
 
+  /**
+   * The mutation and the follow-up list read are separate operations: a
+   * failed refresh must never turn a completed create/edit into a visible
+   * failure, so it reports its own retryable state instead.
+   */
+  const refreshCouncils = async (roundId: string) => {
+    try {
+      const c = await thesisApi.listCouncils(roundId);
+      if (expandedRoundRef.current === roundId) {
+        setCouncils(c);
+        setCouncilRefreshError('');
+      }
+    } catch {
+      if (expandedRoundRef.current === roundId) {
+        setCouncilRefreshError(messages.thesis.loadFailed);
+      }
+    }
+  };
+
   const handleCreateCouncil = async (roundId: string) => {
     if (!councilNameInput.trim()) return;
     setIsSaving(true);
     setError('');
     setSuccess('');
+    setCouncilRefreshError('');
     try {
       await thesisApi.createCouncil(roundId, councilNameInput.trim());
       setSuccess(messages.thesis.councils.councilCreatedSuccess);
       setCouncilNameInput('');
       setShowCreateCouncilModal(false);
-      const c = await thesisApi.listCouncils(roundId);
-      if (expandedRoundRef.current === roundId) setCouncils(c);
     } catch (err: unknown) {
       setError(transitionErrorMessage(err));
+      return;
     } finally {
       setIsSaving(false);
     }
+    await refreshCouncils(roundId);
   };
 
   const handleAddMember = async (councilId: string, roundId: string) => {
@@ -273,18 +299,19 @@ export default function AdminThesisPage() {
     setIsSaving(true);
     setError('');
     setSuccess('');
+    setCouncilRefreshError('');
     try {
       await thesisApi.addCouncilMember(councilId, selectedLecturerId, nextRole);
       setSuccess(messages.thesis.councils.memberAddedSuccess);
       setSelectedLecturerId('');
       setShowAddMemberModal(false);
-      const c = await thesisApi.listCouncils(roundId);
-      if (expandedRoundRef.current === roundId) setCouncils(c);
     } catch (err: unknown) {
       setError(transitionErrorMessage(err));
+      return;
     } finally {
       setIsSaving(false);
     }
+    await refreshCouncils(roundId);
   };
 
   const handleRemoveMember = async (councilId: string, lecturerId: string, roundId: string) => {
@@ -299,16 +326,17 @@ export default function AdminThesisPage() {
     setIsSaving(true);
     setError('');
     setSuccess('');
+    setCouncilRefreshError('');
     try {
       await thesisApi.removeCouncilMember(councilId, lecturerId);
       setSuccess(messages.thesis.councils.memberRemovedSuccess);
-      const c = await thesisApi.listCouncils(roundId);
-      if (expandedRoundRef.current === roundId) setCouncils(c);
     } catch (err: unknown) {
       setError(transitionErrorMessage(err));
+      return;
     } finally {
       setIsSaving(false);
     }
+    await refreshCouncils(roundId);
   };
 
   const handleAssignTopic = async (councilId: string, roundId: string) => {
@@ -316,18 +344,19 @@ export default function AdminThesisPage() {
     setIsSaving(true);
     setError('');
     setSuccess('');
+    setCouncilRefreshError('');
     try {
       await thesisApi.assignTopicToCouncil(councilId, selectedTopicIdToAssign);
       setSuccess(messages.thesis.councils.assignSuccess);
       setSelectedTopicIdToAssign('');
       setShowAssignTopicModal(false);
-      const c = await thesisApi.listCouncils(roundId);
-      if (expandedRoundRef.current === roundId) setCouncils(c);
     } catch (assignErr) {
       setError(campusCodeMessage(assignErr, messages.common.campusErrors, messages.thesis.actionFailed));
+      return;
     } finally {
       setIsSaving(false);
     }
+    await refreshCouncils(roundId);
   };
 
   const toggleExpand = (roundId: string) => {
@@ -355,12 +384,13 @@ export default function AdminThesisPage() {
     if (!formName || !formStart || !formEnd || !formLecturerStart || !formLecturerEnd
         || (needsGvpb && (!formGvpb || !formReportDate))
         || (needsDefense && !formDefenseDate)) {
-      setError(messages.thesis.admin.createIncomplete);
+      setRoundFormError(messages.thesis.admin.createIncomplete);
       return;
     }
     setIsSaving(true);
     setError('');
     setSuccess('');
+    setRoundFormError('');
     try {
       await thesisApi.createRound({
         name: formName,
@@ -382,6 +412,7 @@ export default function AdminThesisPage() {
       });
       setSuccess(messages.thesis.admin.created);
       setShowCreateModal(false);
+      setRoundFormError('');
       setFormName('');
       setFormStart('');
       setFormEnd('');
@@ -393,7 +424,7 @@ export default function AdminThesisPage() {
       setFormDefenseDate('');
       await loadData();
     } catch {
-      setError(messages.thesis.actionFailed);
+      setRoundFormError(messages.thesis.actionFailed);
     } finally {
       setIsSaving(false);
     }
@@ -519,6 +550,7 @@ export default function AdminThesisPage() {
   /** The edit modal reuses the create-form state; opening it loads the round. */
   const openEditRoundModal = (round: ThesisRound) => {
     setEditingRoundId(round.id);
+    setRoundFormError('');
     setFormName(round.name);
     setFormType(round.thesisType || 'MON_HOC');
     setFormStart(toLocalInput(round.registrationStart));
@@ -537,12 +569,13 @@ export default function AdminThesisPage() {
     if (!formName || !formStart || !formEnd || !formLecturerStart || !formLecturerEnd
         || (needsGvpb && (!formGvpb || !formReportDate))
         || (needsDefense && !formDefenseDate)) {
-      setError(messages.thesis.admin.createIncomplete);
+      setRoundFormError(messages.thesis.admin.createIncomplete);
       return;
     }
     setIsSaving(true);
     setError('');
     setSuccess('');
+    setRoundFormError('');
     try {
       await thesisApi.updateRound(editingRoundId, {
         name: formName,
@@ -558,13 +591,14 @@ export default function AdminThesisPage() {
       });
       setSuccess(messages.thesis.admin.editRoundSuccess);
       setShowEditRoundModal(false);
+      setRoundFormError('');
       setEditingRoundId('');
       await loadData();
       if (expandedRoundId === editingRoundId) {
         await loadRoundDetail(editingRoundId);
       }
     } catch (err: unknown) {
-      setError(transitionErrorMessage(err));
+      setRoundFormError(transitionErrorMessage(err));
     } finally {
       setIsSaving(false);
     }
@@ -680,7 +714,7 @@ export default function AdminThesisPage() {
       title={messages.thesis.admin.title}
       description={messages.thesis.admin.description}
       actions={
-        <Button type="button" onClick={() => setShowCreateModal(true)} disabled={!canAccess}>
+        <Button type="button" onClick={() => { setRoundFormError(''); setShowCreateModal(true); }} disabled={!canAccess}>
           <Plus className="mr-2 h-4 w-4" />
           {messages.thesis.admin.createRound}
         </Button>
@@ -905,13 +939,35 @@ export default function AdminThesisPage() {
                               setTargetRoundIdForCouncil(round.id);
                               setShowCreateCouncilModal(true);
                             }}
+                            disabled={detailLoading || Boolean(loadError)}
                           >
                             <Plus className="mr-1.5 h-3.5 w-3.5" />
                             {messages.thesis.councils.createCouncil}
                           </Button>
                         </div>
 
-                        {councils.length === 0 ? (
+                        {councilRefreshError ? (
+                          <div
+                            role="alert"
+                            className="mb-4 flex items-center justify-between gap-3 rounded-md border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-xs text-status-warning-foreground"
+                          >
+                            <span>{councilRefreshError}</span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => void refreshCouncils(round.id)}
+                            >
+                              {messages.common.actions.retry}
+                            </Button>
+                          </div>
+                        ) : null}
+
+                        {detailLoading ? (
+                          <p role="status" className="rounded-xl border border-dashed border-border/80 bg-card/50 p-6 text-center text-sm text-muted-foreground">
+                            {messages.common.states.loading}
+                          </p>
+                        ) : loadError ? null : councils.length === 0 ? (
                           <div className="rounded-xl border border-dashed border-border/80 p-6 text-center text-sm text-muted-foreground bg-card/50">
                             {messages.thesis.councils.noCouncils}
                           </div>
@@ -1161,6 +1217,11 @@ export default function AdminThesisPage() {
         title={messages.thesis.admin.createRound}
       >
         <div className="space-y-4">
+          {roundFormError ? (
+            <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              {roundFormError}
+            </div>
+          ) : null}
           <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
             {messages.thesis.admin.roundName}
             <Input placeholder={messages.thesis.admin.roundNamePlaceholder} value={formName} onChange={(e) => setFormName(e.target.value)} />
@@ -1364,6 +1425,11 @@ export default function AdminThesisPage() {
         title={messages.thesis.admin.editRoundTitle}
       >
         <div className="space-y-4">
+          {roundFormError ? (
+            <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              {roundFormError}
+            </div>
+          ) : null}
           <label className="flex flex-col gap-2 text-sm font-medium text-foreground">
             {messages.thesis.admin.roundName}
             <Input placeholder={messages.thesis.admin.roundNamePlaceholder} value={formName} onChange={(e) => setFormName(e.target.value)} />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Building2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -48,6 +48,13 @@ interface Department {
   isActive: boolean;
 }
 
+function departmentOverviewCounts(totalItems: number | null, departments: Department[]) {
+  return {
+    unitCount: totalItems,
+    activeOnPageCount: departments.filter((department) => department.isActive).length,
+  };
+}
+
 export default function AdminDepartmentsPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { href, locale, messages } = useI18n();
@@ -60,11 +67,14 @@ export default function AdminDepartmentsPage() {
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(
     null,
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingDepartmentId, setDeletingDepartmentId] = useState<string | null>(null);
+  const deletingRef = useRef(false);
   const [formData, setFormData] = useState({
     nameEn: '',
     nameVi: '',
@@ -73,6 +83,7 @@ export default function AdminDepartmentsPage() {
     descriptionVi: '',
   });
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
+  const overviewCounts = departmentOverviewCounts(totalItems, departments);
   const { confirm, confirmationDialog } = useConfirmationDialog();
   const editLabel = (name: string) =>
     copy.editLabel.replace('{name}', () => name);
@@ -105,6 +116,7 @@ export default function AdminDepartmentsPage() {
       const response = await departmentsApi.getAll(query);
 
       setDepartments(response.data || []);
+      setTotalItems(response.meta?.total ?? null);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
       setError(copy.loadFailed);
@@ -193,23 +205,25 @@ export default function AdminDepartmentsPage() {
   };
 
   const handleDelete = async (department: Department) => {
-    const departmentLabel = getLocalizedName(
-      locale,
-      department,
-      department.name,
-    );
-    const shouldDelete = await confirm({
-      title: copy.deleteTitle,
-      message: copy.deleteMessage.replace('{name}', () => departmentLabel),
-      confirmText: copy.deleteConfirm,
-      variant: 'destructive',
-    });
-
-    if (!shouldDelete) {
-      return;
-    }
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setDeletingDepartmentId(department.id);
 
     try {
+      const departmentLabel = getLocalizedName(
+        locale,
+        department,
+        department.name,
+      );
+      const shouldDelete = await confirm({
+        title: copy.deleteTitle,
+        message: copy.deleteMessage.replace('{name}', () => departmentLabel),
+        confirmText: copy.deleteConfirm,
+        variant: 'destructive',
+      });
+
+      if (!shouldDelete) return;
+
       await departmentsApi.delete(department.id);
       toast.success(copy.deleted);
       if (departments.length === 1 && page > 1) {
@@ -219,6 +233,9 @@ export default function AdminDepartmentsPage() {
       }
     } catch {
       toast.error(copy.deleteFailed);
+    } finally {
+      deletingRef.current = false;
+      setDeletingDepartmentId(null);
     }
   };
 
@@ -285,14 +302,14 @@ export default function AdminDepartmentsPage() {
               </p>
               <div className="flex flex-wrap items-center gap-4 pt-2 text-xs font-medium text-muted-foreground">
                 <div className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-card/80 px-3 py-1.5 shadow-2xs">
-                  <span className="font-bold text-foreground text-sm">{departments.length}</span>
+                  <span className="font-bold text-foreground text-sm">{overviewCounts.unitCount ?? '—'}</span>
                   <span>{copy.banner.unitsLabel}</span>
                 </div>
                 <div className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-card/80 px-3 py-1.5 shadow-2xs">
                   <span className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                    {departments.filter((d) => d.isActive).length}
+                    {overviewCounts.activeOnPageCount}
                   </span>
-                  <span>{copy.active}</span>
+                  <span>{copy.banner.activeOnPage}</span>
                 </div>
                 <div className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-card/80 px-3 py-1.5 shadow-2xs">
                   <span className="font-bold text-primary text-sm">100%</span>
@@ -420,6 +437,7 @@ export default function AdminDepartmentsPage() {
                           variant="ghost"
                           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => void handleDelete(department)}
+                          disabled={deletingDepartmentId !== null}
                           aria-label={deleteLabel(departmentLabel)}
                           title={deleteLabel(departmentLabel)}
                         >
@@ -494,6 +512,7 @@ export default function AdminDepartmentsPage() {
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => void handleDelete(department)}
+                              disabled={deletingDepartmentId !== null}
                               aria-label={deleteLabel(departmentLabel)}
                               title={deleteLabel(departmentLabel)}
                             >

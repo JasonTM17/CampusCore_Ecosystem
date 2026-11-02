@@ -152,6 +152,7 @@ export default function AdminSectionsPage() {
     lecturerId: '',
   });
   const [schedules, setSchedules] = useState<ScheduleEntry[]>([]);
+  const scheduleLoadRequestRef = useRef(0);
   // A failed schedule read must never read as "no schedules added yet": this
   // flag keeps an outage distinguishable from a schedule-free section.
   const [schedulesError, setSchedulesError] = useState('');
@@ -334,6 +335,7 @@ export default function AdminSectionsPage() {
   }
 
   const resetForm = () => {
+    scheduleLoadRequestRef.current += 1;
     setEditingSection(null);
     setFormData({
       courseId: '',
@@ -356,10 +358,14 @@ export default function AdminSectionsPage() {
   // The modal must never claim a section is schedule-free just because the
   // schedule read failed: a failed load is surfaced with a retry instead.
   const loadSectionSchedules = async (section: Section) => {
+    const requestId = ++scheduleLoadRequestRef.current;
+    const isCurrent = () => requestId === scheduleLoadRequestRef.current;
     setSchedulesError('');
     setSchedulesLoaded(false);
+    setSchedules([]);
     try {
       const fullSection = await adminSectionsApi.getById(section.id);
+      if (!isCurrent()) return;
       setSchedules(
         (fullSection.schedules || []).map((schedule) => ({
           rowId: schedule.id || createScheduleRowId(),
@@ -369,14 +375,17 @@ export default function AdminSectionsPage() {
           classroomId: schedule.classroom?.id || '',
         })),
       );
+      if (!isCurrent()) return;
       setSchedulesLoaded(true);
     } catch {
+      if (!isCurrent()) return;
       setSchedules([]);
+      if (!isCurrent()) return;
       setSchedulesError(copy.schedulesLoadFailed);
     }
   };
 
-  const openEdit = async (section: Section) => {
+  const openEdit = (section: Section) => {
     setEditingSection(section);
     setFormData({
       courseId: section.courseId,
@@ -387,9 +396,8 @@ export default function AdminSectionsPage() {
       lecturerId: section.lecturerId || '',
     });
 
-    await loadSectionSchedules(section);
-
     setIsModalOpen(true);
+    void loadSectionSchedules(section);
   };
 
   const closeModal = () => {
@@ -503,7 +511,7 @@ export default function AdminSectionsPage() {
       title={copy.title}
       description={copy.description}
       actions={
-        <Button onClick={openCreate}>
+        <Button onClick={openCreate} disabled={!schedulesLoaded}>
           <Plus className="mr-2 h-4 w-4" />
           {copy.create}
         </Button>
@@ -563,7 +571,7 @@ export default function AdminSectionsPage() {
             icon={ClipboardList}
             title={copy.emptyTitle}
             description={copy.emptyDescription}
-            action={<Button onClick={openCreate}>{copy.create}</Button>}
+            action={<Button onClick={openCreate} disabled={!schedulesLoaded}>{copy.create}</Button>}
           />
         ) : (
           <AdminTableCard
@@ -684,7 +692,8 @@ export default function AdminSectionsPage() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={() => void openEdit(section)}
+                          onClick={() => openEdit(section)}
+                          disabled={!schedulesLoaded}
                           aria-label={formatSectionLabel(copy.editLabel,
                             section.sectionNumber,
                             section.course?.code || copy.unknownCourse,
@@ -811,7 +820,8 @@ export default function AdminSectionsPage() {
                             <Button
                               size="icon"
                               variant="ghost"
-                              onClick={() => void openEdit(section)}
+                              onClick={() => openEdit(section)}
+                              disabled={!schedulesLoaded}
                               aria-label={formatSectionLabel(copy.editLabel,
                                 section.sectionNumber,
                                 section.course?.code || copy.unknownCourse,
@@ -956,7 +966,9 @@ export default function AdminSectionsPage() {
               </Button>
             </div>
 
-            {schedulesError ? (
+            {!schedulesLoaded && !schedulesError ? (
+              <LoadingState label={copy.schedulesTitle} />
+            ) : schedulesError ? (
               <ErrorState
                 title={copy.schedulesTitle}
                 description={schedulesError}
@@ -1029,7 +1041,7 @@ export default function AdminSectionsPage() {
             <Button type="button" variant="outline" onClick={closeModal}>
               {messages.common.actions.cancel}
             </Button>
-            <Button type="submit" disabled={isSaving}>
+            <Button type="submit" disabled={isSaving || !schedulesLoaded}>
               {isSaving
                 ? copy.saving
                 : editingSection

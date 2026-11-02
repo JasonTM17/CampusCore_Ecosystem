@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
   BookOpenCheck,
@@ -461,6 +461,8 @@ export default function AdminAssistantKnowledgePage() {
   const [notice, setNotice] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [loadingEditId, setLoadingEditId] = useState<string | null>(null);
+  const editRequestRef = useRef(0);
   const [editing, setEditing] = useState<AssistantKnowledgeDocument | null>(null);
   const [form, setForm] = useState<AssistantKnowledgeRequest>(blankForm);
   const [archiveTarget, setArchiveTarget] = useState<AssistantKnowledgeDocument | null>(null);
@@ -529,6 +531,8 @@ export default function AdminAssistantKnowledgePage() {
   }, []);
 
   const openCreate = () => {
+    editRequestRef.current += 1;
+    setLoadingEditId(null);
     setEditing(null);
     setForm({ ...blankForm });
     setNotice('');
@@ -538,12 +542,16 @@ export default function AdminAssistantKnowledgePage() {
   };
 
   const openEdit = async (document: AssistantKnowledgeDocument) => {
+    const requestId = ++editRequestRef.current;
+    const isCurrent = () => requestId === editRequestRef.current;
+    setLoadingEditId(document.documentId);
     setEditing(document);
     setNotice('');
     setError('');
     setFormError('');
     try {
       const fullDoc = await assistantKnowledgeApi.get(document.documentId);
+      if (!isCurrent()) return;
       setEditing(fullDoc);
       setForm({
         slug: fullDoc.slug,
@@ -555,6 +563,7 @@ export default function AdminAssistantKnowledgePage() {
         priority: fullDoc.priority,
       });
     } catch {
+      if (!isCurrent()) return;
       // The list row deliberately carries content '' — opening the editor on
       // it would show a blank document and a save would clobber the real one.
       setEditing(null);
@@ -563,7 +572,12 @@ export default function AdminAssistantKnowledgePage() {
         ? 'Không tải được nội dung đầy đủ của tài liệu. Vui lòng thử lại.'
         : 'Could not load the full document. Please retry.');
       return;
+    } finally {
+      if (isCurrent()) {
+        setLoadingEditId(null);
+      }
     }
+    if (!isCurrent()) return;
     setFormOpen(true);
   };
 
@@ -665,7 +679,7 @@ export default function AdminAssistantKnowledgePage() {
         ? 'Quản trị nội dung học vụ công khai theo quy trình bản nháp, duyệt và xuất bản.'
         : 'Manage public campus guidance through draft, review, and release states.'}
       actions={
-        <Button type="button" onClick={openCreate}>
+        <Button type="button" onClick={openCreate} disabled={isSaving || loadingEditId !== null}>
           <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
           {opsUi.addGuidance}
         </Button>
@@ -762,7 +776,7 @@ export default function AdminAssistantKnowledgePage() {
           ) : (
             <GuidanceTable
               documents={pagedDocuments}
-              isSaving={isSaving}
+              isSaving={isSaving || loadingEditId !== null}
               vi={vi}
               onEdit={(document) => void openEdit(document)}
               onTransition={(document, operation) => void transition(document, operation)}
@@ -783,6 +797,8 @@ export default function AdminAssistantKnowledgePage() {
         formError={formError}
         onChange={updateForm}
         onClose={() => {
+          editRequestRef.current += 1;
+          setLoadingEditId(null);
           setFormError('');
           setFormOpen(false);
         }}
