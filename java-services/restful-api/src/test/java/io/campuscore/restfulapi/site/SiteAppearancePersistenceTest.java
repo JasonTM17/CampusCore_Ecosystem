@@ -10,10 +10,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.campuscore.restfulapi.web.DomainException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -21,8 +23,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
 import org.springframework.test.context.ActiveProfiles;
@@ -49,6 +54,9 @@ class SiteAppearancePersistenceTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private DataSource dataSource;
 
     @Autowired
     private MockMvc mvc;
@@ -243,5 +251,126 @@ class SiteAppearancePersistenceTest {
                         .content("[1,2,3]")
                         .with(admin()))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("a save carrying a version another administrator already replaced is refused")
+    void staleExpectedVersionIsRejected() throws Exception {
+        JsonNode first = bodyOf(save("{\"accent\":\"campus-gold\"}"));
+        long openedVersion = first.path("version").asLong();
+        JsonNode concurrent = bodyOf(save("{\"accent\":\"river-blue\"}"));
+
+        mvc.perform(put("/api/v1/site-appearance")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accent\":\"paper-red\",\"expectedVersion\":" + openedVersion + "}")
+                        .with(admin()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("STALE_VERSION"));
+
+        mvc.perform(get("/api/v1/site-appearance"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accent").value("river-blue"))
+                .andExpect(jsonPath("$.version").value(concurrent.path("version").asLong()));
+    }
+
+    @Test
+    @DisplayName("a save carrying the current version is applied and advances the stored version")
+    void matchingExpectedVersionIsApplied() throws Exception {
+        JsonNode first = bodyOf(save("{\"accent\":\"campus-gold\"}"));
+        long openedVersion = first.path("version").asLong();
+
+        JsonNode saved = bodyOf(save(
+                "{\"accent\":\"river-blue\",\"expectedVersion\":" + openedVersion + "}"));
+
+        Assertions.assertTrue(
+                saved.path("version").asLong() > openedVersion,
+                "a successful write must advance the version");
+        Assertions.assertFalse(
+                saved.has("expectedVersion"),
+                "the precondition field is request metadata, not part of the saved document");
+        mvc.perform(get("/api/v1/site-appearance"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accent").value("river-blue"))
+                .andExpect(jsonPath("$.expectedVersion").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("a client that sends no expected version keeps last-write-wins")
+    void legacySaveStaysLastWriteWins() throws Exception {
+        save("{\"accent\":\"campus-gold\"}");
+        save("{\"accent\":\"river-blue\"}");
+
+        mvc.perform(get("/api/v1/site-appearance"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accent").value("river-blue"));
+    }
+
+    @Test
+    @DisplayName("a conditional save cannot invent the version of a document that was never stored")
+    void conditionalSaveRequiresAStoredDocument() throws Exception {
+        mvc.perform(put("/api/v1/site-appearance")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accent\":\"campus-gold\",\"expectedVersion\":1}")
+                        .with(admin()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("STALE_VERSION"));
+
+        Assertions.assertEquals(
+                0,
+                jdbc.queryForObject("SELECT COUNT(*) FROM \"site\".\"Appearance\"", Integer.class));
+    }
+
+    @Test
+    @DisplayName("expectedVersion must be a whole non-negative number")
+    void invalidExpectedVersionIsRejected() throws Exception {
+        save("{\"accent\":\"campus-gold\"}");
+
+        mvc.perform(put("/api/v1/site-appearance")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accent\":\"river-blue\",\"expectedVersion\":\"nope\"}")
+                        .with(admin()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("appearance_expected_version_invalid"));
+        mvc.perform(put("/api/v1/site-appearance")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accent\":\"river-blue\",\"expectedVersion\":-1}")
+                        .with(admin()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("the version check runs inside the update, so a write that slips in behind the read still conflicts")
+    void conditionalWriteDetectsAPayloadReplacedAfterTheRead() throws Exception {
+        JsonNode first = bodyOf(save("{\"accent\":\"campus-gold\"}"));
+        long openedVersion = first.path("version").asLong();
+
+        NamedParameterJdbcTemplate racing = new NamedParameterJdbcTemplate(dataSource) {
+            private boolean raced;
+
+            @Override
+            public int update(String sql, SqlParameterSource params) {
+                if (!raced && sql.contains("\"payload\" = :expectedPayload")) {
+                    raced = true;
+                    // A competing writer lands between this store's read and
+                    // its conditional update, without changing the version the
+                    // stale editor is holding.
+                    jdbc.update("UPDATE \"site\".\"Appearance\" SET \"payload\" = ? WHERE \"id\" = ?",
+                            "{\"version\":" + openedVersion + ",\"accent\":\"paper-red\"}",
+                            SiteAppearanceStore.ROW_ID);
+                }
+                return super.update(sql, params);
+            }
+        };
+        SiteAppearanceStore racingStore = new SiteAppearanceStore(racing, JSON);
+
+        var failure = Assertions.assertThrows(
+                DomainException.class,
+                () -> racingStore.write(
+                        "{\"accent\":\"river-blue\"}", "admin-1", openedVersion));
+        Assertions.assertEquals(HttpStatus.CONFLICT, failure.getStatus());
+        Assertions.assertEquals("STALE_VERSION", failure.getCode());
+
+        mvc.perform(get("/api/v1/site-appearance"))
+                .andExpect(jsonPath("$.accent").value("paper-red"));
     }
 }
