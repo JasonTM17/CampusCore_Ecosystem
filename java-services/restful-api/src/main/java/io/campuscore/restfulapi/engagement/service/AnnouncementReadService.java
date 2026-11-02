@@ -34,7 +34,7 @@ public class AnnouncementReadService {
         this.announcements = announcements;
     }
 
-    /** Staff may manage their own rows; other details must pass the feed audience policy. */
+    /** Unpublished rows follow the staff-list scope; published details pass the feed audience policy. */
     @Transactional(readOnly = true)
     public AnnouncementResponse get(String id, String actorId, List<String> roles,
             String studentId, Integer studentYear, String lecturerId) {
@@ -44,10 +44,13 @@ public class AnnouncementReadService {
         AnnouncementResponse row = announcements.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Announcement not found"));
         if (!"PUBLISHED".equals(row.status())) {
-            // Unpublished posts are staff-only: any writer-set member may open
-            // them (reviewers must read drafts; students/others get the same
-            // 404 an absent row produces).
-            if (roles.stream().anyMatch(WRITER_ROLES::contains)) {
+            // Authors and the review queue are readable; governance sees
+            // everything. Every other caller gets the absent-row 404 so the
+            // detail route cannot confirm that an unpublished id exists.
+            if (roles.contains("ADMIN") || roles.contains("SUPER_ADMIN")
+                    || actorId.equals(row.authorId())
+                    || (roles.stream().anyMatch(WRITER_ROLES::contains)
+                            && "IN_REVIEW".equals(row.status()))) {
                 return row;
             }
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Announcement not found");

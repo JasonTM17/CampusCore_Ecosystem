@@ -10,8 +10,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -387,7 +385,8 @@ public class PeopleReadRepository {
         if (timestamp == null) {
             return null;
         }
-        LocalDateTime localDateTime = timestamp.toLocalDateTime();
-        return localDateTime.toInstant(ZoneOffset.UTC);
+        // A java.sql.Timestamp already carries the instant; reinterpreting its
+        // local wall-clock fields would shift the value by the JVM zone offset.
+        return timestamp.toInstant();
     }
 }

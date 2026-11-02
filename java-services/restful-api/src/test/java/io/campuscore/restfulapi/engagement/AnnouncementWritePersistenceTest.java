@@ -808,6 +808,71 @@ class AnnouncementWritePersistenceTest {
     }
 
     @Test
+    void publicationWindowMustBeOrderedAtCreateUpdateAndReview() throws Exception {
+        mvc.perform(post("/api/v1/announcements")
+                        .with(adminJwt("admin-1"))
+                        .contentType("application/json")
+                        .content("{\"title\":\"Inverted window\",\"content\":\"Body.\","
+                                + "\"publishAt\":\"2026-11-10T00:00:00Z\","
+                                + "\"expiresAt\":\"2026-11-05T00:00:00Z\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ANNOUNCEMENT_WINDOW_INVALID"));
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM \"engagement\".\"Announcement\" WHERE \"title\" = 'Inverted window'",
+                Integer.class));
+
+        mvc.perform(post("/api/v1/announcements")
+                        .with(adminJwt("admin-1"))
+                        .contentType("application/json")
+                        .content("{\"title\":\"Ordered window\",\"content\":\"Body.\","
+                                + "\"publishAt\":\"2026-11-05T00:00:00Z\","
+                                + "\"expiresAt\":\"2026-11-10T00:00:00Z\"}"))
+                .andExpect(status().isCreated());
+        String id = jdbc.queryForObject(
+                "SELECT \"id\" FROM \"engagement\".\"Announcement\" WHERE \"title\" = 'Ordered window'",
+                String.class);
+
+        // A partial update must compare the patched value with the stored one.
+        mvc.perform(put("/api/v1/announcements/" + id)
+                        .with(adminJwt("admin-1"))
+                        .contentType("application/json")
+                        .content("{\"expiresAt\":\"2026-11-04T00:00:00Z\","
+                                + "\"reason\":\"Window check\",\"expectedVersion\":0}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ANNOUNCEMENT_WINDOW_INVALID"));
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT \"version\" FROM \"engagement\".\"Announcement\" WHERE \"id\" = ?",
+                Integer.class, id));
+
+        // A stored inverted window cannot enter review or be approved either.
+        seedInvertedWindow("inverted-draft", "DRAFT");
+        mvc.perform(post("/api/v1/announcements/inverted-draft/submit").with(adminJwt("admin-1")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ANNOUNCEMENT_WINDOW_INVALID"));
+        seedInvertedWindow("inverted-review", "IN_REVIEW");
+        mvc.perform(post("/api/v1/announcements/inverted-review/approve").with(adminJwt("admin-2")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ANNOUNCEMENT_WINDOW_INVALID"));
+    }
+
+    private void seedInvertedWindow(String id, String status) {
+        jdbc.update(
+                "INSERT INTO \"engagement\".\"Announcement\""
+                        + " (\"id\", \"title\", \"content\", \"priority\", \"targetRoles\", \"targetYears\","
+                        + " \"isGlobal\", \"publishAt\", \"expiresAt\", \"publishedBy\", \"createdAt\","
+                        + " \"updatedAt\", \"status\", \"authorId\")"
+                        + " VALUES (?, ?, 'Body.', 'NORMAL', ARRAY['ADMIN'], ARRAY[1], FALSE, ?, ?,"
+                        + " 'admin-1', ?, ?, ?, 'admin-1')",
+                id,
+                "Inverted " + id,
+                offsetDateTime(Instant.parse("2026-11-10T00:00:00Z")),
+                offsetDateTime(Instant.parse("2026-11-05T00:00:00Z")),
+                offsetDateTime(BASE_TIME),
+                offsetDateTime(BASE_TIME),
+                status);
+    }
+
+    @Test
     void dueNotificationPickupCoversImmediateRowsAndClaimRejectsRescheduled() {
         // Kongming C1: an immediate announcement (publishAt NULL) whose
         // approve-path fan-out failed keeps notifiedAt NULL — the refire job

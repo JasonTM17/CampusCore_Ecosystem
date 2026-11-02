@@ -92,6 +92,9 @@ public class AnnouncementWriteService {
         }
         List<Integer> targetYears = immutableYears(request.targetYears());
         Instant now = Instant.now(clock);
+        Instant publishAt = toMicros(request.publishAt());
+        Instant expiresAt = toMicros(request.expiresAt());
+        requirePublicationWindow(publishAt, expiresAt);
         AnnouncementResponse created = announcements.create(new CreateAnnouncementCommand(
                 UUID.randomUUID().toString(),
                 requireValue(request.title(), "title"),
@@ -100,8 +103,8 @@ public class AnnouncementWriteService {
                 targetRoles,
                 targetYears,
                 Boolean.TRUE.equals(request.isGlobal()),
-                toMicros(request.publishAt()),
-                toMicros(request.expiresAt()),
+                publishAt,
+                expiresAt,
                 publisher,
                 request.semesterId(),
                 request.sectionId(),
@@ -194,6 +197,9 @@ public class AnnouncementWriteService {
             throw new IllegalArgumentException("priority must be LOW, NORMAL, HIGH, or URGENT");
         }
         requireEditableField(request);
+        Instant publishAt = request.has("publishAt") ? toMicros(request.publishAt()) : before.publishAt();
+        Instant expiresAt = request.has("expiresAt") ? toMicros(request.expiresAt()) : before.expiresAt();
+        requirePublicationWindow(publishAt, expiresAt);
         Instant now = Instant.now(clock);
         // RT-P2-5: sanitize before persist and keep the removed-element count
         // so the write-time mutation is observable in the audit trail.
@@ -213,8 +219,8 @@ public class AnnouncementWriteService {
                         "targetYears",
                         request.has("targetYears") ? immutableYears(request.targetYears()) : null),
                 patch(request, "isGlobal", request.isGlobal()),
-                patch(request, "publishAt", toMicros(request.publishAt())),
-                patch(request, "expiresAt", toMicros(request.expiresAt())),
+                patch(request, "publishAt", publishAt),
+                patch(request, "expiresAt", expiresAt),
                 patch(request, "semesterId", request.semesterId()),
                 patch(request, "sectionId", request.sectionId()),
                 lecturer ? PatchValue.present(lecturerId) : patch(request, "lecturerId", request.lecturerId()),
@@ -294,6 +300,7 @@ public class AnnouncementWriteService {
             throw new DomainException(HttpStatus.FORBIDDEN, "ANNOUNCEMENT_NOT_AUTHOR",
                     "Only the author may submit a draft for review");
         }
+        requirePublicationWindow(before.publishAt(), before.expiresAt());
         Instant now = Instant.now(clock);
         if (announcements.submitForReview(id, before.version(), now) != 1) {
             throw conflict("ANNOUNCEMENT_VERSION_CONFLICT", "Announcement was changed by another administrator");
@@ -330,6 +337,7 @@ public class AnnouncementWriteService {
         }
         requireReviewScope(roles, lecturerId, before);
         Instant now = Instant.now(clock);
+        requirePublicationWindow(before.publishAt(), before.expiresAt());
         if (before.expiresAt() != null && !before.expiresAt().isAfter(now)) {
             throw conflict("ANNOUNCEMENT_ALREADY_EXPIRED",
                     "The publication window already closed; return the draft and fix expiresAt");
@@ -616,6 +624,14 @@ public class AnnouncementWriteService {
     /** Client instants are cut to the column precision so the stored value equals the compared one. */
     private static Instant toMicros(Instant value) {
         return value == null ? null : value.truncatedTo(ChronoUnit.MICROS);
+    }
+
+    /** The publication interval must be non-empty: a later publishAt never becomes visible. */
+    private static void requirePublicationWindow(Instant publishAt, Instant expiresAt) {
+        if (publishAt != null && expiresAt != null && !expiresAt.isAfter(publishAt)) {
+            throw new DomainException(HttpStatus.BAD_REQUEST, "ANNOUNCEMENT_WINDOW_INVALID",
+                    "expiresAt must be after publishAt");
+        }
     }
 
     private void appendAudit(
