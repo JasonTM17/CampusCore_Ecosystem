@@ -68,7 +68,8 @@ interface AcademicTemplate {
   nameEn: string;
   descriptionVi: string;
   descriptionEn: string;
-  content: string;
+  contentVi: string;
+  contentEn: string;
 }
 
 const ACADEMIC_TEMPLATES: AcademicTemplate[] = [
@@ -77,7 +78,7 @@ const ACADEMIC_TEMPLATES: AcademicTemplate[] = [
     nameEn: 'Urgent Notice / Schedule Change',
     descriptionVi: 'Mẫu thông báo khẩn cấp có hộp cảnh báo và bảng thời gian',
     descriptionEn: 'Urgent notice template with alert box and timeline table',
-    content: `# THÔNG BÁO KHẨN: THAY ĐỔI LỊCH HỌC VỤ
+    contentVi: `# THÔNG BÁO KHẨN: THAY ĐỔI LỊCH HỌC VỤ
 
 > [!WARNING]
 > **Kính gửi toàn thể Giảng viên và Sinh viên:**
@@ -97,13 +98,33 @@ Các lớp học phần và hoạt động thi kết thúc học phần được
 
 > [!NOTE]
 > Mọi thắc mắc vui lòng liên hệ Văn phòng Đào tạo (Phòng A1-101) hoặc gửi hỗ trợ trực tuyến qua Trợ lý AI ${SITE_NAME}.`,
+    contentEn: `# URGENT NOTICE: ACADEMIC SCHEDULE CHANGE
+
+> [!WARNING]
+> **To all Faculty Members and Students:**
+> Please review the adjustments below carefully so you can plan your schedule accordingly.
+
+### 1. Adjusted items
+The following course sections and end-of-course examination activities have been moved to the new timetable:
+
+| Course | Instructor | Previous time | New time | Room |
+| :--- | :--- | :--- | :--- | :--- |
+| Advanced Java Programming | Dr. Nguyen Van A | Mon, Period 1-3 | Wed, Period 4-6 | A1-302 |
+| Distributed Database Systems | MSc. Tran Thi B | Tue, Period 7-9 | Fri, Period 7-9 | B2-405 |
+
+### 2. Required coordination
+- [ ] Students update their personal timetable on the portal themselves.
+- [ ] Class officers check attendance and report any schedule conflicts.
+
+> [!NOTE]
+> For any questions, contact the Office of Academic Affairs (Room A1-101) or use the ${SITE_NAME} AI Assistant for online support.`,
   },
   {
     nameVi: 'Kế hoạch đăng ký tín chỉ học phần',
     nameEn: 'Course Registration Timeline',
     descriptionVi: 'Lộ trình mở cổng đăng ký môn học theo đợt và khóa học',
     descriptionEn: 'Structured registration timeline by batch and cohort',
-    content: `# KẾ HOẠCH ĐĂNG KÝ HỌC PHẦN HỌC KỲ MỚI
+    contentVi: `# KẾ HOẠCH ĐĂNG KÝ HỌC PHẦN HỌC KỲ MỚI
 
 > [!IMPORTANT]
 > Cổng đăng ký học phần sẽ mở theo từng khung giờ phân luồng. Hệ thống áp dụng **cơ chế chống nghẽn 4 lớp**, sinh viên không cần gửi lặp lệnh.
@@ -122,13 +143,32 @@ Các lớp học phần và hoạt động thi kết thúc học phần được
 
 > [!TIP]
 > Sử dụng tính năng **Lọc theo khoa** trên giao diện Đăng ký học phần để tìm kiếm nhanh mã lớp mong muốn.`,
+    contentEn: `# COURSE REGISTRATION PLAN FOR THE NEW TERM
+
+> [!IMPORTANT]
+> The course registration portal opens in staggered time windows. The system applies a **four-layer congestion-control mechanism**; students do not need to resend their requests.
+
+### 1. Detailed registration schedule
+| Registration phase | Applicable students | Start time | End time |
+| :--- | :--- | :--- | :--- |
+| **Phase 1** | Final-year students & thesis students | 08:00 on 15/09/2026 | 23:59 on 16/09/2026 |
+| **Phase 2** | Third-year & second-year students | 08:00 on 17/09/2026 | 23:59 on 18/09/2026 |
+| **Phase 3** | First-year students & make-up registration | 08:00 on 19/09/2026 | 17:00 on 20/09/2026 |
+
+### 2. Mandatory rules
+1. Regular term: register for at least **14 credits** (except the final term), with a standard maximum of **28 credits**. Students may register up to **30 credits** only with an application **approved by the Office of Academic Affairs**.
+2. Check the prerequisite requirements for each course before clicking register.
+3. Tuition fees must be settled as required once the official roster is finalised.
+
+> [!TIP]
+> Use the **Filter by faculty** feature on the Course Registration screen to find the course code you need quickly.`,
   },
   {
     nameVi: 'Hướng dẫn quy chế & biểu phí học tập',
     nameEn: 'Academic Policy & Tuition Guide',
     descriptionVi: 'Biên soạn tài liệu quy chế đào tạo và tri thức cho Trợ lý RAG',
     descriptionEn: 'Academic regulation documentation suited for Assistant RAG',
-    content: `# HƯỚNG DẪN QUY CHẾ ĐÀO TẠO & HỌC VỤ
+    contentVi: `# HƯỚNG DẪN QUY CHẾ ĐÀO TẠO & HỌC VỤ
 
 Tài liệu quy định chi tiết về đánh giá điểm học phần và điều kiện xét tốt nghiệp đại học hệ chính quy:
 
@@ -146,6 +186,24 @@ Tài liệu quy định chi tiết về đánh giá điểm học phần và đi
 - Tích lũy tối thiểu **115 tín chỉ** thuộc khung chương trình đào tạo.
 - Điểm trung bình tích lũy (CPA) đạt từ **2.50** trở lên.
 - Không trong thời gian bị kỷ luật từ mức khiển trách trở lên.`,
+    contentEn: `# ACADEMIC REGULATIONS & ACADEMIC AFFAIRS GUIDE
+
+This document sets out the detailed rules on course assessment and the conditions for graduating from full-time undergraduate programmes:
+
+### 1. Grading scale
+- **Coursework (40-50%)**: attendance, group assignments and the midterm test.
+- **Final examination (50-60%)**: a comprehensive assessment of the course learning outcomes.
+- **Converted letter grades**:
+  - \`A\` / \`A+\`: 8.5 - 10.0 (equivalent to 4.0 GPA)
+  - \`B\` / \`B+\`: 7.0 - 8.4 (equivalent to 3.0 - 3.5 GPA)
+  - \`C\` / \`C+\`: 5.5 - 6.9 (equivalent to 2.0 - 2.5 GPA)
+  - \`D\` / \`D+\`: 4.0 - 5.4 (equivalent to 1.0 - 1.5 GPA)
+  - \`F\`: Below 4.0 (not passed; the course must be retaken)
+
+### 2. Eligibility for the graduation thesis
+- Accumulate at least **115 credits** within the programme curriculum.
+- Achieve a cumulative grade point average (CPA) of **2.50** or higher.
+- Not be under any disciplinary sanction of a reprimand or above.`,
   },
 ];
 
@@ -660,7 +718,7 @@ export function RichTextEditor({
                         key={idx}
                         type="button"
                         onClick={() => {
-                          handleTextChange(tmpl.content);
+                          handleTextChange(isVi ? tmpl.contentVi : tmpl.contentEn);
                           setTemplatesOpen(false);
                         }}
                         className="w-full text-left rounded-md px-2 py-1.5 text-xs hover:bg-secondary transition-colors"

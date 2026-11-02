@@ -84,6 +84,81 @@ export const EDITOR_BLOCK_HTML: Record<EditorBlockType, string> = {
   </table>`,
 };
 
+/**
+ * English bodies for the seven block-builder inserts. The Vietnamese map above
+ * stays the default so existing drafts render byte-identically; callers pick a
+ * locale with `getEditorBlockHtml`.
+ */
+export const EDITOR_BLOCK_HTML_EN: Record<EditorBlockType, string> = {
+  header: `  <div style="text-align: center; border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px;">
+    <h4 style="margin: 0; text-transform: uppercase; color: #64748b; font-size: 13px; letter-spacing: 1px;">HCMC UNIVERSITY OF TECHNOLOGY AND ENGINEERING</h4>
+    <h2 style="margin: 8px 0 0 0; color: #0f172a; font-size: 22px; font-weight: 700;">ACADEMIC NOTICE & ACADEMIC AFFAIRS GUIDELINES</h2>
+    <p style="margin: 4px 0 0 0; color: #64748b; font-size: 13px;">[Term ... - Academic Year ...] | [Issuing office]</p>
+  </div>`,
+  recipient: `  <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 14px 18px; border-radius: 6px; margin-bottom: 20px;">
+    <strong style="color: #1d4ed8; font-size: 14px;">Attention:</strong> All Faculty Members, Academic Affairs Staff, and full-time students.
+  </div>`,
+  summary: `  <h3 style="color: #0369a1; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">1. Academic Plan & Course Credit Registration</h3>
+  <p>The University announces the academic plan and the opening time of the course-credit registration portal for the new term:</p>`,
+  table: `  <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+    <thead>
+      <tr style="background-color: #f1f5f9; text-align: left;">
+        <th style="border: 1px solid #cbd5e1; padding: 10px; font-weight: 600;">Batch</th>
+        <th style="border: 1px solid #cbd5e1; padding: 10px; font-weight: 600;">Start Time</th>
+        <th style="border: 1px solid #cbd5e1; padding: 10px; font-weight: 600;">End Time</th>
+        <th style="border: 1px solid #cbd5e1; padding: 10px; font-weight: 600;">Target Cohort</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="border: 1px solid #cbd5e1; padding: 10px;">Phase 1</td>
+        <td style="border: 1px solid #cbd5e1; padding: 10px;">[HH:mm - Mon DD, YYYY]</td>
+        <td style="border: 1px solid #cbd5e1; padding: 10px;">[HH:mm - Mon DD, YYYY]</td>
+        <td style="border: 1px solid #cbd5e1; padding: 10px;">[Target cohort]</td>
+      </tr>
+      <tr>
+        <td style="border: 1px solid #cbd5e1; padding: 10px;">Phase 2</td>
+        <td style="border: 1px solid #cbd5e1; padding: 10px;">[HH:mm - Mon DD, YYYY]</td>
+        <td style="border: 1px solid #cbd5e1; padding: 10px;">[HH:mm - Mon DD, YYYY]</td>
+        <td style="border: 1px solid #cbd5e1; padding: 10px;">[Target cohort]</td>
+      </tr>
+    </tbody>
+  </table>`,
+  clauses: `  <div style="margin-bottom: 20px;">
+    <h3 style="color: #0369a1; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">2. Implementation Rules and Credit Limits</h3>
+    <p><strong>- Credit limits:</strong> Students register within the limits set by the current academic regulations. Registration above the limit is accepted only with a written request approved by the Office of Academic Affairs.</p>
+    <p><strong>- Course withdrawal:</strong> The withdrawal/cancellation window closes at the end of the second week from the start of the term.</p>
+  </div>`,
+  notice: `  <div style="background-color: #fefce8; border-left: 4px solid #eab308; padding: 14px 18px; border-radius: 6px; margin-bottom: 20px;">
+    <strong style="color: #a16207;">Important note:</strong> Students must check the prerequisite requirements and their class schedule before confirming. For any questions, contact the Office of Academic Affairs (Room A1-201) during office hours.
+  </div>`,
+  signoff: `  <table style="width: 100%; margin-top: 32px; border: none;">
+    <tr>
+      <td style="width: 50%; vertical-align: top; border: none;">
+        <p style="font-size: 12px; margin: 0; line-height: 1.6; color: #64748b;">
+          <strong><em>Recipients:</em></strong><br/>
+          - As addressed above;<br/>
+          - Board of Rectors (for reporting);<br/>
+          - Office of Academic Affairs, Faculty Offices;<br/>
+          - Filed: Secretariat, Student Affairs.
+        </p>
+      </td>
+      <td style="width: 50%; text-align: right; vertical-align: top; border: none;">
+        <p style="font-weight: bold; margin: 0; text-transform: uppercase; font-size: 13px; color: #334155;">RECTOR</p>
+        <div style="display: inline-block; margin: 8px 0; padding: 4px 12px; border: 2px dashed #dc2626; border-radius: 6px; background-color: #fef2f2; color: #b91c1c; font-size: 11px; font-weight: bold; text-align: center;">
+          [E-OFFICE DIGITAL SIGNATURE / SEAL PLACEHOLDER]
+        </div>
+        <p style="font-weight: bold; margin: 4px 0 0 0; color: #0284c7; font-size: 14px;">[Signatory name &amp; academic title]</p>
+      </td>
+    </tr>
+  </table>`,
+};
+
+/** Locale selector for the block-builder HTML bodies. */
+export function getEditorBlockHtml(type: EditorBlockType, isVi: boolean): string {
+  return isVi ? EDITOR_BLOCK_HTML[type] : EDITOR_BLOCK_HTML_EN[type];
+}
+
 /** Default TinyMCE seed document, one entry per locale. */
 export const EDITOR_SEED_HTML = {
   vi: `
@@ -267,3 +342,126 @@ export const EDITOR_TEMPLATE_HTML: Record<EditorTemplateId, string> = {
 </div>
 `,
 };
+
+/**
+ * English bodies for the template library, mirroring `EDITOR_TEMPLATE_HTML`.
+ * `registration-notice` keeps the same outline as the Vietnamese seed document
+ * (header, audience, milestones table, closing notice) so both locales insert a
+ * structurally identical draft.
+ */
+export const EDITOR_TEMPLATE_HTML_EN: Record<EditorTemplateId, string> = {
+  'council-decision': `
+<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
+  <div style="text-align: center; border-bottom: 2px solid #0d509d; padding-bottom: 12px; margin-bottom: 20px;">
+    <h4 style="margin: 0; text-transform: uppercase; color: #64748b; font-size: 13px;">HCMC UNIVERSITY OF TECHNOLOGY AND ENGINEERING</h4>
+    <h2 style="margin: 8px 0 0 0; color: #0d509d; font-size: 20px; font-weight: bold;">DECISION ON ESTABLISHING THE GRADUATION THESIS DEFENCE COUNCIL</h2>
+    <p style="margin: 4px 0 0 0; color: #64748b; font-size: 13px;">Pursuant to the University Training Regulations and the graduation assessment programme</p>
+  </div>
+  <p><strong>THE RECTOR OF HCMC UNIVERSITY OF TECHNOLOGY AND ENGINEERING DECIDES:</strong></p>
+  <p><strong>Article 1.</strong> Establish the Graduation Thesis Defence Council for the Software Engineering major, consisting of the following members:</p>
+  <ul>
+    <li><strong>Seat 1 (Chair):</strong> [Full name - academic title, teaching position]</li>
+    <li><strong>Seat 2 (Secretary):</strong> [Full name - academic title, teaching position]</li>
+    <li><strong>Seat 3 (Member):</strong> [Full name - academic title, teaching position]</li>
+    <li><strong>Seat 4 (Member):</strong> [Full name - academic title, teaching position]</li>
+  </ul>
+  <p><strong>Article 2.</strong> The Council is responsible for organising a fair and transparent defence assessment in accordance with Regulations R1–R9.</p>
+  <table style="width: 100%; margin-top: 24px; border: none;">
+    <tr>
+      <td style="width: 50%; vertical-align: top; border: none;">
+        <p style="font-size: 11px; margin: 0; line-height: 1.5;"><strong><em>Recipients:</em></strong><br/>- As in Article 1;<br/>- Board of Rectors (for reporting);<br/>- Office of Academic Affairs, Faculty of IT Office;<br/>- Filed: Secretariat.</p>
+      </td>
+      <td style="width: 50%; text-align: right; vertical-align: top; border: none;">
+        <p style="font-weight: bold; margin: 0; text-transform: uppercase;">RECTOR</p>
+        <div style="height: 48px;"></div>
+        <p style="font-weight: bold; margin: 0; color: #0d509d;">[Signatory name &amp; academic title]</p>
+      </td>
+    </tr>
+  </table>
+</div>
+`,
+  'registration-notice': `
+<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
+  <div style="text-align: center; border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px;">
+    <h4 style="margin: 0; text-transform: uppercase; color: #64748b; font-size: 13px; letter-spacing: 1px;">HCMC UNIVERSITY OF TECHNOLOGY AND ENGINEERING</h4>
+    <h2 style="margin: 8px 0 0 0; color: #0f172a; font-size: 22px; font-weight: 700;">ACADEMIC NOTICE & ACADEMIC AFFAIRS GUIDELINES</h2>
+    <p style="margin: 4px 0 0 0; color: #64748b; font-size: 13px;">[Term ... - Academic Year ...] | [Issuing office]</p>
+  </div>
+
+  <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 14px 18px; border-radius: 6px; margin-bottom: 20px;">
+    <strong style="color: #1d4ed8; font-size: 14px;">Attention:</strong> All Faculty Members, Academic Affairs Staff, and full-time students.
+  </div>
+
+  <h3 style="color: #0369a1; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">1. Academic Plan & Course Credit Registration</h3>
+  <p>The University announces the academic plan and the opening time of the course-credit registration portal for the new term:</p>
+
+  <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+    <thead>
+      <tr style="background-color: #f1f5f9; text-align: left;">
+        <th style="border: 1px solid #cbd5e1; padding: 10px; font-weight: 600;">Batch</th>
+        <th style="border: 1px solid #cbd5e1; padding: 10px; font-weight: 600;">Start Time</th>
+        <th style="border: 1px solid #cbd5e1; padding: 10px; font-weight: 600;">End Time</th>
+        <th style="border: 1px solid #cbd5e1; padding: 10px; font-weight: 600;">Target Cohort</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="border: 1px solid #cbd5e1; padding: 10px;">Phase 1</td>
+        <td style="border: 1px solid #cbd5e1; padding: 10px;">[HH:mm - Mon DD, YYYY]</td>
+        <td style="border: 1px solid #cbd5e1; padding: 10px;">[HH:mm - Mon DD, YYYY]</td>
+        <td style="border: 1px solid #cbd5e1; padding: 10px;">[Target cohort]</td>
+      </tr>
+      <tr>
+        <td style="border: 1px solid #cbd5e1; padding: 10px;">Phase 2</td>
+        <td style="border: 1px solid #cbd5e1; padding: 10px;">[HH:mm - Mon DD, YYYY]</td>
+        <td style="border: 1px solid #cbd5e1; padding: 10px;">[HH:mm - Mon DD, YYYY]</td>
+        <td style="border: 1px solid #cbd5e1; padding: 10px;">[Target cohort]</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="background-color: #fefce8; border-left: 4px solid #eab308; padding: 14px 18px; border-radius: 6px; margin-bottom: 20px;">
+    <strong style="color: #a16207;">Important note:</strong> Students must check the prerequisite requirements and their class schedule before confirming.
+  </div>
+</div>
+`,
+  'scholarship-notice': `
+<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
+  <div style="text-align: center; border-bottom: 2px solid #16a34a; padding-bottom: 12px; margin-bottom: 20px;">
+    <h4 style="margin: 0; text-transform: uppercase; color: #64748b; font-size: 13px;">HCMC UNIVERSITY OF TECHNOLOGY AND ENGINEERING</h4>
+    <h2 style="margin: 8px 0 0 0; color: #15803d; font-size: 20px; font-weight: bold;">MERIT SCHOLARSHIP AWARD ANNOUNCEMENT</h2>
+    <p style="margin: 4px 0 0 0; color: #64748b; font-size: 13px;">Term [ ... ] - Academic Year [ ... ]</p>
+  </div>
+  <p>The Office of Academic Affairs announces this term's eligibility criteria and award levels for merit scholarships:</p>
+  <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+    <thead>
+      <tr style="background-color: #f0fdf4;">
+        <th style="border: 1px solid #bbf7d0; padding: 10px;">Classification</th>
+        <th style="border: 1px solid #bbf7d0; padding: 10px;">GPA (4-point scale)</th>
+        <th style="border: 1px solid #bbf7d0; padding: 10px;">Conduct score</th>
+        <th style="border: 1px solid #bbf7d0; padding: 10px;">Award level</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="border: 1px solid #bbf7d0; padding: 10px;">Excellent</td>
+        <td style="border: 1px solid #bbf7d0; padding: 10px;">≥ 3.60</td>
+        <td style="border: 1px solid #bbf7d0; padding: 10px;">≥ 90</td>
+        <td style="border: 1px solid #bbf7d0; padding: 10px;">120% of tuition</td>
+      </tr>
+      <tr>
+        <td style="border: 1px solid #bbf7d0; padding: 10px;">Very Good</td>
+        <td style="border: 1px solid #bbf7d0; padding: 10px;">3.20 - 3.59</td>
+        <td style="border: 1px solid #bbf7d0; padding: 10px;">≥ 80</td>
+        <td style="border: 1px solid #bbf7d0; padding: 10px;">100% of tuition</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+`,
+};
+
+/** Locale selector for the template-library HTML bodies. */
+export function getEditorTemplateHtml(id: EditorTemplateId, isVi: boolean): string {
+  return isVi ? EDITOR_TEMPLATE_HTML[id] : EDITOR_TEMPLATE_HTML_EN[id];
+}
