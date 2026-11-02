@@ -809,7 +809,7 @@ async function status(flags, deps) {
     const detail = result.status ? `HTTP ${result.status}` : (result.error ?? 'no response');
     log(`  ${result.ok ? 'PASS' : 'FAIL'}  ${result.name}  ${result.url}  ${detail}`);
   }
-  return 0;
+  return results.some((result) => !result.ok) ? 1 : 0;
 }
 
 async function logs(flags, deps, service) {
