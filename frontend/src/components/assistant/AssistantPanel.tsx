@@ -19,6 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { cn } from '@/lib/utils';
+import { countLabel } from '@/lib/plural';
 import { useI18n } from '@/i18n';
 import { stripLocaleFromPathname } from '@/i18n/paths';
 import { useAuth } from '@/context/AuthContext';
@@ -830,10 +831,11 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
       ? messages.assistant.quotaExceeded
       : state.error === 'rate-limited'
         ? state.retryAfterSeconds != null
-          ? messages.assistant.rateLimited.replace(
-              '{seconds}',
-              String(state.retryAfterSeconds),
-            )
+          ? countLabel(
+              state.retryAfterSeconds,
+              messages.assistant.rateLimitedOne,
+              messages.assistant.rateLimited,
+            ).replace('{seconds}', String(state.retryAfterSeconds))
           : messages.assistant.rateLimitedGeneric
       : state.error === 'offline'
         ? messages.assistant.offline

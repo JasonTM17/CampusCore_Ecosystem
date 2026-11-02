@@ -7,6 +7,7 @@ import { enrollmentsApi, semestersApi } from '@/lib/api';
 import { STATIC_STALE_TIME_MS, useApiQuery } from '@/lib/query';
 import { getLocalizedName } from '@/lib/academic-content';
 import { isActiveEnrollment } from '@/lib/enrollment-status';
+import { countLabel } from '@/lib/plural';
 import { pickPreferredSemesterId } from '@/lib/semesters';
 import { WeeklyGrid, dayLabel, ORDERED_DAYS, type WeeklyGridAgendaItem } from '@/components/schedule/weekly-grid';
 import { Button } from '@/components/ui/button';
@@ -135,7 +136,7 @@ export function RegisteredCoursesPanel({
         <>
           <div className="flex flex-wrap items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3" role="status">
             <BookOpen className="h-5 w-5 text-primary" aria-hidden="true" />
-            <span className="font-semibold">{copy.groupSectionCount.replace('{count}', formatNumber(registered.length))}</span>
+            <span className="font-semibold">{countLabel(registered.length, copy.groupSectionCountOne, copy.groupSectionCount).replace('{count}', formatNumber(registered.length))}</span>
             <span className="text-sm">{creditsKnown ? `${formatNumber(credits)} ${copy.creditsUnit}` : copy.detailsCreditsUnavailable}</span>
             <Button type="button" variant="outline" size="sm" className="sm:ml-auto" onClick={() => {
               timetableRef.current?.scrollIntoView({ block: 'start' });
@@ -187,7 +188,7 @@ export function RegisteredCoursesPanel({
             className="min-w-0 scroll-mt-[calc(var(--portal-header-height)+1rem)] overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <CardHeader><CardTitle>{copy.registeredTimetableTitle}</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              {missingSchedules > 0 ? <p className="text-sm text-muted-foreground" role="status">{copy.registeredMissingSchedules.replace('{count}', formatNumber(missingSchedules))}</p> : null}
+              {missingSchedules > 0 ? <p className="text-sm text-muted-foreground" role="status">{countLabel(missingSchedules, copy.registeredMissingSchedulesOne, copy.registeredMissingSchedules).replace('{count}', formatNumber(missingSchedules))}</p> : null}
               {agenda.length ? <WeeklyGrid items={agenda} locale={locale} labels={{
                 gridAriaLabel: copy.registeredTimetableTitle,
                 today: copy.timetableToday,

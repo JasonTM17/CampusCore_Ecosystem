@@ -46,6 +46,7 @@ import { LoadingState } from '@/components/ui/state-block';
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import { countLabel } from '@/lib/plural';
 import { cn } from '@/lib/utils';
 
 interface NoticeForm {
@@ -720,7 +721,7 @@ export default function LecturerMailComposePage() {
                       placeholder={copy.fields.contentPlaceholder}
                       value={notice.content}
                       error={issueText('contentRequired')}
-                      hint={copy.fields.charCount.replace('{count}', formatNumber(notice.content.length))}
+                      hint={countLabel(notice.content.length, copy.fields.charCountOne, copy.fields.charCount).replace('{count}', formatNumber(notice.content.length))}
                       onChange={(event) => setNotice((current) => ({ ...current, content: event.target.value }))}
                     />
                   </Field>

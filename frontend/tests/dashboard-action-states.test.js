@@ -222,6 +222,7 @@ function baseStubs(extra = {}) {
       htmlToPlainText: (value) => value || '',
       stripNotificationTagPrefix: (value) => value || '',
     },
+    '@/lib/plural': { countLabel: (count, singular, plural) => (count === 1 ? singular : plural) },
     '@/lib/safe-url': { safeInternalPath: (value) => value || '' },
     '@/lib/notification-sync': { publishNotificationsChanged: () => {} },
     '@/lib/campus-error': { campusErrorKind: () => 'server' },
@@ -245,6 +246,7 @@ const notificationsCopy = {
   loadFailed: 'Notifications could not be loaded right now.',
   updateFailed: 'The notification could not be updated. Try again.',
   updatedCount: '{count} notifications marked as read.',
+  updatedCountOne: '{count} notification marked as read.',
   loading: 'Loading notifications',
   fallbackTitle: 'New update',
   fallbackContent: 'A new notification has arrived for your account.',
@@ -383,7 +385,7 @@ test('mark-all success is visible after the list reload', async () => {
 
   const updated = page.render();
   assert.ok(
-    textOf(updated).includes('1 notifications marked as read.'),
+    textOf(updated).includes('1 notification marked as read.'),
     'the success message survives the reload it triggers',
   );
 });

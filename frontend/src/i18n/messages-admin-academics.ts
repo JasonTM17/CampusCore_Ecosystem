@@ -90,6 +90,7 @@ interface EnrollmentsPageCopy {
     CANCELLED: string;
   };
   enrollmentsCount: string;
+  enrollmentsCountOne: string;
   unavailableTitle: string;
   emptyTitle: string;
   emptyDescription: string;
@@ -354,6 +355,7 @@ export const adminAcademicsEn: {
       CANCELLED: 'Cancelled',
     },
     enrollmentsCount: '{count} enrollments',
+    enrollmentsCountOne: '{count} enrollment',
     unavailableTitle: 'Enrollments unavailable',
     emptyTitle: 'No matching enrollments',
     emptyDescription:
@@ -776,6 +778,7 @@ export const adminAcademicsVi: Widen<typeof adminAcademicsEn> = {
       CANCELLED: 'Đã hủy',
     },
     enrollmentsCount: '{count} đăng ký',
+    enrollmentsCountOne: '{count} đăng ký',
     unavailableTitle: 'Đăng ký chưa sẵn sàng',
     emptyTitle: 'Không có đăng ký phù hợp',
     emptyDescription:

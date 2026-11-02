@@ -39,6 +39,7 @@ import {
   getLocalizedName,
 } from '@/lib/academic-content';
 import { ACADEMIC_REFERENCE_LIMIT } from '@/lib/reference-data';
+import { countLabel } from '@/lib/plural';
 
 interface Enrollment {
   id: string;
@@ -523,7 +524,7 @@ export default function AdminEnrollmentsPage() {
                   {messages.common.actions.clearFilters}
                 </Button>
                 <div className="text-sm text-muted-foreground">
-                  {copy.enrollmentsCount.replace('{count}', () => formatNumber(total))}
+                  {countLabel(total, copy.enrollmentsCountOne, copy.enrollmentsCount).replace('{count}', () => formatNumber(total))}
                 </div>
               </div>
               </div>

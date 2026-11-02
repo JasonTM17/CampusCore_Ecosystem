@@ -168,6 +168,7 @@ const notificationsCopy = {
   loadFailed: 'Notifications could not be loaded right now.',
   updateFailed: 'The notification could not be updated. Try again.',
   updatedCount: '{count} notifications marked as read.',
+  updatedCountOne: '{count} notification marked as read.',
   loading: 'Loading notifications',
   fallbackTitle: 'New update',
   fallbackContent: 'A new notification has arrived for your account.',
@@ -222,6 +223,7 @@ function loadNotificationsPage(api, fakeReact) {
       htmlToPlainText: (value) => value || '',
       stripNotificationTagPrefix: (value) => value || '',
     },
+    '@/lib/plural': { countLabel: (count, singular, plural) => (count === 1 ? singular : plural) },
     '@/lib/safe-url': { safeInternalPath: (value) => value || '' },
     '@/lib/notification-sync': { publishNotificationsChanged: () => {} },
     '@/context/AuthContext': {
