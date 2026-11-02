@@ -98,13 +98,16 @@ test('grade score inputs use canonical 50-50 components and derive the letter gr
 test('student grade views never invent component scores and lecturer notices expose four templates', () => {
   const gradesPage = read('src/app/dashboard/grades/page.tsx');
   const detailModal = read('src/components/dashboard/GradeDetailModal.tsx');
+  // W18 P6: the component-type labels live in the studentPortal fragment.
+  const studentPortal = read('src/i18n/messages-student-portal.ts');
   // The four lecturer notice presets live in the shared message catalog and are
   // rendered by LecturerAnnouncementCreateModal's preset picker (PRESETS).
   const templates = read('src/i18n/messages.ts');
 
   assert.doesNotMatch(gradesPage, /getComponentScores/);
   assert.doesNotMatch(detailModal, /2 \* finalScore|finalScore - 0\.2/);
-  assert.match(detailModal, /Điểm quá trình \(ĐQT - 50%\)/);
+  assert.match(studentPortal, /Điểm quá trình \(ĐQT - 50%\)/);
+  assert.match(detailModal, /copy\.processItem/);
   for (const label of ['Nghỉ học & Học bù', 'Nhắc nhở nộp bài tập lớn/đồ án', 'Lịch thi & Kiểm tra', 'Thông báo lớp học phần']) {
     assert.match(templates, new RegExp(label.replace(/[&/]/g, '\\$&')));
   }
@@ -214,6 +217,8 @@ test('feedback polish: office-issued credentials are server-generated while stud
 test('feedback polish: curriculum counts stay localized and enrolled schedules use CampusCore weekdays', () => {
   const page = read('src/app/dashboard/enrollments/page.tsx');
   const grid = read('src/lib/weekly-grid.ts');
+  // W18 P6: the status-filter copy moved to the studentPortal fragment.
+  const studentPortal = read('src/i18n/messages-student-portal.ts');
 
   assert.match(page, /const courseCountLabel = useCallback/);
   assert.match(page, /value: courseCountLabel\(curriculumCourses\.length\)/);
@@ -223,7 +228,8 @@ test('feedback polish: curriculum counts stay localized and enrolled schedules u
   assert.match(page, /curriculumStatusSummary/);
   assert.match(page, /aria-label=\{copy\.statusSummaryLabel\}/);
   assert.match(page, /aria-pressed=\{statusFilter === btn\.key\}/);
-  assert.match(page, /filterNotStarted: 'Not completed'/);
+  assert.match(studentPortal, /filterNotStarted: 'Not completed'/);
+  assert.match(page, /copy\.filterNotStarted/);
   assert.match(page, /\{copy\.semesterPrefix\} \{sem\} - \{courseCountLabel\(courses\.length\)\}/);
   // Day names come from the shared weekly-grid source (single day-name source
   // of truth across every schedule view), with the legacy 0=Sunday fold kept.
@@ -444,17 +450,22 @@ test('feedback polish: grade breakdown opens through native controls and guards 
   const page = read('src/app/dashboard/grades/page.tsx');
   const modal = read('src/components/dashboard/GradeDetailModal.tsx');
   const spec = read('e2e/demo-polish.spec.ts');
+  // W18 P6: grades copy moved to the studentPortal fragment.
+  const studentPortal = read('src/i18n/messages-student-portal.ts');
 
   assert.match(page, /function isFiniteScore\(value: number \| null \| undefined\): value is number/);
   assert.match(page, /const scoreLabel = \(value: number \| null \| undefined\) =>/);
-  assert.match(page, /componentSummary: 'Component scores by course'/);
-  assert.match(page, /openBreakdown: \(courseCode: string, courseName: string\) =>/);
+  assert.match(studentPortal, /componentSummary: 'Component scores by course'/);
+  assert.match(page, /copy\.componentSummary/);
+  assert.match(studentPortal, /openBreakdown: 'Open grade breakdown for \{courseCode\} \{courseName\}'/);
+  assert.match(page, /copy\.openBreakdown/);
   assert.match(page, /type="button"[\s\S]{0,520}?aria-label=\{openLabel\}/);
   assert.doesNotMatch(page, /<tr[\s\S]{0,140}?onClick=\{\(\) => setSelectedRecord\(record\)\}/);
   assert.doesNotMatch(page, /record\.finalGrade !== null\s*\?\s*record\.finalGrade\.toFixed\(1\)/);
 
   assert.match(modal, /getStudentGradesByEnrollment\(record\.id\)/);
-  assert.match(modal, /const emptyValue = locale === 'vi' \? 'Chưa có' : 'N\/A'/);
+  assert.match(studentPortal, /emptyValue: 'N\/A'/);
+  assert.match(modal, /const emptyValue = copy\.emptyValue/);
   assert.match(modal, /isFiniteScore\(record\.finalGrade\)/);
   assert.match(modal, /isFiniteScore\(item\.score\)/);
   assert.doesNotMatch(modal, /'—'/);

@@ -142,8 +142,12 @@ test('student enrollments use complete mobile cards and a separate desktop table
   assert.match(mobileCards, /messages\.common\.statuses\.UNKNOWN/);
   assert.match(mobileCards, /isDroppableEnrollment\(enrollment\.status\)/);
   assert.match(mobileCards, /onClick=\{\(\) => void handleDrop\(enrollment\.id, courseLabel\)\}/);
-  assert.match(page, /title: 'Môn học của tôi'/);
-  assert.match(page, /title: 'My courses'/);
+  // W18 P6: the page title moved to the studentPortal fragment, so the oracle
+  // follows the copy instead of pinning it inside the page module.
+  const studentPortal = read('src/i18n/messages-student-portal.ts');
+  assert.match(studentPortal, /title: 'My courses'/);
+  assert.match(studentPortal, /title: 'Môn học của tôi'/);
+  assert.doesNotMatch(page, /title: 'Môn học của tôi'|title: 'My courses'/);
   assert.doesNotMatch(mobileCards, /<details/);
   assert.doesNotMatch(
     page,

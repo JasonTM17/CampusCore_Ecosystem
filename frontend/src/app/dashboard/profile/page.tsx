@@ -10,6 +10,7 @@ import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { LoadingState } from '@/components/ui/state-block';
 import { WorkspacePanel } from '@/components/dashboard/WorkspaceSurface';
 import { useI18n } from '@/i18n';
+import { studentPortalEn, studentPortalVi } from '@/i18n/messages-student-portal';
 import { isDemoUser, loginHref, portalFromUser } from '@/lib/login-portal';
 import { campusCodeMessage, type CampusErrorCopy } from '@/lib/campus-error';
 import { civilDateInputValue } from '@/lib/civil-date';
@@ -152,6 +153,7 @@ function PasswordField({
 export default function ProfilePage() {
   const { user, refreshUser, logout } = useAuth();
   const { messages, locale, href } = useI18n();
+  const portalCopy = (locale === 'vi' ? studentPortalVi : studentPortalEn).profile;
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [profileError, setProfileError] = useState('');
@@ -573,7 +575,7 @@ export default function ProfilePage() {
                   {isDemoUser(user) && (
                     <span className="inline-flex items-center gap-1.5 rounded-md border border-portal-chrome-accent/40 bg-portal-chrome-accent/15 px-3 py-1 text-xs font-medium text-foreground">
                       <span className="h-1.5 w-1.5 rounded-full bg-portal-chrome-accent" />
-                      {locale === 'vi' ? 'Tài khoản demo để trải nghiệm' : 'Demo experience account'}
+                      {portalCopy.demoAccount}
                     </span>
                   )}
                 </div>

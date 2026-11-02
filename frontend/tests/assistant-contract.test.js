@@ -1368,6 +1368,7 @@ test('static portal guides and past-thesis content delegate to the backend knowl
 
 test('smalltalk intents still resolve locally with static copy and no citations', async () => {
   const source = fs.readFileSync(path.join(root, 'src/lib/assistant-student-resolver.ts'), 'utf8');
+  const assistantWindowMessages = load('src/components/assistant/assistant-messages.ts');
   const output = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText;
@@ -1378,6 +1379,7 @@ test('smalltalk intents still resolve locally with static copy and no citations'
         authApi: { me: async () => ({ id: 's-1', roles: ['STUDENT'], firstName: 'Minh', lastName: 'Nguyen' }) },
       };
     }
+    if (name === '@/components/assistant/assistant-messages') return assistantWindowMessages;
     return {};
   });
   const { resolveStudentAssistantQuery } = moduleRecord.exports;

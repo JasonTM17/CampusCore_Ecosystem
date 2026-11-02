@@ -233,10 +233,15 @@ test('unsaved-changes guard resolves its copy from the active locale', () => {
 
 test('advisor directory supervision column label is semantically aligned', () => {
   const source = read('src/components/dashboard/thesis/ThesisAdvisorDirectoryPage.tsx');
+  const { thesisWorkflowEn, thesisWorkflowVi } = loadModule('src/i18n/messages-thesis-workflow.ts');
 
-  assert.match(source, /title: isVi \? 'Chỉ tiêu hướng dẫn' : 'Supervision Quota'/);
+  // W18 P5: the label moved into the thesisWorkflow catalogue; the locale
+  // branches are gone from the page, so the assertion follows the copy.
+  assert.equal(thesisWorkflowEn.advisorDirectory.table.workload, 'Supervision Quota');
+  assert.equal(thesisWorkflowVi.advisorDirectory.table.workload, 'Chỉ tiêu hướng dẫn');
+  assert.match(source, /copy\.table\.workload/);
   assert.equal(
-    source.includes("title: isVi ? 'Tải hướng dẫn' : 'Supervision Quota'"),
+    source.includes('Tải hướng dẫn'),
     false,
     'the VI column label must not mean "download instructions"',
   );

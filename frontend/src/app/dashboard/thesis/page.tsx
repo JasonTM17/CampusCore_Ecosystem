@@ -46,6 +46,7 @@ import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/i18n';
+import { thesisWorkflowEn, thesisWorkflowVi } from '@/i18n/messages-thesis-workflow';
 import { useNow } from '@/lib/use-now';
 import { ThesisWorkflowStepper } from '@/components/thesis/ThesisWorkflowStepper';
 import { ThesisRegulationGuide } from '@/components/thesis/ThesisRegulationGuide';
@@ -143,6 +144,8 @@ export default function ThesisPage() {
   const isSupervisorOrAdmin = canLoadStaffRelations;
   const { locale, formatDateTime, messages } = useI18n();
   const pageCopy = messages.thesisWorkflow.page;
+  const isVi = locale === 'vi';
+  const workspaceCopy = isVi ? thesisWorkflowVi.workspace : thesisWorkflowEn.workspace;
   const searchParams = useSearchParams();
   const explicitRoundId = searchParams.get('roundId') || '';
   const [rounds, setRounds] = useState<ThesisRound[]>([]);
@@ -1142,14 +1145,12 @@ export default function ThesisPage() {
   const handleDownloadRepositoryReport = async (report: ThesisRepositoryReport) => {
     try {
       await thesisApi.downloadRepositoryReportFile(report.reportId, report);
-      toast.success(locale === 'vi' ? 'Đã tải tài liệu báo cáo' : 'Downloaded report artifact');
+      toast.success(workspaceCopy.downloadedReport);
     } catch (caught) {
       toast.error(
         getThesisErrorCode(caught) === 'REPORT_STORAGE_UNAVAILABLE'
           ? messages.thesis.report.fileUnavailable
-          : locale === 'vi'
-            ? 'Không thể tải tài liệu báo cáo'
-            : 'Failed to download report artifact',
+          : workspaceCopy.downloadFailed,
       );
     }
   };
@@ -1282,34 +1283,10 @@ export default function ThesisPage() {
     ? (currentLeaderMember.displayName || currentLeaderMember.studentNumber || currentLeaderMember.studentId)
     : (currentGroup?.leaderStudentId || pageCopy.groupLeaderFallback);
 
-  const memberCopy =
-    locale === 'vi'
-      ? ({
-          searchLabel: 'Tìm sinh viên trong trường',
-          searchPlaceholder: 'Nhập tên, MSSV hoặc email...',
-          searchButton: 'Tìm',
-          searchHint: 'Nhập ít nhất 2 ký tự để tìm theo tên, MSSV hoặc email.',
-          searching: 'Đang tìm...',
-          searchNoResults: 'Không tìm thấy sinh viên phù hợp.',
-          addShort: 'Thêm',
-          addedShort: 'Đã trong nhóm',
-          curriculumLabel: 'CTĐT',
-          groupFull: messages.thesis.maxMembersReached,
-          studentAlreadyInGroup: 'Sinh viên này đã thuộc một nhóm trong đợt này.',
-        } as const)
-      : ({
-          searchLabel: 'Search internal students',
-          searchPlaceholder: 'Enter name, student ID or email...',
-          searchButton: 'Search',
-          searchHint: 'Type at least 2 characters to search by name, student ID or email.',
-          searching: 'Searching...',
-          searchNoResults: 'No matching students found.',
-          addShort: 'Add',
-          addedShort: 'Already in group',
-          curriculumLabel: 'Curriculum',
-          groupFull: messages.thesis.maxMembersReached,
-          studentAlreadyInGroup: 'This student already belongs to a group in this round.',
-        } as const);
+  const memberCopy = {
+    ...workspaceCopy.members,
+    groupFull: messages.thesis.maxMembersReached,
+  };
 
   const refreshGroups = async () => {
     if (!selectedRoundId) return;
@@ -3241,7 +3218,7 @@ export default function ThesisPage() {
             // An outage must not read as "no supervisors exist": the reader
             // gets the real failure and a retry.
             <ErrorState
-              title={locale === 'vi' ? 'Không thể tải danh sách giảng viên' : 'Supervisor directory unavailable'}
+              title={workspaceCopy.supervisorsErrorTitle}
               description={lecturersError}
               onRetry={() => void loadLecturers()}
             />
@@ -3276,12 +3253,8 @@ export default function ThesisPage() {
             </div>
           ) : (
             <EmptyState
-              title={locale === 'vi' ? 'Chưa có giảng viên hướng dẫn' : 'No supervisors listed yet'}
-              description={
-                locale === 'vi'
-                  ? 'Nhà trường chưa công bố giảng viên nào trong danh sách hướng dẫn. Vui lòng liên hệ Khoa để được hỗ trợ.'
-                  : 'The faculty directory lists no supervisors yet. Contact your department office for assistance.'
-              }
+              title={workspaceCopy.noSupervisorsTitle}
+              description={workspaceCopy.noSupervisorsDescription}
             />
           )}
           <div>
@@ -3576,9 +3549,7 @@ export default function ThesisPage() {
                   className="h-10"
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {locale === 'vi'
-                    ? 'Áp dụng cho thành viên khác ngành hoặc đến từ trường đại học khác.'
-                    : 'For members from another major or a different university.'}
+                  {workspaceCopy.externalMemberHint}
                 </p>
               </div>
               <div className="flex justify-end gap-2 pt-2">
@@ -3625,7 +3596,7 @@ export default function ThesisPage() {
               <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 p-2.5 text-xs text-muted-foreground">
                 <Building2 className="h-4 w-4 shrink-0 text-primary" />
                 <span>
-                  <strong>{locale === 'vi' ? 'Đơn vị chuyên môn:' : 'Department:'}</strong>{' '}
+                  <strong>{workspaceCopy.departmentLabel}</strong>{' '}
                   {departments.find((d) => d.id === viewingTopic.departmentId)?.name || viewingTopic.departmentId}
                 </span>
               </div>
@@ -3633,7 +3604,7 @@ export default function ThesisPage() {
 
             <div className="rounded-lg border border-border/70 bg-card p-4 text-sm leading-relaxed text-foreground max-h-[50vh] overflow-y-auto">
               <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                {locale === 'vi' ? 'Mô tả & Yêu cầu học thuật' : 'Description & Academic Requirements'}
+                {workspaceCopy.descriptionHeading}
               </h4>
               <RichContentRenderer content={viewingTopic.description} />
             </div>
@@ -3645,7 +3616,7 @@ export default function ThesisPage() {
                 className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
-                {locale === 'vi' ? 'Mở trang chuyên sâu' : 'Open dedicated topic page'}
+                {workspaceCopy.openTopicPage}
               </LocalizedLink>
               ) : null}
 
@@ -3657,7 +3628,7 @@ export default function ThesisPage() {
                   onClick={() => setViewingTopic(null)}
                   disabled={isActionPending}
                 >
-                  {locale === 'vi' ? 'Đóng' : 'Close'}
+                  {workspaceCopy.close}
                 </Button>
 
                 {/* Governance approves a draft; ownership alone permits editing.

@@ -31,6 +31,7 @@ import { metricToneClass } from '@/components/ui/status';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { WorkspacePanel } from '@/components/dashboard/WorkspaceSurface';
 import { useI18n } from '@/i18n';
+import { studentPortalEn, studentPortalVi } from '@/i18n/messages-student-portal';
 import { cn } from '@/lib/utils';
 
 interface Enrollment {
@@ -73,22 +74,25 @@ interface UpcomingMeeting {
   roomNumber: string;
 }
 
-function getMeetingShift(startTime: string, locale: string) {
+function getMeetingShift(
+  startTime: string,
+  shifts: { morning: string; afternoon: string; evening: string },
+) {
   const hour = parseInt(startTime.split(':')[0], 10);
   if (hour < 12) {
     return {
-      label: locale === 'vi' ? 'Ca Sáng' : 'Morning',
+      label: shifts.morning,
       tone: 'border-[hsl(var(--status-warning)/0.35)] bg-[hsl(var(--status-warning)/0.12)] text-[hsl(var(--status-warning-foreground))]',
     };
   }
   if (hour < 17) {
     return {
-      label: locale === 'vi' ? 'Ca Chiều' : 'Afternoon',
+      label: shifts.afternoon,
       tone: 'border-status-info/30 bg-status-info/10 text-status-info-foreground',
     };
   }
   return {
-    label: locale === 'vi' ? 'Ca Tối' : 'Evening',
+    label: shifts.evening,
     tone: 'border-status-neutral/30 bg-status-neutral/10 text-status-neutral-foreground',
   };
 }
@@ -198,52 +202,7 @@ export default function DashboardPage() {
     void summaryQuery.refetch();
   };
 
-  const copy =
-    locale === 'vi'
-      ? {
-          description: 'Tổng quan thông tin học vụ và tiến độ học kỳ hiện tại.',
-          stats: {
-            courses: 'Môn học kỳ này',
-            active: 'Đang học',
-            pending: 'Chờ xử lý',
-            term: 'Học kỳ hiện tại',
-          },
-          upcomingTitle: 'Lịch học hôm nay & sắp tới',
-          today: 'Hôm nay',
-          noMeetings: 'Chưa có buổi học nào được xếp lịch.',
-          openSchedule: 'Xem thời khóa biểu',
-          progressTitle: 'Tiến độ học tập',
-          creditLabel: 'Tín chỉ đăng ký kỳ này',
-          progressStatus: (pct: number) => `Đã đạt ${pct}% chỉ tiêu học kỳ`,
-          creditsAvailable: (rem: number) => `Còn có thể đăng ký thêm ${rem} tín chỉ`,
-          creditsCapped: 'Đã đạt hạn mức tín chỉ tối đa',
-          creditsEarnedOnly: 'Tín chỉ đã đăng ký kỳ này',
-          pendingBadge: (count: string) => `${count} đăng ký chờ xử lý`,
-          quickAccessTitle: 'Truy cập nhanh',
-          coursesUnit: 'môn',
-        } as const
-      : {
-          description: 'A quick snapshot of your active term.',
-          stats: {
-            courses: 'Courses this term',
-            active: 'Active',
-            pending: 'Pending',
-            term: 'Current term',
-          },
-          upcomingTitle: 'Today & upcoming classes',
-          today: 'Today',
-          noMeetings: 'No class meetings scheduled yet.',
-          openSchedule: 'Open schedule',
-          progressTitle: 'Study progress',
-          creditLabel: 'Credits this term',
-          progressStatus: (pct: number) => `${pct}% of term credit capacity`,
-          creditsAvailable: (rem: number) => `Can register up to ${rem} more credits`,
-          creditsCapped: 'Maximum credit limit reached',
-          creditsEarnedOnly: 'Credits registered this term',
-          pendingBadge: (count: string) => `${count} registrations pending`,
-          quickAccessTitle: 'Quick access',
-          coursesUnit: 'courses',
-        } as const;
+  const copy = (locale === 'vi' ? studentPortalVi : studentPortalEn).home;
 
   const currentSemesterName = useMemo(() => {
     return (
@@ -314,10 +273,7 @@ export default function DashboardPage() {
   );
   const nextMeetings = upcomingMeetings.slice(0, 3);
 
-  const dayBadgeLabels: Record<number, string> =
-    locale === 'vi'
-      ? { 1: 'T2', 2: 'T3', 3: 'T4', 4: 'T5', 5: 'T6', 6: 'T7', 7: 'CN' }
-      : { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat', 7: 'Sun' };
+  const dayBadgeLabels = copy.dayShort;
 
   const enrollmentStatusLabel = (status: string) =>
     messages.common.statuses[status as keyof typeof messages.common.statuses] ??
@@ -333,7 +289,7 @@ export default function DashboardPage() {
       icon: BookOpen,
       tone: metricToneClass('info'),
       href: '/dashboard/enrollments',
-      tooltip: locale === 'vi' ? 'Xem danh sách học phần' : 'View enrolled courses',
+      tooltip: copy.tooltips.courses,
       // Numeric chips are short by construction and may stay single-line.
       wraps: false,
     },
@@ -346,7 +302,7 @@ export default function DashboardPage() {
       icon: GraduationCap,
       tone: metricToneClass('success'),
       href: '/dashboard/enrollments',
-      tooltip: locale === 'vi' ? 'Xem các môn đang học' : 'View active courses',
+      tooltip: copy.tooltips.active,
       wraps: false,
     },
     {
@@ -355,7 +311,7 @@ export default function DashboardPage() {
       icon: ClipboardList,
       tone: metricToneClass('warning'),
       href: '/dashboard/register',
-      tooltip: locale === 'vi' ? 'Đến trang đăng ký học phần' : 'Go to course registration',
+      tooltip: copy.tooltips.pending,
       wraps: false,
     },
     {
@@ -368,7 +324,7 @@ export default function DashboardPage() {
       icon: Calendar,
       tone: metricToneClass('neutral'),
       href: '/dashboard/schedule',
-      tooltip: locale === 'vi' ? 'Xem thời khóa biểu học kỳ' : 'View semester schedule',
+      tooltip: copy.tooltips.term,
       wraps: true,
     },
   ];
@@ -481,23 +437,19 @@ export default function DashboardPage() {
                 nextMeetings.map((meeting) => {
                   const room =
                     meeting.building && meeting.roomNumber
-                      ? (locale === 'vi'
-                          ? `Phòng ${meeting.building}-${meeting.roomNumber}`
-                          : `Room ${meeting.building}-${meeting.roomNumber}`)
+                      ? copy.roomWithBuilding
+                          .replace('{building}', () => meeting.building)
+                          .replace('{room}', () => meeting.roomNumber)
                       : meeting.roomNumber
-                        ? (locale === 'vi'
-                            ? `Phòng ${meeting.roomNumber}`
-                            : `Room ${meeting.roomNumber}`)
+                        ? copy.roomOnly.replace('{room}', () => meeting.roomNumber)
                         : meeting.building;
-                  const shift = getMeetingShift(meeting.startTime, locale);
+                  const shift = getMeetingShift(meeting.startTime, copy.shifts);
 
                   const badgeText =
                     meeting.daysUntil === 0
                       ? copy.today
                       : meeting.daysUntil === 1
-                        ? locale === 'vi'
-                          ? 'Ngày mai'
-                          : 'Tomorrow'
+                        ? copy.tomorrow
                         : undefined;
 
                   return (
@@ -514,7 +466,7 @@ export default function DashboardPage() {
                             : 'bg-secondary/60 text-foreground group-hover:bg-primary/10 group-hover:text-primary',
                         )}
                       >
-                        {dayBadgeLabels[meeting.dayOfWeek]}
+                        {dayBadgeLabels[meeting.dayOfWeek - 1]}
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
@@ -571,11 +523,11 @@ export default function DashboardPage() {
                 />
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground pt-0.5">
-                <span>{creditPercent === null ? copy.creditsEarnedOnly : copy.progressStatus(creditPercent)}</span>
+                <span>{creditPercent === null ? copy.creditsEarnedOnly : copy.progressStatus.replace('{percent}', () => String(creditPercent))}</span>
                 {creditRemaining !== null ? (
                   <span className="font-medium text-foreground/80">
                     {creditRemaining > 0
-                      ? copy.creditsAvailable(creditRemaining)
+                      ? copy.creditsAvailable.replace('{remaining}', () => String(creditRemaining))
                       : copy.creditsCapped}
                   </span>
                 ) : null}
@@ -583,7 +535,7 @@ export default function DashboardPage() {
               {pendingCourses.length > 0 ? (
                 <div className="pt-0.5">
                   <span className="inline-flex items-center gap-1.5 rounded-md border border-status-warning/30 bg-status-warning/10 px-2.5 py-1 text-xs font-semibold text-status-warning-foreground">
-                    {copy.pendingBadge(formatNumber(pendingCourses.length))}
+                    {copy.pendingBadge.replace('{count}', () => formatNumber(pendingCourses.length))}
                   </span>
                 </div>
               ) : null}

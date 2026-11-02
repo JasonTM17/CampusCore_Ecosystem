@@ -5,11 +5,13 @@ import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { useRovingTabs } from '@/components/ui/use-roving-tabs';
 import { useI18n } from '@/i18n';
+import { studentPortalEn, studentPortalVi } from '@/i18n/messages-student-portal';
 
 const IDENTITY_TAB_VALUES = ['0', '1', '2'] as const;
 
 export function HomeIdentityBoard() {
   const { messages, locale } = useI18n();
+  const identityCopy = (locale === 'vi' ? studentPortalVi : studentPortalEn).identity;
   const [activeIndex, setActiveIndex] = useState(0);
   const identityTabs = useRovingTabs(IDENTITY_TAB_VALUES, String(activeIndex), (value) => {
     setActiveIndex(Number(value));
@@ -31,15 +33,15 @@ export function HomeIdentityBoard() {
   const targetPortals = [
     {
       href: '/login?portal=student',
-      label: locale === 'vi' ? 'Vào Cổng Sinh viên' : 'Enter Student Portal',
+      label: identityCopy.student,
     },
     {
       href: '/login?portal=lecturer',
-      label: locale === 'vi' ? 'Vào Cổng Giảng viên' : 'Enter Lecturer Portal',
+      label: identityCopy.lecturer,
     },
     {
       href: '/login',
-      label: locale === 'vi' ? 'Vào Cổng Quản trị' : 'Enter Admin Portal',
+      label: identityCopy.admin,
     },
   ];
   const activePortal = targetPortals[activeIndex] ?? targetPortals[0];

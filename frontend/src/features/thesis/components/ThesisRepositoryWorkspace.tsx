@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { StatusBadge } from '@/components/thesis/StatusBadge';
 import type { I18nMessages } from '@/i18n/messages';
+import { thesisWorkflowEn, thesisWorkflowVi } from '@/i18n/messages-thesis-workflow';
 import type { Locale } from '@/i18n/config';
 import { type ThesisRepositoryReport } from '@/lib/thesis-api';
 import { fillCopy, formatReportFileSize } from '@/features/thesis/components/thesis-helpers';
@@ -54,6 +55,8 @@ export default function ThesisRepositoryWorkspace({
   onDownloadReport,
 }: ThesisRepositoryWorkspaceProps) {
   const pageCopy = messages.thesisWorkflow.page;
+  const isVi = locale === 'vi';
+  const copy = isVi ? thesisWorkflowVi.repository : thesisWorkflowEn.repository;
   const totalReports = reports.length;
   const totalFiles = reports.filter((r) => r.fileName).length;
   const totalUrls = reports.filter((r) => r.url).length;
@@ -79,12 +82,12 @@ export default function ThesisRepositoryWorkspace({
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
               <FileDown className="h-3.5 w-3.5" />
-              {totalFiles} {locale === 'vi' ? 'tài liệu đính kèm' : 'attached files'}
+              {totalFiles} {copy.attachedFiles}
             </span>
             {totalUrls > 0 && (
               <span className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/20 bg-sky-500/10 px-3 py-1 text-xs font-semibold text-sky-700 dark:text-sky-300">
                 <ExternalLink className="h-3.5 w-3.5" />
-                {totalUrls} {locale === 'vi' ? 'liên kết ngoài' : 'external links'}
+                {totalUrls} {copy.externalLinks}
               </span>
             )}
           </div>
@@ -123,11 +126,7 @@ export default function ThesisRepositoryWorkspace({
           // An outage is not an empty archive: surface the real failure with a
           // retry instead of the "no reports yet" state.
           <ErrorState
-            title={
-              locale === 'vi'
-                ? 'Không thể tải kho lưu trữ báo cáo'
-                : 'The report archive could not be loaded'
-            }
+            title={copy.loadErrorTitle}
             description={loadError}
             onRetry={onRetry}
           />
@@ -135,21 +134,21 @@ export default function ThesisRepositoryWorkspace({
           <EmptyState
             icon={Archive}
             title={pageCopy.noRoundReportsYet}
-            description={locale === 'vi' ? 'Các nhóm nghiên cứu sau khi hoàn thành sẽ nộp báo cáo tại đây để lưu trữ và thẩm định.' : 'Research groups will submit their thesis reports here once ready for archival.'}
+            description={copy.emptyDescription}
             className="min-h-[220px]"
           />
         ) : filteredReports.length === 0 ? (
           <EmptyState
             icon={Search}
             title={pageCopy.noReportsFound}
-            description={locale === 'vi' ? 'Thử thay đổi từ khóa tìm kiếm theo tên đề tài, mã số sinh viên hoặc giảng viên hướng dẫn.' : 'Try adjusting your search keywords by topic, student ID or supervisor.'}
+            description={copy.noMatchDescription}
             className="min-h-[200px]"
           />
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
               <span>{fillCopy(pageCopy.allReports, { count: filteredReports.length })}</span>
-              <span>{locale === 'vi' ? 'Đợt:' : 'Round:'} <strong className="text-foreground">{roundName}</strong></span>
+              <span>{copy.roundLabel} <strong className="text-foreground">{roundName}</strong></span>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
@@ -201,13 +200,13 @@ export default function ThesisRepositoryWorkspace({
                           {pageCopy.archiveSupervisorLabel}
                         </span>
                         {report.supervisors.length === 0 ? (
-                          <span className="text-muted-foreground italic">{locale === 'vi' ? 'Chưa phân công' : 'Not assigned'}</span>
+                          <span className="text-muted-foreground italic">{copy.notAssigned}</span>
                         ) : (
                           <div className="space-y-1">
                             {report.supervisors.map((s) => (
                               <div key={`${s.supervisorOrder}-${s.displayName}`} className="flex items-center gap-2">
                                 <span className="font-medium text-foreground">
-                                  {s.displayName || (locale === 'vi' ? 'Chưa có tên' : 'Unnamed supervisor')}
+                                  {s.displayName || copy.unnamedSupervisor}
                                 </span>
                               </div>
                             ))}
@@ -222,11 +221,11 @@ export default function ThesisRepositoryWorkspace({
                           {pageCopy.membersLabel} ({report.members.length})
                         </span>
                         {report.members.length === 0 ? (
-                          <span className="text-muted-foreground italic">{locale === 'vi' ? 'Chưa có thông tin thành viên' : 'No roster details'}</span>
+                          <span className="text-muted-foreground italic">{copy.noRoster}</span>
                         ) : (
                           <div className="space-y-1">
                             {report.members.map((m) => {
-                              const name = m.displayName || m.studentNumber || (locale === 'vi' ? 'Thành viên' : 'Member');
+                              const name = m.displayName || m.studentNumber || copy.memberFallback;
                               return (
                                 <div key={`${m.studentNumber || name}-${m.isLeader ? 'leader' : 'member'}`} className="flex flex-wrap items-center gap-1.5">
                                   <span className="font-medium text-foreground">{name}</span>
@@ -284,7 +283,7 @@ export default function ThesisRepositoryWorkspace({
                           </Button>
                         ) : (
                           <span className="text-xs text-muted-foreground italic">
-                            {locale === 'vi' ? 'Không có file đính kèm' : 'No attached file'}
+                            {copy.noAttachedFile}
                           </span>
                         )}
 
@@ -309,9 +308,9 @@ export default function ThesisRepositoryWorkspace({
                       </div>
 
                       <div className="text-[11px] text-muted-foreground">
-                        {locale === 'vi' ? 'Người nộp:' : 'Submitted by:'}{' '}
+                        {copy.submittedBy}{' '}
                         <strong className="text-foreground">
-                          {report.submittedByDisplayName || report.submittedByStudentNumber || (locale === 'vi' ? 'Không rõ' : 'Unavailable')}
+                          {report.submittedByDisplayName || report.submittedByStudentNumber || copy.submitterUnavailable}
                         </strong>
                         {report.submittedByDisplayName && report.submittedByStudentNumber && (
                           <span className="ml-1 font-mono">({report.submittedByStudentNumber})</span>

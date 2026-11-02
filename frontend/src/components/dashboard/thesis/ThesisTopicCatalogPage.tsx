@@ -6,6 +6,7 @@ import { ArrowUpRight, FileStack, Loader2, Search } from 'lucide-react';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { useRequireAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
+import { thesisWorkflowEn, thesisWorkflowVi } from '@/i18n/messages-thesis-workflow';
 import { LinkButton } from '@/components/ui/link-button';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -95,48 +96,9 @@ export default function ThesisTopicCatalogPage() {
   }
 
   const searchCopy = locale === 'vi'
-    ? {
-        label: 'Tìm kiếm đề tài',
-        placeholder: 'Nhập tên đề tài, chuyên ngành hoặc từ khóa…',
-        action: 'Tìm kiếm',
-        viewAll: 'Xem tất cả đề tài đợt này',
-        quickSuggest: 'Gợi ý chuyên ngành:',
-        requiredTitle: 'Tìm kiếm để xem danh mục đề tài',
-        requiredDescription:
-          'Bạn có thể nhập từ khóa, chọn chuyên ngành gợi ý hoặc bấm "Xem tất cả đề tài đợt này".',
-        noMatch: 'Không có đề tài nào khớp từ khóa.',
-      }
-    : {
-        label: 'Search topics',
-        placeholder: 'Enter topic title, specialization, or keyword…',
-        action: 'Search',
-        viewAll: 'Browse all topics in this round',
-        quickSuggest: 'Suggested topics:',
-        requiredTitle: 'Search to view the topic catalog',
-        requiredDescription:
-          'Enter a keyword, click a quick suggestion, or click "Browse all topics in this round".',
-        noMatch: 'No topic matches your search.',
-      };
-
-  const quickPills = locale === 'vi'
-    ? [
-        'Trí tuệ nhân tạo (AI)',
-        'Phần mềm & Web',
-        'Cơ điện tử & Robot',
-        'Hệ thống thông tin',
-        'IoT & Viễn thông',
-        'Kỹ thuật Ô tô',
-        'Xây dựng',
-      ]
-    : [
-        'Artificial Intelligence',
-        'Software & Web',
-        'Robotics & Mechatronics',
-        'Information Systems',
-        'IoT & Telecom',
-        'Automotive',
-        'Civil Engineering',
-      ];
+    ? thesisWorkflowVi.topicCatalog
+    : thesisWorkflowEn.topicCatalog;
+  const quickPills = searchCopy.quickPills;
 
   const handleSearch = (event: React.FormEvent) => {
     event.preventDefault();
@@ -237,12 +199,12 @@ export default function ThesisTopicCatalogPage() {
 
       <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <label className="flex min-w-0 flex-1 flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          {searchCopy.label}
+          {searchCopy.searchLabel}
           <Input
             type="search"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
-            placeholder={searchCopy.placeholder}
+            placeholder={searchCopy.searchPlaceholder}
             className="h-11 normal-case tracking-normal"
           />
         </label>
@@ -252,7 +214,7 @@ export default function ThesisTopicCatalogPage() {
           ) : (
             <Search className="mr-2 h-4 w-4" aria-hidden="true" />
           )}
-          {searchCopy.action}
+          {searchCopy.searchAction}
         </Button>
       </form>
 
