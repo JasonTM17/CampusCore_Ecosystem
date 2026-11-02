@@ -6,6 +6,7 @@ import io.campuscore.restfulapi.admissions.web.AdmissionDtos.AttachmentUploadReq
 import io.campuscore.restfulapi.admissions.web.AdmissionDtos.CreateApplicationRequest;
 import io.campuscore.restfulapi.admissions.web.AdmissionDtos.ReviewResponse;
 import io.campuscore.restfulapi.admissions.web.AdmissionDtos.SaveApplicationRequest;
+import io.campuscore.restfulapi.admissions.web.MultipartAttachment;
 import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.web.DomainException;
 import java.sql.ResultSet;
@@ -270,9 +271,12 @@ public class AdmissionApplicantService {
         if (request == null) {
             throw problem(HttpStatus.BAD_REQUEST, "ATTACHMENT_DATA_REQUIRED", "dataBase64 is required");
         }
-        String fileName = request.fileName() == null ? null : request.fileName().trim();
-        String contentType = request.contentType() == null
-                ? "application/octet-stream" : request.contentType();
+        // The JSON lane applies the same display-name and declared-type rules
+        // as the multipart lane, so persisted metadata always fits the
+        // columns and always parses on a later download.
+        String fileName = request.fileName() == null || request.fileName().isBlank()
+                ? null : MultipartAttachment.displayName(request.fileName());
+        String contentType = MultipartAttachment.declaredType(request.contentType());
         // Decode + checksum before claiming so a same-key retry binds bytes
         // and the normalized metadata that will be persisted.
         byte[] bytes = decode(request.dataBase64(), fileName);

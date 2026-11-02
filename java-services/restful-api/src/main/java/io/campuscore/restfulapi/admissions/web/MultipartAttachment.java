@@ -7,6 +7,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.InvalidMediaTypeException;
+import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -134,8 +136,51 @@ public final class MultipartAttachment {
         return type.trim().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * JSON/base64 counterpart of the multipart declared-type checks: the
+     * declared type must parse as a media type or the upload is rejected at
+     * the boundary. The returned value is the canonical {@code type/subtype}
+     * (parameters stripped, lowercased) and defaults to octet-stream when
+     * absent, so what is persisted always parses on a later download and
+     * always fits the attachment column.
+     */
+    public static String declaredType(String declared) {
+        String normalized = normalizedType(declared);
+        if (normalized.isEmpty()) {
+            return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        }
+        String canonical;
+        try {
+            canonical = MediaType.parseMediaType(normalized).toString();
+        } catch (InvalidMediaTypeException exception) {
+            throw new DomainException(HttpStatus.BAD_REQUEST, "ATTACHMENT_TYPE_INVALID",
+                    "contentType is not a valid media type");
+        }
+        if (canonical.length() > 120) {
+            throw new DomainException(HttpStatus.BAD_REQUEST, "ATTACHMENT_TYPE_INVALID",
+                    "contentType is not a valid media type");
+        }
+        return canonical;
+    }
+
+    /**
+     * Read-side counterpart of {@link #declaredType}: a stored value that
+     * predates boundary validation, or is otherwise unparseable, degrades to
+     * octet-stream instead of failing the whole download.
+     */
+    public static MediaType downloadType(Object stored) {
+        if (stored == null) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+        try {
+            return MediaType.parseMediaType(String.valueOf(stored));
+        } catch (InvalidMediaTypeException exception) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+    }
+
     /** Single path segment, printable characters only, capped; never used as a storage path. */
-    static String displayName(String original) {
+    public static String displayName(String original) {
         String name = original == null ? "" : original;
         int slash = Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\'));
         if (slash >= 0) {

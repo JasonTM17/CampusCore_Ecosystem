@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -19,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
@@ -729,6 +731,86 @@ class AdmissionContractPersistenceTest {
                         + " WHERE NOT EXISTS (SELECT 1 FROM admissions.\"Attachment\" a"
                         + " WHERE a.\"fileKey\" = f.\"key\")",
                 Integer.class)).isZero();
+    }
+
+    @Test
+    void longReturnNoteStillAppliesTheTransition() throws Exception {
+        String id = submitted("longnote", applicantJwt);
+        claim(id, staffJwt, 3);
+        String note = "thiếu giấy tờ — ".repeat(160);
+        assertThat(note.length()).isGreaterThan(2000);
+
+        // The transition applies; the stored note keeps every character and
+        // only the inbox copy is bounded to its column.
+        mvc.perform(post("/api/v1/admissions/staff/applications/" + id + "/return")
+                        .with(staffJwt).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"note\":\"" + note + "\",\"expectedVersion\":4}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RETURNED"));
+        Integer stored = jdbc.queryForObject(
+                "SELECT LENGTH(\"note\") FROM admissions.\"Review\""
+                        + " WHERE \"applicationId\" = ? AND \"action\" = 'RETURN'",
+                Integer.class, id);
+        assertThat(stored).isEqualTo(note.length());
+        Integer message = jdbc.queryForObject(
+                "SELECT LENGTH(\"message\") FROM notifications.notification"
+                        + " WHERE user_id = 'applicant-1'",
+                Integer.class);
+        assertThat(message).isLessThanOrEqualTo(2000);
+    }
+
+    @Test
+    void attachmentMetadataIsBoundedAndCanonical() throws Exception {
+        String id = createDraft(applicantJwt, "meta-create");
+
+        // The JSON lane applies the same display-name rule as the multipart
+        // lane: a long or path-like name is reduced, never a width failure.
+        mvc.perform(post("/api/v1/admissions/applications/" + id + "/attachments")
+                        .with(applicantJwt).header("Idempotency-Key", "meta-name")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"" + "n".repeat(301) + "\","
+                                + "\"contentType\":\"application/pdf\","
+                                + "\"dataBase64\":\"" + b64("meta-bytes") + "\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.attachments[0].fileName").value("n".repeat(200)));
+
+        // A declared type that is not a media type is rejected at the boundary.
+        mvc.perform(post("/api/v1/admissions/applications/" + id + "/attachments")
+                        .with(applicantJwt).header("Idempotency-Key", "meta-type")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"ok.pdf\",\"contentType\":\"not-a-media-type\","
+                                + "\"dataBase64\":\"" + b64("meta-bytes") + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ATTACHMENT_TYPE_INVALID"));
+
+        // Case and parameters are canonicalized to the stored type.
+        mvc.perform(post("/api/v1/admissions/applications/" + id + "/attachments")
+                        .with(applicantJwt).header("Idempotency-Key", "meta-canon")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"scan.pdf\","
+                                + "\"contentType\":\" Application/PDF ; charset=utf-8\","
+                                + "\"dataBase64\":\"" + b64("meta-bytes") + "\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.attachments[1].contentType").value("application/pdf"));
+
+        // A value already stored malformed can never break a later download.
+        byte[] bytes = "data".getBytes(StandardCharsets.UTF_8);
+        jdbc.update("INSERT INTO admissions.\"FileObject\""
+                        + " (\"key\", \"contentType\", \"sizeBytes\", \"sha256\", \"data\")"
+                        + " VALUES ('admissions/" + id + "/legacy', 'garbage', 4, 'aa', ?)",
+                (Object) bytes);
+        jdbc.update("INSERT INTO admissions.\"Attachment\""
+                        + " (\"id\", \"applicationId\", \"fileKey\", \"fileName\", \"contentType\","
+                        + " \"sizeBytes\", \"checksum\")"
+                        + " VALUES ('legacy-att', ?, 'admissions/" + id + "/legacy',"
+                        + " 'legacy.bin', 'garbage', 4, 'aa')", id);
+        mvc.perform(get("/api/v1/admissions/applications/" + id
+                        + "/attachments/legacy-att/file").with(applicantJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE,
+                        MediaType.APPLICATION_OCTET_STREAM_VALUE))
+                .andExpect(result -> assertThat(result.getResponse().getContentAsByteArray())
+                        .isEqualTo(bytes));
     }
 
     // ---------------------------------------------------------------

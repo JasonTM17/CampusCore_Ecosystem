@@ -189,9 +189,7 @@ public class AdmissionApplicantController {
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename*=UTF-8''" + encoded)
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
-                .contentType(MediaType.parseMediaType(
-                        contentType == null ? MediaType.APPLICATION_OCTET_STREAM_VALUE
-                                : String.valueOf(contentType)))
+                .contentType(MultipartAttachment.downloadType(contentType))
                 .body(bytes);
     }
 

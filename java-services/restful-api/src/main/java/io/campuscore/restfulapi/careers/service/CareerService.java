@@ -522,6 +522,7 @@ public class CareerService {
             throw problem(HttpStatus.BAD_REQUEST, "MODERATION_REASON_REQUIRED",
                     "A visible reason is required for " + toStatus.toLowerCase());
         }
+        requireReasonBound(reason);
         String sql = "UPDATE " + OPPORTUNITY + " SET \"status\" = :to,"
                 + " \"moderationReason\" = :reason,"
                 + " \"version\" = \"version\" + 1, \"updatedAt\" = CURRENT_TIMESTAMP";
@@ -633,6 +634,7 @@ public class CareerService {
             throw problem(HttpStatus.BAD_REQUEST, "MODERATION_REASON_REQUIRED",
                     "A visible moderation reason is required");
         }
+        requireReasonBound(reason);
         int updated = jdbc.update(
                 "UPDATE " + OPPORTUNITY + " SET \"status\" = 'REJECTED',"
                         + " \"reviewedBy\" = :actor, \"reviewedAt\" = CURRENT_TIMESTAMP,"
@@ -779,6 +781,7 @@ public class CareerService {
             throw problem(HttpStatus.BAD_REQUEST, "MODERATION_REASON_REQUIRED",
                     "A moderation reason is required and is shown to the candidate");
         }
+        requireReasonBound(reason);
         int updated = jdbc.update(
                 "UPDATE " + APPLICATION + " SET \"status\" = 'REJECTED',"
                         + " \"statusChangedBy\" = :actor, \"statusChangedAt\" = CURRENT_TIMESTAMP,"
@@ -1055,6 +1058,14 @@ public class CareerService {
             map.put(meta.getColumnLabel(i), row.getObject(i));
         }
         return map;
+    }
+
+    /** moderationReason columns are bounded; an over-long reason is a 400, never a stored truncation. */
+    private static void requireReasonBound(String reason) {
+        if (reason != null && reason.length() > 500) {
+            throw problem(HttpStatus.BAD_REQUEST, "MODERATION_REASON_TOO_LONG",
+                    "The moderation reason must be 500 characters or fewer");
+        }
     }
 
     static Instant toInstant(Object value) {

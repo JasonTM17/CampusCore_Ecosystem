@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
@@ -630,6 +631,135 @@ class CareerContractPersistenceTest {
                         .content("{\"expectedVersion\":2}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("APPLICATION_TERMINAL"));
+    }
+
+    @Test
+    void overlongModerationReasonIsRejectedWithoutStateChange() throws Exception {
+        String reason = "r".repeat(501);
+        String opp = createDraft(recruiterAlpha, "org-alpha", "Reason Bound");
+        submitAndPublish(opp);
+
+        // Pause and close share orgStatusChange; the stored reason column is
+        // bounded, so an over-long reason is a 400, never a storage 409.
+        mvc.perform(post("/api/v1/careers/staff/opportunities/" + opp + "/pause")
+                        .with(recruiterAlpha).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":" + versionOf("Opportunity", opp)
+                                + ",\"reason\":\"" + reason + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MODERATION_REASON_TOO_LONG"));
+        mvc.perform(post("/api/v1/careers/staff/opportunities/" + opp + "/close")
+                        .with(recruiterAlpha).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":" + versionOf("Opportunity", opp)
+                                + ",\"reason\":\"" + reason + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MODERATION_REASON_TOO_LONG"));
+        assertThat(jdbc.queryForObject(
+                "SELECT \"status\" FROM careers.\"Opportunity\" WHERE \"id\" = ?",
+                String.class, opp)).isEqualTo("PUBLISHED");
+
+        // The reviewer reject lane shares the bound.
+        String opp2 = createDraft(recruiterAlpha, "org-alpha", "Reviewer Bound");
+        mvc.perform(post("/api/v1/careers/staff/opportunities/" + opp2 + "/submit-review")
+                        .with(recruiterAlpha).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":" + versionOf("Opportunity", opp2) + "}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/careers/staff/opportunities/" + opp2 + "/reject")
+                        .with(reviewer).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":" + versionOf("Opportunity", opp2)
+                                + ",\"reason\":\"" + reason + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MODERATION_REASON_TOO_LONG"));
+        assertThat(jdbc.queryForObject(
+                "SELECT \"status\" FROM careers.\"Opportunity\" WHERE \"id\" = ?",
+                String.class, opp2)).isEqualTo("IN_REVIEW");
+
+        // The application reject lane too — nothing written, version intact.
+        String applicationId = apply(opp, "car-reason-1");
+        mvc.perform(post("/api/v1/careers/staff/applications/" + applicationId + "/reject")
+                        .with(recruiterAlpha).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":1,\"reason\":\"" + reason + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MODERATION_REASON_TOO_LONG"));
+        assertThat(jdbc.queryForObject(
+                "SELECT \"status\" FROM careers.\"Application\" WHERE \"id\" = ?",
+                String.class, applicationId)).isEqualTo("SUBMITTED");
+        assertThat(versionOf("Application", applicationId)).isEqualTo(1);
+
+        // The column-width reason itself still lands and stays visible.
+        mvc.perform(post("/api/v1/careers/staff/applications/" + applicationId + "/reject")
+                        .with(recruiterAlpha).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":1,\"reason\":\"" + "r".repeat(500) + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REJECTED"))
+                .andExpect(jsonPath("$.moderationReason").value("r".repeat(500)));
+    }
+
+    @Test
+    void browseSearchTreatsLikeWildcardsLiterally() throws Exception {
+        String pct = createDraft(recruiterAlpha, "org-alpha", "100% Remote Role");
+        submitAndPublish(pct);
+        String und = createDraft(recruiterAlpha, "org-alpha", "Under_Score Role");
+        submitAndPublish(und);
+        submitAndPublish(createDraft(recruiterAlpha, "org-alpha", "Plain Role"));
+
+        // % and _ are literal characters in the stored titles, never wildcards.
+        mvc.perform(get("/api/v1/careers/opportunities").param("query", "%").with(candidate1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(pct));
+        mvc.perform(get("/api/v1/careers/opportunities").param("query", "_").with(candidate1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(und));
+        mvc.perform(get("/api/v1/careers/opportunities").param("query", "role").with(candidate1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3));
+        mvc.perform(get("/api/v1/careers/opportunities")
+                        .param("query", "role").param("page", "0").param("limit", "2")
+                        .with(candidate1))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "3"))
+                .andExpect(jsonPath("$.length()").value(2));
+    }
+
+    @Test
+    void attachmentMetadataIsBoundedAndCanonical() throws Exception {
+        String opp = createDraft(recruiterAlpha, "org-alpha", "Metadata Job");
+        submitAndPublish(opp);
+        String applicationId = apply(opp, "car-meta-1");
+        String cv = java.util.Base64.getEncoder().encodeToString("meta-cv".getBytes());
+
+        // The JSON lane applies the same display-name rule as the multipart
+        // lane: a long or path-like name is reduced, never a width failure.
+        mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
+                        .with(candidate1).header("Idempotency-Key", "car-meta-name")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"" + "n".repeat(301) + "\","
+                                + "\"contentType\":\"text/plain\","
+                                + "\"dataBase64\":\"" + cv + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.attachments[0].fileName").value("n".repeat(200)));
+
+        // A declared type that is not a media type is rejected at the boundary.
+        mvc.perform(post("/api/v1/careers/applications/" + applicationId + "/attachments")
+                        .with(candidate1).header("Idempotency-Key", "car-meta-type")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"ok.txt\",\"contentType\":\"not-a-media-type\","
+                                + "\"dataBase64\":\"" + cv + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ATTACHMENT_TYPE_INVALID"));
+
+        // A value already stored malformed can never break a later download.
+        jdbc.update("INSERT INTO careers.\"Attachment\""
+                        + " (\"id\", \"applicationId\", \"fileName\", \"contentType\", \"checksum\","
+                        + " \"data\", \"uploadedBy\")"
+                        + " VALUES ('legacy-att', ?, 'legacy.bin', 'garbage', 'aa', ?, 'candidate-1')",
+                applicationId, (Object) "data".getBytes());
+        mvc.perform(get("/api/v1/careers/applications/" + applicationId
+                        + "/attachments/legacy-att/download").with(candidate1))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE,
+                        MediaType.APPLICATION_OCTET_STREAM_VALUE));
     }
 
     @Test
