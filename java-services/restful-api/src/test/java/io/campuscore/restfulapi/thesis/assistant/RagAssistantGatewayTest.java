@@ -20,11 +20,21 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import io.campuscore.restfulapi.web.DomainException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 class RagAssistantGatewayTest {
+    private static final String ASSERTION_SECRET = "rag-gateway-test-owner-assertion-key";
     private HttpServer server;
+
+    @BeforeEach
+    void authenticateAssistantOwner() {
+        authenticate("owner-a");
+    }
 
     @Test
     void stalledSseBodyEndsWithinTheAbsoluteReadDeadline() throws Exception {
@@ -65,10 +75,13 @@ class RagAssistantGatewayTest {
         try {
             var result = reader.submit(() -> {
                 try {
+                    authenticate("owner-a");
                     gateway.stream(new ChatRequest("Quy chế học vụ", "vi"), "owner-a", event -> { });
                     return null;
                 } catch (DomainException failure) {
                     return failure;
+                } finally {
+                    SecurityContextHolder.clearContext();
                 }
             });
             assertTrue(headersFlushed.await(2, TimeUnit.SECONDS));
@@ -114,10 +127,13 @@ class RagAssistantGatewayTest {
         try {
             var result = reader.submit(() -> {
                 try {
+                    authenticate("owner-a");
                     gateway().stream(new ChatRequest("Quy chế học vụ", "vi"), "owner-a", events::add);
                     return null;
                 } catch (DomainException failure) {
                     return failure;
+                } finally {
+                    SecurityContextHolder.clearContext();
                 }
             });
             DomainException failure = result.get(1_500, TimeUnit.MILLISECONDS);
@@ -138,6 +154,7 @@ class RagAssistantGatewayTest {
 
     @AfterEach
     void stopServer() {
+        SecurityContextHolder.clearContext();
         if (server != null) {
             server.stop(0);
         }
@@ -146,10 +163,12 @@ class RagAssistantGatewayTest {
     void chatSendsInternalTokenAndOwnerToRagService() throws Exception {
         AtomicReference<String> token = new AtomicReference<>();
         AtomicReference<String> owner = new AtomicReference<>();
+        AtomicReference<String> assertion = new AtomicReference<>();
         AtomicReference<String> body = new AtomicReference<>();
         startServer(exchange -> {
             token.set(exchange.getRequestHeaders().getFirst("X-Rag-Service-Token"));
             owner.set(exchange.getRequestHeaders().getFirst("X-Assistant-Owner"));
+            assertion.set(exchange.getRequestHeaders().getFirst(AssistantOwnerAssertion.HEADER));
             body.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             byte[] response = """
                     {"answer":"ok","model":"curated-lexical-rag","degraded":false,"reasonCode":"ANSWERED","locale":"vi","citations":[]}
@@ -166,6 +185,9 @@ class RagAssistantGatewayTest {
         assertEquals("ok", response.answer());
         assertEquals("internal-token", token.get());
         assertEquals("owner-a", owner.get());
+        assertEquals("owner-a", new AssistantOwnerAssertion(new AssistantRagProperties(
+                "", "", ASSERTION_SECRET, true, 1_000, 30_000))
+                .verifyAssistant(assertion.get(), "owner-a"));
         assertTrue(body.get().contains("\"message\":\"Xin chào\""));
     }
 
@@ -208,6 +230,7 @@ class RagAssistantGatewayTest {
         assertEquals(1, answered.citations().size());
 
         stopServer();
+        authenticate("owner-a");
         startServer(exchange -> {
             byte[] response = ("""
                     {"answer":"Mình chưa tìm thấy hướng dẫn phù hợp.","model":"curated-lexical-rag","degraded":false,"reasonCode":"NO_MATCH","locale":"vi","citations":[%s]}
@@ -508,10 +531,16 @@ class RagAssistantGatewayTest {
         return new RagAssistantGateway(new AssistantRagProperties(
                 "http://127.0.0.1:" + port,
                 "internal-token",
+                ASSERTION_SECRET,
                 false,
                 1_000,
                 readTimeoutMs),
                 new ObjectMapper());
+    }
+
+    private static void authenticate(String subject) {
+        Jwt jwt = Jwt.withTokenValue("fixture").header("alg", "none").subject(subject).build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt, List.of()));
     }
 
     private void startServer(com.sun.net.httpserver.HttpHandler handler, String path) throws IOException {

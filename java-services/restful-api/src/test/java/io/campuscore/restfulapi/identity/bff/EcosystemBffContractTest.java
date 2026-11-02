@@ -88,6 +88,12 @@ class EcosystemBffContractTest {
     private static final String SESSION_COOKIE = "cu_session_dev";
     private static final String TX_PREFIX = "cu_bff_tx_dev_";
 
+    @Test
+    void bffDoesNotForwardCallerSuppliedAssistantDelegationHeaders() {
+        assertThat(BffApiProxyController.stripsRequestHeader("X-Assistant-Owner")).isTrue();
+        assertThat(BffApiProxyController.stripsRequestHeader("X-Assistant-Owner-Assertion")).isTrue();
+    }
+
     private final HttpClient http = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NEVER).build();
     private final JdbcTemplate jdbc;

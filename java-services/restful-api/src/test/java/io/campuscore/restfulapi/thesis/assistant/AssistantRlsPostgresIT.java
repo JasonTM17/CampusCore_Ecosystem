@@ -8,10 +8,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.campuscore.restfulapi.thesis.assistant.AssistantRlsBoundary.Access;
 import io.campuscore.restfulapi.web.DomainException;
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,7 +29,13 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -42,6 +52,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
         "assistant.rls.test-mode=false",
         "assistant.rag.service-mode=true",
         "assistant.rag.service-token=rls-it-internal-token-9fb407c5",
+        "assistant.rag.owner-assertion-secret=" + "rls-it-owner-assertion-0123456789",
         "assistant.retention.enabled=false",
         "assistant.supabase.enabled=false",
         "deepseek.enabled=false",
@@ -50,6 +61,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 @ActiveProfiles("persistence")
 class AssistantRlsPostgresIT {
     private static final String INTERNAL_TOKEN = "rls-it-internal-token-9fb407c5";
+    private static final String OWNER_ASSERTION_MATERIAL = "rls-it-owner-assertion-0123456789";
 
     @Autowired AssistantRlsTransactionRunner transactions;
     @Autowired ThesisAssistantRepository history;
@@ -201,14 +213,33 @@ class AssistantRlsPostgresIT {
     @Test
     void internalRagOwnerScopeIsEstablishedOnlyAfterServiceTokenValidation() throws Throwable {
         assertThrows(DomainException.class, () -> internalController.conversations(
-                "invalid-token", ownerA, null, null, null, new MockHttpServletResponse()));
-        var aRows = internalController.conversations(INTERNAL_TOKEN, ownerA, null, null, null, new MockHttpServletResponse());
-        var bRows = internalController.conversations(INTERNAL_TOKEN, ownerB, null, null, null, new MockHttpServletResponse());
+                "invalid-token", null, ownerA, null, null, null, new MockHttpServletResponse()));
+        var aRows = internalController.conversations(INTERNAL_TOKEN, signedAssertion(ownerA), ownerA, null, null,
+                null, new MockHttpServletResponse());
+        var bRows = internalController.conversations(INTERNAL_TOKEN, signedAssertion(ownerB), ownerB, null, null,
+                null, new MockHttpServletResponse());
         assertEquals(List.of(conversationA), aRows.stream().map(ThesisAssistantRepository.Conversation::id).toList());
         assertEquals(List.of(conversationB), bRows.stream().map(ThesisAssistantRepository.Conversation::id).toList());
         assertThrows(DomainException.class, () -> internalController.conversations(
-                INTERNAL_TOKEN, " ", null, null, null, new MockHttpServletResponse()));
+                INTERNAL_TOKEN, signedAssertion(ownerA), " ", null, null, null, new MockHttpServletResponse()));
         assertEquals(0, count("SELECT COUNT(*) FROM assistant.chat_conversation"));
+    }
+
+    private static String signedAssertion(String subject) {
+        Instant issuedAt = Instant.now();
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer("https://campuscore.invalid/restful-api")
+                .subject(subject)
+                .audience(List.of("campuscore-internal-rag"))
+                .issuedAt(issuedAt)
+                .expiresAt(issuedAt.plusSeconds(60))
+                .claim("capability", "assistant")
+                .build();
+        SecretKey key = new SecretKeySpec(
+                OWNER_ASSERTION_MATERIAL.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+        JwtEncoder encoder = new NimbusJwtEncoder(new ImmutableSecret<>(key));
+        return encoder.encode(JwtEncoderParameters.from(
+                JwsHeader.with(MacAlgorithm.HS256).build(), claims)).getTokenValue();
     }
 
     @Test

@@ -38,6 +38,7 @@ cd CampusCore_Ecosystem
 
 # 1) Local environment file
 Copy-Item .env.example .env
+$env:ASSISTANT_RAG_OWNER_ASSERTION_SECRET = (openssl rand -base64 48)
 
 # 2) The whole local stack (Compose runs assistant-db-provisioner once, then exits)
 docker compose up -d --build
@@ -67,6 +68,10 @@ If `5432` or `3000` is taken, set `POSTGRES_HOST_PORT` / `FRONTEND_HOST_PORT` in
 (for example `5434` / `3001`) and start Compose again; an API outside Docker must point
 `SPRING_DATASOURCE_URL` at the new Postgres port. E2E and SSO preview are separate test stacks and
 are not needed for the quick start.
+Compose requires `ASSISTANT_RAG_OWNER_ASSERTION_SECRET`. The command above
+generates a dedicated key; do not reuse `ASSISTANT_RAG_SERVICE_TOKEN`,
+`JWT_SECRET`, or `JWT_REFRESH_SECRET`. Compose gives this key to `restful-api`
+and `rag-service`; the repository has no key default.
 
 ### Running the API outside Docker
 
@@ -82,6 +87,7 @@ docker compose up -d postgres
 $env:SPRING_PROFILES_ACTIVE = "persistence"
 $env:JWT_SECRET = "<32+-random-chars>"            # JwtSecretPolicy requires >= 32 characters
 $env:JWT_REFRESH_SECRET = "<another-32+-value>"   # also >= 32 characters and different from JWT_SECRET
+$env:ASSISTANT_RAG_OWNER_ASSERTION_SECRET = "<generated-dedicated-key>" # when sidecar RAG is enabled
 $env:SPRING_DATASOURCE_URL = "jdbc:postgresql://localhost:5432/campuscore_restful"
 $env:SPRING_DATASOURCE_USERNAME = "campuscore"
 $env:SPRING_DATASOURCE_PASSWORD = "<POSTGRES_PASSWORD from .env>"

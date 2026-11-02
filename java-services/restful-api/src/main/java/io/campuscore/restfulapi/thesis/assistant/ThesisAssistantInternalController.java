@@ -46,6 +46,7 @@ public class ThesisAssistantInternalController {
 
     private final ThesisAssistantService assistant;
     private final AssistantRagProperties properties;
+    private final AssistantOwnerAssertion ownerAssertions;
     private final Executor streamExecutor;
     private final boolean rejectKnownDefaults;
     private io.micrometer.core.instrument.MeterRegistry metrics;
@@ -81,6 +82,7 @@ public class ThesisAssistantInternalController {
             Executor streamExecutor, boolean rejectKnownDefaults) {
         this.assistant = assistant;
         this.properties = properties;
+        this.ownerAssertions = new AssistantOwnerAssertion(properties);
         this.streamExecutor = streamExecutor;
         this.rejectKnownDefaults = rejectKnownDefaults;
         // Same loud-warning parity as JwtSecretPolicy: an unrotated compose
@@ -96,9 +98,10 @@ public class ThesisAssistantInternalController {
     @PostMapping("/chat")
     public ChatResponse chat(@Valid @RequestBody ChatRequest request,
             @RequestHeader(name = "X-Rag-Service-Token", required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String owner) {
         verify(token);
-        String ownerId = owner(owner);
+        String ownerId = ownerAssertions.verifyAssistant(assertion, owner);
         ChatResponse answer = AssistantRlsContext.withInternalOwner(ownerId, () -> assistant.answer(request.message(),
                 request.locale(), request.conversationId(), ownerId, request.clientRequestId(), request.scope()));
         if (answer != null) {
@@ -111,16 +114,18 @@ public class ThesisAssistantInternalController {
     @PostMapping("/chat/complete")
     public ChatResponse complete(@Valid @RequestBody ChatRequest request,
             @RequestHeader(name = "X-Rag-Service-Token", required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String owner) {
-        return chat(request, token, owner);
+        return chat(request, token, assertion, owner);
     }
 
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@Valid @RequestBody ChatRequest request,
             @RequestHeader(name = "X-Rag-Service-Token", required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String owner) {
         verify(token);
-        String ownerId = owner(owner);
+        String ownerId = ownerAssertions.verifyAssistant(assertion, owner);
         SseEmitter emitter = new SseEmitter(120_000L);
         AtomicBoolean terminal = new AtomicBoolean(false);
         AtomicBoolean answerCounted = new AtomicBoolean(false);
@@ -179,9 +184,10 @@ public class ThesisAssistantInternalController {
     @PostMapping("/requests/{clientRequestId}/cancel")
     public CancelResponse cancel(@PathVariable UUID clientRequestId,
             @RequestHeader(name = "X-Rag-Service-Token", required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String owner) {
         verify(token);
-        String ownerId = owner(owner);
+        String ownerId = ownerAssertions.verifyAssistant(assertion, owner);
         var result = AssistantRlsContext.withInternalOwner(ownerId,
                 () -> assistant.cancel(clientRequestId, ownerId));
         if (!result.cancelled() && "COMPLETED".equals(result.status())) {
@@ -199,9 +205,10 @@ public class ThesisAssistantInternalController {
     @PutMapping("/messages/{messageId}/feedback")
     public FeedbackResponse feedback(@PathVariable UUID messageId, @Valid @RequestBody FeedbackRequest request,
             @RequestHeader(name = "X-Rag-Service-Token", required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String owner) {
         verify(token);
-        String ownerId = owner(owner);
+        String ownerId = ownerAssertions.verifyAssistant(assertion, owner);
         AssistantRlsContext.withInternalOwner(ownerId, () -> {
             assistant.setFeedback(messageId, ownerId, request.rating(), request.reason());
             return null;
@@ -213,9 +220,10 @@ public class ThesisAssistantInternalController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteFeedback(@PathVariable UUID messageId,
             @RequestHeader(name = "X-Rag-Service-Token", required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String owner) {
         verify(token);
-        String ownerId = owner(owner);
+        String ownerId = ownerAssertions.verifyAssistant(assertion, owner);
         AssistantRlsContext.withInternalOwner(ownerId, () -> {
             assistant.deleteFeedback(messageId, ownerId);
             return null;
@@ -225,13 +233,14 @@ public class ThesisAssistantInternalController {
     @GetMapping("/conversations")
     public List<ThesisAssistantRepository.Conversation> conversations(
             @RequestHeader(name = "X-Rag-Service-Token", required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String owner,
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) String scope,
             jakarta.servlet.http.HttpServletResponse response) {
         verify(token);
-        String ownerId = owner(owner);
+        String ownerId = ownerAssertions.verifyAssistant(assertion, owner);
         ThesisAssistantRepository.ConversationPage page = AssistantRlsContext.withInternalOwner(ownerId,
                 () -> assistant.conversationPage(ownerId, limit, cursor, scope));
         if (page.nextCursor() != null) response.setHeader("X-Next-Cursor", page.nextCursor());
@@ -241,8 +250,10 @@ public class ThesisAssistantInternalController {
     @PostMapping("/conversations")
     public ConversationCreated createConversation(@RequestBody(required = false) CreateConversationRequest request,
             @RequestHeader(name = "X-Rag-Service-Token", required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String owner) {
         verify(token);
+        String ownerId = ownerAssertions.verifyAssistant(assertion, owner);
         String locale = request == null ? "vi" : request.locale();
         if (locale != null && !locale.isBlank() && !locale.equals("vi") && !locale.equals("en")) {
             throw new DomainException(HttpStatus.BAD_REQUEST, "INVALID_LOCALE", "locale must be en or vi");
@@ -256,7 +267,6 @@ public class ThesisAssistantInternalController {
             throw new DomainException(HttpStatus.BAD_REQUEST, "INVALID_SCOPE",
                     "scope must be academic or specialized");
         }
-        String ownerId = owner(owner);
         String id = AssistantRlsContext.withInternalOwner(ownerId,
                 () -> assistant.createConversation(ownerId, locale, scope));
         return new ConversationCreated(id, locale == null || locale.isBlank() ? "vi" : locale);
@@ -265,12 +275,13 @@ public class ThesisAssistantInternalController {
     @GetMapping("/conversations/{id}/messages")
     public List<ThesisAssistantRepository.Message> messages(@PathVariable UUID id,
             @RequestHeader(name = "X-Rag-Service-Token", required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String owner,
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) String cursor,
             jakarta.servlet.http.HttpServletResponse response) {
         verify(token);
-        String ownerId = owner(owner);
+        String ownerId = ownerAssertions.verifyAssistant(assertion, owner);
         ThesisAssistantRepository.MessagePage page = AssistantRlsContext.withInternalOwner(ownerId,
                 () -> assistant.messagePage(id, ownerId, limit, cursor));
         if (page.nextCursor() != null) response.setHeader("X-Next-Cursor", page.nextCursor());
@@ -281,9 +292,10 @@ public class ThesisAssistantInternalController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteConversation(@PathVariable UUID id,
             @RequestHeader(name = "X-Rag-Service-Token", required = false) String token,
+            @RequestHeader(name = AssistantOwnerAssertion.HEADER, required = false) String assertion,
             @RequestHeader(name = "X-Assistant-Owner", required = false) String owner) {
         verify(token);
-        String ownerId = owner(owner);
+        String ownerId = ownerAssertions.verifyAssistant(assertion, owner);
         AssistantRlsContext.withInternalOwner(ownerId, () -> {
             assistant.deleteConversation(id, ownerId);
             return null;
@@ -310,16 +322,6 @@ public class ThesisAssistantInternalController {
         if (!MessageDigest.isEqual(expected, presented)) {
             throw new DomainException(HttpStatus.FORBIDDEN, "RAG_SERVICE_UNAUTHORIZED", "RAG service token is invalid");
         }
-    }
-
-    private static String owner(String value) {
-        // Opaque identifier bound to VARCHAR(120) owner columns; reject values
-        // that would silently break the RLS match or fail late inside the
-        // transaction.
-        if (value == null || value.isBlank() || value.length() > 120) {
-            throw new DomainException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", "Assistant owner is required");
-        }
-        return value;
     }
 
     private static void send(SseEmitter emitter, ThesisAssistantService.StreamEvent event) {
