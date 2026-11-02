@@ -74,7 +74,7 @@ class W14IndexMigrationPostgresIT {
         String password = System.getenv(prefix + "_PASSWORD");
         assertFreshDatabase(url, user, password);
 
-        Flyway flyway = configured(prefix, null);
+        Flyway flyway = configured(prefix, "146");
         flyway.migrate();
 
         assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
