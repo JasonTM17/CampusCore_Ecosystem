@@ -683,9 +683,10 @@ export interface ApiClientOptions {
   /**
    * Delegated session refresh (mobile-policy §3, KM-7): the apiClient owns the
    * shared single-flight promise; the actual grant lives in session-store so
-   * refresh material never enters client memory.
+   * refresh material never enters client memory. A boolean return is the legacy
+   * shape: true = refreshed, false = signed out.
    */
-  refreshSession?: () => Promise<boolean>;
+  refreshSession?: () => Promise<boolean | SessionRefreshOutcome>;
   onSessionExpired?: () => void;
   /**
    * Session epoch reader (mobile-policy §3): a request that started under an
@@ -703,6 +704,13 @@ export interface ApiClientOptions {
 }
 
 export type ApiMode = 'preview' | 'live';
+
+/**
+ * Result of a delegated refresh. Only `signedOut` ends the session: the issuer
+ * definitively rejected the grant. `unavailable` (network, timeout, 5xx) keeps
+ * the session and surfaces a retryable failure so a later request can retry.
+ */
+export type SessionRefreshOutcome = 'refreshed' | 'signedOut' | 'unavailable';
 
 /**
  * `protected` (default) sends the Bearer token and joins the single-flight
@@ -987,14 +995,20 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   let onSessionExpired = options.onSessionExpired;
   // All transports in one session epoch share a refresh: the issuer rotates
   // refresh tokens, but a replacement session must never join the old flight.
-  let sessionRefreshFlight: { epoch: number | undefined; promise: Promise<boolean> } | null = null;
+  let sessionRefreshFlight: { epoch: number | undefined; promise: Promise<SessionRefreshOutcome> } | null = null;
 
-  function refreshSessionOnce(requestEpoch: number | undefined): Promise<boolean> {
-    if (epochChanged(requestEpoch)) return Promise.resolve(false);
+  function normalizeRefreshOutcome(value: boolean | SessionRefreshOutcome | undefined): SessionRefreshOutcome {
+    if (typeof value === 'boolean') return value ? 'refreshed' : 'signedOut';
+    return value ?? 'signedOut';
+  }
+
+  function refreshSessionOnce(requestEpoch: number | undefined): Promise<SessionRefreshOutcome> {
+    if (epochChanged(requestEpoch)) return Promise.resolve('signedOut');
     if (!sessionRefreshFlight || sessionRefreshFlight.epoch !== requestEpoch) {
-      const flight = { epoch: requestEpoch, promise: Promise.resolve(false) };
+      const flight = { epoch: requestEpoch, promise: Promise.resolve<SessionRefreshOutcome>('signedOut') };
       flight.promise = Promise.resolve()
-        .then(() => epochChanged(requestEpoch) ? false : options.refreshSession?.() ?? false)
+        .then(() => epochChanged(requestEpoch) ? 'signedOut' : options.refreshSession?.())
+        .then(normalizeRefreshOutcome)
         .finally(() => {
           // A late old flight cannot clear the replacement session's flight.
           if (sessionRefreshFlight === flight) sessionRefreshFlight = null;
@@ -1163,7 +1177,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       let body = await readBody(response);
 
       if (!isPublic && sameOrigin && shouldRefreshAfterUnauthorized(path, response.status) && options.refreshSession) {
-        const refreshed = await refreshSessionOnce(requestEpoch);
+        const refreshOutcome = await refreshSessionOnce(requestEpoch);
         const rotated = getAccessToken();
         // A stale lane (request predates the current epoch) is skipped so a
         // previous account's dying request can never evict the session that
@@ -1173,10 +1187,14 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
           sessionChanged = true;
           throw new ApiClientError('The session changed during the transfer', 0, requestId, 'SESSION_CHANGED');
         }
-        if (!refreshed || !rotated) {
-          // Failed refresh = dead session: the store already wiped; bridge
-          // back to sign-in instead of leaving screens in a dead end.
+        if (refreshOutcome !== 'refreshed' || !rotated) {
           if (!staleLane) {
+            // A transient grant failure keeps the session: report a retryable
+            // network state and let the next request start a fresh flight.
+            if (refreshOutcome === 'unavailable') {
+              throw new ApiClientError('The network request failed', 0, requestId, 'NETWORK_ERROR');
+            }
+            // Definitive rejection: the store already wiped.
             onSessionExpired?.();
           }
         } else if (!staleLane) {
@@ -1338,7 +1356,8 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
 
     session: {
       epoch: () => options.sessionEpoch?.(),
-      refresh: (requestEpoch) => refreshSessionOnce(requestEpoch),
+      refresh: (requestEpoch) => refreshSessionOnce(requestEpoch)
+        .then((outcome) => outcome === 'refreshed'),
     },
   };
 
@@ -1348,8 +1367,12 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
 export const apiClient = createApiClient({
   getAccessToken: () => sessionStore.getAccessToken() ?? undefined,
   setAccessToken: (token) => sessionStore.setAccessToken(token ?? null),
-  refreshSession: async () =>
-    (await sessionStore.refreshAccessToken()).accessToken !== null,
+  refreshSession: async () => {
+    const result = await sessionStore.refreshAccessToken();
+    // Legacy refresh mirrors have no outcome kind; a rotated token is success.
+    if (result.accessToken !== null) return 'refreshed';
+    return result.kind === 'unavailable' ? 'unavailable' : 'signedOut';
+  },
   sessionEpoch: () => sessionStore.sessionEpoch(),
 });
 

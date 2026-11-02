@@ -147,6 +147,33 @@ test('a malformed success retains the credential without granting access', async
   assert.equal(store.getAccessToken(), null);
 });
 
+test('a definitive 401 rejection wipes the grant instead of retrying it', async () => {
+  const { store, secure } = makeStore({
+    respond: async () => new Response('{"error":"invalid_client"}', { status: 401 }),
+  });
+  secure.map.set('cu.refresh', 'rt-dead');
+  store.setAccessToken('at-old');
+  const result = await store.refreshAccessToken();
+  assert.equal(result.kind, 'signedOut');
+  assert.equal(result.accessToken, null);
+  assert.equal(secure.map.has('cu.refresh'), false);
+  assert.equal(store.getAccessToken(), null);
+});
+
+test('a refresh that never answers aborts at the app deadline', { timeout: 2000 }, async () => {
+  const { store, secure } = makeStore({
+    timeoutMs: 20,
+    respond: (_url, init) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+    }),
+  });
+  secure.map.set('cu.refresh', 'rt-live');
+  const result = await store.refreshAccessToken();
+  assert.equal(result.kind, 'unavailable');
+  assert.equal(result.accessToken, null);
+  assert.equal(secure.map.get('cu.refresh'), 'rt-live');
+});
+
 test('a late refresh resolving after sign-out never writes disk (KM-6)', async () => {
   let resolveFetch;
   const pending = new Promise((resolve) => {
@@ -224,7 +251,7 @@ for (const [label, respond] of [
   ['rate limit', async () => new Response('{}', { status: 429 })],
   ['issuer outage', async () => new Response('{"error":"invalid_grant"}', { status: 503 })],
   ['network loss', async () => { throw new TypeError('offline'); }],
-  ['client configuration', async () => new Response('{"error":"invalid_client"}', { status: 401 })],
+  ['issuer refusal', async () => new Response('{"error":"access_denied"}', { status: 403 })],
 ]) {
   test(`${label} retains refresh and allows a later explicit recovery`, async () => {
     let recovered = false;

@@ -7,6 +7,7 @@ import { LocaleProvider, useLocale } from '../../src/i18n/locale-provider';
 const mockApi = { mode: 'live' as 'preview' | 'live' };
 const mockRequests = { announcements: jest.fn() };
 const mockReload = jest.fn();
+const mockKeys: string[] = [];
 const mockPendingRequests = new Set<string>();
 type QueryValue = {
   data?: unknown;
@@ -35,6 +36,7 @@ jest.mock('../../src/api/client', () => ({
 }));
 jest.mock('../../src/hooks/useScreenQuery', () => ({
   useScreenQuery: (key: string, request?: () => Promise<unknown>, options?: { mapError?: (error: unknown) => string }) => {
+    mockKeys.push(key);
     if (mockPendingRequests.has(key) && request) void request();
     const { errorInput, ...query } = mockQueries[key] ?? {};
     return {
@@ -84,12 +86,21 @@ afterEach(() => {
   mockApi.mode = 'live';
   mockReload.mockClear();
   mockPendingRequests.clear();
+  mockKeys.length = 0;
   for (const key of Object.keys(mockQueries)) delete mockQueries[key];
 });
 
 describe('student dashboard live mode', () => {
+  test('the enrollment read shares the academic cache entry the dashboard prefetch fills', async () => {
+    mockQueries['academic.enrollments'] = { data: [] };
+    mockQueries.announcements = { data: [] };
+    await renderScreen();
+    expect(mockKeys).toContain('academic.enrollments');
+    expect(mockKeys).not.toContain('enrollments');
+  });
+
   test('a sparse enrollment never renders its raw sectionId as the course code (ux-m1-05)', async () => {
-    mockQueries.enrollments = {
+    mockQueries['academic.enrollments'] = {
       data: [{ id: 'enr-1', sectionId: '9f8b2c-section-uuid', semesterId: 'sem-1', status: 'ENROLLED' }],
     };
     mockQueries.announcements = { data: [] };
@@ -99,7 +110,7 @@ describe('student dashboard live mode', () => {
   });
 
   test('a section number still shows when no course code exists (ux-m1-05)', async () => {
-    mockQueries.enrollments = {
+    mockQueries['academic.enrollments'] = {
       data: [{
         id: 'enr-2',
         sectionId: 'sec-x',
@@ -114,7 +125,7 @@ describe('student dashboard live mode', () => {
   });
 
   test('a failed announcements fetch shows the neutral error copy, not a fabricated zero (ux-m1-06)', async () => {
-    mockQueries.enrollments = { data: [] };
+    mockQueries['academic.enrollments'] = { data: [] };
     mockQueries.announcements = { error: 'Không tải được thông báo.' };
     await renderScreen();
     expect(screen.getAllByText('Không tải được thông báo.')).toHaveLength(1);
@@ -124,7 +135,7 @@ describe('student dashboard live mode', () => {
   });
 
   test('a widget-level 401 shows retry copy instead of session-expired copy', async () => {
-    mockQueries.enrollments = { data: [] };
+    mockQueries['academic.enrollments'] = { data: [] };
     mockQueries.announcements = {
       errorInput: new ApiClientError('unauthorized', 401, 'req-1', 'HTTP_401'),
     };
@@ -137,7 +148,7 @@ describe('student dashboard live mode', () => {
   });
 
   test('a healthy announcements fetch still shows the real count', async () => {
-    mockQueries.enrollments = { data: [] };
+    mockQueries['academic.enrollments'] = { data: [] };
     mockQueries.announcements = { data: [{ id: 'a' }, { id: 'b' }] };
     await renderScreen();
     expect(screen.getByText('2 thông báo của trường')).toBeOnTheScreen();
@@ -147,7 +158,7 @@ describe('student dashboard live mode', () => {
     const pending = new Promise<{ data: unknown[] }>(() => {});
     mockRequests.announcements.mockReturnValue(pending);
     mockPendingRequests.add('announcements');
-    mockQueries.enrollments = { data: [] };
+    mockQueries['academic.enrollments'] = { data: [] };
     mockQueries.announcements = { isLoading: true };
 
     const view = await renderScreen('en');
@@ -161,7 +172,7 @@ describe('student dashboard live mode', () => {
   });
 
   test('selects the course name for the active locale with academic fallback order', async () => {
-    mockQueries.enrollments = {
+    mockQueries['academic.enrollments'] = {
       data: [
         {
           id: 'enr-bilingual',
@@ -214,7 +225,7 @@ describe('student dashboard live mode', () => {
   });
 
   test('a single section and a single announcement use the singular English count', async () => {
-    mockQueries.enrollments = {
+    mockQueries['academic.enrollments'] = {
       data: [{
         id: 'enr-one',
         sectionId: 'sec-one',
@@ -240,7 +251,7 @@ describe('student dashboard live mode', () => {
   });
 
   test('the Vietnamese count copy keeps its single form', async () => {
-    mockQueries.enrollments = {
+    mockQueries['academic.enrollments'] = {
       data: [{
         id: 'enr-one',
         sectionId: 'sec-one',

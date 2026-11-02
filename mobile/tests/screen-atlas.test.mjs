@@ -57,7 +57,7 @@ test('native API seam fails closed until live mode is explicitly enabled', () =>
   assert.match(client, /EXPO_PUBLIC_API_MODE === 'preview'/);
   assert.match(client, /MOBILE_API_PREVIEW/);
   assert.match(client, /mode: ApiMode/);
-  assert.match(client, /refreshSession\?: \(\) => Promise<boolean>/);
+  assert.match(client, /refreshSession\?: \(\) => Promise<boolean \| SessionRefreshOutcome>/);
   assert.match(client, /function shouldRefreshAfterUnauthorized\(_?path: string, status: number\)/);
   // OIDC lane: every 401 on the API host is a refresh candidate — the
   // legacy /auth/login|refresh|logout excludes are gone with those routes
@@ -163,7 +163,7 @@ test('Stitch mobile references stay traceable and live sign-in runs the OIDC PKC
   assert.match(signIn, /signInWithOidc\(/);
   assert.match(signIn, /sessionStore\.saveRefresh\(outcome\.refreshToken\)/);
   assert.match(signIn, /navigation\.completeSignIn\(outcome\.role, outcome\.accountId\)/);
-  assert.match(signIn, /outcome\.kind === 'blocked'\) \{\s*setError\(copy\.signIn\.invalid\)/);
+  assert.match(signIn, /outcome\.kind === 'blocked'\) \{\s*setError\(outcome\.code === 'no_mobile_surface' \? copy\.signIn\.noMobileSurface : copy\.signIn\.invalid\)/);
   assert.doesNotMatch(signIn, /campusApi\.login|password|setSessionTokens/);
   assert.doesNotMatch(signIn, /navigation\.navigate\('dashboard\.student'\)/);
   assert.match(readme, /role-specific bottom bar/);

@@ -26,7 +26,9 @@ function transpile(file, fileName, rewrite = (output) => output) {
   return out;
 }
 
-const modelPath = transpile('src/screens/operations/lecturer-model.ts', 'lecturer-model.ts');
+transpile('src/i18n/locale.ts', 'locale.ts');
+const modelPath = transpile('src/screens/operations/lecturer-model.ts', 'lecturer-model.ts',
+  (output) => output.replace("'../../i18n/locale'", "'./locale.mjs'"));
 const model = await import(pathToFileURL(modelPath).href);
 
 const MODULES = {

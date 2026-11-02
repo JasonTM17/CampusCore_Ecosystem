@@ -8,6 +8,7 @@ import { tokens } from '../../design/tokens';
 import { useLocale } from '../../i18n/locale-provider';
 import { countForm } from '../../i18n/locale';
 import { fillCopy } from '../../i18n/academic-messages';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi } from '../academic/academic-api';
 import {
@@ -16,6 +17,7 @@ import {
   buildAgenda,
   civilKey,
   defaultTermId,
+  dayOfWeekOf,
   termOptions,
   weekDates,
   weekStartOf,
@@ -81,9 +83,10 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
   const preview = isPreviewMode();
   const enrollmentsQuery = useAcademicQuery('academic.enrollments', () => academicApi.enrollments(), copy);
   const semestersQuery = useAcademicQuery('academic.semesters', () => academicApi.semesters(), copy);
+  const pull = usePullToRefresh(() => Promise.all([enrollmentsQuery.reload(), semestersQuery.reload()]));
   const [view, setView] = useState<View_>('week');
   const [weekOffset, setWeekOffset] = useState(0);
-  const [selectedDayIndex, setSelectedDayIndex] = useState(() => (new Date().getDay() + 6) % 7);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(() => (dayOfWeekOf(new Date()) + 5) % 7);
   const [termChoice, setTermChoice] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -119,8 +122,8 @@ export const ScheduleScreen = memo(function ScheduleScreen(_props: MobileScreenP
       error={preview ? null : enrollmentsQuery.error}
       warning={preview ? null : enrollmentsQuery.warning}
       onRetry={() => void enrollmentsQuery.reload()}
-      onRefresh={preview ? undefined : () => { void enrollmentsQuery.reload(); void semestersQuery.reload(); }}
-      refreshing={!preview && (enrollmentsQuery.isStale || semestersQuery.isStale)}
+      onRefresh={preview ? undefined : pull.onRefresh}
+      refreshing={!preview && pull.refreshing}
       list={{ data: scheduleRows,
         keyExtractor: (row) => row.kind === 'heading' ? `day:${row.day}` : row.item.id,
         renderItem: ({ item: row }) => row.kind === 'session'

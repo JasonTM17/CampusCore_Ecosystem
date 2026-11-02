@@ -16,6 +16,7 @@ import {
 } from '../../components/Ui';
 import { fillCopy } from '../../i18n/academic-messages';
 import { countForm } from '../../i18n/locale';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { LaneEntries } from '../lanes/LaneEntries';
 import { lecturerApi } from './lecturer-api';
@@ -31,6 +32,7 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
   const preview = isOpsPreview();
   const schedule = useOpsQuery('lecturer:schedule', () => lecturerApi.schedule(), copy);
   const grading = useOpsQuery('lecturer:grading', () => lecturerApi.gradingSections(), copy);
+  const pull = usePullToRefresh(() => Promise.all([schedule.reload(), grading.reload()]));
 
   const sections = useMemo(() => (preview ? previewSchedule : schedule.data ?? []), [preview, schedule.data]);
   const gradingSections = useMemo(() => (preview ? previewGrading : grading.data ?? []), [preview, grading.data]);
@@ -60,8 +62,8 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
       error={error}
       warning={warning}
       onRetry={reload}
-      onRefresh={preview ? undefined : reload}
-      refreshing={!preview && (schedule.isStale || grading.isStale)}
+      onRefresh={preview ? undefined : pull.onRefresh}
+      refreshing={!preview && pull.refreshing}
     >
       {sections.length === 0 ? (
         <StatePanel kind="empty" title={copy.emptyDashboard} />
