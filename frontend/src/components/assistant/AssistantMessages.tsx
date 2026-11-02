@@ -336,10 +336,10 @@ export function AssistantMessages({
                         <span className="text-[10px] text-muted-foreground">
                           {messages.assistant.quotaResetsAt.replace(
                             '{time}',
-                            new Date(message.resetAt).toLocaleTimeString(
-                              undefined,
-                              { hour: '2-digit', minute: '2-digit' },
-                            ),
+                            formatDateTime(message.resetAt, {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            }),
                           )}
                         </span>
                       ) : null}

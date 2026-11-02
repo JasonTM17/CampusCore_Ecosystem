@@ -230,7 +230,7 @@ test('student print and export copy matches the previous output except approved 
   assert.equal(vi.studentPages.schedule.print, 'In thời khóa biểu');
   assert.equal(en.studentPages.schedule.ics.filenamePrefix, 'schedule-');
   assert.equal(vi.studentPages.schedule.ics.filenamePrefix, 'lich-hoc-');
-  assert.equal(en.studentPages.schedule.creditsAbbreviation, 'TC');
+  assert.equal(en.studentPages.schedule.creditsAbbreviation, 'cr');
   assert.equal(vi.studentPages.schedule.creditsAbbreviation, 'TC');
   assert.equal(en.studentPages.schedule.ics.semesterNameFallback, 'CampusUTE');
   assert.equal(vi.studentPages.schedule.ics.semesterNameFallback, 'CampusUTE');

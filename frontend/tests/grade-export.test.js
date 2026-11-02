@@ -195,7 +195,7 @@ test('Lecturer grade sheet CSV export and print roster integrity', async (t) => 
 
     const english = generateGradeCsv({ sectionNumber: 'SEC-01', students: [], locale: 'en' });
     assert.ok(
-      english.includes('"No.","Student ID","Full Name","Email","Process Score (50%)","Final Exam Score (50%)","Total (Scale 10)","Letter Grade","Status"'),
+      english.includes('"No.","Student ID","Full Name","Email","Coursework (50%)","Final Exam Score (50%)","Total (Scale 10)","Letter Grade","Status"'),
       'the requested locale selects the roster header',
     );
     assert.equal(

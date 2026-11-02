@@ -28,6 +28,7 @@ import {
   type StudentAttendanceEntry,
 } from '@/lib/api';
 import { getLocalizedFlatLabel, getLocalizedName } from '@/lib/academic-content';
+import { countLabel } from '@/lib/plural';
 import { GradingSection, Semester } from '@/types/api';
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
@@ -342,7 +343,11 @@ export default function LecturerAttendancePage() {
 
       if (!saveIsCurrent()) return;
       toast.success(
-        attendanceMessages.savedSuccess.replace('{count}', String(response.updatedCount)),
+        countLabel(
+          response.updatedCount,
+          attendanceMessages.savedSuccessSingular,
+          attendanceMessages.savedSuccess,
+        ).replace('{count}', String(response.updatedCount)),
       );
       setHasUnsavedChanges(false);
       setResetStudentIds(new Set());

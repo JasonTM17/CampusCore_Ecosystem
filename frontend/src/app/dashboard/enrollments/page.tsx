@@ -753,7 +753,7 @@ export default function EnrollmentsPage() {
                                 <th className="px-3 py-2.5 font-semibold">{copy.colSection}</th>
                                 <th className="px-3 py-2.5 font-semibold">{copy.colSchedule}</th>
                                 <th className="px-3 py-2.5 font-semibold">{copy.colStatus}</th>
-                                <th className="px-3 py-2.5 text-right font-semibold" aria-label="actions" />
+                                <th className="px-3 py-2.5 text-right font-semibold" aria-label={copy.colActions} />
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-border/60">

@@ -34,6 +34,7 @@ import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { EDIT_BANNER_PRESETS } from '@/components/announcements/AnnouncementEditModal';
 import { cn } from '@/lib/utils';
 import { replaceCoverBlock, removeCoverBlock } from '@/lib/cover-banner';
+import { campusCodeMessage } from '@/lib/campus-error';
 import {
   announcementWorkspaceEn,
   announcementWorkspaceVi,
@@ -247,7 +248,7 @@ export function LecturerAnnouncementCreateModal({
       onSuccess();
       onClose();
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || copy.saveFailed);
+      toast.error(campusCodeMessage(err, messages.common.campusErrors, copy.saveFailed));
     } finally {
       setIsSubmitting(false);
     }
