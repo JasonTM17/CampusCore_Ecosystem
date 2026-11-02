@@ -204,6 +204,39 @@ class NotificationWritePersistenceTest {
     }
 
     @Test
+    void adminCreateRejectsUnsafeNotificationLinks() throws Exception {
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "userId": "student-user-1",
+                                  "title": "Grade published",
+                                  "message": "Your course grade is now available.",
+                                  "type": "SUCCESS",
+                                  "link": "//evil.example"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_NOTIFICATION_LINK"));
+
+        mvc.perform(post("/api/v1/notifications")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "userId": "student-user-1",
+                                  "title": "Grade published",
+                                  "message": "Your course grade is now available.",
+                                  "type": "SUCCESS",
+                                  "link": "/%2f%2fevil"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_NOTIFICATION_LINK"));
+    }
+
+    @Test
     void adminCreateFailsClosedForInvalidBodyAndStudentRole() throws Exception {
         mvc.perform(post("/api/v1/notifications")
                         .with(adminJwt())
