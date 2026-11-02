@@ -1168,6 +1168,11 @@
             "minimum": -180,
             "type": "number"
           },
+          "expectedVersion": {
+            "description": "Optional expected version for update conflict checking",
+            "format": "int64",
+            "type": "integer"
+          },
           "isActive": {
             "description": "Optional on update; omit to keep the stored activation state. Defaults to inactive on create.",
             "type": "boolean"
@@ -1225,6 +1230,10 @@
           },
           "radiusMeters": {
             "format": "int32",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
             "type": "integer"
           }
         },

@@ -2538,6 +2538,11 @@ export interface components {
       centerLat: number;
       /** Format: double */
       centerLng: number;
+      /**
+       * Format: int64
+       * @description Optional expected version for update conflict checking
+       */
+      expectedVersion?: number;
       /** @description Optional on update; omit to keep the stored activation state. Defaults to inactive on create. */
       isActive?: boolean;
       name: string;
@@ -2557,6 +2562,8 @@ export interface components {
       note?: string;
       /** Format: int32 */
       radiusMeters?: number;
+      /** Format: int64 */
+      version?: number;
     };
     AttendanceListResponse: {
       data?: components["schemas"]["AttendanceResponse"][];
