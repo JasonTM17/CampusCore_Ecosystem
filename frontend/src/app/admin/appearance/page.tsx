@@ -26,7 +26,7 @@ import {
 } from '@/lib/site-appearance';
 import {
   broadcastSiteAppearance,
-  fetchSiteAppearance,
+  fetchSiteAppearanceSnapshot,
   saveSiteAppearance,
 } from '@/lib/site-appearance-client';
 import { cn } from '@/lib/utils';
@@ -44,6 +44,11 @@ function mergeSavedAppearanceMetadata(current: SiteAppearance, saved: SiteAppear
   };
 }
 
+function isStaleVersionError(error: unknown): boolean {
+  const response = (error as { response?: { data?: { code?: unknown } } })?.response;
+  return response?.data?.code === 'STALE_VERSION';
+}
+
 export default function AdminAppearancePage() {
   const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { href, locale, messages } = useI18n();
@@ -51,6 +56,8 @@ export default function AdminAppearancePage() {
   const copy = messages.admin.appearance;
   const [draft, setDraft] = useState<SiteAppearance>(DEFAULT_SITE_APPEARANCE);
   const draftRef = useRef<SiteAppearance>(DEFAULT_SITE_APPEARANCE);
+  const storedVersionRef = useRef<number | null>(null);
+  const staleConflictRef = useRef(false);
   const updateDraft = useCallback((next: SiteAppearance | ((current: SiteAppearance) => SiteAppearance)) => {
     const value = typeof next === 'function' ? next(draftRef.current) : next;
     draftRef.current = value;
@@ -63,6 +70,7 @@ export default function AdminAppearancePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [savedLocally, setSavedLocally] = useState(false);
+  const [staleConflict, setStaleConflict] = useState(false);
   const [error, setError] = useState('');
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
 
@@ -104,8 +112,8 @@ export default function AdminAppearancePage() {
 
     let postsFailed = false;
     try {
-      const [appearance, announcements] = await Promise.all([
-        fetchSiteAppearance(),
+      const [snapshot, announcements] = await Promise.all([
+        fetchSiteAppearanceSnapshot(),
         fetchAllAnnouncementRows().catch(() => {
           postsFailed = true;
           return [] as AnnouncementRow[];
@@ -124,7 +132,10 @@ export default function AdminAppearancePage() {
       // an explicit save (persist/reorder).
       setPosts(rows);
       setPostsLoadFailed(postsFailed);
-      updateDraft(sanitizeSiteAppearance(appearance));
+      updateDraft(sanitizeSiteAppearance(snapshot.appearance));
+      storedVersionRef.current = snapshot.expectedVersion;
+      staleConflictRef.current = false;
+      setStaleConflict(false);
     } catch {
       setError(copy.loadFailed);
     } finally {
@@ -141,6 +152,7 @@ export default function AdminAppearancePage() {
   const pendingAppearanceSaveRef = useRef<SiteAppearance | null>(null);
   const appearanceSaveInFlightRef = useRef(false);
   const persist = useCallback(async (next: SiteAppearance) => {
+    if (staleConflictRef.current) return;
     pendingAppearanceSaveRef.current = next;
     if (appearanceSaveInFlightRef.current) return;
 
@@ -151,7 +163,8 @@ export default function AdminAppearancePage() {
         const snapshot = pendingAppearanceSaveRef.current;
         pendingAppearanceSaveRef.current = null;
         try {
-          const saved = await saveSiteAppearance(snapshot);
+          const saved = await saveSiteAppearance(snapshot, storedVersionRef.current);
+          storedVersionRef.current = saved.persisted ? saved.version : null;
           const current = mergeSavedAppearanceMetadata(draftRef.current, saved);
           updateDraft(current);
 
@@ -169,7 +182,16 @@ export default function AdminAppearancePage() {
               toast.warning(copy.saveNotDurable);
             }
           }
-        } catch {
+        } catch (cause) {
+          if (isStaleVersionError(cause)) {
+            // Another administrator saved first. Keep this admin's edits and
+            // stop: retrying the queued snapshot would overwrite that save.
+            pendingAppearanceSaveRef.current = null;
+            staleConflictRef.current = true;
+            setStaleConflict(true);
+            setSavedLocally(false);
+            break;
+          }
           if (pendingAppearanceSaveRef.current) {
             continue;
           }
@@ -250,6 +272,23 @@ export default function AdminAppearancePage() {
       ) : (
         <div className="grid min-w-0 gap-8 xl:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="min-w-0 space-y-8">
+            {staleConflict ? (
+              <div
+                role="alert"
+                className="rounded-lg border border-status-warning/40 bg-status-warning/10 p-3 text-sm text-foreground"
+              >
+                <p>{copy.staleVersion}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-3"
+                  disabled={isSaving}
+                  onClick={() => void load()}
+                >
+                  {copy.reload}
+                </Button>
+              </div>
+            ) : null}
             <section className="min-w-0 space-y-4 rounded-xl border border-border/80 bg-card p-4 shadow-xs sm:p-5">
               <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h2 className="text-lg font-semibold text-foreground">{copy.heroTitle}</h2>

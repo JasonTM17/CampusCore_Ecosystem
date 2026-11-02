@@ -1334,6 +1334,9 @@ export const en = {
       saveFailed: 'The campus look could not be saved right now.',
       saveNotDurable:
         'Saved to this web server only. The central API is unreachable, so other visitors will not see this until it is saved again.',
+      staleVersion:
+        'The campus look changed after you loaded it. Your edits are still here; reload to compare before saving.',
+      reload: 'Reload',
       loadFailed: 'The campus look could not be loaded right now.',
       postsLoadFailed:
         'The announcement list could not be loaded — pinned ordering is unavailable until it loads.',
@@ -4394,6 +4397,9 @@ export const vi: I18nMessages = {
       saveFailed: 'Hiện chưa thể lưu giao diện cổng.',
       saveNotDurable:
         'Chỉ vừa lưu trên web server này. API trung tâm đang không kết nối được, nên người dùng khác sẽ chưa thấy thay đổi cho tới khi lưu lại.',
+      staleVersion:
+        'Giao diện cổng đã thay đổi sau khi bạn tải. Các chỉnh sửa vẫn được giữ; hãy tải lại để so sánh trước khi lưu.',
+      reload: 'Tải lại',
       loadFailed: 'Hiện chưa thể tải giao diện cổng.',
       postsLoadFailed:
         'Không tải được danh sách thông báo — chưa thể sắp xếp ghim cho tới khi tải lại.',
