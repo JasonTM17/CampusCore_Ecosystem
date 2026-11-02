@@ -1,0 +1,537 @@
+{
+  "version": 1,
+  "owner": "W19 archive server search",
+  "source": {
+    "predicate": "frontend/src/app/dashboard/thesis/page.tsx :: filteredRepositoryReports (useMemo)",
+    "frozen_at": "db83f21d",
+    "note": "The `cases[].expect` values were produced by executing that exact source block, not by hand. Both the Java oracle (ThesisArchiveSearchOracle) and the node oracle (frontend/tests/thesis-archive-search-oracle.test.js) must reproduce them, and the H2/PostgreSQL contract suites must return the same rows from real SQL."
+  },
+  "summary": {
+    "total": 13,
+    "files": 11,
+    "urls": 10
+  },
+  "reports": [
+    {
+      "id": "r01",
+      "topicTitle": "Nguyễn Văn Đức - Hệ thống quản lý thư viện",
+      "title": "Báo cáo thư viện",
+      "topicDescription": "<p>Xây dựng hệ thống quản lý thư viện bằng Spring Boot</p>",
+      "note": "Đã hoàn thành đầy đủ",
+      "fileName": "bao-cao-thu-vien.pdf",
+      "url": "https://drive.example.com/r01",
+      "departmentName": "Công nghệ phần mềm",
+      "submittedByDisplayName": "Nguyễn Văn Đức",
+      "submittedByStudentNumber": "99110001",
+      "supervisors": [
+        {
+          "displayName": "TS. Trần Thị Bình"
+        }
+      ],
+      "members": [
+        {
+          "displayName": "Lê Quang Huy",
+          "studentNumber": "99110002"
+        }
+      ]
+    },
+    {
+      "id": "r02",
+      "topicTitle": "École Supérieure d'Ingénierie",
+      "title": "Rapport final",
+      "topicDescription": "Ångström measurement report",
+      "note": "draft_v2",
+      "fileName": "ecole.pdf",
+      "url": "",
+      "departmentName": "Khoa Quốc tế",
+      "submittedByDisplayName": "Nguyen Thi Hoa",
+      "submittedByStudentNumber": "99110003",
+      "supervisors": [
+        {
+          "displayName": "Dr. Smith"
+        }
+      ],
+      "members": [
+        {
+          "displayName": "External Reviewer",
+          "studentNumber": null,
+          "external": true
+        }
+      ]
+    },
+    {
+      "id": "r03",
+      "topicTitle": "",
+      "title": "Fallback Report Title",
+      "topicDescription": null,
+      "note": null,
+      "fileName": null,
+      "url": null,
+      "departmentName": "Khoa Cơ bản",
+      "submittedByDisplayName": null,
+      "submittedByStudentNumber": "99110004",
+      "supervisors": [],
+      "members": []
+    },
+    {
+      "id": "r04",
+      "topicTitle": "Trí tuệ nhân tạo",
+      "title": "AI report",
+      "topicDescription": null,
+      "note": "overall good",
+      "fileName": "ai.pdf",
+      "url": "https://drive.example.com/r04",
+      "departmentName": "Công nghệ phần mềm",
+      "submittedByDisplayName": "Trần Văn An",
+      "submittedByStudentNumber": "99110005",
+      "supervisors": [
+        {
+          "displayName": "Supervisor One"
+        },
+        {
+          "displayName": "Supervisor Two"
+        }
+      ],
+      "members": [
+        {
+          "displayName": "Member Alpha",
+          "studentNumber": "99110010"
+        },
+        {
+          "displayName": "Member Beta",
+          "studentNumber": "99110011"
+        },
+        {
+          "displayName": "Member Gamma",
+          "studentNumber": "99110012"
+        },
+        {
+          "displayName": "Member Delta",
+          "studentNumber": "99110013"
+        }
+      ]
+    },
+    {
+      "id": "r05",
+      "topicTitle": "An toàn thông tin",
+      "title": "Security report",
+      "topicDescription": null,
+      "note": "security review",
+      "fileName": "security.pdf",
+      "url": "https://drive.example.com/r05",
+      "departmentName": "An ninh mạng",
+      "submittedByDisplayName": "Nguyễn Thị Kim",
+      "submittedByStudentNumber": "99110006",
+      "supervisors": [
+        {
+          "displayName": "PGS. Nguyễn Thị Kim"
+        }
+      ],
+      "members": []
+    },
+    {
+      "id": "r06",
+      "topicTitle": "Long fields",
+      "title": "Long report",
+      "topicDescription": "alpha bravo charlie delta echo foxtrot golf hotel india juliet",
+      "note": "path \\temp\\x",
+      "fileName": "a-very-long-file-name-that-exceeds-sixty-four-characters-for-sure-0123456789.pdf",
+      "url": "https://drive.example.com/r06",
+      "departmentName": "Khoa Cơ bản",
+      "submittedByDisplayName": "Lê Văn Long",
+      "submittedByStudentNumber": "99110007",
+      "supervisors": [],
+      "members": []
+    },
+    {
+      "id": "r07",
+      "topicTitle": "Kiểm thử phần mềm",
+      "title": "QA report",
+      "topicDescription": null,
+      "note": "progress 100% done_correctly \"quoted\"",
+      "fileName": "weird_name.pdf",
+      "url": "https://drive.example.com/r07",
+      "departmentName": "Công nghệ phần mềm",
+      "submittedByDisplayName": "Phạm Minh Tuấn",
+      "submittedByStudentNumber": "99110008",
+      "supervisors": [],
+      "members": []
+    },
+    {
+      "id": "r08",
+      "topicTitle": "Whitespace fields",
+      "title": "Space report",
+      "topicDescription": null,
+      "note": "",
+      "fileName": " ",
+      "url": "https://drive.example.com/r08",
+      "departmentName": "Khoa Cơ bản",
+      "submittedByDisplayName": "Đỗ Thị Lan",
+      "submittedByStudentNumber": "99110009",
+      "supervisors": [],
+      "members": []
+    },
+    {
+      "id": "r09",
+      "topicTitle": "Both artifacts",
+      "title": "Both report",
+      "topicDescription": null,
+      "note": null,
+      "fileName": "both.pdf",
+      "url": "https://drive.example.com/r09",
+      "departmentName": "Khoa Cơ bản",
+      "submittedByDisplayName": "Vũ Quốc Bảo",
+      "submittedByStudentNumber": "99110014",
+      "supervisors": [],
+      "members": []
+    },
+    {
+      "id": "r10",
+      "topicTitle": "Nguyễn Văn A",
+      "title": "NFD report",
+      "topicDescription": null,
+      "note": "nfd stored",
+      "fileName": "nfd.pdf",
+      "url": "https://drive.example.com/r10",
+      "departmentName": "Khoa Cơ bản",
+      "submittedByDisplayName": "Nguyễn Văn A",
+      "submittedByStudentNumber": "99110015",
+      "supervisors": [],
+      "members": []
+    },
+    {
+      "id": "r11",
+      "topicTitle": "Call for papers",
+      "title": "Call report",
+      "topicDescription": null,
+      "note": "Call for papers on AI",
+      "fileName": "call.pdf",
+      "url": "https://drive.example.com/r11",
+      "departmentName": "Khoa Cơ bản",
+      "submittedByDisplayName": "Ngô Thị Mai",
+      "submittedByStudentNumber": "99110016",
+      "supervisors": [],
+      "members": []
+    },
+    {
+      "id": "r12",
+      "topicTitle": "Hướng dẫn luận văn",
+      "title": "Guide report",
+      "topicDescription": null,
+      "note": "ThS. Nguyễn Văn Bình hướng dẫn",
+      "fileName": "guide.pdf",
+      "url": "https://drive.example.com/r12",
+      "departmentName": "Khoa Cơ bản",
+      "submittedByDisplayName": "Bùi Văn Nam",
+      "submittedByStudentNumber": "99110017",
+      "supervisors": [],
+      "members": []
+    },
+    {
+      "id": "r13",
+      "topicTitle": "Mạng máy tính",
+      "title": "Network report",
+      "topicDescription": null,
+      "note": null,
+      "fileName": null,
+      "url": null,
+      "departmentName": "Bộ môn Mạng máy tính",
+      "submittedByDisplayName": "Hoàng Văn Sơn",
+      "submittedByStudentNumber": "99999999",
+      "supervisors": [
+        {
+          "displayName": "Đặng Minh Khoa"
+        }
+      ],
+      "members": []
+    }
+  ],
+  "cases": [
+    {
+      "name": "ascii-across-fields",
+      "search": "nguyen",
+      "expect": [
+        "r01",
+        "r02",
+        "r05",
+        "r10",
+        "r12"
+      ]
+    },
+    {
+      "name": "multi-token-topic-title",
+      "search": "nguyen van duc",
+      "expect": [
+        "r01"
+      ]
+    },
+    {
+      "name": "nfc-input",
+      "search": "Nguyễn",
+      "expect": [
+        "r01",
+        "r02",
+        "r05",
+        "r10",
+        "r12"
+      ]
+    },
+    {
+      "name": "nfd-input",
+      "search": "Nguyễn",
+      "expect": [
+        "r01",
+        "r02",
+        "r05",
+        "r10",
+        "r12"
+      ]
+    },
+    {
+      "name": "d-stroke-storage-and-input",
+      "search": "dang",
+      "expect": [
+        "r13"
+      ]
+    },
+    {
+      "name": "d-stroke-input-nfc",
+      "search": "Đặng",
+      "expect": [
+        "r13"
+      ]
+    },
+    {
+      "name": "non-vietnamese-accents",
+      "search": "ecole superieure",
+      "expect": [
+        "r02"
+      ]
+    },
+    {
+      "name": "ring-above",
+      "search": "angstrom",
+      "expect": [
+        "r02"
+      ]
+    },
+    {
+      "name": "js-whitespace-nbsp-ideographic",
+      "search": "nguyen van　duc",
+      "expect": [
+        "r01"
+      ]
+    },
+    {
+      "name": "js-whitespace-tab-newline",
+      "search": "  nguyen\tvan\nduc  ",
+      "expect": [
+        "r01"
+      ]
+    },
+    {
+      "name": "honorific-token-not-stripped",
+      "search": "ThS. Nguyễn",
+      "expect": [
+        "r12"
+      ]
+    },
+    {
+      "name": "percent-is-literal",
+      "search": "100%",
+      "expect": [
+        "r07"
+      ]
+    },
+    {
+      "name": "percent-does-not-wildcard",
+      "search": "0%d",
+      "expect": []
+    },
+    {
+      "name": "underscore-is-literal",
+      "search": "_",
+      "expect": [
+        "r02",
+        "r07"
+      ]
+    },
+    {
+      "name": "backslash-is-literal",
+      "search": "\\",
+      "expect": [
+        "r06"
+      ]
+    },
+    {
+      "name": "quotes-are-literal",
+      "search": "\"quoted\"",
+      "expect": [
+        "r07"
+      ]
+    },
+    {
+      "name": "longer-than-64-characters",
+      "search": "a-very-long-file-name-that-exceeds-sixty-four-characters-for-sure-0123456789.pdf",
+      "expect": [
+        "r06"
+      ]
+    },
+    {
+      "name": "more-than-8-tokens",
+      "search": "alpha bravo charlie delta echo foxtrot golf hotel india juliet",
+      "expect": [
+        "r06"
+      ]
+    },
+    {
+      "name": "topic-title-fallback",
+      "search": "fallback report title",
+      "expect": [
+        "r03"
+      ]
+    },
+    {
+      "name": "report-title-not-searched-when-topic-title-exists",
+      "search": "rapport final",
+      "expect": []
+    },
+    {
+      "name": "file-type-not-searchable",
+      "search": "application/pdf",
+      "expect": []
+    },
+    {
+      "name": "member-display-name-fallback",
+      "search": "external reviewer",
+      "expect": [
+        "r02"
+      ]
+    },
+    {
+      "name": "tokens-across-different-children",
+      "search": "beta two",
+      "expect": [
+        "r04"
+      ]
+    },
+    {
+      "name": "tokens-must-match-the-same-report",
+      "search": "alpha kim",
+      "expect": []
+    },
+    {
+      "name": "all-is-a-literal-search",
+      "search": "all",
+      "expect": [
+        "r03",
+        "r04",
+        "r11"
+      ]
+    },
+    {
+      "name": "no-match",
+      "search": "zzz-none",
+      "expect": []
+    },
+    {
+      "name": "department-name",
+      "search": "bo mon mang",
+      "expect": [
+        "r13"
+      ]
+    },
+    {
+      "name": "submitter-student-number",
+      "search": "99999999",
+      "expect": [
+        "r13"
+      ]
+    },
+    {
+      "name": "member-student-number",
+      "search": "99110002",
+      "expect": [
+        "r01"
+      ]
+    },
+    {
+      "name": "supervisor-display-name",
+      "search": "supervisor two",
+      "expect": [
+        "r04"
+      ]
+    },
+    {
+      "name": "raw-description-not-plain-text",
+      "search": "<p>",
+      "expect": [
+        "r01"
+      ]
+    },
+    {
+      "name": "uppercase-query",
+      "search": "FALLBACK",
+      "expect": [
+        "r03"
+      ]
+    },
+    {
+      "name": "blank-search",
+      "search": "   ",
+      "expect": [
+        "r01",
+        "r02",
+        "r03",
+        "r04",
+        "r05",
+        "r06",
+        "r07",
+        "r08",
+        "r09",
+        "r10",
+        "r11",
+        "r12",
+        "r13"
+      ]
+    },
+    {
+      "name": "nbsp-only-search",
+      "search": " ",
+      "expect": [
+        "r01",
+        "r02",
+        "r03",
+        "r04",
+        "r05",
+        "r06",
+        "r07",
+        "r08",
+        "r09",
+        "r10",
+        "r11",
+        "r12",
+        "r13"
+      ]
+    },
+    {
+      "name": "empty-search",
+      "search": "",
+      "expect": [
+        "r01",
+        "r02",
+        "r03",
+        "r04",
+        "r05",
+        "r06",
+        "r07",
+        "r08",
+        "r09",
+        "r10",
+        "r11",
+        "r12",
+        "r13"
+      ]
+    }
+  ]
+}

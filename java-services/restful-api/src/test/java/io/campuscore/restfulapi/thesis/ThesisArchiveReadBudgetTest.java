@@ -149,6 +149,63 @@ class ThesisArchiveReadBudgetTest {
     }
 
     @Test
+    void searchedPageKeepsOneAggregateOneRootAndPageBoundChildren() throws Exception {
+        statements.clear();
+        rowsRead.clear();
+
+        var response = mvc.perform(get("/api/v1/thesis/rounds/{id}/repository", roundId)
+                        .param("search", "budget")
+                        .param("page", "1")
+                        .param("limit", "2")
+                        .with(admin))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", String.valueOf(ROOTS)))
+                .andExpect(header().string("X-Archive-Total-Count", String.valueOf(ROOTS)))
+                .andReturn();
+
+        assertThat(mapper.readTree(response.getResponse().getContentAsString())).hasSize(2);
+        assertThat(countQueries()).hasSize(1);
+        assertThat(rootQueries()).hasSize(1);
+        assertThat(memberQueries()).hasSize(1);
+        assertThat(supervisorQueries()).hasSize(1);
+        assertThat(countQueries().getFirst()).contains("REGEXP_REPLACE");
+        assertThat(rootQueries().getFirst()).contains("REGEXP_REPLACE");
+        assertThat(rowsRead.get(rootQueries().getFirst())).isEqualTo(2);
+        assertThat(rowsRead.get(memberQueries().getFirst())).isEqualTo(2 * MEMBERS_PER_ROOT);
+        assertThat(rowsRead.get(supervisorQueries().getFirst())).isEqualTo(2 * SUPERVISORS_PER_ROOT);
+
+        // No match: the aggregate alone answers, no page or child read happens.
+        statements.clear();
+        rowsRead.clear();
+        mvc.perform(get("/api/v1/thesis/rounds/{id}/repository", roundId)
+                        .param("search", "no-such-budget-term")
+                        .param("page", "0")
+                        .param("limit", "2")
+                        .with(admin))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "0"))
+                .andExpect(header().string("X-Archive-Total-Count", String.valueOf(ROOTS)));
+        assertThat(countQueries()).hasSize(1);
+        assertThat(rootQueries()).isEmpty();
+        assertThat(memberQueries()).isEmpty();
+        assertThat(supervisorQueries()).isEmpty();
+
+        // The unpaged search read stays one root plus its two child reads.
+        statements.clear();
+        rowsRead.clear();
+        mvc.perform(get("/api/v1/thesis/rounds/{id}/repository", roundId)
+                        .param("search", "budget")
+                        .with(admin))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("X-Archive-Total-Count"));
+        assertThat(countQueries()).isEmpty();
+        assertThat(rootQueries()).hasSize(1);
+        assertThat(memberQueries()).hasSize(1);
+        assertThat(supervisorQueries()).hasSize(1);
+        assertThat(rowsRead.get(rootQueries().getFirst())).isEqualTo(ROOTS);
+    }
+
+    @Test
     void countAndPageUseTheSameLecturerScopePredicate() throws Exception {
         String lecturerId = tag + "-lecturer";
         ensureLecturer(lecturerId, "department-demo");
@@ -175,7 +232,7 @@ class ThesisArchiveReadBudgetTest {
 
     private List<String> countQueries() {
         return statements.stream()
-                .filter(sql -> sql.startsWith("SELECT COUNT(*) FROM thesis.thesis_group_report"))
+                .filter(sql -> sql.startsWith("SELECT COUNT(*) AS archive_total"))
                 .toList();
     }
 
