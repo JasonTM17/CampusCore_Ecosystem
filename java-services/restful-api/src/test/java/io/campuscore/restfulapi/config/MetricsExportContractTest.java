@@ -12,7 +12,10 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest(properties = "management.metrics.scrape-key=fixture-scrape-key")
+@SpringBootTest(properties = {
+        "management.metrics.scrape-key=fixture-scrape-key",
+        "assistant.global-daily-quota=100"
+})
 @ActiveProfiles({"test", "persistence"})
 @AutoConfigureMockMvc
 class MetricsExportContractTest {
@@ -31,6 +34,8 @@ class MetricsExportContractTest {
         }
         assertTrue(scrape.contains("campuscore_assistant_requests_total{degraded=\"true\"} 0.0"));
         assertTrue(scrape.contains("campuscore_assistant_requests_total{degraded=\"false\"} 0.0"));
+        assertTrue(scrape.contains("campuscore_assistant_quota_limit_daily 100.0"),
+                "the configured non-default global daily quota must be exported");
         assertTrue(scrape.contains("campuscore_assistant_rls_verified 0.0"),
                 "a missing verifier must never be exported as verified");
         assertFalse(scrape.contains("reason_code="));
@@ -68,13 +73,32 @@ class MetricsExportContractTest {
             beans.addBean("rls", state);
             new MetricsConfiguration().assistantMeters(beans.getBeanProvider(
                     io.campuscore.restfulapi.thesis.assistant.AssistantRlsState.class),
-                    beans.getBeanProvider(javax.sql.DataSource.class)).bindTo(isolated);
+                    beans.getBeanProvider(javax.sql.DataSource.class),
+                    beans.getBeanProvider(io.campuscore.restfulapi.thesis.assistant.AssistantProperties.class))
+                    .bindTo(isolated);
             assertEquals(0, isolated.get("campuscore.assistant.rls.verified").gauge().value());
             state.markVerified("fixture");
             assertEquals(1, isolated.get("campuscore.assistant.rls.verified").gauge().value());
             state.markDegraded("fixture");
             assertEquals(0, isolated.get("campuscore.assistant.rls.verified").gauge().value());
             assertTrue(Double.isNaN(isolated.get("campuscore.assistant.quota.consumed.daily").gauge().value()));
+            assertTrue(Double.isNaN(isolated.get("campuscore.assistant.quota.limit.daily").gauge().value()));
+        } finally { isolated.close(); }
+    }
+
+    @Test
+    void configuredGlobalQuotaLimitGaugeUsesAssistantProperties() {
+        var beans = new org.springframework.beans.factory.support.StaticListableBeanFactory();
+        beans.addBean("assistantProperties", new io.campuscore.restfulapi.thesis.assistant.AssistantProperties(
+                1, 1, 1, 100, 1, true));
+        var isolated = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+        try {
+            new MetricsConfiguration().assistantMeters(beans.getBeanProvider(
+                    io.campuscore.restfulapi.thesis.assistant.AssistantRlsState.class),
+                    beans.getBeanProvider(javax.sql.DataSource.class),
+                    beans.getBeanProvider(io.campuscore.restfulapi.thesis.assistant.AssistantProperties.class))
+                    .bindTo(isolated);
+            assertEquals(100.0, isolated.get("campuscore.assistant.quota.limit.daily").gauge().value());
         } finally { isolated.close(); }
     }
 
@@ -101,7 +125,9 @@ class MetricsExportContractTest {
         try {
             new MetricsConfiguration().assistantMeters(beans.getBeanProvider(
                     io.campuscore.restfulapi.thesis.assistant.AssistantRlsState.class),
-                    beans.getBeanProvider(javax.sql.DataSource.class)).bindTo(isolated);
+                    beans.getBeanProvider(javax.sql.DataSource.class),
+                    beans.getBeanProvider(io.campuscore.restfulapi.thesis.assistant.AssistantProperties.class))
+                    .bindTo(isolated);
             var quota = isolated.get("campuscore.assistant.quota.consumed.daily").gauge();
             assertEquals(7, quota.value());
             org.mockito.Mockito.verify(connection).setReadOnly(true);
@@ -135,7 +161,9 @@ class MetricsExportContractTest {
         try {
             new MetricsConfiguration().assistantMeters(beans.getBeanProvider(
                     io.campuscore.restfulapi.thesis.assistant.AssistantRlsState.class),
-                    beans.getBeanProvider(javax.sql.DataSource.class)).bindTo(isolated);
+                    beans.getBeanProvider(javax.sql.DataSource.class),
+                    beans.getBeanProvider(io.campuscore.restfulapi.thesis.assistant.AssistantProperties.class))
+                    .bindTo(isolated);
             assertTrue(Double.isNaN(isolated.get("campuscore.assistant.quota.consumed.daily").gauge().value()));
             org.mockito.Mockito.verify(connection, org.mockito.Mockito.never()).prepareStatement(org.mockito.ArgumentMatchers.anyString());
         } finally { isolated.close(); }

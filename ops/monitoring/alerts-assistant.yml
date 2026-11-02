@@ -30,22 +30,24 @@ groups:
           instrumentation_status: "INSTRUMENTED (MetricsConfiguration and assigned assistant boundaries)"
 
       # -----------------------------------------------------------------------
-      # 2. Daily Quota Near Exhaustion
-      # Default: user-daily-quota: 20 | global-daily-quota: 200
+      # 2. Configured Global Daily Quota Near Exhaustion
+      # The configured limit gauge is used to evaluate consumption as a ratio.
       # -----------------------------------------------------------------------
       - alert: AssistantGlobalQuotaExhaustionRisk
         expr: >-
-          max(campuscore_assistant_quota_consumed_daily) > 180
+          max(campuscore_assistant_quota_consumed_daily)
+          /
+          max(campuscore_assistant_quota_limit_daily > 0) > 0.9
         for: 5m
         labels:
           severity: warning
           service: restful-api
           component: assistant-quota
         annotations:
-          summary: "Campus Assistant global daily quota is 90% exhausted (>180/200)"
+          summary: "Campus Assistant global daily quota is at {{ $value | humanizePercentage }} of its configured limit"
           description: >-
-            Daily DeepSeek synthesis attempts have reached {{ $value }} of the 200 global limit.
-            Subsequent user requests will fall back to local lexical RAG with reasonCode
+            Daily DeepSeek synthesis attempts have reached {{ $value | humanizePercentage }} of the configured global limit.
+            Subsequent user requests may fall back to local lexical RAG with reasonCode
             GLOBAL_QUOTA_EXCEEDED.
           runbook_url: "docs/integrations/deepseek-assistant.md#runtime-configuration"
           instrumentation_status: "INSTRUMENTED (MetricsConfiguration and assigned assistant boundaries)"

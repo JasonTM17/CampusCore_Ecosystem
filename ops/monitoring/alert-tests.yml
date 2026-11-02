@@ -483,3 +483,66 @@ tests:
     exp_samples:
     - labels: '{}'
       value: 1
+- name: quota-limit-ratio-fires-at-configured-limit-500
+  interval: 1m
+  input_series:
+  - series: campuscore_assistant_quota_consumed_daily
+    values: 460+0x20
+  - series: campuscore_assistant_quota_limit_daily
+    values: 500+0x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="AssistantGlobalQuotaExhaustionRisk"}) or vector(0)
+    eval_time: 10m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+- name: quota-limit-ratio-fires-below-the-old-fixed-threshold
+  interval: 1m
+  input_series:
+  - series: campuscore_assistant_quota_consumed_daily
+    values: 95+0x20
+  - series: campuscore_assistant_quota_limit_daily
+    values: 100+0x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="AssistantGlobalQuotaExhaustionRisk"}) or vector(0)
+    eval_time: 10m
+    exp_samples:
+    - labels: '{}'
+      value: 1
+- name: quota-limit-ratio-does-not-fire-below-90-percent
+  interval: 1m
+  input_series:
+  - series: campuscore_assistant_quota_consumed_daily
+    values: 400+0x20
+  - series: campuscore_assistant_quota_limit_daily
+    values: 500+0x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="AssistantGlobalQuotaExhaustionRisk"}) or vector(0)
+    eval_time: 10m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+- name: quota-limit-ratio-does-not-fire-without-limit-series
+  interval: 1m
+  input_series:
+  - series: campuscore_assistant_quota_consumed_daily
+    values: 460+0x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="AssistantGlobalQuotaExhaustionRisk"}) or vector(0)
+    eval_time: 10m
+    exp_samples:
+    - labels: '{}'
+      value: 0
+- name: quota-limit-ratio-does-not-fire-with-zero-limit
+  interval: 1m
+  input_series:
+  - series: campuscore_assistant_quota_consumed_daily
+    values: 460+0x20
+  - series: campuscore_assistant_quota_limit_daily
+    values: 0+0x20
+  promql_expr_test:
+  - expr: count(ALERTS{alertstate="firing",alertname="AssistantGlobalQuotaExhaustionRisk"}) or vector(0)
+    eval_time: 10m
+    exp_samples:
+    - labels: '{}'
+      value: 0
