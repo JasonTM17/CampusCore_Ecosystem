@@ -209,6 +209,7 @@ export const adminPagesEn = {
     updated: 'Section updated',
     created: 'Section created',
     saveFailed: 'The section could not be saved.',
+    staleEdit: 'This section changed after you opened it. Your edits are still here; reload to compare before saving.',
     editTitle: 'Edit section',
     createTitle: 'Create section',
     fields: {
@@ -578,6 +579,7 @@ export const adminPagesVi: Widen<typeof adminPagesEn> = {
     updated: 'Đã cập nhật lớp học phần',
     created: 'Đã tạo lớp học phần',
     saveFailed: 'Hiện chưa thể lưu lớp học phần.',
+    staleEdit: 'Lớp học phần đã thay đổi sau khi bạn mở. Các chỉnh sửa vẫn được giữ; hãy tải lại để so sánh trước khi lưu.',
     editTitle: 'Chỉnh sửa lớp học phần',
     createTitle: 'Tạo lớp học phần',
     fields: {
