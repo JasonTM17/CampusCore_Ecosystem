@@ -51,9 +51,10 @@ jest.mock('../../src/screens/operations/lecturer-ui', () => {
   const actual = jest.requireActual('../../src/screens/operations/lecturer-ui') as typeof import('../../src/screens/operations/lecturer-ui');
   return {
     ...actual,
-    OpsShell: ({ children, list, onRefresh }: {
+    OpsShell: ({ children, list, onRefresh, refreshing }: {
       children: ReactNode;
       onRefresh?: () => void;
+      refreshing?: boolean;
       list?: {
         data: readonly unknown[];
         renderItem: (info: { item: unknown; index: number }) => ReactNode;
@@ -68,6 +69,7 @@ jest.mock('../../src/screens/operations/lecturer-ui', () => {
         accessibilityLabel: 'Pull to refresh',
         onPress: onRefresh,
       }) : null,
+      React.createElement(Native.Text, { testID: 'refresh-state' }, refreshing ? 'refreshing' : 'idle'),
       children,
       ...(list?.data.map((item, index) => React.createElement(
         React.Fragment,
@@ -182,6 +184,28 @@ test('lecturer attendance pull-to-refresh reloads the active sheet', async () =>
   await renderScreen(<LecturerAttendanceScreen {...props} />);
   await fireEvent.press(screen.getByTestId('pull-to-refresh'));
   expect(mockRuntime.reloads[`lecturer:sheet:section-a:${today}`]).toHaveBeenCalledTimes(1);
+});
+
+test('attendance pull-to-refresh reloads sections and the sheet, and the spinner tracks exactly that refresh', async () => {
+  const sectionsPending = deferred<void>();
+  const sheetPending = deferred<void>();
+  mockRuntime.reloads['lecturer:schedule'] = jest.fn(() => sectionsPending.promise);
+  mockRuntime.reloads[`lecturer:sheet:section-a:${today}`] = jest.fn(() => sheetPending.promise);
+
+  await renderScreen(<LecturerAttendanceScreen {...props} />);
+  expect(screen.getByTestId('refresh-state')).toHaveTextContent('idle');
+
+  await fireEvent.press(screen.getByTestId('pull-to-refresh'));
+  expect(mockRuntime.reloads['lecturer:schedule']).toHaveBeenCalledTimes(1);
+  expect(mockRuntime.reloads[`lecturer:sheet:section-a:${today}`]).toHaveBeenCalledTimes(1);
+  expect(screen.getByTestId('refresh-state')).toHaveTextContent('refreshing');
+
+  await act(async () => {
+    sectionsPending.resolve();
+    sheetPending.resolve();
+    await Promise.all([sectionsPending.promise, sheetPending.promise]);
+  });
+  expect(screen.getByTestId('refresh-state')).toHaveTextContent('idle');
 });
 
 test('a deferred attendance save does not apply section A state to section B', async () => {

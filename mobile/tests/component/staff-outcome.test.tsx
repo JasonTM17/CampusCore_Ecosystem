@@ -17,19 +17,34 @@ const mockApi = { mode: 'live' as 'live' | 'preview' };
 jest.mock('../../src/api/client', () => ({
   get apiClient() { return { mode: mockApi.mode }; },
   campusApi: {},
+  ApiClientError: class ApiClientError extends Error {
+    status: number;
+    code?: string;
+
+    constructor(message: string, status: number, _requestId: string, code?: string) {
+      super(message);
+      this.status = status;
+      this.code = code;
+    }
+  },
 }));
 jest.mock('../../src/session/SessionContext', () => ({
   useSession: () => ({ kind: 'preview', role: 'lecturer', capabilities: [] }),
 }));
+const mockOpsQuery: { errorInput?: unknown; errorStatus: number | null; reload: ReturnType<typeof jest.fn> } = {
+  errorInput: undefined,
+  errorStatus: null,
+  reload: jest.fn(async () => {}),
+};
 jest.mock('../../src/hooks/useScreenQuery', () => ({
-  useScreenQuery: () => ({
+  useScreenQuery: (_key: string, _request: () => Promise<unknown>, options?: { mapError?: (error: unknown) => string }) => ({
     data: undefined,
-    error: null,
+    error: mockOpsQuery.errorInput === undefined ? null : options?.mapError?.(mockOpsQuery.errorInput) ?? null,
     warning: null,
-    errorStatus: null,
+    errorStatus: mockOpsQuery.errorStatus,
     isLoading: false,
     isStale: false,
-    reload: jest.fn(async () => {}),
+    reload: mockOpsQuery.reload,
     setData: jest.fn(),
   }),
 }));
@@ -41,6 +56,7 @@ jest.mock('expo-router', () => {
 import { AdminDashboardScreen, AdminLecturersScreen, AdminStudentsScreen } from '../../src/screens/operations/AdminScreens';
 import { AttendanceRosterRow } from '../../src/screens/operations/AttendanceRosterRow';
 import { LecturerAttendanceScreen } from '../../src/screens/operations/LecturerAttendanceScreen';
+import { ApiClientError } from '../../src/api/client';
 
 const renderThemed = async (element: ReactElement) =>
   render(<ThemeProvider forcedScheme="light">{element}</ThemeProvider>);
@@ -55,6 +71,8 @@ const nav = { navigate: jest.fn(), navigateLane: jest.fn(), goBack: jest.fn() } 
 
 beforeEach(() => {
   mockApi.mode = 'live';
+  mockOpsQuery.errorInput = undefined;
+  mockOpsQuery.errorStatus = null;
   jest.clearAllMocks();
 });
 
@@ -91,6 +109,21 @@ describe('admin surfaces never fabricate live records', () => {
   });
 });
 
+describe('resource 401 mapping', () => {
+  test('a lecturer attendance 401 stays inline and retryable instead of claiming session expiry', async () => {
+    mockApi.mode = 'live';
+    mockOpsQuery.errorInput = new ApiClientError('unauthorized', 401, 'req-w15', 'HTTP_401');
+    mockOpsQuery.errorStatus = 401;
+    await renderThemed(
+      <LecturerAttendanceScreen navigation={nav} role="lecturer" selectedThesisTopicId={null} />,
+    );
+    expect(screen.getByText(operationsMessages.vi.generic)).toBeTruthy();
+    expect(screen.queryByText(operationsMessages.vi.signIn)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: operationsMessages.vi.retry }));
+    expect(mockOpsQuery.reload).toHaveBeenCalled();
+  });
+});
+
 describe('directory handoff', () => {
   test('detail sheet open-on-web calls the portal route and reports a failed handoff', async () => {
     mockApi.mode = 'preview';
@@ -107,23 +140,34 @@ describe('directory handoff', () => {
     openURL.mockRestore();
   });
 
-  test('web-only and lane handoffs hide their action when a release portal is unconfigured', async () => {
+  test('web-only and lecturer handoffs explain an unconfigured portal instead of vanishing', async () => {
     const configured = process.env.EXPO_PUBLIC_PORTAL_URL;
     const runtime = globalThis as typeof globalThis & { __DEV__?: boolean };
     const previousDev = runtime.__DEV__;
     delete process.env.EXPO_PUBLIC_PORTAL_URL;
     runtime.__DEV__ = false;
+    const openURL = jest.spyOn(Linking, 'openURL');
     try {
       await renderEnglish(<WebOnlyPanel title="Admin directory" path="/admin/users" />);
-      expect(screen.queryByText('Open on web')).toBeNull();
       expect(screen.getByText('Admin directory')).toBeTruthy();
-
-      await renderEnglish(<HandoffLink label="Open on web" path="/admin/users" />);
-      expect(screen.queryByText('Open on web')).toBeNull();
+      const panelAction = screen.getByRole('button', { name: 'Open on web' });
+      expect(panelAction.props.accessibilityState?.disabled).toBe(true);
+      expect(screen.getByText(operationsMessages.en.webUnavailable)).toBeTruthy();
+      await fireEvent.press(panelAction);
+      expect(openURL).not.toHaveBeenCalled();
 
       await renderEnglish(<HandoffButton label="Open on web" path="/admin/users" />);
+      const handoffAction = screen.getByRole('button', { name: 'Open on web' });
+      expect(handoffAction.props.accessibilityState?.disabled).toBe(true);
+      expect(screen.getByText(operationsMessages.en.webUnavailable)).toBeTruthy();
+      await fireEvent.press(handoffAction);
+      expect(openURL).not.toHaveBeenCalled();
+
+      // The lane handoff belongs to the lanes worker; it keeps its deliberate hidden form.
+      await renderEnglish(<HandoffLink label="Open on web" path="/admin/users" />);
       expect(screen.queryByText('Open on web')).toBeNull();
     } finally {
+      openURL.mockRestore();
       if (previousDev === undefined) delete runtime.__DEV__;
       else runtime.__DEV__ = previousDev;
       if (configured === undefined) delete process.env.EXPO_PUBLIC_PORTAL_URL;

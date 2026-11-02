@@ -125,7 +125,8 @@ export function AdmissionsScreen(_props: MobileScreenProps) {
     );
   }
 
-  const banner = <DataNotice message={copy.simulatedBanner} />;
+  // The banner labels preview fixtures only; a live read shows data, an empty state or a retryable error.
+  const banner = live ? null : <DataNotice message={copy.simulatedBanner} />;
 
   if (view.kind === 'new') {
     return (
