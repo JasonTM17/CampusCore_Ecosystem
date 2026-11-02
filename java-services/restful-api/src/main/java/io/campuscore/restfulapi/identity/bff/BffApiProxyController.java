@@ -362,7 +362,7 @@ public class BffApiProxyController {
     private static ResponseEntity<byte[]> json(HttpStatus status, String code) {
         return ResponseEntity.status(status)
                 .header(HttpHeaders.CONTENT_TYPE, "application/json")
-                .body(("{\"error\":\"" + code + "\"}").getBytes(
+                .body(("{\"error\":\"" + code + "\",\"code\":\"" + code + "\"}").getBytes(
                         java.nio.charset.StandardCharsets.UTF_8));
     }
 }

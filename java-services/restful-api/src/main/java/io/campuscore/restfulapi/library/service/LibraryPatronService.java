@@ -7,8 +7,12 @@ import io.campuscore.restfulapi.library.web.LibraryDtos.CopyResponse;
 import io.campuscore.restfulapi.library.web.LibraryDtos.LoanRequestResponse;
 import io.campuscore.restfulapi.library.web.LibraryDtos.TitleResponse;
 import io.campuscore.restfulapi.web.DomainException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -210,12 +214,17 @@ public class LibraryPatronService {
     public LoanRequestResponse cancel(String borrowerId, String requestId,
             Integer expectedVersion, String reason, String idempotencyKey) {
         // Canonicalize once before hashing: an omitted reason and the explicit
-        // default hash alike; a changed reason — or a key claimed before the
-        // reason bound the fingerprint — conflicts instead of replaying.
+        // default hash alike; a changed reason - or a key claimed before the
+        // reason bound the fingerprint - conflicts instead of replaying.
         String normalizedReason = reason == null || reason.isBlank()
                 ? "BORROWER_CANCELLED" : reason;
-        Map<String, Object> claimed = claimIdempotency(borrowerId, idempotencyKey,
-                "cancel:" + requestId + ":" + expectedVersion + ":" + normalizedReason);
+        String fingerprint = "cancel:" + requestId + ":" + expectedVersion + ":" + normalizedReason;
+        // The reason is free text up to its column cap; keep the stored
+        // request hash inside requestHash VARCHAR(128) when it is long.
+        if (fingerprint.length() > 128) {
+            fingerprint = sha256(fingerprint);
+        }
+        Map<String, Object> claimed = claimIdempotency(borrowerId, idempotencyKey, fingerprint);
         if (claimed != null) {
             return replayResponse(claimed);
         }
@@ -400,6 +409,15 @@ public class LibraryPatronService {
                     "The original response is unavailable; refresh the current request state");
         }
         return objectMapper.readValue(json, LoanRequestResponse.class);
+    }
+
+    private static String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is required", exception);
+        }
     }
 
     private static Map<String, Object> rowToMap(ResultSet row) throws SQLException {
