@@ -1,9 +1,29 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
+import ts from 'typescript';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadTs } from './helpers/load-ts.mjs';
 
+const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const contentErrorsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cu-content-errors-'));
+function emit(rel, name, rewrite = (text) => text) {
+  const { outputText } = ts.transpileModule(fs.readFileSync(path.join(mobileRoot, rel), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+    fileName: rel,
+  });
+  fs.writeFileSync(path.join(contentErrorsDir, name), rewrite(outputText));
+}
+emit('src/screens/student/shared/resource-error.ts', 'resource-error.mjs');
+emit('src/screens/content/content-errors.ts', 'content-errors.mjs', (text) => text.replace(
+  /from '\.\.\/student\/shared\/resource-error'/g,
+  "from './resource-error.mjs'",
+));
+
 const paging = await loadTs('src/screens/content/content-paging.ts');
-const errors = await loadTs('src/screens/content/content-errors.ts');
+const errors = await import(pathToFileURL(path.join(contentErrorsDir, 'content-errors.mjs')).href);
 const rules = await loadTs('src/screens/content/content-rules.ts');
 const richText = await loadTs('src/screens/content/rich-text.ts');
 const records = await loadTs('src/screens/content/records-model.ts');
@@ -54,7 +74,12 @@ test('patchItems edits and removes rows and keeps the total honest', () => {
 test('error mapping never leaks server text and picks copy by status', () => {
   const copy = { offline: 'off', signIn: 'in', denied: 'no', notFound: '404', rateLimited: 'slow', server: 'srv', generic: 'gen' };
   const withStatus = (status) => Object.assign(new Error('secret'), { status });
-  assert.equal(errors.contentErrorMessage(copy, withStatus(401)), 'in');
+  // A resource 401 is retryable: the refresh lane owns the only sign-in route.
+  assert.equal(errors.contentErrorKind(withStatus(401)), 'generic');
+  assert.equal(errors.contentErrorMessage(copy, withStatus(401), 'retry'), 'retry');
+  assert.equal(errors.contentErrorMessage(copy, withStatus(401)), 'gen');
+  assert.equal(errors.contentErrorMessage(copy, Object.assign(new Error('secret'), { code: 'HTTP_401' }), 'retry'), 'retry');
+  assert.equal(errors.contentErrorMessage(copy, Object.assign(new Error('secret'), { code: 'UNAUTHENTICATED' }), 'retry'), 'retry');
   assert.equal(errors.contentErrorMessage(copy, withStatus(403)), 'no');
   assert.equal(errors.contentErrorMessage(copy, withStatus(404)), '404');
   assert.equal(errors.contentErrorMessage(copy, withStatus(429)), 'slow');

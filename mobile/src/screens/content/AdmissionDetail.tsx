@@ -88,7 +88,7 @@ export function AdmissionDetail(props: AdmissionDetailProps) {
     </> }}
     >
       <View style={{ gap: 12 }}>
-        <DataNotice message={copy.simulatedBanner} />
+        {preview ? <DataNotice message={copy.simulatedBanner} /> : null}
         <FlashNotice flash={flash} />
         <Card>
           <ContentHero title={application.cycle} icon="file-document-edit-outline" detail={fillCopy(copy.version, { n: application.version })}>

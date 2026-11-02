@@ -146,7 +146,6 @@ export interface ThesisCopy {
   status: Record<string, string>;
   errors: {
     generic: string;
-    session: string;
     forbidden: string;
     offline: string;
     notFound: string;
@@ -334,7 +333,6 @@ const vi: ThesisCopy = {
   },
   errors: {
     generic: 'Không tải được dữ liệu khóa luận.',
-    session: 'Phiên đã hết hạn. Đăng nhập lại.',
     forbidden: 'Bạn không có quyền xem nội dung này.',
     offline: 'Không có kết nối. Hiển thị dữ liệu đã lưu nếu có.',
     notFound: 'Không tìm thấy dữ liệu.',
@@ -549,7 +547,6 @@ const en: ThesisCopy = {
   },
   errors: {
     generic: 'Thesis data could not be loaded.',
-    session: 'Your session expired. Sign in again.',
     forbidden: 'You do not have access to this content.',
     offline: 'You are offline. Saved data is shown when available.',
     notFound: 'Nothing found.',

@@ -99,10 +99,23 @@ test('the shared 401 predicate covers every unauthorized shape the client emits'
   assert.equal(isResourceUnauthorizedError(null), false);
 });
 
-test('the academic and operations mappers reuse the shared 401 rule instead of claiming sign-in', () => {
-  for (const rel of ['src/screens/academic/academic-ui.tsx', 'src/screens/operations/shared/helpers.tsx']) {
+test('every resource 401 mapper reuses the shared rule instead of claiming sign-in', () => {
+  const mappers = [
+    'src/screens/academic/academic-ui.tsx',
+    'src/screens/operations/shared/helpers.tsx',
+    'src/screens/content/content-errors.ts',
+    'src/screens/thesis/thesis-model.ts',
+    'src/screens/lanes/lane-model.ts',
+    'src/screens/lanes/lane-ui.tsx',
+  ];
+  for (const rel of mappers) {
     const source = fs.readFileSync(path.join(mobileRoot, rel), 'utf8');
     assert.match(source, /isResourceUnauthorizedError/, rel);
-    assert.doesNotMatch(source, /status === 401/, rel);
   }
+  for (const rel of mappers.filter((file) => !file.endsWith('lane-ui.tsx'))) {
+    const source = fs.readFileSync(path.join(mobileRoot, rel), 'utf8');
+    assert.doesNotMatch(source, /status === 401|numeric === 401/, rel);
+  }
+  const laneUi = fs.readFileSync(path.join(mobileRoot, 'src/screens/lanes/lane-ui.tsx'), 'utf8');
+  assert.doesNotMatch(laneUi, /case 'unauthorized': return copy\.signIn/);
 });

@@ -33,6 +33,7 @@ import {
   type ThesisSupervisor,
   type ThesisTopic,
 } from './thesis-model';
+import { isResourceUnauthorizedError } from '../student/shared/resource-error';
 import { thesisPreview, type ThesisPreview } from './thesis-preview';
 import { selectThesisRound, useSelectedThesisRoundId } from './thesis-selection';
 
@@ -279,7 +280,7 @@ export function useThesisGroup(roundId: string | null): ThesisGroupState {
         loadMyGroups(),
         // Progress is a derived read; a group still shows when it is unavailable.
         thesisApi.progress(key).catch((error: unknown) => {
-          if (thesisErrorInfo(error).kind === 'session') throw error;
+          if (isResourceUnauthorizedError(error)) throw error;
           return null;
         }),
       ]);
@@ -390,7 +391,7 @@ export function useAdvisorDirectory(roundId: string | null): AdvisorDirectory {
         try {
           return { topic, supervisors: await thesisApi.supervisors(topic.id) };
         } catch (error) {
-          if (thesisErrorInfo(error).kind === 'session') throw error;
+          if (isResourceUnauthorizedError(error)) throw error;
           failed += 1;
           return { topic, supervisors: [] as ThesisSupervisor[] };
         }

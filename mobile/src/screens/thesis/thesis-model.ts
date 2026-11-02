@@ -3,6 +3,7 @@
 // No React and no network here so the node suite can run it directly.
 
 import type { ThesisCopy } from '../../i18n/thesis-messages';
+import { isResourceUnauthorizedError } from '../student/shared/resource-error';
 
 /** Server rules (ThesisMutationService, ReportFilePolicy, ThesisReportService). */
 export const THESIS_GROUP_MIN_MEMBERS = 3;
@@ -355,7 +356,7 @@ export function validateReportFile(file: { name: string; sizeBytes?: number }): 
 
 // --- Errors ---------------------------------------------------------------
 
-export type ThesisErrorKind = 'session' | 'forbidden' | 'offline' | 'notFound' | 'conflict' | 'unavailable' | 'rate' | 'aborted' | 'generic';
+export type ThesisErrorKind = 'forbidden' | 'offline' | 'notFound' | 'conflict' | 'unavailable' | 'rate' | 'aborted' | 'generic';
 
 export interface ThesisErrorInfo {
   kind: ThesisErrorKind;
@@ -373,7 +374,9 @@ export function thesisErrorInfo(error: unknown): ThesisErrorInfo {
     return { ...base, kind: 'aborted' };
   }
   if (numeric === 0 || text === 'NETWORK_ERROR') return { ...base, kind: 'offline' };
-  if (numeric === 401) return { ...base, kind: 'session' };
+  // A resource 401 stays inline and retryable: the API client's refresh lane
+  // owns the only sign-in route, so this screen never claims the session died.
+  if (isResourceUnauthorizedError(error)) return { ...base, kind: 'generic' };
   if (numeric === 403) return { ...base, kind: 'forbidden' };
   if (numeric === 404) return { ...base, kind: 'notFound' };
   if (numeric === 409 || numeric === 412) return { ...base, kind: 'conflict' };
@@ -392,7 +395,6 @@ export function thesisErrorMessage(copy: ThesisCopy, error: unknown): string {
   const specific = info.code ? copy.errors.codes[info.code] : undefined;
   if (specific) return specific;
   switch (info.kind) {
-    case 'session': return copy.errors.session;
     case 'forbidden': return copy.errors.forbidden;
     case 'offline': return copy.errors.offline;
     case 'notFound': return copy.errors.notFound;

@@ -184,6 +184,19 @@ describe('topics, round and advisors', () => {
     expect(await screen.findByText('Trợ lý học vụ')).toBeOnTheScreen();
   });
 
+  test('a resource 401 stays a retryable read error and never claims an expired session', async () => {
+    setWidth(360);
+    mockApi.topics
+      .mockRejectedValueOnce(Object.assign(new Error('unauthorized'), { status: 401, code: 'HTTP_401' }))
+      .mockResolvedValueOnce(page([TOPIC_A]));
+    await renderThemed(<ThesisTopicsScreen {...baseProps} />);
+    expect(await screen.findByText(copy.errors.generic)).toBeOnTheScreen();
+    expect(screen.queryByText(/Phiên đã hết hạn/)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: copy.retry }));
+    expect(await screen.findByText('Trợ lý học vụ')).toBeOnTheScreen();
+    expect(mockApi.topics).toHaveBeenCalledTimes(2);
+  });
+
   test('no rounds shows the empty state', async () => {
     setWidth(360);
     mockApi.rounds.mockResolvedValueOnce(page([]));
