@@ -10,7 +10,7 @@ Hardened per Kongming continuation review (2026-09-12):
   * supervisor / council report links and the student result card are asserted.
 
 Run:
-  <venv>/python.exe frontend/tests/e2e/test_thesis_and_active_bigdata.py
+  <venv>/python.exe frontend/scripts/manual/test_thesis_and_active_bigdata.py
 """
 import os
 import sys

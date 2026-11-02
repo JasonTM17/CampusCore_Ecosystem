@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { GraduationCap, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -31,6 +31,7 @@ import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
 import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
 import { campusErrorMessage } from '@/lib/campus-error';
+import { createRequestEpoch } from '@/lib/request-epoch';
 import { getLocalizedName } from '@/lib/academic-content';
 import { ACADEMIC_REFERENCE_LIMIT } from '@/lib/reference-data';
 
@@ -52,6 +53,18 @@ interface Department {
   nameVi?: string;
 }
 
+function buildLecturerUpdatePayload(
+  baseline: Lecturer,
+  formData: { departmentId: string; specialization: string },
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (formData.departmentId !== baseline.departmentId) payload.departmentId = formData.departmentId;
+  if (formData.specialization !== (baseline.specialization || '')) {
+    payload.specialization = formData.specialization;
+  }
+  return payload;
+}
+
 export default function AdminLecturersPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: isAuthLoading, isLoggingOut } = useAuth();
   const { href, locale, messages } = useI18n();
@@ -68,6 +81,7 @@ export default function AdminLecturersPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLecturer, setEditingLecturer] = useState<Lecturer | null>(null);
+  const lecturersEpoch = useRef(createRequestEpoch()).current;
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     employeeId: '',
@@ -108,6 +122,7 @@ export default function AdminLecturersPage() {
   }, [copy]);
 
   const fetchLecturers = useCallback(async () => {
+    const epoch = lecturersEpoch.begin();
     setIsLoading(true);
     setError('');
 
@@ -117,14 +132,21 @@ export default function AdminLecturersPage() {
       const query = { page, limit: 20, search: search || undefined };
       const response = await lecturersApi.getAll(query);
 
+      if (!lecturersEpoch.isCurrent(epoch)) return;
       setLecturers(response.data || []);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
+      if (!lecturersEpoch.isCurrent(epoch)) return;
       setError(copy.loadFailed);
     } finally {
+      if (!lecturersEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [copy, page, search]);
+  }, [copy, lecturersEpoch, page, search]);
+
+  useEffect(() => () => {
+    lecturersEpoch.invalidate();
+  }, [lecturersEpoch]);
 
   useEffect(() => {
     const trimmed = searchInput.trim();
@@ -246,7 +268,10 @@ export default function AdminLecturersPage() {
 
     try {
       if (editingLecturer) {
-        await lecturersApi.update(editingLecturer.id, formData);
+        const payload = buildLecturerUpdatePayload(editingLecturer, formData);
+        if (Object.keys(payload).length > 0) {
+          await lecturersApi.update(editingLecturer.id, payload);
+        }
         toast.success(copy.updated);
       } else {
         await lecturersApi.create(formData);
