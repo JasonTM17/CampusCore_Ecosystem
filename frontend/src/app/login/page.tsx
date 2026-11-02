@@ -379,7 +379,7 @@ export default function LoginPage() {
                 setEmail(demoCredentials.email);
                 setPassword(demoCredentials.password);
               }}
-              className="inline-flex min-h-8 shrink-0 items-center text-primary hover:underline font-semibold text-xs gap-1 cursor-pointer"
+              className="inline-flex min-h-11 shrink-0 items-center text-primary hover:underline font-semibold text-xs gap-1 cursor-pointer"
             >
               <ArrowRight className="h-3.5 w-3.5" />
               {loginCopy.quickFill}
@@ -398,7 +398,7 @@ export default function LoginPage() {
                       setPassword(demoCredentials.password);
                     }}
                     className={cn(
-                      'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors cursor-pointer',
+                      'flex w-full min-h-11 items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors cursor-pointer',
                       active ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-primary/5',
                     )}
                   >
@@ -697,7 +697,7 @@ export default function LoginPage() {
               <p className="text-xs leading-5 text-muted-foreground">
                 <LocalizedLink
                   href="/forgot-password"
-                  className="font-medium text-primary hover:underline"
+                  className="inline-flex min-h-11 items-center font-medium text-primary hover:underline"
                 >
                   {loginCopy.forgotPassword}
                 </LocalizedLink>{' '}
@@ -762,14 +762,14 @@ export default function LoginPage() {
         {portal === 'student' || portal === 'lecturer' ? (
           <p className="text-sm text-muted-foreground">
             {messages.signup.needAccount}{' '}
-            <LocalizedLink href="/register" className="inline-flex min-h-8 items-center font-medium text-primary hover:underline">
+            <LocalizedLink href="/register" className="inline-flex min-h-11 items-center font-medium text-primary hover:underline">
               {messages.signup.submit}
             </LocalizedLink>
           </p>
         ) : null}
         <p className="text-sm text-muted-foreground">
           {messages.login.returnHomeLead}{' '}
-          <LocalizedLink href="/" className="inline-flex min-h-8 items-center font-medium text-primary hover:underline">
+          <LocalizedLink href="/" className="inline-flex min-h-11 items-center font-medium text-primary hover:underline">
             {messages.common.actions.returnHome}
           </LocalizedLink>
           .

@@ -67,7 +67,7 @@ export function LanguageToggle({
             : messages.common.locale.vietnamese;
 
         const chipClass = cn(
-          'inline-flex min-h-11 items-center rounded-[4px] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] transition-[background-color,color,transform] duration-150 motion-safe:active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          'inline-flex min-h-11 min-w-11 items-center justify-center rounded-[4px] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] transition-[background-color,color,transform] duration-150 motion-safe:active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
           inverse &&
             'px-2.5 focus-visible:ring-portal-chrome-accent focus-visible:ring-offset-portal-sidebar',
           isActive

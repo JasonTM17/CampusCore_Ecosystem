@@ -37,7 +37,7 @@ export default async function LoggedOutPage() {
         </p>
         <Link
           href={homeHref}
-          className="font-semibold text-primary no-underline"
+          className="inline-flex min-h-11 items-center font-semibold text-primary no-underline"
         >
           {copy.returnHome}
         </Link>

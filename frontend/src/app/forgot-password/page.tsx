@@ -196,7 +196,7 @@ export default function ForgotPasswordPage() {
         <p className="text-sm text-muted-foreground">
           <LocalizedLink
             href="/login"
-            className="inline-flex min-h-8 items-center gap-1.5 font-medium text-primary hover:underline"
+            className="inline-flex min-h-11 items-center gap-1.5 font-medium text-primary hover:underline"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             {copy.backToSignIn}
