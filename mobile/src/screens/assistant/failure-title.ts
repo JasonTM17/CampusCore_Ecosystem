@@ -1,4 +1,5 @@
 import type { FailureKind } from '../../assistant/chat-helpers';
+import { countForm } from '../../i18n/locale';
 
 /** The assistant quota window is one minute; keep the last known value when no header arrived. */
 export const RATE_LIMIT_FALLBACK_SECONDS = 30;
@@ -7,6 +8,7 @@ export interface FailureTitleCopy {
   sessionExpired: string;
   forbidden: string;
   rateLimited: string;
+  rateLimitedOne?: string;
   quotaExceeded: string;
   interruptedStatus: string;
   streamInvalid: string;
@@ -27,7 +29,11 @@ export function failureTitle(
   switch (failure?.kind) {
     case 'session': return copy.sessionExpired;
     case 'forbidden': return copy.forbidden;
-    case 'rate': return copy.rateLimited.replace('{seconds}', String(failure.retryAfterSeconds ?? RATE_LIMIT_FALLBACK_SECONDS));
+    case 'rate': {
+      const seconds = failure.retryAfterSeconds ?? RATE_LIMIT_FALLBACK_SECONDS;
+      return countForm(seconds, copy.rateLimitedOne ?? copy.rateLimited, copy.rateLimited)
+        .replace('{seconds}', String(seconds));
+    }
     case 'quota': return copy.quotaExceeded;
     case 'interrupted': return copy.interruptedStatus;
     case 'invalid': return copy.streamInvalid;
