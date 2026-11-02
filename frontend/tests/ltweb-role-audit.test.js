@@ -285,7 +285,11 @@ test('conduct record modal contains no QR code', () => {
   // Honesty phase 03 (STUD-P1-4): no digital-verification seal is claimed at
   // all — the modal is an explicitly labelled preview record.
   assert.ok(!source.includes('digitallyVerified'), 'must not claim digital verification');
-  assert.ok(source.includes('copy.previewNote'), 'labels itself as an honest preview');
+  assert.ok(source.includes('conductMessages.previewNote'), 'labels itself as an honest preview');
+  assert.ok(
+    readSource('src/i18n/messages-student-pages.ts').includes('not an issued certificate'),
+    'the honest preview note lives in the catalogue',
+  );
 });
 
 // ---------- Item 8: profile names cannot be edited ----------

@@ -77,6 +77,8 @@ export default function CertificatesPage() {
   const [curriculumError, setCurriculumError] = useState(false);
   const [isCurriculumLoading, setIsCurriculumLoading] = useState(true);
   const [curriculumReloadToken, setCurriculumReloadToken] = useState(0);
+  const [conductError, setConductError] = useState(false);
+  const [conductReloadToken, setConductReloadToken] = useState(0);
   // The office-issued MSSV lives on the student record, not the auth session
   // (whose `studentId` is the internal profile id, e.g. "student-profile").
   // Same source the transcript page uses: the conduct summary's studentCode.
@@ -105,6 +107,7 @@ export default function CertificatesPage() {
   useEffect(() => {
     if (!hasAccess) return;
     let cancelled = false;
+    setConductError(false);
     conductApi
       .getMyConduct()
       .then((summary) => {
@@ -116,11 +119,12 @@ export default function CertificatesPage() {
       })
       .catch(() => {
         // Unavailable MSSV stays blank — never falls back to the internal id.
+        if (!cancelled) setConductError(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [hasAccess]);
+  }, [hasAccess, conductReloadToken]);
 
   const activeOption = useMemo(
     () => PURPOSE_OPTIONS.find((p) => p.id === selectedPurpose) || PURPOSE_OPTIONS[0],
@@ -209,6 +213,13 @@ export default function CertificatesPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Purpose Selector Panel - Screen Only */}
         <div className="print:hidden lg:col-span-5 space-y-6">
+          {conductError ? (
+            <ErrorState
+              title={messages.common.states.sectionErrorTitle}
+              description={messages.common.states.sectionErrorDescription}
+              onRetry={() => setConductReloadToken((token) => token + 1)}
+            />
+          ) : null}
           {curriculumError ? (
             <ErrorState
               title={messages.common.states.sectionErrorTitle}

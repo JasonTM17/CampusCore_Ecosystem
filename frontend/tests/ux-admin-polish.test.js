@@ -57,21 +57,20 @@ test('assistant-knowledge state labels follow the vi/en copy-object pattern', ()
 // --- UX polish: admin/users ---
 
 const adminUsers = read('src/app/admin/users/page.tsx');
+const adminMessages = read('src/i18n/messages-admin-pages.ts');
 
-test('admin users page writes Vietnamese copy in sentence case', () => {
+test('admin users sentence-case copy lives in the central catalogue and is wired to the page', () => {
   // Title Case typos are gone (vi), and the shared keys read in sentence
   // case on the English side too.
-  assert.doesNotMatch(adminUsers, /T\u1ea1o T\u00e0i Kho\u1ea3n/);
-  assert.doesNotMatch(adminUsers, /Ph\u00e2n quy\u1ec1n Qu\u1ea3n Tr\u1ecb/);
-  assert.doesNotMatch(adminUsers, /Th\u00eam M\u1edbi T\u00e0i Kho\u1ea3n/);
-  assert.doesNotMatch(adminUsers, /Th\u00f4ng Tin T\u00e0i Kho\u1ea3n/);
-  assert.doesNotMatch(adminUsers, /H\u1ed3 S\u01a1 Ph\u00e2n C\u00f4ng/);
-  assert.match(adminUsers, /adminPermissionsTitle: 'Ph\u00e2n quy\u1ec1n qu\u1ea3n tr\u1ecb h\u1ec7 th\u1ed1ng'/);
-  assert.match(adminUsers, /createStudentAction: '\+ T\u1ea1o t\u00e0i kho\u1ea3n sinh vi\u00ean'/);
-  assert.match(adminUsers, /createLecturerAction: '\+ T\u1ea1o t\u00e0i kho\u1ea3n gi\u1ea3ng vi\u00ean'/);
-  assert.match(adminUsers, /adminPermissionsTitle: 'System administration permissions'/);
-  assert.match(adminUsers, /createStudentAction: '\+ Create student account'/);
-  assert.match(adminUsers, /createLecturerAction: '\+ Create lecturer account'/);
+  assert.match(adminMessages, /adminPermissionsTitle: 'Ph\u00e2n quy\u1ec1n qu\u1ea3n tr\u1ecb h\u1ec7 th\u1ed1ng'/);
+  assert.match(adminMessages, /createStudentAction: '\+ T\u1ea1o t\u00e0i kho\u1ea3n sinh vi\u00ean'/);
+  assert.match(adminMessages, /createLecturerAction: '\+ T\u1ea1o t\u00e0i kho\u1ea3n gi\u1ea3ng vi\u00ean'/);
+  assert.match(adminMessages, /adminPermissionsTitle: 'System administration permissions'/);
+  assert.match(adminMessages, /createStudentAction: '\+ Create student account'/);
+  assert.match(adminMessages, /createLecturerAction: '\+ Create lecturer account'/);
+  assert.match(adminUsers, /messages\.adminPages/);
+  assert.match(adminUsers, /users: copy/);
+  assert.doesNotMatch(adminUsers, /adminPermissionsTitle:\s*['"]/);
 });
 
 test('admin users page uses the shared Select and Button primitives', () => {
@@ -148,7 +147,8 @@ test('the audit detail disclosure is a real button, not an aria-expanded row', (
 const adminAnnouncements = read('src/app/admin/announcements/page.tsx');
 
 test('admin announcement length errors format counts with the active locale', () => {
-  assert.doesNotMatch(adminAnnouncements, /toLocaleString\('vi-VN'\)/);
-  assert.match(adminAnnouncements, /formatNumber\(limit\)/);
-  assert.match(adminAnnouncements, /formatNumber\(excess\)/);
+  assert.match(adminMessages, /contentTooLong: "Nội dung vượt quá giới hạn \{limit\} ký tự \(cần bỏ bớt \{excess\} ký tự\)\./);
+  assert.match(adminMessages, /contentTooLong: "The content exceeds the \{limit\} character limit by \{excess\} characters\./);
+  assert.doesNotMatch(adminAnnouncements, /toLocaleString\(['"](?:vi-VN|en-US)['"]\)/);
+  assert.match(adminAnnouncements, /copy\.contentTooLong[\s\S]*?\.replace\('\{limit\}', \(\) => formatNumber\(overflow\.limit\)\)[\s\S]*?\.replace\('\{excess\}', \(\) => formatNumber\(overflow\.excessChars\)\)/);
 });

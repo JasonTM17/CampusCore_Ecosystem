@@ -40,8 +40,11 @@ test('messages and layout use standardized institutional portal names', () => {
   assert.match(messages, /Cổng Quản trị/);
 
   const announcementsPage = readSource('src/app/dashboard/announcements/page.tsx');
-  assert.match(announcementsPage, /Dạng Bản tin/);
-  assert.match(announcementsPage, /Dạng Công văn/);
+  const studentPages = readSource('src/i18n/messages-student-pages.ts');
+  assert.match(studentPages, /viewMagazine: 'Dạng Bản tin'/);
+  assert.match(studentPages, /viewDispatch: 'Dạng Công văn'/);
+  assert.match(announcementsPage, /announcementMessages\.viewMagazine/);
+  assert.match(announcementsPage, /announcementMessages\.viewDispatch/);
   assert.doesNotMatch(announcementsPage, /Tạp chí báo/);
   assert.doesNotMatch(announcementsPage, /Sổ công văn/);
 

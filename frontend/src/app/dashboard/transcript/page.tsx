@@ -84,7 +84,8 @@ function resolveBasisNote(
 
 export default function TranscriptPage() {
   const { user, hasAccess, isLoading: authLoading } = useRequireAuth(['STUDENT']);
-  const { locale, formatNumber, messages } = useI18n();
+  const { locale, formatDate, formatNumber, messages } = useI18n();
+  const transcriptMessages = messages.studentPages.transcript;
   const [transcriptData, setTranscriptData] = useState<{
     summary: {
       cumulativeGpa: number;
@@ -133,17 +134,13 @@ export default function TranscriptPage() {
       setTranscriptData(data);
     } catch {
       if (generation !== loadGeneration.current) return;
-      setError(
-        locale === 'vi'
-          ? 'Hiện chưa thể tải dữ liệu bảng điểm.'
-          : 'Transcript data could not be loaded.',
-      );
+      setError(transcriptMessages.loadFailed);
     } finally {
       if (generation === loadGeneration.current) {
         setIsLoading(false);
       }
     }
-  }, [locale]);
+  }, [transcriptMessages.loadFailed]);
 
   useEffect(() => {
     if (hasAccess) {
@@ -209,11 +206,11 @@ export default function TranscriptPage() {
       getLocalizedName(
         locale,
         semesters.find((semester) => semester.id === selectedSemester),
-        locale === 'vi' ? 't\u1ea5t c\u1ea3 h\u1ecdc k\u1ef3' : 'all semesters',
+        transcriptMessages.allSemestersFallback,
       ) ??
-      (locale === 'vi' ? 'tất cả học kỳ' : 'all semesters')
+      transcriptMessages.allSemestersFallback
     );
-  }, [locale, selectedSemester, semesters]);
+  }, [locale, selectedSemester, semesters, transcriptMessages.allSemestersFallback]);
 
   const gpaTrendPoints = useMemo(
     () => buildGpaTrendPoints(transcriptData?.semesters ?? [], locale),
@@ -297,143 +294,6 @@ export default function TranscriptPage() {
     return Math.min(100, Math.round((curriculumCompletedCredits / total) * 100));
   }, [curriculumCompletedCredits, curriculumData]);
 
-  const copy =
-    locale === 'vi'
-      ? {
-          eyebrow: 'Cổng Sinh viên',
-          title: 'Bảng điểm',
-          description:
-            'GPA hệ 4 và tín chỉ tính tích lũy toàn khóa; chọn học kỳ để xem kết quả từng môn học.',
-          selectSemester: 'Chọn học kỳ cho bảng điểm',
-          allSemesters: 'Tất cả học kỳ',
-          openGrades: 'Mở điểm số',
-          printTranscript: 'In bảng điểm',
-          loading: 'Đang tải bảng điểm',
-          unavailableTitle: 'Bảng điểm chưa sẵn sàng',
-          emptyTitle: 'Chưa có hồ sơ bảng điểm',
-          emptyDescription:
-            'Các môn học hoàn tất và điểm đã công bố sẽ được tích lũy tại đây khi có kết quả học tập.',
-          cumulativeGpa: 'GPA hệ 4 tích lũy toàn khóa',
-          earnedCredits: 'Tín chỉ đã đạt',
-          completedCourses: 'Môn đã hoàn tất',
-          inProgressCourses: 'Môn đang học',
-          courseWord: 'môn',
-          coursesWord: 'môn',
-          creditsAttempted: 'tín chỉ đã đăng ký',
-          gradePointLabel: 'GPA',
-          gpaTrend: 'Xu hướng GPA',
-          gpaAllTrend: 'Tổng hợp tất cả',
-          gpaSemesterTrend: 'Theo học kỳ',
-          gpaBothTrend: 'Song song',
-          avgTenScale: 'ĐTB hệ 10',
-          tenScaleTrendHint: 'Điểm trung bình học kỳ trên thang 10.',
-          clickToViewDetail: 'Chi tiết GK/CK',
-          toggleSemester: 'Thu gọn hoặc mở rộng học kỳ',
-          distribution: 'Phân bố xếp loại',
-          programTitle: 'Chương trình đào tạo',
-          programLoading: 'Đang tải chương trình đào tạo',
-          programEmpty: 'Chưa có chương trình đào tạo',
-          programCreditsUnit: 'tín chỉ',
-          mandatory: 'Bắt buộc',
-          statusCompleted: 'Đã hoàn tất',
-          statusInProgress: 'Đang học',
-          statusNotStarted: 'Chưa hoàn tất',
-          yearSemesterLabel: (year: number, semester: number) => `Năm ${year} · HK ${semester}`,
-          chartLabels: {
-            semesterGpa: 'GPA Học kỳ',
-            cumulativeGpa: 'GPA Tích lũy (Tổng hợp)',
-            tenScaleAvg: 'ĐTB hệ 10',
-            coursesUnit: 'học phần',
-            courseCount: 'Số học phần',
-            colTerm: 'Kỳ',
-            colSeries: 'Chuỗi dữ liệu',
-            colValue: 'Giá trị',
-            colGrade: 'Xếp loại',
-          },
-          programHeaders: {
-            course: 'Môn học',
-            credits: 'Tín chỉ',
-            status: 'Trạng thái',
-          },
-          headers: {
-            course: 'Môn học',
-            section: 'Lớp học phần',
-            credits: 'Tín chỉ',
-            score: 'Điểm',
-            grade: 'Xếp loại',
-            points: 'Điểm hệ',
-            enrollment: 'Đăng ký',
-            gradeStatus: 'Trạng thái điểm',
-          },
-        }
-      : {
-          eyebrow: 'Student area',
-          title: 'Transcript',
-          description:
-            'Cumulative GPA and credits across all semesters; select a semester for per-course outcomes.',
-          selectSemester: 'Select semester for transcript',
-          allSemesters: 'All semesters',
-          openGrades: 'Open grades',
-          printTranscript: 'Print transcript',
-          loading: 'Loading transcript',
-          unavailableTitle: 'Transcript unavailable',
-          emptyTitle: 'No transcript records yet',
-          emptyDescription:
-            'Completed courses and published grades will accumulate here once academic outcomes are available.',
-          cumulativeGpa: 'Cumulative GPA, all semesters (4.0 scale)',
-          earnedCredits: 'Credits earned',
-          completedCourses: 'Completed courses',
-          inProgressCourses: 'In progress',
-          courseWord: 'course',
-          coursesWord: 'courses',
-          creditsAttempted: 'credits attempted',
-          gradePointLabel: 'GPA',
-          gpaTrend: 'GPA trend',
-          gpaAllTrend: 'Overall cumulative',
-          gpaSemesterTrend: 'By semester',
-          gpaBothTrend: 'Both',
-          avgTenScale: '10-scale average',
-          tenScaleTrendHint: 'Semester average on the 10-point scale.',
-          clickToViewDetail: 'Midterm/final detail',
-          toggleSemester: 'Collapse or expand semester',
-          distribution: 'Grade distribution',
-          programTitle: 'Study program',
-          programLoading: 'Loading study program',
-          programEmpty: 'No study program available',
-          programCreditsUnit: 'credits',
-          mandatory: 'Mandatory',
-          statusCompleted: 'Completed',
-          statusInProgress: 'In progress',
-          statusNotStarted: 'Not completed',
-          yearSemesterLabel: (year: number, semester: number) => `Year ${year} · Semester ${semester}`,
-          chartLabels: {
-            semesterGpa: 'Semester GPA',
-            cumulativeGpa: 'Cumulative GPA (overall)',
-            tenScaleAvg: '10-scale average',
-            coursesUnit: 'courses',
-            courseCount: 'Courses',
-            colTerm: 'Term',
-            colSeries: 'Series',
-            colValue: 'Value',
-            colGrade: 'Grade',
-          },
-          programHeaders: {
-            course: 'Course',
-            credits: 'Credits',
-            status: 'Status',
-          },
-          headers: {
-            course: 'Course',
-            section: 'Class',
-            credits: 'Credits',
-            score: 'Score',
-            grade: 'Grade',
-            points: 'Points',
-            enrollment: 'Registration',
-            gradeStatus: 'Grade status',
-          },
-        };
-
   const statusLabel = (status: string | null | undefined) =>
     messages.common.statuses[
       (status ?? 'UNKNOWN').toUpperCase() as keyof typeof messages.common.statuses
@@ -444,7 +304,7 @@ export default function TranscriptPage() {
       return (
         <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
           <StatusPill tone="success" className="py-1 font-semibold">
-            {copy.statusCompleted}
+            {transcriptMessages.statusCompleted}
           </StatusPill>
           {course.letterGrade ? (
             <span className="text-xs font-semibold text-foreground">
@@ -460,15 +320,15 @@ export default function TranscriptPage() {
     if (course.status === 'IN_PROGRESS') {
       return (
         <StatusPill tone="info" className="py-1 font-semibold">
-          {copy.statusInProgress}
+          {transcriptMessages.statusInProgress}
         </StatusPill>
       );
     }
-    return <StatusPill tone="neutral">{copy.statusNotStarted}</StatusPill>;
+    return <StatusPill tone="neutral">{transcriptMessages.statusNotStarted}</StatusPill>;
   };
 
   if (authLoading) {
-    return <LoadingState label={copy.loading} />;
+    return <LoadingState label={transcriptMessages.loading} />;
   }
 
   if (!hasAccess) {
@@ -478,18 +338,18 @@ export default function TranscriptPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow={<SectionEyebrow>{copy.eyebrow}</SectionEyebrow>}
-        title={copy.title}
-        description={copy.description}
+        eyebrow={<SectionEyebrow>{transcriptMessages.eyebrow}</SectionEyebrow>}
+        title={transcriptMessages.title}
+        description={transcriptMessages.description}
         actions={
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="min-w-[220px]">
               <Select
-                aria-label={copy.selectSemester}
+                aria-label={transcriptMessages.selectSemester}
                 value={selectedSemester}
                 onChange={(event) => setSelectedSemester(event.target.value)}
                 options={[
-                  { value: '', label: copy.allSemesters },
+                  { value: '', label: transcriptMessages.allSemesters },
                   ...semesters.map((semester) => ({
                     value: semester.id,
                     label: getLocalizedName(locale, semester, semester.name),
@@ -498,7 +358,7 @@ export default function TranscriptPage() {
               />
             </div>
             <LinkButton href="/dashboard/grades" variant="outline">
-              {copy.openGrades}
+              {transcriptMessages.openGrades}
             </LinkButton>
             <Button
               variant="outline"
@@ -506,7 +366,7 @@ export default function TranscriptPage() {
               className="print:hidden"
             >
               <Printer className="mr-1.5 h-4 w-4" />
-              {copy.printTranscript}
+              {transcriptMessages.printTranscript}
             </Button>
           </div>
         }
@@ -514,19 +374,19 @@ export default function TranscriptPage() {
 
       {error ? (
         <ErrorState
-          title={copy.unavailableTitle}
+          title={transcriptMessages.unavailableTitle}
           description={error}
           onRetry={() => void fetchTranscript()}
         />
       ) : isLoading ? (
-        <LoadingState label={copy.loading} />
+        <LoadingState label={transcriptMessages.loading} />
       ) : !transcriptData || transcriptSemesters.length === 0 ? (
         <EmptyState
           icon={FileText}
-          title={copy.emptyTitle}
-          description={copy.emptyDescription}
+          title={transcriptMessages.emptyTitle}
+          description={transcriptMessages.emptyDescription}
           action={
-            <LinkButton href="/dashboard/grades">{copy.openGrades}</LinkButton>
+            <LinkButton href="/dashboard/grades">{transcriptMessages.openGrades}</LinkButton>
           }
         />
       ) : (
@@ -534,29 +394,25 @@ export default function TranscriptPage() {
           {/* Printable Official Institutional Header */}
           <div className="hidden print:block mb-6 border-b-2 border-primary/40 pb-4 text-center">
             <div className="text-xs uppercase font-bold tracking-wider text-muted-foreground">
-              {locale === 'vi'
-                ? 'BỘ GIÁO DỤC VÀ ĐÀO TẠO — TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM'
-                : 'MINISTRY OF EDUCATION AND TRAINING — HCMC UNIVERSITY OF TECHNOLOGY AND ENGINEERING'}
+              {transcriptMessages.print.ministry}
             </div>
             <div className="text-sm font-extrabold text-foreground">
-              {locale === 'vi'
-                ? 'PHÒNG ĐÀO TẠO — HỆ THỐNG QUẢN LÝ ĐÀO TẠO TÍN CHỈ CAMPUSUTE'
-                : 'ACADEMIC AFFAIRS OFFICE — CAMPUSUTE CREDIT SYSTEM'}
+              {transcriptMessages.print.office}
             </div>
             <h1 className="text-xl font-black text-primary mt-2 uppercase tracking-wide">
-              {locale === 'vi' ? 'BẢNG ĐIỂM TỔNG HỢP KẾT QUẢ HỌC TẬP TÍCH LŨY' : 'OFFICIAL CUMULATIVE ACADEMIC TRANSCRIPT'}
+              {transcriptMessages.print.title}
             </h1>
             <p className="text-xs italic text-muted-foreground mt-0.5">
-              {locale === 'vi' ? '(Dành cho sinh viên trình độ Đại học hệ Chính quy theo học chế tín chỉ)' : '(Undergraduate Full-time Credit Program)'}
+              {transcriptMessages.print.subtitle}
             </p>
             <div className="flex flex-wrap justify-center gap-6 mt-4 text-xs text-foreground font-medium border-t border-border/40 pt-3">
               {/* Official printout binds to the signed-in student only: a
                   missing field stays visibly blank instead of falling back to
                   another person's record. */}
-              <span><strong>{locale === 'vi' ? 'Họ và tên:' : 'Full Name:'}</strong> {`${user?.lastName ?? ''} ${user?.firstName ?? ''}`.trim() || '—'}</span>
-              <span><strong>{locale === 'vi' ? 'Mã số SV:' : 'Student ID:'}</strong> {studentCode || '—'}</span>
-              <span><strong>{locale === 'vi' ? 'Ngành đào tạo:' : 'Major:'}</strong> {curriculumData?.curriculum?.name || '—'}</span>
-              <span><strong>{locale === 'vi' ? 'Học kỳ in:' : 'Selected Term:'}</strong> {selectedSemesterName}</span>
+              <span><strong>{transcriptMessages.print.fullName}</strong> {`${user?.lastName ?? ''} ${user?.firstName ?? ''}`.trim() || '—'}</span>
+              <span><strong>{transcriptMessages.print.studentId}</strong> {studentCode || '—'}</span>
+              <span><strong>{transcriptMessages.print.major}</strong> {curriculumData?.curriculum?.name || '—'}</span>
+              <span><strong>{transcriptMessages.print.selectedTerm}</strong> {selectedSemesterName}</span>
             </div>
           </div>
 
@@ -576,7 +432,7 @@ export default function TranscriptPage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">{copy.cumulativeGpa}</div>
+                  <div className="text-sm text-muted-foreground">{transcriptMessages.cumulativeGpa}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
                     {transcriptData.summary.cumulativeGpa.toFixed(2)}
                   </div>
@@ -589,7 +445,7 @@ export default function TranscriptPage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">{copy.earnedCredits}</div>
+                  <div className="text-sm text-muted-foreground">{transcriptMessages.earnedCredits}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
                     {formatNumber(transcriptData.summary.totalCreditsEarned)}
                     {curriculumData ? (
@@ -607,7 +463,7 @@ export default function TranscriptPage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">{copy.completedCourses}</div>
+                  <div className="text-sm text-muted-foreground">{transcriptMessages.completedCourses}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
                     {formatNumber(completedCourseCount)}
                   </div>
@@ -620,7 +476,7 @@ export default function TranscriptPage() {
             <Card variant="elevated">
               <CardContent className="flex items-center justify-between gap-4 pt-6">
                 <div>
-                  <div className="text-sm text-muted-foreground">{copy.inProgressCourses}</div>
+                  <div className="text-sm text-muted-foreground">{transcriptMessages.inProgressCourses}</div>
                   <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
                     {formatNumber(inProgressCourseCount)}
                   </div>
@@ -643,13 +499,13 @@ export default function TranscriptPage() {
             <Card variant="elevated">
               <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <CardTitle className="text-base">{copy.gpaTrend}</CardTitle>
+                  <CardTitle className="text-base">{transcriptMessages.gpaTrend}</CardTitle>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {gpaMode === 'cumulative'
-                      ? copy.gpaAllTrend
+                      ? transcriptMessages.gpaAllTrend
                       : gpaMode === 'semester'
-                        ? copy.gpaSemesterTrend
-                        : copy.gpaBothTrend}
+                        ? transcriptMessages.gpaSemesterTrend
+                        : transcriptMessages.gpaBothTrend}
                   </p>
                 </div>
                 {/* Round-5 polish: a single pill-shaped segmented control —
@@ -657,12 +513,12 @@ export default function TranscriptPage() {
                 <div
                   className="inline-flex items-center gap-0.5 rounded-full border border-border/70 bg-muted/50 p-1 text-xs font-medium"
                   role="group"
-                  aria-label={copy.gpaTrend}
+                  aria-label={transcriptMessages.gpaTrend}
                 >
                   {([
-                    ['cumulative', copy.gpaAllTrend],
-                    ['semester', copy.gpaSemesterTrend],
-                    ['both', copy.gpaBothTrend],
+                    ['cumulative', transcriptMessages.gpaAllTrend],
+                    ['semester', transcriptMessages.gpaSemesterTrend],
+                    ['both', transcriptMessages.gpaBothTrend],
                   ] as const).map(([mode, label]) => (
                     <button
                       key={mode}
@@ -687,8 +543,8 @@ export default function TranscriptPage() {
                   cumulativePoints={cumulativeGpaTrendPoints}
                   mode={gpaMode}
                   selectedLabel={selectedSemester ? selectedSemesterName : undefined}
-                  ariaLabel={copy.gpaTrend}
-                  chartLabels={copy.chartLabels}
+                  ariaLabel={transcriptMessages.gpaTrend}
+                  chartLabels={transcriptMessages.chartLabels}
                 />
               </CardContent>
             </Card>
@@ -697,27 +553,27 @@ export default function TranscriptPage() {
             {tenScaleTrendPoints.length > 0 ? (
               <Card variant="elevated">
                 <CardHeader className="border-b border-border/70">
-                  <CardTitle className="text-base">{copy.avgTenScale}</CardTitle>
-                  <CardDescription>{copy.tenScaleTrendHint}</CardDescription>
+                  <CardTitle className="text-base">{transcriptMessages.avgTenScale}</CardTitle>
+                  <CardDescription>{transcriptMessages.tenScaleTrendHint}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <TenScaleTrendChart
                     points={tenScaleTrendPoints}
-                    ariaLabel={`${copy.gpaTrend} — ${copy.avgTenScale}`}
-                    chartLabels={copy.chartLabels}
+                    ariaLabel={`${transcriptMessages.gpaTrend} — ${transcriptMessages.avgTenScale}`}
+                    chartLabels={transcriptMessages.chartLabels}
                   />
                 </CardContent>
               </Card>
             ) : null}
             <Card variant="elevated">
               <CardHeader>
-                <CardTitle className="text-base">{copy.distribution}</CardTitle>
+                <CardTitle className="text-base">{transcriptMessages.distribution}</CardTitle>
               </CardHeader>
               <CardContent>
                 <GradeDistributionChart
                   buckets={gradeDistribution}
-                  ariaLabel={copy.distribution}
-                  chartLabels={copy.chartLabels}
+                  ariaLabel={transcriptMessages.distribution}
+                  chartLabels={transcriptMessages.chartLabels}
                 />
               </CardContent>
             </Card>
@@ -744,22 +600,22 @@ export default function TranscriptPage() {
                     </CardTitle>
                     <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                       <Info className="h-3.5 w-3.5 text-primary shrink-0" />
-                      <span>{copy.clickToViewDetail}</span>
+                      <span>{transcriptMessages.clickToViewDetail}</span>
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-sm text-muted-foreground">
                       {formatNumber(semester.records.length)}{' '}
-                      {semester.records.length === 1 ? copy.courseWord : copy.coursesWord}{' '}
-                      - {formatNumber(semester.creditsAttempted)} {copy.creditsAttempted} -{' '}
-                      {copy.gradePointLabel}{' '}
+                      {semester.records.length === 1 ? transcriptMessages.courseWord : transcriptMessages.coursesWord}{' '}
+                      - {formatNumber(semester.creditsAttempted)} {transcriptMessages.creditsAttempted} -{' '}
+                      {transcriptMessages.gradePointLabel}{' '}
                       {semester.gpa.toFixed(2)}
                     </div>
                     <button
                       type="button"
                       className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring print:hidden"
                       aria-expanded={isSemesterOpen}
-                      aria-label={`${semesterLabel}: ${copy.toggleSemester}`}
+                      aria-label={`${semesterLabel}: ${transcriptMessages.toggleSemester}`}
                       onClick={() =>
                         setSemesterOverrides((current) => ({
                           ...current,
@@ -781,7 +637,7 @@ export default function TranscriptPage() {
                   <div
                     className="space-y-3 md:hidden"
                     role="list"
-                    aria-label={copy.headers.course}
+                    aria-label={transcriptMessages.headers.course}
                   >
                     {semester.records.map((record) => (
                       <div key={`${record.id}-mobile`} role="listitem">
@@ -824,7 +680,7 @@ export default function TranscriptPage() {
                         <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-border/60 pt-3 text-sm">
                           <div>
                             <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              {copy.headers.credits}
+                              {transcriptMessages.headers.credits}
                             </dt>
                             <dd className="mt-1 text-foreground">
                               {formatNumber(record.credits)}
@@ -832,7 +688,7 @@ export default function TranscriptPage() {
                           </div>
                           <div>
                             <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              {copy.headers.score}
+                              {transcriptMessages.headers.score}
                             </dt>
                             <dd className="mt-1 text-foreground">
                               {typeof record.finalGrade === 'number'
@@ -842,7 +698,7 @@ export default function TranscriptPage() {
                           </div>
                           <div>
                             <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              {copy.headers.points}
+                              {transcriptMessages.headers.points}
                             </dt>
                             <dd className="mt-1 text-foreground">
                               {typeof getGradePoint(record) === 'number'
@@ -852,7 +708,7 @@ export default function TranscriptPage() {
                           </div>
                           <div>
                             <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              {copy.headers.enrollment}
+                              {transcriptMessages.headers.enrollment}
                             </dt>
                             <dd className="mt-1 break-words text-foreground">
                               {statusLabel(record.enrollmentStatus)}
@@ -860,7 +716,7 @@ export default function TranscriptPage() {
                           </div>
                           <div className="col-span-2 border-t border-border/60 pt-3">
                             <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              {copy.headers.gradeStatus}
+                              {transcriptMessages.headers.gradeStatus}
                             </dt>
                             <dd className="mt-1 break-words text-foreground">
                               {statusLabel(record.gradeStatus)}
@@ -874,20 +730,20 @@ export default function TranscriptPage() {
                   <div
                     className="hidden overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:block"
                     role="region"
-                    aria-label={copy.headers.course}
+                    aria-label={transcriptMessages.headers.course}
                     tabIndex={0}
                   >
                     <table className="w-full min-w-[840px] text-sm">
                       <thead>
                         <tr className="border-b border-border/70 text-left text-muted-foreground">
-                          <th className="px-4 py-3.5 font-medium">{copy.headers.course}</th>
-                          <th className="px-4 py-3.5 font-medium">{copy.headers.section}</th>
-                          <th className="px-4 py-3.5 text-center font-medium">{copy.headers.credits}</th>
-                          <th className="px-4 py-3.5 text-center font-medium">{copy.headers.score}</th>
-                          <th className="px-4 py-3.5 text-center font-medium">{copy.headers.grade}</th>
-                          <th className="px-4 py-3.5 text-center font-medium">{copy.headers.points}</th>
-                          <th className="px-4 py-3.5 text-center font-medium">{copy.headers.enrollment}</th>
-                          <th className="px-4 py-3.5 text-right font-medium">{copy.headers.gradeStatus}</th>
+                          <th className="px-4 py-3.5 font-medium">{transcriptMessages.headers.course}</th>
+                          <th className="px-4 py-3.5 font-medium">{transcriptMessages.headers.section}</th>
+                          <th className="px-4 py-3.5 text-center font-medium">{transcriptMessages.headers.credits}</th>
+                          <th className="px-4 py-3.5 text-center font-medium">{transcriptMessages.headers.score}</th>
+                          <th className="px-4 py-3.5 text-center font-medium">{transcriptMessages.headers.grade}</th>
+                          <th className="px-4 py-3.5 text-center font-medium">{transcriptMessages.headers.points}</th>
+                          <th className="px-4 py-3.5 text-center font-medium">{transcriptMessages.headers.enrollment}</th>
+                          <th className="px-4 py-3.5 text-right font-medium">{transcriptMessages.headers.gradeStatus}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/60">
@@ -904,7 +760,7 @@ export default function TranscriptPage() {
                               }
                             }}
                             className="group cursor-pointer transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                            title={copy.clickToViewDetail}
+                            title={transcriptMessages.clickToViewDetail}
                           >
                             <td className="px-4 py-3.5">
                               <div className="font-medium text-foreground group-hover:text-primary transition-colors">
@@ -974,14 +830,14 @@ export default function TranscriptPage() {
           {curriculumState === 'loading' ? (
             <Card variant="muted">
               <CardContent className="py-6 text-center text-sm text-muted-foreground">
-                {copy.programLoading}
+                {transcriptMessages.programLoading}
               </CardContent>
             </Card>
           ) : curriculumData ? (
             <Card variant="muted">
               <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
-                  <CardTitle className="text-xl">{copy.programTitle}</CardTitle>
+                  <CardTitle className="text-xl">{transcriptMessages.programTitle}</CardTitle>
                   <p className="mt-1 break-words text-sm text-muted-foreground">
                     {getLocalizedFlatLabel(
                       locale,
@@ -999,7 +855,7 @@ export default function TranscriptPage() {
                     <span>
                       {formatNumber(curriculumCompletedCredits)} /{' '}
                       {formatNumber(curriculumData.curriculum.totalCredits)}{' '}
-                      {copy.programCreditsUnit}
+                      {transcriptMessages.programCreditsUnit}
                     </span>
                     <span className="font-semibold tabular-nums text-foreground">
                       {curriculumCreditPercent}%
@@ -1017,10 +873,10 @@ export default function TranscriptPage() {
                 {curriculumGroups.map((group) => (
                   <section
                     key={`${group.year}-${group.semester}`}
-                    aria-label={copy.yearSemesterLabel(group.year, group.semester)}
+                    aria-label={transcriptMessages.yearSemesterLabel.replace('{year}', String(group.year)).replace('{semester}', String(group.semester))}
                   >
                     <h3 className="mb-2 text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                      {copy.yearSemesterLabel(group.year, group.semester)}
+                      {transcriptMessages.yearSemesterLabel.replace('{year}', String(group.year)).replace('{semester}', String(group.semester))}
                     </h3>
                     <div className="space-y-2 md:hidden">
                       {group.courses.map((course) => (
@@ -1047,11 +903,11 @@ export default function TranscriptPage() {
                           </div>
                           <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/60 pt-2 text-xs text-muted-foreground">
                             <span>
-                              {formatNumber(course.credits)} {copy.programHeaders.credits}
+                              {formatNumber(course.credits)} {transcriptMessages.programHeaders.credits}
                             </span>
                             {course.isMandatory ? (
                               <span className="rounded-md bg-secondary px-2 py-0.5 text-[11px] font-medium text-foreground">
-                                {copy.mandatory}
+                                {transcriptMessages.mandatory}
                               </span>
                             ) : null}
                           </div>
@@ -1061,16 +917,16 @@ export default function TranscriptPage() {
                     <div
                       className="hidden overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:block"
                       role="region"
-                      aria-label={copy.programHeaders.course}
+                      aria-label={transcriptMessages.programHeaders.course}
                       tabIndex={0}
                     >
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-border/70 text-left text-muted-foreground">
-                            <th className="px-2 py-2.5 font-medium">{copy.programHeaders.course}</th>
-                            <th className="px-2 py-2.5 text-center font-medium">{copy.programHeaders.credits}</th>
-                            <th className="px-2 py-2.5 text-center font-medium">{copy.mandatory}</th>
-                            <th className="px-2 py-2.5 text-right font-medium">{copy.programHeaders.status}</th>
+                            <th className="px-2 py-2.5 font-medium">{transcriptMessages.programHeaders.course}</th>
+                            <th className="px-2 py-2.5 text-center font-medium">{transcriptMessages.programHeaders.credits}</th>
+                            <th className="px-2 py-2.5 text-center font-medium">{transcriptMessages.mandatory}</th>
+                            <th className="px-2 py-2.5 text-right font-medium">{transcriptMessages.programHeaders.status}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border/60">
@@ -1094,7 +950,7 @@ export default function TranscriptPage() {
                               <td className="px-2 py-3 text-center">
                                 {course.isMandatory ? (
                                   <span className="inline-flex rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">
-                                    {copy.mandatory}
+                                    {transcriptMessages.mandatory}
                                   </span>
                                 ) : (
                                   <span className="text-muted-foreground">-</span>
@@ -1115,11 +971,9 @@ export default function TranscriptPage() {
           ) : (
             <EmptyState
               icon={BookOpen}
-              title={copy.programEmpty}
+              title={transcriptMessages.programEmpty}
               description={
-                locale === 'vi'
-                  ? 'Danh sách môn học theo chương trình đào tạo sẽ hiển thị tại đây.'
-                  : 'Courses from your study program will appear here.'
+                transcriptMessages.programEmptyDescription
               }
               className="min-h-[120px] border-none bg-transparent px-0 py-0"
             />
@@ -1131,14 +985,10 @@ export default function TranscriptPage() {
           <Card className="mt-6 print:mt-10">
             <CardHeader>
               <CardTitle className="text-base">
-                {locale === 'vi'
-                  ? 'Quy đổi thang điểm 10 → điểm chữ → thang điểm 4'
-                  : '10-point → letter → 4.0 scale conversion'}
+                {transcriptMessages.print.conversionTitle}
               </CardTitle>
               <CardDescription>
-                {locale === 'vi'
-                  ? 'Thang điểm chữ theo quy đổi tín chỉ UTE / Bộ GD&ĐT.'
-                  : 'Letter grades follow the UTE / MOET credit conversion table.'}
+                {transcriptMessages.print.conversionDescription}
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
@@ -1147,13 +997,13 @@ export default function TranscriptPage() {
                   <thead>
                     <tr className="bg-secondary/50 text-muted-foreground">
                       <th className="px-3 py-2 font-semibold">
-                        {locale === 'vi' ? 'Thang điểm 10' : '10-point scale'}
+                        {transcriptMessages.print.tenPointScale}
                       </th>
                       <th className="px-3 py-2 font-semibold">
-                        {locale === 'vi' ? 'Điểm chữ' : 'Letter grade'}
+                        {transcriptMessages.print.letterGrade}
                       </th>
                       <th className="px-3 py-2 font-semibold">
-                        {locale === 'vi' ? 'Thang điểm 4' : '4.0 scale'}
+                        {transcriptMessages.print.fourPointScale}
                       </th>
                     </tr>
                   </thead>
@@ -1179,7 +1029,7 @@ export default function TranscriptPage() {
               </div>
               {locale === 'vi' ? (
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  F (&lt;4.0): chưa tích lũy, phải học lại.
+                  {transcriptMessages.print.failingNote}
                 </p>
               ) : null}
             </CardContent>
@@ -1188,13 +1038,11 @@ export default function TranscriptPage() {
           {/* Official Institutional Sign-off Block for Print Document */}
           <div className="hidden print:block mt-10 pt-6 border-t border-border/80">
             <div className="text-[11px] text-muted-foreground mb-4 space-y-1">
-              <p><strong>{locale === 'vi' ? 'Ghi chú quy đổi thang điểm tín chỉ UTE / Bộ GD&ĐT:' : 'Credit-scale conversion note (UTE / MOET):'}</strong></p>
+              <p><strong>{transcriptMessages.print.creditScaleNote}</strong></p>
               <p>
-                {locale === 'vi' ? 'Thang điểm chữ: ' : 'Letter grades: '}
+                {transcriptMessages.print.letterGradesLabel}
                 {gradeScaleNote}
-                {locale === 'vi'
-                  ? '. F (< 4.0): chưa tích lũy, phải học lại.'
-                  : '. F (< 4.0): not earned — the course must be retaken.'}
+                {transcriptMessages.print.letterGradesFailure}
               </p>
             </div>
             {/* Machine-generated documents claim no officials: the former
@@ -1206,17 +1054,18 @@ export default function TranscriptPage() {
             <div className="flex justify-center text-center text-xs">
               <div>
                 <p className="font-bold uppercase tracking-wider">
-                  {locale === 'vi' ? 'NGƯỜI LẬP BẢNG ĐIỂM' : 'PREPARED BY'}
+                  {transcriptMessages.print.preparedBy}
                 </p>
                 <p className="italic text-muted-foreground mt-1">
-                  {locale === 'vi' ? '(Ký và ghi rõ họ tên)' : '(Sign and print full name)'}
+                  {transcriptMessages.print.signatureHint}
                 </p>
                 <div className="h-20" />
-                <p className="font-semibold">CampusUTE</p>
+                <p className="font-semibold">{transcriptMessages.print.systemName}</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {locale === 'vi'
-                    ? `Bảng điểm được hệ thống tạo ngày ${new Date().toLocaleDateString('vi-VN')}`
-                    : `Transcript generated by the system on ${new Date().toLocaleDateString('en-US')}`}
+                  {transcriptMessages.print.generatedOn.replace(
+                    '{date}',
+                    formatDate(new Date(), { month: 'numeric', day: 'numeric', year: 'numeric' }),
+                  )}
                 </p>
               </div>
             </div>

@@ -242,19 +242,20 @@ test('feedback polish: curriculum counts stay localized and enrolled schedules u
 
 test('feedback polish: transcript semester selector is singular and chart controls expose state', () => {
   const page = read('src/app/dashboard/transcript/page.tsx');
+  const catalog = read('src/i18n/messages-student-pages.ts');
 
-  assert.equal((page.match(/aria-label=\{copy\.selectSemester\}/g) ?? []).length, 1);
+  assert.equal((page.match(/aria-label=\{transcriptMessages\.selectSemester\}/g) ?? []).length, 1);
   // Round-5: the toggle is a mapped segmented control; every mode still
   // exposes its pressed state through the single aria-pressed expression.
   assert.match(page, /aria-pressed=\{gpaMode === mode\}/);
-  assert.match(page, /\['cumulative', copy\.gpaAllTrend\]/);
-  assert.match(page, /\['semester', copy\.gpaSemesterTrend\]/);
-  assert.match(page, /\['both', copy\.gpaBothTrend\]/);
+  assert.match(page, /\['cumulative', transcriptMessages\.gpaAllTrend\]/);
+  assert.match(page, /\['semester', transcriptMessages\.gpaSemesterTrend\]/);
+  assert.match(page, /\['both', transcriptMessages\.gpaBothTrend\]/);
   // Honesty (phase 04, STUD-P2-6): the header must not claim a per-semester
   // GPA while the card shows the cumulative figure.
   assert.doesNotMatch(page, /description: `GPA, credits, and course outcomes for \$\{selectedSemesterName\}\.`/);
-  assert.match(page, /Cumulative GPA and credits across all semesters; select a semester for per-course outcomes\./);
-  assert.match(page, /clickToViewDetail: 'Midterm\/final detail'/);
+  assert.match(catalog, /Cumulative GPA and credits across all semesters; select a semester for per-course outcomes\./);
+  assert.match(catalog, /clickToViewDetail: 'Midterm\/final detail'/);
   assert.doesNotMatch(page, /Click on a course to view Midterm & Final score breakdown/);
   assert.doesNotMatch(page, /Nhấn vào môn học để xem chi tiết điểm/);
 });
@@ -383,14 +384,14 @@ test('conduct score page localizes dense records and gives mobile its own cards'
   const page = read('src/app/dashboard/conduct/page.tsx');
 
   assert.match(page, /const \{ messages, formatDate, formatNumber, locale \} = useI18n\(\)/);
-  assert.match(page, /const conductCopy =/);
+  assert.match(page, /messages\.studentPages\.conduct/);
   assert.match(page, /const activityDetails = \(activity: ConductActivity\)/);
   assert.match(page, /const selectedActivityDetails = selectedActivity \? activityDetails\(selectedActivity\) : null/);
-  assert.match(page, /copy\.historyTitle/);
+  assert.match(page, /conductMessages\.historyTitle/);
   assert.match(page, /formatSemesterName\(item\.semesterName\)/);
-  assert.match(page, /copy\.classificationScaleTitle/);
+  assert.match(page, /conductMessages\.classificationScaleTitle/);
   assert.match(page, /selectedActivity && selectedActivityDetails/);
-  assert.match(page, /copy\.certificateTitle/);
+  assert.match(page, /conductMessages\.certificateTitle/);
   // Honest conduct states: no client-side criterion guessing, no id-keyed EN
   // rewrite of real activity records, no invented semester name, and the
   // criteria grid says when details have not been published.
@@ -398,7 +399,7 @@ test('conduct score page localizes dense records and gives mobile its own cards'
   assert.doesNotMatch(page, /conductActivityCopy/);
   assert.doesNotMatch(page, /Học kỳ 1 năm học 2026/);
   assert.match(page, /if \(!name\) return '—';/);
-  assert.match(page, /copy\.criteriaEmpty/);
+  assert.match(page, /conductMessages\.criteriaEmpty/);
   assert.match(page, /className="divide-y divide-border\/60 sm:hidden"/);
   assert.match(page, /className="hidden overflow-x-auto sm:block"/);
   assert.doesNotMatch(page, /Lịch Sử Điểm Rèn Luyện Qua Các Học Kỳ/);
@@ -702,4 +703,25 @@ test('attendance ships both route twins on the attendance API', () => {
   assert.match(messages, /statsPresentRateHint: 'số phiên có mặt ÷ số phiên đã ghi'/);
   assert.match(messages, /tableTitle: 'Attendance records'/);
   assert.match(messages, /tableTitle: 'Bản ghi điểm danh'/);
+});
+
+test('weekly grid keeps hydration-time media and clock reads out of render', () => {
+  const grid = read('src/components/schedule/weekly-grid.tsx');
+
+  assert.match(grid, /const \[railNarrow, setRailNarrow\] = useState\(false\)/);
+  assert.doesNotMatch(grid, /useState\(\s*\(\) => typeof window/);
+  assert.match(grid, /useEffect\(\(\) => \{[\s\S]*?window\.matchMedia\('\(max-width: 639px\)'\)/);
+  const componentStart = grid.indexOf('export function WeeklyGrid');
+  const renderPrelude = grid.slice(componentStart, grid.indexOf('useEffect', componentStart));
+  assert.doesNotMatch(renderPrelude, /new Date\(\)/);
+  assert.match(grid, /useEffect\(\(\) => \{[\s\S]*?const jsDay = new Date\(\)\.getDay\(\)/);
+});
+
+test('compact weekly agenda keeps list containment around its row buttons', () => {
+  const grid = read('src/components/schedule/weekly-grid.tsx');
+
+  assert.match(grid, /<div role="list" aria-label=\{dayName\} className="space-y-1">/);
+  assert.match(grid, /<div key=\{item\.id\} role="listitem">/);
+  assert.doesNotMatch(grid, /role=\{onItemSelect \? 'button' : 'listitem'\}/);
+  assert.match(grid, /<button\s+type="button"\s+onClick=\{\(\) => onItemSelect\(item\)\}/);
 });

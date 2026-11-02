@@ -205,3 +205,17 @@ test('grade profile view collapses below sm and lets the chart shrink', () => {
   assert.match(view, /sm:grid-cols-4/);
   assert.doesNotMatch(view, /min-w-\[420px\]/);
 });
+
+test('charts and skeletons honour prefers-reduced-motion', () => {
+  const charts = read('src/components/dashboard/TranscriptCharts.tsx');
+  const skeleton = read('src/components/ui/skeleton.tsx');
+
+  assert.match(charts, /usePrefersReducedMotion/);
+  assert.match(charts, /prefers-reduced-motion: reduce/);
+  assert.equal(
+    (charts.match(/animation\s*[:=]\s*reducedMotion \? false : \{ duration: 400 \}/g) ?? []).length,
+    3,
+    'every transcript chart disables its animation when reduced motion is requested',
+  );
+  assert.match(skeleton, /animate-pulse[^']*motion-reduce:animate-none/);
+});

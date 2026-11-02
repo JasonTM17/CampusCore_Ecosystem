@@ -1,4 +1,5 @@
 import type { AttendanceStatus } from './api';
+import { getMessages } from '@/i18n/messages';
 
 export interface AttendanceExportStudent {
   studentId: string;
@@ -28,23 +29,6 @@ export interface AttendanceCsvOptions {
   students: AttendanceExportStudent[];
   locale?: 'vi' | 'en';
 }
-
-const STATUS_LABELS: Record<'vi' | 'en', Record<string, string>> = {
-  vi: {
-    PRESENT: 'Có mặt',
-    ABSENT: 'Vắng',
-    LATE: 'Đi trễ',
-    EXCUSED: 'Có phép',
-    UNMARKED: 'Chưa điểm danh',
-  },
-  en: {
-    PRESENT: 'Present',
-    ABSENT: 'Absent',
-    LATE: 'Late',
-    EXCUSED: 'Excused',
-    UNMARKED: 'Unmarked',
-  },
-};
 
 /**
  * Escapes a cell value for RFC 4180 CSV standard compliance.
@@ -76,24 +60,20 @@ export function generateAttendanceCsv(options: AttendanceCsvOptions): string {
     locale = 'vi',
   } = options;
 
-  const labels = STATUS_LABELS[locale] || STATUS_LABELS.vi;
-  const isVi = locale === 'vi';
+  const attendanceCsvMessages = getMessages(locale).teachingPages.attendanceCsv;
+  const statusMessages = attendanceCsvMessages.statuses;
 
   const rows: string[] = [];
 
   // 1. Institutional header
   rows.push(
     escapeCsvField(
-      isVi
-        ? 'TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP. HỒ CHÍ MINH — CAMPUSUTE'
-        : 'HO CHI MINH CITY UNIVERSITY OF TECHNOLOGY AND ENGINEERING — CAMPUSUTE',
+      attendanceCsvMessages.institution,
     ),
   );
   rows.push(
     escapeCsvField(
-      isVi
-        ? 'BẢNG ĐIỂM DANH LỚP HỌC PHẦN'
-        : 'COURSE SECTION ATTENDANCE ROSTER',
+      attendanceCsvMessages.reportTitle,
     ),
   );
   rows.push('');
@@ -102,26 +82,26 @@ export function generateAttendanceCsv(options: AttendanceCsvOptions): string {
   const fullCourse = [courseCode, courseName].filter(Boolean).join(' - ');
   rows.push(
     [
-      escapeCsvField(isVi ? 'Lớp học phần:' : 'Section:'),
+      escapeCsvField(attendanceCsvMessages.metadata.section),
       escapeCsvField(sectionNumber),
-      escapeCsvField(isVi ? 'Học phần:' : 'Course:'),
+      escapeCsvField(attendanceCsvMessages.metadata.course),
       escapeCsvField(fullCourse),
     ].join(','),
   );
 
   rows.push(
     [
-      escapeCsvField(isVi ? 'Ngày điểm danh:' : 'Date:'),
+      escapeCsvField(attendanceCsvMessages.metadata.date),
       escapeCsvField(date),
-      escapeCsvField(isVi ? 'Học kỳ:' : 'Semester:'),
-      escapeCsvField(semesterName || (isVi ? 'Học kỳ hiện tại' : 'Current term')),
+      escapeCsvField(attendanceCsvMessages.metadata.semester),
+      escapeCsvField(semesterName || attendanceCsvMessages.metadata.currentTerm),
     ].join(','),
   );
 
   if (lecturerName) {
     rows.push(
       [
-        escapeCsvField(isVi ? 'Giảng viên phụ trách:' : 'Instructor:'),
+        escapeCsvField(attendanceCsvMessages.metadata.instructor),
         escapeCsvField(lecturerName),
       ].join(','),
     );
@@ -130,17 +110,17 @@ export function generateAttendanceCsv(options: AttendanceCsvOptions): string {
   // 3. Statistics summary block
   rows.push(
     [
-      escapeCsvField(isVi ? 'Tổng sĩ số:' : 'Total:'),
+      escapeCsvField(attendanceCsvMessages.statistics.total),
       escapeCsvField(metrics.total),
-      escapeCsvField(isVi ? 'Có mặt:' : 'Present:'),
+      escapeCsvField(attendanceCsvMessages.statistics.present),
       escapeCsvField(metrics.present),
-      escapeCsvField(isVi ? 'Vắng:' : 'Absent:'),
+      escapeCsvField(attendanceCsvMessages.statistics.absent),
       escapeCsvField(metrics.absent),
-      escapeCsvField(isVi ? 'Đi trễ:' : 'Late:'),
+      escapeCsvField(attendanceCsvMessages.statistics.late),
       escapeCsvField(metrics.late),
-      escapeCsvField(isVi ? 'Có phép:' : 'Excused:'),
+      escapeCsvField(attendanceCsvMessages.statistics.excused),
       escapeCsvField(metrics.excused),
-      escapeCsvField(isVi ? 'Tỷ lệ chuyên cần:' : 'Attendance Rate:'),
+      escapeCsvField(attendanceCsvMessages.statistics.rate),
       escapeCsvField(`${metrics.rate.toFixed(1)}%`),
     ].join(','),
   );
@@ -149,17 +129,15 @@ export function generateAttendanceCsv(options: AttendanceCsvOptions): string {
   // 4. Student Roster Table Header
   rows.push(
     [
-      escapeCsvField(isVi ? 'STT' : 'No.'),
-      escapeCsvField(isVi ? 'Mã sinh viên' : 'Student ID'),
-      escapeCsvField(isVi ? 'Họ và tên' : 'Full Name'),
-      escapeCsvField(isVi ? 'Trạng thái điểm danh' : 'Attendance Status'),
-      escapeCsvField(isVi ? 'Ghi chú' : 'Notes'),
+      ...attendanceCsvMessages.rosterHeaders.map(escapeCsvField),
     ].join(','),
   );
 
   // 5. Student Roster Rows
   students.forEach((student, index) => {
-    const statusText = student.status ? labels[student.status] || student.status : labels.UNMARKED;
+    const statusText = student.status
+      ? statusMessages[student.status] || student.status
+      : statusMessages.UNMARKED;
     rows.push(
       [
         escapeCsvField(index + 1),

@@ -160,7 +160,8 @@ test('the student day selector exposes tab semantics with roving focus', () => {
   assert.match(code, /const DAY_TAB_VALUES = ORDERED_DAYS\.map\(String\)/);
   assert.match(code, /useRovingTabs\(\s*DAY_TAB_VALUES,\s*String\(selectedDayTab\)/);
   assert.match(code, /role="tablist"/);
-  assert.match(code, /aria-label=\{copy\.viewDay\}/);
+  assert.match(code, /aria-label=\{scheduleMessages\.viewDay\}/);
+  assert.match(read('src/i18n/messages-student-pages.ts'), /viewDay: 'Theo ngày'/);
   assert.match(code, /role="tab"/);
   assert.match(code, /aria-selected=\{isSelected\}/);
   assert.match(code, /id={`schedule-day-tab-\$\{dayNum\}`}/);

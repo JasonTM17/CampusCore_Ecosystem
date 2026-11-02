@@ -329,7 +329,8 @@ test('lecturer page mounts the geofenced check-in panel behind the lecturer guar
   const panelMount = /\/\* Geofenced app check-in[\s\S]*?\/\* Metrics Row \*\//.exec(page)?.[0] ?? '';
   assert.ok(panelMount, 'panel mount block must exist');
   assert.doesNotMatch(panelMount, /selectedSectionId\s*\?\s*\(/, 'empty selections must not unmount a live session');
-  assert.match(panelMount, /selectedSectionId \|\| copy\.noSectionsTitle/, 'empty selection keeps an identifiable label');
+  assert.match(panelMount, /selectedSectionId \|\| attendanceMessages\.noSectionsTitle/, 'empty selection keeps an identifiable label');
+  assert.match(read('src/i18n/messages.ts'), /noSectionsTitle: 'No classes assigned'/, 'the identifiable label lives in the catalogue');
   const panel = read('src/components/lecturer/GeofenceCheckinPanel.tsx');
   assert.match(panel, /if \(!sectionId && !session\) return null;/, 'hide the empty panel while retaining session state');
   assert.match(panel, /if \(!sectionId \|\| geofencesLoadStartedRef\.current\) return;/,
@@ -577,4 +578,50 @@ test('student attendance API still lacks method/review fields — nothing fabric
     /submitStudentCheckin|geofencedAttendanceApi|navigator\.geolocation|checkinMethod|reviewState/i,
     'the student web page must never expose a browser check-in or fabricated fields',
   );
+});
+
+async function loadProjectorTabTarget() {
+  const source = read('src/components/lecturer/ProjectorCodeOverlay.tsx');
+  const ast = ts.createSourceFile(
+    'ProjectorCodeOverlay.tsx',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const names = ['projectorTabTarget'];
+  const declarations = ast.statements.filter((node) =>
+    ts.isFunctionDeclaration(node) && names.includes(node.name?.text),
+  );
+  assert.equal(declarations.length, names.length, 'projector focus helper must remain directly testable');
+  const helperSource = `${declarations.map((node) => node.getFullText(ast)).join('\n')}\nexport { ${names.join(', ')} };`;
+  const { outputText } = ts.transpileModule(helperSource, {
+    compilerOptions: {
+      module: ts.ModuleKind.ESNext,
+      target: ts.ScriptTarget.ES2022,
+    },
+    fileName: 'ProjectorCodeOverlay.helpers.ts',
+  });
+  return import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+}
+
+test('W14 projector overlay traps Tab focus, locks scroll and restores the trigger', async () => {
+  const { projectorTabTarget } = await loadProjectorTabTarget();
+
+  assert.equal(projectorTabTarget(-1, 3, false), 0, 'Tab from the dialog enters at the first control');
+  assert.equal(projectorTabTarget(-1, 3, true), 2, 'Shift+Tab from the dialog enters at the last control');
+  assert.equal(projectorTabTarget(2, 3, false), 0, 'Tab past the last control wraps');
+  assert.equal(projectorTabTarget(0, 3, true), 2, 'Shift+Tab before the first control wraps');
+  assert.equal(projectorTabTarget(1, 3, false), null, 'middle controls keep native Tab order');
+  assert.equal(projectorTabTarget(0, 0, false), null, 'an empty dialog has no wrap target');
+
+  const overlay = read('src/components/lecturer/ProjectorCodeOverlay.tsx');
+  assert.match(overlay, /role="dialog"/);
+  assert.match(overlay, /aria-modal="true"/);
+  assert.match(overlay, /tabIndex=\{-1\}/);
+  assert.match(overlay, /previousFocusRef\.current = document\.activeElement/);
+  assert.match(overlay, /document\.body\.style\.overflow = 'hidden'/);
+  assert.match(overlay, /previousFocusRef\.current\?\.focus\(\)/);
+  assert.match(overlay, /if \(event\.key !== 'Tab'\)/);
+  assert.match(overlay, /projectorTabTarget\(/);
 });

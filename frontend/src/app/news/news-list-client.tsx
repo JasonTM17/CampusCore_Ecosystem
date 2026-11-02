@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { announcementsApi, type AnnouncementRecord } from '@/lib/api';
 import { LocalizedLink } from '@/components/LocalizedLink';
@@ -34,6 +34,11 @@ export default function NewsPage() {
   );
   const items = (query.data?.data ?? []) as AnnouncementRecord[];
   const totalPages = Math.max(1, query.data?.meta?.totalPages ?? 1);
+  useEffect(() => {
+    if (!query.data || query.isFetching || query.isError) return;
+    const correctedPage = clampPage(page, totalPages);
+    if (correctedPage !== page) setPage(correctedPage);
+  }, [page, query.data, query.isError, query.isFetching, totalPages]);
   const hasPreviousPage = page > 1;
   const goToPage = (nextPage: number) => setPage(clampPage(nextPage, totalPages));
 
