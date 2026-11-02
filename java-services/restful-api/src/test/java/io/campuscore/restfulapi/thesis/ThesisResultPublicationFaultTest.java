@@ -10,9 +10,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.campuscore.restfulapi.mail.config.MailConfig;
 import io.campuscore.restfulapi.mail.service.EmailService;
+import io.campuscore.restfulapi.mail.service.MailDispatchQueue;
 import io.campuscore.restfulapi.thesis.service.ThesisMutationService;
 import io.campuscore.restfulapi.thesis.service.ThesisNotificationService;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -79,6 +81,7 @@ class ThesisResultPublicationFaultTest extends ThesisPublicationFixture {
         }).when(email).sendHtmlEmail(anyString(), anyString(), anyString(), anyMap());
 
         mutations.publishResults(roundId, admin());
+        awaitMailIdle();
 
         assertThat(roundStatus()).isEqualTo("RESULTS_PUBLISHED");
         assertThat(inboxCount()).isEqualTo(6);
@@ -94,6 +97,7 @@ class ThesisResultPublicationFaultTest extends ThesisPublicationFixture {
         jdbc.execute("ALTER TABLE notifications.notification ADD CONSTRAINT fixture_reject_results CHECK (type <> 'SUCCESS')");
         try {
             mutations.publishResults(roundId, admin());
+            awaitMailIdle();
 
             assertThat(roundStatus()).isEqualTo("RESULTS_PUBLISHED");
             assertThat(inboxCount()).isZero();
@@ -123,6 +127,7 @@ class ThesisResultPublicationFaultTest extends ThesisPublicationFixture {
         jdbc.update("UPDATE campuscore_auth.\"User\" SET \"email\"='  ' WHERE \"id\"='rmv-user-3'");
 
         mutations.publishResults(roundId, admin());
+        awaitMailIdle();
 
         assertThat(roundStatus()).isEqualTo("RESULTS_PUBLISHED");
         assertThat(attempts).containsExactlyInAnyOrder(
@@ -170,6 +175,8 @@ abstract class ThesisPublicationFixture {
     protected PlatformTransactionManager transactionManager;
     @Autowired
     protected MailConfig mailConfig;
+    @Autowired
+    protected MailDispatchQueue mailDispatch;
 
     protected UUID roundId;
 
@@ -240,6 +247,13 @@ abstract class ThesisPublicationFixture {
     protected void observation(String checkpoint, int mailAttempts) {
         System.out.printf("RESULT_MAIL_OBSERVATION checkpoint=%s round=%s inbox=%d mailAttempts=%d%n",
                 checkpoint, roundStatus(), inboxCount(), mailAttempts);
+    }
+
+    /** Mail runs on the bounded queue; tests observe the drained state, not the request return. */
+    protected void awaitMailIdle() {
+        assertThat(mailDispatch.awaitIdle(Duration.ofSeconds(20)))
+                .as("mail dispatch queue drained")
+                .isTrue();
     }
 
     private void clearPrivateRows() {
