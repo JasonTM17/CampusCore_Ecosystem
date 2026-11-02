@@ -187,6 +187,15 @@ describe('staff literals follow the locale', () => {
     expect(screen.getAllByText('Full').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/10 groups · 20\/20 students/).length).toBeGreaterThan(0);
   });
+
+  test('one supervised group uses the singular in the list and the detail sheet', async () => {
+    mockApi.mode = 'preview';
+    await renderEnglish(<AdminLecturersScreen />);
+    expect(screen.getByText('Supervising: 1 group · 10/15 students')).toBeTruthy();
+    await fireEvent.press(screen.getByText(/Vũ Đình D/));
+    await waitFor(() => expect(screen.getByText('Lecturer details')).toBeTruthy());
+    expect(screen.getByText('1 group · 10/15 students')).toBeTruthy();
+  });
 });
 
 describe('attendance bulk and clear actions', () => {
