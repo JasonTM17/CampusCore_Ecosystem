@@ -207,7 +207,7 @@ test.describe('anonymous news lane', () => {
 
   test('unpublished story id answers the not-found surface', async ({ page }) => {
     await page.goto(`${PORTAL}/news/${seed.draftId}`);
-    await expect(page.getByText(/story unavailable|không khả dụng|không tồn tại/i))
+    await expect(page.getByText(/story unavailable|không khả dụng|không tồn tại/i).first())
       .toBeVisible({ timeout: 30000 });
     await expect(page.getByText(DRAFT_TITLE)).toHaveCount(0);
   });
