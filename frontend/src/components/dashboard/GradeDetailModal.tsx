@@ -170,13 +170,21 @@ export function GradeDetailModal({ isOpen, onClose, record }: GradeDetailModalPr
           </div>
 
           {detailFailed ? (
-            <div className="rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200">
+            <div
+              role="alert"
+              className="rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200"
+            >
               {copy.detailFailed}
             </div>
           ) : null}
 
           {loading ? (
-            <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+            <div
+              role="status"
+              aria-live="polite"
+              aria-busy="true"
+              className="flex items-center justify-center py-8 text-sm text-muted-foreground"
+            >
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               {copy.loading}
             </div>
