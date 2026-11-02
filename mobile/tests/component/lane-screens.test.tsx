@@ -33,6 +33,7 @@ jest.mock('../../src/screens/lanes/lane-api', () => ({
 
 import { laneApi } from '../../src/screens/lanes/lane-api';
 import { LaneRoute } from '../../src/screens/lanes/lane-registry';
+import { lanesMessages } from '../../src/i18n/lanes-messages';
 import { LocaleProvider } from '../../src/i18n/locale-provider';
 
 const api = laneApi as unknown as Record<string, jest.Mock<(...args: unknown[]) => Promise<unknown>>>;
@@ -120,6 +121,17 @@ describe('library desk', () => {
     await renderThemed(<LaneRoute id="staff.libraryDesk" />);
     await waitFor(() => expect(screen.getByText('Bạn không có quyền với nội dung này.')).toBeTruthy());
     expect(screen.queryByText('Giải tích')).toBeNull();
+  });
+
+  test('a resource 401 stays retryable and never claims an expired session', async () => {
+    api.libraryRequests
+      .mockRejectedValueOnce({ status: 401, code: 'HTTP_401' })
+      .mockResolvedValueOnce([]);
+    await renderThemed(<LaneRoute id="staff.libraryDesk" />);
+    await waitFor(() => expect(screen.queryByText(lanesMessages.vi.signIn)).toBeNull());
+    expect(screen.getAllByText(lanesMessages.vi.errorTitle).length).toBeGreaterThan(0);
+    await fireEvent.press(screen.getByText(lanesMessages.vi.retry));
+    await waitFor(() => expect(api.libraryRequests).toHaveBeenCalledTimes(2));
   });
 
   test('an empty queue shows the empty state', async () => {

@@ -1,9 +1,10 @@
 // Maps a failed request to one student-safe message. The raw server text is
 // never shown; status classes pick the copy.
 
+import { isResourceUnauthorizedError } from '../student/shared/resource-error';
+
 export interface ContentErrorCopy {
   offline: string;
-  signIn: string;
   denied: string;
   notFound: string;
   rateLimited: string;
@@ -11,7 +12,7 @@ export interface ContentErrorCopy {
   generic: string;
 }
 
-export type ContentErrorKind = 'offline' | 'signIn' | 'denied' | 'notFound' | 'rateLimited' | 'server' | 'conflict' | 'generic';
+export type ContentErrorKind = 'offline' | 'denied' | 'notFound' | 'rateLimited' | 'server' | 'conflict' | 'generic';
 
 export function errorStatus(error: unknown): number | null {
   const status = (error as { status?: unknown } | null)?.status;
@@ -26,8 +27,11 @@ export function errorCode(error: unknown): string {
 
 export function contentErrorKind(error: unknown): ContentErrorKind {
   const status = errorStatus(error);
+  // A screen-local 401 stays inline and retryable; the API client's refresh
+  // lane owns the only sign-in route. The shared predicate also catches the
+  // HTTP_401/UNAUTHENTICATED code shapes that carry no status.
+  if (isResourceUnauthorizedError(error)) return 'generic';
   if (status === 0 || errorCode(error) === 'NETWORK_ERROR') return 'offline';
-  if (status === 401) return 'signIn';
   if (status === 403) return 'denied';
   if (status === 404) return 'notFound';
   if (status === 409 || status === 412) return 'conflict';

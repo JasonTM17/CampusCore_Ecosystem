@@ -64,6 +64,7 @@ import { learningMessages } from '../../src/i18n/learning-messages';
 import { libraryMessages } from '../../src/i18n/library-messages';
 import { recordsMessages } from '../../src/i18n/records-messages';
 import { contentMessages } from '../../src/i18n/content-messages';
+import { previewAdmissions } from '../../src/screens/content/preview-data';
 
 const navigation = { navigate: jest.fn(), signOut: jest.fn() } as unknown as MobileScreenProps['navigation'];
 const props = { navigation, role: 'student' } as MobileScreenProps;
@@ -143,6 +144,7 @@ describe('service screens in preview mode (Vietnamese by default)', () => {
     await renderThemed(<AdmissionsScreen {...props} />);
     await fireEvent.press(screen.getByRole('button', { name: new RegExp('2026-Q1-DEMO') }));
     expect(screen.getByText(admissionsMessages.vi.returnedHint)).toBeOnTheScreen();
+    expect(screen.getByText(admissionsMessages.vi.simulatedBanner)).toBeOnTheScreen();
     expect(screen.getByText('Bổ sung bảng điểm')).toBeOnTheScreen();
     const submit = screen.getByRole('button', { name: admissionsMessages.vi.resubmit });
     expect(submit.props.accessibilityState?.disabled).toBe(true);
@@ -217,6 +219,22 @@ describe('service screens in live mode', () => {
     await renderThemed(<AdmissionsScreen {...props} />);
     expect(screen.getAllByText('Không thể tải dữ liệu').length).toBeGreaterThan(0);
     expect(screen.queryByText(admissionsMessages.vi.emptyApplications)).toBeNull();
+    expect(screen.queryByText(admissionsMessages.vi.simulatedBanner)).toBeNull();
+  });
+
+  test('a live admissions detail shows no simulated banner', async () => {
+    mockApi.mode = 'live';
+    const application = previewAdmissions('vi')[0];
+    mockQuery.value = {
+      data: (key: string) => (key === 'content.admissions.mine' ? [application] : []),
+      error: null,
+      warning: null,
+      isLoading: false,
+    };
+    setWidth(360);
+    await renderThemed(<AdmissionsScreen {...props} />);
+    await fireEvent.press(screen.getByRole('button', { name: new RegExp(application.cycle) }));
+    expect(screen.getByText(admissionsMessages.vi.returnedHint)).toBeOnTheScreen();
     expect(screen.queryByText(admissionsMessages.vi.simulatedBanner)).toBeNull();
   });
 

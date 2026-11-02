@@ -24,6 +24,7 @@ function transpile(file, name) {
   const rewritten = outputText
     .replaceAll("'../../api/client'", "'./client.mjs'")
     .replaceAll("'../../api/paging'", "'./paging.mjs'")
+    .replaceAll("'../student/shared/resource-error'", "'./resource-error.mjs'")
     .replaceAll("'./lane-model'", "'./lane-model.mjs'")
     .replaceAll("'./lane-paging'", "'./lane-paging.mjs'");
   fs.writeFileSync(path.join(tempRoot, name.replace(/\.ts$/, '.mjs')), rewritten);
@@ -42,6 +43,7 @@ fs.writeFileSync(
   ].join('\n'),
 );
 transpile('src/api/paging.ts', 'paging.ts');
+transpile('src/screens/student/shared/resource-error.ts', 'resource-error.ts');
 transpile('src/screens/lanes/lane-model.ts', 'lane-model.ts');
 transpile('src/screens/lanes/lane-paging.ts', 'lane-paging.ts');
 transpile('src/screens/lanes/lane-request.ts', 'lane-request.ts');

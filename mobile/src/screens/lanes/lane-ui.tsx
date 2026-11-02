@@ -12,6 +12,7 @@ import { tokens } from '../../design/tokens';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillCopy } from '../../i18n/academic-messages';
 import { lanesMessages, type LanesCopy } from '../../i18n/lanes-messages';
+import { isResourceUnauthorizedError } from '../student/shared/resource-error';
 import { failureKind, type FailureKind } from './lane-model';
 import { createRequestGate } from './lane-request';
 
@@ -22,9 +23,11 @@ export function useLanesCopy(): { copy: LanesCopy; locale: 'vi' | 'en' } {
 
 /** Localised message for a failed read or write; never the raw server text. */
 export function laneErrorMessage(copy: LanesCopy, error: unknown, fallback: string): string {
+  // A resource 401 stays inline and retryable; the API client's refresh lane
+  // owns the only sign-in route, so the screen never claims the session died.
+  if (isResourceUnauthorizedError(error)) return fallback;
   switch (failureKind(error)) {
     case 'offline': return copy.offline;
-    case 'unauthorized': return copy.signIn;
     case 'denied': return copy.denied;
     case 'conflict': return copy.conflict;
     case 'invalid': return copy.invalid;

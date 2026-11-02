@@ -12,13 +12,20 @@ const thesisJava = path.resolve(
   '../java-services/restful-api/src/main/java/io/campuscore/restfulapi/thesis',
 );
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'campus-thesis-'));
-for (const file of ['screens/thesis/thesis-model.ts', 'screens/thesis/thesis-files.ts', 'i18n/thesis-messages.ts']) {
+for (const file of [
+  'screens/thesis/thesis-model.ts',
+  'screens/thesis/thesis-files.ts',
+  'i18n/thesis-messages.ts',
+  'screens/student/shared/resource-error.ts',
+]) {
   const { outputText } = ts.transpileModule(fs.readFileSync(path.join(mobileRoot, 'src', file), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
   });
   fs.writeFileSync(
     path.join(tempRoot, path.basename(file).replace('.ts', '.mjs')),
-    outputText.replace(/from '\.\/([\w-]+)'/g, "from './$1.mjs'"),
+    outputText
+      .replace(/from '\.\/([\w-]+)'/g, "from './$1.mjs'")
+      .replace(/from '\.\.\/student\/shared\/resource-error'/g, "from './resource-error.mjs'"),
   );
 }
 const load = (name) => import(pathToFileURL(path.join(tempRoot, `${name}.mjs`)).href);
@@ -158,7 +165,7 @@ test('saving a report sends the fewest calls and never clears the stored file', 
 test('errors map to student-safe copy and never expose the server text', () => {
   const error = (status, code, message = 'raw server detail') => Object.assign(new Error(message), { status, code });
   const cases = [
-    [error(401), 'session'],
+    [error(401), 'generic'],
     [error(403), 'forbidden'],
     [error(404), 'notFound'],
     [error(409), 'conflict'],
@@ -170,6 +177,10 @@ test('errors map to student-safe copy and never expose the server text', () => {
     [error(500, 'SESSION_CHANGED'), 'aborted'],
   ];
   for (const [value, kind] of cases) assert.equal(model.thesisErrorInfo(value).kind, kind);
+  for (const value of [{ status: 401 }, { status: 401, code: 'HTTP_401' }, { code: 'UNAUTHENTICATED' }]) {
+    assert.equal(model.thesisErrorInfo(value).kind, 'generic');
+  }
+  assert.equal(model.thesisErrorMessage(vi, error(401)), vi.errors.generic);
   assert.equal(model.isAbortLike(error(0, 'REQUEST_ABORTED')), true);
   assert.equal(model.thesisErrorMessage(vi, error(409, 'GROUP_FULL')), vi.errors.codes.GROUP_FULL);
   assert.equal(model.thesisErrorMessage(en, error(409, 'REPORT_DEADLINE_PASSED')), en.errors.codes.REPORT_DEADLINE_PASSED);

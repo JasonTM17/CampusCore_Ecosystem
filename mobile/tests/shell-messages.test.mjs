@@ -35,6 +35,19 @@ test('every registry screen and lane has a title in both locales', () => {
   }
 });
 
+test('live route titles never claim a simulated screen', () => {
+  for (const locale of ['vi', 'en']) {
+    for (const name of ['admissions', 'library', 'careers']) {
+      assert.doesNotMatch(shellMessages[locale].screens[name], /simulated|mô phỏng/i, `${locale} ${name}`);
+    }
+  }
+  for (const name of ['admissions', 'library', 'careers']) {
+    const match = routes.match(new RegExp(`\\{ name: '${name}', title: '([^']*)'`));
+    assert.ok(match, `${name} registry row`);
+    assert.doesNotMatch(match[1], /simulated/i, `${name} registry title`);
+  }
+});
+
 test('every bottom navigation label localizes and both locales share the same keys', () => {
   for (const label of navLabels) {
     assert.notEqual(localizedNavLabel('vi', label), label, `vi nav ${label}`);
