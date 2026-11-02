@@ -13,6 +13,7 @@ import { metricToneClass } from '@/components/ui/status';
 import { HomeIdentityBoard } from '@/components/home/HomeIdentityBoard';
 import { HomeNewsSection } from '@/components/home/HomeNewsSection';
 import { useI18n } from '@/i18n';
+import { homeMarketingEn, homeMarketingVi } from '@/i18n/messages-home';
 import { useSiteAppearance } from '@/components/providers/SiteAppearanceProvider';
 import { cn } from '@/lib/utils';
 
@@ -43,16 +44,7 @@ export default function HomePage() {
   } = useAuth();
   const { locale, messages } = useI18n();
   const { appearance } = useSiteAppearance();
-  const copy =
-    locale === 'vi'
-      ? {
-          heroDescription: 'Hệ thống quản lý học vụ số tập trung dành cho Sinh viên, Giảng viên và Cán bộ Quản trị.',
-          footerDescription: 'Một cổng học vụ cho sinh viên, giảng viên và quản trị.',
-        } as const
-      : {
-          heroDescription: 'Centralized academic management system for students, lecturers, and university administrators.',
-          footerDescription: 'One campus portal for students, lecturers, and admins.',
-        } as const;
+  const copy = locale === 'vi' ? homeMarketingVi.hero : homeMarketingEn.hero;
   const hero = appearance.hero[locale];
   const currentYear = new Date().getFullYear();
   const workspaceHref = isAdmin || isSuperAdmin

@@ -6,6 +6,7 @@ import { LinkButton } from '@/components/ui/link-button';
 import { Select } from '@/components/ui/select';
 import { useRequireAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
+import { thesisWorkflowEn, thesisWorkflowVi } from '@/i18n/messages-thesis-workflow';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
@@ -28,6 +29,7 @@ const PROGRESS_MILESTONES = [
 export default function ThesisProgressPage() {
   const { user, isLoading: authLoading, hasAccess, isForbidden } = useRequireAuth();
   const { locale, messages } = useI18n();
+  const progressCopy = locale === 'vi' ? thesisWorkflowVi.progress : thesisWorkflowEn.progress;
   const isStudent = Boolean(user?.roles?.includes('STUDENT'));
   const workspace = useThesisWorkspace('', { topicsEnabled: false, groupsEnabled: false });
   const selectedRound = workspace.selectedRound;
@@ -225,7 +227,7 @@ export default function ThesisProgressPage() {
               <div>
                 <p className="font-semibold text-foreground">{messages.thesis.groupsTitle}</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {progress.memberCount} {locale === 'vi' ? 'thành viên' : 'members'} · {workspace.statusLabel(progress.userReportedGroupStatus || progress.groupStatus || 'PENDING')}
+                  {progress.memberCount} {progressCopy.members} · {workspace.statusLabel(progress.userReportedGroupStatus || progress.groupStatus || 'PENDING')}
                 </p>
                 {progress.topicTitle ? <p className="mt-1 text-sm text-muted-foreground">{progress.topicTitle}</p> : null}
               </div>

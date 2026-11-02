@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LoaderCircle, RotateCcw } from 'lucide-react';
 import { useI18n } from '@/i18n';
+import { getAssistantWindowMessages } from '@/components/assistant/assistant-messages';
 import { useAssistantStream } from '@/components/assistant/useAssistantStream';
 import { AssistantMessages } from '@/components/assistant/AssistantMessages';
 import { AssistantComposer } from '@/components/assistant/AssistantComposer';
@@ -19,7 +20,7 @@ import { AssistantMascot } from '@/components/assistant/AssistantMascot';
 export default function AssistantSpecializedPage() {
   const { locale, messages, href } = useI18n();
   const router = useRouter();
-  const vi = locale === 'vi';
+  const windowCopy = getAssistantWindowMessages(locale);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const userScrolledRef = useRef(false);
@@ -203,7 +204,7 @@ export default function AssistantSpecializedPage() {
                   className="mt-2 rounded-md px-0 text-destructive hover:underline"
                   onClick={(event) => void sendMessage(event, lastPrompt, { retry: true })}
                 >
-                  {vi ? 'Gửi lại câu hỏi' : 'Retry the question'}
+                  {windowCopy.specialized.retry}
                 </button>
               ) : null}
             </div>

@@ -57,8 +57,12 @@ test('messages and layout use standardized institutional portal names', () => {
 
 test('dashboard upcoming schedule displays standardized room formatting', () => {
   const dashboard = readSource('src/app/dashboard/page.tsx');
-  assert.match(dashboard, /Phòng \$\{meeting\.building\}-\$\{meeting\.roomNumber\}/);
-  assert.match(dashboard, /Room \$\{meeting\.building\}-\$\{meeting\.roomNumber\}/);
+  // W18 P6: the room templates moved to the studentPortal fragment.
+  const studentPortal = readSource('src/i18n/messages-student-portal.ts');
+  assert.match(studentPortal, /roomWithBuilding: 'Phòng \{building\}-\{room\}'/);
+  assert.match(studentPortal, /roomWithBuilding: 'Room \{building\}-\{room\}'/);
+  assert.match(dashboard, /copy\.roomWithBuilding/);
+  assert.match(dashboard, /copy\.roomOnly/);
 });
 
 test('department-head and admin shell navigation stay aligned across layout, thesis, and admin users', () => {

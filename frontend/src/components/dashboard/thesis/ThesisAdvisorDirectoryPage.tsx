@@ -31,6 +31,7 @@ import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { statusToneClass, type StatusTone } from '@/components/ui/status';
 import { useAuth, useRequireAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
+import { thesisWorkflowEn, thesisWorkflowVi } from '@/i18n/messages-thesis-workflow';
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { lecturersApi, departmentsApi, fetchAllPages } from '@/lib/api';
 import { thesisApi, type ThesisRound, type ThesisTopic } from '@/lib/thesis-api';
@@ -116,18 +117,14 @@ function AdvisorAvatar({ lecturer, size = 'md' }: { lecturer: Lecturer; size?: '
   );
 }
 
-function QuotaBar({ topicCount, maxTopics, isVi }: AdvisorWorkload & { isVi?: boolean }) {
+function QuotaBar({ topicCount, maxTopics, label }: AdvisorWorkload & { label: string }) {
   const isAvailable = topicCount < maxTopics;
   const percent = maxTopics > 0 ? Math.min(100, Math.round((topicCount / maxTopics) * 100)) : 0;
 
   return (
     <div
       role="progressbar"
-      aria-label={
-        isVi === false
-          ? `Topic quota: ${topicCount} of ${maxTopics}`
-          : `Chỉ tiêu đề tài: ${topicCount}/${maxTopics}`
-      }
+      aria-label={label.replace('{count}', String(topicCount)).replace('{max}', String(maxTopics))}
       aria-valuenow={percent}
       aria-valuemin={0}
       aria-valuemax={100}
@@ -465,6 +462,7 @@ export default function ThesisAdvisorDirectoryPage() {
   }, []);
 
   const isVi = locale === 'vi';
+  const copy = isVi ? thesisWorkflowVi.advisorDirectory : thesisWorkflowEn.advisorDirectory;
   const st = messages.common.states;
 
   const departmentName = (departmentId?: string) => {
@@ -507,26 +505,18 @@ export default function ThesisAdvisorDirectoryPage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          eyebrow={<SectionEyebrow>{isVi ? 'Khóa luận' : 'Thesis'}</SectionEyebrow>}
-          title={isVi ? 'Danh bạ giảng viên hướng dẫn' : 'Advisor directory'}
-          description={
-            isVi
-              ? 'Danh bạ liên hệ chi tiết của giảng viên do Phòng Đào tạo quản lý và dành cho giảng viên, quản trị viên.'
-              : 'The detailed faculty contact directory is maintained by the Academic Office and is available to lecturers and administrators.'
-          }
+          eyebrow={<SectionEyebrow>{copy.eyebrow}</SectionEyebrow>}
+          title={copy.title}
+          description={copy.description}
         />
         <EmptyState
           icon={UsersRound}
-          title={isVi ? 'Mục này dành cho giảng viên và quản trị viên' : 'This section is for lecturers and administrators'}
-          description={
-            isVi
-              ? 'Thông tin người hướng dẫn theo từng đề tài có trong Danh mục đề tài — nơi bạn chọn đề tài và xem giảng viên phụ trách.'
-              : 'Per-topic supervisor information lives in the topic catalog, where you pick a topic and see its supervising lecturer.'
-          }
+          title={copy.studentEmptyTitle}
+          description={copy.studentEmptyDescription}
         />
         <div>
           <LinkButton href="/dashboard/thesis/topics">
-            {isVi ? 'Mở danh mục đề tài' : 'Open the topic catalog'}
+            {copy.openTopicCatalog}
           </LinkButton>
         </div>
       </div>
@@ -536,7 +526,7 @@ export default function ThesisAdvisorDirectoryPage() {
   const tableColumns: TableColumn<Lecturer>[] = [
     {
       key: 'name',
-      title: isVi ? 'Giảng viên hướng dẫn' : 'Lecturer & Advisor',
+      title: copy.table.name,
       render: (record) => {
         const name = getAdvisorDisplayName(record);
         return (
@@ -562,14 +552,14 @@ export default function ThesisAdvisorDirectoryPage() {
     },
     {
       key: 'department',
-      title: isVi ? 'Khoa / Bộ môn' : 'Department',
+      title: copy.table.department,
       render: (record) => (
         <StatusPill tone="info">{departmentName(record.departmentId)}</StatusPill>
       ),
     },
     {
       key: 'specialization',
-      title: isVi ? 'Chuyên môn & Hướng nghiên cứu' : 'Research Specialization',
+      title: copy.table.specialization,
       render: (record) => (
         <div className="max-w-xs truncate text-xs text-foreground" title={record.specialization || undefined}>
           {record.specialization || '—'}
@@ -578,38 +568,38 @@ export default function ThesisAdvisorDirectoryPage() {
     },
     {
       key: 'workload',
-      title: isVi ? 'Chỉ tiêu hướng dẫn' : 'Supervision Quota',
+      title: copy.table.workload,
       render: (record) => {
         const workload = workloadFor(advisorWorkloadMap, record.id);
         const isAvailable = workload.topicCount < workload.maxTopics;
         return (
           <div className="w-36 space-y-1">
             <div className="flex justify-between text-xs font-semibold">
-              <span>{workload.topicCount}/{workload.maxTopics} {isVi ? 'đề tài' : 'topics'}</span>
+              <span>{workload.topicCount}/{workload.maxTopics} {copy.quotaTopicSuffix}</span>
               <span className={isAvailable ? 'text-status-success-foreground' : 'text-muted-foreground'}>
-                {isAvailable ? (isVi ? 'Còn nhận' : 'Available') : (isVi ? 'Đủ' : 'Full')}
+                {isAvailable ? copy.statusAvailable : copy.statusFull}
               </span>
             </div>
-            <QuotaBar {...workload} isVi={isVi} />
+            <QuotaBar {...workload} label={copy.quotaBarLabel} />
           </div>
         );
       },
     },
     {
       key: 'action',
-      title: isVi ? 'Thao tác' : 'Actions',
+      title: copy.table.actions,
       align: 'right',
       render: (record) => (
         <div className="flex items-center justify-end gap-2">
           <Button type="button" variant="outline" size="sm" className="h-9 px-3 text-xs" onClick={() => openAdvisor(record)}>
-            {isVi ? 'Chi tiết' : 'Details'}
+            {copy.table.details}
           </Button>
           <LinkButton
             href={`/dashboard/thesis?advisorId=${record.id}&action=propose`}
             size="sm"
             className="h-9 px-3 text-xs"
           >
-            {isVi ? 'Chọn GV' : 'Select'}
+            {copy.table.select}
           </LinkButton>
         </div>
       ),
@@ -625,27 +615,23 @@ export default function ThesisAdvisorDirectoryPage() {
             <LocalizedLink href="/dashboard/thesis" className="flex items-center gap-1 hover:underline">
               <span>{messages.thesis.title}</span>
               <span aria-hidden="true">/</span>
-              <span>{isVi ? 'Giảng viên hướng dẫn' : 'Advisors'}</span>
+              <span>{copy.breadcrumb}</span>
             </LocalizedLink>
           </SectionEyebrow>
         }
-        title={isVi ? 'Danh sách Giảng viên Hướng dẫn' : 'Faculty Thesis Advisors'}
-        tabLabel={isVi ? 'Giảng viên hướng dẫn' : 'Advisors'}
-        description={
-          isVi
-            ? 'Tra cứu thông tin học hàm, hướng nghiên cứu và liên hệ đăng ký giảng viên hướng dẫn khóa luận tốt nghiệp (HCMUTE).'
-            : 'Explore faculty research interests, academic rank, and contact advisors for thesis supervision.'
-        }
+        title={copy.pageTitle}
+        tabLabel={copy.tabLabel}
+        description={copy.pageDescription}
         actions={
           <div className="flex items-center gap-3">
             <LinkButton href="/dashboard/thesis" variant="outline" size="sm" className="gap-1.5">
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              <span>{isVi ? 'Quay lại Khóa luận' : 'Back to Thesis'}</span>
+              <span>{copy.backToThesis}</span>
             </LinkButton>
             {isStudent ? (
               <LinkButton href="/dashboard/thesis?action=propose" size="sm" className="gap-1.5">
                 <Plus className="h-4 w-4" aria-hidden="true" />
-                <span>{isVi ? 'Đề xuất đề tài mới' : 'Propose Topic'}</span>
+                <span>{copy.proposeTopic}</span>
               </LinkButton>
             ) : null}
           </div>
@@ -658,19 +644,17 @@ export default function ThesisAdvisorDirectoryPage() {
           <div className="flex flex-col justify-center space-y-2.5 p-6 lg:col-span-8">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-md border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
-                {isVi ? 'Hội đồng Khoa học & Đào tạo' : 'Academic Council & Faculty'}
+                {copy.council.eyebrow}
               </span>
               <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                HCMUTE Thesis Committee
+                {copy.council.badge}
               </span>
             </div>
             <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-              {isVi ? 'Danh bạ Giảng viên Hướng dẫn & Hội đồng Bảo vệ' : 'Faculty Advisor Directory & Defense Council'}
+              {copy.council.title}
             </h2>
             <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
-              {isVi
-                ? 'Tra cứu thông tin học hàm, học vị, hướng nghiên cứu mũi nhọn, chỉ tiêu nhận sinh viên khóa luận và liên hệ trực tiếp với các Thầy/Cô thuộc các Khoa viện.'
-                : 'Browse faculty profiles, academic degrees, research specializations, thesis student capacity, and direct contact details.'}
+              {copy.council.description}
             </p>
           </div>
           <div className="relative h-48 min-h-[160px] overflow-hidden border-t border-border/60 lg:col-span-4 lg:h-full lg:border-l lg:border-t-0">
@@ -679,7 +663,7 @@ export default function ThesisAdvisorDirectoryPage() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/images/banners/thesis_evaluation_council.jpg"
-                alt="HCMUTE Academic Thesis Evaluation Council"
+                alt={copy.council.imageAlt}
                 width={2172}
                 height={724}
                 className="h-full w-full object-cover object-center transition duration-500 hover:scale-105"
@@ -687,7 +671,7 @@ export default function ThesisAdvisorDirectoryPage() {
             </picture>
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent lg:hidden" />
             <div className="absolute bottom-2 left-3 rounded-md bg-background/85 px-2 py-0.5 text-[11px] font-semibold text-foreground backdrop-blur-xs">
-              {isVi ? 'Hội đồng Bảo vệ Khóa luận HCMUTE' : 'HCMUTE Thesis Defense Council'}
+              {copy.council.imageCaption}
             </div>
           </div>
         </div>
@@ -699,8 +683,8 @@ export default function ThesisAdvisorDirectoryPage() {
         // An outage is an outage: the directory is not rendered at all, so a
         // failure can never be mistaken for "no advisors exist".
         <ErrorState
-          title={isVi ? 'Không thể tải danh bạ giảng viên' : 'Advisor directory unavailable'}
-          description={`${error} ${isVi ? 'Danh bạ bên dưới chưa được tải nên không hiển thị.' : 'Nothing below is rendered, because the directory did not load.'}`}
+          title={copy.loadErrorTitle}
+          description={`${error} ${copy.loadErrorSuffix}`}
           onRetry={retryLoad}
         />
       ) : (
@@ -709,25 +693,25 @@ export default function ThesisAdvisorDirectoryPage() {
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div className="rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {isVi ? 'Tổng số Giảng viên' : 'Total Faculty'}
+                {copy.statsTotalFaculty}
               </p>
               <p className="mt-1 text-2xl font-bold text-foreground">{stats.total}</p>
             </div>
             <div className="rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {isVi ? 'Khoa & Bộ môn' : 'Departments'}
+                {copy.statsDepartments}
               </p>
               <p className="mt-1 text-2xl font-bold text-primary">{stats.departmentsCount}</p>
             </div>
             <div className="rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {isVi ? 'Đang mở nhận hướng dẫn' : 'Accepting Students'}
+                {copy.statsAcceptingStudents}
               </p>
               <p className="mt-1 text-2xl font-bold text-status-success-foreground">{stats.available}</p>
             </div>
             <div className="rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {isVi ? 'Đề tài đang triển khai' : 'Active Theses'}
+                {copy.statsActiveTheses}
               </p>
               <p className="mt-1 text-2xl font-bold text-foreground">{stats.activeTopicsCount}</p>
             </div>
@@ -739,8 +723,8 @@ export default function ThesisAdvisorDirectoryPage() {
               <div className="w-full sm:w-72">
                 <Input
                   type="search"
-                  aria-label={isVi ? 'Tìm giảng viên hướng dẫn' : 'Search advisors'}
-                  placeholder={isVi ? 'Tìm tên, mã GV, email, hướng nghiên cứu...' : 'Search by name, email, keyword...'}
+                  aria-label={copy.searchLabel}
+                  placeholder={copy.searchPlaceholder}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   icon={<Search className="h-4 w-4" aria-hidden="true" />}
@@ -753,7 +737,7 @@ export default function ThesisAdvisorDirectoryPage() {
                         className="h-8 px-2 text-xs"
                         onClick={() => setSearchQuery('')}
                       >
-                        {isVi ? 'Xóa' : 'Clear'}
+                        {copy.clearSearch}
                       </Button>
                     ) : undefined
                   }
@@ -762,11 +746,11 @@ export default function ThesisAdvisorDirectoryPage() {
 
               <div className="w-full sm:w-60">
                 <Select
-                  aria-label={isVi ? 'Lọc theo khoa' : 'Filter by department'}
+                  aria-label={copy.departmentFilterLabel}
                   value={selectedDepartmentId}
                   onChange={(e) => setSelectedDepartmentId(e.target.value)}
                   options={[
-                    { value: 'all', label: isVi ? 'Tất cả Khoa / Bộ môn' : 'All Departments' },
+                    { value: 'all', label: copy.allDepartments },
                     ...departments.map((d) => ({
                       value: d.id,
                       label: (isVi ? d.nameVi || d.name : d.nameEn || d.name) || d.name,
@@ -777,13 +761,13 @@ export default function ThesisAdvisorDirectoryPage() {
 
               <div className="w-full sm:w-48">
                 <Select
-                  aria-label={isVi ? 'Lọc theo chỉ tiêu' : 'Filter by quota'}
+                  aria-label={copy.quotaFilterLabel}
                   value={quotaFilter}
                   onChange={(e) => setQuotaFilter(e.target.value as 'all' | 'available' | 'full')}
                   options={[
-                    { value: 'all', label: isVi ? 'Tất cả chỉ tiêu' : 'All Quotas' },
-                    { value: 'available', label: isVi ? 'Còn nhận hướng dẫn' : 'Available' },
-                    { value: 'full', label: isVi ? 'Đã đủ chỉ tiêu' : 'Quota full' },
+                    { value: 'all', label: copy.allQuotas },
+                    { value: 'available', label: copy.quotaAvailable },
+                    { value: 'full', label: copy.quotaFull },
                   ]}
                 />
               </div>
@@ -791,12 +775,12 @@ export default function ThesisAdvisorDirectoryPage() {
 
             <div className="flex shrink-0 items-center gap-2 self-end md:self-auto">
               <Segmented
-                ariaLabel={isVi ? 'Chế độ hiển thị' : 'Display mode'}
+                ariaLabel={copy.displayModeLabel}
                 value={viewMode}
                 onChange={setViewMode}
                 options={[
-                  { value: 'grid', icon: <LayoutGrid className="h-4 w-4" />, label: isVi ? 'Lưới thẻ' : 'Cards' },
-                  { value: 'table', icon: <List className="h-4 w-4" />, label: isVi ? 'Bảng' : 'Table' },
+                  { value: 'grid', icon: <LayoutGrid className="h-4 w-4" />, label: copy.viewGrid },
+                  { value: 'table', icon: <List className="h-4 w-4" />, label: copy.viewTable },
                 ]}
               />
             </div>
@@ -805,26 +789,18 @@ export default function ThesisAdvisorDirectoryPage() {
           {lecturers.length === 0 ? (
             <EmptyState
               icon={GraduationCap}
-              title={isVi ? 'Chưa có giảng viên trong danh bạ' : 'No advisors in the directory yet'}
-              description={
-                isVi
-                  ? 'Nhà trường chưa công bố giảng viên hướng dẫn nào. Vui lòng liên hệ Khoa để được hỗ trợ.'
-                  : 'The faculty directory publishes no advisors yet. Contact your department office for assistance.'
-              }
+              title={copy.emptyDirectoryTitle}
+              description={copy.emptyDirectoryDescription}
             />
           ) : filteredLecturers.length === 0 ? (
             <EmptyState
               icon={Search}
-              title={isVi ? 'Không tìm thấy giảng viên nào phù hợp bộ lọc' : 'No advisors matched your filters'}
-              description={
-                isVi
-                  ? 'Thử đổi từ khóa tìm kiếm hoặc bỏ bộ lọc khoa/chỉ tiêu.'
-                  : 'Try a different keyword, or clear the department and quota filters.'
-              }
+              title={copy.emptyMatchTitle}
+              description={copy.emptyMatchDescription}
               action={
                 filtersActive ? (
                   <Button type="button" variant="outline" onClick={resetFilters}>
-                    {isVi ? 'Bỏ tất cả bộ lọc' : 'Clear all filters'}
+                    {copy.clearFilters}
                   </Button>
                 ) : undefined
               }
@@ -858,9 +834,7 @@ export default function ThesisAdvisorDirectoryPage() {
                               </p>
                               <div className="mt-1.5">
                                 <StatusPill tone={isAvailable ? 'success' : 'neutral'}>
-                                  {isAvailable
-                                    ? (isVi ? 'Nhận hướng dẫn' : 'Available')
-                                    : (isVi ? 'Đã đủ chỉ tiêu' : 'Full quota')}
+                                  {isAvailable ? copy.cardAvailable : copy.cardFullQuota}
                                 </StatusPill>
                               </div>
                             </div>
@@ -899,13 +873,13 @@ export default function ThesisAdvisorDirectoryPage() {
                             <div className="mb-1.5 flex items-center justify-between text-xs">
                               <span className="flex items-center gap-1 text-muted-foreground">
                                 <BookOpen className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                                <span>{isVi ? 'Tải hướng dẫn:' : 'Advising:'}</span>
+                                <span>{copy.cardAdvising}</span>
                               </span>
                               <span className="font-bold text-foreground">
-                                {workload.topicCount} / {workload.maxTopics} {isVi ? 'đề tài' : 'theses'}
+                                {workload.topicCount} / {workload.maxTopics} {copy.cardThesesSuffix}
                               </span>
                             </div>
-                            <QuotaBar {...workload} isVi={isVi} />
+                            <QuotaBar {...workload} label={copy.quotaBarLabel} />
                           </div>
                         </div>
 
@@ -917,13 +891,13 @@ export default function ThesisAdvisorDirectoryPage() {
                             className="h-9 min-w-0 flex-1 basis-32 rounded-lg text-xs font-semibold"
                             onClick={() => openAdvisor(lec)}
                           >
-                            {isVi ? 'Xem chi tiết' : 'View Bio'}
+                            {copy.viewBio}
                           </Button>
                           <LinkButton
                             href={`/dashboard/thesis?advisorId=${lec.id}&action=propose`}
                             className="h-9 min-w-0 flex-1 basis-32 justify-center rounded-lg text-xs font-semibold"
                           >
-                            {isVi ? 'Chọn hướng dẫn' : 'Select'}
+                            {copy.cardSelect}
                           </LinkButton>
                         </div>
                       </div>
@@ -939,9 +913,9 @@ export default function ThesisAdvisorDirectoryPage() {
                     variant="outline"
                     onClick={() => setGridVisibleCount((count) => count + GRID_PAGE_SIZE)}
                   >
-                    {isVi
-                      ? `Tải thêm giảng viên (${visibleLecturers.length}/${filteredLecturers.length})`
-                      : `Load more advisors (${visibleLecturers.length}/${filteredLecturers.length})`}
+                    {copy.loadMore
+                      .replace('{visible}', String(visibleLecturers.length))
+                      .replace('{total}', String(filteredLecturers.length))}
                   </Button>
                 </div>
               ) : null}
@@ -953,7 +927,7 @@ export default function ThesisAdvisorDirectoryPage() {
                 columns={tableColumns}
                 rows={pagedLecturers}
                 rowKey={(row) => row.id}
-                caption={isVi ? 'Danh sách giảng viên hướng dẫn' : 'Faculty thesis advisor directory'}
+                caption={copy.table.caption}
               />
 
               <div className="flex flex-col items-center justify-between gap-3 border-t border-border/70 px-4 py-3 sm:flex-row">
@@ -968,7 +942,7 @@ export default function ThesisAdvisorDirectoryPage() {
                 <div className="flex items-center gap-2">
                   <div className="w-36">
                     <Select
-                      aria-label={isVi ? 'Số dòng mỗi trang' : 'Rows per page'}
+                      aria-label={copy.rowsPerPage}
                       value={String(tablePageSize)}
                       onChange={(e) => {
                         setTablePageSize(Number(e.target.value) || 10);
@@ -1030,7 +1004,7 @@ export default function ThesisAdvisorDirectoryPage() {
               <AdvisorAvatar lecturer={selectedAdvisor} size="lg" />
               <div className="min-w-0">
                 <div className="font-mono text-xs text-muted-foreground">
-                  {selectedAdvisor.employeeId || '—'} • {isVi ? 'Giảng viên cơ hữu HCMUTE' : 'HCMUTE Faculty Member'}
+                  {selectedAdvisor.employeeId || '—'} • {copy.modalFacultyMember}
                 </div>
                 <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Users className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1041,26 +1015,26 @@ export default function ThesisAdvisorDirectoryPage() {
 
             <div className="grid grid-cols-2 gap-3 rounded-lg border border-border/70 bg-secondary/40 p-3 text-xs">
               <div>
-                <span className="block text-muted-foreground">{isVi ? 'Khoa / Bộ môn:' : 'Department:'}</span>
+                <span className="block text-muted-foreground">{copy.modalDepartment}</span>
                 <span className="font-semibold text-foreground">{departmentName(selectedAdvisor.departmentId)}</span>
               </div>
               <div>
-                <span className="block text-muted-foreground">{isVi ? 'Email học thuật:' : 'Email:'}</span>
+                <span className="block text-muted-foreground">{copy.modalEmail}</span>
                 <span className="font-semibold text-foreground">{selectedAdvisor.user?.email || '—'}</span>
               </div>
               <div>
-                <span className="block text-muted-foreground">{isVi ? 'Phòng làm việc:' : 'Office:'}</span>
+                <span className="block text-muted-foreground">{copy.modalOffice}</span>
                 <span className="font-semibold text-foreground">{selectedAdvisor.office || '—'}</span>
               </div>
               <div>
-                <span className="block text-muted-foreground">{isVi ? 'Điện thoại cơ quan:' : 'Phone:'}</span>
+                <span className="block text-muted-foreground">{copy.modalPhone}</span>
                 <span className="font-semibold text-foreground">{selectedAdvisor.phone || '—'}</span>
               </div>
             </div>
 
             <div>
               <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                {isVi ? 'Định hướng nghiên cứu & Chuyên môn' : 'Research Interests & Fields'}
+                {copy.modalResearchHeading}
               </h4>
               <p className="text-sm leading-relaxed text-foreground">
                 {selectedAdvisor.specialization || '—'}
@@ -1069,54 +1043,48 @@ export default function ThesisAdvisorDirectoryPage() {
 
             <div>
               <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                {isVi ? 'Tải hướng dẫn hiện tại' : 'Current supervision load'}
+                {copy.modalSupervisionHeading}
               </h4>
               <div className="space-y-2 rounded-lg border border-border/70 bg-secondary/40 p-3">
                 <div className="flex items-center justify-between text-xs font-semibold">
                   <span className="text-muted-foreground">
-                    {isVi ? 'Số đề tài đang hướng dẫn' : 'Supervised topics'}
+                    {copy.modalSupervisedTopics}
                   </span>
                   <span className="text-foreground">
                     {workloadFor(advisorWorkloadMap, selectedAdvisor.id).topicCount} /{' '}
                     {workloadFor(advisorWorkloadMap, selectedAdvisor.id).maxTopics}
                   </span>
                 </div>
-                <QuotaBar {...workloadFor(advisorWorkloadMap, selectedAdvisor.id)} isVi={isVi} />
+                <QuotaBar {...workloadFor(advisorWorkloadMap, selectedAdvisor.id)} label={copy.quotaBarLabel} />
               </div>
             </div>
 
             <div>
               <h4 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                {isVi ? 'Quy định hướng dẫn & Đăng ký' : 'Supervision Guidelines'}
+                {copy.modalGuidelinesHeading}
               </h4>
               <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
                 <li>
-                  {isVi
-                    ? 'Mỗi đề tài có 1–2 giảng viên hướng dẫn (hướng dẫn chính và đồng hướng dẫn).'
-                    : 'Each topic has 1–2 supervising lecturers (primary and co-supervisor).'}
+                  {copy.modalGuidelineOne}
                 </li>
                 <li>
-                  {isVi
-                    ? 'Mỗi nhóm đăng ký đúng một đề tài; giảng viên hướng dẫn phê duyệt hoặc từ chối kèm lý do.'
-                    : 'Each group registers exactly one topic; the supervisor approves or rejects it with a reason.'}
+                  {copy.modalGuidelineTwo}
                 </li>
                 <li>
-                  {isVi
-                    ? 'Sinh viên nên chuẩn bị đề cương sơ bộ trước khi liên hệ giảng viên.'
-                    : 'Students should prepare an initial outline before contacting a supervisor.'}
+                  {copy.modalGuidelineThree}
                 </li>
               </ul>
             </div>
 
             <div className="flex justify-end gap-2 border-t border-border/70 pt-4">
               <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
-                {isVi ? 'Đóng' : 'Close'}
+                {copy.modalClose}
               </Button>
               <LinkButton
                 href={`/dashboard/thesis?advisorId=${selectedAdvisor.id}&action=propose`}
                 onClick={() => setIsModalOpen(false)}
               >
-                {isVi ? 'Đề xuất đề tài cùng Giảng viên này' : 'Propose Topic with Advisor'}
+                {copy.modalProposeWithAdvisor}
               </LinkButton>
             </div>
           </div>

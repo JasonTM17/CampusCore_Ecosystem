@@ -19,6 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/i18n';
+import { getAssistantWindowMessages } from './assistant-messages';
 import { toast } from 'sonner';
 import type { AssistantCitation } from '@/lib/thesis-api';
 import {
@@ -165,6 +166,7 @@ export function AssistantMessages({
   scope = 'academic',
 }: AssistantMessagesProps) {
   const { messages, locale, formatDateTime } = useI18n();
+  const windowCopy = getAssistantWindowMessages(locale);
   const [openCitations, setOpenCitations] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -186,11 +188,7 @@ export function AssistantMessages({
         setCopiedId((current) => (current === message.id ? null : current));
       }, 1500);
     } catch {
-      toast.error(
-        locale === 'vi'
-          ? 'Không thể sao chép vào bộ nhớ tạm.'
-          : 'Could not copy to clipboard.',
-      );
+      toast.error(windowCopy.clipboard.copyFailed);
     }
   };
 
