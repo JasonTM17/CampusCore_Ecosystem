@@ -600,7 +600,7 @@ export function RichTextEditor({
             type="button"
             onClick={() =>
               insertSnippet(
-                `| ${isVi ? 'Tiêu chí' : 'Header 1'} | ${isVi ? 'Thông tin' : 'Header 2'} | ${isVi ? 'Ghi chú' : 'Notes'} |\n| :--- | :--- | :--- |\n| ${isVi ? 'Mục 1' : 'Row 1'} | ${isVi ? 'Giá trị A' : 'Value A'} | ${isVi ? 'Chi tiết' : 'Details'} |\n| ${isVi ? 'Mục 2' : 'Giá trị B'} | ${isVi ? 'Chi tiết' : 'Details'} |`
+                `| ${isVi ? 'Tiêu chí' : 'Header 1'} | ${isVi ? 'Thông tin' : 'Header 2'} | ${isVi ? 'Ghi chú' : 'Notes'} |\n| :--- | :--- | :--- |\n| ${isVi ? 'Mục 1' : 'Row 1'} | ${isVi ? 'Giá trị A' : 'Value A'} | ${isVi ? 'Chi tiết' : 'Details'} |\n| ${isVi ? 'Mục 2' : 'Row 2'} | ${isVi ? 'Giá trị B' : 'Value B'} | ${isVi ? 'Chi tiết' : 'Details'} |`
               )
             }
             disabled={readOnly}
@@ -611,7 +611,9 @@ export function RichTextEditor({
           </button>
           <button
             type="button"
-            onClick={() => insertSnippet('```java\n// Mã nguồn minh họa\n```')}
+            onClick={() =>
+              insertSnippet('```java\n' + (isVi ? '// Mã nguồn minh họa' : '// Sample code') + '\n```')
+            }
             disabled={readOnly}
             title={isVi ? 'Khối mã nguồn (Code block)' : 'Code block'}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"

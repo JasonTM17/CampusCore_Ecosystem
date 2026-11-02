@@ -397,40 +397,42 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
 type AlertType = 'note' | 'tip' | 'important' | 'warning' | 'caution';
 
 function AlertCallout({ type, children }: { type: AlertType; children: React.ReactNode }) {
+  const { locale } = useI18n();
+  const vi = locale === 'vi';
   const styles: Record<AlertType, { border: string; bg: string; icon: React.ReactNode; label: string; text: string }> = {
     note: {
       border: 'border-blue-500/40 dark:border-blue-400/30',
       bg: 'bg-blue-50/50 dark:bg-blue-950/20',
       icon: <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />,
-      label: 'LƯU Ý (NOTE)',
+      label: vi ? 'LƯU Ý (NOTE)' : 'NOTE',
       text: 'text-blue-900 dark:text-blue-200',
     },
     tip: {
       border: 'border-emerald-500/40 dark:border-emerald-400/30',
       bg: 'bg-emerald-50/50 dark:bg-emerald-950/20',
       icon: <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />,
-      label: 'MẸO (TIP)',
+      label: vi ? 'MẸO (TIP)' : 'TIP',
       text: 'text-emerald-900 dark:text-emerald-200',
     },
     important: {
       border: 'border-purple-500/40 dark:border-purple-400/30',
       bg: 'bg-purple-50/50 dark:bg-purple-950/20',
       icon: <AlertCircle className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />,
-      label: 'QUAN TRỌNG (IMPORTANT)',
+      label: vi ? 'QUAN TRỌNG (IMPORTANT)' : 'IMPORTANT',
       text: 'text-purple-900 dark:text-purple-200',
     },
     warning: {
       border: 'border-amber-500/40 dark:border-amber-400/30',
       bg: 'bg-amber-50/50 dark:bg-amber-950/20',
       icon: <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />,
-      label: 'CẢNH BÁO (WARNING)',
+      label: vi ? 'CẢNH BÁO (WARNING)' : 'WARNING',
       text: 'text-amber-900 dark:text-amber-200',
     },
     caution: {
       border: 'border-rose-500/40 dark:border-rose-400/30',
       bg: 'bg-rose-50/50 dark:bg-rose-950/20',
       icon: <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />,
-      label: 'CHÚ Ý NGUY CƠ (CAUTION)',
+      label: vi ? 'CHÚ Ý NGUY CƠ (CAUTION)' : 'CAUTION',
       text: 'text-rose-900 dark:text-rose-200',
     },
   };
