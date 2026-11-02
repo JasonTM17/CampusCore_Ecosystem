@@ -126,23 +126,39 @@ async function assertPortAvailable(portValue, label) {
 async function startFrontend() {
   const onWindows = process.platform === 'win32';
   const command = onWindows ? (process.env.ComSpec || 'cmd.exe') : 'npm';
+  // Keep browser requests same-origin so the Next proxy forwards the
+  // session/CSRF cookies to the isolated API.  A direct cross-origin
+  // browser URL would bypass the proxy and make authenticated evidence
+  // depend on an unconfigured CORS policy. NEXT_PUBLIC_* is inlined at
+  // build time, so the same env must cover both the build and the serve.
+  const env = {
+    ...process.env,
+    NEXT_PUBLIC_API_URL: '/api/v1',
+    JAVA_API_ORIGIN: new URL(apiBaseURL).origin,
+  };
+  const serveMode = process.env.E2E_FRONTEND_SERVE || 'dev';
+  if (serveMode === 'start' && !process.env.E2E_FRONTEND_SKIP_BUILD) {
+    // next dev recompiles routes on demand and can stall e2e budgets on a
+    // contended host; next start serves precompiled output. The build must
+    // run from the runner so NEXT_PUBLIC_API_URL is set inside Node — a
+    // Git-Bash env prefix is MSYS2-mangled into the client bundle.
+    const buildArgs = onWindows ? ['/d', '/s', '/c', 'npm.cmd', 'run', 'build'] : ['run', 'build'];
+    await new Promise((resolve, reject) => {
+      const build = spawn(command, buildArgs, { cwd: frontendDir, env, stdio: 'inherit', shell: false });
+      build.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`frontend build failed (exit ${code})`))));
+      build.on('error', reject);
+    });
+  }
+  const script = serveMode === 'start' ? 'start' : 'dev';
   const args = onWindows
-    ? ['/d', '/s', '/c', 'npm.cmd', 'run', 'dev', '--', '--hostname', '127.0.0.1', '--port', frontendPort]
-    : ['run', 'dev', '--', '--hostname', '127.0.0.1', '--port', frontendPort];
+    ? ['/d', '/s', '/c', 'npm.cmd', 'run', script, '--', '--hostname', '127.0.0.1', '--port', frontendPort]
+    : ['run', script, '--', '--hostname', '127.0.0.1', '--port', frontendPort];
   return spawn(
     command,
     args,
     {
     cwd: frontendDir,
-    env: {
-      ...process.env,
-      // Keep browser requests same-origin so the Next proxy forwards the
-      // session/CSRF cookies to the isolated API.  A direct cross-origin
-      // browser URL would bypass the proxy and make authenticated evidence
-      // depend on an unconfigured CORS policy.
-      NEXT_PUBLIC_API_URL: '/api/v1',
-      JAVA_API_ORIGIN: new URL(apiBaseURL).origin,
-    },
+    env,
     stdio: 'inherit',
     shell: false,
     },
