@@ -1,15 +1,18 @@
 package io.campuscore.restfulapi.thesis.service;
 
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.thesis.repository.ThesisGroupReadRepository;
+import io.campuscore.restfulapi.thesis.repository.ThesisGroupReadRepository.GroupRead;
 import io.campuscore.restfulapi.thesis.repository.ThesisRoundReadPort;
 import io.campuscore.restfulapi.thesis.web.ThesisGroupReadDtos.GroupResponse;
 import io.campuscore.restfulapi.web.DomainException;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -33,9 +36,32 @@ public class ThesisGroupReadService {
             String studentId,
             String lecturerId,
             String subject) {
+        return read(roundId, roles, studentId, lecturerId, subject, null).items();
+    }
+
+    /** Database-paged variant of {@link #list}; the legacy method stays complete. */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public ListPaging.Result<GroupResponse> listPage(
+            UUID roundId,
+            List<String> roles,
+            String studentId,
+            String lecturerId,
+            String subject,
+            ListPaging.Window window) {
+        GroupRead read = read(roundId, roles, studentId, lecturerId, subject, window);
+        return new ListPaging.Result<>(read.items(), read.total());
+    }
+
+    private GroupRead read(
+            UUID roundId,
+            List<String> roles,
+            String studentId,
+            String lecturerId,
+            String subject,
+            ListPaging.Window window) {
         rounds.requireExisting(roundId);
         if (isFacultyAdmin(roles)) {
-            return groups.findByRoundId(roundId);
+            return groups.findByRoundId(roundId, window);
         }
         // Governance readers are scoped like the dean overview: a faculty
         // head sees only their faculty, a department head only their
@@ -46,23 +72,24 @@ public class ThesisGroupReadService {
         if (roles.contains("TRUONG_KHOA") || roles.contains("TRUONG_BO_MON")) {
             ThesisGroupReadRepository.LecturerScope scope = lecturerScope(roles, lecturerId, subject);
             if (scope == null) {
-                return List.of();
+                return new GroupRead(List.of(), window == null ? null : 0L, Set.of());
             }
-            List<GroupResponse> scoped = roles.contains("TRUONG_KHOA")
-                    ? groups.findByRoundIdAndFacultyId(roundId, scope.facultyId())
-                    : groups.findByRoundIdAndDepartmentId(roundId, scope.departmentId());
-            List<GroupResponse> supervised = lecturerId == null || lecturerId.isBlank()
-                    ? List.of()
-                    : groups.findByRoundIdAndSupervisorId(roundId, lecturerId);
-            return mergeScopedWithSupervised(scoped, supervised, lecturerId);
+            GroupRead scoped = roles.contains("TRUONG_KHOA")
+                    ? groups.findByRoundIdAndFacultyId(
+                            roundId, scope.facultyId(), lecturerId, window)
+                    : groups.findByRoundIdAndDepartmentId(
+                            roundId, scope.departmentId(), lecturerId, window);
+            return new GroupRead(maskGovernance(scoped), scoped.total(), Set.of());
         }
         if (roles.contains("LECTURER")) {
             // External members declare an email/phone in `contact`, so a
             // lecturer only sees the groups whose topic they supervise — the
             // same supervisor rule the report-read path applies.
-            return groups.findByRoundIdAndSupervisorId(roundId, requireLecturerId(lecturerId));
+            return groups.findByRoundIdAndSupervisorId(
+                    roundId, requireLecturerId(lecturerId), window);
         }
-        return groups.findByRoundIdAndStudentId(roundId, requireStudentId(roles, studentId));
+        return groups.findByRoundIdAndStudentId(
+                roundId, requireStudentId(roles, studentId), window);
     }
 
     /**
@@ -118,18 +145,12 @@ public class ThesisGroupReadService {
         return group;
     }
 
-    /** Merge the governance-scoped groups with any group the caller supervises. */
-    private List<GroupResponse> mergeScopedWithSupervised(
-            List<GroupResponse> scoped, List<GroupResponse> supervised, String lecturerId) {
-        Map<UUID, GroupResponse> merged = new java.util.LinkedHashMap<>();
-        for (GroupResponse group : scoped) {
-            merged.put(group.id(), group);
-        }
-        for (GroupResponse group : supervised) {
-            merged.putIfAbsent(group.id(), group);
-        }
-        return merged.values().stream()
-                .map(group -> isSupervisedGroup(group, lecturerId) ? group : withoutContacts(group))
+    /** Contact masking uses the page's projected supervision flag, never a per-group lookup. */
+    private static List<GroupResponse> maskGovernance(GroupRead read) {
+        return read.items().stream()
+                .map(group -> read.supervisedGroupIds().contains(group.id())
+                        ? group
+                        : withoutContacts(group))
                 .toList();
     }
 
