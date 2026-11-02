@@ -123,18 +123,25 @@ public class AdmissionService {
 
     public ListPaging.Result<StaffGrantResponse> listGrants(String actorId,
             List<String> actorRoles, ListPaging.Window window) {
-        if (actorRoles == null || !(actorRoles.contains("ADMIN") || actorRoles.contains("SUPER_ADMIN"))) {
+        boolean administrator = actorRoles != null
+                && (actorRoles.contains("ADMIN") || actorRoles.contains("SUPER_ADMIN"));
+        if (!administrator) {
             requireStaffGrant(actorId);
         }
         MapSqlParameterSource params = new MapSqlParameterSource("scope", SCOPE);
+        String scopeFilter = " WHERE \"scope\" = :scope";
+        if (!administrator) {
+            scopeFilter += " AND \"userId\" = :actor";
+            params.addValue("actor", actorId);
+        }
         Long total = null;
         if (window != null) {
             total = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope",
+                    "SELECT COUNT(*) FROM " + STAFF_GRANT + scopeFilter,
                     params, Long.class);
         }
         String sql = "SELECT \"id\", \"userId\", \"scope\", \"grantedBy\", \"createdAt\""
-                + " FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope ORDER BY \"createdAt\"";
+                + " FROM " + STAFF_GRANT + scopeFilter + " ORDER BY \"createdAt\"";
         if (window != null) {
             sql += ", \"id\" LIMIT :limit OFFSET :offset";
             params.addValue("limit", window.limit()).addValue("offset", window.offset());

@@ -376,9 +376,18 @@ class AdmissionContractPersistenceTest {
                 .andExpect(jsonPath("$[?(@.userId=='staff-1')].id").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.userId=='staff-1' && @.scope=='admissions')].grantedBy").isNotEmpty())
                 .andExpect(jsonPath("$[?(@.userId=='staff-1')].createdAt").isNotEmpty());
-        mvc.perform(get("/api/v1/admissions/staff/grants").with(staffJwt))
+        MvcResult adminPage = mvc.perform(get("/api/v1/admissions/staff/grants?page=0&limit=20").with(adminJwt))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].scope").value("admissions"));
+                .andExpect(header().string("X-Total-Count", "2"))
+                .andReturn();
+        assertThat(objectMapper.readTree(adminPage.getResponse().getContentAsString()).size()).isEqualTo(2);
+
+        MvcResult staffPage = mvc.perform(get("/api/v1/admissions/staff/grants?page=0&limit=20").with(staffJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "1"))
+                .andExpect(jsonPath("$[0].userId").value("staff-1"))
+                .andReturn();
+        assertThat(objectMapper.readTree(staffPage.getResponse().getContentAsString()).size()).isEqualTo(1);
 
         mvc.perform(get("/api/v1/admissions/staff/grants").with(ungrantedStaffJwt))
                 .andExpect(status().isForbidden())
