@@ -273,18 +273,19 @@ public class AnnouncementReadRepository {
         }
         List<String> tokens = LikePattern.tokens(filter.search());
         if (!tokens.isEmpty()) {
-            parameters.addValue("foldFrom", LikePattern.FOLD_FROM);
-            parameters.addValue("foldTo", LikePattern.FOLD_TO);
             for (int i = 0; i < tokens.size(); i++) {
                 String paramName = "searchToken" + i;
                 parameters.addValue(paramName, tokens.get(i));
-                conditions.add("(TRANSLATE(LOWER(COALESCE(\"title\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\'"
-                        + " OR TRANSLATE(LOWER(COALESCE(\"content\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\'"
-                        + " OR TRANSLATE(LOWER(COALESCE(\"slug\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\'"
-                        + " OR TRANSLATE(LOWER(COALESCE(\"courseCode\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\'"
-                        + " OR TRANSLATE(LOWER(COALESCE(\"courseName\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\'"
-                        + " OR TRANSLATE(LOWER(COALESCE(\"semesterName\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\'"
-                        + " OR TRANSLATE(LOWER(COALESCE(\"lecturerDisplayName\", '')), :foldFrom, :foldTo) LIKE :" + paramName + " ESCAPE '\\')");
+                // V147 stores the folded value per field. Keep the exact
+                // LIKE/ESCAPE semantics and the OR-across-fields, AND-across-
+                // tokens shape; only the per-row TRANSLATE is gone.
+                conditions.add("(\"foldedTitle\" LIKE :" + paramName + " ESCAPE '\\'"
+                        + " OR \"foldedContent\" LIKE :" + paramName + " ESCAPE '\\'"
+                        + " OR \"foldedSlug\" LIKE :" + paramName + " ESCAPE '\\'"
+                        + " OR \"foldedCourseCode\" LIKE :" + paramName + " ESCAPE '\\'"
+                        + " OR \"foldedCourseName\" LIKE :" + paramName + " ESCAPE '\\'"
+                        + " OR \"foldedSemesterName\" LIKE :" + paramName + " ESCAPE '\\'"
+                        + " OR \"foldedLecturerDisplayName\" LIKE :" + paramName + " ESCAPE '\\')");
             }
         }
         return new SqlWhere(where(conditions), parameters);
