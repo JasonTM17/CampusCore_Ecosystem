@@ -1,6 +1,7 @@
 package io.campuscore.restfulapi.academic;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -325,6 +326,100 @@ class AcademicEnrollmentReadPersistenceTest {
                 .andExpect(jsonPath("$.summary.cumulativeGpa").value(4.0))
                 .andExpect(jsonPath("$.summary.totalCreditsEarned").value(10))
                 .andExpect(jsonPath("$.summary.totalCreditsAttempted").value(10));
+    }
+
+    @Test
+    void publishedGradeTotalsUseRegistrationCreditsSnapshotAfterCatalogueChange() throws Exception {
+        // enrollment-2 is a 3-credit SE401 registration; publish it with B (3.0).
+        jdbc.update("UPDATE \"academic\".\"Enrollment\" SET \"status\" = 'COMPLETED',"
+                + " \"gradeStatus\" = 'PUBLISHED', \"finalGrade\" = 75.00, \"letterGrade\" = 'B'"
+                + " WHERE \"id\" = 'enrollment-2'");
+
+        assertThat(snapshotCredits("enrollment-2")).isEqualTo(3);
+
+        // CS101 (4cr, A = 4.0) + SE401 (3cr, B = 3.0): (16 + 9) / 7 = 3.57.
+        mvc.perform(get("/api/v1/enrollments/my/grades").with(studentJwt("student-user-1", "student-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[1].id").value("enrollment-2"))
+                .andExpect(jsonPath("$[1].credits").value(3))
+                .andExpect(jsonPath("$[1].letterGrade").value("B"));
+
+        mvc.perform(get("/api/v1/enrollments/my/transcript").with(studentJwt("student-user-1", "student-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.cumulativeGpa").value(3.57))
+                .andExpect(jsonPath("$.summary.totalCreditsEarned").value(7))
+                .andExpect(jsonPath("$.summary.totalCreditsAttempted").value(7))
+                .andExpect(jsonPath("$.semesters[0].gpa").value(3.57))
+                .andExpect(jsonPath("$.semesters[0].creditsEarned").value(7))
+                .andExpect(jsonPath("$.semesters[0].creditsAttempted").value(7));
+
+        // Catalogue maintenance changes the live course to 4 credits. The
+        // published record was registered at 3 and must not be repriced.
+        jdbc.update("UPDATE \"academic\".\"Course\" SET \"credits\" = 4 WHERE \"id\" = 'course-2'");
+
+        assertThat(snapshotCredits("enrollment-2")).isEqualTo(3);
+        mvc.perform(get("/api/v1/enrollments/my/grades").with(studentJwt("student-user-1", "student-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[1].credits").value(3));
+        mvc.perform(get("/api/v1/enrollments/my/transcript").with(studentJwt("student-user-1", "student-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.cumulativeGpa").value(3.57))
+                .andExpect(jsonPath("$.summary.totalCreditsEarned").value(7))
+                .andExpect(jsonPath("$.summary.totalCreditsAttempted").value(7));
+
+        // A registration made after the catalogue edit snapshots the new 4.
+        insertEnrollment("enrollment-4", "student-1", "section-2", "ENROLLED", "DRAFT", null, null, 40);
+        assertThat(snapshotCredits("enrollment-4")).isEqualTo(4);
+        mvc.perform(get("/api/v1/enrollments/my/grades").with(studentJwt("student-user-1", "student-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[1].credits").value(3));
+    }
+
+    @Test
+    void differentCreditRetakesAndAppealedRowsKeepTheirOwnSnapshot() throws Exception {
+        insertCourse("course-retake", "CS105", "Discrete Math", "Discrete Math", "Toan roi rac", 3);
+        insertSection("section-retake-f", "R1", "course-retake");
+        // Attempt 1 registered at 3 credits and failed.
+        insertEnrollment("enrollment-retake-f", "student-1", "section-retake-f",
+                "COMPLETED", "PUBLISHED", "40.00", "F", 20);
+
+        // The catalogue grows to 4 before the pass-only retake registers.
+        jdbc.update("UPDATE \"academic\".\"Course\" SET \"credits\" = 4 WHERE \"id\" = 'course-retake'");
+        insertSection("section-retake-p", "R2", "course-retake");
+        insertEnrollment("enrollment-retake-p", "student-1", "section-retake-p",
+                "COMPLETED", "PUBLISHED", null, null, 21);
+
+        // A later catalogue edit must not rewrite either historical attempt.
+        jdbc.update("UPDATE \"academic\".\"Course\" SET \"credits\" = 5 WHERE \"id\" = 'course-retake'");
+        jdbc.update("UPDATE \"academic\".\"Enrollment\" SET \"gradeStatus\" = 'APPEALED'"
+                + " WHERE \"id\" = 'enrollment-1'");
+
+        mvc.perform(get("/api/v1/enrollments/my/grades").with(studentJwt("student-user-1", "student-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[?(@.id == 'enrollment-1')].gradeStatus", contains("APPEALED")))
+                .andExpect(jsonPath("$[?(@.id == 'enrollment-1')].credits", contains(4)))
+                .andExpect(jsonPath("$[?(@.id == 'enrollment-retake-f')].credits", contains(3)))
+                .andExpect(jsonPath("$[?(@.id == 'enrollment-retake-f')].letterGrade", contains("F")))
+                .andExpect(jsonPath("$[?(@.id == 'enrollment-retake-p')].credits", contains(4)));
+
+        // Per-semester totals count every attempt by its own snapshot; the
+        // cumulative summary keeps the best attempt (the 4-credit pass).
+        mvc.perform(get("/api/v1/enrollments/my/transcript").with(studentJwt("student-user-1", "student-1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.cumulativeGpa").value(4.0))
+                .andExpect(jsonPath("$.summary.totalCreditsEarned").value(8))
+                .andExpect(jsonPath("$.summary.totalCreditsAttempted").value(8))
+                .andExpect(jsonPath("$.semesters[0].creditsEarned").value(8))
+                .andExpect(jsonPath("$.semesters[0].creditsAttempted").value(11));
+    }
+
+    private Integer snapshotCredits(String enrollmentId) {
+        return jdbc.queryForObject(
+                "SELECT \"creditsSnapshot\" FROM \"academic\".\"Enrollment\" WHERE \"id\" = ?",
+                Integer.class,
+                enrollmentId);
     }
 
     @Test
@@ -699,6 +794,8 @@ class AcademicEnrollmentReadPersistenceTest {
                     "gradeStatus" VARCHAR(40) NOT NULL,
                     "finalGrade" DECIMAL(5, 2),
                     "letterGrade" VARCHAR(10),
+                    "creditsSnapshot" INTEGER NOT NULL,
+                    "version" INTEGER NOT NULL DEFAULT 0,
                     "createdAt" TIMESTAMP NOT NULL,
                     "updatedAt" TIMESTAMP NOT NULL
                 )
@@ -906,12 +1003,27 @@ class AcademicEnrollmentReadPersistenceTest {
             String finalGrade,
             String letterGrade,
             long days) {
+        insertEnrollment(id, studentId, sectionId, status, gradeStatus, finalGrade, letterGrade, days,
+                registrationCredits(sectionId));
+    }
+
+    private void insertEnrollment(
+            String id,
+            String studentId,
+            String sectionId,
+            String status,
+            String gradeStatus,
+            String finalGrade,
+            String letterGrade,
+            long days,
+            int creditsSnapshot) {
         jdbc.execute((ConnectionCallback<Void>) connection -> {
             try (PreparedStatement statement = connection.prepareStatement("""
                     INSERT INTO "academic"."Enrollment" (
                         "id", "studentId", "sectionId", "semesterId", "status", "enrolledAt",
-                        "droppedAt", "gradeStatus", "finalGrade", "letterGrade", "createdAt", "updatedAt"
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        "droppedAt", "gradeStatus", "finalGrade", "letterGrade", "createdAt", "updatedAt",
+                        "creditsSnapshot", "version"
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                     """)) {
                 statement.setString(1, id);
                 statement.setString(2, studentId);
@@ -929,10 +1041,26 @@ class AcademicEnrollmentReadPersistenceTest {
                 statement.setString(10, letterGrade);
                 statement.setObject(11, localDateTime(BASE_TIME), Types.TIMESTAMP);
                 statement.setObject(12, localDateTime(BASE_TIME), Types.TIMESTAMP);
+                statement.setInt(13, creditsSnapshot);
                 statement.executeUpdate();
             }
             return null;
         });
+    }
+
+    /**
+     * Registration snapshots the catalogue credits at the time of enrollment.
+     * Resolve them here so a fixture enrollment behaves like one created by the
+     * registration service instead of backfilling from the live catalogue.
+     */
+    private int registrationCredits(String sectionId) {
+        Integer credits = jdbc.queryForObject(
+                "SELECT course.\"credits\" FROM \"academic\".\"Section\" section"
+                        + " JOIN \"academic\".\"Course\" course ON course.\"id\" = section.\"courseId\""
+                        + " WHERE section.\"id\" = ?",
+                Integer.class,
+                sectionId);
+        return credits == null ? 0 : credits;
     }
 
     private void insertGradeItem(

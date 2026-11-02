@@ -325,7 +325,8 @@ public class AcademicMutationService {
         List<String> enrollmentIds = List.copyOf(mergedGrades.keySet());
         List<Map<String, Object>> enrollmentRows = jdbc.queryForList(
                 "SELECT \"id\", \"studentId\" AS student_id, \"sectionId\" AS section_id, \"status\","
-                        + " \"gradeStatus\" AS grade_status, \"finalGrade\" AS final_grade, \"letterGrade\" AS letter_grade"
+                        + " \"gradeStatus\" AS grade_status, \"finalGrade\" AS final_grade, \"letterGrade\" AS letter_grade,"
+                        + " \"version\""
                         + " FROM " + ENROLLMENT + " WHERE \"id\" IN (:ids) ORDER BY \"id\" FOR UPDATE",
                 new MapSqlParameterSource("ids", enrollmentIds));
 
@@ -355,6 +356,13 @@ public class AcademicMutationService {
                 // record: an API replay must not silently flip them back to draft.
                 throw problem(HttpStatus.CONFLICT, "GRADES_PUBLISHED_LOCKED",
                         "Published grades can no longer be edited");
+            }
+            // Optional optimistic guard: a client that sends the version it
+            // loaded is rejected when another editor moved the row first. The
+            // whole batch is refused, so one stale row cannot half-apply.
+            int expectedVersion = storedVersion(enrollment);
+            if (grade.version() != null && grade.version() != expectedVersion) {
+                throw staleVersion();
             }
             // Both-null clears a mistakenly saved draft: the batch DELETE below
             // removes the component rows and the enrollment update restores the
@@ -394,6 +402,7 @@ public class AcademicMutationService {
                     .addValue("finalGrade", total)
                     .addValue("letterGrade", total == null ? null : letterGrade(total))
                     .addValue("gradeStatus", cleared ? "NOT_GRADED" : "DRAFT")
+                    .addValue("expectedVersion", expectedVersion)
                     .addValue("id", grade.enrollmentId()));
         }
 
@@ -417,11 +426,20 @@ public class AcademicMutationService {
                 componentBatch.toArray(new MapSqlParameterSource[0]));
 
         // Batch update enrollment final grades and status — cleared rows carry
-        // NOT_GRADED in the batch so the statement must read the parameter.
-        jdbc.batchUpdate(
+        // NOT_GRADED in the batch so the statement must read the parameter. The
+        // version predicate is the final guard: a zero-row update means the
+        // row moved despite the lock and the whole batch must roll back.
+        int[] enrollmentUpdates = jdbc.batchUpdate(
                 "UPDATE " + ENROLLMENT + " SET \"finalGrade\" = :finalGrade, \"letterGrade\" = :letterGrade,"
-                        + " \"gradeStatus\" = :gradeStatus, \"updatedAt\" = CURRENT_TIMESTAMP WHERE \"id\" = :id",
+                        + " \"gradeStatus\" = :gradeStatus, \"updatedAt\" = CURRENT_TIMESTAMP,"
+                        + " \"version\" = \"version\" + 1"
+                        + " WHERE \"id\" = :id AND \"version\" = :expectedVersion",
                 enrollmentBatch.toArray(new MapSqlParameterSource[0]));
+        for (int updatedRows : enrollmentUpdates) {
+            if (updatedRows == 0) {
+                throw staleVersion();
+            }
+        }
 
         // One fixed-shape state pair per enrollment avoids a section-sized audit
         // payload. Scores stay in the authorized store, never in summaries/logs.
@@ -502,7 +520,8 @@ public class AcademicMutationService {
         String sectionLabel = sectionLabel(sectionId);
         int updated = jdbc.update(
                 "UPDATE " + ENROLLMENT + " SET \"gradeStatus\" = 'PUBLISHED', \"status\" = 'COMPLETED',"
-                        + " \"updatedAt\" = CURRENT_TIMESTAMP WHERE \"sectionId\" = :sectionId"
+                        + " \"updatedAt\" = CURRENT_TIMESTAMP, \"version\" = \"version\" + 1"
+                        + " WHERE \"sectionId\" = :sectionId"
                         + " AND \"status\" IN (:gradeableStatuses)"
                         // A repeat publish must not re-touch or re-notify rows
                         // already published; IS DISTINCT FROM keeps NULL-gradeStatus
@@ -584,10 +603,14 @@ public class AcademicMutationService {
         }
     }
 
-    /** Auth user ids of enrollments matching the exact publish predicate. */
+    /**
+     * Auth user ids of enrollments matching the exact publish predicate. A
+     * failed lookup propagates so the publication transaction rolls back
+     * instead of silently committing grades with no notification audience; a
+     * successfully queried empty audience is still valid.
+     */
     private List<String> publishAudience(String sectionId) {
-        try {
-            return jdbc.queryForList(
+        return jdbc.queryForList(
                 "SELECT DISTINCT student.\"userId\" FROM " + ENROLLMENT + " e"
                         + " JOIN " + STUDENT + " student ON student.\"id\" = e.\"studentId\""
                         + " WHERE e.\"sectionId\" = :sectionId"
@@ -598,12 +621,6 @@ public class AcademicMutationService {
                 new MapSqlParameterSource("sectionId", sectionId)
                         .addValue("gradeableStatuses", GRADEABLE_STATUSES),
                 String.class);
-        } catch (DataAccessException exception) {
-            // Fixtures or deployments without the Student/notification join
-            // tables must still publish grades; the fan-out just has no
-            // audience to reach.
-            return List.of();
-        }
     }
 
     private String sectionLabel(String sectionId) {
@@ -765,6 +782,15 @@ public class AcademicMutationService {
 
     private static DomainException problem(HttpStatus status, String code, String message) {
         return new DomainException(status, code, message);
+    }
+
+    private static DomainException staleVersion() {
+        return problem(HttpStatus.CONFLICT, "STALE_VERSION", "The record changed; reload before editing");
+    }
+
+    private static int storedVersion(Map<String, Object> enrollment) {
+        Object version = enrollment.get("version");
+        return version == null ? 0 : ((Number) version).intValue();
     }
 
     /** Defense-in-depth score bound; the web DTO also enforces 0..10 via @DecimalMin/@DecimalMax. */

@@ -3,6 +3,7 @@ package io.campuscore.restfulapi.academic.web;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -28,6 +29,12 @@ public final class AcademicMutationDtos {
     public record GradeUpdate(
             @NotBlank String enrollmentId,
             @DecimalMin("0.0") @DecimalMax("10.0") BigDecimal processScore,
-            @DecimalMin("0.0") @DecimalMax("10.0") BigDecimal finalExamScore) {
+            @DecimalMin("0.0") @DecimalMax("10.0") BigDecimal finalExamScore,
+            @Min(0) Integer version) {
+
+        /** Compatibility for callers that have not adopted the optional version yet. */
+        public GradeUpdate(String enrollmentId, BigDecimal processScore, BigDecimal finalExamScore) {
+            this(enrollmentId, processScore, finalExamScore, null);
+        }
     }
 }
