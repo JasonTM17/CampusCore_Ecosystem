@@ -124,6 +124,7 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
     if (sheet) applySheet(sheet);
     void sheetQuery.reload();
   };
+  const refreshSheet = () => { void sheetQuery.reload(); };
 
   const saveAttendance = async () => {
     const records = buildAttendanceRecords(rows);
@@ -179,6 +180,8 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
       error={queryError}
       warning={preview ? null : sectionsQuery.warning ?? sheetQuery.warning}
       onRetry={() => { void sectionsQuery.reload(); void sheetQuery.reload(); }}
+      onRefresh={preview ? undefined : refreshSheet}
+      refreshing={!preview && sheetQuery.isStale}
 
       list={{ data: shown, keyExtractor: (item, index) => String(item.studentId),
         renderItem: ({ item: row }) => (
@@ -227,7 +230,14 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
                   { icon: 'percent-outline', label: copy.rateLabel, value: `${metrics.rate.toFixed(0)}%` },
                 ]}
               />
-              {remoteChanged ? <Notice tone="warning" message={copy.stale} actionLabel={copy.reload} onAction={reloadSheet} /> : null}
+              {remoteChanged ? (
+                <Notice
+                  tone="warning"
+                  message={copy.stale}
+                  actionLabel={busy ? undefined : copy.reload}
+                  onAction={busy ? undefined : reloadSheet}
+                />
+              ) : null}
               <SearchBar
                 value={search}
                 onChangeText={(value) => { setSearch(value); setPages(1); }}

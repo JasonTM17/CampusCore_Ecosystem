@@ -11,6 +11,7 @@ import { localIsoDate } from '../../src/screens/operations/lecturer-model';
 const mockRuntime = {
   mode: 'live' as 'live' | 'preview',
   queries: {} as Record<string, unknown>,
+  reloads: {} as Record<string, ReturnType<typeof jest.fn>>,
   saveAttendance: jest.fn(async (..._args: unknown[]) => 1),
   saveGrades: jest.fn(async (..._args: unknown[]) => undefined),
 };
@@ -28,7 +29,7 @@ jest.mock('../../src/hooks/useScreenQuery', () => ({
     errorStatus: null,
     isLoading: false,
     isStale: false,
-    reload: jest.fn(async () => {}),
+    reload: mockRuntime.reloads[key] ?? (mockRuntime.reloads[key] = jest.fn(async () => {})),
     setData: jest.fn(),
   }),
 }));
@@ -50,8 +51,9 @@ jest.mock('../../src/screens/operations/lecturer-ui', () => {
   const actual = jest.requireActual('../../src/screens/operations/lecturer-ui') as typeof import('../../src/screens/operations/lecturer-ui');
   return {
     ...actual,
-    OpsShell: ({ children, list }: {
+    OpsShell: ({ children, list, onRefresh }: {
       children: ReactNode;
+      onRefresh?: () => void;
       list?: {
         data: readonly unknown[];
         renderItem: (info: { item: unknown; index: number }) => ReactNode;
@@ -60,6 +62,12 @@ jest.mock('../../src/screens/operations/lecturer-ui', () => {
     }) => React.createElement(
       Native.View,
       null,
+      onRefresh ? React.createElement(Native.Pressable, {
+        testID: 'pull-to-refresh',
+        accessibilityRole: 'button',
+        accessibilityLabel: 'Pull to refresh',
+        onPress: onRefresh,
+      }) : null,
       children,
       ...(list?.data.map((item, index) => React.createElement(
         React.Fragment,
@@ -90,9 +98,12 @@ jest.mock('../../src/screens/operations/lecturer-ui', () => {
     HandoffButton: () => null,
   };
 });
+jest.mock('../../src/screens/lanes/LaneEntries', () => ({ LaneEntries: () => null }));
 
+import { LecturerDashboardScreen } from '../../src/screens/operations/LecturerDashboardScreen';
 import { LecturerAttendanceScreen } from '../../src/screens/operations/LecturerAttendanceScreen';
 import { LecturerGradingScreen } from '../../src/screens/operations/LecturerGradingScreen';
+import { LecturerScheduleScreen } from '../../src/screens/operations/LecturerScheduleScreen';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -126,15 +137,15 @@ const gradeSheetB = {
 const navigation = { navigate: jest.fn(), navigateLane: jest.fn(), goBack: jest.fn() };
 const props = { navigation, role: 'lecturer', selectedThesisTopicId: null } as unknown as MobileScreenProps;
 
-const renderScreen = (element: ReactElement, locale: 'vi' | 'en' = 'vi') =>
-  render(
-    <LocaleProvider initialLocale={locale}>
-      <ThemeProvider forcedScheme="light">{element}</ThemeProvider>
-    </LocaleProvider>,
-  );
+const screenElement = (element: ReactElement, locale: 'vi' | 'en' = 'vi') =>
+  <LocaleProvider initialLocale={locale}>
+    <ThemeProvider forcedScheme="light">{element}</ThemeProvider>
+  </LocaleProvider>;
+const renderScreen = (element: ReactElement, locale: 'vi' | 'en' = 'vi') => render(screenElement(element, locale));
 
 beforeEach(() => {
   mockRuntime.mode = 'live';
+  mockRuntime.reloads = {};
   mockRuntime.queries = {
     'lecturer:schedule': sections,
     [`lecturer:sheet:section-a:${today}`]: attendanceSheetA,
@@ -145,6 +156,32 @@ beforeEach(() => {
   };
   mockRuntime.saveAttendance.mockReset().mockResolvedValue(1);
   mockRuntime.saveGrades.mockReset().mockResolvedValue(undefined);
+});
+
+test('lecturer dashboard pull-to-refresh reloads both dashboard queries', async () => {
+  await renderScreen(<LecturerDashboardScreen {...props} />);
+  await fireEvent.press(screen.getByTestId('pull-to-refresh'));
+  expect(mockRuntime.reloads['lecturer:schedule']).toHaveBeenCalledTimes(1);
+  expect(mockRuntime.reloads['lecturer:grading']).toHaveBeenCalledTimes(1);
+});
+
+test('lecturer schedule pull-to-refresh reloads its schedule query', async () => {
+  await renderScreen(<LecturerScheduleScreen {...props} />);
+  await fireEvent.press(screen.getByTestId('pull-to-refresh'));
+  expect(mockRuntime.reloads['lecturer:schedule']).toHaveBeenCalledTimes(1);
+});
+
+test('lecturer grading pull-to-refresh reloads sections and the active grade sheet', async () => {
+  await renderScreen(<LecturerGradingScreen {...props} />);
+  await fireEvent.press(screen.getByTestId('pull-to-refresh'));
+  expect(mockRuntime.reloads['lecturer:grading']).toHaveBeenCalledTimes(1);
+  expect(mockRuntime.reloads['lecturer:grades:section-a']).toHaveBeenCalledTimes(1);
+});
+
+test('lecturer attendance pull-to-refresh reloads the active sheet', async () => {
+  await renderScreen(<LecturerAttendanceScreen {...props} />);
+  await fireEvent.press(screen.getByTestId('pull-to-refresh'));
+  expect(mockRuntime.reloads[`lecturer:sheet:section-a:${today}`]).toHaveBeenCalledTimes(1);
 });
 
 test('a deferred attendance save does not apply section A state to section B', async () => {
@@ -251,4 +288,66 @@ test('a grading save for a revisited section preserves its new draft', async () 
 
   expect(screen.getByText(fillCopy(operationsMessages.en.scoresSaved, { n: 1 }))).toBeTruthy();
   expect(screen.getByLabelText(processLabelA).props.value).toBe('8');
+});
+
+test('attendance refresh during a pending save preserves the dirty rows and baseline', async () => {
+  const pending = deferred<number>();
+  mockRuntime.saveAttendance.mockReturnValueOnce(pending.promise);
+  const view = await renderScreen(<LecturerAttendanceScreen {...props} />);
+  await screen.findByText('Alpha');
+
+  const markPresent = fillCopy(operationsMessages.vi.markStatusFor, {
+    name: 'Alpha',
+    status: operationsMessages.vi.statusPresent,
+  });
+  await fireEvent.press(screen.getByRole('radio', { name: markPresent }));
+  await fireEvent.press(screen.getByRole('button', { name: operationsMessages.vi.save }));
+  expect(mockRuntime.saveAttendance).toHaveBeenCalledTimes(1);
+
+  await fireEvent.press(screen.getByTestId('pull-to-refresh'));
+  mockRuntime.queries[`lecturer:sheet:section-a:${today}`] = {
+    ...attendanceSheetA,
+    roster: [{ ...attendanceSheetA.roster[0], firstName: 'Remote Alpha' }],
+    marks: [{ studentId: 'a1', status: 'ABSENT' }],
+  };
+  await view.rerender(screenElement(<LecturerAttendanceScreen {...props} />));
+
+  expect(screen.getByText('Alpha')).toBeTruthy();
+  expect(screen.queryByText('Remote Alpha')).toBeNull();
+  expect(screen.getByText(operationsMessages.vi.stale)).toBeTruthy();
+  expect(screen.getByText(fillCopy(operationsMessages.vi.unsaved, { n: 1 }))).toBeTruthy();
+  expect(screen.getByRole('radio', { name: markPresent }).props.accessibilityState?.checked).toBe(true);
+
+  await act(async () => {
+    pending.resolve(1);
+    await pending.promise;
+  });
+});
+
+test('grading refresh during a pending save preserves the dirty rows and baseline', async () => {
+  const pending = deferred<undefined>();
+  mockRuntime.saveGrades.mockReturnValueOnce(pending.promise);
+  const view = await renderScreen(<LecturerGradingScreen {...props} />, 'en');
+  const processLabel = `${fillCopy(operationsMessages.en.gradeRowLabel, { name: 'Alpha' })}, ${operationsMessages.en.process}`;
+  await fireEvent.changeText(await screen.findByLabelText(processLabel), '7');
+  await fireEvent.press(screen.getByRole('button', { name: operationsMessages.en.saveScores }));
+  expect(mockRuntime.saveGrades).toHaveBeenCalledTimes(1);
+
+  await fireEvent.press(screen.getByTestId('pull-to-refresh'));
+  mockRuntime.queries['lecturer:grades:section-a'] = {
+    ...gradeSheetA,
+    rows: [{ ...gradeSheetA.rows[0], studentName: 'Remote Alpha', processScore: 6 }],
+  };
+  await view.rerender(screenElement(<LecturerGradingScreen {...props} />, 'en'));
+
+  expect(screen.getByLabelText(processLabel).props.value).toBe('7');
+  expect(screen.getByText('Alpha')).toBeTruthy();
+  expect(screen.queryByText('Remote Alpha')).toBeNull();
+  expect(screen.getByText(operationsMessages.en.gradesStale)).toBeTruthy();
+  expect(screen.getByText(fillCopy(operationsMessages.en.changesCount, { n: 1 }))).toBeTruthy();
+
+  await act(async () => {
+    pending.resolve(undefined);
+    await pending.promise;
+  });
 });

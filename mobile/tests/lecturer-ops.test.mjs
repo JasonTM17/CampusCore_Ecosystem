@@ -5,10 +5,13 @@ import path from 'node:path';
 import test from 'node:test';
 import ts from 'typescript';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createWebModuleLoader } from './helpers/load-web-module.mjs';
 
 const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const webLib = path.resolve(mobileRoot, '..', 'frontend', 'src', 'lib');
+const webSrc = path.resolve(mobileRoot, '..', 'frontend', 'src');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cu-lecturer-'));
+const loadWeb = createWebModuleLoader(webSrc, tmp);
 
 async function load(file, name, development) {
   const source = fs.readFileSync(file, 'utf8');
@@ -38,8 +41,8 @@ const portalDevelopment = await load(path.join(ops, 'shared', 'portal-url.ts'), 
 const portalRelease = await load(path.join(ops, 'shared', 'portal-url.ts'), 'portal-url-release', false);
 const opsMessages = await load(path.join(mobileRoot, 'src', 'i18n', 'operations-messages.ts'), 'operations-messages');
 const laneMessages = await load(path.join(mobileRoot, 'src', 'i18n', 'lanes-messages.ts'), 'lanes-messages');
-const webAttendance = await load(path.join(webLib, 'attendance-export.ts'), 'web-attendance-export');
-const webGrade = await load(path.join(webLib, 'grade-export.ts'), 'web-grade-export');
+const webAttendance = await import(pathToFileURL(loadWeb(path.join(webLib, 'attendance-export.ts'))).href);
+const webGrade = await import(pathToFileURL(loadWeb(path.join(webLib, 'grade-export.ts'))).href);
 
 const roster = [
   { studentId: 's1', studentCode: '2110001', firstName: 'An', lastName: 'Nguyễn' },

@@ -5,10 +5,13 @@ import path from 'node:path';
 import test from 'node:test';
 import ts from 'typescript';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createWebModuleLoader } from './helpers/load-web-module.mjs';
 
 const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const webLib = path.resolve(mobileRoot, '..', 'frontend', 'src', 'lib');
+const webSrc = path.resolve(mobileRoot, '..', 'frontend', 'src');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cu-ical-'));
+const loadWeb = createWebModuleLoader(webSrc, tmp);
 
 function transpile(file, name, rewrite = (text) => text) {
   const { outputText } = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
@@ -20,8 +23,7 @@ function transpile(file, name, rewrite = (text) => text) {
   return out;
 }
 
-transpile(path.join(webLib, 'enrollment-status.ts'), 'enrollment-status');
-const webFile = transpile(path.join(webLib, 'ical-generator.ts'), 'web-ical', (text) => text.replace("'./enrollment-status'", "'./enrollment-status.mjs'"));
+const webFile = loadWeb(path.join(webLib, 'ical-generator.ts'));
 const mobileFile = transpile(path.join(mobileRoot, 'src', 'screens', 'academic', 'ical-export.ts'), 'mobile-ical');
 const web = await import(pathToFileURL(webFile).href);
 const mobile = await import(pathToFileURL(mobileFile).href);

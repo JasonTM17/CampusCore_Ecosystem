@@ -15,24 +15,35 @@ type QueryValue = {
   isLoading?: boolean;
   isStale?: boolean;
   errorStatus?: number | null;
+  errorInput?: unknown;
 };
 const mockQueries: Record<string, QueryValue> = {};
 
 jest.mock('../../src/api/client', () => ({
   get apiClient() { return { mode: mockApi.mode }; },
   campusApi: { announcements: (...args: unknown[]) => mockRequests.announcements(...args) },
-  ApiClientError: class ApiClientError extends Error {},
+  ApiClientError: class ApiClientError extends Error {
+    status: number;
+    code?: string;
+
+    constructor(message: string, status: number, _requestId: string, code?: string) {
+      super(message);
+      this.status = status;
+      this.code = code;
+    }
+  },
 }));
 jest.mock('../../src/hooks/useScreenQuery', () => ({
-  useScreenQuery: (key: string, request?: () => Promise<unknown>) => {
+  useScreenQuery: (key: string, request?: () => Promise<unknown>, options?: { mapError?: (error: unknown) => string }) => {
     if (mockPendingRequests.has(key) && request) void request();
+    const { errorInput, ...query } = mockQueries[key] ?? {};
     return {
       data: undefined,
-      error: null,
       warning: null,
       isLoading: false,
       errorStatus: null,
-      ...(mockQueries[key] ?? {}),
+      ...query,
+      error: errorInput === undefined ? query.error ?? null : options?.mapError?.(errorInput) ?? query.error ?? null,
       reload: () => mockReload(key),
       setData: jest.fn(),
     };
@@ -45,6 +56,7 @@ jest.mock('../../src/session/SessionContext', () => ({
 jest.mock('../../src/screens/attendance-checkin/CheckinEntryCard', () => ({ CheckinEntryCard: () => null }));
 
 import { StudentDashboardScreen } from '../../src/screens/student/StudentDashboardScreen';
+import { ApiClientError } from '../../src/api/client';
 import type { MobileScreenProps } from '../../src/navigation/types';
 
 const navigation = { navigate: jest.fn() } as unknown as MobileScreenProps['navigation'];
@@ -108,6 +120,19 @@ describe('student dashboard live mode', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Thử lại' }));
     expect(mockReload).toHaveBeenCalledWith('announcements');
     expect(screen.queryByText('0 thông báo của trường')).toBeNull();
+  });
+
+  test('a widget-level 401 shows retry copy instead of session-expired copy', async () => {
+    mockQueries.enrollments = { data: [] };
+    mockQueries.announcements = {
+      errorInput: new ApiClientError('unauthorized', 401, 'req-1', 'HTTP_401'),
+    };
+    await renderScreen();
+
+    expect(screen.getByText('Không tải được thông báo.')).toBeOnTheScreen();
+    expect(screen.queryByText('Vui lòng đăng nhập lại để tiếp tục.')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Thử lại' }));
+    expect(mockReload).toHaveBeenCalledWith('announcements');
   });
 
   test('a healthy announcements fetch still shows the real count', async () => {

@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  type RefreshControlProps,
   ScrollView,
   StyleProp,
   StyleSheet,
@@ -120,14 +121,16 @@ export interface ScreenShellProps {
   contentStyle?: StyleProp<ViewStyle>;
   /** Custom auth composition can keep the shell without its standard heading. */
   hideHeader?: boolean;
+  refreshControl?: ReactElement<RefreshControlProps>;
 }
 
-export function ScreenShell({ title, eyebrow, subtitle, children, headerAction, contentStyle, hideHeader = false }: ScreenShellProps) {
+export function ScreenShell({ title, eyebrow, subtitle, children, headerAction, contentStyle, hideHeader = false, refreshControl }: ScreenShellProps) {
   const styles = useUiStyles();
   return (
     <View style={styles.screen}>
       <ScrollView
         contentContainerStyle={[styles.scrollContent, contentStyle]}
+        refreshControl={refreshControl}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >

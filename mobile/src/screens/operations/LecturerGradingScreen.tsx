@@ -29,6 +29,10 @@ const NO_PROBLEMS: GradeDraft['problems'] = {};
 
 type Banner = { tone: 'success' | 'error' | 'warning'; message: string } | null;
 
+function sameGradeSheet(left: SectionGradeSheet, right: SectionGradeSheet) {
+  return left.sectionId === right.sectionId && JSON.stringify(left.rows) === JSON.stringify(right.rows);
+}
+
 export function LecturerGradingScreen(_props: MobileScreenProps) {
   const styles = useOpsStyles();
   const { copy, locale } = useOpsCopy();
@@ -49,8 +53,9 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
     const data = gradesQuery.data;
     return data && data.sectionId === sectionId ? data : undefined;
   }, [preview, gradesQuery.data, sectionId]);
-  const rows = useMemo(() => sheet?.rows ?? [], [sheet]);
 
+  const [baselineSheet, setBaselineSheet] = useState<SectionGradeSheet>();
+  const [remoteChanged, setRemoteChanged] = useState(false);
   const [edits, setEdits] = useState<Record<string, ScoreEdit>>({});
   const [problems, setProblems] = useState<GradeDraft['problems']>(NO_PROBLEMS);
   const [busy, setBusy] = useState<'save' | 'publish' | null>(null);
@@ -59,6 +64,30 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
   const [search, setSearch] = useState('');
   const [pages, setPages] = useState(1);
   const editRevisionBySection = useRef<Record<string, number>>({});
+
+  const rows = useMemo(
+    () => baselineSheet?.sectionId === sectionId ? baselineSheet.rows : sheet?.rows ?? [],
+    [baselineSheet, sectionId, sheet],
+  );
+
+  useEffect(() => {
+    if (!sheet) return;
+    if (!baselineSheet || baselineSheet.sectionId !== sheet.sectionId) {
+      setBaselineSheet(sheet);
+      setRemoteChanged(false);
+      return;
+    }
+    if (sameGradeSheet(baselineSheet, sheet)) {
+      if (remoteChanged) setRemoteChanged(false);
+      return;
+    }
+    if (dirtyGradeCount(baselineSheet.rows, edits) === 0) {
+      setBaselineSheet(sheet);
+      setRemoteChanged(false);
+    } else {
+      setRemoteChanged(true);
+    }
+  }, [baselineSheet, edits, remoteChanged, sheet]);
 
   useEffect(() => {
     setEdits({});
@@ -94,6 +123,13 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
   };
 
   const reload = () => { void sectionsQuery.reload(); void gradesQuery.reload(); };
+  const reloadGrades = () => {
+    if (sheet) setBaselineSheet(sheet);
+    setEdits({});
+    setProblems(NO_PROBLEMS);
+    setRemoteChanged(false);
+    void gradesQuery.reload();
+  };
 
   const saveScores = async () => {
     const savingSectionId = sectionId;
@@ -178,6 +214,8 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
       error={queryError}
       warning={preview ? null : sectionsQuery.warning ?? gradesQuery.warning}
       onRetry={reload}
+      onRefresh={preview ? undefined : reload}
+      refreshing={!preview && (sectionsQuery.isStale || gradesQuery.isStale)}
 
       list={{ data: shown, keyExtractor: (item, index) => String(item.enrollmentId),
         renderItem: ({ item: row }) => (
@@ -201,11 +239,19 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
                     {fillCopy(copy.changesCount, { n: dirty })}
                   </UiText>
                 ) : null}
+                {remoteChanged ? (
+                  <Notice
+                    tone="warning"
+                    message={copy.gradesStale}
+                    actionLabel={busy ? undefined : copy.reload}
+                    onAction={busy ? undefined : reloadGrades}
+                  />
+                ) : null}
                 <Button
                   icon="content-save-outline"
                   label={copy.saveScores}
                   loading={busy === 'save'}
-                  disabled={preview || dirty === 0 || busy !== null}
+                  disabled={preview || dirty === 0 || busy !== null || remoteChanged}
                   onPress={() => void saveScores()}
                 />
                 <Button

@@ -17,6 +17,7 @@ import {
 import { tokens } from '../../design/tokens';
 import { chromeFor } from '../../design/chrome';
 import { useTheme } from '../../design/theme';
+import { chromeFontScaleCap } from '../../design/font-scale';
 import { useLocale } from '../../i18n/locale-provider';
 import { Button } from './Button';
 import { UiText } from './UiText';
@@ -180,15 +181,17 @@ const noticeTones: Record<NonNullable<NoticeProps['tone']>, { bg: string; text: 
 };
 
 export function Notice({ message, tone = 'info', actionLabel, onAction }: NoticeProps) {
-  const { colors, spacing, radii, layout } = useTheme();
+  const { colors, spacing, radii, layout, window } = useTheme();
+  const largeText = window.fontScale >= chromeFontScaleCap;
   const m = noticeTones[tone];
   const c = colors as Record<string, string>;
   return (
     <View
+      testID="notice"
       accessibilityLiveRegion="polite"
-      style={{ alignItems: 'center', backgroundColor: c[m.bg], borderColor: colors.outlineVariant, borderLeftColor: c[m.bar], borderLeftWidth: 3, borderRadius: radii.card, borderWidth: 1, flexDirection: 'row', minHeight: layout.touchTarget, padding: spacing.md }}
+      style={{ alignItems: largeText ? 'stretch' : 'center', backgroundColor: c[m.bg], borderColor: colors.outlineVariant, borderLeftColor: c[m.bar], borderLeftWidth: 3, borderRadius: radii.card, borderWidth: 1, flexDirection: largeText ? 'column' : 'row', minHeight: layout.touchTarget, padding: spacing.md }}
     >
-      <UiText variant="bodySmall" tone={m.text} style={{ flex: 1, marginRight: spacing.sm }}>{message}</UiText>
+      <UiText variant="bodySmall" tone={m.text} style={{ flex: largeText ? undefined : 1, marginBottom: largeText ? spacing.xs : undefined, marginRight: largeText ? undefined : spacing.sm }}>{message}</UiText>
       {actionLabel && onAction ? <Button label={actionLabel} onPress={onAction} variant="text" /> : null}
     </View>
   );
@@ -347,14 +350,16 @@ export interface InlineErrorProps {
 }
 
 export function InlineError({ message, onRetry, retryLabel }: InlineErrorProps) {
-  const { colors, spacing, radii, layout } = useTheme();
+  const { colors, spacing, radii, layout, window } = useTheme();
+  const largeText = window.fontScale >= chromeFontScaleCap;
   const { t } = useLocale();
   return (
     <View
+      testID="inline-error"
       accessibilityLiveRegion="assertive"
-      style={{ alignItems: 'center', backgroundColor: colors.errorFixed, borderColor: colors.error, borderLeftWidth: 3, borderRadius: radii.card, borderWidth: 1, flexDirection: 'row', minHeight: layout.touchTarget, padding: spacing.md }}
+      style={{ alignItems: largeText ? 'stretch' : 'center', backgroundColor: colors.errorFixed, borderColor: colors.error, borderLeftWidth: 3, borderRadius: radii.card, borderWidth: 1, flexDirection: largeText ? 'column' : 'row', minHeight: layout.touchTarget, padding: spacing.md }}
     >
-      <UiText accessibilityRole="alert" variant="bodySmall" tone="error" style={{ flex: 1, marginRight: spacing.sm }}>{message}</UiText>
+      <UiText accessibilityRole="alert" variant="bodySmall" tone="error" style={{ flex: largeText ? undefined : 1, marginBottom: largeText ? spacing.xs : undefined, marginRight: largeText ? undefined : spacing.sm }}>{message}</UiText>
       {onRetry ? <Button label={retryLabel ?? t('retry')} onPress={onRetry} variant="secondary" accessibilityLabel={retryLabel ?? t('retry')} /> : null}
     </View>
   );

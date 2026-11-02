@@ -152,4 +152,5 @@ test('mobile refreshes the session single-flight and exits to sign-in on expiry'
   // A failed refresh must bridge back to the sign-in screen instead of a dead end.
   assert.match(navigator, /apiClient\.setOnSessionExpired\(/);
   assert.match(navigator, /setSessionKind\('signedOut'\)/);
+  assert.match(navigator, /setRoute\('auth\.signIn'\)/);
 });

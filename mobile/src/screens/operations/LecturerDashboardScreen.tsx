@@ -45,6 +45,7 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
   const loading = !preview && (schedule.isLoading || grading.isLoading);
   const error = preview ? null : schedule.error ?? grading.error;
   const warning = preview ? null : schedule.warning ?? grading.warning;
+  const reload = () => { void schedule.reload(); void grading.reload(); };
 
   const heroTitle = todayClasses.length > 0
     ? fillCopy(copy.todayClassesCount, { n: todayClasses.length })
@@ -59,7 +60,9 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
       loading={loading}
       error={error}
       warning={warning}
-      onRetry={() => { void schedule.reload(); void grading.reload(); }}
+      onRetry={reload}
+      onRefresh={preview ? undefined : reload}
+      refreshing={!preview && (schedule.isStale || grading.isStale)}
     >
       {sections.length === 0 ? (
         <StatePanel kind="empty" title={copy.emptyDashboard} />

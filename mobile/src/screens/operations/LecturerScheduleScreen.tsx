@@ -37,6 +37,8 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
       error={preview ? null : query.error}
       warning={preview ? null : query.warning}
       onRetry={() => void query.reload()}
+      onRefresh={preview ? undefined : () => void query.reload()}
+      refreshing={!preview && query.isStale}
 
       list={{ data: rows, keyExtractor: (item, index) => String(item.sectionId),
         renderItem: ({ item: section }) => (
