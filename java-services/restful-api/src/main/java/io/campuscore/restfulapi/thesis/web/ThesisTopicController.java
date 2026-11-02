@@ -54,8 +54,10 @@ public class ThesisTopicController {
             @Parameter(description = ListPaging.LIMIT_DOC) @RequestParam(required = false) Integer limit,
             @AuthenticationPrincipal Jwt actor) {
         ListPaging.Window window = ListPaging.Window.of(page, limit);
-        return ListPaging.respond(topics.list(roundId, status, actor), window,
-                TopicResponse::title, TopicResponse::id);
+        if (window == null) {
+            return ResponseEntity.ok(topics.list(roundId, status, actor));
+        }
+        return ListPaging.respond(topics.listPage(roundId, status, actor, window));
     }
 
     @Operation(summary = "Xem chi tiết đề tài theo mã định danh (UUID)", description = "Truy xuất thông tin chi tiết một đề tài khóa luận bao gồm mô tả, mục tiêu, GVHD và số nhóm tối đa")

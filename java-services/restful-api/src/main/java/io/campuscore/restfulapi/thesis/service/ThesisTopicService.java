@@ -1,15 +1,26 @@
 package io.campuscore.restfulapi.thesis.service;
 
+import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.thesis.domain.ThesisTopic;
 import io.campuscore.restfulapi.thesis.domain.TopicStatus;
 import io.campuscore.restfulapi.thesis.repository.ThesisRoundReadPort;
+import io.campuscore.restfulapi.thesis.repository.ThesisTopicReadRepository;
 import io.campuscore.restfulapi.thesis.repository.ThesisTopicRepository;
 import io.campuscore.restfulapi.thesis.web.ThesisTopicDtos.TopicResponse;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
@@ -21,12 +32,22 @@ public class ThesisTopicService {
     private final ThesisTopicRepository topics;
     private final ThesisRoundReadPort rounds;
     private final org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate jdbc;
+    private final ThesisTopicReadRepository reads;
 
+    /** Test/compatibility constructor: keeps the legacy JPA-only path usable. */
     public ThesisTopicService(ThesisTopicRepository topics, ThesisRoundReadPort rounds,
             org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate jdbc) {
+        this(topics, rounds, jdbc, new ThesisTopicReadRepository(jdbc));
+    }
+
+    @Autowired
+    public ThesisTopicService(ThesisTopicRepository topics, ThesisRoundReadPort rounds,
+            org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate jdbc,
+            ThesisTopicReadRepository reads) {
         this.topics = topics;
         this.rounds = rounds;
         this.jdbc = jdbc;
+        this.reads = reads;
     }
 
     /**
@@ -62,25 +83,18 @@ public class ThesisTopicService {
                     .toList();
         }
         // Faculty and department governance queues follow the caller's live active profile.
-        java.util.Set<String> deanFacultyDepts = java.util.Set.of();
-        java.util.Set<UUID> deanSupervisedIds = java.util.Set.of();
+        Set<String> deanFacultyDepts = Set.of();
+        Set<UUID> deanSupervisedIds = Set.of();
         if (!isAdmin(actor) && ThesisDeanScope.isFacultyHead(actor)) {
             String facultyId = ThesisDeanScope.facultyId(jdbc, actor);
-            deanFacultyDepts = facultyId == null ? java.util.Set.of() : new java.util.HashSet<>(
-                    jdbc.queryForList(
-                            "SELECT \"id\" FROM academic.\"Department\" WHERE \"facultyId\" = :facultyId",
-                            new org.springframework.jdbc.core.namedparam.MapSqlParameterSource("facultyId", facultyId),
-                            String.class));
+            deanFacultyDepts = facultyDepartmentIds(facultyId);
             String deanLecturerId = normalize(actor == null ? null : actor.getClaimAsString("lecturerId"));
-            deanSupervisedIds = deanLecturerId.isEmpty() || result.isEmpty() ? java.util.Set.of() : new java.util.HashSet<>(
-                    jdbc.queryForList(
-                            "SELECT topic_id FROM thesis.thesis_topic_supervisor WHERE lecturer_id = :lecturerId AND topic_id IN (:topicIds)",
-                            new org.springframework.jdbc.core.namedparam.MapSqlParameterSource()
-                                    .addValue("lecturerId", deanLecturerId)
-                                    .addValue("topicIds", result.stream().map(ThesisTopic::getId).toList()),
-                            UUID.class));
-            java.util.Set<String> inFacultyDepts = deanFacultyDepts;
-            java.util.Set<UUID> supervisedByDean = deanSupervisedIds;
+            deanSupervisedIds = deanLecturerId.isEmpty() || result.isEmpty()
+                    ? Set.of()
+                    : new HashSet<>(supervisedTopicIds(deanLecturerId,
+                            result.stream().map(ThesisTopic::getId).toList()));
+            Set<String> inFacultyDepts = deanFacultyDepts;
+            Set<UUID> supervisedByDean = deanSupervisedIds;
             result = result.stream()
                     .filter(topic -> inFacultyDepts.contains(topic.getDepartmentId())
                             || isOwner(topic, actor)
@@ -93,21 +107,15 @@ public class ThesisTopicService {
         boolean published = isRoundResultsPublished(roundId);
         // One query for every topic the caller grades as a council member, so
         // the mask check below does not turn into per-topic round-trips.
-        java.util.Set<UUID> gradingTopicIds = new java.util.HashSet<>();
+        Set<UUID> gradingTopicIds = new HashSet<>();
         String lecturerId = normalize(actor == null ? null : actor.getClaimAsString("lecturerId"));
         if (!published && !isAdmin(actor) && !lecturerId.isEmpty() && !result.isEmpty()) {
-            gradingTopicIds.addAll(jdbc.queryForList(
-                    "SELECT ct.topic_id FROM thesis.thesis_council_topic ct "
-                            + "JOIN thesis.thesis_council_member m ON m.council_id = ct.council_id "
-                            + "WHERE m.lecturer_id = :lecturerId AND ct.topic_id IN (:topicIds)",
-                    new org.springframework.jdbc.core.namedparam.MapSqlParameterSource()
-                            .addValue("lecturerId", lecturerId)
-                            .addValue("topicIds", result.stream().map(ThesisTopic::getId).toList()),
-                    UUID.class));
+            gradingTopicIds.addAll(councilTopicIds(lecturerId,
+                    result.stream().map(ThesisTopic::getId).toList()));
         }
         boolean adminCaller = isAdmin(actor);
-        java.util.Set<String> inFacultyDepts = deanFacultyDepts;
-        java.util.Set<UUID> supervisedByDean = deanSupervisedIds;
+        Set<String> inFacultyDepts = deanFacultyDepts;
+        Set<UUID> supervisedByDean = deanSupervisedIds;
         String callerLecturerId = lecturerId;
         return result.stream()
                 .map(TopicResponse::from)
@@ -117,6 +125,166 @@ public class ThesisTopicService {
                                 || gradingTopicIds.contains(topic.id()),
                         callerLecturerId))
                 .toList();
+    }
+
+    /**
+     * Paged variant of {@link #list}: one lightweight id/title query covers the
+     * whole visible set, the legacy Java title order (plus the UUID-string
+     * tiebreak the paged contract already used) is applied before slicing, and
+     * only the selected page is hydrated into {@link TopicResponse}. The total
+     * is the size of the sorted visible id list, so it is exact for every page.
+     * The read runs in one repeatable-read transaction so the key scan,
+     * hydration and masking lookups see the same snapshot under PostgreSQL.
+     */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public ListPaging.Result<TopicResponse> listPage(UUID roundId, TopicStatus status, Jwt actor,
+            ListPaging.Window window) {
+        if (window == null) {
+            return new ListPaging.Result<>(list(roundId, status, actor), null);
+        }
+        rounds.requireExisting(roundId);
+        TopicStatus requestedStatus = status == null ? TopicStatus.PUBLISHED : status;
+        List<TopicStatus> statuses;
+        ThesisTopicReadRepository.Visibility visibility;
+        boolean admin = isAdmin(actor);
+        boolean facultyHead = ThesisDeanScope.isFacultyHead(actor);
+        boolean departmentHead = ThesisDepartmentScope.isDepartmentHead(actor);
+        if (requestedStatus == TopicStatus.PUBLISHED || requestedStatus == TopicStatus.APPROVED) {
+            statuses = requestedStatus == TopicStatus.PUBLISHED
+                    ? List.of(TopicStatus.PUBLISHED, TopicStatus.APPROVED)
+                    : List.of(requestedStatus);
+            // The legacy read applies its faculty/department governance filter
+            // after the status branch, so it also narrows PUBLISHED/APPROVED.
+            if (!admin && facultyHead) {
+                String facultyId = ThesisDeanScope.facultyId(jdbc, actor);
+                String lecturerId = normalize(actor == null ? null : actor.getClaimAsString("lecturerId"));
+                visibility = ThesisTopicReadRepository.Visibility.faculty(
+                        facultyId, ownerKeys(subject(actor), lecturerId), lecturerId);
+            } else if (!admin && departmentHead) {
+                visibility = ThesisTopicReadRepository.Visibility.department(
+                        ThesisDepartmentScope.departmentId(jdbc, actor));
+            } else {
+                visibility = ThesisTopicReadRepository.Visibility.all();
+            }
+        } else if (admin) {
+            statuses = List.of(requestedStatus);
+            visibility = ThesisTopicReadRepository.Visibility.all();
+        } else if (facultyHead) {
+            statuses = List.of(requestedStatus);
+            String facultyId = ThesisDeanScope.facultyId(jdbc, actor);
+            String lecturerId = normalize(actor == null ? null : actor.getClaimAsString("lecturerId"));
+            visibility = ThesisTopicReadRepository.Visibility.faculty(
+                    facultyId, ownerKeys(subject(actor), lecturerId), lecturerId);
+        } else if (departmentHead) {
+            statuses = List.of(requestedStatus);
+            visibility = ThesisTopicReadRepository.Visibility.department(
+                    ThesisDepartmentScope.departmentId(jdbc, actor));
+        } else if (!isLecturer(actor)) {
+            statuses = List.of();
+            visibility = ThesisTopicReadRepository.Visibility.none();
+        } else {
+            statuses = List.of(requestedStatus);
+            visibility = ThesisTopicReadRepository.Visibility.owner(subject(actor));
+        }
+        List<ThesisTopicReadRepository.TopicRef> refs =
+                new ArrayList<>(reads.findVisibleRefs(roundId, statuses, visibility));
+        refs.sort(Comparator.comparing(ThesisTopicReadRepository.TopicRef::title)
+                .thenComparing(ref -> ref.id().toString()));
+        long total = refs.size();
+        long from = window.offset();
+        if (from >= total) {
+            return new ListPaging.Result<>(List.of(), total);
+        }
+        int to = (int) Math.min(total, from + window.limit());
+        List<UUID> pageIds = refs.subList((int) from, to).stream()
+                .map(ThesisTopicReadRepository.TopicRef::id).toList();
+        Map<UUID, TopicResponse> hydrated = new HashMap<>();
+        for (TopicResponse response : reads.findResponsesByIds(pageIds)) {
+            hydrated.put(response.id(), response);
+        }
+        List<TopicResponse> page = pageIds.stream()
+                .map(hydrated::get)
+                .filter(Objects::nonNull)
+                .toList();
+        return new ListPaging.Result<>(maskPage(roundId, actor, page), total);
+    }
+
+    private List<TopicResponse> maskPage(UUID roundId, Jwt actor, List<TopicResponse> page) {
+        if (page.isEmpty()) {
+            return page;
+        }
+        boolean published = isRoundResultsPublished(roundId);
+        boolean admin = isAdmin(actor);
+        String lecturerId = normalize(actor == null ? null : actor.getClaimAsString("lecturerId"));
+        List<UUID> pageIds = page.stream().map(TopicResponse::id).toList();
+        // Reviewer identity is masked even after publication for callers who
+        // are not grading stakeholders, so dean scope must be resolved whether
+        // or not the round has published results.
+        Set<String> deanFacultyDepts = Set.of();
+        Set<UUID> deanSupervisedIds = Set.of();
+        if (!admin && ThesisDeanScope.isFacultyHead(actor)) {
+            deanFacultyDepts = facultyDepartmentIds(ThesisDeanScope.facultyId(jdbc, actor));
+            if (!lecturerId.isEmpty()) {
+                deanSupervisedIds = new HashSet<>(supervisedTopicIds(lecturerId, pageIds));
+            }
+        }
+        Set<UUID> gradingTopicIds = new HashSet<>();
+        if (!published && !admin && !lecturerId.isEmpty()) {
+            gradingTopicIds.addAll(councilTopicIds(lecturerId, pageIds));
+        }
+        Set<String> inFacultyDepts = deanFacultyDepts;
+        Set<UUID> supervisedByDean = deanSupervisedIds;
+        Set<UUID> grading = gradingTopicIds;
+        String callerLecturerId = lecturerId;
+        return page.stream()
+                .map(topic -> maskScoreIfNeeded(topic, published,
+                        admin || inFacultyDepts.contains(topic.departmentId())
+                                || supervisedByDean.contains(topic.id())
+                                || grading.contains(topic.id()),
+                        callerLecturerId))
+                .toList();
+    }
+
+    private Set<String> facultyDepartmentIds(String facultyId) {
+        if (facultyId == null) {
+            return Set.of();
+        }
+        return new HashSet<>(jdbc.queryForList(
+                "SELECT \"id\" FROM academic.\"Department\" WHERE \"facultyId\" = :facultyId",
+                new org.springframework.jdbc.core.namedparam.MapSqlParameterSource("facultyId", facultyId),
+                String.class));
+    }
+
+    private List<UUID> supervisedTopicIds(String lecturerId, List<UUID> topicIds) {
+        return jdbc.queryForList(
+                "SELECT topic_id FROM thesis.thesis_topic_supervisor"
+                        + " WHERE lecturer_id = :lecturerId AND topic_id IN (:topicIds)",
+                new org.springframework.jdbc.core.namedparam.MapSqlParameterSource()
+                        .addValue("lecturerId", lecturerId)
+                        .addValue("topicIds", topicIds),
+                UUID.class);
+    }
+
+    private List<UUID> councilTopicIds(String lecturerId, List<UUID> topicIds) {
+        return jdbc.queryForList(
+                "SELECT ct.topic_id FROM thesis.thesis_council_topic ct "
+                        + "JOIN thesis.thesis_council_member m ON m.council_id = ct.council_id "
+                        + "WHERE m.lecturer_id = :lecturerId AND ct.topic_id IN (:topicIds)",
+                new org.springframework.jdbc.core.namedparam.MapSqlParameterSource()
+                        .addValue("lecturerId", lecturerId)
+                        .addValue("topicIds", topicIds),
+                UUID.class);
+    }
+
+    private static List<String> ownerKeys(String subject, String lecturerId) {
+        java.util.LinkedHashSet<String> keys = new java.util.LinkedHashSet<>();
+        if (!subject.isEmpty()) {
+            keys.add(subject);
+        }
+        if (!lecturerId.isEmpty()) {
+            keys.add(lecturerId);
+        }
+        return List.copyOf(keys);
     }
 
     /**
