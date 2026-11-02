@@ -449,8 +449,8 @@ export const studentPagesVi: Widen<typeof studentPagesEn> = {
       updated: 'Đã cập nhật',
       editTitle: 'Chỉnh sửa trong Studio',
       edit: 'Chỉnh sửa',
-      imageAlt: 'HCMUTE Campus Banner',
-      campusPortal: 'HCMUTE Campus Portal',
+      imageAlt: 'Ảnh bìa khuôn viên HCMUTE',
+      campusPortal: 'Cổng thông tin HCMUTE',
     },
   },
   notifications: {
@@ -478,8 +478,8 @@ export const studentPagesVi: Widen<typeof studentPagesEn> = {
     items: 'mục',
     item: 'mục',
     sectionPrefix: 'Lớp học phần',
-    courseCodeFallback: 'Course',
-    courseNameFallback: 'Unavailable',
+    courseCodeFallback: 'Môn học',
+    courseNameFallback: 'Chưa cập nhật',
     roomPending: 'Đang chờ thông tin phòng học',
     today: 'HÔM NAY',
     viewGrid: 'Lưới tuần',
@@ -611,7 +611,7 @@ export const studentPagesVi: Widen<typeof studentPagesEn> = {
     },
   },
   ics: {
-    defaultCalendarName: 'CampusUTE Timetable',
+    defaultCalendarName: 'Thời khóa biểu CampusUTE',
     locationRoomPrefix: 'Phòng {room}',
     description: {
       course: 'Môn học: {courseName} ({courseCode})',

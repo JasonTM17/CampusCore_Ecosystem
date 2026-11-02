@@ -138,7 +138,7 @@ export default function AdminAuditTrailPage() {
               <Input
                 value={searchFilter}
                 onChange={(event) => setSearchFilter(event.target.value)}
-                placeholder="Nguyễn Tiến Sơn, E2E PROBE…"
+                placeholder={copy.searchPlaceholder}
                 aria-label={copy.filterSearch}
               />
             </label>
