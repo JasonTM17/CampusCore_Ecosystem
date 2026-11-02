@@ -1090,15 +1090,40 @@ public class RegistrationService {
                 "SELECT \"requiredCourseId\" AS required_course_id, \"kind\", \"minLetterGrade\" AS min_letter_grade"
                         + " FROM " + REQUIREMENT + " WHERE \"courseId\" = :courseId",
                 new MapSqlParameterSource("courseId", courseId));
+        if (requirements.isEmpty()) {
+            return;
+        }
+        List<String> prerequisiteCourseIds = requirements.stream()
+                .filter(requirement -> "PREREQ".equals(String.valueOf(requirement.get("kind"))))
+                .map(requirement -> String.valueOf(requirement.get("required_course_id")))
+                .distinct()
+                .toList();
+        List<String> corequisiteCourseIds = requirements.stream()
+                .filter(requirement -> "COREQ".equals(String.valueOf(requirement.get("kind"))))
+                .map(requirement -> String.valueOf(requirement.get("required_course_id")))
+                .distinct()
+                .toList();
+        Map<String, List<String>> completedLetters = prerequisiteCourseIds.isEmpty()
+                ? Map.of()
+                : completedLetters(studentId, prerequisiteCourseIds);
+        Set<String> activeCorequisites = corequisiteCourseIds.isEmpty()
+                ? Set.of()
+                : activeCourseIds(studentId, semesterId, corequisiteCourseIds);
+        Set<String> requestedCourses = corequisiteCourseIds.isEmpty()
+                ? Set.of()
+                : courseIdsOfSections(requestSectionIds);
         for (Map<String, Object> requirement : requirements) {
             String required = String.valueOf(requirement.get("required_course_id"));
             String kind = String.valueOf(requirement.get("kind"));
             String minLetter = requirement.get("min_letter_grade") == null
                     ? null : String.valueOf(requirement.get("min_letter_grade"));
-            if ("PREREQ".equals(kind) && !hasCompleted(studentId, required, minLetter)) {
+            if ("PREREQ".equals(kind)
+                    && !satisfiesLetterFloor(completedLetters.getOrDefault(required, List.of()), minLetter)) {
                 throw problem(HttpStatus.UNPROCESSABLE_ENTITY, "PREREQUISITE_UNMET", "A required prerequisite is missing");
             }
-            if ("COREQ".equals(kind) && !hasActiveCourse(studentId, semesterId, required) && !requestHasCourse(requestSectionIds, required)) {
+            if ("COREQ".equals(kind)
+                    && !activeCorequisites.contains(required)
+                    && !requestedCourses.contains(required)) {
                 throw problem(HttpStatus.UNPROCESSABLE_ENTITY, "COREQUISITE_UNMET", "A required corequisite is missing");
             }
         }
@@ -1150,18 +1175,29 @@ public class RegistrationService {
     private static final Set<String> WARNED_UNKNOWN_FLOORS = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private boolean hasCompleted(String studentId, String courseId, String minLetter) {
-        List<String> letters = jdbc.queryForList(
-                "SELECT \"letterGrade\" FROM " + ENROLLMENT
-                        + " WHERE \"studentId\" = :studentId AND \"courseId\" = :courseId"
+        return satisfiesLetterFloor(
+                completedLetters(studentId, List.of(courseId)).getOrDefault(courseId, List.of()), minLetter);
+    }
+
+    /** Passing letters of one course set, grouped in one statement. */
+    private Map<String, List<String>> completedLetters(String studentId, List<String> courseIds) {
+        Map<String, List<String>> letters = new LinkedHashMap<>();
+        for (Map<String, Object> row : jdbc.queryForList(
+                "SELECT \"courseId\" AS course_id, \"letterGrade\" AS letter_grade FROM " + ENROLLMENT
+                        + " WHERE \"studentId\" = :studentId AND \"courseId\" IN (:courseIds)"
                         + " AND \"gradeStatus\" IN ('COMPLETED', 'PUBLISHED')"
                         // A passing letter is required: a graded row without a
                         // letter (a producer bug) must never silently unlock a
                         // prerequisite, matching the knowledge-base copy.
                         + " AND \"letterGrade\" IS NOT NULL"
                         + " AND \"letterGrade\" NOT IN ('F', 'W')",
-                new MapSqlParameterSource().addValue("studentId", studentId).addValue("courseId", courseId),
-                String.class);
-        return satisfiesLetterFloor(letters, minLetter);
+                new MapSqlParameterSource()
+                        .addValue("studentId", studentId)
+                        .addValue("courseIds", courseIds))) {
+            letters.computeIfAbsent(String.valueOf(row.get("course_id")), key -> new ArrayList<>())
+                    .add(String.valueOf(row.get("letter_grade")));
+        }
+        return letters;
     }
 
     /**
@@ -1201,28 +1237,27 @@ public class RegistrationService {
         return false;
     }
 
-    private boolean hasActiveCourse(String studentId, String semesterId, String courseId) {
-        Long count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM " + ENROLLMENT
-                        + " WHERE \"studentId\" = :studentId AND \"semesterId\" = :semesterId AND \"courseId\" = :courseId"
+    private Set<String> activeCourseIds(String studentId, String semesterId, List<String> courseIds) {
+        return new LinkedHashSet<>(jdbc.queryForList(
+                "SELECT DISTINCT \"courseId\" FROM " + ENROLLMENT
+                        + " WHERE \"studentId\" = :studentId AND \"semesterId\" = :semesterId"
+                        + " AND \"courseId\" IN (:courseIds)"
                         + " AND \"status\" IN ('ENROLLED', 'PENDING', 'CONFIRMED')",
                 new MapSqlParameterSource()
                         .addValue("studentId", studentId)
                         .addValue("semesterId", semesterId)
-                        .addValue("courseId", courseId),
-                Long.class);
-        return count != null && count > 0;
+                        .addValue("courseIds", courseIds),
+                String.class));
     }
 
-    private boolean requestHasCourse(List<String> sectionIds, String courseId) {
+    private Set<String> courseIdsOfSections(List<String> sectionIds) {
         if (sectionIds.isEmpty()) {
-            return false;
+            return Set.of();
         }
-        Long count = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM " + SECTION + " WHERE \"id\" IN (:ids) AND \"courseId\" = :courseId",
-                new MapSqlParameterSource().addValue("ids", sectionIds).addValue("courseId", courseId),
-                Long.class);
-        return count != null && count > 0;
+        return new LinkedHashSet<>(jdbc.queryForList(
+                "SELECT DISTINCT \"courseId\" FROM " + SECTION + " WHERE \"id\" IN (:ids)",
+                new MapSqlParameterSource("ids", sectionIds),
+                String.class));
     }
 
     private List<TimeRange> schedulesForSection(String sectionId) {

@@ -9,9 +9,13 @@ import io.campuscore.restfulapi.web.DomainException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -330,14 +334,13 @@ public class ThesisCouncilService {
      * Lists every council of one registration round with its members and assigned topics.
      *
      * @param roundId round whose councils are listed, oldest first
-     * @return the councils of the round, each fully hydrated through {@link #getCouncil(UUID)}
+     * @return the councils of the round, each fully hydrated with its members and assigned topics
      */
     @Transactional(readOnly = true)
     public List<CouncilResponse> listByRound(UUID roundId) {
-        List<UUID> ids = jdbc.queryForList(
-                "SELECT id FROM thesis.thesis_council WHERE round_id = :roundId ORDER BY created_at, id",
-                params().addValue("roundId", roundId), UUID.class);
-        return ids.stream().map(this::getCouncil).toList();
+        return loadRoundCouncils(roundId).stream()
+                .map(LoadedCouncil::response)
+                .toList();
     }
 
     /**
@@ -353,27 +356,35 @@ public class ThesisCouncilService {
      */
     @Transactional(readOnly = true)
     public List<CouncilResponse> listByRoundForActor(UUID roundId, Jwt actor) {
-        List<CouncilResponse> councils = listByRound(roundId);
+        List<LoadedCouncil> councils = loadRoundCouncils(roundId);
         if (ThesisDeanScope.isGlobalAdmin(actor)) {
-            return councils;
+            return councils.stream().map(LoadedCouncil::response).toList();
         }
         if (ThesisDeanScope.isFacultyHead(actor)) {
             // Deans stay inside their faculty: councils they created or
             // councils already grading one of their topics. Anything else is a
             // foreign roster — the unconditional governance bypass used to
-            // hand every dean the whole round's councils.
+            // hand every dean the whole round's councils. The faculty scope is
+            // resolved once and matched against the already-loaded topics.
+            String facultyId = ThesisDeanScope.facultyId(jdbc, actor);
+            if (facultyId == null) {
+                return List.of();
+            }
+            String subject = subject(actor);
             return councils.stream()
-                    .filter(council -> deanCanSeeCouncil(council.id(), actor))
+                    .filter(council -> deanCanSeeCouncil(council, subject, facultyId))
+                    .map(LoadedCouncil::response)
                     .toList();
         }
         if (!isCouncilGovernanceStaff(actor)) {
             String lecturerId = normalize(actor == null ? null : actor.getClaimAsString("lecturerId"));
             return councils.stream()
+                    .map(LoadedCouncil::response)
                     .filter(council -> council.members().stream()
                             .anyMatch(member -> member.lecturerId().equals(lecturerId)))
                     .toList();
         }
-        return councils;
+        return councils.stream().map(LoadedCouncil::response).toList();
     }
 
     /**
@@ -461,14 +472,76 @@ public class ThesisCouncilService {
         }
     }
 
-    /** Non-throwing twin of {@link #requireCouncilGovernanceAccess} for list filtering. */
-    private boolean deanCanSeeCouncil(UUID councilId, Jwt actor) {
-        try {
-            requireCouncilGovernanceAccess(councilId, actor);
+    /** In-memory twin of {@link #requireCouncilGovernanceAccess} for list filtering. */
+    private boolean deanCanSeeCouncil(LoadedCouncil council, String subject, String facultyId) {
+        if (subject.equals(council.createdBy())) {
             return true;
-        } catch (DomainException exception) {
-            return false;
         }
+        return council.topicFacultyIds().contains(facultyId);
+    }
+
+    /**
+     * Hydrates a whole round in three statements: headers, members and topics
+     * plus their department faculties. {@link #getCouncil(UUID)} remains the
+     * single-council read and returns the same shape and ordering.
+     */
+    private List<LoadedCouncil> loadRoundCouncils(UUID roundId) {
+        List<Map<String, Object>> headers = jdbc.queryForList(
+                "SELECT id AS \"id\", round_id AS \"roundId\", name AS \"name\", status AS \"status\", "
+                        + "created_by AS \"createdBy\" FROM thesis.thesis_council "
+                        + "WHERE round_id = :roundId ORDER BY created_at, id",
+                params().addValue("roundId", roundId));
+        if (headers.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> ids = headers.stream().map(header -> (UUID) header.get("id")).toList();
+
+        Map<UUID, List<CouncilMember>> members = new HashMap<>();
+        for (Map<String, Object> row : jdbc.queryForList(
+                "SELECT council_id AS \"councilId\", lecturer_id AS \"lecturerId\", "
+                        + "member_role AS \"memberRole\" FROM thesis.thesis_council_member "
+                        + "WHERE council_id IN (:ids) ORDER BY council_id, "
+                        + "CASE member_role WHEN 'CHAIR' THEN 0 WHEN 'SECRETARY' THEN 1 ELSE 2 END, "
+                        + "created_at, lecturer_id",
+                params().addValue("ids", ids))) {
+            members.computeIfAbsent((UUID) row.get("councilId"), key -> new ArrayList<>())
+                    .add(new CouncilMember((String) row.get("lecturerId"), (String) row.get("memberRole")));
+        }
+
+        Map<UUID, List<UUID>> topicIds = new HashMap<>();
+        Map<UUID, Set<String>> topicFacultyIds = new HashMap<>();
+        for (Map<String, Object> row : jdbc.queryForList(
+                "SELECT ct.council_id AS \"councilId\", ct.topic_id AS \"topicId\", "
+                        + "d.\"facultyId\" AS \"facultyId\" FROM thesis.thesis_council_topic ct "
+                        + "JOIN thesis.thesis_topic t ON t.id = ct.topic_id "
+                        + "LEFT JOIN academic.\"Department\" d ON d.\"id\" = t.department_id "
+                        + "WHERE ct.council_id IN (:ids) ORDER BY ct.council_id, ct.created_at, ct.topic_id",
+                params().addValue("ids", ids))) {
+            UUID councilId = (UUID) row.get("councilId");
+            topicIds.computeIfAbsent(councilId, key -> new ArrayList<>())
+                    .add((UUID) row.get("topicId"));
+            Object facultyId = row.get("facultyId");
+            if (facultyId != null) {
+                topicFacultyIds.computeIfAbsent(councilId, key -> new HashSet<>())
+                        .add(String.valueOf(facultyId));
+            }
+        }
+
+        List<LoadedCouncil> loaded = new ArrayList<>(headers.size());
+        for (Map<String, Object> header : headers) {
+            UUID councilId = (UUID) header.get("id");
+            loaded.add(new LoadedCouncil(
+                    new CouncilResponse(
+                            councilId,
+                            (UUID) header.get("roundId"),
+                            (String) header.get("name"),
+                            (String) header.get("status"),
+                            members.getOrDefault(councilId, List.of()),
+                            topicIds.getOrDefault(councilId, List.of())),
+                    (String) header.get("createdBy"),
+                    topicFacultyIds.getOrDefault(councilId, Set.of())));
+        }
+        return loaded;
     }
 
     /**
@@ -1335,4 +1408,7 @@ public class ThesisCouncilService {
             List<ScoreComment> comments) { }
 
     public record ScoreComment(String component, String comment) { }
+
+    private record LoadedCouncil(
+            CouncilResponse response, String createdBy, Set<String> topicFacultyIds) { }
 }

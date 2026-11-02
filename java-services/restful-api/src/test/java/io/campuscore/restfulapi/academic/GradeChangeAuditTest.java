@@ -42,6 +42,7 @@ class GradeChangeAuditTest {
     void seed() {
         named.failAuditAt = 0;
         named.auditWrites = 0;
+        named.auditStatements = 0;
         named.batchReads = 0;
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS academic");
         jdbc.execute("CREATE SCHEMA IF NOT EXISTS campuscore_audit");
@@ -170,7 +171,7 @@ class GradeChangeAuditTest {
     @ValueSource(booleans = {false, true})
     void secondAuditWriteFailureRollsBackAllGradesAndEarlierAudit(boolean publish) {
         enrollment("second");
-        named.failAuditAt = 2;
+        named.failAuditAt = publish ? 1 : 2;
         assertThatThrownBy(() -> {
             if (publish) service.publishGrades("section", "lecturer", true, "actor");
             else service.updateGrades("section", "lecturer", true, "actor", List.of(
@@ -210,6 +211,24 @@ class GradeChangeAuditTest {
         assertThat(auditCount()).isEqualTo(50);
     }
 
+    @Test
+    void publicationAuditWritesStayConstantAsTheSectionGrows() {
+        service.publishGrades("section", "lecturer", true, "actor");
+        assertThat(auditCount()).isEqualTo(1);
+
+        for (int i = 0; i < 200; i++) enrollment("bulk-" + i);
+        named.auditStatements = 0;
+        service.publishGrades("section", "lecturer", true, "actor");
+
+        assertThat(named.auditStatements).isEqualTo(1);
+        assertThat(auditCount()).isEqualTo(201);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM campuscore_audit.\"AdminAudit\" "
+                        + "WHERE \"action\" = 'GRADE_PUBLISH_BY_ADMIN' "
+                        + "AND \"afterState\" LIKE '%gradeStatus=PUBLISHED%'",
+                Integer.class)).isEqualTo(201);
+    }
+
     private void enrollment(String id) {
         jdbc.update("INSERT INTO academic.\"Enrollment\""
                 + " (\"id\", \"studentId\", \"sectionId\", \"semesterId\", \"status\", \"gradeStatus\","
@@ -239,6 +258,7 @@ class GradeChangeAuditTest {
     static class TrackingJdbc extends NamedParameterJdbcTemplate {
         int batchReads;
         int auditWrites;
+        int auditStatements;
         int failAuditAt;
         TrackingJdbc(JdbcTemplate jdbc) { super(jdbc); }
         @Override public List<Map<String, Object>> queryForList(String sql, SqlParameterSource params) {
@@ -258,10 +278,22 @@ class GradeChangeAuditTest {
             return super.queryForObject(sql, params, type);
         }
         @Override public int update(String sql, SqlParameterSource params) {
-            if (sql.startsWith("INSERT INTO campuscore_audit.") && ++auditWrites == failAuditAt) {
-                throw new IllegalStateException("audit unavailable");
+            if (sql.startsWith("INSERT INTO campuscore_audit.")) {
+                auditStatements++;
+                if (++auditWrites == failAuditAt) {
+                    throw new IllegalStateException("audit unavailable");
+                }
             }
             return super.update(sql, params);
+        }
+        @Override public int[] batchUpdate(String sql, SqlParameterSource[] batch) {
+            if (sql.startsWith("INSERT INTO campuscore_audit.")) {
+                auditStatements++;
+                if (++auditWrites == failAuditAt) {
+                    throw new IllegalStateException("audit unavailable");
+                }
+            }
+            return super.batchUpdate(sql, batch);
         }
     }
 

@@ -549,14 +549,19 @@ public class AcademicMutationService {
             // (dropped/cancelled) enrollment that publish must not resurrect.
             throw problem(HttpStatus.CONFLICT, "GRADES_EMPTY", "No complete grades are ready to publish");
         }
-        for (Map<String, Object> row : beforeRows) {
-            Map<String, Object> before = gradeAuditState(row);
-            Map<String, Object> after = new LinkedHashMap<>(before);
-            after.put("gradeStatus", "PUBLISHED");
-            after.put("enrollmentStatus", "COMPLETED");
-            after.put("reason", "PUBLISH");
-            audit.record(actorId, null, admin ? "GRADE_PUBLISH_BY_ADMIN" : "GRADE_PUBLISH",
-                    "SECTION", sectionId, "Official grade published", before, after);
+        if (!beforeRows.isEmpty()) {
+            String action = admin ? "GRADE_PUBLISH_BY_ADMIN" : "GRADE_PUBLISH";
+            List<AdminAuditRecorder.AuditEntry> entries = new ArrayList<>(beforeRows.size());
+            for (Map<String, Object> row : beforeRows) {
+                Map<String, Object> before = gradeAuditState(row);
+                Map<String, Object> after = new LinkedHashMap<>(before);
+                after.put("gradeStatus", "PUBLISHED");
+                after.put("enrollmentStatus", "COMPLETED");
+                after.put("reason", "PUBLISH");
+                entries.add(new AdminAuditRecorder.AuditEntry(actorId, null, action,
+                        "SECTION", sectionId, "Official grade published", before, after));
+            }
+            audit.recordAll(entries);
         }
         if (gradeNotifier != null && !audience.isEmpty()) {
             if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
