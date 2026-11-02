@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { en } from '@/i18n/messages';
+import { editorSurfacesEn, editorSurfacesVi } from '@/i18n/messages-editor';
 import { RichContentRenderer } from './rich-content-renderer';
 import { useRovingTabs } from './use-roving-tabs';
 import { Modal } from './modal';
@@ -64,20 +65,14 @@ type EditorViewMode = 'write' | 'split' | 'preview';
 const EDITOR_VIEW_MODES: readonly EditorViewMode[] = ['write', 'split', 'preview'];
 
 interface AcademicTemplate {
-  nameVi: string;
-  nameEn: string;
-  descriptionVi: string;
-  descriptionEn: string;
+  id: keyof typeof editorSurfacesEn.templates.richText;
   contentVi: string;
   contentEn: string;
 }
 
 const ACADEMIC_TEMPLATES: AcademicTemplate[] = [
   {
-    nameVi: 'Thông báo khẩn / Thay đổi lịch',
-    nameEn: 'Urgent Notice / Schedule Change',
-    descriptionVi: 'Mẫu thông báo khẩn cấp có hộp cảnh báo và bảng thời gian',
-    descriptionEn: 'Urgent notice template with alert box and timeline table',
+    id: 'urgentNotice',
     contentVi: `# THÔNG BÁO KHẨN: THAY ĐỔI LỊCH HỌC VỤ
 
 > [!WARNING]
@@ -120,10 +115,7 @@ The following course sections and end-of-course examination activities have been
 > For any questions, contact the Office of Academic Affairs (Room A1-101) or use the ${SITE_NAME} AI Assistant for online support.`,
   },
   {
-    nameVi: 'Kế hoạch đăng ký tín chỉ học phần',
-    nameEn: 'Course Registration Timeline',
-    descriptionVi: 'Lộ trình mở cổng đăng ký môn học theo đợt và khóa học',
-    descriptionEn: 'Structured registration timeline by batch and cohort',
+    id: 'registrationTimeline',
     contentVi: `# KẾ HOẠCH ĐĂNG KÝ HỌC PHẦN HỌC KỲ MỚI
 
 > [!IMPORTANT]
@@ -164,10 +156,7 @@ The following course sections and end-of-course examination activities have been
 > Use the **Filter by faculty** feature on the Course Registration screen to find the course code you need quickly.`,
   },
   {
-    nameVi: 'Hướng dẫn quy chế & biểu phí học tập',
-    nameEn: 'Academic Policy & Tuition Guide',
-    descriptionVi: 'Biên soạn tài liệu quy chế đào tạo và tri thức cho Trợ lý RAG',
-    descriptionEn: 'Academic regulation documentation suited for Assistant RAG',
+    id: 'academicPolicy',
     contentVi: `# HƯỚNG DẪN QUY CHẾ ĐÀO TẠO & HỌC VỤ
 
 Tài liệu quy định chi tiết về đánh giá điểm học phần và điều kiện xét tốt nghiệp đại học hệ chính quy:
@@ -207,37 +196,10 @@ This document sets out the detailed rules on course assessment and the condition
   },
 ];
 
-/** Help-dialog example rows: [markdown syntax, rendered description, style]. */
-type HelpExample = [syntax: string, result: string, style?: 'strong' | 'em'];
-
-const HELP_EXAMPLES_VI: HelpExample[] = [
-  ['# Tiêu đề 1', 'Tiêu đề cấp lớn'],
-  ['## Tiêu đề 2', 'Tiêu đề phụ'],
-  ['**In đậm**', 'In đậm văn bản', 'strong'],
-  ['*In nghiêng*', 'In nghiêng văn bản', 'em'],
-  ['- [ ] Việc cần làm', 'Hộp kiểm danh sách việc (Checklist)'],
-  ['> [!NOTE]', 'Hộp cảnh báo/ghi chú nổi bật màu xanh'],
-  ['> [!WARNING]', 'Hộp cảnh báo khẩn cấp màu vàng cam'],
-  ['| Cột 1 | Cột 2 |', 'Bảng biểu dữ liệu có viền và tiêu đề'],
-  ['[Tên](https://...)', 'Đường dẫn liên kết an toàn'],
-];
-
-const HELP_EXAMPLES_EN: HelpExample[] = [
-  ['# Heading 1', 'Top-level heading'],
-  ['## Heading 2', 'Section heading'],
-  ['**Bold**', 'Bold text', 'strong'],
-  ['*Italic*', 'Italic text', 'em'],
-  ['- [ ] Task item', 'Task checklist box'],
-  ['> [!NOTE]', 'Blue highlighted note/callout box'],
-  ['> [!WARNING]', 'Amber urgent warning box'],
-  ['| Col 1 | Col 2 |', 'Bordered data table with header'],
-  ['[Label](https://...)', 'Safe hyperlink'],
-];
-
 export function RichTextEditor({
   value,
   onChange,
-  placeholder = 'Nhập nội dung tại đây... (Hỗ trợ Markdown, bảng biểu, danh sách, ghi chú)',
+  placeholder,
   className,
   minHeight = '200px',
   disabled = false,
@@ -249,6 +211,8 @@ export function RichTextEditor({
   'aria-label': ariaLabel,
 }: RichTextEditorProps) {
   const isVi = locale === 'vi';
+  const copy = isVi ? editorSurfacesVi.richText : editorSurfacesEn.richText;
+  const templateCopy = isVi ? editorSurfacesVi.templates.richText : editorSurfacesEn.templates.richText;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
 
@@ -392,7 +356,7 @@ export function RichTextEditor({
   const openLinkModal = () => {
     const textarea = textareaRef.current;
     const selected = textarea ? textarea.value.substring(textarea.selectionStart, textarea.selectionEnd) : '';
-    setLinkText(selected || (isVi ? 'Liên kết' : 'Link text'));
+    setLinkText(selected || copy.linkTextPlaceholder);
     setLinkUrl('https://');
     setLinkDialogOpen(true);
   };
@@ -413,10 +377,10 @@ export function RichTextEditor({
 
     if (modKey && event.key.toLowerCase() === 'b') {
       event.preventDefault();
-      insertText('**', '**', isVi ? 'văn bản in đậm' : 'bold text');
+      insertText('**', '**', copy.boldExample);
     } else if (modKey && event.key.toLowerCase() === 'i') {
       event.preventDefault();
-      insertText('*', '*', isVi ? 'văn bản in nghiêng' : 'italic text');
+      insertText('*', '*', copy.italicExample);
     } else if (modKey && event.key.toLowerCase() === 'k') {
       event.preventDefault();
       openLinkModal();
@@ -473,7 +437,7 @@ export function RichTextEditor({
       {/* Top Toolbar */}
       <div
         role="toolbar"
-        aria-label={isVi ? 'Thanh công cụ soạn thảo' : 'Editor formatting toolbar'}
+        aria-label={copy.toolbarLabel}
         className="flex flex-wrap items-center justify-between gap-1 border-b border-border/70 bg-secondary/40 px-3 py-2 text-foreground"
       >
         {/* Left Toolbar Actions */}
@@ -483,8 +447,8 @@ export function RichTextEditor({
             type="button"
             onClick={handleUndo}
             disabled={historyIndex <= 0 || readOnly}
-            title={isVi ? 'Hoàn tác (Ctrl+Z)' : 'Undo (Ctrl+Z)'}
-            aria-label={isVi ? 'Hoàn tác (Ctrl+Z)' : 'Undo (Ctrl+Z)'}
+            title={copy.undo}
+            aria-label={copy.undo}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Undo2 className="h-4 w-4" />
@@ -493,7 +457,7 @@ export function RichTextEditor({
             type="button"
             onClick={handleRedo}
             disabled={historyIndex >= history.length - 1 || readOnly}
-            title={isVi ? 'Làm lại (Ctrl+Y)' : 'Redo (Ctrl+Y)'}
+            title={copy.redo}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Redo2 className="h-4 w-4" />
@@ -504,27 +468,27 @@ export function RichTextEditor({
           {/* Text Formats */}
           <button
             type="button"
-            onClick={() => insertText('**', '**', isVi ? 'in đậm' : 'bold')}
+            onClick={() => insertText('**', '**', copy.boldInsert)}
             disabled={readOnly}
-            title={isVi ? 'In đậm (Ctrl+B)' : 'Bold (Ctrl+B)'}
+            title={copy.bold}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Bold className="h-4 w-4" />
           </button>
           <button
             type="button"
-            onClick={() => insertText('*', '*', isVi ? 'in nghiêng' : 'italic')}
+            onClick={() => insertText('*', '*', copy.italicInsert)}
             disabled={readOnly}
-            title={isVi ? 'In nghiêng (Ctrl+I)' : 'Italic (Ctrl+I)'}
+            title={copy.italic}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Italic className="h-4 w-4" />
           </button>
           <button
             type="button"
-            onClick={() => insertText('~~', '~~', isVi ? 'gạch ngang' : 'strikethrough')}
+            onClick={() => insertText('~~', '~~', copy.strikethroughInsert)}
             disabled={readOnly}
-            title={isVi ? 'Gạch ngang' : 'Strikethrough'}
+            title={copy.strikethrough}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Strikethrough className="h-4 w-4" />
@@ -533,7 +497,7 @@ export function RichTextEditor({
             type="button"
             onClick={() => insertText('`', '`', 'code')}
             disabled={readOnly}
-            title={isVi ? 'Mã nội dòng (Inline Code)' : 'Inline Code'}
+            title={copy.inlineCode}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Code className="h-4 w-4" />
@@ -544,27 +508,27 @@ export function RichTextEditor({
           {/* Headings */}
           <button
             type="button"
-            onClick={() => insertLinePrefix('# ', isVi ? 'Tiêu đề lớn' : 'Heading 1')}
+            onClick={() => insertLinePrefix('# ', copy.heading1Insert)}
             disabled={readOnly}
-            title={isVi ? 'Tiêu đề H1' : 'Heading 1'}
+            title={copy.heading1}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Heading1 className="h-4 w-4" />
           </button>
           <button
             type="button"
-            onClick={() => insertLinePrefix('## ', isVi ? 'Tiêu đề phụ' : 'Heading 2')}
+            onClick={() => insertLinePrefix('## ', copy.heading2Insert)}
             disabled={readOnly}
-            title={isVi ? 'Tiêu đề H2' : 'Heading 2'}
+            title={copy.heading2}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Heading2 className="h-4 w-4" />
           </button>
           <button
             type="button"
-            onClick={() => insertLinePrefix('### ', isVi ? 'Tiêu đề cấp 3' : 'Heading 3')}
+            onClick={() => insertLinePrefix('### ', copy.heading3Insert)}
             disabled={readOnly}
-            title={isVi ? 'Tiêu đề H3' : 'Heading 3'}
+            title={copy.heading3}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Heading3 className="h-4 w-4" />
@@ -575,36 +539,36 @@ export function RichTextEditor({
           {/* Lists and Blocks */}
           <button
             type="button"
-            onClick={() => insertLinePrefix('- ', isVi ? 'Mục danh sách' : 'List item')}
+            onClick={() => insertLinePrefix('- ', copy.listItem)}
             disabled={readOnly}
-            title={isVi ? 'Danh sách dấu đầu dòng' : 'Bulleted List'}
+            title={copy.bulletedList}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <List className="h-4 w-4" />
           </button>
           <button
             type="button"
-            onClick={() => insertLinePrefix('1. ', isVi ? 'Mục có thứ tự' : 'Ordered item')}
+            onClick={() => insertLinePrefix('1. ', copy.orderedItem)}
             disabled={readOnly}
-            title={isVi ? 'Danh sách có thứ tự' : 'Numbered List'}
+            title={copy.numberedList}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <ListOrdered className="h-4 w-4" />
           </button>
           <button
             type="button"
-            onClick={() => insertLinePrefix('- [ ] ', isVi ? 'Công việc cần làm' : 'Task to complete')}
+            onClick={() => insertLinePrefix('- [ ] ', copy.taskItem)}
             disabled={readOnly}
-            title={isVi ? 'Danh sách kiểm việc (Checklist)' : 'Task Checklist'}
+            title={copy.taskList}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <CheckSquare className="h-4 w-4" />
           </button>
           <button
             type="button"
-            onClick={() => insertLinePrefix('> ', isVi ? 'Đoạn trích dẫn / Lưu ý' : 'Quote or note')}
+            onClick={() => insertLinePrefix('> ', copy.quoteItem)}
             disabled={readOnly}
-            title={isVi ? 'Khối trích dẫn' : 'Blockquote'}
+            title={copy.blockquote}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Quote className="h-4 w-4" />
@@ -615,18 +579,18 @@ export function RichTextEditor({
           {/* Alert Callouts */}
           <button
             type="button"
-            onClick={() => insertSnippet(`> [!NOTE]\n> ${isVi ? 'Ghi chú học vụ quan trọng cần lưu ý tại đây.' : 'Important academic note to record here.'}`)}
+            onClick={() => insertSnippet(`> [!NOTE]\n> ${copy.noteExample}`)}
             disabled={readOnly}
-            title={isVi ? 'Chèn hộp Lưu ý (Note)' : 'Insert Note Callout'}
+            title={copy.insertNote}
             className="rounded p-1.5 text-blue-600 dark:text-blue-400 transition-colors hover:bg-blue-50 dark:hover:bg-blue-950/40 disabled:opacity-40"
           >
             <AlertCircle className="h-4 w-4" />
           </button>
           <button
             type="button"
-            onClick={() => insertSnippet(`> [!WARNING]\n> ${isVi ? 'Cảnh báo hạn chót hoặc nội dung bắt buộc.' : 'Warning about deadline or mandatory action.'}`)}
+            onClick={() => insertSnippet(`> [!WARNING]\n> ${copy.warningExample}`)}
             disabled={readOnly}
-            title={isVi ? 'Chèn hộp Cảnh báo (Warning)' : 'Insert Warning Callout'}
+            title={copy.insertWarning}
             className="rounded p-1.5 text-amber-600 dark:text-amber-400 transition-colors hover:bg-amber-50 dark:hover:bg-amber-950/40 disabled:opacity-40"
           >
             <AlertCircle className="h-4 w-4" />
@@ -639,17 +603,17 @@ export function RichTextEditor({
             type="button"
             onClick={openLinkModal}
             disabled={readOnly}
-            title={isVi ? 'Chèn liên kết (Ctrl+K)' : 'Insert Link (Ctrl+K)'}
-            aria-label={isVi ? 'Chèn liên kết (Ctrl+K)' : 'Insert Link (Ctrl+K)'}
+            title={copy.insertLink}
+            aria-label={copy.insertLink}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <LinkIcon className="h-4 w-4" />
           </button>
           <button
             type="button"
-            onClick={() => insertText('![', '](https://example.com/image.png)', isVi ? 'Mô tả hình ảnh' : 'Image description')}
+            onClick={() => insertText('![', '](https://example.com/image.png)', copy.imageDescription)}
             disabled={readOnly}
-            title={isVi ? 'Chèn hình ảnh' : 'Insert Image'}
+            title={copy.insertImage}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <ImageIcon className="h-4 w-4" />
@@ -658,11 +622,11 @@ export function RichTextEditor({
             type="button"
             onClick={() =>
               insertSnippet(
-                `| ${isVi ? 'Tiêu chí' : 'Header 1'} | ${isVi ? 'Thông tin' : 'Header 2'} | ${isVi ? 'Ghi chú' : 'Notes'} |\n| :--- | :--- | :--- |\n| ${isVi ? 'Mục 1' : 'Row 1'} | ${isVi ? 'Giá trị A' : 'Value A'} | ${isVi ? 'Chi tiết' : 'Details'} |\n| ${isVi ? 'Mục 2' : 'Row 2'} | ${isVi ? 'Giá trị B' : 'Value B'} | ${isVi ? 'Chi tiết' : 'Details'} |`
+                `| ${copy.table.header1} | ${copy.table.header2} | ${copy.table.notes} |\n| :--- | :--- | :--- |\n| ${copy.table.row1} | ${copy.table.valueA} | ${copy.table.details} |\n| ${copy.table.row2} | ${copy.table.valueB} | ${copy.table.details} |`
               )
             }
             disabled={readOnly}
-            title={isVi ? 'Chèn bảng biểu 3 cột' : 'Insert 3-column Table'}
+            title={copy.table.insert}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Table className="h-4 w-4" />
@@ -670,10 +634,10 @@ export function RichTextEditor({
           <button
             type="button"
             onClick={() =>
-              insertSnippet('```java\n' + (isVi ? '// Mã nguồn minh họa' : '// Sample code') + '\n```')
+              insertSnippet('```java\n' + copy.codeComment + '\n```')
             }
             disabled={readOnly}
-            title={isVi ? 'Khối mã nguồn (Code block)' : 'Code block'}
+            title={copy.codeBlock}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <FileCode className="h-4 w-4" />
@@ -682,7 +646,7 @@ export function RichTextEditor({
             type="button"
             onClick={() => insertSnippet('---')}
             disabled={readOnly}
-            title={isVi ? 'Đường kẻ phân cách' : 'Horizontal Rule'}
+            title={copy.horizontalRule}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
             <Minus className="h-4 w-4" />
@@ -696,10 +660,10 @@ export function RichTextEditor({
                 onClick={() => setTemplatesOpen(!templatesOpen)}
                 disabled={readOnly}
                 className="inline-flex items-center gap-1 rounded bg-primary/10 px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
-                title={isVi ? 'Mẫu thông báo & quy chế soạn sẵn' : 'Pre-built academic templates'}
+                title={copy.templatesTitle}
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">{isVi ? 'Mẫu học vụ' : 'Templates'}</span>
+                <span className="hidden sm:inline">{copy.templatesButton}</span>
               </button>
 
               {templatesOpen ? (
@@ -711,7 +675,7 @@ export function RichTextEditor({
                   />
                   <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded-lg border border-border/80 bg-popover p-1 shadow-lg">
                     <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      {isVi ? 'Chọn mẫu văn bản nhanh' : 'Select quick template'}
+                      {copy.quickTemplateTitle}
                     </div>
                     {ACADEMIC_TEMPLATES.map((tmpl, idx) => (
                       <button
@@ -723,8 +687,8 @@ export function RichTextEditor({
                         }}
                         className="w-full text-left rounded-md px-2 py-1.5 text-xs hover:bg-secondary transition-colors"
                       >
-                        <div className="font-semibold text-foreground">{isVi ? tmpl.nameVi : tmpl.nameEn}</div>
-                        <div className="text-[11px] text-muted-foreground line-clamp-1">{isVi ? tmpl.descriptionVi : tmpl.descriptionEn}</div>
+                        <div className="font-semibold text-foreground">{templateCopy[tmpl.id].title}</div>
+                        <div className="text-[11px] text-muted-foreground line-clamp-1">{templateCopy[tmpl.id].description}</div>
                       </button>
                     ))}
                   </div>
@@ -746,14 +710,14 @@ export function RichTextEditor({
               tabIndex={viewModeTabs.tabIndex('write')}
               onKeyDown={(event) => viewModeTabs.onKeyDown(event, 0)}
               onClick={() => setViewMode('write')}
-              title={isVi ? 'Chỉ soạn thảo' : 'Write only'}
+              title={copy.viewTabs.writeTitle}
               className={cn(
                 'flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors',
                 viewMode === 'write' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
               )}
             >
               <Edit3 className="h-3.5 w-3.5" />
-              <span className="hidden md:inline">{isVi ? 'Soạn thảo' : 'Write'}</span>
+              <span className="hidden md:inline">{copy.viewTabs.write}</span>
             </button>
             <button
               ref={viewModeTabs.tabRef('split')}
@@ -763,14 +727,14 @@ export function RichTextEditor({
               tabIndex={viewModeTabs.tabIndex('split')}
               onKeyDown={(event) => viewModeTabs.onKeyDown(event, 1)}
               onClick={() => setViewMode('split')}
-              title={isVi ? 'Chia đôi trực tiếp (Split preview)' : 'Split live preview'}
+              title={copy.viewTabs.splitTitle}
               className={cn(
                 'flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors',
                 viewMode === 'split' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
               )}
             >
               <Columns className="h-3.5 w-3.5" />
-              <span className="hidden md:inline">{isVi ? 'Chia đôi' : 'Split'}</span>
+              <span className="hidden md:inline">{copy.viewTabs.split}</span>
             </button>
             <button
               ref={viewModeTabs.tabRef('preview')}
@@ -780,14 +744,14 @@ export function RichTextEditor({
               tabIndex={viewModeTabs.tabIndex('preview')}
               onKeyDown={(event) => viewModeTabs.onKeyDown(event, 2)}
               onClick={() => setViewMode('preview')}
-              title={isVi ? 'Chỉ xem trước' : 'Preview only'}
+              title={copy.viewTabs.previewTitle}
               className={cn(
                 'flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors',
                 viewMode === 'preview' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
               )}
             >
               <Eye className="h-3.5 w-3.5" />
-              <span className="hidden md:inline">{isVi ? 'Xem trước' : 'Preview'}</span>
+              <span className="hidden md:inline">{copy.viewTabs.preview}</span>
             </button>
           </div>
 
@@ -795,7 +759,7 @@ export function RichTextEditor({
           <button
             type="button"
             onClick={() => setHelpDialogOpen(true)}
-            title={isVi ? 'Hướng dẫn phím tắt & cú pháp' : 'Formatting guide & shortcuts'}
+            title={copy.formattingGuide}
             className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             <HelpCircle className="h-4 w-4" />
@@ -805,7 +769,7 @@ export function RichTextEditor({
           <button
             type="button"
             onClick={() => setIsFullscreen(!isFullscreen)}
-            title={isFullscreen ? (isVi ? 'Thu nhỏ (Esc)' : 'Exit Fullscreen (Esc)') : (isVi ? 'Toàn màn hình' : 'Fullscreen')}
+            title={isFullscreen ? copy.exitFullscreen : copy.fullscreen}
             className={cn(
               'rounded p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground',
               isFullscreen && 'bg-primary/20 text-primary'
@@ -826,10 +790,10 @@ export function RichTextEditor({
             value={value}
             onChange={(e) => handleTextChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={placeholder}
+            placeholder={placeholder ?? copy.placeholder}
             disabled={disabled}
             readOnly={readOnly}
-            aria-label={ariaLabel || (isVi ? 'Vùng soạn thảo nội dung' : 'Content editor area')}
+            aria-label={ariaLabel || copy.editorArea}
             style={{ minHeight: isFullscreen ? '100%' : minHeight }}
             className="w-full resize-y rounded-b-md border-none bg-transparent p-4 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           />
@@ -840,7 +804,7 @@ export function RichTextEditor({
           <div className="grid h-full grid-cols-1 divide-y border-b border-border/70 md:grid-cols-2 md:divide-x md:divide-y-0">
             <div className="flex flex-col">
               <div className="border-b border-border/60 bg-secondary/20 px-4 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {isVi ? 'Mã Markdown' : 'Markdown Code'}
+                {copy.markdownCode}
               </div>
               <textarea
                 id={id}
@@ -848,22 +812,22 @@ export function RichTextEditor({
                 value={value}
                 onChange={(e) => handleTextChange(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={placeholder}
+                placeholder={placeholder ?? copy.placeholder}
                 disabled={disabled}
                 readOnly={readOnly}
-                aria-label={ariaLabel || (isVi ? 'Vùng soạn thảo nội dung' : 'Content editor area')}
+                aria-label={ariaLabel || copy.editorArea}
                 style={{ minHeight: isFullscreen ? '100%' : minHeight }}
                 className="w-full flex-1 resize-none border-none bg-transparent p-4 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               />
             </div>
             <div className="flex flex-col overflow-y-auto bg-card/40">
               <div className="border-b border-border/60 bg-secondary/20 px-4 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {isVi ? 'Xem trước trực quan' : 'Live Rendered View'}
+                {copy.liveView}
               </div>
               <div className="flex-1 p-4 overflow-y-auto" style={{ minHeight: isFullscreen ? '100%' : minHeight }}>
                 <RichContentRenderer
                   content={value}
-                  fallbackText={isVi ? '(Bản xem trước trực tiếp sẽ xuất hiện tại đây khi bạn nhập)' : '(Live preview will appear here as you type)'}
+                  fallbackText={copy.livePreviewPlaceholder}
                 />
               </div>
             </div>
@@ -875,7 +839,7 @@ export function RichTextEditor({
           <div className="p-5 overflow-y-auto bg-card/40" style={{ minHeight: isFullscreen ? '100%' : minHeight }}>
             <RichContentRenderer
               content={value}
-              fallbackText={isVi ? '(Chưa có nội dung xem trước)' : '(No content to preview)'}
+              fallbackText={copy.emptyPreview}
             />
           </div>
         ) : null}
@@ -885,15 +849,15 @@ export function RichTextEditor({
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 bg-secondary/30 px-3 py-1.5 text-xs text-muted-foreground">
         <div className="flex items-center gap-3">
           <span>
-            {stats.chars} {isVi ? 'ký tự' : 'characters'}
+            {stats.chars} {copy.stats.characters}
           </span>
           <span>·</span>
           <span>
-            {stats.words} {isVi ? 'từ' : 'words'}
+            {stats.words} {copy.stats.words}
           </span>
           <span>·</span>
           <span>
-            ~{stats.minutes} {isVi ? 'phút đọc' : 'min read'}
+            ~{stats.minutes} {copy.stats.readingTime}
           </span>
           {hint ? (
             <>
@@ -903,9 +867,9 @@ export function RichTextEditor({
           ) : null}
         </div>
         <div className="hidden sm:flex items-center gap-2 text-[11px]">
-          <span className="rounded bg-secondary/80 px-1.5 py-0.5 font-mono">Ctrl+B</span> {isVi ? 'In đậm' : 'Bold'}
-          <span className="rounded bg-secondary/80 px-1.5 py-0.5 font-mono">Ctrl+I</span> {isVi ? 'In nghiêng' : 'Italic'}
-          <span className="rounded bg-secondary/80 px-1.5 py-0.5 font-mono">Ctrl+K</span> {isVi ? 'Liên kết' : 'Link'}
+          <span className="rounded bg-secondary/80 px-1.5 py-0.5 font-mono">Ctrl+B</span> {copy.boldStatus}
+          <span className="rounded bg-secondary/80 px-1.5 py-0.5 font-mono">Ctrl+I</span> {copy.italicStatus}
+          <span className="rounded bg-secondary/80 px-1.5 py-0.5 font-mono">Ctrl+K</span> {copy.linkStatus}
         </div>
       </div>
 
@@ -914,13 +878,13 @@ export function RichTextEditor({
         <Modal
           isOpen={linkDialogOpen}
           onClose={() => setLinkDialogOpen(false)}
-          title={isVi ? 'Chèn liên kết đường dẫn' : 'Insert Hyperlink'}
+          title={copy.linkDialog.title}
           className="max-w-md"
         >
           <div className="space-y-3 text-sm">
             <div>
               <label htmlFor="rich-text-link-text" className="block font-medium text-foreground mb-1">
-                {isVi ? 'Văn bản hiển thị' : 'Link Text'}
+                {copy.linkDialog.textLabel}
               </label>
               <input
                 id="rich-text-link-text"
@@ -933,7 +897,7 @@ export function RichTextEditor({
             </div>
             <div>
               <label htmlFor="rich-text-link-url" className="block font-medium text-foreground mb-1">
-                {isVi ? 'Địa chỉ URL' : 'Link URL'}
+                {copy.linkDialog.urlLabel}
               </label>
               <input
                 id="rich-text-link-url"
@@ -951,14 +915,14 @@ export function RichTextEditor({
               onClick={() => setLinkDialogOpen(false)}
               className="rounded-md border border-border/80 px-3 py-1.5 text-sm font-medium hover:bg-secondary"
             >
-              {isVi ? 'Hủy' : 'Cancel'}
+              {copy.linkDialog.cancel}
             </button>
             <button
               type="button"
               onClick={applyLink}
               className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              {isVi ? 'Chèn liên kết' : 'Insert Link'}
+              {copy.linkDialog.insert}
             </button>
           </div>
         </Modal>
@@ -969,26 +933,29 @@ export function RichTextEditor({
         <Modal
           isOpen={helpDialogOpen}
           onClose={() => setHelpDialogOpen(false)}
-          title={isVi ? 'Cẩm nang định dạng soạn thảo học vụ' : 'Editor Markdown & Formatting Guide'}
+          title={copy.helpDialog.title}
           className="max-w-lg"
         >
           <div className="max-h-96 space-y-3 overflow-y-auto text-xs text-foreground/90 leading-relaxed pr-2">
             <div className="grid grid-cols-2 gap-2 border-b border-border/60 pb-2">
-              <span className="font-semibold text-primary">{isVi ? 'Cú pháp' : 'Syntax'}</span>
-              <span className="font-semibold text-primary">{isVi ? 'Kết quả hiển thị' : 'Result'}</span>
+              <span className="font-semibold text-primary">{copy.helpDialog.syntax}</span>
+              <span className="font-semibold text-primary">{copy.helpDialog.result}</span>
             </div>
-            {(isVi ? HELP_EXAMPLES_VI : HELP_EXAMPLES_EN).map(([syntax, result, style]) => (
-              <div className="grid grid-cols-2 gap-2" key={syntax}>
-                <code>{syntax}</code>
-                {style === 'strong' ? (
-                  <strong>{result}</strong>
-                ) : style === 'em' ? (
-                  <em>{result}</em>
-                ) : (
-                  <span>{result}</span>
-                )}
-              </div>
-            ))}
+            {copy.helpDialog.examples.map((example) => {
+              const style = 'style' in example ? example.style : undefined;
+              return (
+                <div className="grid grid-cols-2 gap-2" key={example.syntax}>
+                  <code>{example.syntax}</code>
+                  {style === 'strong' ? (
+                    <strong>{example.result}</strong>
+                  ) : style === 'em' ? (
+                    <em>{example.result}</em>
+                  ) : (
+                    <span>{example.result}</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
           <div className="mt-5 flex justify-end">
             <button
@@ -996,7 +963,7 @@ export function RichTextEditor({
               onClick={() => setHelpDialogOpen(false)}
               className="rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
             >
-              {isVi ? 'Đã hiểu' : 'Got it'}
+              {copy.helpDialog.done}
             </button>
           </div>
         </Modal>

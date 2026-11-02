@@ -18,6 +18,7 @@ import {
   Info,
 } from 'lucide-react';
 import { useI18n } from '@/i18n';
+import { editorSurfacesEn, editorSurfacesVi } from '@/i18n/messages-editor';
 import { cn } from '@/lib/utils';
 
 export interface RichContentRendererProps {
@@ -187,12 +188,13 @@ function SafeImage({ src, alt }: { src: string; alt: string }) {
   const [hasError, setHasError] = useState(false);
   const { locale } = useI18n();
   const vi = locale === 'vi';
+  const copy = vi ? editorSurfacesVi.renderer : editorSurfacesEn.renderer;
 
   if (hasError) {
     return (
       <span className="my-3 flex flex-col items-center justify-center rounded-lg border border-dashed border-border/80 bg-secondary/30 p-6 text-center text-xs text-muted-foreground">
         <ImageOff className="mb-2 h-6 w-6 text-muted-foreground/60" />
-        <span>{alt ? (vi ? `[Hình ảnh không tải được: ${alt}]` : `[Image failed to load: ${alt}]`) : (vi ? '[Hình ảnh minh họa không thể hiển thị]' : '[Illustration image cannot be displayed]')}</span>
+        <span>{alt ? copy.imageLoadFailedWithAlt.replace('{alt}', alt) : copy.imageUnavailable}</span>
       </span>
     );
   }
@@ -337,6 +339,7 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
   const [copyFailed, setCopyFailed] = useState(false);
   const { locale } = useI18n();
   const vi = locale === 'vi';
+  const copy = vi ? editorSurfacesVi.renderer : editorSurfacesEn.renderer;
 
   const handleCopy = () => {
     if (navigator?.clipboard?.writeText) {
@@ -366,22 +369,22 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
           type="button"
           onClick={handleCopy}
           className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-          aria-label={vi ? 'Sao chép mã nguồn' : 'Copy source code'}
+          aria-label={copy.copySource}
         >
           {copied ? (
             <>
               <Check className="h-3.5 w-3.5 text-status-success-foreground" />
-              <span className="text-status-success-foreground">{vi ? 'Đã chép' : 'Copied'}</span>
+              <span className="text-status-success-foreground">{copy.copied}</span>
             </>
           ) : copyFailed ? (
             <>
               <Copy className="h-3.5 w-3.5" />
-              <span className="text-destructive">{vi ? 'Chưa chép được' : 'Copy failed'}</span>
+              <span className="text-destructive">{copy.copyFailed}</span>
             </>
           ) : (
             <>
               <Copy className="h-3.5 w-3.5" />
-              <span>{vi ? 'Sao chép' : 'Copy'}</span>
+              <span>{copy.copy}</span>
             </>
           )}
         </button>
@@ -399,40 +402,41 @@ type AlertType = 'note' | 'tip' | 'important' | 'warning' | 'caution';
 function AlertCallout({ type, children }: { type: AlertType; children: React.ReactNode }) {
   const { locale } = useI18n();
   const vi = locale === 'vi';
+  const calloutCopy = vi ? editorSurfacesVi.renderer.callout : editorSurfacesEn.renderer.callout;
   const styles: Record<AlertType, { border: string; bg: string; icon: React.ReactNode; label: string; text: string }> = {
     note: {
       border: 'border-blue-500/40 dark:border-blue-400/30',
       bg: 'bg-blue-50/50 dark:bg-blue-950/20',
       icon: <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />,
-      label: vi ? 'LƯU Ý (NOTE)' : 'NOTE',
+      label: calloutCopy.note,
       text: 'text-blue-900 dark:text-blue-200',
     },
     tip: {
       border: 'border-emerald-500/40 dark:border-emerald-400/30',
       bg: 'bg-emerald-50/50 dark:bg-emerald-950/20',
       icon: <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />,
-      label: vi ? 'MẸO (TIP)' : 'TIP',
+      label: calloutCopy.tip,
       text: 'text-emerald-900 dark:text-emerald-200',
     },
     important: {
       border: 'border-purple-500/40 dark:border-purple-400/30',
       bg: 'bg-purple-50/50 dark:bg-purple-950/20',
       icon: <AlertCircle className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />,
-      label: vi ? 'QUAN TRỌNG (IMPORTANT)' : 'IMPORTANT',
+      label: calloutCopy.important,
       text: 'text-purple-900 dark:text-purple-200',
     },
     warning: {
       border: 'border-amber-500/40 dark:border-amber-400/30',
       bg: 'bg-amber-50/50 dark:bg-amber-950/20',
       icon: <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />,
-      label: vi ? 'CẢNH BÁO (WARNING)' : 'WARNING',
+      label: calloutCopy.warning,
       text: 'text-amber-900 dark:text-amber-200',
     },
     caution: {
       border: 'border-rose-500/40 dark:border-rose-400/30',
       bg: 'bg-rose-50/50 dark:bg-rose-950/20',
       icon: <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0" />,
-      label: vi ? 'CHÚ Ý NGUY CƠ (CAUTION)' : 'CAUTION',
+      label: calloutCopy.caution,
       text: 'text-rose-900 dark:text-rose-200',
     },
   };

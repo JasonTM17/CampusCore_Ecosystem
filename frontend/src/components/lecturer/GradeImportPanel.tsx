@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { FileUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { lecturerSurfacesEn, lecturerSurfacesVi } from '@/i18n/messages-lecturer';
 import { useI18n } from '@/i18n';
 import { cn } from '@/lib/utils';
 import { parseGradeSheet, type GradeImportRow, type GradeImportStudent, type ParsedGradeSheet } from '@/lib/grade-sheet';
@@ -30,6 +31,7 @@ export function GradeImportPanel({
   const [result, setResult] = useState<ParsedGradeSheet | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const vi = locale === 'vi';
+  const importCopy = vi ? lecturerSurfacesVi.gradeImport : lecturerSurfacesEn.gradeImport;
 
   const evaluate = (text: string) => {
     const parsed = parseGradeSheet(text, students);
@@ -64,7 +66,7 @@ export function GradeImportPanel({
         className="inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-primary hover:underline disabled:opacity-50"
       >
         <FileUp className="h-4 w-4" />
-        {vi ? 'Nhập điểm từ tệp CSV/TSV' : 'Import scores from a CSV/TSV file'}
+        {importCopy.title}
       </button>
 
       {open ? (
@@ -85,7 +87,7 @@ export function GradeImportPanel({
               ref={fileRef}
             />
             <span className="rounded-lg border border-border/80 px-2.5 py-1.5 hover:bg-secondary/60">
-              {vi ? 'Chọn tệp CSV' : 'Choose a CSV file'}
+              {importCopy.chooseFile}
             </span>
             {fileName ? <span className="min-w-0 max-w-[16rem] truncate font-normal text-muted-foreground" title={fileName}>{fileName}</span> : null}
           </label>
@@ -98,8 +100,8 @@ export function GradeImportPanel({
             }}
             rows={4}
             disabled={disabled}
-            aria-label={vi ? 'Dán bảng điểm' : 'Paste grade rows'}
-            placeholder={vi ? 'Hoặc dán các dòng điểm vào đây…' : 'Or paste grade rows here…'}
+            aria-label={importCopy.pasteAria}
+            placeholder={importCopy.pastePlaceholder}
             className="w-full rounded-lg border border-input bg-background px-3 py-2 font-mono text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
 
@@ -147,7 +149,7 @@ export function GradeImportPanel({
             onClick={apply}
             disabled={disabled || !result || result.applied.length === 0}
           >
-            {vi ? 'Điền vào bảng điểm' : 'Fill the grade table'}
+            {importCopy.fillTable}
           </Button>
         </div>
       ) : null}

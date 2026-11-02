@@ -20,6 +20,11 @@
  * reopens the dead-end this module exists to close.
  */
 
+import {
+  announcementWorkspaceEn,
+  announcementWorkspaceVi,
+} from '@/i18n/messages-announcements';
+
 /** Mirror of the server-side cap in `AnnouncementWriteService.java`. */
 export const MAX_ANNOUNCEMENT_CONTENT_CHARS = 200_000;
 
@@ -157,7 +162,8 @@ export function announcementLengthViolationMessage(
   const tag = locale === 'vi' ? 'vi-VN' : 'en-US';
   const limit = violation.limit.toLocaleString(tag);
   const excess = violation.excessChars.toLocaleString(tag);
-  return locale === 'vi'
-    ? `Nội dung vượt quá giới hạn ${limit} ký tự (cần bỏ bớt ${excess} ký tự). Hãy rút gọn văn bản hoặc bỏ bớt hình ảnh.`
-    : `The content exceeds the ${limit} character limit by ${excess} characters. Shorten the text or remove an image.`;
+  const copy = { en: announcementWorkspaceEn, vi: announcementWorkspaceVi }[locale].limits;
+  return copy.contentTooLong
+    .replace('{limit}', limit)
+    .replace('{excess}', excess);
 }

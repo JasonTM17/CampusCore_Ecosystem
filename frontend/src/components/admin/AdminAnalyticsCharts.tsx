@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/state-block';
 import { Skeleton } from '@/components/ui/skeleton';
+import { adminOpsEn, adminOpsVi } from '@/i18n/messages-admin-ops';
 import { useI18n } from '@/i18n';
 import { cn } from '@/lib/utils';
 import {
@@ -49,6 +50,7 @@ export function AdminAnalyticsCharts({ stats, className }: AdminAnalyticsChartsP
   const { messages, formatNumber, locale } = useI18n();
   const copy = messages.admin.analytics;
   const isVi = locale === 'vi';
+  const opsCopy = isVi ? adminOpsVi.analytics : adminOpsEn.analytics;
   const [activeTab, setActiveTab] = useState<'departments' | 'enrollments' | 'faculty' | 'grades'>('departments');
   const [departmentMetric, setDepartmentMetric] = useState<'students' | 'courses' | 'sections'>('students');
 
@@ -102,7 +104,7 @@ export function AdminAnalyticsCharts({ stats, className }: AdminAnalyticsChartsP
       if (item.rank === 'PROFESSOR') localizedRank = copy.facultyRanks.professor;
       else if (item.rank === 'DOCTOR' || item.rank === 'PHD') localizedRank = copy.facultyRanks.doctor;
       else if (item.rank === 'MASTER') localizedRank = copy.facultyRanks.master;
-      else if (!item.rank) localizedRank = isVi ? 'Giảng viên' : 'Lecturer';
+      else if (!item.rank) localizedRank = opsCopy.lecturerRankFallback;
 
       return {
         rank: localizedRank,
@@ -112,7 +114,7 @@ export function AdminAnalyticsCharts({ stats, className }: AdminAnalyticsChartsP
         percentage: Math.round((item.count / total) * 100),
       };
     });
-  }, [overview, copy, isVi]);
+  }, [overview, copy, opsCopy.lecturerRankFallback]);
 
   // 3. Grade distribution data
   const gradeDistribution = useMemo(() => {
@@ -237,7 +239,7 @@ export function AdminAnalyticsCharts({ stats, className }: AdminAnalyticsChartsP
         ) : !overview ? (
           <EmptyState
             icon={BarChart3}
-            title={isVi ? 'Không có dữ liệu thống kê phân bố' : 'Distribution statistics unavailable'}
+            title={opsCopy.noDistributionTitle}
             description={
               isVi
                 ? 'Dữ liệu thống kê phân bố sinh viên, giảng viên và phổ điểm từ hệ thống hiện chưa sẵn sàng.'
@@ -304,7 +306,7 @@ export function AdminAnalyticsCharts({ stats, className }: AdminAnalyticsChartsP
             {/* SVG Monochromatic Bar Chart */}
             {departments.length === 0 ? (
               <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-border/70 text-xs text-muted-foreground">
-                {isLoading ? (isVi ? 'Đang nạp dữ liệu thống kê khoa...' : 'Loading faculty statistics...') : (isVi ? 'Chưa có dữ liệu khoa' : 'No faculty data available')}
+                {isLoading ? (opsCopy.facultyLoading) : (opsCopy.noFacultyData)}
               </div>
             ) : (
               <div className="rounded-xl border border-border/70 bg-card/60 p-4">
@@ -431,7 +433,7 @@ export function AdminAnalyticsCharts({ stats, className }: AdminAnalyticsChartsP
             {/* SVG Trend Line & Area Chart */}
             {semesterTrends.length === 0 ? (
               <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-border/70 text-xs text-muted-foreground">
-                {isLoading ? (isVi ? 'Đang nạp xu hướng học kỳ...' : 'Loading semester trends...') : (isVi ? 'Chưa có dữ liệu học kỳ' : 'No semester trends recorded')}
+                {isLoading ? (opsCopy.trendsLoading) : (opsCopy.noTrendsData)}
               </div>
             ) : (
               <div className="rounded-xl border border-border/70 bg-card/60 p-4">
@@ -531,7 +533,7 @@ export function AdminAnalyticsCharts({ stats, className }: AdminAnalyticsChartsP
                   {formatNumber(currentTermLoad?.count ?? stats.totalEnrollments)} {copy.loadsUnit}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {currentTermLoad?.semester ?? (isVi ? 'Học kỳ hiện tại' : 'Current term')}
+                  {currentTermLoad?.semester ?? (opsCopy.currentTerm)}
                 </p>
               </div>
             </div>
@@ -549,7 +551,7 @@ export function AdminAnalyticsCharts({ stats, className }: AdminAnalyticsChartsP
 
             {facultyRanks.length === 0 ? (
               <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-border/70 text-xs text-muted-foreground">
-                {isLoading ? (isVi ? 'Đang nạp phân bố giảng viên...' : 'Loading faculty ranks...') : (isVi ? 'Chưa có dữ liệu học hàm' : 'No faculty rank data')}
+                {isLoading ? (opsCopy.ranksLoading) : (opsCopy.noRanksData)}
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:items-center">
@@ -629,7 +631,7 @@ export function AdminAnalyticsCharts({ stats, className }: AdminAnalyticsChartsP
 
             {gradeDistribution.length === 0 ? (
               <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-border/70 text-xs text-muted-foreground">
-                {isLoading ? (isVi ? 'Đang nạp phân bố điểm...' : 'Loading grade distribution...') : (isVi ? 'Chưa có dữ liệu điểm học phần' : 'No grade records')}
+                {isLoading ? (opsCopy.gradesLoading) : (opsCopy.noGradesData)}
               </div>
             ) : (
               <>

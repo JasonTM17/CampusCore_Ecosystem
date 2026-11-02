@@ -203,7 +203,9 @@ test('the shipped page keeps the shared day mapping and error fallback wiring', 
   // through shortDayLabel, and no forked day-label table exists on the page.
   assert.match(page, /shortDayLabel\(locale, schedule\.dayOfWeek\)/);
   assert.doesNotMatch(page, /DAY_LABELS_VI|SHORT_DAY_LABELS/);
-  assert.match(grid, /1: 'Chủ Nhật'/);
+  const studentPages = fs.readFileSync(path.join(root, 'src/i18n/messages-student-pages.ts'), 'utf8');
+  assert.match(grid, /studentPagesVi\.schedule\.grid\.dayLabels/);
+  assert.match(studentPages, /1: 'Chủ Nhật'/);
   // Error mapping falls back to the shared campus-error mapper.
   assert.match(page, /campusCodeMessage\(cause, messages\.common\.campusErrors\)/);
 });

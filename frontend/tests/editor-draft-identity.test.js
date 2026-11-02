@@ -19,6 +19,17 @@ const deferred = () => {
 };
 const settle = () => new Promise(done => setImmediate(done));
 
+function loadTs(relativePath) {
+  const output = ts.transpileModule(fs.readFileSync(path.join(root, relativePath), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const moduleRecord = { exports: {} };
+  Function('module', 'exports', output)(moduleRecord, moduleRecord.exports);
+  return moduleRecord.exports;
+}
+
+const editorSurfaces = loadTs('src/i18n/messages-editor.ts');
+
 // Execute the real TSX and callbacks. Only dependencies/host UI are stubbed;
 // keyed component instances, effect dependencies and unmount cleanup are retained.
 function createStudio(entries = new Map(), search = '') {
@@ -98,6 +109,7 @@ function createStudio(entries = new Map(), search = '') {
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
     '@/context/AuthContext': { useRequireAuth: () => auth },
     '@/i18n': { useI18n: () => ({ locale: 'vi', formatDate: String, messages }) },
+    '@/i18n/messages-editor': editorSurfaces,
     '@/i18n/messages': { getMessages: () => messages },
     '@/lib/use-unsaved-changes-guard': { useUnsavedChangesGuard: () => guard },
     '@/lib/site-appearance': { DEFAULT_SITE_APPEARANCE: appearance, SITE_APPEARANCE_ACCENTS: [] },

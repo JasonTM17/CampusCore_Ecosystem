@@ -287,3 +287,31 @@ test('student page consumers read the central catalog and contain no extracted l
     assert.equal(helper.includes(literal), false, `iCalendar helper retains ${literal}`);
   }
 });
+
+test('P9 schedule UI keys have EN/VI parity and sources are catalogue-driven', () => {
+  const { studentPagesEn, studentPagesVi } = require('typescript') &&
+    (() => {
+      const fs = require('node:fs');
+      const path = require('node:path');
+      const ts = require('typescript');
+      const src = fs.readFileSync(path.resolve(__dirname, '../src/i18n/messages-student-pages.ts'), 'utf8');
+      const out = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+      const mod = { exports: {} };
+      Function('module', 'exports', 'require', out)(mod, mod.exports, () => ({}));
+      return mod.exports;
+    })();
+  const vi = studentPagesVi;
+  for (const key of ['dayLabels', 'shortDayLabels', 'unknownDay', 'hourLabel', 'morningLabel', 'afternoonLabel', 'eveningLabel']) {
+    assert.equal(typeof studentPagesEn.schedule.grid[key], typeof vi.schedule.grid[key], `schedule.grid.${key} parity`);
+  }
+  assert.deepEqual(Object.keys(studentPagesEn.schedule.detail).sort(), Object.keys(vi.schedule.detail).sort(), 'schedule.detail key parity');
+  assert.equal(studentPagesEn.transcript.chartTerm, 'T{index}');
+  assert.equal(vi.transcript.chartTerm, 'HK{index}');
+
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const read = (f) => fs.readFileSync(path.resolve(__dirname, '..', f), 'utf8');
+  assert.match(read('src/components/schedule/weekly-grid.tsx'), /messages-student-pages/, 'weekly-grid must read the fragment');
+  assert.match(read('src/components/schedule/ClassScheduleDetailModal.tsx'), /studentPagesVi\.schedule\.detail/, 'detail modal must read schedule.detail');
+  assert.match(read('src/lib/transcript-charts.ts'), /transcript\.chartTerm/, 'transcript charts must read chartTerm');
+});

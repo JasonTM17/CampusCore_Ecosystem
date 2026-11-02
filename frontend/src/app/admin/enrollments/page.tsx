@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/state-block';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
+import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
 import {
   getLocalizedCourseLabel,
   getLocalizedName,
@@ -151,6 +152,13 @@ export default function AdminEnrollmentsPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
   const { confirm, confirmationDialog } = useConfirmationDialog();
+  const copy = { en: adminAcademicsEn.enrollments, vi: adminAcademicsVi.enrollments }[locale];
+  const viewLabel = (learnerLabel: string) =>
+    copy.viewLabel.replace('{learnerLabel}', () => learnerLabel);
+  const viewStudentLabel = (learnerLabel: string) =>
+    copy.viewStudentLabel.replace('{learnerLabel}', () => learnerLabel);
+  const deleteLabel = (learnerLabel: string) =>
+    copy.deleteLabel.replace('{learnerLabel}', () => learnerLabel);
 
   useEffect(() => {
     if (isAuthLoading || isLoggingOut) {
@@ -211,13 +219,9 @@ export default function AdminEnrollmentsPage() {
     } catch {
       if (!isCurrent()) return;
       setSections([]);
-      setSectionReferenceError(
-        locale === 'vi'
-          ? 'Hiện chưa thể tải danh sách lớp học phần cho môn học đã chọn.'
-          : 'Sections for the selected course could not be loaded.',
-      );
+      setSectionReferenceError(copy.sectionsLoadFailed);
     }
-  }, [locale]);
+  }, [copy]);
 
   const fetchEnrollments = useCallback(async () => {
     const requestId = ++enrollmentsRequestRef.current;
@@ -248,15 +252,11 @@ export default function AdminEnrollmentsPage() {
       setTotal(response.meta?.total || 0);
     } catch {
       if (!isCurrent()) return;
-      setError(
-        locale === 'vi'
-          ? 'Hiện chưa thể tải danh sách đăng ký.'
-          : 'Enrollments could not be loaded.',
-      );
+      setError(copy.loadFailed);
     } finally {
       if (isCurrent()) setIsLoading(false);
     }
-  }, [filters.courseId, filters.sectionId, filters.semesterId, filters.status, locale, page, search]);
+  }, [copy, filters.courseId, filters.sectionId, filters.semesterId, filters.status, page, search]);
 
   useEffect(() => {
     const trimmed = searchInput.trim();
@@ -274,177 +274,6 @@ export default function AdminEnrollmentsPage() {
     }, 250);
     return () => window.clearTimeout(timer);
   }, [searchInput, search]);
-
-  const copy =
-    locale === 'vi'
-      ? {
-          loading: 'Đang tải danh sách đăng ký học phần',
-          title: 'Quản lý Đăng ký học phần',
-          description:
-            'Rà soát và quản lý hồ sơ đăng ký học phần theo sinh viên, lớp học phần và trạng thái đào tạo.',
-          exportCsv: 'Xuất CSV',
-          searchLabel: 'Tìm sinh viên / học phần',
-          searchPlaceholder: 'Tìm theo họ tên, MSSV, email hoặc môn học',
-          semester: 'Học kỳ',
-          course: 'Môn học',
-          section: 'Lớp học phần',
-          status: 'Trạng thái',
-          allSemesters: 'Tất cả học kỳ',
-          allCourses: 'Tất cả môn học',
-          allSections: 'Tất cả lớp học phần',
-          allStatuses: 'Tất cả trạng thái',
-          statusOptions: {
-            ENROLLED: 'Đã đăng ký',
-            PENDING: 'Chờ xác nhận',
-            CONFIRMED: 'Đã xác nhận',
-            COMPLETED: 'Hoàn tất',
-            DROPPED: 'Đã rút',
-            CANCELLED: 'Đã hủy',
-          },
-          clearFilters: 'Xóa bộ lọc',
-          enrollmentsCount: (count: number) => `${formatNumber(count)} đăng ký`,
-          unavailableTitle: 'Đăng ký chưa sẵn sàng',
-          emptyTitle: 'Không có đăng ký phù hợp',
-          emptyDescription:
-            'Khi sinh viên bắt đầu đăng ký, màn hình này sẽ hiển thị môn học, lớp học phần, học kỳ và trạng thái cuối cùng trong cùng một nơi.',
-          tableTitle: 'Bản ghi đăng ký',
-          pageSummary: (currentPage: number, pages: number) =>
-            `Trang ${currentPage} / ${pages}`,
-          headers: {
-            student: 'Sinh viên',
-            course: 'Môn học',
-            section: 'Lớp học phần',
-            semester: 'Học kỳ',
-            lecturer: 'Giảng viên',
-            status: 'Trạng thái',
-            enrolledDate: 'Ngày đăng ký',
-            actions: 'Tác vụ',
-          },
-          noEmail: 'Chưa có email',
-          unknownCourse: 'Chưa rõ môn học',
-          noCourseName: 'Chưa có tên môn',
-          unknownSection: 'Chưa rõ lớp học phần',
-          unassigned: 'Chưa gán',
-          viewDetail: 'Hồ sơ đăng ký sinh viên',
-          closeDetail: 'Đóng chi tiết đăng ký',
-          deleteTitle: 'Xóa đăng ký',
-          deleteMessage: (learnerLabel: string) =>
-            `Xóa đăng ký của ${learnerLabel}? Hành động này không thể hoàn tác.`,
-          deleteConfirm: 'Xóa đăng ký',
-          deleted: 'Đã xóa đăng ký',
-          deleteFailed: 'Hiện chưa thể xóa đăng ký này.',
-          exportStarted: 'Đã bắt đầu xuất dữ liệu đăng ký',
-          exportFailed: 'Hiện chưa thể xuất dữ liệu đăng ký.',
-          detailFailed: 'Hiện chưa thể tải chi tiết đăng ký.',
-          viewLabel: (learnerLabel: string) =>
-            `Xem chi tiết đăng ký của ${learnerLabel}`,
-          viewStudentLabel: (learnerLabel: string) =>
-            `Mở hồ sơ đăng ký của sinh viên ${learnerLabel}`,
-          deleteLabel: (learnerLabel: string) =>
-            `Xóa đăng ký của ${learnerLabel}`,
-          detail: {
-            title: 'Hồ sơ đăng ký sinh viên',
-            studentProfile: 'Hồ sơ sinh viên',
-            studentCode: 'Mã sinh viên',
-            studentId: 'Mã định danh sinh viên',
-            enrollmentId: 'Mã hồ sơ đăng ký',
-            student: 'Sinh viên',
-            status: 'Trạng thái',
-            course: 'Môn học',
-            section: 'Lớp học phần',
-            semester: 'Học kỳ',
-            lecturer: 'Giảng viên',
-            enrolledAt: 'Đăng ký lúc',
-            droppedAt: 'Rút lúc',
-            finalGrade: 'Điểm cuối kỳ',
-            letterGrade: 'Điểm chữ',
-            close: 'Đóng',
-          },
-        }
-      : {
-          loading: 'Loading enrollments',
-          title: 'Enrollments',
-          description:
-            'Review registrations by student, section, and status; open the student profile context from the list.',
-          exportCsv: 'Export CSV',
-          searchLabel: 'Search student / course',
-          searchPlaceholder: 'Search by student name, ID, email, or course',
-          semester: 'Semester',
-          course: 'Course',
-          section: 'Section',
-          status: 'Status',
-          allSemesters: 'All semesters',
-          allCourses: 'All courses',
-          allSections: 'All sections',
-          allStatuses: 'All statuses',
-          statusOptions: {
-            ENROLLED: 'Registered',
-            PENDING: 'Pending',
-            CONFIRMED: 'Confirmed',
-            COMPLETED: 'Completed',
-            DROPPED: 'Dropped',
-            CANCELLED: 'Cancelled',
-          },
-          clearFilters: 'Clear filters',
-          enrollmentsCount: (count: number) => `${formatNumber(count)} enrollments`,
-          unavailableTitle: 'Enrollments unavailable',
-          emptyTitle: 'No matching enrollments',
-          emptyDescription:
-            'When students start registering, this view will show course, section, semester, and final status in one place.',
-          tableTitle: 'Enrollment records',
-          pageSummary: (currentPage: number, pages: number) =>
-            `Page ${currentPage} of ${pages}`,
-          headers: {
-            student: 'Student',
-            course: 'Course',
-            section: 'Section',
-            semester: 'Semester',
-            lecturer: 'Lecturer',
-            status: 'Status',
-            enrolledDate: 'Enrolled date',
-            actions: 'Actions',
-          },
-          noEmail: 'No email',
-          unknownCourse: 'Unknown course',
-          noCourseName: 'No course name',
-          unknownSection: 'Unknown section',
-          unassigned: 'Unassigned',
-          viewDetail: 'Student enrollment profile',
-          closeDetail: 'Close enrollment details',
-          deleteTitle: 'Delete enrollment',
-          deleteMessage: (learnerLabel: string) =>
-            `Delete ${learnerLabel}'s enrollment? This action cannot be undone.`,
-          deleteConfirm: 'Delete enrollment',
-          deleted: 'Enrollment deleted',
-          deleteFailed: 'We could not delete that enrollment.',
-          exportStarted: 'Enrollment export started',
-          exportFailed: 'Enrollments could not be exported.',
-          detailFailed: 'Enrollment details could not be loaded.',
-          viewLabel: (learnerLabel: string) =>
-            `View enrollment details for ${learnerLabel}`,
-          viewStudentLabel: (learnerLabel: string) =>
-            `Open student enrollment profile for ${learnerLabel}`,
-          deleteLabel: (learnerLabel: string) =>
-            `Delete enrollment for ${learnerLabel}`,
-          detail: {
-            title: 'Student enrollment profile',
-            studentProfile: 'Student profile',
-            studentCode: 'Student code',
-            studentId: 'Student ID',
-            enrollmentId: 'Enrollment ID',
-            student: 'Student',
-            status: 'Status',
-            course: 'Course',
-            section: 'Section',
-            semester: 'Semester',
-            lecturer: 'Lecturer',
-            enrolledAt: 'Enrolled at',
-            droppedAt: 'Dropped at',
-            finalGrade: 'Final grade',
-            letterGrade: 'Letter grade',
-            close: 'Close',
-          },
-        };
 
   const statusLabel = (status: string) =>
     copy.statusOptions[status as keyof typeof copy.statusOptions] ??
@@ -542,7 +371,7 @@ export default function AdminEnrollmentsPage() {
 
     const shouldDelete = await confirm({
       title: copy.deleteTitle,
-      message: copy.deleteMessage(learnerLabel),
+      message: copy.deleteMessage.replace('{learnerLabel}', () => learnerLabel),
       confirmText: copy.deleteConfirm,
       variant: 'destructive',
     });
@@ -664,10 +493,10 @@ export default function AdminEnrollmentsPage() {
               />
               <div className="flex items-end gap-2">
                 <Button variant="outline" onClick={handleClearFilters}>
-                  {copy.clearFilters}
+                  {messages.common.actions.clearFilters}
                 </Button>
                 <div className="text-sm text-muted-foreground">
-                  {copy.enrollmentsCount(total)}
+                  {copy.enrollmentsCount.replace('{count}', () => formatNumber(total))}
                 </div>
               </div>
               </div>
@@ -709,7 +538,11 @@ export default function AdminEnrollmentsPage() {
             title={copy.tableTitle}
             footer={
               <AdminPaginationFooter
-                summary={copy.pageSummary(page, totalPages)}
+                summary={
+                  copy.pageSummary
+                    .replace('{currentPage}', () => String(page))
+                    .replace('{pages}', () => String(totalPages))
+                }
                 page={page}
                 totalPages={totalPages}
                 onPrevious={() => setPage((current) => current - 1)}
@@ -751,8 +584,8 @@ export default function AdminEnrollmentsPage() {
                           type="button"
                           onClick={() => void handleViewDetail(enrollment)}
                           className="min-w-0 rounded-md text-left outline-none transition hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                          aria-label={copy.viewStudentLabel(learnerLabel)}
-                          title={copy.viewStudentLabel(learnerLabel)}
+                          aria-label={viewStudentLabel(learnerLabel)}
+                          title={viewStudentLabel(learnerLabel)}
                         >
                           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
                             {studentCodeLabel || '—'}
@@ -816,8 +649,8 @@ export default function AdminEnrollmentsPage() {
                           size="icon"
                           variant="ghost"
                           onClick={() => void handleViewDetail(enrollment)}
-                          aria-label={copy.viewLabel(learnerLabel)}
-                          title={copy.viewLabel(learnerLabel)}
+                          aria-label={viewLabel(learnerLabel)}
+                          title={viewLabel(learnerLabel)}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
@@ -826,8 +659,8 @@ export default function AdminEnrollmentsPage() {
                           variant="ghost"
                           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => void handleDelete(enrollment)}
-                          aria-label={copy.deleteLabel(learnerLabel)}
-                          title={copy.deleteLabel(learnerLabel)}
+                          aria-label={deleteLabel(learnerLabel)}
+                          title={deleteLabel(learnerLabel)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -875,8 +708,8 @@ export default function AdminEnrollmentsPage() {
                               type="button"
                               onClick={() => void handleViewDetail(enrollment)}
                               className="space-y-1 rounded-md text-left outline-none transition hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                              aria-label={copy.viewStudentLabel(learnerLabel)}
-                              title={copy.viewStudentLabel(learnerLabel)}
+                              aria-label={viewStudentLabel(learnerLabel)}
+                              title={viewStudentLabel(learnerLabel)}
                             >
                               <p className="font-medium text-foreground transition-colors hover:text-primary">
                                 {learnerLabel}
@@ -926,8 +759,8 @@ export default function AdminEnrollmentsPage() {
                                 size="icon"
                                 variant="ghost"
                                 onClick={() => void handleViewDetail(enrollment)}
-                                aria-label={copy.viewLabel(learnerLabel)}
-                                title={copy.viewLabel(learnerLabel)}
+                                aria-label={viewLabel(learnerLabel)}
+                                title={viewLabel(learnerLabel)}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -936,8 +769,8 @@ export default function AdminEnrollmentsPage() {
                                 variant="ghost"
                                 className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                                 onClick={() => void handleDelete(enrollment)}
-                                aria-label={copy.deleteLabel(learnerLabel)}
-                                title={copy.deleteLabel(learnerLabel)}
+                                aria-label={deleteLabel(learnerLabel)}
+                                title={deleteLabel(learnerLabel)}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>

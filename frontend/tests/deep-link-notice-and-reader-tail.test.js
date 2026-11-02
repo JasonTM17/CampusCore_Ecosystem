@@ -10,6 +10,7 @@ function read(relativePath) {
 }
 
 const EDITOR_PAGE = read('src/app/dashboard/editor/page.tsx');
+const EDITOR_COPY = read('src/i18n/messages-editor.ts');
 const TOOLBAR = read('src/components/announcements/reader/ReadingToolbar.tsx');
 const DISPATCH = read('src/components/announcements/reader/layouts/AdministrativeDispatchSheet.tsx');
 
@@ -34,9 +35,9 @@ test('both deep-link failures also raise the durable inline notice', () => {
 test('the notice is rendered as a dismissible role=alert banner naming the anchor', () => {
   assert.match(EDITOR_PAGE, /role="alert"/);
   assert.match(EDITOR_PAGE, /aria-live="polite"/);
-  assert.match(EDITOR_PAGE, /\$\{deepLinkNotice\.targetId\}/);
+  assert.match(EDITOR_PAGE, /copy\.notices\.(?:notFound|deepLinkLoadFailed)\.replace\('\{id\}', deepLinkNotice\.targetId\)/);
   assert.match(EDITOR_PAGE, /onClick=\{\(\) => setDeepLinkNotice\(null\)\}/);
-  assert.match(EDITOR_PAGE, /aria-label=\{isVi \? 'Đóng cảnh báo liên kết' : 'Dismiss deep-link warning'\}/);
+  assert.match(EDITOR_PAGE, /aria-label=\{copy\.dismissDeepLinkWarning\}/);
 });
 
 test('the banner states both outcomes in both locales', () => {
@@ -46,7 +47,7 @@ test('the banner states both outcomes in both locales', () => {
     'Không tìm thấy thông báo cần sửa',
     'Không thể tải thông báo cần sửa',
   ]) {
-    assert.ok(EDITOR_PAGE.includes(fragment), `missing notice copy: ${fragment}`);
+    assert.ok(EDITOR_COPY.includes(fragment), `missing notice copy: ${fragment}`);
   }
 });
 
@@ -164,8 +165,11 @@ test('theme chip aria-labels are localized in both locales', () => {
     TOOLBAR.indexOf('{/* Theme Palette Switcher */}'),
     TOOLBAR.indexOf('{/* Sticky Close Button'),
   );
-  const localized = themeChips.match(/aria-label=\{isVi \?/g) ?? [];
+  // The three chips take their accessible names from the announcement
+  // workspace catalogue; both locales live there rather than inline.
+  const localized = themeChips.match(/aria-label=\{copy\.theme(Light|Sepia|Dark)\}/g) ?? [];
   assert.equal(localized.length, 3, 'each theme chip must take its aria-label from the locale copy');
+  const workspace = read('src/i18n/messages-announcements.ts');
   for (const fragment of [
     'Nền sáng tiêu chuẩn',
     'Nền Sepia dịu mắt ban đêm',
@@ -173,7 +177,7 @@ test('theme chip aria-labels are localized in both locales', () => {
     'Light background',
     'Dark mode',
   ]) {
-    assert.ok(themeChips.includes(fragment), `missing localized label: ${fragment}`);
+    assert.ok(workspace.includes(fragment), `missing localized label: ${fragment}`);
   }
   assert.doesNotMatch(themeChips, /aria-label="(Light|Sepia|Dark) mode"/);
 });

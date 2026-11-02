@@ -2,9 +2,8 @@
  * Shared HTML content for the academic editor's seed documents, institutional
  * content blocks, and template library.
  *
- * Only the raw HTML bodies live here. Every user-facing label (block titles,
- * template names, seed document titles) is localized in `src/i18n/messages.ts`
- * under the `editor` namespace, keyed by the ids exported below.
+ * Only the raw HTML bodies live here. User-facing block labels, template
+ * names, and seed document titles are localized in `src/i18n/messages-editor.ts`.
  */
 
 export const EDITOR_BLOCK_TYPES = [
@@ -274,7 +273,7 @@ export const EDITOR_TEMPLATE_IDS = [
 
 export type EditorTemplateId = (typeof EDITOR_TEMPLATE_IDS)[number];
 
-/** Template library bodies, keyed by `editor.templates.*` message ids. */
+/** Template library bodies, keyed by the stable ids exported above. */
 export const EDITOR_TEMPLATE_HTML: Record<EditorTemplateId, string> = {
   'council-decision': `
 <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">

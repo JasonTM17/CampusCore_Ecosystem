@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, RefreshCw, ScrollText } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/i18n';
+import { adminOpsEn, adminOpsVi } from '@/i18n/messages-admin-ops';
 import { adminAuditApi, type AdminAuditEntry } from '@/lib/api';
 import { AdminFrame } from '@/components/admin/AdminFrame';
 import {
@@ -33,7 +34,7 @@ function actionTone(action: string): StatusTone {
 /** Round-3 ct-2 completion: the admin-facing viewer for GET /api/v1/admin/audit. */
 export default function AdminAuditTrailPage() {
   const { user, isAdmin, isSuperAdmin, isLoading: authLoading, isLoggingOut } = useAuth();
-  const { href, messages, formatDateTime } = useI18n();
+  const { href, locale, messages, formatDateTime } = useI18n();
   const router = useRouter();
   const copy = messages.admin.auditTrail;
   const canAccess = Boolean(user && (isAdmin || isSuperAdmin));
@@ -138,7 +139,7 @@ export default function AdminAuditTrailPage() {
               <Input
                 value={searchFilter}
                 onChange={(event) => setSearchFilter(event.target.value)}
-                placeholder={copy.searchPlaceholder}
+                placeholder={(locale === 'vi' ? adminOpsVi : adminOpsEn).audit.searchPlaceholder}
                 aria-label={copy.filterSearch}
               />
             </label>

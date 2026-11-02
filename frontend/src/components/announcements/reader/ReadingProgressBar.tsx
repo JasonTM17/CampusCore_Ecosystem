@@ -2,21 +2,30 @@
 
 import React from 'react';
 import { cn } from '@/lib/utils';
+import type { Locale } from '@/i18n/config';
+import {
+  announcementWorkspaceEn,
+  announcementWorkspaceVi,
+} from '@/i18n/messages-announcements';
 
 interface ReadingProgressBarProps {
   progress: number; // 0 - 100
   className?: string;
   tone?: string;
   ariaLabel?: string;
+  locale?: Locale;
 }
 
 export function ReadingProgressBar({
   progress,
   className,
   tone = 'from-blue-600 via-indigo-500 to-primary',
-  ariaLabel = 'Tiến trình đọc bài viết',
+  ariaLabel,
+  locale = 'vi',
 }: ReadingProgressBarProps) {
   const clamped = Math.min(100, Math.max(0, progress));
+  const resolvedAriaLabel =
+    ariaLabel ?? { en: announcementWorkspaceEn, vi: announcementWorkspaceVi }[locale].reader.progress.label;
 
   return (
     <div
@@ -24,7 +33,7 @@ export function ReadingProgressBar({
       aria-valuenow={Math.round(clamped)}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-label={ariaLabel}
+      aria-label={resolvedAriaLabel}
       className={cn(
         'sticky top-0 z-30 h-1 w-full bg-border/40 overflow-hidden print:hidden',
         className,

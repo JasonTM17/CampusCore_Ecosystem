@@ -8,6 +8,7 @@ type Widen<T> = T extends string
 
 export const studentPagesEn = {
   transcript: {
+    chartTerm: 'T{index}',
     eyebrow: 'Student area',
     title: 'Transcript',
     description:
@@ -173,6 +174,30 @@ export const studentPagesEn = {
     courseCodeFallback: 'Course',
     courseNameFallback: 'Unavailable',
     roomPending: 'Room information pending',
+    grid: {
+      dayLabels: { 1: 'Sunday', 2: 'Monday', 3: 'Tuesday', 4: 'Wednesday', 5: 'Thursday', 6: 'Friday', 7: 'Saturday' } as Record<number, string>,
+      shortDayLabels: { 1: 'Sun', 2: 'Mon', 3: 'Tue', 4: 'Wed', 5: 'Thu', 6: 'Fri', 7: 'Sat' } as Record<number, string>,
+      unknownDay: 'Unknown day',
+      hourLabel: 'Hour',
+      morningLabel: 'Morning',
+      afternoonLabel: 'PM',
+      eveningLabel: 'Eve',
+    },
+    detail: {
+      sectionLabel: 'Section',
+      dayLabel: 'Day of Week',
+      meetingTime: 'Meeting Time',
+      classroom: 'Classroom',
+      roomPending: 'Pending room assignment',
+      instructor: 'Instructor',
+      credits: 'Credits',
+      creditsUnit: 'credits',
+      enrolled: 'Enrolled Students',
+      studentsUnit: 'students',
+      department: 'Department',
+      notScheduled: 'Not scheduled',
+      close: 'Close',
+    },
     today: 'TODAY',
     viewGrid: 'Weekly Grid',
     viewDay: 'Day View',
@@ -317,6 +342,7 @@ export const studentPagesEn = {
 
 export const studentPagesVi: Widen<typeof studentPagesEn> = {
   transcript: {
+    chartTerm: 'HK{index}',
     eyebrow: 'Cổng Sinh viên',
     title: 'Bảng điểm',
     description:
@@ -481,6 +507,30 @@ export const studentPagesVi: Widen<typeof studentPagesEn> = {
     courseCodeFallback: 'Môn học',
     courseNameFallback: 'Chưa cập nhật',
     roomPending: 'Đang chờ thông tin phòng học',
+    grid: {
+      dayLabels: { 1: 'Chủ Nhật', 2: 'Thứ Hai', 3: 'Thứ Ba', 4: 'Thứ Tư', 5: 'Thứ Năm', 6: 'Thứ Sáu', 7: 'Thứ Bảy' } as Record<number, string>,
+      shortDayLabels: { 1: 'CN', 2: 'T2', 3: 'T3', 4: 'T4', 5: 'T5', 6: 'T6', 7: 'T7' } as Record<number, string>,
+      unknownDay: 'Chưa xác định ngày',
+      hourLabel: 'Giờ',
+      morningLabel: 'Sáng',
+      afternoonLabel: 'Chiều',
+      eveningLabel: 'Tối',
+    },
+    detail: {
+      sectionLabel: 'Lớp HP',
+      dayLabel: 'Ngày học / Giảng dạy',
+      meetingTime: 'Khung giờ học',
+      classroom: 'Phòng học',
+      roomPending: 'Chưa xếp phòng',
+      instructor: 'Giảng viên',
+      credits: 'Số tín chỉ',
+      creditsUnit: 'tín chỉ',
+      enrolled: 'Sĩ số đăng ký',
+      studentsUnit: 'sinh viên',
+      department: 'Khoa / Bộ môn',
+      notScheduled: 'Chưa xếp lịch',
+      close: 'Đóng',
+    },
     today: 'HÔM NAY',
     viewGrid: 'Lưới tuần',
     viewDay: 'Theo ngày',

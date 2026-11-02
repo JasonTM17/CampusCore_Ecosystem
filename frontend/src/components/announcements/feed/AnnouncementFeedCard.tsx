@@ -32,6 +32,10 @@ import {
 } from '@/lib/announcement-presentation';
 import { useArticleTaxonomy } from '@/lib/use-article-taxonomy';
 import { ViContentBadge } from '@/components/announcements/ViContentBadge';
+import {
+  announcementWorkspaceEn,
+  announcementWorkspaceVi,
+} from '@/i18n/messages-announcements';
 
 interface AnnouncementFeedCardProps {
   announcement: AnnouncementRecord;
@@ -51,6 +55,7 @@ export function AnnouncementFeedCard({
   layout = 'horizontal',
 }: AnnouncementFeedCardProps) {
   const isVi = locale === 'vi';
+  const copy = { en: announcementWorkspaceEn, vi: announcementWorkspaceVi }[locale].feed;
   const [copied, setCopied] = useState(false);
   const [shareFailed, setShareFailed] = useState(false);
   const { categories } = useArticleTaxonomy();
@@ -173,12 +178,12 @@ export function AnnouncementFeedCard({
           <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5">
             <span className="inline-flex items-center gap-1 rounded-md bg-background/90 px-2.5 py-1 text-xs font-bold text-foreground backdrop-blur-md shadow-xs">
               <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              <span>{isVi ? 'Bài viết tiêu điểm' : 'Featured'}</span>
+              <span>{copy.featured}</span>
             </span>
             {isUrgent && (
               <span className="inline-flex items-center gap-1 rounded-md bg-rose-600 px-2 py-1 text-xs font-bold text-white shadow-xs">
                 <Flame className="h-3 w-3" />
-                <span>{isVi ? 'Khẩn' : 'Urgent'}</span>
+                <span>{copy.urgent}</span>
               </span>
             )}
           </div>
@@ -196,7 +201,7 @@ export function AnnouncementFeedCard({
               <span>•</span>
               <span className="flex items-center gap-1">
                 <Clock className="h-3.5 w-3.5" />
-                <span>{readingTime.minutes} {isVi ? 'phút đọc' : 'min read'}</span>
+                <span>{readingTime.minutes} {copy.readMinutes}</span>
               </span>
               <span>•</span>
               <span>{relativeTime}</span>
@@ -238,14 +243,14 @@ export function AnnouncementFeedCard({
                 type="button"
                 onClick={handleShare}
                 className="relative z-10 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border/70 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                title={isVi ? 'Sao chép liên kết' : 'Copy link'}
-                aria-label={isVi ? 'Chia sẻ' : 'Share'}
+                title={copy.copyLink}
+                aria-label={copy.share}
               >
                 {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : shareFailed ? <X className="h-3.5 w-3.5 text-destructive" /> : <Share2 className="h-3.5 w-3.5" />}
               </button>
 
               <span className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-3.5 py-1.5 text-xs font-bold text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all">
-                <span>{isVi ? 'Đọc toàn văn' : 'Read article'}</span>
+                <span>{copy.readArticle}</span>
                 <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
               </span>
             </div>
@@ -296,7 +301,7 @@ export function AnnouncementFeedCard({
               </span>
               {isUrgent && (
                 <span className="rounded bg-red-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-xs">
-                  {isVi ? 'Ưu tiên cao' : 'Urgent'}
+                  {copy.urgentHigh}
                 </span>
               )}
             </div>
@@ -313,7 +318,7 @@ export function AnnouncementFeedCard({
           <div className="absolute top-2.5 right-2.5 z-10">
             <span className="inline-flex items-center gap-1 rounded bg-rose-600/90 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur-xs shadow-xs">
               <Flame className="h-3 w-3" />
-              <span>{isVi ? 'Khẩn' : 'Urgent'}</span>
+              <span>{copy.urgent}</span>
             </span>
           </div>
         )}
@@ -330,7 +335,7 @@ export function AnnouncementFeedCard({
             </span>
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              <span>{readingTime.minutes} {isVi ? 'phút' : 'm'}</span>
+              <span>{readingTime.minutes} {copy.readMinutesShort}</span>
             </span>
           </div>
 
@@ -360,14 +365,14 @@ export function AnnouncementFeedCard({
               type="button"
               onClick={handleShare}
               className="relative z-10 inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              title={isVi ? 'Sao chép liên kết' : 'Copy link'}
-              aria-label={isVi ? 'Chia sẻ' : 'Share'}
+              title={copy.copyLink}
+              aria-label={copy.share}
             >
               {copied ? <Check className="h-3 w-3 text-emerald-500" /> : shareFailed ? <X className="h-3 w-3 text-destructive" /> : <Share2 className="h-3 w-3" />}
             </button>
 
             <span className="inline-flex items-center gap-0.5 font-bold text-primary group-hover:translate-x-0.5 transition-transform text-xs">
-              <span>{isVi ? 'Đọc bài' : 'Read'}</span>
+              <span>{copy.read}</span>
               <ArrowRight className="h-3 w-3" />
             </span>
           </div>

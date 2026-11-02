@@ -50,6 +50,7 @@ function loadRichContentRenderer() {
     'lucide-react': new Proxy({}, { get: () => dummyComponent }),
     // CodeBlock/SafeImage read the locale for copy/broken-image labels.
     '@/i18n': { useI18n: () => ({ locale: 'vi' }) },
+    '@/i18n/messages-editor': loadTs('src/i18n/messages-editor.ts'),
   });
 }
 
@@ -202,8 +203,13 @@ test('rich-content-renderer securely parses and renders markdown structures and 
   // Callouts support
   assert.match(source, /alertMatch/);
   assert.match(source, /AlertCallout/);
-  assert.match(source, /LƯU Ý \(NOTE\)/);
-  assert.match(source, /CẢNH BÁO \(WARNING\)/);
+  assert.match(source, /calloutCopy\.note/);
+  assert.match(source, /calloutCopy\.warning/);
+  const { editorSurfacesEn, editorSurfacesVi } = loadTs('src/i18n/messages-editor.ts');
+  assert.equal(editorSurfacesEn.renderer.callout.note, 'Note');
+  assert.equal(editorSurfacesEn.renderer.callout.warning, 'Warning');
+  assert.equal(editorSurfacesVi.renderer.callout.note, 'LƯU Ý (NOTE)');
+  assert.equal(editorSurfacesVi.renderer.callout.warning, 'CẢNH BÁO (WARNING)');
 
   // Code Block and Table
   assert.match(source, /function CodeBlock/);
@@ -448,9 +454,12 @@ function loadTinymceEditorModule() {
   return loadTsModule('src/components/ui/tinymce-editor.tsx', {
     'lucide-react': new Proxy({}, { get: () => dummyComponent }),
     '@/components/ui/button': { Button: dummyComponent },
-    '@/lib/announcement-limits': loadTs('src/lib/announcement-limits.ts'),
+    '@/lib/announcement-limits': loadTsModule('src/lib/announcement-limits.ts', {
+      '@/i18n/messages-announcements': loadTsModule('src/i18n/messages-announcements.ts', {}),
+    }),
     '@/lib/editor-document': loadTs('src/lib/editor-document.ts'),
     '@/lib/utils': { cn: (...args) => args.filter(Boolean).join(' ') },
+    '@/i18n/messages-editor': loadTs('src/i18n/messages-editor.ts'),
     sonner: { toast: { success() {}, error() {}, info() {}, warning() {} } },
   });
 }
@@ -559,10 +568,10 @@ test('W14 rich-text-editor dialogs use the shared focus-trapped Modal', () => {
   assert.match(source, /<Modal\s+isOpen=\{linkDialogOpen\}/);
   assert.match(source, /<Modal\s+isOpen=\{helpDialogOpen\}/);
   // Each dialog is named for screen readers (Modal derives aria-labelledby).
-  assert.match(source, /title=\{isVi \? 'Chèn liên kết đường dẫn' : 'Insert Hyperlink'\}/);
+  assert.match(source, /title=\{copy\.linkDialog\.title\}/);
   assert.match(
     source,
-    /title=\{isVi \? 'Cẩm nang định dạng soạn thảo học vụ' : 'Editor Markdown & Formatting Guide'\}/,
+    /title=\{copy\.helpDialog\.title\}/,
   );
   // The bare icon-only close buttons are gone; Modal renders its labelled close.
   assert.doesNotMatch(

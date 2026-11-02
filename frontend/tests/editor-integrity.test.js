@@ -19,6 +19,8 @@ function loadTs(relativePath) {
   return moduleRecord.exports;
 }
 
+const editorSurfaces = loadTs('src/i18n/messages-editor.ts');
+
 function loadDraftCleanup(windowMock) {
   const ts = require('typescript');
   const source = read('src/components/ui/tinymce-editor.tsx');
@@ -141,7 +143,7 @@ function loadStudioDraftActions(state, storage, updates) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText;
   const scope = {
-    ...state, copy: {}, locale: 'vi', isVi: true, useCallback: fn => fn,
+    ...state, copy: editorSurfaces.editorSurfacesVi.studio, locale: 'vi', isVi: true, useCallback: fn => fn,
     publishInFlightRef: { current: false },
     isPublishingNotice: false,
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
