@@ -31,6 +31,7 @@ import {
   resolveArticleCover,
 } from '@/lib/announcement-presentation';
 import { useArticleTaxonomy } from '@/lib/use-article-taxonomy';
+import { useI18n } from '@/i18n';
 import { ViContentBadge } from '@/components/announcements/ViContentBadge';
 import {
   announcementWorkspaceEn,
@@ -55,6 +56,7 @@ export function AnnouncementFeedCard({
   layout = 'horizontal',
 }: AnnouncementFeedCardProps) {
   const isVi = locale === 'vi';
+  const { messages } = useI18n();
   const copy = { en: announcementWorkspaceEn, vi: announcementWorkspaceVi }[locale].feed;
   const [copied, setCopied] = useState(false);
   const [shareFailed, setShareFailed] = useState(false);
@@ -156,7 +158,7 @@ export function AnnouncementFeedCard({
               <div className="absolute -right-8 -bottom-8 opacity-15">
                 <Image
                   src="/hcmute-logo.png"
-                  alt="HCMUTE Emblem Watermark"
+                  alt={messages.meta.emblemWatermarkAlt}
                   width={220}
                   height={279}
                 />
@@ -290,7 +292,7 @@ export function AnnouncementFeedCard({
             <div className="absolute -right-6 -bottom-6 opacity-15">
               <Image
                 src="/hcmute-logo.png"
-                alt="HCMUTE Emblem Watermark"
+                alt={messages.meta.emblemWatermarkAlt}
                 width={140}
                 height={177}
               />

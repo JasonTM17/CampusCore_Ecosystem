@@ -379,8 +379,8 @@ test('milestone 2: component i18n localization in admin and announcements', () =
   const notFound = read('src/app/not-found.tsx');
   assert.match(notFound, /useI18n/);
   assert.match(notFound, /LocalizedLink/);
-  assert.match(notFound, /isVi \? 'Trang không tồn tại' : 'Page Not Found'/);
-  assert.match(notFound, /isVi \? 'Quay lại trang chủ' : 'Back to Home'/);
+  assert.match(notFound, /messages\.common\.notFound\.title/);
+  assert.match(notFound, /messages\.common\.notFound\.backHome/);
 });
 
 test('milestone 2: a11y keyboard focus indicators and accessible names', () => {

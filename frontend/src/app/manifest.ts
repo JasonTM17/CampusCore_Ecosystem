@@ -1,11 +1,16 @@
 import type { MetadataRoute } from 'next';
+import { defaultLocale } from '@/i18n/config';
+import { getMessages } from '@/i18n/messages';
 
 export default function manifest(): MetadataRoute.Manifest {
+  const copy = getMessages(defaultLocale).meta.manifest;
+  const englishScreenshotLabel = getMessages('en').meta.manifest.screenshots.homeEnLabel;
+  const vietnameseScreenshotLabel = getMessages('vi').meta.manifest.screenshots.homeViLabel;
+
   return {
-    name: 'CampusUTE - Cổng Thông Tin Đào Tạo & Quản Lý Sinh Viên HCM-UTE',
-    short_name: 'CampusUTE',
-    description:
-      'Cổng thông tin đào tạo và học vụ trực tuyến CampusUTE - Trường Đại học Công nghệ Kỹ thuật TP.HCM.',
+    name: copy.name,
+    short_name: copy.shortName,
+    description: copy.description,
     id: '/vi',
     start_url: '/vi',
     display: 'standalone',
@@ -38,14 +43,14 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: '1440x1024',
         type: 'image/svg+xml',
         form_factor: 'wide',
-        label: 'CampusUTE homepage in English',
+        label: englishScreenshotLabel,
       },
       {
         src: '/screenshots/home-vi.svg',
         sizes: '1440x1024',
         type: 'image/svg+xml',
         form_factor: 'wide',
-        label: 'Trang chủ CampusUTE bằng tiếng Việt',
+        label: vietnameseScreenshotLabel,
       },
     ],
   };

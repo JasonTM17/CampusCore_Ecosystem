@@ -107,6 +107,17 @@ export const en = {
       body: 'You have unsaved changes. Leaving this page will discard them. Continue?',
       beforeUnload: 'You have unsaved changes. Leaving this page will discard them.',
     },
+    notFound: {
+      eyebrow: '404 Not Found',
+      title: 'Page Not Found',
+      description: 'The page you requested does not exist or has been moved.',
+      recoveryLinks: 'Recovery links',
+      backHome: 'Back to Home',
+    },
+    theme: {
+      switchToDark: 'Switch to dark theme',
+      switchToLight: 'Switch to light theme',
+    },
     campusErrors: {
       network:
         'CampusUTE could not reach the campus portal right now. Try again in a moment.',
@@ -374,6 +385,23 @@ export const en = {
         'One academic portal',
       ],
     },
+    manifest: {
+      name: 'CampusUTE - Academic Portal & Student Management System | HCM-UTE',
+      shortName: 'CampusUTE',
+      description:
+        'CampusUTE online academic and student portal - Ho Chi Minh City University of Technology and Engineering.',
+      screenshots: {
+        homeEnLabel: 'CampusUTE homepage in English',
+        homeViLabel: 'CampusUTE homepage in Vietnamese',
+      },
+    },
+    jsonLd: {
+      organizationName: 'Ho Chi Minh City University of Technology and Engineering',
+      organizationDescription:
+        'CampusUTE online academic portal of Ho Chi Minh City University of Technology and Engineering.',
+    },
+    emblemAlt: 'HCMUTE Emblem',
+    emblemWatermarkAlt: 'HCMUTE Emblem Watermark',
   },
   home: {
     navSubtitle: 'Campus academic portal',
@@ -1462,6 +1490,8 @@ export const en = {
     dashboardShell: {
       portalTitle: 'Academic information portal',
     identityLabel: 'Signed in as',
+    demoTag: 'Demo account',
+    demoAccount: 'Demo experience account',
     menuSections: {
       overview: 'Overview',
       academic: 'Academic records',
@@ -1540,6 +1570,7 @@ export const en = {
       fallbackTitle: 'New update',
       fallbackContent: 'A new notification has arrived for your account.',
       openAnnouncements: 'Open announcements',
+      academicAffairsNoticeBoard: 'Academic Affairs Notice Board',
       openNotifications: 'Open notifications center',
       description:
         'Keep account alerts, academic deadlines, and workflow updates in one focused inbox.',
@@ -3137,6 +3168,17 @@ export const vi: I18nMessages = {
       body: 'Bạn có nội dung chưa được lưu. Rời khỏi sẽ mất các thay đổi. Tiếp tục?',
       beforeUnload: 'Bạn có nội dung chưa được lưu. Rời khỏi trang sẽ mất thay đổi.',
     },
+    notFound: {
+      eyebrow: '404 Not Found',
+      title: 'Trang không tồn tại',
+      description: 'Đường dẫn bạn yêu cầu không tồn tại hoặc đã được chuyển sang vị trí mới.',
+      recoveryLinks: 'Liên kết khôi phục',
+      backHome: 'Quay lại trang chủ',
+    },
+    theme: {
+      switchToDark: 'Chuyển sang giao diện tối',
+      switchToLight: 'Chuyển sang giao diện sáng',
+    },
     campusErrors: {
       network:
         'CampusUTE chưa kết nối được cổng học vụ lúc này. Hãy thử lại sau một lát.',
@@ -3404,6 +3446,23 @@ export const vi: I18nMessages = {
         'Quản trị tập trung',
       ],
     },
+    manifest: {
+      name: 'CampusUTE - Cổng Thông Tin Đào Tạo & Quản Lý Sinh Viên HCM-UTE',
+      shortName: 'CampusUTE',
+      description:
+        'Cổng thông tin đào tạo và học vụ trực tuyến CampusUTE - Trường Đại học Công nghệ Kỹ thuật TP.HCM.',
+      screenshots: {
+        homeEnLabel: 'Trang chủ CampusUTE bằng tiếng Anh',
+        homeViLabel: 'Trang chủ CampusUTE bằng tiếng Việt',
+      },
+    },
+    jsonLd: {
+      organizationName: 'Trường Đại học Công nghệ Kỹ thuật TP.HCM',
+      organizationDescription:
+        'Cổng thông tin đào tạo và học vụ trực tuyến CampusUTE - Trường Đại học Công nghệ Kỹ thuật TP.HCM.',
+    },
+    emblemAlt: 'Biểu trưng HCMUTE',
+    emblemWatermarkAlt: 'Hình chìm biểu trưng HCMUTE',
   },
   home: {
     navSubtitle: 'Cổng học vụ CampusUTE',
@@ -4487,6 +4546,8 @@ export const vi: I18nMessages = {
   dashboardShell: {
     portalTitle: 'Cổng thông tin học vụ',
     identityLabel: 'Đăng nhập với vai trò',
+    demoTag: 'TK Demo trải nghiệm',
+    demoAccount: 'Tài khoản demo để trải nghiệm',
     menuSections: {
       overview: 'Tổng quan',
       academic: 'Hồ sơ học vụ',
@@ -4565,6 +4626,7 @@ export const vi: I18nMessages = {
       fallbackTitle: 'Cập nhật mới',
       fallbackContent: 'Tài khoản của bạn vừa nhận một thông báo mới.',
       openAnnouncements: 'Mở trang thông báo',
+      academicAffairsNoticeBoard: 'Bảng tin Phòng Đào tạo',
       openNotifications: 'Mở trung tâm thông báo',
       description:
         'Giữ cảnh báo tài khoản, hạn học vụ và cập nhật quy trình trong một hộp thư tập trung.',

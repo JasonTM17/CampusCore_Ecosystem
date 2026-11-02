@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import type { AnnouncementRecord } from '@/lib/api';
 import type { Locale } from '@/i18n/config';
 import { localeCodes } from '@/i18n/config';
+import { getMessages } from '@/i18n/messages';
 import { useI18n } from '@/i18n';
 import { RichContentRenderer } from '@/components/ui/rich-content-renderer';
 import {
@@ -42,6 +43,7 @@ export function AdministrativeDispatchSheet({
   locale = 'vi',
 }: AdministrativeDispatchSheetProps) {
   const isVi = locale === 'vi';
+  const metaMessages = getMessages(locale).meta;
   const { formatDate, formatDateTime } = useI18n();
   const publishDate = announcement.publishAt || announcement.createdAt;
   const dateObj = publishDate ? new Date(publishDate) : new Date();
@@ -146,7 +148,7 @@ export function AdministrativeDispatchSheet({
           <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-border/60 bg-white dark:bg-slate-100 p-1 shadow-xs">
             <Image
               src="/hcmute-logo.png"
-              alt="HCMUTE Emblem"
+              alt={metaMessages.emblemAlt}
               fill
               sizes="56px"
               className="object-contain"
