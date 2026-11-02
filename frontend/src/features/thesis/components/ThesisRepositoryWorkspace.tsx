@@ -249,7 +249,7 @@ export default function ThesisRepositoryWorkspace({
                                   <span className="font-medium text-foreground">{name}</span>
                                   {m.studentNumber && (
                                     <span className="font-mono text-muted-foreground text-[11px] bg-background/80 px-1.5 py-0.5 rounded">
-                                      MSSV: {m.studentNumber}
+                                      {messages.thesis.studentIdLabel}: {m.studentNumber}
                                     </span>
                                   )}
                                   {m.isLeader && (

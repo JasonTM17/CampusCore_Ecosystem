@@ -1075,7 +1075,7 @@ export const adminAcademicsVi: Widen<typeof adminAcademicsEn> = {
     loading: 'Đang tải phòng học',
     title: 'Phòng học',
     description:
-      'Giữ dữ liệu phòng học rõ ràng để section, lịch học và kế hoạch sức chứa luôn khớp nhau.',
+      'Giữ dữ liệu phòng học rõ ràng để lớp học phần, lịch học và kế hoạch sức chứa luôn khớp nhau.',
     create: 'Tạo phòng học',
     searchLabel: 'Tìm phòng học',
     searchPlaceholder: 'Tìm theo tòa nhà hoặc số phòng',
@@ -1084,7 +1084,7 @@ export const adminAcademicsVi: Widen<typeof adminAcademicsEn> = {
     unavailableTitle: 'Phòng học chưa sẵn sàng',
     emptyTitle: 'Không có phòng học phù hợp',
     emptyDescription:
-      'Hãy tạo phòng học để phần xếp section có nguồn dữ liệu phòng ổn định.',
+      'Hãy tạo phòng học để việc xếp lớp học phần có nguồn dữ liệu phòng ổn định.',
     tableTitle: 'Bản ghi phòng học',
     loadFailed: 'Hiện chưa thể tải danh sách phòng học.',
     headers: {

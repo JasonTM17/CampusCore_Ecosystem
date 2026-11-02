@@ -30,6 +30,7 @@ import { useI18n } from '@/i18n';
 import { RichContentRenderer } from '@/components/ui/rich-content-renderer';
 import { TinyMceEditor, clearTinyMceAutosaveDrafts } from '@/components/ui/tinymce-editor';
 import { replaceCoverBlock, removeCoverBlock } from '@/lib/cover-banner';
+import { campusCodeMessage } from '@/lib/campus-error';
 import { cn } from '@/lib/utils';
 import {
   announcementWorkspaceEn,
@@ -127,7 +128,7 @@ export function AnnouncementEditModal({
   onSave,
   onOpenStudio,
 }: AnnouncementEditModalProps) {
-  const { locale } = useI18n();
+  const { locale, messages } = useI18n();
   const workspaceCopy = { en: announcementWorkspaceEn, vi: announcementWorkspaceVi }[locale];
   const copy = workspaceCopy.composer;
 
@@ -259,7 +260,7 @@ export function AnnouncementEditModal({
       handleClose();
     } catch (err: any) {
       setValidationError(
-        err?.response?.data?.message || copy.saveFailed
+        campusCodeMessage(err, messages.common.campusErrors, copy.saveFailed),
       );
     } finally {
       setIsSaving(false);

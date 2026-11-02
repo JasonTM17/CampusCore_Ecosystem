@@ -205,7 +205,7 @@ export const studentPagesEn = {
     print: 'Print Schedule',
     totalCourses: 'Courses',
     totalCredits: 'Credits',
-    creditsAbbreviation: 'TC',
+    creditsAbbreviation: 'cr',
     totalMeetings: 'Sessions / week',
     filterDay: 'Select day of week',
     clickToViewDetails: 'Click on any class to view complete details',

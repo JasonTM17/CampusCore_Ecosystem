@@ -284,6 +284,15 @@ export const en = {
         // Generic
         RATE_LIMIT_EXCEEDED: 'Too many requests. Please wait a moment and try again.',
         RESOURCE_NOT_FOUND: 'That record is no longer available.',
+        // Announcement authoring
+        ANNOUNCEMENT_VERSION_CONFLICT:
+          'This notice was changed by another administrator. Reload it and apply your edit again.',
+        UNSAFE_ANNOUNCEMENT_CONTENT:
+          'The notice contains a script, frame or inline handler that is not allowed. Remove it and save again.',
+        LECTURER_ANNOUNCEMENT_FORBIDDEN:
+          'You can only post notices for sections you teach.',
+        ANNOUNCEMENT_WINDOW_INVALID:
+          'The end time must be later than the publish time.',
       },
     },
   },
@@ -646,6 +655,10 @@ export const en = {
     // publishes a known-stale seed password (roadmap 1.5b).
     staleDemoPasswordWarning:
       'This demo password is stale — use password123 per the updated guide.',
+    demoGroupNote:
+      '💡 These four accounts are members of the same thesis group — sign in as each to see the shared group.',
+    demoAccountNote:
+      '💡 This is a demo account provided to experience all features of CampusUTE.',
     reasonMessages: {
       sessionExpired: {
         title: 'Your session ended',
@@ -846,6 +859,7 @@ export const en = {
     creditLimitReached: 'You have reached the {limit}-credit term limit.',
     creditLimitRemaining: '{count} credits remain available this term.',
     headerCreditsRemaining: '{count} credits left',
+    headerCreditRemaining: '{count} credit left',
     searchPlaceholder: 'Search by course code or name',
     searchByCode: 'Course code or class',
     searchByName: 'Course name',
@@ -872,6 +886,7 @@ export const en = {
     confirmDrop: 'Are you sure you want to drop this course?',
     confirmDropMessage: 'You are about to drop section {section}. Continue?',
     sectionCount: '{count} sections',
+    sectionCountSingular: '{count} section',
     working: 'Working',
     roundUnavailable: 'No registration round is open right now.',
     roundUnavailableDescription: 'Come back when the registrar opens the registration or add/drop window for your semester.',
@@ -951,6 +966,7 @@ export const en = {
     progressLabel: 'Credit progress',
     statusSummaryLabel: 'Curriculum status summary',
     creditsLabel: 'credits',
+    creditLabel: 'credit',
     mandatory: 'Mandatory',
     elective: 'Elective',
     yearPrefix: 'Year',
@@ -2980,6 +2996,7 @@ export const en = {
     saveButton: 'Save attendance',
     savingButton: 'Saving...',
     savedSuccess: 'Attendance recorded successfully for {count} students',
+    savedSuccessSingular: 'Attendance recorded successfully for {count} student',
     saveFailed: 'Failed to record attendance. Please try again.',
     existingReadWarning: 'Could not load previously saved attendance. Records shown may be incomplete — saving is locked until you reload this section.',
     noSectionsTitle: 'No classes assigned',
@@ -3349,6 +3366,15 @@ export const vi: I18nMessages = {
         // Chung
         RATE_LIMIT_EXCEEDED: 'Bạn thao tác quá nhanh. Hãy chờ một lát rồi thử lại.',
         RESOURCE_NOT_FOUND: 'Hồ sơ này không còn khả dụng.',
+        // Soạn thông báo
+        ANNOUNCEMENT_VERSION_CONFLICT:
+          'Thông báo này vừa được quản trị viên khác thay đổi. Hãy tải lại rồi áp dụng lại nội dung của bạn.',
+        UNSAFE_ANNOUNCEMENT_CONTENT:
+          'Nội dung chứa thẻ script, iframe hoặc sự kiện nội tuyến không được phép. Hãy xoá rồi lưu lại.',
+        LECTURER_ANNOUNCEMENT_FORBIDDEN:
+          'Bạn chỉ được đăng thông báo cho lớp học phần mình phụ trách.',
+        ANNOUNCEMENT_WINDOW_INVALID:
+          'Thời điểm kết thúc phải sau thời điểm đăng.',
       },
     },
   },
@@ -3710,6 +3736,10 @@ export const vi: I18nMessages = {
     // password cũ đã được xoay (roadmap 1.5b).
     staleDemoPasswordWarning:
       'Mật khẩu demo này đã cũ — dùng password123 theo hướng dẫn mới.',
+    demoGroupNote:
+      '💡 Bốn tài khoản là 4 thành viên cùng một nhóm KLTN — chọn từng tài khoản để xem nhóm chung.',
+    demoAccountNote:
+      '💡 Đây là tài khoản demo dùng để trải nghiệm đầy đủ các tính năng của hệ thống CampusUTE.',
     reasonMessages: {
       sessionExpired: {
         title: 'Lần đăng nhập của bạn đã kết thúc',
@@ -3910,6 +3940,7 @@ export const vi: I18nMessages = {
     creditLimitReached: 'Bạn đã đạt hạn mức {limit} tín chỉ của học kỳ.',
     creditLimitRemaining: 'Học kỳ này còn {count} tín chỉ có thể đăng ký.',
     headerCreditsRemaining: 'Còn {count} tín chỉ',
+    headerCreditRemaining: 'Còn {count} tín chỉ',
     searchPlaceholder: 'Tìm theo mã hoặc tên môn học',
     searchByCode: 'Mã học phần hoặc lớp',
     searchByName: 'Tên học phần',
@@ -3935,6 +3966,7 @@ export const vi: I18nMessages = {
     confirmDrop: 'Bạn có chắc muốn hủy học phần này không?',
     confirmDropMessage: 'Bạn đang hủy lớp học phần {section}. Xác nhận tiếp tục?',
     sectionCount: '{count} lớp học phần',
+    sectionCountSingular: '{count} lớp học phần',
     working: 'Đang xử lý',
     roundUnavailable: 'Hiện chưa có đợt đăng ký đang mở.',
     roundUnavailableDescription: 'Vui lòng quay lại khi Phòng Đào tạo mở cửa sổ đăng ký hoặc đăng ký/huỷ môn cho học kỳ của bạn.',
@@ -4014,6 +4046,7 @@ export const vi: I18nMessages = {
     progressLabel: 'Tiến độ tín chỉ',
     statusSummaryLabel: 'Tóm tắt trạng thái CTĐT',
     creditsLabel: 'tín chỉ',
+    creditLabel: 'tín chỉ',
     mandatory: 'Bắt buộc',
     elective: 'Tự chọn',
     yearPrefix: 'Năm học',
@@ -6039,6 +6072,7 @@ export const vi: I18nMessages = {
     saveButton: 'Lưu điểm danh',
     savingButton: 'Đang lưu...',
     savedSuccess: 'Đã lưu điểm danh cho {count} sinh viên thành công',
+    savedSuccessSingular: 'Đã lưu điểm danh cho {count} sinh viên thành công',
     saveFailed: 'Không thể lưu điểm danh. Vui lòng thử lại.',
     existingReadWarning: 'Không tải được điểm danh đã lưu trước đó. Danh sách hiển thị có thể chưa đầy đủ — chức năng lưu đang bị khóa, hãy tải lại lớp.',
     noSectionsTitle: 'Chưa có lớp giảng dạy',
