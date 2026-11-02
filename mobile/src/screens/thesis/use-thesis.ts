@@ -141,31 +141,58 @@ export function useThesisTopics(roundId: string | null): ThesisTopicList {
 
   const [extra, setExtra] = useState<ExtraPages | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const busy = useRef(false);
+  // A next-page read belongs to one first-page snapshot. Its token fences the
+  // success, error and finally writes so an abandoned read cannot touch the
+  // snapshot that replaced it, and the lock is keyed by the snapshot owner so
+  // a round switch or refresh never waits for the previous snapshot's read.
+  const request = useRef<{ owner: TopicPage; token: number } | null>(null);
+  const token = useRef(0);
   const mounted = useRef(true);
+  const firstRef = useRef<TopicPage | undefined>(first);
+  firstRef.current = first;
   useEffect(() => () => { mounted.current = false; }, []);
 
   // Extra pages belong to one first-page snapshot; a refresh drops them.
   const owned = extra && first && extra.owner === first ? extra : null;
   const hasMore = preview ? false : owned ? owned.hasMore : first?.hasMore ?? false;
 
+  // A new snapshot orphans every read launched for the previous one: release
+  // its lock at once, drop its pages and error, and fence its callbacks.
+  useEffect(() => {
+    if (request.current && request.current.owner !== first) {
+      request.current = null;
+      token.current += 1;
+      setLoadingMore(false);
+    }
+    setExtra((previous) => (previous && previous.owner !== first ? null : previous));
+  }, [first]);
+
   const loadMore = useCallback(() => {
-    if (preview || !first || busy.current || !hasMore || roundId === null) return;
-    busy.current = true;
+    // The lock is per snapshot: a request owned by a previous first page must
+    // not delay the new snapshot even before the reset effect has run.
+    if (preview || !first || request.current?.owner === first || !hasMore || roundId === null) return;
+    const owner = first;
+    const requestToken = token.current + 1;
+    token.current = requestToken;
+    request.current = { owner, token: requestToken };
+    const current = () => request.current?.token === requestToken && firstRef.current === owner;
     setLoadingMore(true);
+    // A retry clears the previous failure, like the content paged-list lifecycle.
+    setExtra((previous) => (previous?.owner === owner ? { ...previous, error: null } : previous));
     const page = (owned?.page ?? 0) + 1;
     thesisApi.topics(roundId, { page, limit: THESIS_TOPIC_PAGE_SIZE })
       .then((result) => {
-        if (!mounted.current) return;
-        setExtra({ owner: first, items: appendUnique(owned?.items ?? [], result.items), page, hasMore: result.hasMore, error: null });
+        if (!mounted.current || !current()) return;
+        setExtra({ owner, items: appendUnique(owned?.items ?? [], result.items), page, hasMore: result.hasMore, error: null });
       })
       .catch((error: unknown) => {
-        if (!mounted.current || isAbortLike(error)) return;
+        if (!mounted.current || isAbortLike(error) || !current()) return;
         const message = thesisErrorMessage(copy, error);
-        setExtra({ owner: first, items: owned?.items ?? [], page: owned?.page ?? 0, hasMore: true, error: message });
+        setExtra({ owner, items: owned?.items ?? [], page: owned?.page ?? 0, hasMore: true, error: message });
       })
       .finally(() => {
-        busy.current = false;
+        if (!current()) return;
+        request.current = null;
         if (mounted.current) setLoadingMore(false);
       });
   }, [preview, first, hasMore, roundId, owned, copy]);
