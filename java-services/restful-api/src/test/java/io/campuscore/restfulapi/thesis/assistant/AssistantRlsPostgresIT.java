@@ -232,7 +232,7 @@ class AssistantRlsPostgresIT {
                 .subject(subject)
                 .audience(List.of("campuscore-internal-rag"))
                 .issuedAt(issuedAt)
-                .expiresAt(issuedAt.plusSeconds(60))
+                .expiresAt(issuedAt.plusSeconds(30))
                 .claim("capability", "assistant")
                 .build();
         SecretKey key = new SecretKeySpec(
