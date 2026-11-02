@@ -604,9 +604,11 @@ export interface SectionGradeEnrollment {
   letterGrade?: string | null;
   gradeStatus?: string;
   enrollmentStatus?: string;
+  /** Enrollment row version for optimistic concurrency; absent on legacy responses. */
+  version?: number;
 }
 
-interface SectionGradesResponse {
+export interface SectionGradesResponse {
   sectionId: string;
   enrollments: SectionGradeEnrollment[];
 }
@@ -622,6 +624,8 @@ export interface StudentGradeRow {
   gradeStatus?: string;
   processScore?: number | null;
   finalExamScore?: number | null;
+  /** The version the grade sheet loaded with; omitted by legacy responses. */
+  version?: number;
   grades?: Array<{
     gradeItemId?: string;
     gradeItemName?: string;
@@ -630,6 +634,45 @@ export interface StudentGradeRow {
     maxScore?: number;
     weight?: number;
   }>;
+}
+
+/** One PUT /sections/{id}/grades item. Omit `version` only for a legacy save. */
+export interface GradeUpdate {
+  enrollmentId: string;
+  processScore?: number | null;
+  finalExamScore?: number | null;
+  version?: number;
+}
+
+/** Maps the grade-sheet read model, keeping each enrollment's row version. */
+export function sectionGradeRows(response: SectionGradesResponse): StudentGradeRow[] {
+  return response.enrollments.map((entry) => ({
+    enrollmentId: entry.id,
+    studentId: entry.studentId,
+    studentCode: entry.studentCode,
+    studentName: entry.studentName,
+    processScore: entry.processScore,
+    finalExamScore: entry.finalExamScore,
+    finalGrade: entry.finalGrade,
+    letterGrade: entry.letterGrade,
+    gradeStatus: entry.gradeStatus,
+    version: entry.version,
+  }));
+}
+
+/**
+ * Request body for a draft save. A row without a numeric version (a legacy
+ * response) omits the property, so the server keeps last-write-wins for it.
+ */
+export function gradeSaveBody(grades: readonly GradeUpdate[]) {
+  return {
+    grades: grades.map(({ enrollmentId, processScore, finalExamScore, version }) => ({
+      enrollmentId,
+      processScore,
+      finalExamScore,
+      ...(typeof version === 'number' ? { version } : {}),
+    })),
+  };
 }
 
 export interface ApiClientOptions {
@@ -1445,25 +1488,15 @@ export const campusApi = {
     const response = await apiClient.get<SectionGradesResponse>(
       `/sections/${encodeURIComponent(sectionId)}/grades`,
     );
-    return response.enrollments.map((entry) => ({
-      enrollmentId: entry.id,
-      studentId: entry.studentId,
-      studentCode: entry.studentCode,
-      studentName: entry.studentName,
-      processScore: entry.processScore,
-      finalExamScore: entry.finalExamScore,
-      finalGrade: entry.finalGrade,
-      letterGrade: entry.letterGrade,
-      gradeStatus: entry.gradeStatus,
-    }));
+    return sectionGradeRows(response);
   },
   saveSectionGrades: (
     sectionId: string,
-    grades: Array<{ enrollmentId: string; processScore?: number | null; finalExamScore?: number | null }>,
+    grades: readonly GradeUpdate[],
   ) =>
     apiClient.put<JsonObject>(
       `/sections/${encodeURIComponent(sectionId)}/grades`,
-      { grades },
+      gradeSaveBody(grades),
     ),
   publishSectionGrades: (sectionId: string) =>
     apiClient.post<JsonObject>(

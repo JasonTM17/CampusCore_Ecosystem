@@ -11,10 +11,12 @@ import { lecturerApi, type SectionGradeSheet } from './lecturer-api';
 import { generateGradeCsv, gradeCsvFilename } from './lecturer-csv';
 import {
   buildGradeDraft,
+  changedGradeRows,
   courseTitle,
   dirtyGradeCount,
   gradedPercent,
   localIsoDate,
+  sameGradeSheet,
   windowOf,
   type GradeDraft,
   type ScoreEdit,
@@ -26,12 +28,9 @@ import { useOpsStyles } from './shared/styles';
 
 const PAGE_SIZE = 30;
 const NO_PROBLEMS: GradeDraft['problems'] = {};
+const NO_CHANGED_ROWS: ReadonlySet<string> = new Set();
 
 type Banner = { tone: 'success' | 'error' | 'warning'; message: string } | null;
-
-function sameGradeSheet(left: SectionGradeSheet, right: SectionGradeSheet) {
-  return left.sectionId === right.sectionId && JSON.stringify(left.rows) === JSON.stringify(right.rows);
-}
 
 export function LecturerGradingScreen(_props: MobileScreenProps) {
   const styles = useOpsStyles();
@@ -56,6 +55,8 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
 
   const [baselineSheet, setBaselineSheet] = useState<SectionGradeSheet>();
   const [remoteChanged, setRemoteChanged] = useState(false);
+  const [staleVersion, setStaleVersion] = useState(false);
+  const [changedRows, setChangedRows] = useState<ReadonlySet<string>>(NO_CHANGED_ROWS);
   const [edits, setEdits] = useState<Record<string, ScoreEdit>>({});
   const [problems, setProblems] = useState<GradeDraft['problems']>(NO_PROBLEMS);
   const [busy, setBusy] = useState<'save' | 'publish' | null>(null);
@@ -65,6 +66,10 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
   const [pages, setPages] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const editRevisionBySection = useRef<Record<string, number>>({});
+  // Only a fetch that actually lands a new sheet may consume a conflict reload.
+  const presentedSheet = useRef<SectionGradeSheet | undefined>(undefined);
+  // The stale baseline to compare against after the explicit reload returns.
+  const pendingReload = useRef<{ sectionId: string; rows: SectionGradeSheet['rows'] } | null>(null);
   // A dirty section keeps its own draft while the lecturer checks another one.
   const draftsRef = useRef<Record<string, {
     baselineSheet: SectionGradeSheet;
@@ -80,9 +85,25 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
 
   useEffect(() => {
     if (!sheet) return;
+    const landed = sheet !== presentedSheet.current;
+    presentedSheet.current = sheet;
     if (!baselineSheet || baselineSheet.sectionId !== sheet.sectionId) {
       setBaselineSheet(sheet);
       setRemoteChanged(false);
+      setChangedRows(NO_CHANGED_ROWS);
+      return;
+    }
+    const reload = pendingReload.current;
+    if (landed && reload && reload.sectionId === sheet.sectionId) {
+      // The explicit reload after a version conflict: adopt the fresh
+      // baseline, keep every local edit and flag the rows that moved. The
+      // new versions are only used by a later, deliberate save.
+      pendingReload.current = null;
+      setBaselineSheet(sheet);
+      setChangedRows(new Set(changedGradeRows(reload.rows, sheet.rows)));
+      setRemoteChanged(false);
+      setStaleVersion(false);
+      setMessage(null);
       return;
     }
     if (sameGradeSheet(baselineSheet, sheet)) {
@@ -109,6 +130,9 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
       setProblems(NO_PROBLEMS);
       setRemoteChanged(false);
     }
+    pendingReload.current = null;
+    setStaleVersion(false);
+    setChangedRows(NO_CHANGED_ROWS);
     setMessage(null);
     setSearch('');
     setPages(1);
@@ -162,6 +186,24 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
     setEdits({});
     setProblems(NO_PROBLEMS);
     setRemoteChanged(false);
+    setStaleVersion(false);
+    setChangedRows(NO_CHANGED_ROWS);
+    pendingReload.current = null;
+    void gradesQuery.reload();
+  };
+
+  /**
+   * The explicit reload after 409 STALE_VERSION: refetch, keep every local
+   * edit, and let the arriving sheet flag the rows that changed. Nothing is
+   * retried and no refetched version is attached to the old draft on its own.
+   */
+  const reloadAfterConflict = () => {
+    if (baselineSheet?.sectionId === sectionId) {
+      pendingReload.current = { sectionId, rows: baselineSheet.rows };
+      void gradesQuery.reload();
+      return;
+    }
+    setStaleVersion(false);
     void gradesQuery.reload();
   };
 
@@ -189,12 +231,21 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
         setEdits({});
         setProblems(NO_PROBLEMS);
       }
+      setStaleVersion(false);
+      setChangedRows(NO_CHANGED_ROWS);
       setMessage({ tone: 'success', message: fillCopy(copy.scoresSaved, { n: draft.changes.length }) });
       reload();
     } catch (error) {
       if (currentSectionId.current !== savingSectionId) return;
+      const conflict = error as { status?: number; code?: string } | null;
+      if (conflict?.status === 409 && conflict.code === 'STALE_VERSION') {
+        // Keep the whole draft; the button stays disabled until an explicit reload.
+        setStaleVersion(true);
+        setMessage(null);
+        return;
+      }
       setMessage({ tone: 'error', message: opsErrorMessage(copy, error, copy.saveScoresFailed) });
-      if ((error as { status?: number } | null)?.status === 409) reload();
+      if (conflict?.status === 409) reload();
     } finally {
       if (currentSectionId.current === savingSectionId) setBusy(null);
     }
@@ -260,6 +311,7 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
                   row={row}
                   edit={edits[row.enrollmentId]}
                   problems={problems[row.enrollmentId]}
+                  changed={changedRows.has(row.enrollmentId)}
                   copy={copy}
                   onEdit={edit}
                   disabled={busy !== null}
@@ -270,12 +322,20 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
 
               <View style={styles.saveBar}>
                 {message ? <Notice tone={message.tone} message={message.message} /> : null}
+                {staleVersion ? (
+                  <Notice
+                    tone="error"
+                    message={copy.gradesVersionStale}
+                    actionLabel={busy ? undefined : copy.reload}
+                    onAction={busy ? undefined : reloadAfterConflict}
+                  />
+                ) : null}
                 {dirty > 0 ? (
                   <UiText variant="bodySmall" tone="muted">
                     {fillCopy(copy.changesCount, { n: dirty })}
                   </UiText>
                 ) : null}
-                {remoteChanged ? (
+                {remoteChanged && !staleVersion ? (
                   <Notice
                     tone="warning"
                     message={copy.gradesStale}
@@ -287,7 +347,7 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
                   icon="content-save-outline"
                   label={copy.saveScores}
                   loading={busy === 'save'}
-                  disabled={preview || dirty === 0 || busy !== null || remoteChanged}
+                  disabled={preview || dirty === 0 || busy !== null || remoteChanged || staleVersion}
                   onPress={() => void saveScores()}
                 />
                 <Button

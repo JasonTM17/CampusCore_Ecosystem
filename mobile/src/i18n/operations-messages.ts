@@ -141,6 +141,8 @@ const vi = {
   studentsQuota: '{current}/{max} sinh viên',
   close: 'Đóng',
   gradesStale: 'Bảng điểm đã thay đổi. Tải lại trước khi lưu.',
+  gradesVersionStale: 'Bảng điểm đã thay đổi trên máy chủ. Tải lại để xem thay đổi; điểm bạn nhập vẫn được giữ.',
+  changedOnServer: 'Đã đổi trên máy chủ',
 } as const;
 
 type Shape = { -readonly [K in keyof typeof vi]: (typeof vi)[K] extends readonly string[] ? string[] : string };
@@ -286,6 +288,8 @@ const en: Shape = {
   studentsQuota: '{current}/{max} students',
   close: 'Close',
   gradesStale: 'The gradebook changed. Reload before saving.',
+  gradesVersionStale: 'The gradebook changed on the server. Reload to see the changes; your scores are kept.',
+  changedOnServer: 'Changed on server',
 };
 
 export type OperationsCopy = Shape;
