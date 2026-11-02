@@ -13,10 +13,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class AssistantMetricsContractTest {
+    private static final String ASSERTION_SECRET = "metrics-test-owner-assertion-secret";
+
     @Test
     void bothDirectHandoffPoolsObserveBusyWorkersZeroQueueAndRejections() throws Exception {
         var registry = new SimpleMeterRegistry();
@@ -76,14 +80,21 @@ class AssistantMetricsContractTest {
                 sink.accept(done);
                 return null;
             }).when(service).stream(anyString(), anyString(), any(), anyString(), any(), any(), any());
-            var controller = new ThesisAssistantInternalController(service,
-                    new AssistantRagProperties("", "fixture-internal-key", true, 1000, 30000));
+            var properties = new AssistantRagProperties("", "fixture-internal-key", ASSERTION_SECRET,
+                    true, 1000, 30000);
+            var controller = new ThesisAssistantInternalController(service, properties);
             ReflectionTestUtils.invokeMethod(controller, "bindMetrics", registry);
             var request = new ThesisAssistantDtos.ChatRequest("Quy chế học vụ", "vi");
-            controller.chat(request, "fixture-internal-key", "fixture-owner");
-            controller.stream(request, "fixture-internal-key", "fixture-owner");
+            var actor = Jwt.withTokenValue("fixture").header("alg", "none").subject("fixture-owner").build();
+            SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(actor, List.of()));
+            String assertion = new AssistantOwnerAssertion(properties).issueAssistant("fixture-owner");
+            controller.chat(request, "fixture-internal-key", assertion, "fixture-owner");
+            controller.stream(request, "fixture-internal-key", assertion, "fixture-owner");
             assertEquals(1, registry.get("campuscore.assistant.requests").tag("degraded", "true").counter().count());
             assertEquals(1, registry.get("campuscore.assistant.requests").tag("degraded", "false").counter().count());
-        } finally { registry.close(); }
+        } finally {
+            SecurityContextHolder.clearContext();
+            registry.close();
+        }
     }
 }

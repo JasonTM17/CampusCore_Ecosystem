@@ -172,6 +172,9 @@ public class SecurityConfig {
             // anonymous homepage uses to label articles by
             // their editorial taxonomy instead of guessing.
             "/api/v1/article-taxonomy/v2/categories",
+            // These service-mesh endpoints authenticate the dedicated service
+            // token and signed owner assertion in their controllers. Keep the
+            // paths permitAll: the RAG sidecar has no user bearer token.
             "/internal/rag/assistant/**",
             "/internal/rag/thesis/assistant/**",
             // Mail endpoints used to be reachable without a

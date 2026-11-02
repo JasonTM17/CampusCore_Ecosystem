@@ -262,6 +262,7 @@ assistant:
   rag:
     base-url: ${ASSISTANT_RAG_BASE_URL:}
     service-token: ${ASSISTANT_RAG_SERVICE_TOKEN:}
+    owner-assertion-secret: ${ASSISTANT_RAG_OWNER_ASSERTION_SECRET:}
     service-mode: ${ASSISTANT_RAG_SERVICE_MODE:false}
     connect-timeout-ms: ${ASSISTANT_RAG_CONNECT_TIMEOUT_MS:1000}
     # Read timeout covers the whole remote chain (retrieval + DeepSeek

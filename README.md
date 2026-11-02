@@ -38,6 +38,7 @@ cd CampusCore_Ecosystem
 
 # 1) Biến môi trường local
 Copy-Item .env.example .env
+$env:ASSISTANT_RAG_OWNER_ASSERTION_SECRET = (openssl rand -base64 48)
 
 # 2) Toàn bộ cụm local (compose tự chạy assistant-db-provisioner một lần rồi thoát)
 docker compose up -d --build
@@ -66,6 +67,10 @@ curl.exe http://127.0.0.1:4010/v3/api-docs
 Nếu `5432` hoặc `3000` đã bị chiếm, đặt `POSTGRES_HOST_PORT` / `FRONTEND_HOST_PORT` trong `.env`
 (ví dụ `5434` / `3001`) rồi chạy lại compose; API ngoài Docker phải trỏ `SPRING_DATASOURCE_URL`
 vào cổng Postgres mới. E2E và SSO preview là stack kiểm thử riêng, không cần cho quick start.
+Compose yêu cầu `ASSISTANT_RAG_OWNER_ASSERTION_SECRET`. Lệnh trên tạo key riêng;
+không dùng lại `ASSISTANT_RAG_SERVICE_TOKEN`, `JWT_SECRET` hoặc
+`JWT_REFRESH_SECRET`. Compose cấp key này cho `restful-api` và `rag-service`;
+repository không có key mặc định.
 
 ### Chạy API ngoài Docker
 
@@ -81,6 +86,7 @@ docker compose up -d postgres
 $env:SPRING_PROFILES_ACTIVE = "persistence"
 $env:JWT_SECRET = "<32+-random-chars>"            # JwtSecretPolicy yêu cầu >= 32 ký tự
 $env:JWT_REFRESH_SECRET = "<another-32+-value>"   # cũng >= 32 ký tự và khác JWT_SECRET
+$env:ASSISTANT_RAG_OWNER_ASSERTION_SECRET = "<generated-dedicated-key>" # khi bật sidecar RAG
 $env:SPRING_DATASOURCE_URL = "jdbc:postgresql://localhost:5432/campuscore_restful"
 $env:SPRING_DATASOURCE_USERNAME = "campuscore"
 $env:SPRING_DATASOURCE_PASSWORD = "<POSTGRES_PASSWORD trong .env>"

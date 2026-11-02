@@ -125,6 +125,7 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | --- | --- | --- | --- | --- |
 | `ASSISTANT_RAG_BASE_URL`, `ASSISTANT_RAG_SERVICE_MODE` | Sidecar URL (`:4011`) + embedded/sidecar mode | config | compose, prod | safe default |
 | `ASSISTANT_RAG_SERVICE_TOKEN` | Token backend→rag-service auth | secret | compose, prod | required for sidecar mode |
+| `ASSISTANT_RAG_OWNER_ASSERTION_SECRET` | Dedicated HS256 key for short-lived signed owner assertions | secret | compose, prod sidecar mode | required, generated; no default |
 | `ASSISTANT_RAG_CONNECT_TIMEOUT_MS`, `ASSISTANT_RAG_READ_TIMEOUT_MS` | Sidecar HTTP timeouts | config | tuning | safe default |
 | `ASSISTANT_KNOWLEDGE_SNAPSHOT_CACHE`, `ASSISTANT_KNOWLEDGE_SNAPSHOT_TTL_MS` | Knowledge snapshot cache on/TTL | config | tuning | safe default |
 | `ASSISTANT_TOP_K`, `ASSISTANT_LEXICAL_FAST_PATH`, `ASSISTANT_LEXICAL_CONFIDENT_SCORE` | Retrieval size + lexical fast-path threshold | config | tuning | safe default |
@@ -245,7 +246,7 @@ The historical 68 names closed under AUD-27 are documented in sections 1–7
 above: `ACADEMIC_ENROLLED_COUNT_*` (3), `ACCESS_TOKEN_COOKIE`,
 `APP_PUBLIC_BASE_URL`, `ASSISTANT_DB_*` (5: `URL`, `POOL_MAX`,
 `CONNECTION_TIMEOUT_MS`, `IDLE_TIMEOUT_MS`, `KEEPALIVE_TIME_MS`),
-`ASSISTANT_KNOWLEDGE_SNAPSHOT_*` (2), `ASSISTANT_RAG_*` (4),
+`ASSISTANT_KNOWLEDGE_SNAPSHOT_*` (2), `ASSISTANT_RAG_*` (6),
 `ASSISTANT_RECOVERY_*` (2: `ACTIVE_WINDOW_MS`, `SAFETY_INTERVAL_MS`),
 `ASSISTANT_RLS_TEST_MODE`, `ASSISTANT_SUPABASE_*` (4), `ASSISTANT_TOP_K`,
 `CSRF_COOKIE`, `CSRF_HEADER`, `DB_POOL_*` (4), `DEEPSEEK_MAX_*` (3),

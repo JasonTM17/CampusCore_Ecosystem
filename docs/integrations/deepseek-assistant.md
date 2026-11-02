@@ -29,6 +29,29 @@ repository contains placeholders, never credentials:
 | `ASSISTANT_RECOVERY_DELAY_MS` | `30000` | Expired lease recovery sweep |
 | `ASSISTANT_RECOVERY_INITIAL_DELAY_MS` | `30000` | Startup grace before first sweep |
 
+## Private RAG service authentication
+
+Compose sidecar mode requires both `ASSISTANT_RAG_SERVICE_TOKEN` and a separate
+generated `ASSISTANT_RAG_OWNER_ASSERTION_SECRET` (for example,
+`openssl rand -base64 48`). The assertion key is passed only to `restful-api`
+and `rag-service`; it must not reuse the service token, `JWT_SECRET`, or
+`JWT_REFRESH_SECRET`. There is no assertion-key default, and Compose fails closed
+if it is missing. The development service-token default and
+`security.jwt.reject-known-defaults` behavior are unchanged, but that token on
+its own cannot select an assistant owner.
+
+For each authenticated caller, the Java API sends
+`X-Assistant-Owner-Assertion` as a compact HS256 JWT with `iss`, `sub`, `aud`,
+`capability`, `iat`, and `exp`, expiring 30 seconds after issuance. The sidecar
+requires the signed subject to equal `X-Assistant-Owner`. Normal assistant
+traffic uses capability `assistant`; authenticated `ADMIN` or `SUPER_ADMIN`
+knowledge-authority traffic uses the distinct `knowledge-admin` capability.
+The `/internal/rag/assistant/**` and `/internal/rag/thesis/assistant/**` paths
+remain `permitAll` at the resource filter because the sidecar has no user bearer
+token; each controller verifies the service token and owner assertion before
+any RAG service work. Direct internal scripts that send only the service token
+and owner header must be updated to send a valid assertion.
+
 The endpoint/model follow DeepSeek's OpenAI-compatible chat completion contract:
 <https://api-docs.deepseek.com/api/create-chat-completion/>. CampusCore pins
 the base host and model in server configuration; clients cannot override either.

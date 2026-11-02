@@ -45,7 +45,8 @@ public class BffApiProxyController {
             "x-forwarded-proto", "x-real-ip", "x-campuscore-surface",
             "x-campuscore-scheme", "x-campuscore-host",
             "x-campuscore-proxy-token", "x-campuscore-bff-secret",
-            "x-campuscore-client-ip", "host", "content-length",
+            "x-campuscore-client-ip", "x-assistant-owner",
+            "x-assistant-owner-assertion", "host", "content-length",
             "transfer-encoding", "connection");
     // Hop-by-hop plus anything that could carry credentials downstream —
     // an upstream Set-Cookie or WWW-Authenticate must never reach a BFF
@@ -151,7 +152,7 @@ public class BffApiProxyController {
         while (names.hasMoreElements()) {
             String name = names.nextElement();
             String lower = name.toLowerCase(Locale.ROOT);
-            if (STRIP_REQUEST.contains(lower) || JDK_RESTRICTED.contains(lower)) {
+            if (stripsRequestHeader(lower) || JDK_RESTRICTED.contains(lower)) {
                 continue;
             }
             Enumeration<String> values = request.getHeaders(name);
@@ -210,6 +211,10 @@ public class BffApiProxyController {
             headers.set(HttpHeaders.CACHE_CONTROL, "no-store");
         }
         return ResponseEntity.status(status).headers(headers).body(payload);
+    }
+
+    static boolean stripsRequestHeader(String name) {
+        return name != null && STRIP_REQUEST.contains(name.toLowerCase(Locale.ROOT));
     }
 
     /**
