@@ -6,6 +6,7 @@ import { Button, Card, HeroCard, IconChip, ScreenSpacer, StatePanel, StatusPill,
 import { Dialog, Notice } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
 import { countForm } from '../../i18n/locale';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi, type RegistrationWorkspace } from '../academic/academic-api';
 import { isActiveEnrollment, isDroppableEnrollment } from '../academic/academic-model';
@@ -48,6 +49,7 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
   const { copy, locale } = useAcademicCopy();
   const preview = isPreviewMode();
   const query = useAcademicQuery('academic.registration', () => academicApi.registrationWorkspace(), copy);
+  const pull = usePullToRefresh(() => query.reload());
   const workspace = preview ? previewWorkspace : query.data;
   const [browse, setBrowse] = useState<BrowseQuery>({ search: '', curriculum: 'ALL', hideFull: false, sort: 'code' });
   const [visibleGroups, setVisibleGroups] = useState(PAGE_SIZE);
@@ -97,8 +99,8 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
       error={preview ? null : query.error}
       warning={preview ? null : query.warning}
       onRetry={() => void query.reload()}
-      onRefresh={preview ? undefined : () => { void query.reload(); }}
-      refreshing={!preview && query.isStale}
+      onRefresh={preview ? undefined : pull.onRefresh}
+      refreshing={!preview && pull.refreshing}
 
       list={{ data: groupedRows(groups.slice(0, visibleGroups), (group) => group.courseKey, (group) => group.sections, (item) => item.id), keyExtractor: (entry) => entry.key,
         renderItem: ({ item: entry }) => { const group = entry.group;

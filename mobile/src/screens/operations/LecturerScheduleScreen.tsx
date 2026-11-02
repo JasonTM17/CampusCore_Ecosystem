@@ -6,6 +6,7 @@ import { ChoiceField } from '../../components/ui/choice-field';
 import { SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
 import { countForm } from '../../i18n/locale';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { lecturerApi } from './lecturer-api';
 import { courseTitle, filterSections, termOptions, windowOf } from './lecturer-model';
@@ -22,6 +23,7 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
   const { copy, locale } = useOpsCopy();
   const preview = isOpsPreview();
   const query = useOpsQuery('lecturer:schedule', () => lecturerApi.schedule(), copy);
+  const pull = usePullToRefresh(() => query.reload());
   const [term, setTerm] = useState('');
   const [search, setSearch] = useState('');
   const [pages, setPages] = useState(1);
@@ -38,8 +40,8 @@ export function LecturerScheduleScreen({ navigation }: MobileScreenProps) {
       error={preview ? null : query.error}
       warning={preview ? null : query.warning}
       onRetry={() => void query.reload()}
-      onRefresh={preview ? undefined : () => void query.reload()}
-      refreshing={!preview && query.isStale}
+      onRefresh={preview ? undefined : pull.onRefresh}
+      refreshing={!preview && pull.refreshing}
 
       list={{ data: rows, keyExtractor: (item, index) => String(item.sectionId),
         renderItem: ({ item: section }) => (

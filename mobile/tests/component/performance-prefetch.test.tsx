@@ -4,6 +4,7 @@ import { AppState } from 'react-native';
 
 import { useDashboardPrefetch } from '../../src/hooks/use-dashboard-prefetch';
 import { clearQueryCache, queryCacheKey, readQueryCache } from '../../src/hooks/query-cache';
+import { coalesceQueryRequest } from '../../src/hooks/query-performance';
 
 let mockEpoch = 1;
 const mockGet = jest.fn<(path: string, init: { signal: AbortSignal }) => Promise<unknown>>();
@@ -21,6 +22,22 @@ test('leaving the dashboard before dispatch cancels both speculative reads', asy
   await view.rerender({ path: '/news' });
   await advance();
   expect(mockGet).not.toHaveBeenCalled();
+  await view.unmount();
+});
+
+test('a prefetch joins the dashboard read already in flight for the same cache key', async () => {
+  const scope = { locale: 'vi', roleLane: 'student', grants: [] };
+  const key = queryCacheKey('a', 'academic.enrollments', scope);
+  let finishScreen!: (value: unknown) => void;
+  const screenRead = new Promise((resolve) => { finishScreen = resolve; });
+  void coalesceQueryRequest(JSON.stringify([key, 1]), () => screenRead);
+
+  const view = await renderHook(() => useDashboardPrefetch('/dashboard'));
+  await advance();
+  expect(mockGet.mock.calls.filter(([path]) => path === '/enrollments/my')).toHaveLength(0);
+
+  await act(async () => { finishScreen([{ id: 'shared' }]); });
+  expect(readQueryCache(key)).toEqual([{ id: 'shared' }]);
   await view.unmount();
 });
 

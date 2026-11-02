@@ -88,10 +88,30 @@ export function formatDateTime(value: string | number | Date | null | undefined,
   return p ? `${datePart(p, locale)} ${pad(p.hh)}:${pad(p.mm)}` : EMPTY;
 }
 
-/** The calendar day of the fixed UTC+07 campus zone, independent of the device zone. */
+/** An instant's fixed UTC+07 calendar day, encoded at UTC midnight for zone-free day math. */
+export function campusDate(value: Date | number = new Date()): Date {
+  const instant = value instanceof Date ? value : new Date(value);
+  const campus = new Date(instant.getTime() + CAMPUS_TIME_OFFSET_MS);
+  // UTC midnight carrying the campus civil date, so day math reads UTC fields.
+  return new Date(Date.UTC(campus.getUTCFullYear(), campus.getUTCMonth(), campus.getUTCDate()));
+}
+
+/** Backend day number of the campus calendar day: 1 = Sunday … 7 = Saturday. */
+export function campusDayOfWeek(value: Date | number = new Date()): number {
+  return campusDate(value).getUTCDay() + 1;
+}
+
+/** Minutes since midnight on the fixed UTC+07 campus clock. */
+export function campusMinutesOfDay(value: Date | number = new Date()): number {
+  const instant = value instanceof Date ? value : new Date(value);
+  const campus = new Date(instant.getTime() + CAMPUS_TIME_OFFSET_MS);
+  return campus.getUTCHours() * 60 + campus.getUTCMinutes();
+}
+
+/** The campus calendar day as YYYY-MM-DD, independent of the device zone. */
 export function campusIsoDate(instant: Date = new Date()): string {
-  const campusDate = new Date(instant.getTime() + CAMPUS_TIME_OFFSET_MS);
-  return `${campusDate.getUTCFullYear()}-${pad(campusDate.getUTCMonth() + 1)}-${pad(campusDate.getUTCDate())}`;
+  const day = campusDate(instant);
+  return `${day.getUTCFullYear()}-${pad(day.getUTCMonth() + 1)}-${pad(day.getUTCDate())}`;
 }
 
 export interface NumberFormatOptions {

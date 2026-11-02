@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { UiText } from '../../components/ui/UiText';
 import { tokens } from '../../design/tokens';
 import { useTheme } from '../../design/theme';
-import { civilKey } from './academic-model';
+import { civilDayOf, civilKey } from './academic-model';
 
 export interface WeekStripProps {
   days: Date[];
@@ -25,14 +25,14 @@ export function WeekStrip({ days, selectedIndex, todayKey, labels, onSelect }: W
             key={civilKey(date)}
             testID={`day-${civilKey(date)}`}
             accessibilityRole="button"
-            accessibilityLabel={`${labels[index]} ${date.getDate()}`}
+            accessibilityLabel={`${labels[index]} ${civilDayOf(date)}`}
             accessibilityState={{ selected }}
             onPress={() => onSelect(index)}
             style={[styles.dayCell, { backgroundColor: selected ? colors.primaryFixed : 'transparent' }]}
           >
             <UiText variant="meta" tone="muted">{labels[index]}</UiText>
             <UiText variant="label" tone={selected || isToday ? 'primary' : 'default'} style={styles.dayDate}>
-              {date.getDate()}
+              {civilDayOf(date)}
             </UiText>
           </Pressable>
         );

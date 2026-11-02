@@ -92,7 +92,7 @@ export function createThesisApi(client: ApiClient = apiClient) {
     removeReportFile: (groupId: string) =>
       client.delete<ThesisReport>(`${base}/groups/${id(groupId)}/report/file`),
     downloadReportFile: (groupId: string, options: Transfer = {}): Promise<ApiDownload> =>
-      client.download(`${base}/groups/${id(groupId)}/report/file`, { signal: options.signal }),
+      client.download(`${base}/groups/${id(groupId)}/report/file`, { signal: options.signal, nativeFile: true }),
   };
 }
 

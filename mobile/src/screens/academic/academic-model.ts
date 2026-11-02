@@ -1,5 +1,8 @@
 // Pure enrollment, term and timetable helpers shared by the academic screens.
-// Day convention follows the backend: 1 = Sunday ... 7 = Saturday.
+// Day convention follows the backend: 1 = Sunday ... 7 = Saturday. Calendar
+// math runs on the fixed UTC+07 campus day, never the device zone.
+
+import { campusDate, campusDayOfWeek, campusIsoDate, campusMinutesOfDay } from '../../i18n/locale';
 
 export type AcademicLocale = 'vi' | 'en';
 
@@ -197,24 +200,30 @@ export function buildAgenda(enrollments: readonly AcademicEnrollment[], locale: 
   return items.sort((left, right) => DAY_ORDER.indexOf(left.dayOfWeek) - DAY_ORDER.indexOf(right.dayOfWeek) || left.startTime.localeCompare(right.startTime));
 }
 
-/** `YYYY-MM-DD` from local calendar fields. */
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** `YYYY-MM-DD` of the campus calendar day. */
 export function civilKey(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return campusIsoDate(date);
 }
 
-/** Monday of the week containing `date`, shifted by whole weeks. */
+/** Monday of the campus week containing `date`, shifted by whole weeks. */
 export function weekStartOf(date: Date, weekOffset = 0): Date {
-  const mondayOffset = (date.getDay() + 6) % 7;
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate() - mondayOffset + weekOffset * 7);
+  const day = campusDate(date);
+  const mondayOffset = (day.getUTCDay() + 6) % 7;
+  return new Date(day.getTime() - mondayOffset * DAY_MS + weekOffset * 7 * DAY_MS);
 }
 
 export function weekDates(weekStart: Date): Date[] {
-  return Array.from({ length: 7 }, (_, index) => new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + index));
+  const start = campusDate(weekStart).getTime();
+  return Array.from({ length: 7 }, (_, index) => new Date(start + index * DAY_MS));
 }
 
-/** Backend day number for a calendar date. */
-export const dayOfWeekOf = (date: Date): number => date.getDay() + 1;
+/** Backend day number for a campus calendar date. */
+export const dayOfWeekOf = (date: Date): number => campusDayOfWeek(date);
+
+/** Day of the month of the campus calendar day. */
+export const civilDayOf = (date: Date): number => campusDate(date).getUTCDate();
 
 /** Meetings that fall on a date, limited to the term dates when they are known. */
 export function agendaForDate(agenda: readonly AgendaItem[], date: Date, term?: Pick<AcademicSemester, 'startDate' | 'endDate'> | null): AgendaItem[] {
@@ -234,7 +243,7 @@ const minutesOfDay = (value: string): number => {
 export function nextMeetings(agenda: readonly AgendaItem[], now: Date, limit: number): AgendaItem[] {
   if (limit <= 0) return [];
   const today = dayOfWeekOf(now);
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const nowMinutes = campusMinutesOfDay(now);
   return agenda
     .map((item) => {
       const days = (normalizeDay(item.dayOfWeek) - today + 7) % 7;

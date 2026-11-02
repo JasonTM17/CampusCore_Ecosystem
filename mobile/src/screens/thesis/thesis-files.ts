@@ -46,6 +46,9 @@ export interface DownloadedReport {
   data: ArrayBuffer;
   contentType: string | null;
   fileName: string | null;
+  /** Streamed file lane; the adapter consumes this owned URI instead of the bytes. */
+  localUri?: string;
+  release?: () => void;
 }
 
 export type ReportDownloadOutcome =
@@ -61,13 +64,20 @@ export async function saveReportFile(
 ): Promise<ReportDownloadOutcome> {
   const capability = adapter.capability('save');
   if (!capability.available) return { status: 'unavailable', reason: capability.reason };
+  let file: DownloadedReport | undefined;
   try {
-    const file = await fetchBytes();
-    if (file.data.byteLength === 0) return { status: 'failed', reason: 'EMPTY' };
+    file = await fetchBytes();
     const name = file.fileName ?? fallbackName;
     const mimeType = file.contentType && file.contentType !== 'application/octet-stream' ? file.contentType : reportMimeType(name);
+    if (file.localUri) {
+      // A streamed download already owns a cache file: share the URI as-is.
+      return await adapter.save({ uri: file.localUri, name, mimeType });
+    }
+    if (file.data.byteLength === 0) return { status: 'failed', reason: 'EMPTY' };
     return await adapter.save({ uri: `data:${mimeType};base64,${bytesToBase64(file.data)}`, name, mimeType });
   } catch (error) {
     return { status: 'failed', reason: (error as { code?: string } | null)?.code ?? 'ERROR' };
+  } finally {
+    file?.release?.();
   }
 }

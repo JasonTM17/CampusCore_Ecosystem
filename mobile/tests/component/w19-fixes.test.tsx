@@ -477,7 +477,7 @@ describe('DS-MOB-09 dashboard next meetings', () => {
     });
     try {
       mockRuntime.queries = {
-        enrollments: {
+        'academic.enrollments': {
           data: [
             enrollmentAt('a', 'A101', 2, '07:00', '08:30'), // Monday, still ahead
             enrollmentAt('b', 'B202', 7, '10:00', '11:30'), // Saturday, next

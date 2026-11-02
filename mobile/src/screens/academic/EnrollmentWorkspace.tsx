@@ -6,6 +6,7 @@ import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { fillCopy } from '../../i18n/academic-messages';
 import { countForm } from '../../i18n/locale';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileNavigation } from '../../navigation/types';
 import { academicApi } from './academic-api';
 import {
@@ -41,6 +42,7 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
   const preview = isPreviewMode();
   const enrollmentsQuery = useAcademicQuery('academic.enrollments', () => academicApi.enrollments(), copy);
   const semestersQuery = useAcademicQuery('academic.semesters', () => academicApi.semesters(), copy);
+  const pull = usePullToRefresh(() => Promise.all([enrollmentsQuery.reload(), semestersQuery.reload()]));
   const [tab, setTab] = useState<EnrollmentTab>('active');
   const [term, setTerm] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -67,8 +69,8 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
       error={error}
       warning={warning}
       onRetry={() => void enrollmentsQuery.reload()}
-      onRefresh={preview ? undefined : () => { void enrollmentsQuery.reload(); void semestersQuery.reload(); }}
-      refreshing={!preview && (enrollmentsQuery.isStale || semestersQuery.isStale)}
+      onRefresh={preview ? undefined : pull.onRefresh}
+      refreshing={!preview && pull.refreshing}
 
       list={{ data: selected ? [] : rows, keyExtractor: (item) => `${item.semesterId}:${item.id}`,
         testID: 'course-grid', style: gridStyle(windowClass, largeText),

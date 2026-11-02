@@ -87,6 +87,14 @@ test('invalid grant ends bootstrap without a retry loop', async () => {
   expect(request).toHaveBeenCalledTimes(1);
 });
 
+test('a definitive issuer rejection ends the session instead of retrying a dead grant', async () => {
+  request.mockResolvedValueOnce(new Response('{}', { status: 401 }));
+  const { result } = await renderHook(useSession, { wrapper });
+  expect(result.current.kind).toBe('signedOut');
+  expect(result.current.bootStatus).toBe('ready');
+  expect(secure.has('cu.refresh')).toBe(false);
+});
+
 test.each([access({ exp: 1 }), access({ sub: null }), 'malformed-access'])('unusable access claims never authenticate bootstrap (%#)', async (token) => {
   request.mockResolvedValueOnce(new Response(JSON.stringify({ access_token: token })));
   const { result } = await renderHook(useSession, { wrapper });

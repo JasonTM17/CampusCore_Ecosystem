@@ -56,7 +56,10 @@ export default function AppGroupLayout() {
   const activeRoute = (screenForPath(pathname) ?? 'dashboard.student') as ScreenName;
   const navigate = (route: ScreenName) => {
     setMenuOpen(false);
-    router.push(pathFor(route));
+    const target = pathFor(route);
+    // A tab that is already open must not stack an identical screen.
+    if (target === pathname) return;
+    router.push(target);
   };
   // An applicant session cannot open the profile screen, so the shell offers
   // the session-ending control in place of the profile shortcut.

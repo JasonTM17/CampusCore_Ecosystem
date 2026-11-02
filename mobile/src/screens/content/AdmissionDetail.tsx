@@ -2,7 +2,7 @@ import { cardRows, renderVirtualRow } from '../../components/perf/virtual-rows';
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { Button, Card, DataNotice, Field, UiText } from '../../components/Ui';
+import { Button, Card, DataNotice, Field, Notice, UiText } from '../../components/Ui';
 import { DateField } from '../../components/ui/index';
 import type { MobileAdmissionForm } from '../../api/client';
 import { admissionsMessages } from '../../i18n/admissions-messages';
@@ -29,6 +29,9 @@ export interface AdmissionDetailProps {
   busy: boolean;
   preview: boolean;
   flash: Flash | null;
+  /** A save was rejected as stale; the draft stays until the user chooses to reload. */
+  stale?: boolean;
+  onReload?: () => void;
   onBack: () => void;
   onSave: (form: MobileAdmissionForm) => void;
   onSubmit: (form: MobileAdmissionForm) => void;
@@ -39,7 +42,7 @@ export interface AdmissionDetailProps {
 
 /** One application: editable form while draft or returned, read-only after, with files and review history. */
 export function AdmissionDetail(props: AdmissionDetailProps) {
-  const { application, busy, preview, flash, onBack, onSave, onSubmit, onWithdraw, onUploaded, onDeleteFile } = props;
+  const { application, busy, preview, flash, stale = false, onReload, onBack, onSave, onSubmit, onWithdraw, onUploaded, onDeleteFile } = props;
   const { locale, formatDate, formatDateTime, copy: shared } = useContentCopy();
   const copy = admissionsMessages[locale];
   const phase = admissionPhase(application.status);
@@ -105,15 +108,25 @@ export function AdmissionDetail(props: AdmissionDetailProps) {
         </Card>
 
         {editable ? (
-          <AdmissionForm
-            key={`${application.id}:${application.version}`}
-            application={application}
-            busy={busy}
-            preview={preview}
-            resubmit={phase === 'returned'}
-            onSave={onSave}
-            onSubmit={onSubmit}
-          />
+          <>
+            {stale ? (
+              <Notice
+                actionLabel={copy.reload}
+                message={copy.stale}
+                onAction={busy ? undefined : onReload}
+                tone="error"
+              />
+            ) : null}
+            <AdmissionForm
+              key={`${application.id}:${application.version}`}
+              application={application}
+              busy={busy}
+              preview={preview}
+              resubmit={phase === 'returned'}
+              onSave={onSave}
+              onSubmit={onSubmit}
+            />
+          </>
         ) : (
           <Card>
             <UiText accessibilityRole="header" variant="headlineSmall">{copy.form}</UiText>

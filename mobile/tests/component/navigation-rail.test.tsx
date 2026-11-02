@@ -93,13 +93,28 @@ describe('adaptive app navigation', () => {
         for (const [index, item] of items.entries()) {
           const tab = screen.getByRole('tab', { name: localizedNavLabel('vi', item.label) });
           expect(tab.props.accessibilityState).toEqual({ selected: index === 0 });
+          const calls = push.mock.calls.length;
           await fireEvent.press(tab);
-          expect(push).toHaveBeenLastCalledWith(pathFor(item.route));
+          if (pathFor(item.route) === roleHomePath(role)) {
+            expect(push).toHaveBeenCalledTimes(calls);
+          } else {
+            expect(push).toHaveBeenLastCalledWith(pathFor(item.route));
+          }
         }
-        expect(push).toHaveBeenCalledTimes(items.length);
+        expect(push).toHaveBeenCalledTimes(items.length - 1);
       });
     }
   }
+
+  test('pressing the already-active tab does not stack a duplicate screen', async () => {
+    setWindow(700);
+    jest.mocked(usePathname).mockReturnValue('/notifications');
+    await renderLayout();
+    const tab = screen.getByRole('tab', { name: localizedNavLabel('vi', 'Alerts') });
+    expect(tab).toBeSelected();
+    await fireEvent.press(tab);
+    expect(push).not.toHaveBeenCalled();
+  });
 
   test('an active secondary tab is selected after routing', async () => {
     setWindow(1000);

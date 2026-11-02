@@ -7,10 +7,11 @@ import { Button, Card, Divider, MetricCard, ScreenSpacer, SectionHeading, StateP
 import { useLocale } from '../../i18n/locale-provider';
 import { countForm } from '../../i18n/locale';
 import { fillCopy } from '../../i18n/academic-messages';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi, type AcademicGradeRecord } from '../academic/academic-api';
 import { previewGrades } from '../academic/academic-preview';
-import { computeAverage10, computeGpa4, publishedOnly } from '../academic/gpa';
+import { publishedOnly, summarizeBestAttempts } from '../academic/gpa';
 import {
   AcademicShell,
   GradeScale,
@@ -42,6 +43,7 @@ export function GradesScreen({ navigation }: MobileScreenProps) {
   const gpa = useGpaFormat();
   const preview = isPreviewMode();
   const query = useAcademicQuery('academic.grades', () => academicApi.grades(), copy);
+  const pull = usePullToRefresh(() => query.reload());
   const [term, setTerm] = useState('');
 
   const records = useMemo(() => publishedOnly(preview ? previewGrades : query.data ?? []), [preview, query.data]);
@@ -54,6 +56,7 @@ export function GradesScreen({ navigation }: MobileScreenProps) {
     return [...seen.entries()].map(([value, label]) => ({ value, label }));
   }, [records, locale]);
   const visible = records.filter((record) => !term || record.semesterId === term);
+  const summary = summarizeBestAttempts(visible);
   const credits = visible.reduce((sum, record) => sum + (record.credits ?? 0), 0);
   const grouped = useMemo(() => {
     const groups = new Map<string, { label: string; records: AcademicGradeRecord[] }>();
@@ -74,8 +77,8 @@ export function GradesScreen({ navigation }: MobileScreenProps) {
       error={preview ? null : query.error}
       warning={preview ? null : query.warning}
       onRetry={() => void query.reload()}
-      onRefresh={preview ? undefined : () => { void query.reload(); }}
-      refreshing={!preview && query.isStale}
+      onRefresh={preview ? undefined : pull.onRefresh}
+      refreshing={!preview && pull.refreshing}
 
       list={{ data: groupedRows(grouped, (group) => group[0], (group) => group[1].records, (item) => item.id), keyExtractor: (entry) => entry.key,
         renderItem: ({ item: entry }) => { const item = entry.group;  const [groupKey, group] = item;
@@ -123,9 +126,9 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
     >
       <TermField options={options} value={term} onChange={setTerm} />
       <View style={academicStyles.metrics}>
-        <MetricCard icon="chart-donut" label={term ? copy.termGpa : copy.listedGpa} value={gpa(computeGpa4(visible))} style={academicStyles.metric} />
-        <MetricCard icon="chart-line" label={copy.average10} value={formatNumber(computeAverage10(visible), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} style={academicStyles.metric} />
-        <MetricCard icon="book-check-outline" label={copy.records} value={formatNumber(visible.length)} style={academicStyles.metric} />
+        <MetricCard icon="chart-donut" label={term ? copy.termGpa : copy.listedGpa} value={gpa(summary.gpa)} style={academicStyles.metric} />
+        <MetricCard icon="chart-line" label={copy.average10} value={formatNumber(summary.average10, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} style={academicStyles.metric} />
+        <MetricCard icon="book-check-outline" label={copy.records} value={formatNumber(summary.countedCourses)} style={academicStyles.metric} />
         <MetricCard icon="book-open-outline" label={copy.creditsAttempted} value={formatNumber(credits)} style={academicStyles.metric} />
       </View>
       <SectionHeading title={copy.publishedGrades} />

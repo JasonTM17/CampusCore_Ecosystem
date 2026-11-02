@@ -87,6 +87,28 @@ function wrap(ui: ReactElement, locale: 'vi' | 'en' = 'vi') {
   );
 }
 
+type RenderTree = { props?: Record<string, unknown>; children?: unknown[] } | null;
+
+function refreshControlOf(tree: unknown): { props: { refreshing: boolean; onRefresh: () => void } } | null {
+  if (!tree || typeof tree !== 'object') return null;
+  const node = tree as RenderTree;
+  const control = node?.props?.refreshControl as { props?: { refreshing?: unknown; onRefresh?: unknown } } | undefined;
+  if (control?.props && typeof control.props.onRefresh === 'function' && typeof control.props.refreshing === 'boolean') {
+    return control as { props: { refreshing: boolean; onRefresh: () => void } };
+  }
+  for (const child of node?.children ?? []) {
+    const found = refreshControlOf(child);
+    if (found) return found;
+  }
+  return null;
+}
+
+function pullControl(): { refreshing: boolean; onRefresh: () => void } {
+  const found = refreshControlOf(screen.toJSON());
+  if (!found) throw new Error('refresh control not found');
+  return found.props;
+}
+
 const course = (code: string, name: string) => ({ code, name, nameVi: name, nameEn: name, credits: 3 });
 const enrollments = [
   { id: 'e1', sectionId: 's1', semesterId: 't2', status: 'ENROLLED', section: { sectionNumber: '01', course: course('CS101', 'Nhập môn lập trình'), schedules: [{ dayOfWeek: 2, startTime: '07:00', endTime: '09:00' }] } },
@@ -208,16 +230,44 @@ describe('enrollments and courses', () => {
 });
 
 describe('grades', () => {
-  test('pull to refresh reloads the screen query', async () => {
+  test('pull to refresh shows its spinner only while the user pull is pending', async () => {
     mockQueries['academic.enrollments'] = { data: enrollments };
     mockQueries['academic.semesters'] = { data: semesters, isStale: true };
+    let release: () => void = () => {};
+    mockReload.mockImplementationOnce(() => new Promise<void>((resolve) => { release = resolve; }));
     await render(wrap(<CoursesScreen {...props} />));
     const list = screen.getByTestId('course-grid');
     const refreshControl = list.props.refreshControl as ReactElement<{ refreshing: boolean; onRefresh: () => void }>;
     expect(refreshControl.type).toBe(RefreshControl);
-    expect(refreshControl.props.refreshing).toBe(true);
-    await act(async () => { refreshControl.props.onRefresh(); });
+    expect(pullControl().refreshing).toBe(false);
+    await act(async () => { pullControl().onRefresh(); });
+    expect(pullControl().refreshing).toBe(true);
     expect(mockReload).toHaveBeenCalledTimes(2);
+    await act(async () => { release(); });
+    expect(pullControl().refreshing).toBe(false);
+  });
+
+  test('a stale revalidation does not show the pull spinner on grades', async () => {
+    mockQueries['academic.grades'] = {
+      data: [{ id: 'g1', courseCode: 'MA101', courseName: 'Giải tích', credits: 3, finalGrade: 8.2, letterGrade: 'B+', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1' }],
+      isStale: true,
+    };
+    await render(wrap(<GradesScreen {...props} />));
+    expect(pullControl().refreshing).toBe(false);
+  });
+
+  test('a retaken course counts once in the GPA and average cards', async () => {
+    mockQueries['academic.grades'] = {
+      data: [
+        { id: 'g1', courseCode: 'CS101', courseName: 'Nhập môn', credits: 3, finalGrade: 3, letterGrade: 'F', gradeStatus: 'PUBLISHED', semesterId: 't1', semester: 'HK1' },
+        { id: 'g2', courseCode: 'CS101', courseName: 'Nhập môn', credits: 3, finalGrade: 9, letterGrade: 'A', gradeStatus: 'PUBLISHED', semesterId: 't2', semester: 'HK2' },
+      ],
+    };
+    await render(wrap(<GradesScreen {...props} />));
+    expect(screen.getAllByText('4,00').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('9,00').length).toBeGreaterThan(0);
+    expect(screen.queryByText('2,00')).toBeNull();
+    expect(screen.queryByText('6,00')).toBeNull();
   });
 
   test('labels preview grades with the localized semester name', async () => {

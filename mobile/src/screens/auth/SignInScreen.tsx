@@ -1,5 +1,5 @@
 import { useContext, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StatusBar, StyleSheet, View } from 'react-native';
+import { Image, Linking, Pressable, ScrollView, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -20,6 +20,7 @@ import { shellMessages } from '../../i18n/shell-messages';
 import { useSession } from '../../session/SessionContext';
 import { accountScreen } from '../account/account-routes';
 import { useAccountCopy } from '../account/use-account-copy';
+import { configuredPortalUrl } from '../operations/shared/portal-url';
 import { contentApi } from '../content/content-api';
 import {
   isUrgentPriority,
@@ -51,6 +52,8 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
   const insets = useContext(SafeAreaInsetsContext);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const noMobileSurface = error === copy.signIn.noMobileSurface;
+  const portal = configuredPortalUrl();
   const signInFlight = useRef(false);
   const isPreview = apiClient.mode === 'preview';
   const stackGuests = window.fontScale >= 1.3;
@@ -72,7 +75,7 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
         return;
       }
       if (outcome.kind === 'blocked') {
-        setError(copy.signIn.invalid);
+        setError(outcome.code === 'no_mobile_surface' ? copy.signIn.noMobileSurface : copy.signIn.invalid);
         return;
       }
       sessionStore.bumpEpoch();
@@ -148,6 +151,15 @@ export function SignInScreen({ navigation }: MobileScreenProps) {
                 <UiText variant="bodySmall" tone="error">
                   {error}
                 </UiText>
+                {noMobileSurface && portal ? (
+                  <Button
+                    icon="web"
+                    label={copy.blocked.openPortal}
+                    onPress={() => { void Linking.openURL(portal).catch(() => undefined); }}
+                    style={styles.portalAction}
+                    variant="secondary"
+                  />
+                ) : null}
               </View>
             ) : null}
           </Card>
@@ -396,4 +408,5 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   footerFlex: { flex: 1, minHeight: tokens.spacing.lg },
   submit: { marginTop: tokens.spacing.sm },
   errorPanel: { backgroundColor: colors.errorFixed, borderColor: colors.error, borderRadius: tokens.radii.control, borderWidth: 1, marginTop: tokens.spacing.md, padding: tokens.spacing.sm },
+  portalAction: { marginTop: tokens.spacing.sm },
 });

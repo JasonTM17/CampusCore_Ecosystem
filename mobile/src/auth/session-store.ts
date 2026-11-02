@@ -12,6 +12,8 @@ const REFRESH_KEY = 'cu.refresh';
 const INSTALL_KEY = 'cu.install';
 const MARKER_KEY = 'installMarker';
 const DEFAULT_CLIENT_ID = 'cu-mobile';
+/** App-level deadline for a token request, independent of the platform fetch timeout. */
+const DEFAULT_TOKEN_TIMEOUT_MS = 10_000;
 
 export interface SecureKv {
   getItemAsync(key: string, options?: unknown): Promise<string | null>;
@@ -44,6 +46,8 @@ export interface SessionStoreDeps {
   issuer: string;
   clientId?: string;
   fetchImpl?: typeof fetch;
+  /** Token-request deadline; an abort is reported as a retryable network loss. */
+  timeoutMs?: number;
   now?: () => number;
   newId?: () => string;
 }
@@ -99,6 +103,7 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
   const { secure, sandbox, fetchImpl = fetch, now = () => Date.now(), newId = defaultId } = deps;
   const issuer = deps.issuer.replace(/\/+$/, '');
   const clientId = deps.clientId ?? DEFAULT_CLIENT_ID;
+  const tokenTimeoutMs = deps.timeoutMs ?? DEFAULT_TOKEN_TIMEOUT_MS;
 
   let accessToken: string | null = null;
   // Bumped on sign-in/sign-out; a late refresh resolving under a newer epoch
@@ -138,21 +143,26 @@ export function createSessionStore(deps: SessionStoreDeps): SessionStore {
       }
       let response: Response;
       let body: Record<string, unknown> | null;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), tokenTimeoutMs);
       try {
         response = await fetchImpl(`${issuer}/oauth2/token`, {
           method: 'POST',
           headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
           body: oauthForm({ grant_type: 'refresh_token', client_id: clientId, refresh_token: credential }),
+          signal: controller.signal,
         });
         body = parseJson(await response.text());
       } catch {
         return unavailable(epoch, 'network');
+      } finally {
+        clearTimeout(timer);
       }
       return await mutate(async (): Promise<RefreshResult> => {
         if (epoch !== sessionEpoch) return stale();
-        // Only the issuer's terminal refresh-grant rejection destroys credentials.
-        // Outage bodies are not authoritative even if they contain that error.
-        if (response.status === 400 && body?.error === 'invalid_grant') {
+        // Only a terminal refresh-grant rejection destroys credentials. Outage
+        // bodies are not authoritative even if they contain that error.
+        if (!response.ok && (response.status === 400 || response.status === 401)) {
           accessToken = null;
           await secure.deleteItemAsync(REFRESH_KEY);
           return epoch === sessionEpoch ? { kind: 'signedOut', accessToken: null } : stale();

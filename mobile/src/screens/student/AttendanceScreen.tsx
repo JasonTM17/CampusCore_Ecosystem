@@ -6,6 +6,7 @@ import { Card, DataNotice, Divider, IconChip, InlineError, MetricCard, ProgressB
 import { ChoiceField } from '../../components/ui/choice-field';
 import { useLocale } from '../../i18n/locale-provider';
 import { fillCopy } from '../../i18n/academic-messages';
+import { usePullToRefresh } from '../../hooks/usePullToRefresh';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi, type AttendanceSummaryRow } from '../academic/academic-api';
 import { localizedName, termOptions } from '../academic/academic-model';
@@ -32,6 +33,7 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
   const semestersQuery = useAcademicQuery('academic.semesters', () => academicApi.semesters(), copy);
   const summaryQuery = useAcademicQuery(`academic.attendance.summary.${term}`, () => academicApi.attendanceSummary(term || null), copy);
   const recordsQuery = useAcademicQuery(`academic.attendance.records.${term}`, () => academicApi.attendanceRecords(term || null), copy);
+  const pull = usePullToRefresh(() => Promise.all([semestersQuery.reload(), summaryQuery.reload(), recordsQuery.reload()]));
 
   const summary = useMemo(() => (preview ? previewAttendance : summaryQuery.data ?? []), [preview, summaryQuery.data]);
   const records = preview ? [] : recordsQuery.data ?? [];
@@ -52,8 +54,8 @@ export function AttendanceScreen({ navigation }: MobileScreenProps) {
       error={preview ? null : summaryQuery.error}
       warning={preview ? null : summaryQuery.warning}
       onRetry={() => { void summaryQuery.reload(); void recordsQuery.reload(); }}
-      onRefresh={preview ? undefined : () => { void semestersQuery.reload(); void summaryQuery.reload(); void recordsQuery.reload(); }}
-      refreshing={!preview && (semestersQuery.isStale || summaryQuery.isStale || recordsQuery.isStale)}
+      onRefresh={preview ? undefined : pull.onRefresh}
+      refreshing={!preview && pull.refreshing}
 
       list={{ data: [...((summary.length === 0) ? [] : contentRows("section-1", rows, (item, index) => String(item.sectionId), (row) => (
             <Card key={row.sectionId} style={academicStyles.card}>
