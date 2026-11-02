@@ -867,23 +867,54 @@ function AssignmentModal({
   return (
     <Modal isOpen={open} onClose={onClose} title={copy.addAssignment}>
       <div className="space-y-3">
-        <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={copy.assignmentTitle} />
-        <Input value={description} onChange={(event) => setDescription(event.target.value)} placeholder={copy.descriptionField} />
-        <label className="block text-xs font-medium">{copy.deadline}</label>
-        <input
-          type="datetime-local"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-          aria-label={copy.deadline}
-          value={deadline}
-          onChange={(event) => setDeadline(event.target.value)}
-          data-testid="learning-assignment-deadline"
-        />
-        <Input
-          value={maxScore}
-          onChange={(event) => setMaxScore(event.target.value)}
-          placeholder={copy.maxScore}
-          type="number"
-        />
+        <div className="space-y-1">
+          <label htmlFor="learning-assignment-title" className="block text-xs font-medium">
+            {copy.assignmentTitle}
+          </label>
+          <Input
+            id="learning-assignment-title"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder={copy.assignmentTitle}
+          />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="learning-assignment-description" className="block text-xs font-medium">
+            {copy.descriptionField}
+          </label>
+          <Input
+            id="learning-assignment-description"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder={copy.descriptionField}
+          />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="learning-assignment-deadline" className="block text-xs font-medium">
+            {copy.deadline}
+          </label>
+          <input
+            id="learning-assignment-deadline"
+            type="datetime-local"
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            aria-label={copy.deadline}
+            value={deadline}
+            onChange={(event) => setDeadline(event.target.value)}
+            data-testid="learning-assignment-deadline"
+          />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="learning-assignment-max-score" className="block text-xs font-medium">
+            {copy.maxScore}
+          </label>
+          <Input
+            id="learning-assignment-max-score"
+            value={maxScore}
+            onChange={(event) => setMaxScore(event.target.value)}
+            placeholder={copy.maxScore}
+            type="number"
+          />
+        </div>
         <Button onClick={() => void create()} disabled={busy || !title.trim()}>{copy.addAssignment}</Button>
       </div>
     </Modal>

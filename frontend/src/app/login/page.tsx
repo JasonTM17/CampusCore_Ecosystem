@@ -326,22 +326,14 @@ export default function LoginPage() {
   return (
     <AuthShell
       portal={portal}
-      eyebrow={portalCopy.eyebrow}
       title={portalCopy.title}
       description={portalCopy.description}
-      features={portalCopy.featureTitles.map((label, index) => ({
-        label,
-        description: portalCopy.featureDescriptions[index],
-      }))}
     >
       <div className="space-y-6">
         <div className="space-y-2">
           <h2 className="text-2xl font-semibold leading-8 text-foreground">
             {portalCopy.heading}
           </h2>
-          <p className="text-sm leading-6 text-muted-foreground">
-            {portalCopy.subheading}
-          </p>
         </div>
 
         <div
@@ -369,7 +361,6 @@ export default function LoginPage() {
             );
           })}
         </div>
-        <p className="text-xs leading-5 text-muted-foreground">{portalCopy.destination}</p>
 
         {demoCredentials ? (
         <div className="rounded-xl border border-primary/25 bg-primary/5 p-3.5 text-xs space-y-2.5 shadow-xs">
@@ -488,7 +479,7 @@ export default function LoginPage() {
                 )}
               </div>
 
-              <div className="min-w-0 flex-1 pr-6">
+              <div className="min-w-0 flex-1 pr-12">
                 <div className="flex items-center gap-2">
                   <span
                     className={cn(
@@ -528,7 +519,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setNoticeDismissed(true)}
-                className="absolute top-3.5 right-3.5 rounded-md p-1 text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+                className="absolute right-3.5 top-3.5 flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
                 aria-label={loginCopy.dismissNoticeAria}
               >
                 <X className="h-4 w-4" />
@@ -561,13 +552,13 @@ export default function LoginPage() {
             role="alert"
             aria-live="assertive"
             tabIndex={-1}
-            className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive shadow-xs"
+            className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive shadow-xs"
           >
             <p>{formError}</p>
             {mismatchPortal ? (
               <LocalizedLink
                 href={portalHref(mismatchPortal)}
-                className="mt-2.5 inline-flex min-h-9 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="mt-2.5 inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {messages.login.portals.mismatchAction.replace(
                   '{portal}',
@@ -699,7 +690,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((current) => !current)}
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="-mr-2 flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   aria-label={showPassword ? messages.login.hidePassword : messages.login.showPassword}
                   title={showPassword ? messages.login.hidePassword : messages.login.showPassword}
                   aria-pressed={showPassword}
@@ -768,7 +759,7 @@ export default function LoginPage() {
                   the Java allowlist rejects anything else. */}
               <a
                 href={`/session/login?return=${encodeURIComponent(href(postLoginRoute(portal)))}`}
-                className="inline-flex w-full min-h-10 items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex w-full min-h-11 items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <ShieldCheck className="h-4 w-4" aria-hidden="true" />
                 {loginCopy.sso}

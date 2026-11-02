@@ -186,7 +186,7 @@ export default function AssistantSpecializedPage() {
 
           {state.error ? (
             <div
-              className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+              className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground"
               role="alert"
             >
               <p>{errorLabel}</p>
@@ -201,7 +201,7 @@ export default function AssistantSpecializedPage() {
               ) : lastPrompt ? (
                 <button
                   type="button"
-                  className="mt-2 rounded-md px-0 text-destructive hover:underline"
+                  className="mt-2 rounded-md px-0 text-status-danger-foreground hover:underline"
                   onClick={(event) => void sendMessage(event, lastPrompt, { retry: true })}
                 >
                   {windowCopy.specialized.retry}

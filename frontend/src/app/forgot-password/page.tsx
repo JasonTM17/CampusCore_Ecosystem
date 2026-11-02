@@ -110,19 +110,11 @@ export default function ForgotPasswordPage() {
   return (
     <AuthShell
       portal="student"
-      eyebrow={copy.eyebrow}
       title={copy.title}
       description={copy.description}
-      features={copy.featureTitles.map((label, index) => ({
-        label,
-        description: copy.featureDescriptions[index],
-      }))}
     >
       <div className="space-y-6">
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-widest text-primary">
-            {copy.sectionEyebrow}
-          </p>
           <h2 className="text-2xl font-semibold leading-8 text-foreground">
             {copy.heading}
           </h2>
@@ -158,7 +150,7 @@ export default function ForgotPasswordPage() {
             role="alert"
             aria-live="assertive"
             tabIndex={-1}
-            className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
+            className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
           >
             {formError}
           </div>

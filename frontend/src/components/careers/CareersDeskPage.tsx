@@ -409,7 +409,7 @@ export function CareersDeskPage() {
 
           <section className="space-y-3" data-testid="careers-new-opportunity">
             <h2 className="text-lg font-semibold">{copy.newOpportunity}</h2>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-end gap-2">
               <select
                 className="rounded-md border bg-background px-3 py-2 text-sm"
                 data-testid="careers-org-select"
@@ -422,13 +422,18 @@ export function CareersDeskPage() {
                   </option>
                 ))}
               </select>
-              <Input
-                className="max-w-md"
-                data-testid="careers-opp-title-input"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder={copy.titlePlaceholder}
-              />
+              <div className="flex w-full max-w-md flex-col gap-1">
+                <label htmlFor="careers-opportunity-title" className="text-xs font-medium text-muted-foreground">
+                  {copy.titleLabel}
+                </label>
+                <Input
+                  id="careers-opportunity-title"
+                  data-testid="careers-opp-title-input"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder={copy.titlePlaceholder}
+                />
+              </div>
               <Button variant="outline" disabled={isBusy || !title.trim()}
                 data-testid="careers-create-opp"
                 onClick={() => void run(async () => {
