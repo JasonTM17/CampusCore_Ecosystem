@@ -96,6 +96,30 @@ test('Vietnamese count copy does not inflect', () => {
   assert.equal(fillCopy(vi.events.seatsOne, { n: 1 }), 'Còn 1 chỗ');
 });
 
+test('English operations count copy uses the singular noun for one', () => {
+  assert.equal(fillCopy(en.operations.groupsCountOne, { n: 1 }), '1 group');
+  assert.equal(
+    fillCopy(en.operations.publishBodyOne, { n: '01', count: 1 }),
+    'Students see their grades right away and they cannot be edited afterwards. Section 01, 1 student.',
+  );
+});
+
+test('English operations count copy keeps the plural noun beyond one', () => {
+  assert.equal(fillCopy(en.operations.groupsCount, { n: 2 }), '2 groups');
+  assert.equal(
+    fillCopy(en.operations.publishBody, { n: '01', count: 2 }),
+    'Students see their grades right away and they cannot be edited afterwards. Section 01, 2 students.',
+  );
+});
+
+test('Vietnamese operations count copy does not inflect', () => {
+  assert.equal(fillCopy(vi.operations.groupsCountOne, { n: 1 }), '1 nhóm');
+  assert.equal(
+    fillCopy(vi.operations.publishBodyOne, { n: '01', count: 1 }),
+    'Sinh viên sẽ thấy điểm ngay và không thể sửa sau khi công bố. Lớp 01, 1 sinh viên.',
+  );
+});
+
 test('English lane count copy uses the singular noun for one', () => {
   assert.equal(fillCopy(en.lanes.deanMembersOne, { n: 1 }), '1 member');
   assert.equal(fillCopy(en.lanes.deanGroupCountOne, { n: 1 }), '1 group');

@@ -378,7 +378,7 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
       <Dialog
         visible={confirming}
         title={copy.publishTitle}
-        description={fillCopy(copy.publishBody, { n: section?.sectionNumber ?? '', count: enrolled })}
+        description={fillCopy(countForm(enrolled, copy.publishBodyOne, copy.publishBody), { n: section?.sectionNumber ?? '', count: enrolled })}
         confirmLabel={copy.publishConfirm}
         cancelLabel={copy.publishCancel}
         onConfirm={() => void publish()}
