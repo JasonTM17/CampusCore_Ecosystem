@@ -15,20 +15,23 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
+import { ListPager } from '@/components/ui/list-pager';
 import { StatusBadge } from '@/components/thesis/StatusBadge';
 import type { I18nMessages } from '@/i18n/messages';
 import { thesisWorkflowEn, thesisWorkflowVi } from '@/i18n/messages-thesis-workflow';
 import type { Locale } from '@/i18n/config';
-import { type ThesisRepositoryReport } from '@/lib/thesis-api';
+import { type ThesisRepositoryReport, type ThesisRepositorySummary } from '@/lib/thesis-api';
 import { fillCopy, formatReportFileSize } from '@/features/thesis/components/thesis-helpers';
 import { isHttpUrl } from '@/lib/safe-url';
+import { archiveEmptyState } from '@/lib/thesis-page-list';
 
 interface ThesisRepositoryWorkspaceProps {
   messages: I18nMessages;
   locale: Locale;
   formatDateTime: (value: string | number | Date) => string;
   reports: ThesisRepositoryReport[];
-  filteredReports: ThesisRepositoryReport[];
+  filteredTotal?: number;
+  summary?: ThesisRepositorySummary;
   roundName?: string;
   isLoading: boolean;
   /** A failed archive load; an outage must never read as an empty repository. */
@@ -36,6 +39,9 @@ interface ThesisRepositoryWorkspaceProps {
   onRetry?: () => void;
   search: string;
   onSearchChange: (value: string) => void;
+  page: number;
+  limit: number;
+  onPage: (page: number) => void;
   onDownloadReport: (report: ThesisRepositoryReport) => void | Promise<void>;
 }
 
@@ -45,21 +51,27 @@ export default function ThesisRepositoryWorkspace({
   locale,
   formatDateTime,
   reports,
-  filteredReports,
+  filteredTotal,
+  summary,
   roundName,
   isLoading,
   loadError,
   onRetry,
   search,
   onSearchChange,
+  page,
+  limit,
+  onPage,
   onDownloadReport,
 }: ThesisRepositoryWorkspaceProps) {
   const pageCopy = messages.thesisWorkflow.page;
   const isVi = locale === 'vi';
   const copy = isVi ? thesisWorkflowVi.repository : thesisWorkflowEn.repository;
-  const totalReports = reports.length;
-  const totalFiles = reports.filter((r) => r.fileName).length;
-  const totalUrls = reports.filter((r) => r.url).length;
+  const pagerCopy = isVi ? thesisWorkflowVi.listPager : thesisWorkflowEn.listPager;
+  const emptyState = archiveEmptyState(summary?.total, filteredTotal);
+  const totalReports = summary?.total ?? '—';
+  const totalFiles = summary?.files ?? '—';
+  const totalUrls = summary?.urls ?? '—';
 
   return (
     <Card className="rounded-xl border-border/80 shadow-xs">
@@ -84,22 +96,21 @@ export default function ThesisRepositoryWorkspace({
               <FileDown className="h-3.5 w-3.5" />
               {totalFiles} {copy.attachedFiles}
             </span>
-            {totalUrls > 0 && (
-              <span className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/20 bg-sky-500/10 px-3 py-1 text-xs font-semibold text-sky-700 dark:text-sky-300">
-                <ExternalLink className="h-3.5 w-3.5" />
-                {totalUrls} {copy.externalLinks}
-              </span>
-            )}
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/20 bg-sky-500/10 px-3 py-1 text-xs font-semibold text-sky-700 dark:text-sky-300">
+              <ExternalLink className="h-3.5 w-3.5" />
+              {totalUrls} {copy.externalLinks}
+            </span>
           </div>
         </div>
 
         {/* Search bar */}
         <div className="pt-2">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
               value={search}
+              aria-label={copy.searchLabel}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder={pageCopy.repositorySearchPlaceholder}
               className="pl-9 pr-8 text-xs sm:text-sm h-10 rounded-xl"
@@ -107,8 +118,9 @@ export default function ThesisRepositoryWorkspace({
             {search ? (
               <button
                 type="button"
+                aria-label={copy.clearSearch}
                 onClick={() => onSearchChange('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -130,29 +142,35 @@ export default function ThesisRepositoryWorkspace({
             description={loadError}
             onRetry={onRetry}
           />
-        ) : reports.length === 0 ? (
+        ) : reports.length === 0 && emptyState === 'empty' ? (
           <EmptyState
             icon={Archive}
             title={pageCopy.noRoundReportsYet}
             description={copy.emptyDescription}
             className="min-h-[220px]"
           />
-        ) : filteredReports.length === 0 ? (
+        ) : reports.length === 0 && emptyState === 'no-match' ? (
           <EmptyState
             icon={Search}
             title={pageCopy.noReportsFound}
             description={copy.noMatchDescription}
             className="min-h-[200px]"
           />
+        ) : reports.length === 0 ? (
+          <ErrorState
+            title={copy.unknownCountTitle}
+            description={copy.unknownCountDescription}
+            onRetry={onRetry}
+          />
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
-              <span>{fillCopy(pageCopy.allReports, { count: filteredReports.length })}</span>
+              <span>{fillCopy(pageCopy.allReports, { count: filteredTotal ?? '—' })}</span>
               <span>{copy.roundLabel} <strong className="text-foreground">{roundName}</strong></span>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-              {filteredReports.map((report) => {
+              {reports.map((report) => {
                 return (
                   <div
                     key={report.reportId}
@@ -323,6 +341,19 @@ export default function ThesisRepositoryWorkspace({
             </div>
           </div>
         )}
+        {!isLoading && !loadError ? (
+          <ListPager
+            testId="thesis-repository-pager"
+            navLabel={pagerCopy.repositoryNav}
+            page={page}
+            limit={limit}
+            total={filteredTotal}
+            itemCount={reports.length}
+            pending={isLoading}
+            copy={pagerCopy}
+            onPage={onPage}
+          />
+        ) : null}
       </CardContent>
     </Card>
   );

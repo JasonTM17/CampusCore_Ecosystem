@@ -3,7 +3,7 @@ import {
   type ArrayListPage,
 } from '@/lib/array-list-page';
 
-export type ThesisPageListKind = 'topics' | 'groups';
+export type ThesisPageListKind = 'topics' | 'groups' | 'catalog' | 'repository';
 
 /** Complete ownership identity for one page-list request. */
 export interface ThesisPageRequestKey {
@@ -13,6 +13,7 @@ export interface ThesisPageRequestKey {
   roundId: string;
   listKind: ThesisPageListKind;
   status?: string;
+  search?: string;
   page: number;
   limit: number;
   generation: number;
@@ -31,6 +32,7 @@ export function sameThesisPageRequest(
     left.roundId === right.roundId &&
     left.listKind === right.listKind &&
     left.status === right.status &&
+    left.search === right.search &&
     left.page === right.page &&
     left.limit === right.limit &&
     left.generation === right.generation &&
@@ -46,6 +48,7 @@ export function thesisPageRequestId(key: ThesisPageRequestKey): string {
     key.roundId,
     key.listKind,
     key.status ?? null,
+    key.search ?? null,
     key.page,
     key.limit,
     key.generation,
@@ -62,6 +65,7 @@ export function thesisPageSelectionScope(key: Omit<ThesisPageRequestKey, 'page' 
     key.roundId,
     key.listKind,
     key.status ?? null,
+    key.search ?? null,
     key.limit,
   ]);
 }
@@ -74,14 +78,14 @@ export function thesisPageCorrectionScope(key: ThesisPageRequestKey): string {
   ]);
 }
 
-export interface ThesisPageRequestCallbacks<T> {
+export interface ThesisPageRequestCallbacks<T, Page extends ArrayListPage<T> = ArrayListPage<T>> {
   requestKey: ThesisPageRequestKey;
   signal: AbortSignal;
   correctionAlreadyUsed?: boolean;
-  load: (page: number, signal: AbortSignal) => Promise<ArrayListPage<T>>;
+  load: (page: number, signal: AbortSignal) => Promise<Page>;
   isCurrent: (key: ThesisPageRequestKey) => boolean;
   onCorrection: (key: ThesisPageRequestKey, refetch: boolean) => void;
-  onSuccess: (result: ArrayListPage<T>, key: ThesisPageRequestKey) => void;
+  onSuccess: (result: Page, key: ThesisPageRequestKey) => void;
   onError: (error: unknown, key: ThesisPageRequestKey) => void;
   onFinally: (key: ThesisPageRequestKey) => void;
 }
@@ -91,8 +95,8 @@ export interface ThesisPageRequestCallbacks<T> {
  * A stale empty page redirects to one corrected request; a second inconsistent
  * empty response becomes an ordinary retryable error instead of a loop.
  */
-export async function runThesisPageRequest<T>(
-  options: ThesisPageRequestCallbacks<T>,
+export async function runThesisPageRequest<T, Page extends ArrayListPage<T> = ArrayListPage<T>>(
+  options: ThesisPageRequestCallbacks<T, Page>,
 ): Promise<void> {
   let currentKey = options.requestKey;
   let redirected = false;
@@ -138,4 +142,23 @@ export async function runThesisPageRequest<T>(
       options.onFinally(currentKey);
     }
   }
+}
+
+export function archiveEmptyState(
+  archiveTotal: number | undefined,
+  filteredTotal: number | undefined,
+): 'empty' | 'no-match' | 'unknown' | null {
+  if (archiveTotal === 0) return 'empty';
+  if (archiveTotal !== undefined && archiveTotal > 0 && filteredTotal === 0) return 'no-match';
+  if (archiveTotal === undefined && filteredTotal === 0) return 'unknown';
+  return null;
+}
+
+export function catalogEmptyState(
+  catalogTotal: number | undefined,
+  filteredTotal: number | undefined,
+): 'empty' | 'no-match' | 'unknown' {
+  if (catalogTotal === 0) return 'empty';
+  if (catalogTotal !== undefined && catalogTotal > 0 && filteredTotal === 0) return 'no-match';
+  return 'unknown';
 }

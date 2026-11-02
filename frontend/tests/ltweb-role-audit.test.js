@@ -216,8 +216,13 @@ test('the course registration page renders the full catalog immediately, browse-
 test('the thesis topic catalog is search-first and loads no topics before a query', () => {
   const catalog = readSource('src/components/dashboard/thesis/ThesisTopicCatalogPage.tsx');
   const hook = readSource('src/components/dashboard/thesis/useThesisWorkspace.ts');
-  assert.ok(catalog.includes('topicsEnabled: searchActive'), 'catalog gates topic loading on the search query');
+  assert.ok(catalog.includes('submittedQuery'), 'catalog loads topics only after a submitted query');
+  assert.ok(catalog.includes('searchActive'), 'catalog computes a search-active gate');
+  assert.ok(catalog.includes('enabled: searchActive'),
+    'the paged topic request stays disabled until the query gate opens');
   assert.ok(catalog.includes('!searchActive ? ('), 'catalog renders the search prompt before any topic card');
+  assert.ok(catalog.includes('search: submittedQuery'),
+    'the submitted query is what the server-side search sends');
   assert.ok(
     !catalog.includes('autoSwitched'),
     'the old auto-probe that loaded every round before search must stay removed',

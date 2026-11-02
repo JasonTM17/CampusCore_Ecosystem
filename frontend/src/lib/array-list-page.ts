@@ -50,12 +50,14 @@ function headerValue(headers: unknown, name: string): unknown {
     if (value !== undefined && value !== null) return value;
   }
   const record = headers as Record<string, unknown>;
-  return record[name] ?? record[name.toLowerCase()] ?? record['X-Total-Count'];
+  const normalizedName = name.toLowerCase();
+  const matchingName = Object.keys(record).find((key) => key.toLowerCase() === normalizedName);
+  return matchingName === undefined ? undefined : record[matchingName];
 }
 
 /** Parse `X-Total-Count`; anything blank, negative or non-integer is unknown. */
-export function parseTotalCount(headers: unknown): number | undefined {
-  const raw = headerValue(headers, 'X-Total-Count');
+export function parseCountHeader(headers: unknown, name: string): number | undefined {
+  const raw = headerValue(headers, name);
   if (typeof raw === 'number') {
     return Number.isSafeInteger(raw) && raw >= 0 ? raw : undefined;
   }
@@ -64,6 +66,10 @@ export function parseTotalCount(headers: unknown): number | undefined {
   if (!/^\d+$/.test(trimmed)) return undefined;
   const parsed = Number(trimmed);
   return Number.isSafeInteger(parsed) ? parsed : undefined;
+}
+
+export function parseTotalCount(headers: unknown): number | undefined {
+  return parseCountHeader(headers, 'X-Total-Count');
 }
 
 /** One-based page count for a known total; `undefined` while the total is unknown. */

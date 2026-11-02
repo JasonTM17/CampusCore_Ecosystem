@@ -14,7 +14,8 @@ test('thesis repository uses the server-owned projection and opaque download rou
   assert.match(api, /\/thesis\/rounds\/.*\/repository/);
   assert.match(api, /downloadRepositoryReportFile/);
   assert.match(api, /\/thesis\/reports\/.*\/file/);
-  assert.match(page, /listRoundRepository\(selectedRoundId\)/);
+  assert.match(page, /listRoundRepositoryPage\(\s*selectedRoundId/);
+  assert.doesNotMatch(page, /listRoundRepository\(selectedRoundId\)/);
   assert.match(page, /report\.reportId/);
   assert.doesNotMatch(page, /report\.submittedBy\b/);
   assert.doesNotMatch(page, /groups\.find\(\(g\) => g\.id === report\.groupId\)/);
