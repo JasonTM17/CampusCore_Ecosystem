@@ -81,6 +81,7 @@ const renderScreen = (locale: 'vi' | 'en' = 'vi') => render(screenElement(locale
 afterEach(() => {
   jest.restoreAllMocks();
   jest.clearAllMocks();
+  mockApi.mode = 'live';
   mockReload.mockClear();
   mockPendingRequests.clear();
   for (const key of Object.keys(mockQueries)) delete mockQueries[key];
@@ -202,5 +203,13 @@ describe('student dashboard live mode', () => {
     await act(async () => changeDashboardLocale('vi'));
     expect(screen.getByText(/Nhập môn máy tính/)).toBeOnTheScreen();
     english.unmount();
+  });
+
+  test('preview mode leaves the preview disclosure to the app bar', async () => {
+    mockApi.mode = 'preview';
+    await renderScreen();
+    expect(screen.queryByText('Xem thử')).toBeNull();
+    expect(screen.queryByText('Học kỳ xem thử')).toBeNull();
+    expect(screen.getByText('3 lớp đang học')).toBeOnTheScreen();
   });
 });

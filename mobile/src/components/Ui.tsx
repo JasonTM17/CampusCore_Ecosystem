@@ -17,6 +17,7 @@ import { compactFontScaleCap } from '../design/font-scale';
 import { tokens } from '../design/tokens';
 import { useTheme } from '../design/theme';
 import { useShellCopy } from '../i18n/use-shell-copy';
+import { useLocale } from '../i18n/locale-provider';
 import type { ThemeColors } from '../design/theme';
 import { UiText } from './ui/UiText';
 import type { TextTone } from './ui/UiText';
@@ -421,6 +422,7 @@ export interface ProgressBarProps {
 export function ProgressBar({ value, label, tone = 'primary' }: ProgressBarProps) {
   const styles = useUiStyles();
   const { colors } = useTheme();
+  const { t } = useLocale();
   const boundedValue = Math.max(0, Math.min(100, value));
   const fill = {
     primary: colors.primaryContainer,
@@ -431,7 +433,7 @@ export function ProgressBar({ value, label, tone = 'primary' }: ProgressBarProps
   return (
     <View
       accessible
-      accessibilityLabel={label ?? 'Progress'}
+      accessibilityLabel={label ?? t('progress')}
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(boundedValue) }}
       style={styles.progressGroup}

@@ -26,7 +26,7 @@ const vi = {
   webOpenFailed: 'Không mở được liên kết.',
   webUnavailable: 'Bản dựng này chưa cấu hình cổng web.',
 
-  dashboardTitle: 'Giảng viên',
+  dashboardTitle: 'Tổng quan giảng viên',
   metricSections: 'Lớp phụ trách',
   metricStudents: 'Sinh viên',
   metricToGrade: 'Chờ nhập điểm',
@@ -173,7 +173,7 @@ const en: Shape = {
   webOpenFailed: 'Could not open the link.',
   webUnavailable: 'The web portal is not configured in this build.',
 
-  dashboardTitle: 'Lecturer',
+  dashboardTitle: 'Teaching overview',
   metricSections: 'Sections',
   metricStudents: 'Students',
   metricToGrade: 'Scores pending',
