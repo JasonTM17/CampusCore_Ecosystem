@@ -477,7 +477,10 @@ export function refreshSessionSingleFlight(): Promise<LoginResponse> {
         timeout: SESSION_TRANSPORT_TIMEOUT_MS,
       } as AuthRequestConfig,
     ))
-    .then((response) => response.data)
+    .then((response) => {
+      syncNotificationCacheIdentity(response.data.user?.id);
+      return response.data;
+    })
     .finally(() => {
       sessionRefreshPromise = null;
     });
@@ -618,7 +621,11 @@ export const authApi = {
           timeout: SESSION_TRANSPORT_TIMEOUT_MS,
         } as AuthRequestConfig,
       ));
-    return response.data;
+    const result = response.data;
+    if ('user' in result && result.user) {
+      syncNotificationCacheIdentity(result.user.id);
+    }
+    return result;
   },
 
   /**
@@ -639,6 +646,7 @@ export const authApi = {
           timeout: SESSION_TRANSPORT_TIMEOUT_MS,
         } as AuthRequestConfig,
       ));
+    syncNotificationCacheIdentity(response.data.user?.id);
     return response.data;
   },
 
@@ -696,6 +704,7 @@ export const authApi = {
       skipColdStartRetry: true,
       timeout: SESSION_TRANSPORT_TIMEOUT_MS,
     } as AuthRequestConfig);
+    syncNotificationCacheIdentity(response.data.id);
     return response.data;
   },
 
@@ -1696,10 +1705,25 @@ export const campusDistributionApi = {
   },
 };
 
-let cachedUnreadCount: { promise: Promise<number>; timestamp: number } | null = null;
+let cachedUnreadCount: {
+  promise: Promise<number>;
+  timestamp: number;
+  userId: string | null;
+} | null = null;
 const UNREAD_COUNT_CACHE_TTL_MS = 60_000;
 
+let cachedNotificationUserId: string | null = null;
+
 export function clearNotificationCache(): void {
+  cachedUnreadCount = null;
+}
+
+// The unread badge is per-account state: a sign-in as another user in the same
+// tab must drop the previous account's cached count before it is rendered.
+function syncNotificationCacheIdentity(userId: string | null | undefined): void {
+  const next = typeof userId === 'string' && userId.length > 0 ? userId : null;
+  if (next === cachedNotificationUserId) return;
+  cachedNotificationUserId = next;
   cachedUnreadCount = null;
 }
 
@@ -1727,7 +1751,12 @@ export const notificationsApi = {
   // controller wraps it: UnreadCountResponse { unreadCount }.
   unreadCount: async (options?: { force?: boolean }): Promise<number> => {
     const now = Date.now();
-    if (!options?.force && cachedUnreadCount && now - cachedUnreadCount.timestamp < UNREAD_COUNT_CACHE_TTL_MS) {
+    if (
+      !options?.force
+      && cachedUnreadCount
+      && cachedUnreadCount.userId === cachedNotificationUserId
+      && now - cachedUnreadCount.timestamp < UNREAD_COUNT_CACHE_TTL_MS
+    ) {
       return cachedUnreadCount.promise;
     }
     const promise = api
@@ -1743,7 +1772,7 @@ export const notificationsApi = {
           throw error;
         },
       );
-    cachedUnreadCount = { promise, timestamp: now };
+    cachedUnreadCount = { promise, timestamp: now, userId: cachedNotificationUserId };
     return promise;
   },
   markRead: async (id: string): Promise<ApiObject> => {

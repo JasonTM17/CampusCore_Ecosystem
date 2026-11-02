@@ -222,9 +222,11 @@ test('server-side public API URLs use the configured API base and encode each pa
   assert.throws(() => buildPublicApiUrl('javascript:alert(1)', siteUrl, ['news']), /Invalid public API base URL/);
 });
 
-test('sitemap performs only the two bounded public-list API requests', () => {
+test('sitemap walks the public lists with a bounded page size and page count', () => {
   const route = fs.readFileSync(path.join(root, 'src/app/sitemap.ts'), 'utf8');
-  assert.match(route, /fetchPublicApiJson\(\['announcements', 'public'\], \{ page: '1', limit: '50' \}\)/);
-  assert.match(route, /fetchPublicApiJson\(\['public', 'docs'\], \{ page: '1', limit: '50' \}\)/);
-  assert.equal((route.match(/fetchPublicApiJson\(/g) ?? []).length, 2);
+  assert.match(route, /PUBLIC_SITEMAP_PAGE_SIZE = 100/);
+  assert.match(route, /PUBLIC_SITEMAP_MAX_PAGES = 20/);
+  assert.match(route, /limit: String\(PUBLIC_SITEMAP_PAGE_SIZE\)/);
+  assert.match(route, /for \(let page = 1; page <= PUBLIC_SITEMAP_MAX_PAGES; page \+= 1\)/);
+  assert.equal((route.match(/fetchPublicApiJson\(/g) ?? []).length, 1);
 });
