@@ -166,7 +166,7 @@ const themed = (element: ReactElement, locale: 'vi' | 'en' = 'en') =>
 const processLabel = `${fillCopy(operationsMessages.en.gradeRowLabel, { name: 'Alpha' })}, ${operationsMessages.en.process}`;
 const saveButton = () => screen.getByRole('button', { name: operationsMessages.en.saveScores });
 const reloadButton = () => screen.getByRole('button', { name: operationsMessages.en.reload });
-const changesLabel = fillCopy(operationsMessages.en.changesCount, { n: 1 });
+const changesLabel = fillCopy(operationsMessages.en.changesCountOne, { n: 1 });
 const staleVersion = Object.assign(new Error('The record changed; reload before editing'), {
   status: 409,
   code: 'STALE_VERSION',

@@ -6,6 +6,7 @@ import { StyleSheet, View } from 'react-native';
 import { Button, Card, Divider, IconChip, MetricCard, ProgressBar, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { ChoiceField } from '../../components/ui/choice-field';
 import { useLocale } from '../../i18n/locale-provider';
+import { countForm } from '../../i18n/locale';
 import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi, type CurriculumCourse } from './academic-api';
@@ -72,7 +73,7 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
                     <View style={academicStyles.rowCopy}>
                       <StatusPill label={course.code} tone="primary" />
                       <UiText variant="bodyMedium">{localizedName(course, locale, course.code)}</UiText>
-                      <UiText variant="meta" tone="muted">{fillCopy(copy.credits, { n: course.credits })}</UiText>
+                      <UiText variant="meta" tone="muted">{fillCopy(countForm(course.credits, copy.creditsOne, copy.credits), { n: course.credits })}</UiText>
                       {course.prerequisites && course.prerequisites.length > 0 ? (
                         <UiText variant="meta" tone="muted">{fillCopy(copy.prerequisites, { list: course.prerequisites.join(', ') })}</UiText>
                       ) : null}

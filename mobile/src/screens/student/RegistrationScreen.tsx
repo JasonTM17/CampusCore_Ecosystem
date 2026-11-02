@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { Button, Card, HeroCard, IconChip, ScreenSpacer, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { Dialog, Notice } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi, type RegistrationWorkspace } from '../academic/academic-api';
 import { isActiveEnrollment, isDroppableEnrollment } from '../academic/academic-model';
@@ -77,7 +78,7 @@ export function RegistrationScreen({ navigation }: MobileScreenProps) {
       name: section.courseName,
       number: section.sectionNumber,
       credits: section.credits ?? 0,
-      seats: seatTier(section) === 'full' ? copy.seatsFull : fillCopy(copy.seatsLeft, { n: section.remainingSeats }),
+      seats: seatTier(section) === 'full' ? copy.seatsFull : fillCopy(countForm(section.remainingSeats, copy.seatsLeftOne, copy.seatsLeft), { n: section.remainingSeats }),
       availability,
       meetings: (section.schedules ?? []).map((slot) => `${copy.dayLong[slot.dayOfWeek === 0 ? 1 : slot.dayOfWeek] ?? ''} ${slot.startTime}–${slot.endTime}${slot.room ? ` · ${slot.room}` : ''}`).join('; '),
       failure: failure ? copy.errors[failure.messageKey] ?? copy.errors.generic : undefined,
@@ -105,7 +106,7 @@ if (entry.kind === "header") return <>
           <View style={styles.courseHeading}>
             <IconChip icon="book-open-variant" size={32} />
             <UiText accessibilityRole="header" variant="label" tone="primary" style={styles.courseHeadingText}>
-              {group.courseCode} · {group.courseName} · {fillCopy(copy.credits, { n: group.credits })}
+              {group.courseCode} · {group.courseName} · {fillCopy(countForm(group.credits, copy.creditsOne, copy.credits), { n: group.credits })}
             </UiText>
           </View>
           </>;

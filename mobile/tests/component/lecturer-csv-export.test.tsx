@@ -97,3 +97,10 @@ test('grade CSV keeps the loaded score when the visible text is not a valid scor
   expect(mockRuntime.shared[0].content).toContain('"5.0"');
   expect(mockRuntime.shared[0].content).not.toContain('"11.0"');
 });
+
+test('the 50% score field is labelled Coursework', async () => {
+  await render(screenElement(<LecturerGradingScreen {...props} />));
+  expect(await screen.findByLabelText('Scores for Alpha, Coursework')).toBeOnTheScreen();
+  expect(screen.queryByLabelText('Scores for Alpha, Process')).toBeNull();
+  expect(operationsMessages.en.process).toBe('Coursework');
+});

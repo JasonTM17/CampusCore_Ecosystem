@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, Divider, MetricCard, ScreenSpacer, SectionHeading, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { useLocale } from '../../i18n/locale-provider';
+import { countForm } from '../../i18n/locale';
 import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi, type AcademicGradeRecord } from '../academic/academic-api';
@@ -93,7 +94,7 @@ return <GroupCard edge={entry.last ? "end" : "middle"} style={academicStyles.car
                   <View style={styles.gradeCopy}>
                     <StatusPill label={record.courseCode} tone="primary" />
                     <UiText variant="bodyMedium">{record.courseName}</UiText>
-                    <UiText variant="meta" tone="muted">{fillCopy(copy.credits, { n: record.credits ?? 0 })}</UiText>
+                    <UiText variant="meta" tone="muted">{fillCopy(countForm(record.credits ?? 0, copy.creditsOne, copy.credits), { n: record.credits ?? 0 })}</UiText>
                     {record.processScore != null || record.finalExamScore != null ? (
                       <UiText variant="meta" tone="muted">
                         {copy.processScore} {formatNumber(record.processScore, { maximumFractionDigits: 1 })} · {copy.finalExam} {formatNumber(record.finalExamScore, { maximumFractionDigits: 1 })}

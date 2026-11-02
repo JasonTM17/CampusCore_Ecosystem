@@ -11,6 +11,7 @@ import { FileRow, type FileRowStatus } from '../../components/ui/file-row';
 import { useScreenQuery } from '../../hooks/useScreenQuery';
 import { useTheme } from '../../design/theme';
 import { fillCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
 import type { OperationsCopy } from '../../i18n/operations-messages';
 import { csvShareAvailable, shareCsv } from './lecturer-api';
 import { courseTitle, normalizeDay, type SectionLike } from './lecturer-model';
@@ -165,7 +166,7 @@ export function CsvExport({ name, build, rows }: CsvExportProps) {
   };
 
   const status: FileRowStatus = available ? state.status : 'unavailable';
-  const label = available ? state.label ?? fillCopy(copy.exportReady, { n: rows }) : copy.exportUnavailable;
+  const label = available ? state.label ?? fillCopy(countForm(rows, copy.exportReadyOne, copy.exportReady), { n: rows }) : copy.exportUnavailable;
   return (
     <FileRow
       name={name}
