@@ -121,8 +121,11 @@ class AssistantOwnerAssertionTest {
     }
 
     private static String tamper(String token) {
-        char last = token.charAt(token.length() - 1);
-        return token.substring(0, token.length() - 1) + (last == 'A' ? 'B' : 'A');
+        // The first signature character carries six significant bits; the last one carries
+        // padding bits, so changing only the last character can leave the signature valid.
+        int first = token.lastIndexOf('.') + 1;
+        char original = token.charAt(first);
+        return token.substring(0, first) + (original == 'A' ? 'B' : 'A') + token.substring(first + 1);
     }
 
     private static String signed(String subject, String capability, Instant issuedAt, Instant expiresAt) {
