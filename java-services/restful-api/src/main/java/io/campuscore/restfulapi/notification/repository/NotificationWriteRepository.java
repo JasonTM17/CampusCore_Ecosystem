@@ -112,9 +112,10 @@ public class NotificationWriteRepository {
                 .toArray(SqlParameterSource[]::new);
         jdbc.batchUpdate(INSERT_SQL, batch);
         if (deliveryOutbox != null) {
-            for (CreateNotificationCommand command : commands) {
-                deliveryOutbox.enqueue(command.id(), command.userId(), command.createdAt());
-            }
+            deliveryOutbox.enqueueBatch(commands.stream()
+                    .map(command -> new DeliveryOutboxRepository.EnqueueRequest(
+                            command.id(), command.userId(), command.createdAt()))
+                    .toList());
         }
         return commands.size();
     }
