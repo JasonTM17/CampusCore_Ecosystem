@@ -11,8 +11,9 @@ const webLib = path.resolve(mobileRoot, '..', 'frontend', 'src', 'lib');
 const academic = path.join(mobileRoot, 'src', 'screens', 'academic');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cu-academic-'));
 
-async function load(file, name) {
-  const source = fs.readFileSync(file, 'utf8');
+async function load(file, name, rewrites = {}) {
+  let source = fs.readFileSync(file, 'utf8');
+  for (const [from, to] of Object.entries(rewrites)) source = source.split(`'${from}'`).join(`'${to}'`);
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
     fileName: `${name}.ts`,
@@ -28,7 +29,12 @@ const browse = await load(path.join(academic, 'registration-browse.ts'), 'regist
 const basket = await load(path.join(academic, 'registration-basket.ts'), 'registration-basket');
 const attempts = await load(path.join(academic, 'idempotency-attempts.ts'), 'idempotency-attempts');
 const webScale = await load(path.join(webLib, 'grade-scale.ts'), 'web-grade-scale');
-const webCharts = await load(path.join(webLib, 'transcript-charts.ts'), 'web-transcript-charts');
+const webStudentPages = path.resolve(webLib, '..', 'i18n', 'messages-student-pages.ts');
+const webStudentPagesOut = path.join(tmp, 'web-messages-student-pages.mjs');
+await load(webStudentPages, 'web-messages-student-pages');
+const webCharts = await load(path.join(webLib, 'transcript-charts.ts'), 'web-transcript-charts', {
+  '@/i18n/messages-student-pages': pathToFileURL(webStudentPagesOut).href,
+});
 const webBrowse = await load(path.join(webLib, 'registration-browse.ts'), 'web-registration-browse');
 
 const record = (courseCode, credits, letterGrade, finalGrade, extra = {}) => ({
