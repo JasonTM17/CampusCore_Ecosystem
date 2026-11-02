@@ -1,4 +1,5 @@
-import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { BackHandler, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { tokens } from '../design/tokens';
@@ -33,6 +34,22 @@ export function MenuPanel({ activeRoute, role, onClose, onNavigate, onSwitchRole
   const largeText = window.fontScale >= chromeFontScaleCap;
   const chrome = chromeFor(scheme);
   const { copy, screenTitle } = useShellCopy();
+  const previousRoute = useRef(activeRoute);
+
+  useEffect(() => {
+    if (previousRoute.current === activeRoute) return;
+    previousRoute.current = activeRoute;
+    onClose();
+  }, [activeRoute, onClose]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      onClose();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [onClose]);
+
   return (
     <View style={styles.overlay}>
       <Pressable accessibilityLabel={copy.closeMenu} accessibilityRole="button" onPress={onClose} style={[styles.backdrop, { backgroundColor: chrome.scrim }]} />

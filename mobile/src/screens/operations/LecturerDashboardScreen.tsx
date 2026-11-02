@@ -50,9 +50,7 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
   const heroTitle = todayClasses.length > 0
     ? fillCopy(copy.todayClassesCount, { n: todayClasses.length })
     : copy.noClassToday;
-  const heroDetail = todayClasses.length > 0
-    ? fillCopy(copy.todayClassesDetail, { count: todayClasses.length, students })
-    : fillCopy(copy.studentsCount, { n: students });
+  const heroDetail = fillCopy(copy.studentsCount, { n: students });
 
   return (
     <OpsShell
@@ -95,10 +93,7 @@ export function LecturerDashboardScreen({ navigation }: MobileScreenProps) {
           <ScreenSpacer />
           <SectionCard
             icon="calendar-clock-outline"
-            title={copy.todayTitle}
-            count={todayClasses.length > 0 ? String(todayClasses.length) : undefined}
-            actionLabel={copy.scheduleTitle}
-            onAction={() => navigation.navigate('lecturer.schedule')}
+            title={copy.scheduleTitle}
           >
             {todayClasses.length === 0 ? (
               <UiText variant="bodySmall" tone="muted" style={{ paddingVertical: 12 }}>
