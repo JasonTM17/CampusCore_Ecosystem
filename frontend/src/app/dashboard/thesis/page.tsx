@@ -197,6 +197,7 @@ export default function ThesisPage() {
   // a failed fetch instead of silently rendering as empty.
   const [secondaryDataError, setSecondaryDataError] = useState(false);
   const [actionSuccess, setActionSuccess] = useState('');
+  const [topicRefreshFailed, setTopicRefreshFailed] = useState(false);
   // Bumping this token re-runs the workspace data effect, giving the mid-page
   // load-error state a retry that actually refetches topics/groups/councils.
   const [workspaceRetryToken, setWorkspaceRetryToken] = useState(0);
@@ -509,6 +510,7 @@ export default function ThesisPage() {
     setIsActionPending(true);
     setActionError('');
     setActionSuccess('');
+    setTopicRefreshFailed(false);
     try {
       const res = await thesisApi.finalizeScores(councilId, topicId);
       const msg = fillCopy(pageCopy.scoreFinalised, { score: res.finalScore ?? '' });
@@ -522,7 +524,12 @@ export default function ThesisPage() {
       } else {
         setCouncilScoreErrors((prev) => ({ ...prev, [key]: true }));
       }
-      await refreshTopics(selectedRoundId);
+      try {
+        await refreshTopics(selectedRoundId);
+      } catch {
+        setTopicRefreshFailed(true);
+        setActionError(messages.thesis.loadFailed);
+      }
     } catch (err: unknown) {
       const code = getThesisErrorCode(err);
       if (code === 'SCORES_INCOMPLETE') {
@@ -817,6 +824,17 @@ export default function ThesisPage() {
     [isSupervisorOrAdmin],
   );
 
+  const retryTopicRefresh = async () => {
+    try {
+      await refreshTopics(selectedRoundId);
+      setTopicRefreshFailed(false);
+      setActionError('');
+    } catch {
+      setTopicRefreshFailed(true);
+      setActionError(messages.thesis.loadFailed);
+    }
+  };
+
   useEffect(() => {
     setTopics([]);
     setGroups([]);
@@ -825,6 +843,7 @@ export default function ThesisPage() {
     setViewingTopic(null);
     setActionError('');
     setActionSuccess('');
+    setTopicRefreshFailed(false);
     // Council defense state is equally round-scoped: score lists, score
     // drafts, supervisor and report maps from the previous round must not
     // render against the new selection (or linger when it is cleared).
@@ -1822,6 +1841,8 @@ export default function ThesisPage() {
     setIsActionPending(true);
     setEditError('');
     setActionSuccess('');
+    setActionError('');
+    setTopicRefreshFailed(false);
     try {
       await thesisApi.updateTopic(editingTopicId, {
         title,
@@ -1829,10 +1850,15 @@ export default function ThesisPage() {
         departmentId,
         maxGroups: Math.min(20, Math.max(1, Number(editMaxGroups) || 1)),
       });
-      await refreshTopics(selectedRoundId);
       setIsEditModalOpen(false);
       setViewingTopic(null);
       setActionSuccess(messages.thesis.editTopicSuccess);
+      try {
+        await refreshTopics(selectedRoundId);
+      } catch {
+        setTopicRefreshFailed(true);
+        setActionError(messages.thesis.loadFailed);
+      }
     } catch (caught) {
       const code = getThesisErrorCode(caught);
       if (code === 'ROUND_NOT_ACCEPTING_PROPOSALS') {
@@ -2569,8 +2595,13 @@ export default function ThesisPage() {
             </div>
           ) : null}
           {actionError ? (
-            <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive shadow-xs">
-              {actionError}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive shadow-xs">
+              <span>{actionError}</span>
+              {topicRefreshFailed ? (
+                <Button size="sm" variant="outline" onClick={() => void retryTopicRefresh()}>
+                  {messages.common.actions.retry}
+                </Button>
+              ) : null}
             </div>
           ) : null}
           {actionSuccess ? (

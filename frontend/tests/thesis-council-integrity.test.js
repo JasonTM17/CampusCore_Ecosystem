@@ -240,7 +240,7 @@ function effectDeps(overrides) {
     'setTopics', 'setGroups', 'setViewingTopic', 'setActionError', 'setActionSuccess',
     'setCouncils', 'setCouncilScores', 'setCouncilScoreErrors', 'setDraftScores',
     'setDraftComments', 'setTopicSupervisors', 'setTopicReports', 'setTopicReportErrors',
-    'setCouncilLoadError',
+    'setCouncilLoadError', 'setTopicRefreshFailed',
   ]) {
     if (!(name in deps)) deps[name] = calls.record(name);
   }
