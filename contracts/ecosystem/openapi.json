@@ -1118,6 +1118,7 @@
             "type": "number"
           },
           "isActive": {
+            "description": "Optional on update; omit to keep the stored activation state. Defaults to inactive on create.",
             "type": "boolean"
           },
           "name": {
@@ -1141,7 +1142,6 @@
           "campusCode",
           "centerLat",
           "centerLng",
-          "isActive",
           "name",
           "radiusMeters"
         ],
@@ -1509,6 +1509,8 @@
             "type": "integer"
           },
           "reason": {
+            "maxLength": 300,
+            "minLength": 0,
             "type": "string"
           }
         },
@@ -2344,6 +2346,8 @@
       "CreateCopyRequest": {
         "properties": {
           "barcode": {
+            "maxLength": 80,
+            "minLength": 0,
             "type": "string"
           },
           "titleId": {
@@ -2451,15 +2455,21 @@
       "CreateTitleRequest": {
         "properties": {
           "author": {
+            "maxLength": 300,
+            "minLength": 0,
             "type": "string"
           },
           "category": {
+            "maxLength": 120,
+            "minLength": 0,
             "type": "string"
           },
           "description": {
             "type": "string"
           },
           "isbn": {
+            "maxLength": 40,
+            "minLength": 0,
             "type": "string"
           },
           "publishedYear": {
@@ -2467,9 +2477,13 @@
             "type": "integer"
           },
           "publisher": {
+            "maxLength": 200,
+            "minLength": 0,
             "type": "string"
           },
           "title": {
+            "maxLength": 300,
+            "minLength": 0,
             "type": "string"
           }
         },
@@ -7072,6 +7086,19 @@
             "type": "string"
           },
           "currentRevisionId": {
+            "type": "string"
+          },
+          "draftContentType": {
+            "type": "string"
+          },
+          "draftFileName": {
+            "type": "string"
+          },
+          "draftSizeBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "draftText": {
             "type": "string"
           },
           "id": {
@@ -21427,6 +21454,16 @@
               }
             },
             "description": "Không có quyền quản trị"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Cấu hình đã được người khác thay đổi; tải lại trước khi sửa"
           }
         },
         "summary": "Cập nhật cấu hình giao diện hệ thống",
@@ -23171,9 +23208,6 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "file"
-                ],
                 "type": "object"
               }
             }
