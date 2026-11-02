@@ -38,7 +38,7 @@ jest.mock('../../src/screens/content/use-paged-list', () => ({
     preview: true,
   }),
 }));
-jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({}) }));
+jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({}), useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }) }));
 
 import { Button, InlineError, ListRow, Notice } from '../../src/components/Ui';
 import { MenuPanel } from '../../src/components/MenuPanel';

@@ -132,9 +132,12 @@ public class RagAssistantGateway {
     }
 
     public RemotePage<List<ThesisAssistantRepository.Message>> messages(UUID conversationId, String ownerId, Integer limit, String cursor) {
-        return exchangeJson("GET", "/conversations/{id}/messages",
+        RemotePage<List<ThesisAssistantRepository.Message>> page = exchangeJson("GET", "/conversations/{id}/messages",
                 Map.of("id", conversationId.toString()), query(limit, cursor), null, ownerId,
                 new TypeReference<List<ThesisAssistantRepository.Message>>() { });
+        List<ThesisAssistantRepository.Message> safeMessages = page.data() == null ? List.of()
+                : page.data().stream().map(AssistantLinkSanitizer::sanitize).toList();
+        return new RemotePage<>(safeMessages, page.nextCursor());
     }
 
     public void deleteConversation(UUID id, String ownerId) {
@@ -161,7 +164,7 @@ public class RagAssistantGateway {
                         throw problem(response.statusCode(), new String(body.readAllBytes(), StandardCharsets.UTF_8));
                     }
                     try (BufferedReader reader = new BufferedReader(new InputStreamReader(body, StandardCharsets.UTF_8))) {
-                        boolean terminal = parseStream(reader, guardedSink(sink,
+                        boolean terminal = parseStream(reader, guardedSink(AssistantLinkSanitizer.sanitizingSink(sink),
                                 request == null ? "vi" : request.locale(),
                                 request == null ? null : request.scope()));
                         if (!terminal && deadlineExpired.get()) {
@@ -418,7 +421,8 @@ public class RagAssistantGateway {
         if (response == null) return null;
         String normalizedLocale = AssistantInputGuard.normalizeLocale(locale);
         boolean unsafeAnswer = !AssistantOutputGuard.isSafeForScope(response.answer(), scope);
-        String normalizedAnswer = ThesisAssistantService.normalizeAssistantCopy(response.answer(), normalizedLocale);
+        String normalizedAnswer = AssistantLinkSanitizer.sanitizeMarkdownLinks(
+                ThesisAssistantService.normalizeAssistantCopy(response.answer(), normalizedLocale));
         boolean noMatch = "NO_MATCH".equals(response.reasonCode());
         List<io.campuscore.restfulapi.thesis.assistant.ThesisAssistantDtos.Citation> citations =
                 response.citations() == null ? List.of() : response.citations().stream()

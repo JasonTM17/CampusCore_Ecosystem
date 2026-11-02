@@ -2,9 +2,9 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { ExternalLink } from 'lucide-react';
 import { useI18n } from '@/i18n';
 import { cn } from '@/lib/utils';
+import { resolveAssistantLinkDestination } from '@/lib/assistant-link-policy';
 import {
   ASSISTANT_INLINE_MARKDOWN_REGEX,
   sanitizeStreamingMarkdown,
@@ -34,9 +34,12 @@ export function AssistantMarkdownContent({
   const { href, locale, messages } = useI18n();
   const router = useRouter();
   const renderedContent = streaming ? sanitizeStreamingMarkdown(content) : content;
-  const safeContent = guardOutput
+  const guardedContent = guardOutput
     ? sanitizeAssistantOutput(renderedContent, messages.assistant.technicalBlocked, locale, scope)
     : renderedContent;
+  // Historical and live messages pass through the same renderer-level policy.
+  // Keep fenced/inline code literal; only actual navigation sinks are links.
+  const safeContent = guardedContent;
 
   // Structural blocks: pipe tables stay table-scoped; consecutive plain-text
   // lines merge into one paragraph (see splitAssistantBlocks).
@@ -87,31 +90,22 @@ export function AssistantMarkdownContent({
         // [Label](url)
         const label = match[2];
         const rawUrl = match[3];
-        const isInternal = rawUrl.startsWith('/') && !rawUrl.startsWith('//');
-        const isSafeExternal = /^https?:\/\//i.test(rawUrl) || /^mailto:/i.test(rawUrl);
+        const destination = resolveAssistantLinkDestination(rawUrl);
 
-        if (!isInternal && !isSafeExternal) {
-          // Guard against javascript:, data:, and other unsafe schemes
+        if (!destination) {
           elements.push(label);
         } else {
           elements.push(
             <a
               key={key++}
-              href={isInternal ? href(rawUrl) : rawUrl}
+              href={href(destination)}
               onClick={(e) => {
-                if (isInternal) {
-                  e.preventDefault();
-                  router.push(href(rawUrl));
-                }
+                e.preventDefault();
+                router.push(href(destination));
               }}
-              target={isInternal ? undefined : '_blank'}
-              rel={isInternal ? undefined : 'noopener noreferrer'}
               className="inline-flex items-center gap-1 font-semibold text-primary underline underline-offset-4 transition-colors hover:text-primary/80"
             >
               {label}
-              {!isInternal && (
-                <ExternalLink className="inline h-3 w-3 opacity-70" />
-              )}
             </a>,
           );
         }
@@ -147,20 +141,24 @@ export function AssistantMarkdownContent({
           </em>,
         );
       } else if (match[12]) {
-        // Direct internal path: /dashboard/schedule, /dashboard/conduct, etc.
+        // Direct internal path: only policy-approved docs/dashboard routes link.
         const path = match[12];
-        elements.push(
+        const destination = resolveAssistantLinkDestination(path);
+        const following = text[regex.lastIndex];
+        const incompleteOrExtended = following !== undefined && (
+          /[\p{L}\p{N}_-]/u.test(following) || ['%', '\\', '/', '?', '#'].includes(following)
+        );
+        if (!destination || incompleteOrExtended) elements.push(path);
+        else elements.push(
           <a
             key={key++}
-            href={href(path)}
+            href={href(destination)}
             onClick={(e) => {
               e.preventDefault();
-              router.push(href(path));
+              router.push(href(destination));
             }}
             className="inline-flex items-center font-semibold text-primary underline underline-offset-2 hover:opacity-80"
-          >
-            {path}
-          </a>,
+          >{path}</a>,
         );
       }
       lastIndex = regex.lastIndex;

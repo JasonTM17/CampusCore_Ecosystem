@@ -1,7 +1,7 @@
 /**
  * Inline markdown pattern used by the assistant message renderer.
  * Groups: 1 link, 4 code, 6 bold-italic, 8 bold, 10 italic,
- * 12 direct internal route (/dashboard/... or /admin/...).
+ * 12 direct internal route (/docs/... or /dashboard/...).
  *
  * The route branch must NOT use a leading \b: word boundaries never match
  * between two non-word characters, so "(/dashboard/register)" and
@@ -10,7 +10,7 @@
  * parentheses, and punctuation.
  */
 export const ASSISTANT_INLINE_MARKDOWN_REGEX =
-  /(!?\[([^\]]+)\]\(([^)]+)\))|(`([^`]+)`)|(\*\*\*([^*]+)\*\*\*)|(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(?<![\p{L}\p{N}_])(\/(?:dashboard|admin)(?:\/[\p{L}\p{N}_-]+)*)(?![\p{L}\p{N}_-])/gu;
+  /(!?\[([^\]]+)\]\(([^)]+)\))|(`([^`]+)`)|(\*\*\*([^*]+)\*\*\*)|(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(?<![\p{L}\p{N}_])(\/(?:docs(?:\/[a-z0-9][a-z0-9-]{0,239})?(?:\?rev=[0-9]{1,10})?|dashboard(?:\/[a-z0-9_-]+)*))(?![\p{L}\p{N}_-])/gu;
 
 const countMatches = (text: string, pattern: RegExp) =>
   (text.match(pattern) ?? []).length;

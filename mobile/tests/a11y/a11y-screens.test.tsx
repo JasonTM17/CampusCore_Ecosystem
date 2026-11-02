@@ -17,7 +17,7 @@ jest.mock('../../src/api/client', () => ({
 jest.mock('../../src/hooks/useScreenQuery', () => ({
   useScreenQuery: () => ({ data: undefined, error: null, warning: null, isLoading: false, reload: jest.fn(), setData: jest.fn() }),
 }));
-jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({}) }));
+jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({}), useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }) }));
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
   default: { getItem: jest.fn(async () => null), setItem: jest.fn(), removeItem: jest.fn() },
@@ -63,8 +63,8 @@ describe('a11y audit over screenComponents', () => {
       expectedError: /useSession must be used inside SessionProvider/,
     },
     'auth.resetPassword': {
-      reason: 'Uses Expo Router navigation hooks and requires the app router context.',
-      expectedError: /useRouter.*not a function/,
+      reason: 'Uses Expo Router navigation hooks and the app session context.',
+      expectedError: /useRouter.*not a function|useSession must be used inside SessionProvider/,
     },
   };
   // The listed cases have layout-dependent touch targets in test-renderer output; all others allow zero unknown sizes.

@@ -47,6 +47,9 @@ jest.mock('../../src/session/SessionContext', () => ({
 jest.mock('../../src/hooks/useScreenQuery', () => ({
   useScreenQuery: () => ({ data: undefined, error: null, warning: null, isLoading: false, reload: jest.fn(), setData: jest.fn() }),
 }));
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+}));
 
 import { AssistantChatScreen } from '../../src/screens/assistant/AssistantScreen';
 import { assistantMessages } from '../../src/i18n/assistant-messages';
