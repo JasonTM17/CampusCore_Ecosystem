@@ -85,6 +85,12 @@ export function formatDateTime(value: string | number | Date | null | undefined,
   return p ? `${datePart(p, locale)} ${pad(p.hh)}:${pad(p.mm)}` : EMPTY;
 }
 
+/** The calendar day of the fixed UTC+07 campus zone, independent of the device zone. */
+export function campusIsoDate(instant: Date = new Date()): string {
+  const campusDate = new Date(instant.getTime() + CAMPUS_TIME_OFFSET_MS);
+  return `${campusDate.getUTCFullYear()}-${pad(campusDate.getUTCMonth() + 1)}-${pad(campusDate.getUTCDate())}`;
+}
+
 export interface NumberFormatOptions {
   maximumFractionDigits?: number;
   minimumFractionDigits?: number;

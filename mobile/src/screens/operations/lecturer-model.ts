@@ -124,20 +124,26 @@ export function buildRosterRows(roster: readonly RosterEntryLike[], marks: reado
 export interface AttendanceBaseline {
   roster: string[];
   marks: Record<string, string>;
+  /** Stored note per marked student, so a note edited elsewhere also makes the sheet stale. */
+  notes?: Record<string, string>;
 }
 
 export function baselineOf(roster: readonly RosterEntryLike[], marks: readonly MarkLike[]): AttendanceBaseline {
+  const stored = marks.filter((mark) => isMarkStatus(mark.status));
   return {
     roster: roster.map((entry) => entry.studentId).sort(),
-    marks: Object.fromEntries(marks.filter((mark) => isMarkStatus(mark.status)).map((mark) => [mark.studentId, mark.status])),
+    marks: Object.fromEntries(stored.map((mark) => [mark.studentId, mark.status])),
+    notes: Object.fromEntries(stored.map((mark) => [mark.studentId, mark.notes?.trim() ?? ''])),
   };
 }
 
 /** The baseline the server holds right after the rows were saved: every marked row is now stored. */
 export function savedBaseline(rows: readonly RosterRow[]): AttendanceBaseline {
+  const stored = rows.filter((row) => row.status !== null);
   return {
     roster: rows.map((row) => row.studentId).sort(),
-    marks: Object.fromEntries(rows.filter((row) => row.status !== null).map((row) => [row.studentId, row.status as string])),
+    marks: Object.fromEntries(stored.map((row) => [row.studentId, row.status as string])),
+    notes: Object.fromEntries(stored.map((row) => [row.studentId, row.notes.trim()])),
   };
 }
 
@@ -160,7 +166,11 @@ export function isStaleAttendance(
   }
   const before = Object.keys(baseline.marks);
   const after = Object.keys(latest.marks);
-  return before.length !== after.length || before.some((id) => baseline.marks[id] !== latest.marks[id]);
+  if (before.length !== after.length || before.some((id) => baseline.marks[id] !== latest.marks[id])) return true;
+  const notes = baseline.notes;
+  if (!notes) return false;
+  const latestNotes = latest.notes ?? {};
+  return Object.keys(notes).some((id) => notes[id] !== (latestNotes[id] ?? ''));
 }
 
 export const setRowStatus = (rows: readonly RosterRow[], studentId: string, status: MarkStatus | null): RosterRow[] =>
@@ -348,6 +358,24 @@ export function buildGradeDraft(rows: readonly GradeRowLike[], edits: Readonly<R
     changes.push(change);
   }
   return { changes, problems };
+}
+
+/**
+ * Rows as the grade cards show them: a valid draft text replaces the loaded
+ * score, while invalid text keeps the loaded one, as the web sheet does.
+ */
+export function mergeGradeEdits<T extends GradeRowLike>(rows: readonly T[], edits: Readonly<Record<string, ScoreEdit>>): T[] {
+  return rows.map((row) => {
+    const edit = edits[row.enrollmentId];
+    if (!edit) return row;
+    const processScore = edit.processScore === undefined ? row.processScore : parseScore(edit.processScore);
+    const finalExamScore = edit.finalExamScore === undefined ? row.finalExamScore : parseScore(edit.finalExamScore);
+    return {
+      ...row,
+      processScore: processScore === undefined ? row.processScore : processScore,
+      finalExamScore: finalExamScore === undefined ? row.finalExamScore : finalExamScore,
+    };
+  });
 }
 
 /** Number of rows with unsaved text, valid or not. */
