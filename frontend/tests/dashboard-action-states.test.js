@@ -182,10 +182,11 @@ function stateBlockStubs() {
 
 function pageHeaderStub() {
   return {
-    PageHeader: ({ title, description, actions }) =>
+    PageHeader: ({ eyebrow, title, description, actions }) =>
       React.createElement(
         'header',
         null,
+        eyebrow,
         React.createElement('h1', null, title),
         React.createElement('p', null, description),
         actions,
@@ -403,6 +404,23 @@ test('the empty all-notifications tab shows only the empty-inbox sentence', asyn
   assert.ok(empty.includes(notificationsCopy.noAll), 'the inbox sentence is present');
   assert.ok(!empty.includes(notificationsCopy.empty), 'the unread/announcement tagline is gone');
   assert.ok(!empty.includes(notificationsCopy.noUnread), 'the unread sentence stays on the unread tab');
+});
+
+test('the notifications header prints its title once', async () => {
+  const api = {
+    getMy: async () => ({ data: [], meta: { totalPages: 1 } }),
+    markRead: async () => undefined,
+    unreadCount: async () => 0,
+    markAllRead: async () => ({ updated: 0 }),
+  };
+
+  const page = mount((fakeReact) => loadNotificationsPage(api, fakeReact), {});
+  await flush();
+  await flush();
+
+  const header = html(page.render()).split('</header>')[0];
+  const occurrences = header.split(notificationsCopy.title).length - 1;
+  assert.equal(occurrences, 1, 'the title is the heading, not also an eyebrow');
 });
 
 const libraryCopy = loadTs('src/i18n/library-messages.ts').libraryMessages.vi;
