@@ -157,6 +157,7 @@ public final class AcademicSectionReadDtos {
             BigDecimal finalGrade,
             String letterGrade,
             String gradeStatus,
+            Integer version,
             String enrollmentStatus) {
     }
 }

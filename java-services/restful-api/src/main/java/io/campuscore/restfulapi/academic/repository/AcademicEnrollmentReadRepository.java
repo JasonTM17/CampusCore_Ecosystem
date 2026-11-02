@@ -6,8 +6,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -116,7 +114,7 @@ public class AcademicEnrollmentReadRepository {
                         + " (SELECT MAX(sg.\"score\") FROM \"academic\".\"StudentGrade\" sg JOIN \"academic\".\"GradeItem\" gi ON gi.\"id\" = sg.\"gradeItemId\" WHERE sg.\"enrollmentId\" = e.\"id\" AND gi.\"type\" = 'PROCESS') AS process_score,"
                         + " (SELECT MAX(sg.\"score\") FROM \"academic\".\"StudentGrade\" sg JOIN \"academic\".\"GradeItem\" gi ON gi.\"id\" = sg.\"gradeItemId\" WHERE sg.\"enrollmentId\" = e.\"id\" AND gi.\"type\" = 'FINAL') AS final_exam_score,"
                         + " section.\"sectionNumber\", course.\"code\", course.\"name\", course.\"nameEn\", course.\"nameVi\","
-                        + " course.\"credits\", semester.\"name\" AS semester_name, semester.\"nameEn\" AS semester_name_en,"
+                        + " e.\"creditsSnapshot\" AS credits, semester.\"name\" AS semester_name, semester.\"nameEn\" AS semester_name_en,"
                         + " semester.\"nameVi\" AS semester_name_vi, lecturer_user.\"firstName\" AS lecturer_first_name,"
                         + " lecturer_user.\"lastName\" AS lecturer_last_name"
                         + " FROM " + ENROLLMENT + " e" + commonJoins()
@@ -427,10 +425,7 @@ public class AcademicEnrollmentReadRepository {
     }
 
     private static Instant instant(Timestamp timestamp) {
-        if (timestamp == null) {
-            return null;
-        }
-        return timestamp.toLocalDateTime().toInstant(ZoneOffset.UTC);
+        return timestamp == null ? null : timestamp.toInstant();
     }
 
     public record EnrollmentRow(String id, String studentId, String sectionId, String semesterId, String status,

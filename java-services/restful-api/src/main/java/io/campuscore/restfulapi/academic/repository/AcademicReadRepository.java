@@ -20,8 +20,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -944,10 +942,6 @@ public class AcademicReadRepository {
     }
 
     private static Instant instant(Timestamp timestamp) {
-        if (timestamp == null) {
-            return null;
-        }
-        LocalDateTime localDateTime = timestamp.toLocalDateTime();
-        return localDateTime.toInstant(ZoneOffset.UTC);
+        return timestamp == null ? null : timestamp.toInstant();
     }
 }

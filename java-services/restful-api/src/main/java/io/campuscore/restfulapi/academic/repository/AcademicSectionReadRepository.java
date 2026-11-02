@@ -6,7 +6,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -190,7 +189,8 @@ public class AcademicSectionReadRepository {
         return jdbc.query(
                 "WITH selected_enrollments AS ("
                         + " SELECT enrollment.\"id\", enrollment.\"studentId\", enrollment.\"finalGrade\","
-                        + " enrollment.\"letterGrade\", enrollment.\"gradeStatus\", enrollment.\"status\""
+                        + " enrollment.\"letterGrade\", enrollment.\"gradeStatus\", enrollment.\"status\","
+                        + " enrollment.\"version\""
                         + " FROM " + ENROLLMENT + " enrollment"
                         + " WHERE enrollment.\"sectionId\" = :sectionId"
                         + " AND enrollment.\"semesterId\" = (SELECT section_scope.\"semesterId\""
@@ -209,7 +209,8 @@ public class AcademicSectionReadRepository {
                         + " student_user.\"email\" AS student_email, student_user.\"firstName\" AS student_first_name,"
                         + " student_user.\"lastName\" AS student_last_name,"
                         + " grade_scores.process_score, grade_scores.final_exam_score, enrollment.\"finalGrade\","
-                        + " enrollment.\"letterGrade\", enrollment.\"gradeStatus\", enrollment.\"status\" AS enrollment_status"
+                        + " enrollment.\"letterGrade\", enrollment.\"gradeStatus\", enrollment.\"version\","
+                        + " enrollment.\"status\" AS enrollment_status"
                         + " FROM selected_enrollments enrollment"
                         + " JOIN " + STUDENT + " student ON student.\"id\" = enrollment.\"studentId\""
                         + " JOIN " + USER + " student_user ON student_user.\"id\" = student.\"userId\""
@@ -415,14 +416,12 @@ public class AcademicSectionReadRepository {
                 rs.getBigDecimal("finalGrade"),
                 rs.getString("letterGrade"),
                 rs.getString("gradeStatus"),
+                rs.getInt("version"),
                 rs.getString("enrollment_status"));
     }
 
     private static Instant instant(Timestamp timestamp) {
-        if (timestamp == null) {
-            return null;
-        }
-        return timestamp.toLocalDateTime().toInstant(ZoneOffset.UTC);
+        return timestamp == null ? null : timestamp.toInstant();
     }
 
     private static String displayName(String firstName, String lastName) {
@@ -505,6 +504,7 @@ public class AcademicSectionReadRepository {
             BigDecimal finalGrade,
             String letterGrade,
             String gradeStatus,
+            int version,
             String enrollmentStatus) {
     }
 }
