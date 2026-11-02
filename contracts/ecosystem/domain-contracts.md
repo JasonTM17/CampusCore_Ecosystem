@@ -54,14 +54,16 @@ Mọi lỗi trả về `ErrorResponse` qua `GlobalExceptionHandler`/`ApiExceptio
 
 | HTTP | `code` (quy ước) | Khi nào |
 | --- | --- | --- |
-| 400 | `VALIDATION_FAILED`, `BAD_REQUEST` | Field error có `fields{}`; body lỗi cú pháp |
-| 401 | `UNAUTHENTICATED` | Thiếu/hết phiên; không kèm thông tin tài khoản |
+| 400 | `VALIDATION_ERROR`, `INVALID_REQUEST`, `FILE_REQUIRED`, `BAD_REQUEST` | Field error có `fields{}`; chuỗi vượt giới hạn cột; thiếu tệp đính kèm bắt buộc; body lỗi cú pháp |
+| 401 | `UNAUTHENTICATED` | Thiếu/hết phiên hoặc thiếu refresh token; không kèm thông tin tài khoản |
 | 403 | `FORBIDDEN`, `ACCOUNT_DISABLED` | Đăng nhập rồi nhưng thiếu object scope/role |
 | 404 | `NOT_FOUND` | Tài nguyên không tồn tại hoặc không thuộc scope caller |
 | 409 | `CONFLICT`, `STALE_VERSION`, `DUPLICATE_ACTIVE` | Optimistic version/idempotency/state conflict |
 | 410 | `GONE` | Tài nguyên đã chuyển trạng thái terminal hủy |
+| 413 | `REQUEST_BODY_TOO_LARGE`, `FILE_TOO_LARGE` | Body vượt trần (BFF proxy JSON 1 MB, multipart theo `spring.servlet.multipart.max-request-size`; upload báo cáo > 20 MB) |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Upload sai content-type |
 | 429 | `RATE_LIMITED` | Lockout/throttle (identity, registration, apply) |
+| 502 | `UPSTREAM_RESPONSE_TOO_LARGE` | Upstream response qua BFF proxy vượt trần cấu hình |
 | 5xx | `INTERNAL`, `UPSTREAM_UNAVAILABLE` | Không lộ stack/credential trong `message` |
 
 Quy tắc: `message` hiển thị được cho người dùng, không chứa internal id,
@@ -254,6 +256,8 @@ Request: `REQUESTED → APPROVED → ISSUED → RETURNED | CANCELLED`.
 | LIB-X01 | Reservation expiry theo **server clock** | `SYS` | expiry rule cấu hình | Client giữ chỗ vô hạn |
 | LIB-X02 | Race một copy → đúng một issue | `SYS` | lock + unique active | Double-issue |
 
+Ghi sách (`title`, `author` tối đa 300; `isbn` 40; `category` 120; `publisher` 200; `barcode` 80) và lý do hủy yêu cầu mượn (tối đa 300) bị giới hạn theo độ dài cột; chuỗi vượt giới hạn trả về 400 `VALIDATION_ERROR` với tên trường. Dấu vân tay chống trùng lặp của lý do hủy dài hơn 128 ký tự được băm SHA-256 để vừa cột `requestHash`.
+
 ## 9. Careers (P12, schema `careers`)
 
 Opportunity: `DRAFT → IN_REVIEW → PUBLISHED → PAUSED → CLOSED`; `IN_REVIEW → REJECTED`; `PUBLISHED → CLOSED`; `PAUSED → PUBLISHED` (resume — org staff, không qua reviewer).
@@ -282,11 +286,17 @@ Application: `SUBMITTED → REVIEWING → INTERVIEW → OFFER → (REJECTED | WI
 | Enrollment | enrollment authority ghi; domain khác read-through | academic |
 | Assistant conversation/turn | `assistant` schema + RLS; scope-bound | assistant services |
 
+Nộp tệp báo cáo tốt nghiệp qua `POST /api/v1/thesis/groups/{id}/report/file` yêu cầu phần tệp đính kèm (`file`); nếu thiếu tệp, hệ thống trả về 400 `FILE_REQUIRED`.
+
 ## 11. Notifications (EXISTING)
 
 Tạo trong **cùng transaction** với transition gốc (event cancel, loan issue,
 feedback, decision). `notification.delivery` retry không nhân đôi
 (unique trên `(aggregate, event)`). Cross-account read → deny.
+Giới hạn trường authoring: `title` tối đa 240 ký tự, `message` tối đa 2000 ký tự,
+`link` tối đa 500 ký tự, `userId` tối đa 120 ký tự; vi phạm trả về 400 `VALIDATION_ERROR`
+với cấu trúc `fields{}`. Hộp thư hiển thị phân trang cửa sổ đầu (mặc định 20 dòng),
+tab chưa đọc lọc phía server (`isRead=false`) kết hợp đếm tổng chưa đọc từ server aggregate.
 
 ## 12. Invariants toàn cục (kiểm ở gate từng phase)
 

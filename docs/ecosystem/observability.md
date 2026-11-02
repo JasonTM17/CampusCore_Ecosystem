@@ -37,7 +37,7 @@ Khi người dùng gặp sự cố hoặc alert kích hoạt, quy trình đối 
        "status": 500,
        "code": "INTERNAL_ERROR",
        "message": "An unexpected internal error occurred",
-       "path": "/api/v1/academic/me/enrollments",
+       "path": "/api/v1/me/enrollments",
        "requestId": "req-m490f2-1a2b3c4d5e"
      }
      ```
@@ -243,9 +243,9 @@ Mỗi luồng nghiệp vụ trọng yếu (Critical User Journey) được áp �
 | Critical Journey | Endpoints Sở hữu | SLI Độ trễ (P95) | SLO Độ trễ | SLI Tỷ lệ Lỗi (5xx) | SLO Tỷ lệ Lỗi | Availability SLO (30 ngày) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Sign-in (Đăng nhập)** | `POST /api/v1/auth/login`<br>`POST /oauth2/token` | P95 latency của HTTP request | **< 800 ms** (bao gồm chi phí Argon2/BCrypt hashing) | Số request 5xx / Tổng số request đăng nhập | **< 0.1%** (Loại trừ lỗi nhập sai pass 401) | **99.9%** |
-| **Course Registration (Đăng ký học phần)** | `POST /api/v1/academic/me/enrollments`<br>`DELETE /api/v1/academic/me/enrollments/{sectionId}` | P95 latency của HTTP mutation | **< 500 ms** (dưới tải cao mùa đăng ký) | Số request 5xx / Tổng số lượt ghi danh | **< 0.2%** (Loại trừ business conflict 409 SECTION_FULL, 400 CREDIT_CAP) | **99.8%** |
+| **Course Registration (Đăng ký học phần)** | `POST /api/v1/me/enrollments`<br>`POST /api/v1/me/enrollments/{id}/drop` | P95 latency của HTTP mutation | **< 500 ms** (dưới tải cao mùa đăng ký) | Số request 5xx / Tổng số lượt ghi danh | **< 0.2%** (Loại trừ business conflict 409 SECTION_FULL, 400 CREDIT_CAP) | **99.8%** |
 | **Attendance Check-in (Điểm danh)** | `POST /api/v1/attendance/sessions/{id}/checkin` | P95 latency của check-in | **< 600 ms** (bao gồm geofence check & idempotency lock) | Số request 5xx / Tổng lượt điểm danh | **< 0.1%** (Loại trừ 422 OUTSIDE_AREA, 409 ALREADY_CHECKED_IN) | **99.9%** |
-| **Grades Read (Xem điểm/Bảng điểm)** | `GET /api/v1/enrollments/my/grades`<br>`GET /api/v1/enrollments/my/transcript`<br>`GET /api/v1/grades/.*` | P95 latency của read query | **< 300 ms** | Số query 5xx / Tổng số lượt đọc điểm | **< 0.05%** | **99.95%** |
+| **Grades Read (Xem điểm/Bảng điểm)** | `GET /api/v1/enrollments/my/grades`<br>`GET /api/v1/enrollments/my/transcript`<br>`GET /api/v1/sections/{id}/grades` | P95 latency của read query | **< 300 ms** | Số query 5xx / Tổng số lượt đọc điểm | **< 0.05%** | **99.95%** |
 
 ---
 
