@@ -57,11 +57,16 @@ export function validateComposeOverlay(value, repo = REPO) {
 export function parseArgs(argv, repo = REPO) {
   const sub = argv[2];
   if (!["contract-probes", "pgit-real"].includes(sub)) {
-    throw new Error("usage: contract-verify.mjs <contract-probes|pgit-real> [--project p] [--evidence dir] [--its pattern] [--compose-overlay repo-relative.yml]");
+    throw new Error("usage: contract-verify.mjs <contract-probes|pgit-real> [--project p] [--evidence dir] [--its pattern] [--compose-overlay repo-relative.yml] [--regenerate]");
   }
-  const a = { evidence: path.join(repo, "artifacts/verification/contracts"), project: null, its: null, composeOverlay: null };
+  const a = { evidence: path.join(repo, "artifacts/verification/contracts"), project: null, its: null, composeOverlay: null, regenerate: false };
   for (let i = 3; i < argv.length; i++) {
     const option = argv[i];
+    if (option === "--regenerate") {
+      if (sub !== "contract-probes") throw new Error("--regenerate is only supported by contract-probes");
+      a.regenerate = true;
+      continue;
+    }
     if (!["--evidence", "--project", "--its", "--compose-overlay"].includes(option)) {
       throw new Error(`unknown option ${option}`);
     }
@@ -174,6 +179,15 @@ async function caseProbes(args, log) {
     const healthy = await waitHealth(`http://127.0.0.1:${API_HOST_PORT}/api/v1/health/liveness`, 240000);
     if (!healthy) throw new Error("api did not reach liveness within 240s");
     evidence.apiReady = true;
+
+    if (args.regenerate) {
+      const write = run("node", [
+        "scripts/generate-api-contract.mjs", "--base-url", `http://127.0.0.1:${API_HOST_PORT}`,
+      ], { timeout: 300000 });
+      results.regenerate = { status: write.status };
+      log(`generator write exit=${write.status}\n${write.stdout.slice(-1500)}`);
+      if (write.status !== 0) throw new Error("contract regeneration failed");
+    }
 
     // 1. Byte-equal contract regeneration + invariants (exact acceptance cmd).
     const gen = run("node", [
