@@ -424,6 +424,10 @@ class EcosystemIdentityContractTest {
                 .andReturn().getResponse();
         assertThat(success.getStatus()).isEqualTo(204);
         assertThat(grantCount()).isZero();
+        assertThat(success.getHeaders("Set-Cookie"))
+                .anyMatch(h -> h.startsWith("cc_access_token=") && h.contains("Max-Age=0"))
+                .anyMatch(h -> h.startsWith("cc_refresh_token=") && h.contains("Max-Age=0"))
+                .anyMatch(h -> h.startsWith("cc_csrf=") && h.contains("Max-Age=0"));
         var staleTab = mvc.perform(post("/connect/logout").cookie(access, csrf)
                 .header("X-CSRF-Token", csrf.getValue()).param("client_id", CLIENT)
                 .param("id_token_hint", tokens.get("id_token").asText()))

@@ -104,12 +104,20 @@ surface resolution theo §1:
   `{ userId, roles, surface, expiresAt, csrfToken }` + `no-store`. Không
   token nào trong body.
 - `POST /session/logout` — CSRF triple-check (§4) → **đọc `id_token`
-  qua `findById(authorization_id)` (decrypt) TRƯỚC khi revoke** (KM-M5) →
-  revoke `bff_session` (`revoked_at`) → `revokeClientGrants` → trả
-  `{ logoutUrl }` = id `/connect/logout?id_token_hint&
-  post_logout_redirect_uri={base}/session/logged-out` → browser full-page.
-  Idempotent: session đã revoked → trả logoutUrl với hint null → id logout
-  vẫn chạy (xóa `cc_session` id) → về logged-out.
+  qua `findById(authorization_id)` dưới User lock TRƯỚC khi xóa → đánh dấu
+  fence per-client trong reserved row của `bff_transaction` (nonce chứa digest
+  user+client, verifier chứa epoch), rồi xóa mọi `bff_session` của user/client
+  trong cùng transaction. Epoch tăng khi logout bắt đầu; callback và grant-save
+  cùng client bị từ chối trong lúc pending hoặc khi epoch đã đổi. Fence và
+  xóa local rollback cùng nhau nếu transaction lỗi. Grant vẫn còn để SAS xác thực hint
+  → trả `{ logoutUrl }` = id
+  `/connect/logout?id_token_hint&post_logout_redirect_uri={base}/session/logged-out`
+  → browser full-page. SAS chỉ revoke grant/session mirror và xóa cookie
+  central `cc_*` sau khi revoke commit, hint hợp lệ và redirect đã đăng ký.
+  Nếu revoke lỗi, grant/session mirror rollback và cookie central được giữ lại,
+  dù handler hiện tại vẫn redirect.
+  Idempotent: session đã revoked/đã bị xóa → URL không chứa hint; local
+  cookie vẫn bị xóa. SAS 7.1 có thể từ chối URL retry thiếu hint.
 - `GET /session/logged-out` — trả landing page metadata (owner của page
   là **Next static route** — endpoint này chỉ là API probe nếu cần; chọn
   Next làm owner — KM-L13).
@@ -141,9 +149,9 @@ CREATE TABLE campuscore_identity.bff_session (
 -- indexes: (user_id), (user_id, client_id), (authorization_id), (expires_at)
 CREATE TABLE campuscore_identity.bff_transaction (
   state_hash varchar(64) PRIMARY KEY,
-  tx_id varchar(32) NOT NULL,                -- cookie-name suffix (KM-M6)
-  surface varchar(24) NOT NULL,
-  nonce varchar(64) NOT NULL, verifier varchar(512) NOT NULL,
+  tx_id varchar(32) NOT NULL,                -- cookie suffix or reserved logout fence
+  surface varchar(24) NOT NULL,              -- surface id or pending/cleared fence state
+  nonce varchar(64) NOT NULL, verifier varchar(512) NOT NULL, -- fence nonce is user+client digest; verifier stores epoch
   return_path varchar(300) NOT NULL,
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   expires_at timestamp NOT NULL);
@@ -159,8 +167,10 @@ proxy/NAT làm IP đổi giữa phiên là bình thường; binding cứng tạo
 ### Retention (KM-M8)
 
 `IdentityGrantRetentionJob` mở rộng cùng flag/bounded-batch: delete
-`bff_transaction WHERE expires_at < now` (orphan authorize legs) +
-`bff_session WHERE expires_at < now OR revoked_at < now - grace`.
+`bff_transaction WHERE expires_at < now AND tx_id <> '$logout_pending$'`
+(orphan authorize legs) +
+`bff_session WHERE expires_at < now OR revoked_at < now - grace`. The reserved
+logout row keeps its client epoch after end-session clears its pending state.
 
 ## 4. CSRF model (same-site siblings vẫn cross-origin)
 
@@ -331,12 +341,13 @@ cho self-signed; VI+EN pass trên portal route):
   terminator cho id; Playwright `ignoreHTTPSErrors`. Thiếu → gate BLOCKED.
 - `apply`: registry entry only — UI P10. `news`: no-session mode — UI P06.
 - docs host CSP riêng hạn chế script — P06. HSTS includeSubDomains — P14.
-- `id_token_hint` chỉ còn hiệu lực khi grant chưa bị delete khác — logout
-  idempotent chấp nhận hint null (id logout endpoint không đòi hint khi
-  cookie `cc_session` còn). Ghi rõ phạm vi "browser không nhận token":
-  access/refresh **không bao giờ** rời server; `id_token` xuất hiện duy
-  nhất bên trong `logoutUrl` (id_token_hint là cơ chế chuẩn RP-initiated
-  logout — nó không phải credential cho `/api/v1`, resource lane đòi
-  `tokenType=access`).
+- Logout xóa session BFF, tăng epoch per-client và giữ grant cùng pending
+  fence chỉ tới lúc SAS chấp nhận `id_token_hint` trong end-session request;
+  SAS hoàn tất revoke grant/session mirror, clear pending bit và xóa cookie
+  central `cc_*`. Fence row giữ epoch sau khi clear, sống qua OAuth2 revoke và
+  retention. Retry sau khi session đã revoked không lấy lại hint, nên SAS 7.1
+  có thể trả 400. `id_token` xuất hiện duy nhất trong
+  `logoutUrl` trả về cho browser; nó không được ghi vào store hay log, không
+  phải credential cho `/api/v1`, resource lane đòi `tokenType=access`.
 - Loopback `/bff/api` là một HTTP hop nội bộ — latency cộng thêm ~1-2ms
   local; honest BFF, resource chain không đổi.

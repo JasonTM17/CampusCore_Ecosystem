@@ -10,6 +10,7 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import io.campuscore.restfulapi.identity.BffLogoutMarker;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -61,6 +62,9 @@ public class BffSessionStore {
             Instant expiresAt) {
     }
 
+    private record LogoutFence(String stateHash, String surface, String verifier) {
+    }
+
     public void insertTransaction(String state, String txId, String surface,
             String nonce, String verifierCiphertext, String returnPath,
             Instant expiresAt) {
@@ -78,6 +82,73 @@ public class BffSessionStore {
     }
 
     /**
+     * Persists a client-scoped pending fence and advances its epoch. The
+     * reserved tx id cannot be generated for a login transaction; the random
+     * state hash is unrelated to callback state, and nonce holds only a digest.
+     * Call under the User row lock so concurrent logout requests serialize.
+     */
+    public void markClientLogoutPending(String userId, String clientId) {
+        LogoutFence fence = lockLogoutFence(userId, clientId);
+        if (fence == null) {
+            insertLogoutFence(userId, clientId, BffLogoutMarker.SURFACE, 1);
+        } else {
+            updateLogoutFence(fence, BffLogoutMarker.SURFACE,
+                    BffLogoutMarker.nextEpoch(fence.verifier()));
+        }
+    }
+
+    public boolean isClientLogoutPending(String userId, String clientId) {
+        LogoutFence fence = readLogoutFence(userId, clientId, false);
+        return fence != null && BffLogoutMarker.SURFACE.equals(fence.surface());
+    }
+
+    /** Epoch retained after accepted end-session so an older grant save stays stale. */
+    public long clientLogoutEpoch(String userId, String clientId) {
+        LogoutFence fence = readLogoutFence(userId, clientId, false);
+        return fence == null ? 0 : BffLogoutMarker.epoch(fence.verifier());
+    }
+
+    private LogoutFence lockLogoutFence(String userId, String clientId) {
+        return readLogoutFence(userId, clientId, true);
+    }
+
+    private LogoutFence readLogoutFence(String userId, String clientId, boolean lock) {
+        List<LogoutFence> rows = jdbc.query(
+                "SELECT state_hash, surface, verifier FROM " + TX
+                        + " WHERE tx_id = :tx AND nonce = :nonce"
+                        + (lock ? " FOR UPDATE" : ""),
+                logoutMarkerParams(userId, clientId),
+                (rs, i) -> new LogoutFence(rs.getString("state_hash"),
+                        rs.getString("surface"), rs.getString("verifier")));
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    private void insertLogoutFence(String userId, String clientId,
+            String surface, long epoch) {
+        insertTransaction(randomId(32), BffLogoutMarker.TX_ID, surface,
+                BffLogoutMarker.nonce(userId, clientId),
+                BffLogoutMarker.encodeEpoch(epoch), "/",
+                BffLogoutMarker.expiresAt().toInstant());
+    }
+
+    private void updateLogoutFence(LogoutFence fence, String surface, long epoch) {
+        jdbc.update("UPDATE " + TX
+                        + " SET surface = :surface, verifier = :verifier, expires_at = :expiresAt"
+                        + " WHERE state_hash = :stateHash",
+                new MapSqlParameterSource()
+                        .addValue("surface", surface)
+                        .addValue("verifier", BffLogoutMarker.encodeEpoch(epoch))
+                        .addValue("expiresAt", BffLogoutMarker.expiresAt())
+                        .addValue("stateHash", fence.stateHash()));
+    }
+
+    private static MapSqlParameterSource logoutMarkerParams(String userId, String clientId) {
+        return new MapSqlParameterSource()
+                .addValue("tx", BffLogoutMarker.TX_ID)
+                .addValue("nonce", BffLogoutMarker.nonce(userId, clientId));
+    }
+
+    /**
      * Atomic one-time consume (KM-L14): the FOR UPDATE lock serializes
      * concurrent callbacks — the loser re-reads an empty set — and the row
      * exists at most once, so a replayed state can never complete a second
@@ -87,8 +158,10 @@ public class BffSessionStore {
         List<Transaction> rows = jdbc.query(
                 "SELECT state_hash, tx_id, surface, nonce, verifier,"
                         + " return_path, expires_at FROM " + TX
-                        + " WHERE state_hash = :h FOR UPDATE",
-                new MapSqlParameterSource("h", sha256Hex(state)),
+                        + " WHERE state_hash = :h AND tx_id <> :markerTx FOR UPDATE",
+                new MapSqlParameterSource()
+                        .addValue("h", sha256Hex(state))
+                        .addValue("markerTx", BffLogoutMarker.TX_ID),
                 (rs, i) -> new Transaction(rs.getString("state_hash"),
                         rs.getString("tx_id"), rs.getString("surface"),
                         rs.getString("nonce"), rs.getString("verifier"),
@@ -97,8 +170,11 @@ public class BffSessionStore {
         if (rows.isEmpty()) {
             return null;
         }
-        jdbc.update("DELETE FROM " + TX + " WHERE state_hash = :h",
-                new MapSqlParameterSource("h", rows.get(0).stateHash()));
+        jdbc.update("DELETE FROM " + TX
+                        + " WHERE state_hash = :h AND tx_id <> :markerTx",
+                new MapSqlParameterSource()
+                        .addValue("h", rows.get(0).stateHash())
+                        .addValue("markerTx", BffLogoutMarker.TX_ID));
         return rows.get(0);
     }
 
@@ -216,7 +292,10 @@ public class BffSessionStore {
 
     /** Abandoned authorize-leg cleanup. */
     public int purgeTransactions() {
-        return jdbc.update("DELETE FROM " + TX + " WHERE expires_at < :now",
-                new MapSqlParameterSource("now", Timestamp.from(Instant.now())));
+        return jdbc.update("DELETE FROM " + TX
+                        + " WHERE expires_at < :now AND tx_id <> :markerTx",
+                new MapSqlParameterSource()
+                        .addValue("now", Timestamp.from(Instant.now()))
+                        .addValue("markerTx", BffLogoutMarker.TX_ID));
     }
 }
