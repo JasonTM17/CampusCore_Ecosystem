@@ -219,6 +219,25 @@ class ThesisAssistantTurnLedgerH2Test {
     }
 
     @Test
+    void cancelledFirstTurnKeepsItsConversationReusable() {
+        String owner = "cancel-first-turn-" + UUID.randomUUID();
+        UUID key = UUID.randomUUID();
+        ThesisAssistantTurnRepository.Reservation reservation = turns.reserve(owner, key,
+                reservationHash("cancel first", "vi"), null, "vi", "lease", 90);
+        assertTrue(turns.markSnapshotReady(reservation.turnId(), owner, reservation.leaseGeneration(), "c".repeat(64)));
+        assertTrue(turns.cancel(reservation.turnId(), owner, key).cancelled());
+
+        // The stream meta already carried this conversation id; a cancelled
+        // first turn must leave the row reachable for the very next send.
+        ThesisAssistantTurnRepository.Reservation next = turns.reserve(owner, UUID.randomUUID(),
+                reservationHash("after cancel", "vi"), reservation.conversationId(), "vi", "lease", 90);
+        assertEquals(ThesisAssistantTurnRepository.ReservationStatus.NEW, next.status());
+        assertEquals(reservation.conversationId(), next.conversationId());
+        assertEquals(1, count("SELECT COUNT(*) FROM assistant.chat_conversation WHERE id=:conversation",
+                p("conversation", reservation.conversationId())));
+    }
+
+    @Test
     void ownerAndPayloadArePartOfTheIdempotencyFence() {
         String owner = "owner-a-" + UUID.randomUUID();
         String other = "owner-b-" + UUID.randomUUID();

@@ -489,7 +489,13 @@ public class RagAssistantGateway {
     }
 
     private DomainException problem(int statusCode, String body) {
-        HttpStatus status = HttpStatus.valueOf(statusCode);
+        HttpStatus status = HttpStatus.resolve(statusCode);
+        if (status == null) {
+            // A proxy or CDN can answer with a status Spring does not
+            // enumerate (520/522/524/599).  Those are upstream failures, never
+            // a caller error: keep them transient so the local fallback runs.
+            status = statusCode >= 500 ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.BAD_GATEWAY;
+        }
         String code = status.is5xxServerError() ? "RAG_SERVICE_UNAVAILABLE" : "RAG_SERVICE_ERROR";
         String message = status.getReasonPhrase();
         if (body != null && !body.isBlank()) {
