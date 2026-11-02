@@ -166,8 +166,12 @@ theo contract gốc. Companion doc: `docs/ecosystem/mobile-matrix.md`
   `POST {issuer}/oauth2/revoke` `token=<refresh>&client_id=cu-mobile`
   (idempotent, best-effort — revoke fail vẫn sign-out local). Late
   refresh in-flight: epoch-check tại persist-step = no-op.
-- **401/403**: 401 → shared-refresh + retry-một-lần (giữ nguyên exclude
-  list + `/oauth2/*`); refresh fail → sign-out + màn sign-in. 403 →
+- **401/403 & refresh resilience**: 401 → shared-refresh một lần (`single-flight`,
+  loại trừ auth endpoints để tránh lặp vô tận). Chỉ khi issuer dứt khoát từ chối
+  refresh grant với mã HTTP 400 hoặc 401 thì session mới bị hủy (`signedOut`) và
+  chuyển về màn hình đăng nhập. Mọi sự cố tạm thời (mất mạng, timeout, hoặc server
+  5xx) trả về `unavailable`: mobile giữ nguyên session trong SecureStore và ném
+  lỗi retryable để request tiếp theo có thể thử lại mà không làm văng phiên. 403 →
   denied state, không retry.
 - **Account identity**: account id = `id_token.sub` (=`principal_name`/
   `User.id` invariant) — key của per-account cache §5. Roles đọc từ
@@ -191,12 +195,15 @@ theo contract gốc. Companion doc: `docs/ecosystem/mobile-matrix.md`
   thật gọi (`http://10.0.2.2:4010` cho emulator, LAN IP cho thiết bị
   vật lý) — `127.0.0.1` chỉ đúng cho web trên cùng máy. Prod:
   `id.campusute.io.vn` khác host API → env bắt buộc.
-- **Boot sequence (KM-17)**: `app/_layout.tsx` bootstrap theo thứ tự:
+- **Boot sequence & timeout (KM-17)**: `app/_layout.tsx` bootstrap theo thứ tự:
   font load → marker-check (KM-1, có thể wipe refresh) →
   `sessionStore.loadBootstrap()` → nếu refresh còn → silent
-  `refreshAccessToken()` một lần (fail → signedOut, không crash) →
+  `refreshAccessToken()` một lần (fail terminal → signedOut, không crash) →
   set session-state → render router guard. Guard không evaluate tới
-  khi bootstrap xong (splash giữ chỗ).
+  khi bootstrap xong (splash giữ chỗ). Cả boot refresh và trao đổi OIDC code
+  qua token endpoint đều bị giới hạn thời gian tối đa 10 giây
+  (`DEFAULT_TOKEN_TIMEOUT_MS = 10_000`); quá 10 giây lệnh tự hủy và trả về lỗi
+  mạng tạm thời `unavailable`, bảo toàn phiên đã lưu.
 
 ## 4. Roles & surface boundary (mobile-matrix.md)
 
@@ -271,6 +278,9 @@ theo contract gốc. Companion doc: `docs/ecosystem/mobile-matrix.md`
 - **Per-account memory cache**: Map trong memory, key =
   `${accountId}:${queryKey}`; đổi account = đổi keyspace tự nhiên
   (account cũ không lộ). Wipe toàn cache trên sign-out.
+  Dashboard và màn hình đăng ký dùng chung cache key ghi danh học phần
+  (`academic.enrollments`) và tham gia vào lượt prefetch in-flight; các thẻ điểm
+  tính theo điểm cao nhất (best attempt) cho mỗi môn học.
 - **Không persist academic data**: điểm/transcript/file thesis/attendance
   KHÔNG bao giờ ghi disk (không AsyncStorage ngoài marker, không
   cache-dir write). Whitelist đóng — chỉ 3 thứ lên đĩa: SecureStore
