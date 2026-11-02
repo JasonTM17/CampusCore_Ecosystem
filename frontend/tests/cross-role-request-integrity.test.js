@@ -853,6 +853,42 @@ test('the review queue pages past item 50 and appends only unseen rows', async (
   assert.match(source, /hasNextPage\(queuePage, queueTotalPages\)/, 'the control appears only while older pages exist');
 });
 
+test('a review-queue retry clears the error and reloads page 1', async () => {
+  const calls = recorder();
+  const retried = deferred();
+  let requests = 0;
+  const fetchQueue = pageFunction('app/dashboard/lecturer/announcements/page.tsx', 'fetchQueue', {
+    queueStatus: 'ALL',
+    queueEpoch: createEpoch(),
+    announcementsApi: {
+      getAll: (query) => {
+        requests += 1;
+        assert.equal(query.page, 1, 'the retry reloads the first page');
+        return requests === 1
+          ? Promise.reject(new Error('offline'))
+          : retried.promise;
+      },
+    },
+    setQueueItems: () => {},
+    setQueueTotalPages: () => {},
+    setQueuePage: () => {},
+    setQueueLoading: calls.record('loading'),
+    setQueueError: calls.record('error'),
+    setQueueLoadingMore: () => {},
+    setQueueLoadMoreError: () => {},
+  });
+
+  await fetchQueue();
+  assert.equal(new Map(calls.calls).get('error'), true, 'the first failure surfaces');
+
+  const retry = fetchQueue();
+  assert.equal(new Map(calls.calls).get('error'), false, 'the retry clears the error before refetching');
+  retried.resolve({ data: [{ id: 'visible' }], meta: { totalPages: 1 } });
+  await retry;
+
+  assert.equal(requests, 2, 'the retry issues a fresh queue request');
+});
+
 test('a slower lecturer feed response cannot replace the newest feed request', async () => {
   const requests = [deferred(), deferred()];
   let requestIndex = 0;
