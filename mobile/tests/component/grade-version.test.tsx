@@ -122,7 +122,7 @@ jest.mock('../../src/screens/operations/lecturer-ui', () => {
 import { LecturerGradingScreen } from '../../src/screens/operations/LecturerGradingScreen';
 
 const sections = [
-  { sectionId: 'section-a', sectionNumber: '01', courseCode: 'CS-A', courseNameVi: 'Course A', courseNameEn: 'Course A' },
+  { sectionId: 'section-a', sectionNumber: '01', courseCode: 'CS-A', courseNameVi: 'Course A', courseNameEn: 'Course A', canPublish: true },
   { sectionId: 'section-b', sectionNumber: '02', courseCode: 'CS-B', courseNameVi: 'Course B', courseNameEn: 'Course B' },
 ];
 
@@ -281,5 +281,16 @@ describe('a STALE_VERSION conflict keeps the draft and reconciles explicitly', (
     expect(screen.getByText(operationsMessages.en.gradesStale)).toBeOnTheScreen();
     expect(screen.getByLabelText(processLabel).props.value).toBe('7');
     expect(saveButton().props.accessibilityState?.disabled).toBe(true);
+  });
+});
+
+describe('publish confirmation copy', () => {
+  test('one enrolled student is named in the singular', async () => {
+    await render(themed(<LecturerGradingScreen {...props} />));
+    await fireEvent.press(screen.getByRole('button', { name: operationsMessages.en.publishGrades }));
+
+    expect(await screen.findByText(
+      'Students see their grades right away and they cannot be edited afterwards. Section 01, 1 student.',
+    )).toBeOnTheScreen();
   });
 });
