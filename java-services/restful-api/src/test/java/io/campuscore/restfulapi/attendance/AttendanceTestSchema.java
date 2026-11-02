@@ -36,8 +36,14 @@ final class AttendanceTestSchema {
             org.flywaydb.core.Flyway.configure().dataSource(jdbc.getDataSource()).schemas("academic")
                     .defaultSchema("academic").baselineVersion("143").baselineOnMigrate(true)
                     .locations("classpath:db/migration").target("144").load().migrate();
+            // The store reads the V151 concurrency token; apply that migration's DDL directly so the
+            // history stays at V144 and later migrations stay out of this narrow fixture.
+            new ResourceDatabasePopulator(new ClassPathResource("db/migration/V151__attendance_geofence_version.sql"))
+                    .execute(jdbc.getDataSource());
         } else {
             new ResourceDatabasePopulator(new ClassPathResource("db/migration-h2/V144__attendance_geofence.sql"))
+                    .execute(jdbc.getDataSource());
+            new ResourceDatabasePopulator(new ClassPathResource("db/migration-h2/V151__attendance_geofence_version.sql"))
                     .execute(jdbc.getDataSource());
         }
         new ResourceDatabasePopulator(new ClassPathResource("db/migration-h2/V18__admin_audit_trail.sql")).execute(jdbc.getDataSource());

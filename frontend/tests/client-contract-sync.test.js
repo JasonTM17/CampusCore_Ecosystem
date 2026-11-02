@@ -425,7 +425,7 @@ test('geofence metadata edits omit the activation flag unless it changed', () =>
   const source = read('src/app/admin/attendance-geofences/page.tsx');
   assert.match(
     source,
-    /updateAdminGeofence\(\s*editor\.row\.id,\s*buildGeofenceUpdatePayload\(values, Boolean\(editor\.row\.isActive\)\)/,
-    'the edit submit uses the omission helper',
+    /updateAdminGeofence\(\s*editor\.row\.id,\s*buildGeofenceUpdatePayload\(values, Boolean\(editor\.row\.isActive\), editor\.row\.version\)/,
+    'the edit submit uses the omission helper and the opened version',
   );
 });
