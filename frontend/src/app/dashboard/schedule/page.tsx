@@ -33,8 +33,6 @@ import { Enrollment, Semester } from '@/types/api';
 import {
   WeeklyGrid,
   accentForCourse,
-  DAY_LABELS_VI,
-  DAY_LABELS_EN,
   ORDERED_DAYS,
   type WeeklyGridAgendaItem,
 } from '@/components/schedule/weekly-grid';
@@ -84,6 +82,7 @@ type DayAgendaItem = {
 export default function SchedulePage() {
   const { user, hasAccess, isLoading: authLoading } = useRequireAuth(['STUDENT']);
   const { locale, formatNumber, messages } = useI18n();
+  const scheduleMessages = messages.studentPages.schedule;
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [selectedSemester, setSelectedSemester] = useState('');
@@ -211,11 +210,11 @@ export default function SchedulePage() {
         section?.schedules?.forEach((schedule, index) => {
           items.push({
             id: `${enrollment.id}-${index}`,
-            courseCode: section.course?.code ?? 'Course',
+            courseCode: section.course?.code ?? scheduleMessages.courseCodeFallback,
             courseName:
               (locale === 'vi'
                 ? section.course?.nameVi || section.course?.name
-                : section.course?.nameEn || section.course?.name) ?? 'Unavailable',
+                : section.course?.nameEn || section.course?.name) ?? scheduleMessages.courseNameFallback,
             courseNameEn: section.course?.nameEn,
             courseNameVi: section.course?.nameVi,
             sectionNumber: section.sectionNumber,
@@ -237,7 +236,7 @@ export default function SchedulePage() {
       }
       return (left.startTime || '').localeCompare(right.startTime || '');
     });
-  }, [enrollments, locale]);
+  }, [enrollments, locale, scheduleMessages.courseCodeFallback, scheduleMessages.courseNameFallback]);
 
   const agendaByDay = useMemo(() => {
     return agenda.reduce<Record<number, DayAgendaItem[]>>((groups, item) => {
@@ -306,116 +305,21 @@ export default function SchedulePage() {
     }
   };
 
-  const copy =
-    locale === 'vi'
-      ? {
-          eyebrow: 'Cổng Sinh viên',
-          title: 'Thời khóa biểu',
-          description: `Thời khóa biểu học tập của sinh viên trong ${selectedSemesterName}.`,
-          selectSemester: 'Chọn học kỳ cho thời khóa biểu',
-          allSemesters: 'Tất cả học kỳ',
-          openCourses: 'Mở môn học của tôi',
-          loading: 'Đang tải thời khóa biểu',
-          unavailableTitle: 'Thời khóa biểu chưa sẵn sàng',
-          emptyTitle: 'Chưa có lớp học theo lịch',
-          emptyDescription:
-            'Khi lớp học phần được xác nhận, các buổi học sẽ xuất hiện tại đây theo lịch tuần.',
-          browseSections: 'Xem lớp học phần',
-          weeklyAgenda: 'Lịch học theo tuần',
-          weeklyGrid: 'Lưới thời khóa biểu',
-          upcomingClassList: 'Danh sách lớp học phần',
-          noMeetings: 'Chưa có buổi học nào.',
-          noMeetingsHint: 'Các buổi học của ngày đã chọn sẽ xuất hiện tại đây.',
-          noSlot: 'Chưa có lịch dạy.',
-          items: 'mục',
-          item: 'mục',
-          sectionPrefix: 'Lớp học phần',
-          roomPending: 'Đang chờ thông tin phòng học',
-          today: 'HÔM NAY',
-          viewGrid: 'Lưới tuần',
-          viewDay: 'Theo ngày',
-          viewList: 'Danh sách',
-          print: 'In thời khóa biểu',
-          totalCourses: 'Môn học',
-          totalCredits: 'Tín chỉ',
-          totalMeetings: 'Buổi học / tuần',
-          filterDay: 'Chọn ngày trong tuần',
-          clickToViewDetails: 'Bấm vào môn học để xem chi tiết đầy đủ',
-          courseCode: 'Mã HP',
-          courseName: 'Tên học phần',
-          credits: 'Số TC',
-          section: 'Lớp HP',
-          day: 'Thứ',
-          time: 'Giờ học',
-          classroom: 'Phòng học',
-          lecturer: 'Giảng viên',
-          actions: 'Chi tiết',
-          exportIcs: 'Xuất lịch (.ics)',
-          exportIcsSuccess: 'Đã xuất lịch học dạng iCalendar (.ics) thành công.',
-          exportIcsEmpty: 'Không có buổi học nào để xuất lịch.',
-        } as const
-      : {
-          eyebrow: 'Student area',
-          title: 'Schedule',
-          description: `Keep the weekly class agenda for ${selectedSemesterName} visible while the rest of the student area stays one click away.`,
-          selectSemester: 'Select semester for schedule',
-          allSemesters: 'All semesters',
-          openCourses: 'Open my courses',
-          loading: 'Loading schedule',
-          unavailableTitle: 'Schedule unavailable',
-          emptyTitle: 'No scheduled classes yet',
-          emptyDescription:
-            'Once sections are confirmed, their class meetings will appear here in a weekly agenda.',
-          browseSections: 'Browse sections',
-          weeklyAgenda: 'Weekly agenda',
-          weeklyGrid: 'Weekly timetable grid',
-          upcomingClassList: 'Class section list',
-          noMeetings: 'No scheduled meetings.',
-          noMeetingsHint: 'Classes for the selected day will appear here.',
-          noSlot: 'No teaching slot scheduled.',
-          items: 'items',
-          item: 'item',
-          sectionPrefix: 'Class',
-          roomPending: 'Room information pending',
-          today: 'TODAY',
-          viewGrid: 'Weekly Grid',
-          viewDay: 'Day View',
-          viewList: 'List View',
-          print: 'Print Schedule',
-          totalCourses: 'Courses',
-          totalCredits: 'Credits',
-          totalMeetings: 'Sessions / week',
-          filterDay: 'Select day of week',
-          clickToViewDetails: 'Click on any class to view complete details',
-          courseCode: 'Course Code',
-          courseName: 'Course Title',
-          credits: 'Credits',
-          section: 'Section',
-          day: 'Day',
-          time: 'Time',
-          classroom: 'Room',
-          lecturer: 'Instructor',
-          actions: 'Details',
-          exportIcs: 'Export iCalendar (.ics)',
-          exportIcsSuccess: 'Schedule exported as iCalendar (.ics) successfully.',
-          exportIcsEmpty: 'No scheduled meetings to export.',
-        } as const;
-
   const handleExportIcs = useCallback(() => {
     if (agenda.length === 0) {
-      toast.info(copy.exportIcsEmpty);
+      toast.info(scheduleMessages.exportIcsEmpty);
       return;
     }
     const targetSemester = semesters.find((semester) => semester.id === selectedSemester);
     const events = buildScheduleIcsEvents(enrollments, targetSemester, locale);
     if (events.length === 0) {
-      toast.info(copy.exportIcsEmpty);
+      toast.info(scheduleMessages.exportIcsEmpty);
       return;
     }
-    const calName =
-      locale === 'vi'
-        ? `Lịch học - ${selectedSemesterName || 'CampusUTE'}`
-        : `Schedule - ${selectedSemesterName || 'CampusUTE'}`;
+    const calName = scheduleMessages.ics.calendarName.replace(
+      '{semesterName}',
+      () => selectedSemesterName || scheduleMessages.ics.semesterNameFallback,
+    );
     const icsContent = generateIcsCalendar(events, calName);
     // K12: the filename uses the same Unicode-aware rule as the reader anchors
     // (NFD-decompose, map đ/Đ, drop combining marks, collapse separators). The
@@ -423,13 +327,13 @@ export default function SchedulePage() {
     const semCode = targetSemester?.name
       ? slugify(targetSemester.name) || 'semester'
       : 'semester';
-    const filename = `lich-hoc-${semCode}.ics`;
+    const filename = `${scheduleMessages.ics.filenamePrefix}${semCode}.ics`;
     downloadIcsFile(filename, icsContent);
-    toast.success(copy.exportIcsSuccess);
-  }, [agenda.length, copy.exportIcsEmpty, copy.exportIcsSuccess, enrollments, locale, selectedSemester, selectedSemesterName, semesters]);
+    toast.success(scheduleMessages.exportIcsSuccess);
+  }, [agenda.length, scheduleMessages.exportIcsEmpty, scheduleMessages.exportIcsSuccess, scheduleMessages.ics.calendarName, scheduleMessages.ics.filenamePrefix, scheduleMessages.ics.semesterNameFallback, enrollments, locale, selectedSemester, selectedSemesterName, semesters]);
 
   if (authLoading) {
-    return <LoadingState label={copy.loading} />;
+    return <LoadingState label={scheduleMessages.loading} />;
   }
 
   if (!hasAccess) {
@@ -439,18 +343,18 @@ export default function SchedulePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={<SectionEyebrow>{copy.eyebrow}</SectionEyebrow>}
-        title={copy.title}
-        description={copy.description}
+        eyebrow={<SectionEyebrow>{scheduleMessages.eyebrow}</SectionEyebrow>}
+        title={scheduleMessages.title}
+        description={scheduleMessages.description.replace('{semesterName}', () => selectedSemesterName)}
         actions={
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center print:hidden">
             <div className="min-w-0 sm:min-w-[280px]">
               <Select
-                aria-label={copy.selectSemester}
+                aria-label={scheduleMessages.selectSemester}
                 value={selectedSemester}
                 onChange={(event) => setSelectedSemester(event.target.value)}
                 options={[
-                  { value: '', label: copy.allSemesters },
+                  { value: '', label: scheduleMessages.allSemesters },
                   ...semesters.map((semester) => ({
                     value: semester.id,
                     label: getLocalizedName(locale, semester, semester.name),
@@ -464,13 +368,13 @@ export default function SchedulePage() {
               onClick={handleExportIcs}
               disabled={isLoading || agenda.length === 0}
               className="gap-2"
-              title={copy.exportIcs}
+              title={scheduleMessages.exportIcs}
             >
               <Download className="h-4 w-4 text-primary" aria-hidden="true" />
-              <span>{copy.exportIcs}</span>
+              <span>{scheduleMessages.exportIcs}</span>
             </Button>
             <LinkButton href="/dashboard/enrollments" variant="outline">
-              {copy.openCourses}
+              {scheduleMessages.openCourses}
             </LinkButton>
           </div>
         }
@@ -478,19 +382,19 @@ export default function SchedulePage() {
 
       {error ? (
         <ErrorState
-          title={copy.unavailableTitle}
+          title={scheduleMessages.unavailableTitle}
           description={error}
           onRetry={() => setRetryTick((t) => t + 1)}
         />
       ) : isLoading ? (
-        <LoadingState label={copy.loading} />
+        <LoadingState label={scheduleMessages.loading} />
       ) : agenda.length === 0 ? (
         <EmptyState
           icon={Clock}
-          title={copy.emptyTitle}
-          description={copy.emptyDescription}
+          title={scheduleMessages.emptyTitle}
+          description={scheduleMessages.emptyDescription}
           action={
-            <LinkButton href="/dashboard/register">{copy.browseSections}</LinkButton>
+            <LinkButton href="/dashboard/register">{scheduleMessages.browseSections}</LinkButton>
           }
         />
       ) : (
@@ -514,9 +418,9 @@ export default function SchedulePage() {
                   <span><strong>{messages.schedule.printStudentIdLabel}</strong> {displayLabel(printableStudentCode)}</span>
                 </>
               ) : null}
-              <span><strong>{copy.totalCourses}:</strong> {uniqueCoursesCount}</span>
-              <span><strong>{copy.totalCredits}:</strong> {totalCreditsCount}</span>
-              <span><strong>{copy.totalMeetings}:</strong> {agenda.length}</span>
+              <span><strong>{scheduleMessages.totalCourses}:</strong> {uniqueCoursesCount}</span>
+              <span><strong>{scheduleMessages.totalCredits}:</strong> {totalCreditsCount}</span>
+              <span><strong>{scheduleMessages.totalMeetings}:</strong> {agenda.length}</span>
             </div>
           </div>
 
@@ -542,7 +446,7 @@ export default function SchedulePage() {
                 className="gap-2 text-xs font-semibold"
               >
                 <LayoutGrid className="h-3.5 w-3.5" />
-                {copy.viewGrid}
+                {scheduleMessages.viewGrid}
               </Button>
               <Button
                 ref={viewModeTabs.tabRef('day')}
@@ -558,7 +462,7 @@ export default function SchedulePage() {
                 className="gap-2 text-xs font-semibold"
               >
                 <CalendarDays className="h-3.5 w-3.5" />
-                {copy.viewDay}
+                {scheduleMessages.viewDay}
               </Button>
               <Button
                 ref={viewModeTabs.tabRef('list')}
@@ -574,7 +478,7 @@ export default function SchedulePage() {
                 className="gap-2 text-xs font-semibold"
               >
                 <List className="h-3.5 w-3.5" />
-                {copy.viewList}
+                {scheduleMessages.viewList}
               </Button>
             </div>
 
@@ -583,17 +487,17 @@ export default function SchedulePage() {
               <div className="hidden sm:flex items-center gap-3 border-r border-border/80 pr-4 text-xs font-medium text-muted-foreground">
                 <span className="flex items-center gap-1.5">
                   <GraduationCap className="h-4 w-4 text-primary" />
-                  <strong className="text-foreground">{uniqueCoursesCount}</strong> {copy.totalCourses}
+                  <strong className="text-foreground">{uniqueCoursesCount}</strong> {scheduleMessages.totalCourses}
                 </span>
                 <span>•</span>
                 <span className="flex items-center gap-1.5">
                   <Clock className="h-4 w-4 text-status-success-foreground" />
-                  <strong className="text-foreground">{agenda.length}</strong> {copy.totalMeetings}
+                  <strong className="text-foreground">{agenda.length}</strong> {scheduleMessages.totalMeetings}
                 </span>
                 <span>•</span>
                 <span className="flex items-center gap-1.5">
-                  <span className="font-extrabold text-primary">TC</span>
-                  <strong className="text-foreground">{totalCreditsCount}</strong> {copy.totalCredits}
+                  <span className="font-extrabold text-primary">{scheduleMessages.creditsAbbreviation}</span>
+                  <strong className="text-foreground">{totalCreditsCount}</strong> {scheduleMessages.totalCredits}
                 </span>
               </div>
               <Button
@@ -603,7 +507,7 @@ export default function SchedulePage() {
                 className="gap-2 text-xs font-medium text-foreground hover:bg-secondary"
               >
                 <Printer className="h-3.5 w-3.5" />
-                {copy.print}
+                {scheduleMessages.print}
               </Button>
             </div>
           </div>
@@ -616,11 +520,11 @@ export default function SchedulePage() {
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <CardTitle className="text-xl font-bold flex items-center gap-2">
                       <Clock className="h-5 w-5 text-primary" />
-                      {copy.weeklyAgenda}
+                      {scheduleMessages.weeklyAgenda}
                     </CardTitle>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Sparkles className="h-3.5 w-3.5 text-primary" />
-                      <span>{copy.clickToViewDetails}</span>
+                      <span>{scheduleMessages.clickToViewDetails}</span>
                     </div>
                   </div>
                 </CardHeader>
@@ -631,14 +535,14 @@ export default function SchedulePage() {
                     todayDow={todayDow}
                     onItemSelect={openDetail}
                     labels={{
-                      gridAriaLabel: copy.weeklyGrid,
-                      today: copy.today,
-                      sectionPrefix: copy.sectionPrefix,
-                      roomPending: copy.roomPending,
-                      noSlot: copy.noMeetings,
-                      blockHint: copy.clickToViewDetails,
-                      item: copy.item,
-                      items: copy.items,
+                      gridAriaLabel: scheduleMessages.weeklyGrid,
+                      today: scheduleMessages.today,
+                      sectionPrefix: scheduleMessages.sectionPrefix,
+                      roomPending: scheduleMessages.roomPending,
+                      noSlot: scheduleMessages.noMeetings,
+                      blockHint: scheduleMessages.clickToViewDetails,
+                      item: scheduleMessages.item,
+                      items: scheduleMessages.items,
                     }}
                   />
                 </CardContent>
@@ -650,9 +554,9 @@ export default function SchedulePage() {
           {viewMode === 'day' && (
             <div id="schedule-panel-day" role="tabpanel" aria-labelledby="schedule-tab-day" className="space-y-6">
               {/* Day Selector Pills */}
-              <div role="tablist" aria-label={copy.viewDay} className="flex flex-wrap items-center gap-2">
+              <div role="tablist" aria-label={scheduleMessages.viewDay} className="flex flex-wrap items-center gap-2">
                 {ORDERED_DAYS.map((dayNum) => {
-                  const dayName = locale === 'vi' ? DAY_LABELS_VI[dayNum] : DAY_LABELS_EN[dayNum];
+                  const dayName = scheduleMessages.weekdays[dayNum - 1];
                   const count = (agendaByDay[dayNum] ?? []).length;
                   const isSelected = selectedDayTab === dayNum;
                   const isToday = dayNum === todayDow;
@@ -678,7 +582,7 @@ export default function SchedulePage() {
                       <span>{dayName}</span>
                       {isToday ? (
                         <span className="rounded bg-background/20 px-1 text-[11px] font-extrabold uppercase">
-                          {copy.today}
+                          {scheduleMessages.today}
                         </span>
                       ) : null}
                       <span
@@ -706,10 +610,10 @@ export default function SchedulePage() {
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg font-bold flex items-center gap-2">
                       <Calendar className="h-5 w-5 text-primary" />
-                      {locale === 'vi' ? DAY_LABELS_VI[selectedDayTab] : DAY_LABELS_EN[selectedDayTab]}
+                      {scheduleMessages.weekdays[selectedDayTab - 1]}
                     </CardTitle>
                     <span className="text-xs text-muted-foreground font-semibold">
-                      {(agendaByDay[selectedDayTab] ?? []).length} {copy.items}
+                      {(agendaByDay[selectedDayTab] ?? []).length} {scheduleMessages.items}
                     </span>
                   </div>
                 </CardHeader>
@@ -718,8 +622,8 @@ export default function SchedulePage() {
                     <EmptyState
                       className="min-h-0 border-transparent bg-transparent py-10"
                       icon={Clock}
-                      title={copy.noMeetings}
-                      description={copy.noMeetingsHint}
+                      title={scheduleMessages.noMeetings}
+                      description={scheduleMessages.noMeetingsHint}
                     />
                   ) : (
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -737,7 +641,7 @@ export default function SchedulePage() {
                           <div className="flex items-center justify-between gap-2">
                             <span className="font-mono text-xs font-extrabold">{item.courseCode}</span>
                             <span className="rounded bg-background/70 px-2 py-0.5 text-xs font-semibold text-foreground">
-                              {copy.sectionPrefix} {item.sectionNumber}
+                              {scheduleMessages.sectionPrefix} {item.sectionNumber}
                             </span>
                           </div>
                           <h4 className="mt-2 text-sm font-bold text-foreground">
@@ -793,10 +697,10 @@ export default function SchedulePage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <CardTitle className="text-lg font-bold flex items-center gap-2">
                     <List className="h-5 w-5 text-primary" />
-                    {copy.upcomingClassList}
+                    {scheduleMessages.upcomingClassList}
                   </CardTitle>
                   <span className="text-xs text-muted-foreground font-semibold">
-                    {formatNumber(agenda.length)} {agenda.length === 1 ? copy.item : copy.items}
+                    {formatNumber(agenda.length)} {agenda.length === 1 ? scheduleMessages.item : scheduleMessages.items}
                   </span>
                 </div>
               </CardHeader>
@@ -806,7 +710,7 @@ export default function SchedulePage() {
                     weekly grid's stacked fallback. */}
                 <div className="space-y-2.5 p-3 md:hidden">
                   {agenda.map((item) => {
-                    const dayName = locale === 'vi' ? DAY_LABELS_VI[item.dayOfWeek] : DAY_LABELS_EN[item.dayOfWeek];
+                    const dayName = scheduleMessages.weekdays[item.dayOfWeek - 1];
                     const isToday = item.dayOfWeek === todayDow;
                     const statusLabel = item.status
                       ? messages.common.statuses[item.status as keyof typeof messages.common.statuses] ??
@@ -848,7 +752,7 @@ export default function SchedulePage() {
                         <div className="mt-1.5 flex items-center justify-between gap-2">
                           <span className="font-mono font-bold">{item.courseCode}</span>
                           <span className="rounded bg-background/60 px-1.5 py-0.5 text-[11px]">
-                            {copy.sectionPrefix} {item.sectionNumber}
+                            {scheduleMessages.sectionPrefix} {item.sectionNumber}
                           </span>
                         </div>
                         <div className="mt-1 font-semibold text-foreground text-xs">
@@ -873,7 +777,7 @@ export default function SchedulePage() {
                           ) : (
                             <span className="inline-flex items-center gap-1 italic">
                               <MapPin className="h-3 w-3" />
-                              {copy.roomPending}
+                              {scheduleMessages.roomPending}
                             </span>
                           )}
                           {item.lecturerName ? (
@@ -892,20 +796,20 @@ export default function SchedulePage() {
                     <thead>
                       <tr className="border-b border-border/80 bg-secondary/50 font-bold text-muted-foreground uppercase tracking-wider text-[11px]">
                         <th className="py-3 px-4">#</th>
-                        <th className="py-3 px-4">{copy.courseCode}</th>
-                        <th className="py-3 px-4">{copy.courseName}</th>
-                        <th className="py-3 px-4 text-center">{copy.credits}</th>
-                        <th className="py-3 px-4 text-center">{copy.section}</th>
-                        <th className="py-3 px-4">{copy.day}</th>
-                        <th className="py-3 px-4">{copy.time}</th>
-                        <th className="py-3 px-4">{copy.classroom}</th>
-                        <th className="py-3 px-4">{copy.lecturer}</th>
-                        <th className="py-3 px-4 text-center">{copy.actions}</th>
+                        <th className="py-3 px-4">{scheduleMessages.courseCode}</th>
+                        <th className="py-3 px-4">{scheduleMessages.courseName}</th>
+                        <th className="py-3 px-4 text-center">{scheduleMessages.credits}</th>
+                        <th className="py-3 px-4 text-center">{scheduleMessages.section}</th>
+                        <th className="py-3 px-4">{scheduleMessages.day}</th>
+                        <th className="py-3 px-4">{scheduleMessages.time}</th>
+                        <th className="py-3 px-4">{scheduleMessages.classroom}</th>
+                        <th className="py-3 px-4">{scheduleMessages.lecturer}</th>
+                        <th className="py-3 px-4 text-center">{scheduleMessages.actions}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60 bg-card">
                       {agenda.map((item, idx) => {
-                        const dayName = locale === 'vi' ? DAY_LABELS_VI[item.dayOfWeek] : DAY_LABELS_EN[item.dayOfWeek];
+                        const dayName = scheduleMessages.weekdays[item.dayOfWeek - 1];
                         const isToday = item.dayOfWeek === todayDow;
                         return (
                           <tr
@@ -947,7 +851,7 @@ export default function SchedulePage() {
                                   {item.building ? `${item.building}-` : ''}{item.roomNumber}
                                 </span>
                               ) : (
-                                <span className="text-muted-foreground italic">{copy.roomPending}</span>
+                                <span className="text-muted-foreground italic">{scheduleMessages.roomPending}</span>
                               )}
                             </td>
                             <td className="py-3 px-4 text-muted-foreground max-w-[150px] truncate">
@@ -960,7 +864,7 @@ export default function SchedulePage() {
                                 onClick={() => setSelectedDetail(item)}
                                 className="h-7 px-2.5 text-xs font-semibold text-primary hover:text-primary hover:bg-primary/10"
                               >
-                                {copy.actions}
+                                {scheduleMessages.actions}
                               </Button>
                             </td>
                           </tr>

@@ -176,9 +176,13 @@ export function WeeklyGrid({
   conflictIds,
   className,
 }: WeeklyGridProps) {
-  const jsDay = new Date().getDay();
-  const effectiveTodayDow = todayDow ?? (jsDay === 0 ? 1 : jsDay + 1);
   const weeklyGrid = buildWeeklyGrid(items);
+  const [clientTodayDow, setClientTodayDow] = useState<number>();
+  useEffect(() => {
+    const jsDay = new Date().getDay();
+    setClientTodayDow(jsDay === 0 ? 1 : jsDay + 1);
+  }, []);
+  const effectiveTodayDow = todayDow ?? clientTodayDow;
 
   /**
    * The compact register rail lives in a narrow sidebar whose width depends
@@ -187,13 +191,18 @@ export function WeeklyGrid({
    * fall back to the day-grouped agenda list.
    */
   const railRef = useRef<HTMLDivElement>(null);
-  const [railNarrow, setRailNarrow] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches,
-  );
+  const [railNarrow, setRailNarrow] = useState(false);
   useEffect(() => {
-    if (!compact || typeof ResizeObserver === 'undefined') return undefined;
+    if (!compact) return undefined;
     const el = railRef.current;
     if (!el) return undefined;
+    if (typeof ResizeObserver === 'undefined') {
+      const media = window.matchMedia('(max-width: 639px)');
+      const syncNarrow = () => setRailNarrow(media.matches);
+      syncNarrow();
+      media.addEventListener('change', syncNarrow);
+      return () => media.removeEventListener('change', syncNarrow);
+    }
     const observer = new ResizeObserver(([entry]) => {
       setRailNarrow(entry.contentRect.width < 480);
     });
@@ -487,11 +496,12 @@ export function WeeklyGrid({
           of a 7-column grid that would squeeze each block below readable
           width. */}
       {compact ? (
-        <div className={cn('space-y-2', compactNarrow ? '' : 'hidden')} role="list" aria-label={labels.gridAriaLabel}>
+        <div className={cn('space-y-2', compactNarrow ? '' : 'hidden')}>
           {ORDERED_DAYS.map((dayNum) => {
             const dayItems = agendaByDay[dayNum] ?? [];
             if (dayItems.length === 0) return null;
             const isToday = dayNum === effectiveTodayDow;
+            const dayName = dayLabel(locale, dayNum);
             return (
               <div
                 key={`compact-day-${dayNum}`}
@@ -510,44 +520,50 @@ export function WeeklyGrid({
                     </span>
                   ) : null}
                 </div>
-                <div className="space-y-1">
-                  {dayItems.map((item) => (
-                    <div
-                      key={item.id}
-                      role={onItemSelect ? 'button' : 'listitem'}
-                      tabIndex={onItemSelect ? 0 : undefined}
-                      onKeyDown={onItemSelect ? (event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          onItemSelect(item);
-                        }
-                      } : undefined}
-                      onClick={onItemSelect ? () => onItemSelect(item) : undefined}
-                      className={cn(
-                        'flex min-w-0 items-center gap-2 rounded-md border-y border-r border-l-[3px] px-2 py-1 text-[11px] leading-tight',
-                        onItemSelect ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' : '',
-                        blockTone(item),
-                      )}
-                    >
-                      <span className="min-w-0 truncate font-mono font-bold">
-                        {item.courseCode}
-                      </span>
-                      <span className="shrink-0 rounded-sm border border-border/40 bg-background/80 px-0.5 text-[10px] font-semibold">
-                        {sectionSuffix(item.courseCode, item.sectionNumber)}
-                      </span>
-                      <span className="ml-auto inline-flex shrink-0 items-center gap-1 whitespace-nowrap tabular-nums text-muted-foreground">
-                        <Clock className="h-3 w-3 text-primary" aria-hidden="true" />
-                        {item.startTime}-{item.endTime}
-                      </span>
-                      {item.roomNumber ? (
-                        <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap font-semibold text-foreground">
-                          <MapPin className="h-3 w-3 text-primary" aria-hidden="true" />
-                          {item.building ? `${item.building}-` : ''}
-                          {item.roomNumber}
+                <div role="list" aria-label={dayName} className="space-y-1">
+                  {dayItems.map((item) => {
+                    const rowClass = 'flex min-w-0 items-center gap-2 rounded-md border-y border-r border-l-[3px] px-2 py-1 text-[11px] leading-tight';
+                    const rowContent = (
+                      <>
+                        <span className="min-w-0 truncate font-mono font-bold">
+                          {item.courseCode}
                         </span>
-                      ) : null}
-                    </div>
-                  ))}
+                        <span className="shrink-0 rounded-sm border border-border/40 bg-background/80 px-0.5 text-[10px] font-semibold">
+                          {sectionSuffix(item.courseCode, item.sectionNumber)}
+                        </span>
+                        <span className="ml-auto inline-flex shrink-0 items-center gap-1 whitespace-nowrap tabular-nums text-muted-foreground">
+                          <Clock className="h-3 w-3 text-primary" aria-hidden="true" />
+                          {item.startTime}-{item.endTime}
+                        </span>
+                        {item.roomNumber ? (
+                          <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap font-semibold text-foreground">
+                            <MapPin className="h-3 w-3 text-primary" aria-hidden="true" />
+                            {item.building ? `${item.building}-` : ''}
+                            {item.roomNumber}
+                          </span>
+                        ) : null}
+                      </>
+                    );
+                    return (
+                      <div key={item.id} role="listitem">
+                        {onItemSelect ? (
+                          <button
+                            type="button"
+                            onClick={() => onItemSelect(item)}
+                            className={cn(
+                              rowClass,
+                              'w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                              blockTone(item),
+                            )}
+                          >
+                            {rowContent}
+                          </button>
+                        ) : (
+                          <div className={cn(rowClass, blockTone(item))}>{rowContent}</div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );

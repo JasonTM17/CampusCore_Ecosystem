@@ -89,6 +89,8 @@ export function EventsConsolePage() {
   const [rosterError, setRosterError] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const pendingStaffActionRef = useRef<string | null>(null);
+  const [pendingStaffActionKey, setPendingStaffActionKey] = useState<string | null>(null);
   // A retry after a timeout must replay the same Idempotency-Key, so a
   // registration that already landed is returned instead of failing as a duplicate.
   const pendingKeys = useRef(new Map<string, string>());
@@ -241,7 +243,10 @@ export function EventsConsolePage() {
   }, [mode, loadRoster]);
 
   const runStaffAction = useCallback(
-    async (action: () => Promise<CampusEvent | EventRosterEntry[]>, message: string) => {
+    async (actionKey: string, action: () => Promise<unknown>, message: string) => {
+      if (pendingStaffActionRef.current !== null) return;
+      pendingStaffActionRef.current = actionKey;
+      setPendingStaffActionKey(actionKey);
       setBusy(true);
       try {
         await action();
@@ -258,7 +263,11 @@ export function EventsConsolePage() {
           ?.response?.data?.code;
         toast.error(code === 'EVENT_NOT_OWNER' ? copy.ownerOnly : copy.failed);
       } finally {
-        if (accountRef.current === accountId) setBusy(false);
+        if (pendingStaffActionRef.current === actionKey) pendingStaffActionRef.current = null;
+        if (accountRef.current === accountId) {
+          setPendingStaffActionKey(null);
+          setBusy(false);
+        }
       }
     },
     [accountId, copy.failed, copy.ownerOnly, loadRoster, loadStaff, selectedEventId],
@@ -269,8 +278,7 @@ export function EventsConsolePage() {
       toast.error(copy.failed);
       return;
     }
-    setBusy(true);
-    try {
+    await runStaffAction('create', async () => {
       await eventsApi.staffCreate({
         title: form.title.trim(),
         organizer: form.organizer.trim(),
@@ -287,7 +295,6 @@ export function EventsConsolePage() {
           : null,
       });
       if (accountRef.current !== accountId) return;
-      toast.success(copy.created);
       setCreateOpen(false);
       setForm({
         title: '',
@@ -300,13 +307,8 @@ export function EventsConsolePage() {
         registrationClosesAt: '',
         description: '',
       });
-      await loadStaff();
-    } catch {
-      if (accountRef.current === accountId) toast.error(copy.failed);
-    } finally {
-      if (accountRef.current === accountId) setBusy(false);
-    }
-  }, [accountId, copy.created, copy.failed, form, loadStaff]);
+    }, copy.created);
+  }, [accountId, copy.created, copy.failed, form, runStaffAction]);
 
   const studentRegister = useCallback(
     async (eventId: string) => {
@@ -370,10 +372,10 @@ export function EventsConsolePage() {
           key="publish"
           size="sm"
           variant="outline"
-          disabled={busy}
+          disabled={pendingStaffActionKey === `publish:${event.id}`}
           onClick={(e) => {
             e.stopPropagation();
-            void runStaffAction(() => eventsApi.staffPublish(event.id), copy.actionDone);
+            void runStaffAction(`publish:${event.id}`, () => eventsApi.staffPublish(event.id), copy.actionDone);
           }}
         >
           <Megaphone className="h-3.5 w-3.5" /> {copy.publish}
@@ -386,10 +388,11 @@ export function EventsConsolePage() {
           key="open"
           size="sm"
           variant="outline"
-          disabled={busy}
+          disabled={pendingStaffActionKey === `open:${event.id}`}
           onClick={(e) => {
             e.stopPropagation();
             void runStaffAction(
+              `open:${event.id}`,
               () => eventsApi.staffOpenRegistration(event.id),
               copy.actionDone,
             );
@@ -405,10 +408,11 @@ export function EventsConsolePage() {
           key="close"
           size="sm"
           variant="outline"
-          disabled={busy}
+          disabled={pendingStaffActionKey === `close:${event.id}`}
           onClick={(e) => {
             e.stopPropagation();
             void runStaffAction(
+              `close:${event.id}`,
               () => eventsApi.staffCloseRegistration(event.id),
               copy.actionDone,
             );
@@ -424,10 +428,10 @@ export function EventsConsolePage() {
           key="complete"
           size="sm"
           variant="outline"
-          disabled={busy}
+          disabled={pendingStaffActionKey === `complete:${event.id}`}
           onClick={(e) => {
             e.stopPropagation();
-            void runStaffAction(() => eventsApi.staffComplete(event.id), copy.actionDone);
+            void runStaffAction(`complete:${event.id}`, () => eventsApi.staffComplete(event.id), copy.actionDone);
           }}
         >
           <CheckCircle2 className="h-3.5 w-3.5" /> {copy.complete}
@@ -584,9 +588,10 @@ export function EventsConsolePage() {
                                       variant={
                                         entry.attendanceStatus === 'ATTENDED' ? 'ghost' : 'outline'
                                       }
-                                      disabled={busy}
+                                      disabled={pendingStaffActionKey === `attendance:${event.id}:${entry.registrationId}`}
                                       onClick={() =>
                                         void runStaffAction(
+                                          `attendance:${event.id}:${entry.registrationId}`,
                                           () =>
                                             eventsApi.staffMarkAttendance(event.id, [
                                               {
@@ -802,7 +807,7 @@ export function EventsConsolePage() {
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               {copy.dismiss}
             </Button>
-            <Button onClick={() => void submitCreate()} disabled={busy}>
+            <Button onClick={() => void submitCreate()} disabled={pendingStaffActionKey === 'create'}>
               {copy.submitCreate}
             </Button>
           </div>
@@ -827,12 +832,13 @@ export function EventsConsolePage() {
             </Button>
             <Button
               variant="destructive"
-              disabled={busy}
+              disabled={pendingStaffActionKey === `cancel:${cancelOpen?.id}`}
               onClick={() => {
                 const target = cancelOpen;
                 setCancelOpen(null);
                 if (target) {
                   void runStaffAction(
+                    `cancel:${target.id}`,
                     () => eventsApi.staffCancel(target.id, cancelReason || undefined),
                     copy.cancelledEventOk,
                   );

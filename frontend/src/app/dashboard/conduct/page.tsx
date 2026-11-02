@@ -38,216 +38,14 @@ import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
 import { LoadingState, ErrorState, EmptyState } from '@/components/ui/state-block';
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 
-const conductCopy = {
-  en: {
-    institution: 'Ho Chi Minh City University of Technology and Engineering',
-    office: 'Student Affairs Office • CampusUTE',
-    printTitle: 'Student Conduct Evaluation Report',
-    pageEyebrow: 'HCMUTE • Student Affairs Office',
-    pageTitle: 'Conduct score',
-    pageDescription: 'Review conduct scores, five evaluation criteria, and approved activities without the old dense report layout.',
-    exportReport: 'Export conduct report',
-    selectedSemester: 'Selected semester',
-    currentSemester: 'Current term',
-    pointsOutOf: '/ 100 pts',
-    status: 'Status:',
-    approved: 'Approved',
-    evaluator: 'Evaluator:',
-    cumulativeTitle: 'Cumulative average',
-    cumulativeSubtitle: 'Conduct score across recorded semesters',
-    semesters: 'semesters',
-    rankPrefix: 'Rank:',
-    scholarshipStatus: 'Scholarship check:',
-    eligible: 'Eligible',
-    requirement: 'Minimum 70 pts',
-    activitiesTitle: 'Activities',
-    activitiesSubtitle: 'Extracurricular and community records',
-    bonusPoints: 'bonus pts',
-    eventCount: 'recognized events',
-    viewCertificates: 'View certificates',
-    chooseSemester: 'Semester:',
-    optionScoreUnit: 'pts',
-    info: 'Conduct score supports scholarship, awards, and graduation review.',
-    criteriaTitle: '5 conduct criteria',
-    criteriaEmpty: 'Criterion details have not been published for this semester yet.',
-    earned: 'Earned',
-    scoreUnit: 'pts',
-    reached: 'Reached',
-    activitiesPanelTitle: 'Approved activities',
-    activitiesCount: '{count} records',
-    activityName: 'Activity',
-    category: 'Category',
-    date: 'Date',
-    organizer: 'Organizer',
-    bonus: 'Bonus',
-    verification: 'Verification',
-    evidence: 'Evidence',
-    approvedBadge: 'Approved',
-    viewCertificate: 'Open certificate',
-    historyTitle: 'Conduct history',
-    historySemester: 'Semester',
-    historyTotal: 'Total',
-    historyRank: 'Rank',
-    historyStatus: 'Status',
-    official: 'Official',
-    classificationScaleTitle: 'Classification scale',
-    range: 'Range',
-    note: 'Note',
-    excellent: 'Excellent',
-    good: 'Good',
-    fair: 'Fair',
-    average: 'Average',
-    weak: 'Weak / Poor',
-    notClassified: 'Not yet classified',
-    statusPending: 'Pending approval',
-    statusUnknown: 'Unknown',
-    scholarshipBelow: 'Below requirement',
-    recordBadge: 'Recorded in the conduct file',
-    previewTitle: 'Activity record — unofficial preview',
-    previewNote:
-      'This is an on-screen preview of a recorded activity, not an issued certificate. Official confirmation letters are issued by the Student Affairs Office.',
-    scholarshipPriority: 'Scholarship priority',
-    scholarshipReady: 'Scholarship eligible',
-    completed: 'Completed',
-    meetsRequirement: 'Meets requirement',
-    warning: 'Conduct warning',
-    classOfficers: 'Class officers',
-    facultySignature: 'Faculty / Student Affairs',
-    signHint: 'Signature and full name',
-    sealHint: 'Signature, seal, and full name',
-    totalScore: 'Total score',
-    certificateTitle: 'CONDUCT ACTIVITY RECORD (PREVIEW)',
-    certificateSubtitle: 'Recorded evidence entry — not an issued certificate',
-    confirmedStudent: 'Confirmed student:',
-    studentId: 'Student ID:',
-    classLabel: 'Class:',
-    activityLabel: 'Activity:',
-    fieldLabel: 'Field:',
-    recordedDate: 'Recorded date:',
-    organizerLabel: 'Organizer:',
-    bonusConductPoints: 'Bonus conduct points:',
-    printCertificate: 'Print record',
-    close: 'Close',
-    loadErrorTitle: 'Could not load conduct data',
-  },
-  vi: {
-    institution: 'TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM',
-    office: 'PHÒNG CÔNG TÁC SINH VIÊN • CAMPUSUTE',
-    printTitle: 'PHIẾU ĐÁNH GIÁ KẾT QUẢ RÈN LUYỆN SINH VIÊN',
-    pageEyebrow: 'HCM-UTE • PHÒNG CTSV',
-    pageTitle: 'Điểm rèn luyện',
-    pageDescription: 'Theo dõi điểm ĐRL, 5 tiêu chí đánh giá và hoạt động được duyệt bằng bố cục gọn hơn.',
-    exportReport: 'Xuất phiếu rèn luyện',
-    selectedSemester: 'Học kỳ đang chọn',
-    currentSemester: 'Học kỳ đang chọn',
-    pointsOutOf: '/ 100 điểm',
-    status: 'Trạng thái:',
-    approved: 'Đã phê duyệt',
-    evaluator: 'Người duyệt:',
-    cumulativeTitle: 'Điểm TB toàn khóa',
-    cumulativeSubtitle: 'Điểm rèn luyện tích lũy đến hiện tại',
-    semesters: 'học kỳ',
-    rankPrefix: 'Xếp loại:',
-    scholarshipStatus: 'Điều kiện xét học bổng:',
-    eligible: 'Đạt chuẩn',
-    requirement: 'Yêu cầu tối thiểu 70đ',
-    activitiesTitle: 'Hoạt động',
-    activitiesSubtitle: 'Phong trào và minh chứng ngoại khóa',
-    bonusPoints: 'điểm cộng',
-    eventCount: 'sự kiện đã tham gia',
-    viewCertificates: 'Xem chứng nhận',
-    chooseSemester: 'Học kỳ:',
-    optionScoreUnit: 'điểm',
-    info: 'Điểm rèn luyện dùng để xét học bổng, khen thưởng và điều kiện tốt nghiệp.',
-    criteriaTitle: '5 tiêu chí rèn luyện',
-    criteriaEmpty: 'Chi tiết từng tiêu chí chưa được công bố cho học kỳ này.',
-    earned: 'Tổng điểm đạt',
-    scoreUnit: 'điểm',
-    reached: 'Đạt',
-    activitiesPanelTitle: 'Hoạt động đã duyệt',
-    activitiesCount: '{count} hoạt động',
-    activityName: 'Hoạt động',
-    category: 'Lĩnh vực',
-    date: 'Thời gian',
-    organizer: 'Đơn vị tổ chức',
-    bonus: 'Điểm cộng',
-    verification: 'Xác thực',
-    evidence: 'Minh chứng',
-    approvedBadge: 'Đã duyệt',
-    viewCertificate: 'Xem chứng nhận',
-    historyTitle: 'Lịch sử điểm rèn luyện',
-    historySemester: 'Học kỳ',
-    historyTotal: 'Điểm tổng',
-    historyRank: 'Xếp loại',
-    historyStatus: 'Trạng thái',
-    official: 'Chính thức',
-    classificationScaleTitle: 'Khung xếp loại rèn luyện',
-    range: 'Khung điểm',
-    note: 'Ghi chú',
-    excellent: 'Xuất sắc',
-    good: 'Tốt',
-    fair: 'Khá',
-    average: 'Trung bình',
-    weak: 'Yếu / Kém',
-    notClassified: 'Chưa xếp loại',
-    statusPending: 'Chờ phê duyệt',
-    statusUnknown: 'Chưa rõ',
-    scholarshipBelow: 'Chưa đạt chuẩn',
-    recordBadge: 'Đã ghi nhận trong hồ sơ rèn luyện',
-    previewTitle: 'Hồ sơ hoạt động — bản xem trước',
-    previewNote:
-      'Đây là bản xem trước của hoạt động đã ghi nhận, không phải chứng nhận được cấp. Giấy xác nhận chính thức do Phòng Công tác Sinh viên phát hành.',
-    scholarshipPriority: 'Ưu tiên học bổng',
-    scholarshipReady: 'Đủ chuẩn học bổng',
-    completed: 'Hoàn thành tốt',
-    meetsRequirement: 'Đạt yêu cầu',
-    warning: 'Cảnh báo rèn luyện',
-    classOfficers: 'BAN CÁN SỰ LỚP',
-    facultySignature: 'TRƯỞNG KHOA / BAN CTSV',
-    signHint: 'Ký và ghi rõ họ tên',
-    sealHint: 'Ký, đóng dấu và ghi rõ họ tên',
-    totalScore: 'Điểm tổng kết',
-    certificateTitle: 'HỒ SƠ HOẠT ĐỘNG RÈN LUYỆN (BẢN XEM TRƯỚC)',
-    certificateSubtitle: 'Bản ghi minh chứng đã lưu — không phải chứng nhận được cấp',
-    confirmedStudent: 'Sinh viên xác nhận:',
-    studentId: 'Mã số sinh viên:',
-    classLabel: 'Lớp:',
-    activityLabel: 'Hoạt động:',
-    fieldLabel: 'Lĩnh vực:',
-    recordedDate: 'Ngày ghi nhận:',
-    organizerLabel: 'Đơn vị tổ chức:',
-    bonusConductPoints: 'Điểm cộng rèn luyện:',
-    printCertificate: 'In bản ghi',
-    close: 'Đóng',
-    loadErrorTitle: 'Không thể tải dữ liệu điểm rèn luyện',
-  },
-};
-
-const conductCriteriaDescriptions = {
-  en: {
-    CRITERIA_1: 'Attendance, coursework, learning attitude, and academic research participation.',
-    CRITERIA_2: 'Compliance with university rules, exam regulations, laws, and traffic safety.',
-    CRITERIA_3: 'Participation in civic, social, cultural, volunteer, and student-union activities.',
-    CRITERIA_4: 'Civic responsibility, respectful community conduct, and campus safety behavior.',
-    CRITERIA_5: 'Class leadership, clubs, academic groups, and recognized university achievements.',
-  },
-  vi: {
-    CRITERIA_1: 'Chuyên cần, bài tập, thái độ học tập và tham gia nghiên cứu khoa học.',
-    CRITERIA_2: 'Chấp hành quy định nhà trường, quy chế thi cử, pháp luật và an toàn giao thông.',
-    CRITERIA_3: 'Tham gia hoạt động chính trị - xã hội, văn hóa, tình nguyện và Đoàn - Hội.',
-    CRITERIA_4: 'Trách nhiệm công dân, quan hệ cộng đồng và giữ gìn an ninh trật tự.',
-    CRITERIA_5: 'Công tác cán bộ lớp, câu lạc bộ, nhóm học thuật và thành tích cấp trường.',
-  },
-};
-
 export default function StudentConductPage() {
   // /conduct/my is hasRole('STUDENT')-only on the backend: a staff member has
   // no "my conduct", so admitting ADMIN/SUPER_ADMIN here only bought them a
   // load error plus a full-page reload instead of the forbidden screen.
   const { user, isLoading: authLoading, hasAccess, isForbidden } = useRequireAuth(['STUDENT']);
   const { messages, formatDate, formatNumber, locale } = useI18n();
+  const conductMessages = messages.studentPages.conduct;
   const vi = locale === 'vi';
-  const copy = conductCopy[locale];
 
   const [summary, setSummary] = useState<StudentConductSummary | null>(null);
   // Semester options come from the system catalog, not from the student's own
@@ -281,11 +79,11 @@ export default function StudentConductPage() {
       );
     } catch {
       setSummary(null);
-      setError(copy.loadErrorTitle);
+      setError(conductMessages.loadErrorTitle);
     } finally {
       setLoading(false);
     }
-  }, [copy.loadErrorTitle, hasAccess]);
+  }, [conductMessages.loadErrorTitle, hasAccess]);
 
   useEffect(() => {
     void loadConduct();
@@ -338,17 +136,17 @@ export default function StudentConductPage() {
 
   const rankLabel = (rank: string | null | undefined, fallback?: string | null) => {
     const normalized = (rank || fallback || '').toUpperCase();
-    if (normalized === 'XUAT_SAC' || normalized.includes('XUẤT SẮC')) return copy.excellent;
-    if (normalized === 'TOT' || normalized.includes('TỐT')) return copy.good;
-    if (normalized === 'KHA' || normalized.includes('KHÁ')) return copy.fair;
-    if (normalized === 'TRUNG_BINH' || normalized.includes('TRUNG BÌNH')) return copy.average;
+    if (normalized === 'XUAT_SAC' || normalized.includes('XUẤT SẮC')) return conductMessages.excellent;
+    if (normalized === 'TOT' || normalized.includes('TỐT')) return conductMessages.good;
+    if (normalized === 'KHA' || normalized.includes('KHÁ')) return conductMessages.fair;
+    if (normalized === 'TRUNG_BINH' || normalized.includes('TRUNG BÌNH')) return conductMessages.average;
     if (normalized === 'YEU' || normalized === 'KEM' || normalized.includes('YẾU') || normalized.includes('KÉM')) {
-      return copy.weak;
+      return conductMessages.weak;
     }
     // `fallback` is the raw classification text the API stored, so it is safe
     // to show; anything genuinely unrecognized gets a neutral label, never a
     // passing one.
-    return fallback || copy.notClassified;
+    return fallback || conductMessages.notClassified;
   };
 
   // The API reports a per-semester status; the UI must not claim an approval
@@ -356,12 +154,12 @@ export default function StudentConductPage() {
   const statusView = (status: string | null | undefined) => {
     const normalized = (status || '').trim().toUpperCase();
     if (normalized === 'APPROVED') {
-      return { label: copy.approved, approved: true as const };
+      return { label: conductMessages.approved, approved: true as const };
     }
     if (normalized === 'PENDING' || normalized === 'IN_REVIEW' || normalized === 'DRAFT') {
-      return { label: copy.statusPending, approved: false as const };
+      return { label: conductMessages.statusPending, approved: false as const };
     }
-    return { label: copy.statusUnknown, approved: false as const };
+    return { label: conductMessages.statusUnknown, approved: false as const };
   };
 
   const criterionName = (criterion: ConductSemesterScore['criteria'][number]) =>
@@ -369,7 +167,7 @@ export default function StudentConductPage() {
 
   const criterionDescription = (criterion: ConductSemesterScore['criteria'][number]) =>
     criterion.description
-    || conductCriteriaDescriptions[locale][criterion.code as keyof typeof conductCriteriaDescriptions.en]
+    || conductMessages.criteriaDescriptions[criterion.code as keyof typeof conductMessages.criteriaDescriptions]
     || '—';
 
   const activityDetails = (activity: ConductActivity) => ({
@@ -388,7 +186,7 @@ export default function StudentConductPage() {
   }
 
   if (error && !summary) {
-    return <ErrorState title={copy.loadErrorTitle} description={error} onRetry={() => void loadConduct()} />;
+    return <ErrorState title={conductMessages.loadErrorTitle} description={error} onRetry={() => void loadConduct()} />;
   }
 
   const getRankBadgeClass = (rank: string | null | undefined) => {
@@ -421,28 +219,28 @@ export default function StudentConductPage() {
       {/* Printable Official Institutional Header */}
       <div className="hidden print:block mb-6 border-b-2 border-primary/40 pb-4 text-center">
         <div className="text-xs uppercase font-bold tracking-wider text-muted-foreground">
-          {copy.institution}
+          {conductMessages.institution}
         </div>
         <div className="text-sm font-extrabold text-foreground">
-          {copy.office}
+          {conductMessages.office}
         </div>
         <h1 className="text-xl font-black text-primary mt-2 uppercase tracking-wide">
-          {copy.printTitle}
+          {conductMessages.printTitle}
         </h1>
         <div className="flex flex-wrap justify-center gap-6 mt-3 text-xs text-foreground font-medium">
-          <span><strong>{copy.historySemester}:</strong> {formatSemesterName(activeSemesterScore?.semesterName)}</span>
-          <span><strong>{vi ? 'Sinh viên' : 'Student'}:</strong> {summary?.fullName || (user ? `${user.lastName ?? ''} ${user.firstName ?? ''}`.trim() : '')}</span>
-          <span><strong>{copy.studentId}</strong> {displayLabel(summary?.studentCode)}</span>
-          <span><strong>{copy.totalScore}:</strong> {activeSemesterScore ? formatNumber(activeSemesterScore.totalScore) : '—'} / 100</span>
-          <span><strong>{copy.historyRank}:</strong> {rankLabel(activeSemesterScore?.classification, activeSemesterScore?.classificationVi)}</span>
+          <span><strong>{conductMessages.historySemester}:</strong> {formatSemesterName(activeSemesterScore?.semesterName)}</span>
+          <span><strong>{conductMessages.studentLabel}:</strong> {summary?.fullName || (user ? `${user.lastName ?? ''} ${user.firstName ?? ''}`.trim() : '')}</span>
+          <span><strong>{conductMessages.studentId}</strong> {displayLabel(summary?.studentCode)}</span>
+          <span><strong>{conductMessages.totalScore}:</strong> {activeSemesterScore ? formatNumber(activeSemesterScore.totalScore) : '—'} / 100</span>
+          <span><strong>{conductMessages.historyRank}:</strong> {rankLabel(activeSemesterScore?.classification, activeSemesterScore?.classificationVi)}</span>
         </div>
       </div>
 
       <div className="print:hidden">
         <PageHeader
-          eyebrow={<SectionEyebrow>{copy.pageEyebrow}</SectionEyebrow>}
-          title={copy.pageTitle}
-          description={copy.pageDescription}
+          eyebrow={<SectionEyebrow>{conductMessages.pageEyebrow}</SectionEyebrow>}
+          title={conductMessages.pageTitle}
+          description={conductMessages.pageDescription}
           actions={
             <Button
               onClick={handleExportConductReport}
@@ -450,7 +248,7 @@ export default function StudentConductPage() {
               className="flex w-full items-center gap-2 border-primary/30 hover:bg-primary/5 sm:w-auto"
             >
               <Printer className="h-4 w-4 text-primary" />
-              <span>{copy.exportReport}</span>
+              <span>{conductMessages.exportReport}</span>
             </Button>
           }
         />
@@ -465,7 +263,7 @@ export default function StudentConductPage() {
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Award className="h-4 w-4 text-primary" />
-                {copy.currentSemester}
+                {conductMessages.currentSemester}
               </span>
               <span className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs font-bold ${getRankBadgeClass(activeSemesterScore?.classification)}`}>
                 <CheckCircle2 className="h-3 w-3" />
@@ -481,16 +279,16 @@ export default function StudentConductPage() {
               <span className="text-4xl font-extrabold tracking-tight text-foreground">
                 {activeSemesterScore ? formatNumber(activeSemesterScore.totalScore) : '—'}
               </span>
-              <span className="text-sm font-medium text-muted-foreground">{copy.pointsOutOf}</span>
+              <span className="text-sm font-medium text-muted-foreground">{conductMessages.pointsOutOf}</span>
             </div>
             <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground border-t border-border/50 pt-2">
               <span>
-                {copy.status}{' '}
+                {conductMessages.status}{' '}
                 <strong className={semesterStatus.approved ? 'text-status-success-foreground' : 'text-muted-foreground'}>
                   {semesterStatus.label}
                 </strong>
               </span>
-              <span>{copy.evaluator} {activeSemesterScore?.evaluatorName || '—'}</span>
+              <span>{conductMessages.evaluator} {activeSemesterScore?.evaluatorName || '—'}</span>
             </div>
           </CardContent>
         </Card>
@@ -501,14 +299,14 @@ export default function StudentConductPage() {
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <TrendingUp className="h-4 w-4 text-primary" />
-                {copy.cumulativeTitle}
+                {conductMessages.cumulativeTitle}
               </span>
               <span className="rounded-md bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                {summary?.history.length ?? 0} {copy.semesters}
+                {summary?.history.length ?? 0} {conductMessages.semesters}
               </span>
             </div>
             <CardTitle className="text-sm font-medium text-muted-foreground mt-1">
-              {copy.cumulativeSubtitle}
+              {conductMessages.cumulativeSubtitle}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
@@ -518,7 +316,7 @@ export default function StudentConductPage() {
               </span>
               <span className="text-sm font-medium text-muted-foreground">/ 100</span>
               <span className="ml-2 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-                {copy.rankPrefix} {rankLabel(summary?.cumulativeClassificationVi, summary?.cumulativeClassificationVi)}
+                {conductMessages.rankPrefix} {rankLabel(summary?.cumulativeClassificationVi, summary?.cumulativeClassificationVi)}
               </span>
             </div>
             <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground border-t border-border/50 pt-2">
@@ -529,23 +327,23 @@ export default function StudentConductPage() {
                 if (cumulativeScore == null) {
                   return (
                     <span>
-                      {copy.scholarshipStatus} <strong className="text-muted-foreground">—</strong>
+                      {conductMessages.scholarshipStatus} <strong className="text-muted-foreground">—</strong>
                     </span>
                   );
                 }
                 return cumulativeScore >= 70 ? (
                   <span>
-                    {copy.scholarshipStatus}{' '}
-                    <strong className="text-status-success-foreground">{copy.eligible}</strong>
+                    {conductMessages.scholarshipStatus}{' '}
+                    <strong className="text-status-success-foreground">{conductMessages.eligible}</strong>
                   </span>
                 ) : (
                   <span>
-                    {copy.scholarshipStatus}{' '}
-                    <strong className="text-muted-foreground">{copy.scholarshipBelow}</strong>
+                    {conductMessages.scholarshipStatus}{' '}
+                    <strong className="text-muted-foreground">{conductMessages.scholarshipBelow}</strong>
                   </span>
                 );
               })()}
-              <span>({copy.requirement})</span>
+              <span>({conductMessages.requirement})</span>
             </div>
           </CardContent>
         </Card>
@@ -556,14 +354,14 @@ export default function StudentConductPage() {
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Sparkles className="h-4 w-4 text-status-warning-foreground" />
-                {copy.activitiesTitle}
+                {conductMessages.activitiesTitle}
               </span>
               <span className="rounded-md bg-status-warning/15 px-2.5 py-0.5 text-xs font-bold text-status-warning-foreground">
-                +{(activeSemesterScore?.activities || []).reduce((sum, a) => sum + (a.points || 0), 0).toFixed(1)} {copy.bonusPoints}
+                +{(activeSemesterScore?.activities || []).reduce((sum, a) => sum + (a.points || 0), 0).toFixed(1)} {conductMessages.bonusPoints}
               </span>
             </div>
             <CardTitle className="text-sm font-medium text-muted-foreground mt-1">
-              {copy.activitiesSubtitle}
+              {conductMessages.activitiesSubtitle}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
@@ -571,11 +369,11 @@ export default function StudentConductPage() {
               <span className="text-4xl font-extrabold tracking-tight text-foreground">
                 {activeSemesterScore?.activities?.length ?? 0}
               </span>
-              <span className="text-sm font-medium text-muted-foreground">{copy.eventCount}</span>
+              <span className="text-sm font-medium text-muted-foreground">{conductMessages.eventCount}</span>
             </div>
             <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground border-t border-border/50 pt-2">
               <span>
-                {copy.status}{' '}
+                {conductMessages.status}{' '}
                 <strong className={semesterStatus.approved ? 'text-foreground' : 'text-muted-foreground'}>
                   {semesterStatus.label}
                 </strong>
@@ -587,7 +385,7 @@ export default function StudentConductPage() {
                 }}
                 className="inline-flex min-h-8 items-center text-primary font-medium cursor-pointer hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                {copy.viewCertificates}
+                {conductMessages.viewCertificates}
               </button>
             </div>
           </CardContent>
@@ -597,9 +395,9 @@ export default function StudentConductPage() {
       <div className="flex flex-col gap-3 rounded-lg border border-border/70 bg-card p-4 shadow-sm print:hidden sm:flex-row sm:items-center sm:justify-between">
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <Calendar className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium text-foreground">{copy.chooseSemester}</span>
+          <span className="text-sm font-medium text-foreground">{conductMessages.chooseSemester}</span>
           <select
-            aria-label={copy.chooseSemester}
+            aria-label={conductMessages.chooseSemester}
             value={selectedSemesterId}
             onChange={(e) => setSelectedSemesterId(e.target.value)}
             className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 sm:w-auto"
@@ -607,7 +405,7 @@ export default function StudentConductPage() {
             {semesterOptions.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.record
-                  ? `${formatSemesterName(option.name)} (${formatNumber(option.record.totalScore)} ${copy.optionScoreUnit} - ${rankLabel(option.record.classification, option.record.classificationVi)})`
+                  ? `${formatSemesterName(option.name)} (${formatNumber(option.record.totalScore)} ${conductMessages.optionScoreUnit} - ${rankLabel(option.record.classification, option.record.classificationVi)})`
                   : formatSemesterName(option.name)}
               </option>
             ))}
@@ -616,7 +414,7 @@ export default function StudentConductPage() {
 
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Info className="h-4 w-4 text-primary shrink-0" />
-          <span>{copy.info}</span>
+          <span>{conductMessages.info}</span>
         </div>
       </div>
 
@@ -624,17 +422,17 @@ export default function StudentConductPage() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-base font-bold text-foreground flex items-center gap-2">
             <Layers className="h-5 w-5 text-primary" />
-            {copy.criteriaTitle}
+            {conductMessages.criteriaTitle}
           </h3>
           <span className="text-xs font-semibold text-muted-foreground">
-            {copy.earned}: <strong className="text-primary text-sm">{activeSemesterScore ? formatNumber(activeSemesterScore.totalScore) : '—'}</strong> / 100
+            {conductMessages.earned}: <strong className="text-primary text-sm">{activeSemesterScore ? formatNumber(activeSemesterScore.totalScore) : '—'}</strong> / 100
           </span>
         </div>
 
         <div className="grid gap-3">
           {(activeSemesterScore?.criteria || []).length === 0 && (
             <p className="rounded-lg border border-dashed border-border/70 bg-secondary/30 px-4 py-3 text-sm text-muted-foreground">
-              {copy.criteriaEmpty}
+              {conductMessages.criteriaEmpty}
             </p>
           )}
           {(activeSemesterScore?.criteria || []).map((crit, index) => {
@@ -663,11 +461,11 @@ export default function StudentConductPage() {
                           {formatNumber(crit.score)}
                         </span>
                         <span className="text-xs font-medium text-muted-foreground">
-                          / {formatNumber(crit.maxScore)} {copy.scoreUnit}
+                          / {formatNumber(crit.maxScore)} {conductMessages.scoreUnit}
                         </span>
                       </div>
                       <span className="text-[11px] font-medium text-muted-foreground">
-                        {copy.reached} {Math.round(ratio)}%
+                        {conductMessages.reached} {Math.round(ratio)}%
                       </span>
                     </div>
                   </div>
@@ -693,10 +491,10 @@ export default function StudentConductPage() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base font-bold flex items-center gap-2">
               <HeartHandshake className="h-4 w-4 text-primary" />
-              {copy.activitiesPanelTitle}
+              {conductMessages.activitiesPanelTitle}
             </CardTitle>
             <span className="text-xs text-muted-foreground">
-              {copy.activitiesCount.replace('{count}', formatNumber(activeSemesterScore?.activities?.length ?? 0))}
+              {conductMessages.activitiesCount.replace('{count}', formatNumber(activeSemesterScore?.activities?.length ?? 0))}
             </span>
           </div>
         </CardHeader>
@@ -726,17 +524,17 @@ export default function StudentConductPage() {
                   </div>
                   <dl className="grid gap-2 text-xs">
                     <div className="grid grid-cols-[5.5rem_1fr] gap-2">
-                      <dt className="text-muted-foreground">{copy.date}</dt>
+                      <dt className="text-muted-foreground">{conductMessages.date}</dt>
                       <dd className="font-medium text-foreground">{details.date}</dd>
                     </div>
                     <div className="grid grid-cols-[5.5rem_1fr] gap-2">
-                      <dt className="text-muted-foreground">{copy.organizer}</dt>
+                      <dt className="text-muted-foreground">{conductMessages.organizer}</dt>
                       <dd className="font-medium text-foreground">{details.organizer}</dd>
                     </div>
                     <div className="grid grid-cols-[5.5rem_1fr] gap-2">
-                      <dt className="text-muted-foreground">{copy.verification}</dt>
+                      <dt className="text-muted-foreground">{conductMessages.verification}</dt>
                       <dd className={semesterStatus.approved ? 'font-medium text-status-success-foreground' : 'font-medium text-muted-foreground'}>
-                        {semesterStatus.approved ? copy.approvedBadge : semesterStatus.label}
+                        {semesterStatus.approved ? conductMessages.approvedBadge : semesterStatus.label}
                       </dd>
                     </div>
                   </dl>
@@ -747,7 +545,7 @@ export default function StudentConductPage() {
                     className="w-full gap-1.5 text-xs font-semibold text-primary hover:bg-primary/10"
                   >
                     <FileCheck className="h-3.5 w-3.5" />
-                    {copy.viewCertificate}
+                    {conductMessages.viewCertificate}
                   </Button>
                 </article>
               );
@@ -757,13 +555,13 @@ export default function StudentConductPage() {
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border/70 bg-secondary/30 text-xs uppercase text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">{copy.activityName}</th>
-                  <th className="px-4 py-3 font-semibold">{copy.category}</th>
-                  <th className="px-4 py-3 font-semibold">{copy.date}</th>
-                  <th className="px-4 py-3 font-semibold">{copy.organizer}</th>
-                  <th className="px-4 py-3 font-semibold text-right">{copy.bonus}</th>
-                  <th className="px-4 py-3 font-semibold text-center">{copy.verification}</th>
-                  <th className="px-4 py-3 font-semibold text-center">{copy.evidence}</th>
+                  <th className="px-4 py-3 font-semibold">{conductMessages.activityName}</th>
+                  <th className="px-4 py-3 font-semibold">{conductMessages.category}</th>
+                  <th className="px-4 py-3 font-semibold">{conductMessages.date}</th>
+                  <th className="px-4 py-3 font-semibold">{conductMessages.organizer}</th>
+                  <th className="px-4 py-3 font-semibold text-right">{conductMessages.bonus}</th>
+                  <th className="px-4 py-3 font-semibold text-center">{conductMessages.verification}</th>
+                  <th className="px-4 py-3 font-semibold text-center">{conductMessages.evidence}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
@@ -786,7 +584,7 @@ export default function StudentConductPage() {
                         {details.organizer}
                       </td>
                       <td className="px-4 py-3 font-bold text-status-success-foreground text-right whitespace-nowrap">
-                        +{formatNumber(act.points)} {copy.scoreUnit}
+                        +{formatNumber(act.points)} {conductMessages.scoreUnit}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${semesterStatus.approved ? 'bg-status-success/15 text-status-success-foreground' : 'bg-status-neutral/15 text-status-neutral-foreground'}`}>
@@ -795,7 +593,7 @@ export default function StudentConductPage() {
                           ) : (
                             <HelpCircle className="h-3 w-3" />
                           )}
-                          {semesterStatus.approved ? copy.approvedBadge : semesterStatus.label}
+                          {semesterStatus.approved ? conductMessages.approvedBadge : semesterStatus.label}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
@@ -806,7 +604,7 @@ export default function StudentConductPage() {
                           className="h-8 px-2.5 text-xs font-semibold gap-1 text-primary hover:bg-primary/10 transition-colors"
                         >
                           <FileCheck className="h-3.5 w-3.5" />
-                          {copy.viewCertificate}
+                          {conductMessages.viewCertificate}
                         </Button>
                       </td>
                     </tr>
@@ -827,7 +625,7 @@ export default function StudentConductPage() {
           <CardHeader className="border-b border-border/70 bg-[hsl(var(--surface-alt))] py-3.5">
             <CardTitle className="text-base font-bold flex items-center gap-2">
               <Calendar className="h-4 w-4 text-primary" />
-              {copy.historyTitle}
+              {conductMessages.historyTitle}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -848,7 +646,7 @@ export default function StudentConductPage() {
                       <p className="break-words text-sm font-semibold text-foreground">
                         {formatSemesterName(item.semesterName)}
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">{copy.historySemester}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{conductMessages.historySemester}</p>
                     </div>
                     <span className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-bold ${getRankBadgeClass(item.classification)}`}>
                       {rankLabel(item.classification, item.classificationVi)}
@@ -856,7 +654,7 @@ export default function StudentConductPage() {
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-primary">
-                      {formatNumber(item.totalScore)} {copy.scoreUnit}
+                      {formatNumber(item.totalScore)} {conductMessages.scoreUnit}
                     </span>
                     {(() => {
                       const status = statusView(item.status);
@@ -867,7 +665,7 @@ export default function StudentConductPage() {
                           ) : (
                             <HelpCircle className="h-3.5 w-3.5" />
                           )}
-                          {status.approved ? copy.official : status.label}
+                          {status.approved ? conductMessages.official : status.label}
                         </span>
                       );
                     })()}
@@ -879,10 +677,10 @@ export default function StudentConductPage() {
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-border/70 bg-secondary/30 text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="px-4 py-3 font-semibold">{copy.historySemester}</th>
-                    <th className="px-4 py-3 font-semibold text-center">{copy.historyTotal}</th>
-                    <th className="px-4 py-3 font-semibold text-center">{copy.historyRank}</th>
-                    <th className="px-4 py-3 font-semibold">{copy.historyStatus}</th>
+                    <th className="px-4 py-3 font-semibold">{conductMessages.historySemester}</th>
+                    <th className="px-4 py-3 font-semibold text-center">{conductMessages.historyTotal}</th>
+                    <th className="px-4 py-3 font-semibold text-center">{conductMessages.historyRank}</th>
+                    <th className="px-4 py-3 font-semibold">{conductMessages.historyStatus}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -925,7 +723,7 @@ export default function StudentConductPage() {
                             ) : (
                               <HelpCircle className="h-3.5 w-3.5" />
                             )}
-                            {status.approved ? copy.official : status.label}
+                            {status.approved ? conductMessages.official : status.label}
                           </span>
                         </td>
                       </tr>
@@ -942,39 +740,39 @@ export default function StudentConductPage() {
           <CardHeader className="border-b border-border/70 bg-[hsl(var(--surface-alt))] py-3.5">
             <CardTitle className="text-base font-bold flex items-center gap-2">
               <GraduationCap className="h-4 w-4 text-primary" />
-              {copy.classificationScaleTitle}
+              {conductMessages.classificationScaleTitle}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 space-y-2 text-xs">
             <div className="grid grid-cols-[4.25rem_5.5rem_1fr] items-center gap-2 px-2.5 pb-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50 sm:grid-cols-[5rem_7.5rem_1fr]">
-              <span>{copy.historyRank}</span>
-              <span>{copy.range}</span>
-              <span className="text-right">{copy.note}</span>
+              <span>{conductMessages.historyRank}</span>
+              <span>{conductMessages.range}</span>
+              <span className="text-right">{conductMessages.note}</span>
             </div>
             <div className="grid grid-cols-[4.25rem_5.5rem_1fr] items-center gap-2 rounded-md border border-status-success/30 bg-status-success/10 px-2.5 py-2 sm:grid-cols-[5rem_7.5rem_1fr]">
-              <span className="break-words font-bold text-status-success-foreground">{copy.excellent}</span>
-              <span className="font-semibold text-foreground tabular-nums">90-100 {copy.scoreUnit}</span>
-              <span className="break-words text-right text-[11px] text-muted-foreground">{copy.scholarshipPriority}</span>
+              <span className="break-words font-bold text-status-success-foreground">{conductMessages.excellent}</span>
+              <span className="font-semibold text-foreground tabular-nums">90-100 {conductMessages.scoreUnit}</span>
+              <span className="break-words text-right text-[11px] text-muted-foreground">{conductMessages.scholarshipPriority}</span>
             </div>
             <div className="grid grid-cols-[4.25rem_5.5rem_1fr] items-center gap-2 rounded-md border border-status-info/30 bg-status-info/10 px-2.5 py-2 sm:grid-cols-[5rem_7.5rem_1fr]">
-              <span className="break-words font-bold text-status-info-foreground">{copy.good}</span>
-              <span className="font-semibold text-foreground tabular-nums">80-89 {copy.scoreUnit}</span>
-              <span className="break-words text-right text-[11px] text-muted-foreground">{copy.scholarshipReady}</span>
+              <span className="break-words font-bold text-status-info-foreground">{conductMessages.good}</span>
+              <span className="font-semibold text-foreground tabular-nums">80-89 {conductMessages.scoreUnit}</span>
+              <span className="break-words text-right text-[11px] text-muted-foreground">{conductMessages.scholarshipReady}</span>
             </div>
             <div className="grid grid-cols-[4.25rem_5.5rem_1fr] items-center gap-2 rounded-md border border-status-warning/30 bg-status-warning/10 px-2.5 py-2 sm:grid-cols-[5rem_7.5rem_1fr]">
-              <span className="break-words font-bold text-status-warning-foreground">{copy.fair}</span>
-              <span className="font-semibold text-foreground tabular-nums">65-79 {copy.scoreUnit}</span>
-              <span className="break-words text-right text-[11px] text-muted-foreground">{copy.completed}</span>
+              <span className="break-words font-bold text-status-warning-foreground">{conductMessages.fair}</span>
+              <span className="font-semibold text-foreground tabular-nums">65-79 {conductMessages.scoreUnit}</span>
+              <span className="break-words text-right text-[11px] text-muted-foreground">{conductMessages.completed}</span>
             </div>
             <div className="grid grid-cols-[4.25rem_5.5rem_1fr] items-center gap-2 rounded-md border border-status-neutral/30 bg-status-neutral/10 px-2.5 py-2 sm:grid-cols-[5rem_7.5rem_1fr]">
-              <span className="break-words font-bold text-status-neutral-foreground">{copy.average}</span>
-              <span className="font-semibold text-foreground tabular-nums">50-64 {copy.scoreUnit}</span>
-              <span className="break-words text-right text-[11px] text-muted-foreground">{copy.meetsRequirement}</span>
+              <span className="break-words font-bold text-status-neutral-foreground">{conductMessages.average}</span>
+              <span className="font-semibold text-foreground tabular-nums">50-64 {conductMessages.scoreUnit}</span>
+              <span className="break-words text-right text-[11px] text-muted-foreground">{conductMessages.meetsRequirement}</span>
             </div>
             <div className="grid grid-cols-[4.25rem_5.5rem_1fr] items-center gap-2 rounded-md border border-status-danger/30 bg-status-danger/10 px-2.5 py-2 sm:grid-cols-[5rem_7.5rem_1fr]">
-              <span className="break-words font-bold text-status-danger-foreground">{copy.weak}</span>
-              <span className="font-semibold text-foreground tabular-nums">&lt; 50 {copy.scoreUnit}</span>
-              <span className="break-words text-right text-[11px] text-status-danger-foreground">{copy.warning}</span>
+              <span className="break-words font-bold text-status-danger-foreground">{conductMessages.weak}</span>
+              <span className="font-semibold text-foreground tabular-nums">&lt; 50 {conductMessages.scoreUnit}</span>
+              <span className="break-words text-right text-[11px] text-status-danger-foreground">{conductMessages.warning}</span>
             </div>
           </CardContent>
         </Card>
@@ -983,13 +781,13 @@ export default function StudentConductPage() {
       {/* Official Signatures for Printable Document */}
       <div className="hidden print:grid grid-cols-2 gap-12 mt-12 pt-8 text-center text-xs">
         <div>
-          <p className="font-bold uppercase tracking-wider">{copy.classOfficers}</p>
-          <p className="italic text-muted-foreground mt-1">({copy.signHint})</p>
+          <p className="font-bold uppercase tracking-wider">{conductMessages.classOfficers}</p>
+          <p className="italic text-muted-foreground mt-1">({conductMessages.signHint})</p>
           <div className="h-16" />
         </div>
         <div>
-          <p className="font-bold uppercase tracking-wider">{copy.facultySignature}</p>
-          <p className="italic text-muted-foreground mt-1">({copy.sealHint})</p>
+          <p className="font-bold uppercase tracking-wider">{conductMessages.facultySignature}</p>
+          <p className="italic text-muted-foreground mt-1">({conductMessages.sealHint})</p>
           <div className="h-16" />
         </div>
       </div>
@@ -999,7 +797,7 @@ export default function StudentConductPage() {
         <Modal
           isOpen
           onClose={() => setSelectedActivity(null)}
-          title={copy.previewTitle}
+          title={conductMessages.previewTitle}
           className="max-w-2xl"
           printable
         >
@@ -1009,17 +807,17 @@ export default function StudentConductPage() {
             {/* Record Header */}
             <div className="border-b-2 border-primary/30 pb-4 text-center space-y-1">
               <div className="text-[11px] uppercase font-bold tracking-wider text-muted-foreground">
-                {copy.institution}
+                {conductMessages.institution}
               </div>
               <div className="text-xs font-extrabold text-primary">
-                {copy.office}
+                {conductMessages.office}
               </div>
               <div className="py-2">
                 <h2 className="text-lg sm:text-xl font-black text-foreground uppercase tracking-wide">
-                  {copy.certificateTitle}
+                  {conductMessages.certificateTitle}
                 </h2>
                 <p className="text-xs text-muted-foreground italic">
-                  ({copy.certificateSubtitle})
+                  ({conductMessages.certificateSubtitle})
                 </p>
               </div>
             </div>
@@ -1033,7 +831,7 @@ export default function StudentConductPage() {
                 ) : (
                   <HelpCircle className="h-4 w-4 shrink-0" />
                 )}
-                <span>{semesterStatus.approved ? copy.recordBadge : semesterStatus.label}</span>
+                <span>{semesterStatus.approved ? conductMessages.recordBadge : semesterStatus.label}</span>
               </div>
             </div>
 
@@ -1041,13 +839,13 @@ export default function StudentConductPage() {
             <div className="space-y-3 text-xs sm:text-sm">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg bg-secondary/30 p-3.5 border border-border/60">
                 <div>
-                  <span className="text-xs text-muted-foreground">{copy.confirmedStudent}</span>
+                  <span className="text-xs text-muted-foreground">{conductMessages.confirmedStudent}</span>
                   <p className="font-bold text-foreground text-sm">
                     {summary?.fullName || '—'}
                   </p>
                 </div>
                 <div>
-                  <span className="text-xs text-muted-foreground">{copy.studentId}</span>
+                  <span className="text-xs text-muted-foreground">{conductMessages.studentId}</span>
                   <p className="font-bold font-mono text-foreground text-sm">
                     {displayLabel(summary?.studentCode)}
                   </p>
@@ -1056,7 +854,7 @@ export default function StudentConductPage() {
 
               <div className="rounded-lg border border-border/70 p-4 space-y-3 bg-card">
                 <div>
-                  <span className="text-xs font-semibold text-muted-foreground">{copy.activityLabel}</span>
+                  <span className="text-xs font-semibold text-muted-foreground">{conductMessages.activityLabel}</span>
                   <p className="font-bold text-foreground text-sm sm:text-base text-primary mt-0.5">
                     {selectedActivityDetails.title}
                   </p>
@@ -1064,24 +862,24 @@ export default function StudentConductPage() {
 
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div>
-                    <span className="text-muted-foreground">{copy.fieldLabel}</span>
+                    <span className="text-muted-foreground">{conductMessages.fieldLabel}</span>
                     <p className="font-semibold text-foreground mt-0.5">{selectedActivityDetails.category}</p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">{copy.recordedDate}</span>
+                    <span className="text-muted-foreground">{conductMessages.recordedDate}</span>
                     <p className="font-semibold text-foreground mt-0.5">{selectedActivityDetails.date}</p>
                   </div>
                 </div>
 
                 <div>
-                  <span className="text-xs text-muted-foreground">{copy.organizerLabel}</span>
+                  <span className="text-xs text-muted-foreground">{conductMessages.organizerLabel}</span>
                   <p className="font-semibold text-foreground mt-0.5">{selectedActivityDetails.organizer}</p>
                 </div>
 
                 <div className="pt-2 border-t border-border/60 sm:text-right">
-                  <span className="text-xs text-muted-foreground">{copy.bonusConductPoints}</span>
+                  <span className="text-xs text-muted-foreground">{conductMessages.bonusConductPoints}</span>
                   <p className="text-lg font-black text-status-success-foreground">
-                    +{formatNumber(selectedActivity.points)} {copy.scoreUnit}
+                    +{formatNumber(selectedActivity.points)} {conductMessages.scoreUnit}
                   </p>
                 </div>
               </div>
@@ -1089,7 +887,7 @@ export default function StudentConductPage() {
 
             {/* Honest preview note (no digital-verification seal is claimed) */}
             <p className="rounded-lg border border-dashed border-border/80 bg-muted/40 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
-              {copy.previewNote}
+              {conductMessages.previewNote}
             </p>
 
             {/* Modal Actions */}
@@ -1101,14 +899,14 @@ export default function StudentConductPage() {
                 className="gap-1.5 font-semibold text-xs"
               >
                 <Printer className="h-3.5 w-3.5" />
-                {copy.printCertificate}
+                {conductMessages.printCertificate}
               </Button>
               <Button
                 size="sm"
                 onClick={() => setSelectedActivity(null)}
                 className="text-xs font-semibold px-4"
               >
-              {copy.close}
+              {conductMessages.close}
             </Button>
           </div>
           </div>

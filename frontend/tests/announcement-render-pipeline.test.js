@@ -81,7 +81,12 @@ function rendererStubs() {
     'lucide-react': lucideStub,
     // CodeBlock/SafeImage read the active locale for their copy-button and
     // broken-image labels; the harness renders with the Vietnamese default.
-    '@/i18n': { useI18n: () => ({ locale: 'vi' }) },
+    '@/i18n': {
+      useI18n: () => ({
+        locale: 'vi',
+        messages: { common: { states: { dataTable: 'Bảng dữ liệu' } } },
+      }),
+    },
   };
 }
 
@@ -591,4 +596,57 @@ test('the cover keeps the author alt text while skipping an unusable image', () 
   );
   assert.equal(details?.url, 'https://cdn.test/x.png');
   assert.equal(details?.alt, 'Hội thảo', 'the usable candidate carries its own alt');
+});
+
+test('markdown tables name their columns and carry an accessible caption', () => {
+  const markup = renderedBodyHtml('| Mức | Học phần |\n| --- | --- |\n| 1 | Toán |');
+
+  assert.equal(
+    (markup.match(/<th[^>]*scope="col"/g) ?? []).length,
+    2,
+    `every markdown header cell must declare its scope: ${markup}`,
+  );
+  assert.match(markup, /<caption[^>]*>Bảng dữ liệu<\/caption>/);
+});
+
+test('the warning category pill keeps AA contrast on the light reader canvas', () => {
+  const magazine = read('src/components/announcements/reader/layouts/EditorialArticleMagazine.tsx');
+
+  assert.match(magazine, /categoryTone === 'warning' && 'bg-amber-500\/10 text-amber-800 /);
+  assert.doesNotMatch(magazine, /text-amber-600/);
+});
+
+test('feed cards expose one stretched title action instead of a nested button role', () => {
+  const feedCard = read('src/components/announcements/feed/AnnouncementFeedCard.tsx');
+
+  assert.doesNotMatch(feedCard, /<article\s+onClick=/);
+  assert.equal((feedCard.match(/onClick=\{onClick\}/g) ?? []).length, 2);
+  assert.equal(
+    (feedCard.match(/after:absolute after:inset-0/g) ?? []).length,
+    2,
+    'both title buttons stretch their hit area across the card',
+  );
+  assert.match(feedCard, /group relative flex flex-col justify-between overflow-hidden rounded-xl/);
+  assert.equal(
+    (feedCard.match(/className="relative z-10 inline-flex h-8 w-8/g) ?? []).length,
+    2,
+    'share controls stay above the stretched title action',
+  );
+});
+
+test('reader mode toggles expose their pressed state', () => {
+  const toolbar = read('src/components/announcements/reader/ReadingToolbar.tsx');
+
+  assert.equal(
+    (toolbar.match(/aria-pressed=\{preferences\.mode === '(EDITORIAL|OFFICIAL)'\}/g) ?? []).length,
+    2,
+  );
+});
+
+test('table of contents scrolling respects prefers-reduced-motion', () => {
+  const toc = read('src/components/announcements/reader/TableOfContents.tsx');
+
+  assert.match(toc, /window\.matchMedia\('\(prefers-reduced-motion: reduce\)'\)\.matches/);
+  assert.match(toc, /behavior: reduceMotion \? 'auto' : 'smooth'/);
+  assert.doesNotMatch(toc, /behavior: 'smooth'/);
 });

@@ -124,7 +124,7 @@ export function EditorialArticleMagazine({
               'inline-flex items-center gap-1.5 rounded-md px-3.5 py-1 text-xs font-bold uppercase tracking-wider',
               domain.categoryTone === 'info' && 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20',
               domain.categoryTone === 'success' && 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20',
-              domain.categoryTone === 'warning' && 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20',
+              domain.categoryTone === 'warning' && 'bg-amber-500/10 text-amber-800 dark:text-amber-400 border border-amber-500/20',
               domain.categoryTone === 'primary' && 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20',
               domain.categoryTone === 'danger' && 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20',
             )}

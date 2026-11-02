@@ -309,7 +309,9 @@ test('printed transcript carries blank signature blocks, not pre-stamped names',
   assert.ok(!transcriptPage.includes('Hoàng Văn Dũng'), 'fabricated dean name must be gone');
   assert.ok(!transcriptPage.includes('Quách Thanh Hải'), 'fabricated vice rector name must be gone');
   assert.ok(!/năm 2026<\/p>/.test(transcriptPage), 'the print date must be a fill-in blank, not a fixed year');
-  assert.ok(transcriptPage.includes('Ký và ghi rõ họ tên'), 'signature guidance stays');
+  const transcriptMessages = read('src/i18n/messages-student-pages.ts');
+  assert.ok(transcriptMessages.includes("signatureHint: '(Ký và ghi rõ họ tên)'"), 'signature guidance stays in the catalogue');
+  assert.match(transcriptPage, /transcriptMessages\.print\.signatureHint/, 'the print block reads the signature guidance from the catalogue');
 });
 
 test('conversion band upper bound never overlaps the next band', () => {

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
   BarElement,
   CategoryScale,
@@ -58,6 +59,19 @@ const CUMULATIVE_COLOR = '#10b981';
 const TEN_SCALE_COLOR = '#f59e0b';
 const GRID_COLOR = 'rgba(128, 128, 128, 0.16)';
 const TICK_COLOR = 'rgba(128, 128, 128, 0.95)';
+
+function usePrefersReducedMotion(): boolean {
+  const [reducedMotion, setReducedMotion] = useState(true);
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const sync = () => setReducedMotion(media.matches);
+    sync();
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
+  return reducedMotion;
+}
 
 /** Draws the value above every point — the old SVG chart printed them inline. */
 const valueLabelsPlugin = {
@@ -199,6 +213,7 @@ export function GpaTrendChart({
   ariaLabel: string;
   chartLabels: TranscriptChartLabels;
 }) {
+  const reducedMotion = usePrefersReducedMotion();
   const activePoints = mode === 'cumulative' && cumulativePoints?.length ? cumulativePoints : points;
   const labels = activePoints.map((point) => point.label);
   const fullLabels = activePoints.map((point) => point.fullLabel);
@@ -249,6 +264,7 @@ export function GpaTrendChart({
   }
 
   const options = baseLineOptions(domain, 0.5);
+  options.animation = reducedMotion ? false : { duration: 400 };
   // Single-series view keeps the 0.01 precision; both-series view shows the
   // same precision for both lines.
   options.plugins = {
@@ -318,11 +334,13 @@ export function TenScaleTrendChart({
   ariaLabel: string;
   chartLabels: TranscriptChartLabels;
 }) {
+  const reducedMotion = usePrefersReducedMotion();
   const labels = points.map((point) => point.label);
   const fullLabels = points.map((point) => point.fullLabel);
   const domain = paddedDomain(points.map((point) => point.gpa), [0, 10], 10);
 
   const options = baseLineOptions(domain, 0.5);
+  options.animation = reducedMotion ? false : { duration: 400 };
   options.plugins = {
     ...options.plugins,
     tooltip: {
@@ -403,10 +421,12 @@ export function GradeDistributionChart({
   ariaLabel: string;
   chartLabels: TranscriptChartLabels;
 }) {
+  const reducedMotion = usePrefersReducedMotion();
   const max = buckets.reduce((acc, bucket) => Math.max(acc, bucket.count), 0);
   const options: ChartOptions<'bar'> = {
     responsive: true,
     maintainAspectRatio: false,
+    animation: reducedMotion ? false : { duration: 400 },
     plugins: {
       legend: { display: false },
       tooltip: {

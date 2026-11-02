@@ -67,6 +67,9 @@ function loadMessages() {
     '@/i18n/messages-dean-overview': loadModule('src/i18n/messages-dean-overview.ts'),
     '@/i18n/messages-content': loadModule('src/i18n/messages-content.ts'),
     '@/i18n/messages-attendance-geofence': loadModule('src/i18n/messages-attendance-geofence.ts'),
+    '@/i18n/messages-teaching-pages': loadModule('src/i18n/messages-teaching-pages.ts'),
+    '@/i18n/messages-admin-pages': loadModule('src/i18n/messages-admin-pages.ts'),
+    '@/i18n/messages-student-pages': loadModule('src/i18n/messages-student-pages.ts'),
   }).en;
 }
 

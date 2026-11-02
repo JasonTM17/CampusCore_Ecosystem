@@ -102,7 +102,7 @@ export function ForcedPasswordRotationGate() {
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {error ? (
-            <p role="alert" className="text-sm font-medium text-destructive">
+            <p id="rotation-error" role="alert" className="text-sm font-medium text-destructive">
               {error}
             </p>
           ) : null}
@@ -116,6 +116,8 @@ export function ForcedPasswordRotationGate() {
               value={oldPassword}
               onChange={(e) => setOldPassword(e.target.value)}
               autoComplete="current-password"
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? 'rotation-error' : undefined}
               required
             />
           </div>
@@ -130,9 +132,11 @@ export function ForcedPasswordRotationGate() {
               onChange={(e) => setNewPassword(e.target.value)}
               autoComplete="new-password"
               minLength={8}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? 'rotation-error rotation-hint' : 'rotation-hint'}
               required
             />
-            <p className="text-xs leading-5 text-muted-foreground">{copy.hint}</p>
+            <p id="rotation-hint" className="text-xs leading-5 text-muted-foreground">{copy.hint}</p>
           </div>
           <div className="space-y-2">
             <label htmlFor="rotation-confirm" className="text-sm font-medium text-foreground">
@@ -145,6 +149,8 @@ export function ForcedPasswordRotationGate() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               autoComplete="new-password"
               minLength={8}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? 'rotation-error' : undefined}
               required
             />
           </div>

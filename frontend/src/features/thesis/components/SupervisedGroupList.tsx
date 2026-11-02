@@ -8,6 +8,7 @@ import { MemberAvatars } from '@/components/thesis/MemberAvatars';
 import { StatusBadge } from '@/components/thesis/StatusBadge';
 import { SupervisedGroupMembers } from '@/components/dashboard/thesis/SupervisedGroupMembers';
 import type { I18nMessages } from '@/i18n/messages';
+import { isHttpUrl } from '@/lib/safe-url';
 import { type ThesisGroup, type ThesisGroupReport } from '@/lib/thesis-api';
 
 interface SupervisedGroupListProps {
@@ -117,19 +118,25 @@ export default function SupervisedGroupList({
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         {reportsByGroup[group.id] ? (
                           <>
-                            {/* A report is a link, an attached document,
-                                or both (feedback item 7). */}
+                            {/* A report link is shown only for a safe URL, alongside any attached document (feedback item 7). */}
                             {reportsByGroup[group.id]?.url ? (
-                              <a
-                                href={reportsByGroup[group.id]?.url || undefined}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:underline transition-colors"
-                              >
-                                <FileText className="h-3.5 w-3.5" />
-                                <span>{pageCopy.thesisReportLabel} {reportsByGroup[group.id]?.title || pageCopy.projectDocumentsFallback}</span>
-                                <ExternalLink className="h-3 w-3" />
-                              </a>
+                              isHttpUrl(reportsByGroup[group.id]?.url) ? (
+                                <a
+                                  href={reportsByGroup[group.id]?.url || undefined}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary hover:underline transition-colors"
+                                >
+                                  <FileText className="h-3.5 w-3.5" />
+                                  <span>{pageCopy.thesisReportLabel} {reportsByGroup[group.id]?.title || pageCopy.projectDocumentsFallback}</span>
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                                  <FileText className="h-3.5 w-3.5" />
+                                  <span>{pageCopy.thesisReportLabel} {reportsByGroup[group.id]?.title || pageCopy.projectDocumentsFallback}</span>
+                                </span>
+                              )
                             ) : null}
                             {reportsByGroup[group.id]?.fileName ? (
                               <button

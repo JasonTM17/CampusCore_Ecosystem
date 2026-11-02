@@ -299,3 +299,30 @@ test('mapPasswordErrorCode only recognizes the known code namespace', async () =
   assert.equal(mapPasswordErrorCode(undefined), null);
   assert.equal(mapPasswordErrorCode('password_too_short'), null); // case-sensitive
 });
+
+test('W14 the forced rotation gate links its failure banner and hint to the fields', () => {
+  const source = fs.readFileSync(
+    path.join(root, 'src/components/auth/ForcedPasswordRotationGate.tsx'),
+    'utf8',
+  );
+
+  assert.match(source, /id="rotation-error"/, 'the alert banner needs an id to be referenced');
+  assert.match(source, /id="rotation-hint"/, 'the policy hint needs an id to be referenced');
+
+  for (const id of ['rotation-current', 'rotation-new', 'rotation-confirm']) {
+    const start = source.indexOf(`id="${id}"`);
+    const end = source.indexOf('/>', start);
+    assert.ok(start >= 0 && end > start, `${id} input exists`);
+    const input = source.slice(start, end);
+    assert.match(
+      input,
+      /aria-invalid=\{error \? true : undefined\}/,
+      `${id} must expose the invalid state`,
+    );
+    assert.match(input, /aria-describedby=/, `${id} must reference the failure banner`);
+  }
+
+  const newStart = source.indexOf('id="rotation-new"');
+  const newInput = source.slice(newStart, source.indexOf('/>', newStart));
+  assert.match(newInput, /rotation-hint/, 'the new-password input also describes its policy hint');
+});
