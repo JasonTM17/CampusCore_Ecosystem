@@ -1,9 +1,13 @@
 # Backup, restore, and rollback
 
 This workspace runs local-first and has no production database. The backup
-scripts operate on whichever Compose project you point them at: they write a
-PostgreSQL custom archive plus a SHA-256 sidecar, and restore always refuses to
-overwrite the source database.
+scripts require an explicit `COMPOSE_PROJECT_NAME`; there is no production
+project fallback. They write a PostgreSQL custom archive, the local
+thesis-report volume archive, and one SHA-256 sidecar covering both files.
+Backups are staged and checked before publication. The database archive must
+include `thesis.flyway_schema_history`, and the report archive must be a
+readable tar file. A non-local thesis storage provider makes the manual backup
+fail so external objects cannot be silently omitted.
 
 The recovery path actually executed here is the disposable drill in
 [Disposable recovery drill (MP38)](#disposable-recovery-drill-mp38). The manual
@@ -19,15 +23,26 @@ BACKUP_RETENTION_DAYS=14 ./ops/backup/backup-postgres.sh
 ./ops/backup/restore-postgres.sh ops/backups/campuscore-<timestamp>.dump campuscore_restore_<timestamp>
 ```
 
+The restore target must use the `campuscore_restore_` prefix and must not
+already exist. Restore runs `pg_restore --single-transaction`; a failed restore
+drops only the database created by that invocation. Report files are extracted
+to a new sibling directory named
+`campuscore-<timestamp>.reports.restore`. The original
+`campuscore_thesis_report_storage` volume is never modified. Point an isolated
+restore application at that directory when checking report downloads; do not
+mount it over the live volume.
+
 The default compose file requires `ASSISTANT_RAG_OWNER_ASSERTION_SECRET`:
 `node scripts/local-dev.mjs up` generates it into the git-ignored `.env` on the
 first run, and a plain `docker compose up` needs the same key appended to `.env`
 before the stack starts.
 
-Restore always requires a database name different from `POSTGRES_DB`; the
-script refuses an in-place overwrite. After an isolated restore, verify the
-latest successful Flyway version, readiness, authentication, representative
-JSON/SSE assistant calls, and row counts before approving a recovery.
+`verify-backup.sh` and `restore-postgres.sh` also require the explicit project
+name and a running local Compose stack so they can inspect the PostgreSQL TOC
+and validate the report archive. Restore refuses an in-place overwrite and any
+existing target. After an isolated restore, verify the latest successful
+Flyway version, readiness, authentication, representative JSON/SSE assistant
+calls, report downloads, and row counts before approving a recovery.
 
 Rollback is an application/image operation. Locally that means returning the
 working tree to the previous reviewed commit and rebuilding the stack
