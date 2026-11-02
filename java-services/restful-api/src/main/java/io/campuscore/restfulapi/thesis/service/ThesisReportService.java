@@ -406,7 +406,7 @@ public class ThesisReportService {
      */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public List<RepositoryReportResponse> listRepository(UUID roundId, Jwt actor) {
-        return listRepository(roundId, actor, null).items();
+        return readRepository(roundId, actor, null, List.of()).items();
     }
 
     /**
@@ -420,24 +420,40 @@ public class ThesisReportService {
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public ListPaging.Result<RepositoryReportResponse> listRepository(UUID roundId, Jwt actor,
             ListPaging.Window window) {
+        RepositoryArchivePage page = readRepository(roundId, actor, window, List.of());
+        return new ListPaging.Result<>(page.items(), page.total());
+    }
+
+    /**
+     * Additive archive read with the optional server search. The predicate is
+     * the web predicate (see {@link ThesisArchiveSearch}); it applies after
+     * authorization and before the filtered total and the page window, and the
+     * three unfiltered {@code X-Archive-*} totals are read in the same
+     * repeatable-read statement. Without a window the body is still the legacy
+     * bare array (filtered when a term was supplied) and no summary is read.
+     */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public RepositoryArchivePage listRepository(UUID roundId, Jwt actor, ListPaging.Window window,
+            String search) {
+        return readRepository(roundId, actor, window, ThesisArchiveSearch.tokens(search));
+    }
+
+    private RepositoryArchivePage readRepository(UUID roundId, Jwt actor, ListPaging.Window window,
+            List<String> tokens) {
         MapSqlParameterSource parameters = params().addValue("roundId", roundId);
         // Same archive rule as listByRound: admins see every report of the
         // round; lecturers keep the approval + department scope (topic-less
         // rows self-exclude via the NULL department join).
         String filter = archiveFilter(actor, parameters);
+        String condition = ThesisArchiveSearch.condition(tokens, parameters);
+        String searchFilter = condition.isEmpty() ? "" : " AND " + condition;
         Long total = null;
+        RepositoryArchiveSummary summary = null;
         if (window != null) {
-            total = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM thesis.thesis_group_report r "
-                            + "JOIN thesis.thesis_group g ON g.id = r.group_id "
-                            + "LEFT JOIN thesis.thesis_topic t ON t.id = g.topic_id "
-                            + "WHERE r.round_id = :roundId" + filter,
-                    parameters, Long.class);
-            if (total == null) {
-                total = 0L;
-            }
+            summary = readArchiveSummary(filter, condition, parameters);
+            total = summary.filteredTotal();
             if (window.offset() >= total) {
-                return new ListPaging.Result<>(List.of(), total);
+                return new RepositoryArchivePage(List.of(), total, summary);
             }
         }
         // One row per report root: never join members and supervisors here, or
@@ -462,7 +478,7 @@ public class ThesisReportService {
                     ON submitter_user."id" = submitted_student."userId"
                 WHERE r.round_id = :roundId
                 """);
-        sql.append(filter).append(" ORDER BY r.submitted_at DESC, r.group_id ASC");
+        sql.append(filter).append(searchFilter).append(" ORDER BY r.submitted_at DESC, r.group_id ASC");
         if (window != null) {
             parameters.addValue("limit", window.limit()).addValue("offset", window.offset());
             sql.append(" LIMIT :limit OFFSET :offset");
@@ -491,7 +507,7 @@ public class ThesisReportService {
                     rs.getString("submitter_student_number"));
         });
         if (roots.isEmpty()) {
-            return new ListPaging.Result<>(List.of(), total);
+            return new RepositoryArchivePage(List.of(), total, summary);
         }
         List<UUID> groupIds = roots.stream().map(RepositoryRoot::groupId).distinct().toList();
         List<UUID> topicIds = roots.stream().map(RepositoryRoot::topicId)
@@ -575,8 +591,47 @@ public class ThesisReportService {
                     List.copyOf(supervisors.getOrDefault(root.topicId(), Map.of()).values()),
                     List.copyOf(members.getOrDefault(root.groupId(), Map.of()).values())));
         }
-        return new ListPaging.Result<>(items, total);
+        return new RepositoryArchivePage(items, total, summary);
     }
+
+    /**
+     * Unfiltered authorized totals plus the filtered total in one statement, so
+     * the three summary headers and {@code X-Total-Count} share the page's
+     * repeatable-read snapshot. File and URL counts reproduce the web
+     * truthiness check: non-null and not the empty string (not trimmed).
+     */
+    private RepositoryArchiveSummary readArchiveSummary(String filter, String condition,
+            MapSqlParameterSource parameters) {
+        String filteredTotal = condition.isEmpty()
+                ? "COUNT(*)"
+                : "COALESCE(SUM(CASE WHEN " + condition + " THEN 1 ELSE 0 END), 0)";
+        return jdbc.queryForObject(
+                "SELECT COUNT(*) AS archive_total, "
+                        + "COALESCE(SUM(CASE WHEN r.file_name IS NOT NULL AND r.file_name <> '' "
+                        + "THEN 1 ELSE 0 END), 0) AS file_count, "
+                        + "COALESCE(SUM(CASE WHEN r.url IS NOT NULL AND r.url <> '' "
+                        + "THEN 1 ELSE 0 END), 0) AS url_count, "
+                        + filteredTotal + " AS filtered_total "
+                        + "FROM thesis.thesis_group_report r "
+                        + "JOIN thesis.thesis_group g ON g.id = r.group_id "
+                        + "LEFT JOIN thesis.thesis_topic t ON t.id = g.topic_id "
+                        + "LEFT JOIN academic.\"Department\" d ON d.\"id\" = t.department_id "
+                        + "LEFT JOIN campuscore_auth.\"Student\" submitted_student "
+                        + "ON submitted_student.\"id\" = r.submitted_by "
+                        + "LEFT JOIN campuscore_auth.\"User\" submitter_user "
+                        + "ON submitter_user.\"id\" = submitted_student.\"userId\" "
+                        + "WHERE r.round_id = :roundId" + filter,
+                parameters,
+                (rs, row) -> new RepositoryArchiveSummary(rs.getLong("archive_total"),
+                        rs.getLong("file_count"), rs.getLong("url_count"), rs.getLong("filtered_total")));
+    }
+
+    /** Unfiltered authorized archive totals plus the filtered total. */
+    public record RepositoryArchiveSummary(long archiveTotal, long fileCount, long urlCount, long filteredTotal) { }
+
+    /** Archive body plus the totals a paged response publishes as headers. */
+    public record RepositoryArchivePage(List<RepositoryReportResponse> items, Long total,
+            RepositoryArchiveSummary summary) { }
 
     /** Scalar row of the archive parent projection; children are hydrated by id. */
     private record RepositoryRoot(
