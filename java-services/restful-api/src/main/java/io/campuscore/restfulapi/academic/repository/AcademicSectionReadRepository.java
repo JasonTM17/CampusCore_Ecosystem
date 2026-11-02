@@ -49,8 +49,11 @@ public class AcademicSectionReadRepository {
                 .addValue("offset", offset)
                 .addValue("limit", limit);
         String where = filters(parameters, semesterId, departmentId, courseId, search);
-        return jdbc.query(sectionSelect() + where
-                        + " ORDER BY section.\"sectionNumber\" ASC, section.\"id\" ASC LIMIT :limit OFFSET :offset",
+        return jdbc.query(sectionSelect(
+                        where,
+                        "section.\"sectionNumber\" ASC, section.\"id\" ASC",
+                        " LIMIT :limit OFFSET :offset",
+                        "selected_section.\"sectionNumber\" ASC, selected_section.\"id\" ASC"),
                 parameters,
                 AcademicSectionReadRepository::mapSection);
     }
@@ -73,7 +76,7 @@ public class AcademicSectionReadRepository {
     }
 
     public Optional<SectionRow> findSectionById(String id) {
-        return jdbc.query(sectionSelect() + " WHERE section.\"id\" = :id",
+        return jdbc.query(sectionSelect(" WHERE section.\"id\" = :id", "", "", ""),
                         new MapSqlParameterSource("id", id),
                         AcademicSectionReadRepository::mapSection)
                 .stream()
@@ -87,9 +90,11 @@ public class AcademicSectionReadRepository {
             parameters.addValue("semesterId", semesterId);
             semesterFilter = " AND section.\"semesterId\" = :semesterId";
         }
-        return jdbc.query(sectionSelect()
-                        + " WHERE section.\"lecturerId\" = :lecturerId" + semesterFilter
-                        + " ORDER BY course.\"code\" ASC, section.\"sectionNumber\" ASC",
+        return jdbc.query(sectionSelect(
+                        " WHERE section.\"lecturerId\" = :lecturerId" + semesterFilter,
+                        "course.\"code\" ASC, section.\"sectionNumber\" ASC",
+                        "",
+                        "selected_section.course_code ASC, selected_section.\"sectionNumber\" ASC"),
                 parameters,
                 AcademicSectionReadRepository::mapSection);
     }
@@ -183,19 +188,32 @@ public class AcademicSectionReadRepository {
 
     public List<SectionGradeEnrollmentRow> findSectionGradeEnrollments(String sectionId) {
         return jdbc.query(
-                "SELECT enrollment.\"id\", enrollment.\"studentId\", student.\"studentId\" AS student_number,"
-                        + " student_user.\"email\" AS student_email, student_user.\"firstName\" AS student_first_name,"
-                        + " student_user.\"lastName\" AS student_last_name,"
-                        + " (SELECT MAX(sg.\"score\") FROM \"academic\".\"StudentGrade\" sg JOIN \"academic\".\"GradeItem\" gi ON gi.\"id\" = sg.\"gradeItemId\" WHERE sg.\"enrollmentId\" = enrollment.\"id\" AND gi.\"type\" = 'PROCESS') AS process_score,"
-                        + " (SELECT MAX(sg.\"score\") FROM \"academic\".\"StudentGrade\" sg JOIN \"academic\".\"GradeItem\" gi ON gi.\"id\" = sg.\"gradeItemId\" WHERE sg.\"enrollmentId\" = enrollment.\"id\" AND gi.\"type\" = 'FINAL') AS final_exam_score, enrollment.\"finalGrade\","
-                        + " enrollment.\"letterGrade\", enrollment.\"gradeStatus\", enrollment.\"status\" AS enrollment_status"
+                "WITH selected_enrollments AS ("
+                        + " SELECT enrollment.\"id\", enrollment.\"studentId\", enrollment.\"finalGrade\","
+                        + " enrollment.\"letterGrade\", enrollment.\"gradeStatus\", enrollment.\"status\""
                         + " FROM " + ENROLLMENT + " enrollment"
-                        + " JOIN " + STUDENT + " student ON student.\"id\" = enrollment.\"studentId\""
-                        + " JOIN " + USER + " student_user ON student_user.\"id\" = student.\"userId\""
                         + " WHERE enrollment.\"sectionId\" = :sectionId"
                         + " AND enrollment.\"semesterId\" = (SELECT section_scope.\"semesterId\""
-                        + "     FROM \"academic\".\"Section\" section_scope WHERE section_scope.\"id\" = :sectionId)"
+                        + " FROM " + SECTION + " section_scope WHERE section_scope.\"id\" = :sectionId)"
                         + " AND enrollment.\"status\" IN ('ENROLLED', 'CONFIRMED', 'COMPLETED')"
+                        + "), grade_scores AS ("
+                        + " SELECT student_grade.\"enrollmentId\","
+                        + " MAX(CASE WHEN grade_item.\"type\" = 'PROCESS' THEN student_grade.\"score\" END) AS process_score,"
+                        + " MAX(CASE WHEN grade_item.\"type\" = 'FINAL' THEN student_grade.\"score\" END) AS final_exam_score"
+                        + " FROM \"academic\".\"StudentGrade\" student_grade"
+                        + " JOIN \"academic\".\"GradeItem\" grade_item ON grade_item.\"id\" = student_grade.\"gradeItemId\""
+                        + " JOIN selected_enrollments selected_enrollment"
+                        + " ON selected_enrollment.\"id\" = student_grade.\"enrollmentId\""
+                        + " GROUP BY student_grade.\"enrollmentId\")"
+                        + " SELECT enrollment.\"id\", enrollment.\"studentId\", student.\"studentId\" AS student_number,"
+                        + " student_user.\"email\" AS student_email, student_user.\"firstName\" AS student_first_name,"
+                        + " student_user.\"lastName\" AS student_last_name,"
+                        + " grade_scores.process_score, grade_scores.final_exam_score, enrollment.\"finalGrade\","
+                        + " enrollment.\"letterGrade\", enrollment.\"gradeStatus\", enrollment.\"status\" AS enrollment_status"
+                        + " FROM selected_enrollments enrollment"
+                        + " JOIN " + STUDENT + " student ON student.\"id\" = enrollment.\"studentId\""
+                        + " JOIN " + USER + " student_user ON student_user.\"id\" = student.\"userId\""
+                        + " LEFT JOIN grade_scores ON grade_scores.\"enrollmentId\" = enrollment.\"id\""
                         + " ORDER BY student_user.\"firstName\" ASC, student_user.\"lastName\" ASC, enrollment.\"id\" ASC",
                 new MapSqlParameterSource("sectionId", sectionId),
                 AcademicSectionReadRepository::mapGradeEnrollment);
@@ -246,8 +264,28 @@ public class AcademicSectionReadRepository {
         parameters.addValue(name, value);
     }
 
-    private static String sectionSelect() {
-        return "SELECT section.\"id\", section.\"sectionNumber\", section.\"courseId\", section.\"semesterId\","
+    private static String sectionSelect(String where, String selectedOrderBy, String selectedWindow, String resultOrderBy) {
+        String selectedOrder = selectedOrderBy.isBlank() ? "" : " ORDER BY " + selectedOrderBy;
+        String resultOrder = resultOrderBy.isBlank() ? "" : " ORDER BY " + resultOrderBy;
+        return "WITH selected_sections AS ("
+                + " SELECT section.\"id\", section.\"semesterId\", section.\"sectionNumber\", course.\"code\" AS course_code"
+                + " FROM " + SECTION + " section"
+                + " JOIN " + COURSE + " course ON course.\"id\" = section.\"courseId\""
+                + " JOIN " + DEPARTMENT + " department ON department.\"id\" = course.\"departmentId\""
+                + " JOIN " + SEMESTER + " semester ON semester.\"id\" = section.\"semesterId\""
+                + " LEFT JOIN " + LECTURER + " lecturer ON lecturer.\"id\" = section.\"lecturerId\""
+                + " LEFT JOIN " + USER + " lecturer_user ON lecturer_user.\"id\" = lecturer.\"userId\""
+                + where + selectedOrder + selectedWindow
+                + "), active_counts AS ("
+                + " SELECT active_enrollment.\"sectionId\", active_enrollment.\"semesterId\","
+                + " COUNT(*) AS active_enrollment_count"
+                + " FROM " + ENROLLMENT + " active_enrollment"
+                + " JOIN selected_sections selected_section"
+                + " ON selected_section.\"id\" = active_enrollment.\"sectionId\""
+                + " AND selected_section.\"semesterId\" = active_enrollment.\"semesterId\""
+                + " WHERE active_enrollment.\"status\" IN ('ENROLLED', 'PENDING', 'CONFIRMED', 'COMPLETED')"
+                + " GROUP BY active_enrollment.\"sectionId\", active_enrollment.\"semesterId\") "
+                + "SELECT section.\"id\", section.\"sectionNumber\", section.\"courseId\", section.\"semesterId\","
                 + " section.\"lecturerId\", section.\"classroomId\", section.\"capacity\", section.\"enrolledCount\","
                 + " section.\"status\" AS section_status, course.\"code\", course.\"name\" AS course_name,"
                 + " course.\"nameEn\" AS course_name_en, course.\"nameVi\" AS course_name_vi, course.\"credits\","
@@ -259,17 +297,19 @@ public class AcademicSectionReadRepository {
                 + " lecturer_user.\"id\" AS lecturer_user_id, lecturer_user.\"email\" AS lecturer_email,"
                 + " lecturer_user.\"firstName\" AS lecturer_first_name, lecturer_user.\"lastName\" AS lecturer_last_name,"
                 + " classroom.\"building\", classroom.\"roomNumber\","
-                + " (SELECT COUNT(*) FROM " + ENROLLMENT + " active_enrollment"
-                + " WHERE active_enrollment.\"sectionId\" = section.\"id\""
-                + " AND active_enrollment.\"semesterId\" = section.\"semesterId\""
-                + " AND active_enrollment.\"status\" IN ('ENROLLED', 'PENDING', 'CONFIRMED', 'COMPLETED')) AS active_enrollment_count"
-                + " FROM " + SECTION + " section"
+                + " COALESCE(active_counts.active_enrollment_count, 0) AS active_enrollment_count"
+                + " FROM selected_sections selected_section"
+                + " JOIN " + SECTION + " section ON section.\"id\" = selected_section.\"id\""
+                + " AND section.\"semesterId\" = selected_section.\"semesterId\""
                 + " JOIN " + COURSE + " course ON course.\"id\" = section.\"courseId\""
                 + " JOIN " + DEPARTMENT + " department ON department.\"id\" = course.\"departmentId\""
                 + " JOIN " + SEMESTER + " semester ON semester.\"id\" = section.\"semesterId\""
                 + " LEFT JOIN " + LECTURER + " lecturer ON lecturer.\"id\" = section.\"lecturerId\""
                 + " LEFT JOIN " + USER + " lecturer_user ON lecturer_user.\"id\" = lecturer.\"userId\""
-                + " LEFT JOIN " + CLASSROOM + " classroom ON classroom.\"id\" = section.\"classroomId\"";
+                + " LEFT JOIN " + CLASSROOM + " classroom ON classroom.\"id\" = section.\"classroomId\""
+                + " LEFT JOIN active_counts ON active_counts.\"sectionId\" = section.\"id\""
+                + " AND active_counts.\"semesterId\" = section.\"semesterId\""
+                + resultOrder;
     }
 
     private static String gradingSelect() {
