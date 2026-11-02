@@ -41,6 +41,7 @@ const portalDevelopment = await load(path.join(ops, 'shared', 'portal-url.ts'), 
 const portalRelease = await load(path.join(ops, 'shared', 'portal-url.ts'), 'portal-url-release', false);
 const opsMessages = await load(path.join(mobileRoot, 'src', 'i18n', 'operations-messages.ts'), 'operations-messages');
 const laneMessages = await load(path.join(mobileRoot, 'src', 'i18n', 'lanes-messages.ts'), 'lanes-messages');
+const locale = await load(path.join(mobileRoot, 'src', 'i18n', 'locale.ts'), 'locale');
 const webAttendance = await import(pathToFileURL(loadWeb(path.join(webLib, 'attendance-export.ts'))).href);
 const webGrade = await import(pathToFileURL(loadWeb(path.join(webLib, 'grade-export.ts'))).href);
 
@@ -115,6 +116,40 @@ test('stale attendance is detected when the server marks or roster changed', () 
   assert.equal(model.isStaleAttendance(baseline, roster, [{ studentId: 's1', status: 'ABSENT' }]), true);
   assert.equal(model.isStaleAttendance(baseline, roster, [...marks, { studentId: 's2', status: 'LATE' }]), true);
   assert.equal(model.isStaleAttendance(baseline, roster.slice(1), marks), true);
+});
+
+test('a note-only server edit makes the attendance sheet stale', () => {
+  const marks = [{ studentId: 's1', status: 'EXCUSED', notes: 'sick' }];
+  const baseline = model.baselineOf(roster, marks);
+  assert.equal(model.isStaleAttendance(baseline, roster, marks), false);
+  assert.equal(
+    model.isStaleAttendance(baseline, roster, [{ studentId: 's1', status: 'EXCUSED', notes: 'medical leave' }]),
+    true,
+    'a note edited elsewhere is a newer server state',
+  );
+  assert.equal(
+    model.isStaleAttendance(baseline, roster, [{ studentId: 's1', status: 'EXCUSED', notes: ' sick ' }]),
+    false,
+    'surrounding whitespace is not an edit',
+  );
+
+  const saved = model.savedBaseline(model.buildRosterRows(roster, marks));
+  assert.equal(
+    model.isStaleAttendance(saved, roster, [{ studentId: 's1', status: 'EXCUSED', notes: 'medical leave' }]),
+    true,
+    'the baseline after a save still tracks notes',
+  );
+});
+
+test('the attendance day is the fixed UTC+07 campus day', () => {
+  assert.equal(typeof locale.campusIsoDate, 'function', 'a campus-day helper exists');
+  assert.equal(locale.campusIsoDate(new Date('2026-11-02T23:30:00Z')), '2026-11-03');
+  assert.equal(locale.campusIsoDate(new Date('2026-11-03T16:59:59Z')), '2026-11-03');
+  assert.equal(locale.campusIsoDate(new Date('2026-11-03T17:00:00Z')), '2026-11-04');
+
+  const screen = fs.readFileSync(path.join(ops, 'LecturerAttendanceScreen.tsx'), 'utf8');
+  assert.match(screen, /const today = campusIsoDate\(\);/);
+  assert.doesNotMatch(screen, /localIsoDate/);
 });
 
 test('attendance metrics use present plus late over the whole roster', () => {

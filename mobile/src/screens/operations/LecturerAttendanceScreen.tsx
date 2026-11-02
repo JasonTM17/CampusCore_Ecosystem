@@ -6,6 +6,7 @@ import { Button, Notice, StatePanel, StatStrip, UiText } from '../../components/
 import { DateField } from '../../components/ui/date-field';
 import { SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
+import { campusIsoDate } from '../../i18n/locale';
 import type { MobileScreenProps } from '../../navigation/types';
 import { AttendanceRosterRow } from './AttendanceRosterRow';
 import { StaleAttendanceError, lecturerApi, type AttendanceSheet } from './lecturer-api';
@@ -20,7 +21,6 @@ import {
   courseTitle,
   filterRoster,
   isStaleAttendance,
-  localIsoDate,
   savedBaseline,
   setAllStatus,
   setRowStatus,
@@ -35,7 +35,7 @@ import { previewRoster, previewSchedule } from './shared/preview';
 import { useOpsStyles } from './shared/styles';
 
 const PAGE_SIZE = 30;
-const EMPTY_BASELINE: AttendanceBaseline = { roster: [], marks: {} };
+const EMPTY_BASELINE: AttendanceBaseline = { roster: [], marks: {}, notes: {} };
 
 type SaveState = { kind: 'idle' } | { kind: 'saving' } | { kind: 'saved'; count: number } | { kind: 'error'; message: string };
 
@@ -50,7 +50,7 @@ export function LecturerAttendanceScreen(_props: MobileScreenProps) {
   const [picked, setPicked] = useState(typeof params.sectionId === 'string' ? params.sectionId : '');
   const sectionId = sections.some((section) => section.sectionId === picked) ? picked : sections[0]?.sectionId ?? '';
   const section = sections.find((item) => item.sectionId === sectionId);
-  const today = localIsoDate();
+  const today = campusIsoDate();
   const [date, setDate] = useState(today);
   const sheetKey = `${sectionId}:${date}`;
   const currentSheetKey = useRef(sheetKey);

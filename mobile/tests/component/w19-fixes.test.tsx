@@ -156,7 +156,7 @@ import { checkinMessages } from '../../src/i18n/checkin-messages';
 import { operationsMessages } from '../../src/i18n/operations-messages';
 import type { MobileScreenProps } from '../../src/navigation/types';
 import type { CheckinMachine } from '../../src/attendance-checkin/checkin-machine';
-import { localIsoDate } from '../../src/screens/operations/lecturer-model';
+import { campusIsoDate } from '../../src/i18n/locale';
 import { LecturerAttendanceScreen } from '../../src/screens/operations/LecturerAttendanceScreen';
 import { LecturerGradingScreen } from '../../src/screens/operations/LecturerGradingScreen';
 import { AdminCreditLimitsScreen } from '../../src/screens/lanes/AdminLaneScreens';
@@ -186,7 +186,7 @@ const sections = [
   { sectionId: 'section-a', sectionNumber: '01', courseCode: 'CS-A', courseNameVi: 'Course A', courseNameEn: 'Course A' },
   { sectionId: 'section-b', sectionNumber: '02', courseCode: 'CS-B', courseNameVi: 'Course B', courseNameEn: 'Course B' },
 ];
-const today = localIsoDate();
+const today = campusIsoDate();
 const attendanceSheetA = {
   sectionId: 'section-a', date: today,
   roster: [{ studentId: 'a1', studentCode: 'A1', firstName: 'Alpha' }], marks: [],

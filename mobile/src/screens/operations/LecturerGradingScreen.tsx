@@ -8,7 +8,7 @@ import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { GradeRowCard } from './GradeRowCard';
 import { lecturerApi, type SectionGradeSheet } from './lecturer-api';
-import { generateGradeCsv, gradeCsvFilename } from './lecturer-csv';
+import { calculateGrade, calculateTotalScore, generateGradeCsv, gradeCsvFilename } from './lecturer-csv';
 import {
   buildGradeDraft,
   changedGradeRows,
@@ -16,6 +16,7 @@ import {
   dirtyGradeCount,
   gradedPercent,
   localIsoDate,
+  mergeGradeEdits,
   sameGradeSheet,
   windowOf,
   type GradeDraft,
@@ -275,15 +276,20 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
       sectionNumber: section?.sectionNumber ?? sectionId,
       courseCode: section?.courseCode,
       courseName: section ? courseTitle(section, locale) : undefined,
-      students: rows.map((row) => ({
-        studentId: row.studentId ?? row.enrollmentId,
-        studentCode: row.studentCode ?? '',
-        studentName: row.studentName ?? '',
-        processScore: row.processScore ?? null,
-        finalExamScore: row.finalExamScore ?? null,
-        letterGrade: row.letterGrade ?? null,
-        gradeStatus: row.gradeStatus ?? null,
-      })),
+      students: mergeGradeEdits(rows, edits).map((row) => {
+        const processScore = row.processScore ?? null;
+        const finalExamScore = row.finalExamScore ?? null;
+        const total = calculateTotalScore(processScore, finalExamScore);
+        return {
+          studentId: row.studentId ?? row.enrollmentId,
+          studentCode: row.studentCode ?? '',
+          studentName: row.studentName ?? '',
+          processScore,
+          finalExamScore,
+          letterGrade: total !== null ? calculateGrade(total) : null,
+          gradeStatus: row.gradeStatus ?? null,
+        };
+      }),
       locale,
     });
 
