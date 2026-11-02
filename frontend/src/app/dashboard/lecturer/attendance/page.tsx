@@ -45,15 +45,14 @@ import {
 import { GeofenceCheckinPanel } from '@/components/lecturer/GeofenceCheckinPanel';
 import { metricToneClass } from '@/components/ui/status';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
+import { UnsavedChangesConfirmDialog } from '@/components/ui/unsaved-changes-confirm';
+import { useUnsavedChangesGuard } from '@/lib/use-unsaved-changes-guard';
+import { campusTodayIso } from '@/lib/attendance-checkin';
 import { useI18n } from '@/i18n';
 import { toast } from 'sonner';
 
 function getTodayString(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return campusTodayIso();
 }
 
 type StudentRowState = {
@@ -86,6 +85,7 @@ export default function LecturerAttendancePage() {
   const [sectionsLoadFailed, setSectionsLoadFailed] = useState(false);
 
   const [roster, setRoster] = useState<StudentRowState[]>([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   // Rows cleared via Reset whose RESET entry has not been saved yet.
   const [resetStudentIds, setResetStudentIds] = useState<Set<string>>(new Set());
   const [sectionSummary, setSectionSummary] = useState<SectionAttendanceSummary | null>(null);
@@ -100,6 +100,23 @@ export default function LecturerAttendancePage() {
   const saveSelectionRef = useRef(0);
   const selectionRef = useRef({ sectionId: selectedSectionId, date: selectedDate });
   selectionRef.current = { sectionId: selectedSectionId, date: selectedDate };
+  const unsaved = useUnsavedChangesGuard({
+    isDirty: useCallback(() => hasUnsavedChanges, [hasUnsavedChanges]),
+    interceptRouteChanges: true,
+  });
+
+  const requestSheetChange = (action: () => void) => {
+    unsaved.requestLeave(() => {
+      setHasUnsavedChanges(false);
+      action();
+    });
+  };
+  const handleSemesterChange = (value: string) =>
+    requestSheetChange(() => setSelectedSemester(value));
+  const handleSectionChange = (value: string) =>
+    requestSheetChange(() => setSelectedSectionId(value));
+  const handleDateChange = (value: string) =>
+    requestSheetChange(() => setSelectedDate(value));
 
   // 1. Fetch semesters
   const fetchSemesters = useCallback(async () => {
@@ -201,6 +218,7 @@ export default function LecturerAttendancePage() {
       });
 
       setRoster(rows);
+      setHasUnsavedChanges(false);
       setResetStudentIds(new Set());
       setSectionSummary(summary);
     } catch {
@@ -236,16 +254,19 @@ export default function LecturerAttendancePage() {
     setRoster((prev) =>
       prev.map((row) => (row.studentId === studentId ? { ...row, status } : row)),
     );
+    setHasUnsavedChanges(true);
   };
 
   const handleNotesChange = (studentId: string, notes: string) => {
     setRoster((prev) =>
       prev.map((row) => (row.studentId === studentId ? { ...row, notes } : row)),
     );
+    setHasUnsavedChanges(true);
   };
 
   const handleMarkAllPresent = () => {
     setRoster((prev) => prev.map((row) => ({ ...row, status: 'PRESENT' })));
+    setHasUnsavedChanges(true);
     toast.info(attendanceMessages.markAllPresent);
   };
 
@@ -271,6 +292,7 @@ export default function LecturerAttendancePage() {
       ),
     );
     setRoster((prev) => prev.map((row) => ({ ...row, status: null, notes: '' })));
+    setHasUnsavedChanges(true);
   };
 
   const handleSave = async () => {
@@ -322,6 +344,7 @@ export default function LecturerAttendancePage() {
       toast.success(
         attendanceMessages.savedSuccess.replace('{count}', String(response.updatedCount)),
       );
+      setHasUnsavedChanges(false);
       setResetStudentIds(new Set());
 
       // Refresh section summary after saving
@@ -469,7 +492,7 @@ export default function LecturerAttendancePage() {
             <Select
               id={`${controlId}-semester`}
               value={selectedSemester}
-              onChange={(e) => setSelectedSemester(e.target.value)}
+              onChange={(e) => handleSemesterChange(e.target.value)}
               className="w-full"
               disabled={isSaving}
             >
@@ -490,7 +513,7 @@ export default function LecturerAttendancePage() {
             <Select
               id={`${controlId}-section`}
               value={selectedSectionId}
-              onChange={(e) => setSelectedSectionId(e.target.value)}
+              onChange={(e) => handleSectionChange(e.target.value)}
               className="w-full font-medium"
               disabled={isSaving || isLoadingSections || sections.length === 0}
             >
@@ -515,7 +538,7 @@ export default function LecturerAttendancePage() {
               id={`${controlId}-date`}
               type="date"
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              onChange={(e) => handleDateChange(e.target.value)}
               className="w-full"
               disabled={isSaving}
             />
@@ -594,7 +617,7 @@ export default function LecturerAttendancePage() {
         <ErrorState
           title={attendanceMessages.rosterLoadError}
           description={error}
-          onRetry={() => void fetchRosterAndAttendance(selectedSectionId, selectedDate)}
+          onRetry={() => requestSheetChange(() => void fetchRosterAndAttendance(selectedSectionId, selectedDate))}
         />
       ) : roster.length === 0 ? (
         <EmptyState
@@ -815,6 +838,15 @@ export default function LecturerAttendancePage() {
         </WorkspacePanel>
       )}
       {confirmationDialog}
+      <UnsavedChangesConfirmDialog
+        open={unsaved.confirmOpen}
+        title={unsaved.confirmTitle}
+        description={unsaved.confirmBody}
+        confirmLabel={messages.common.actions.confirm}
+        cancelLabel={messages.common.actions.cancel}
+        onConfirm={unsaved.confirmLeave}
+        onCancel={unsaved.cancelLeave}
+      />
     </div>
   );
 }

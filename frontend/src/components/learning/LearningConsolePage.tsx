@@ -297,46 +297,73 @@ function StudentWorkModal({
   const busyRef = useRef(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const idemKey = useRef(newLearningIdempotencyKey());
+  const assignmentRequestRef = useRef({ assignmentId: assignment?.id ?? null, generation: 0 });
+  if (assignmentRequestRef.current.assignmentId !== (assignment?.id ?? null)) {
+    assignmentRequestRef.current = {
+      assignmentId: assignment?.id ?? null,
+      generation: assignmentRequestRef.current.generation + 1,
+    };
+  }
 
-  const refresh = useCallback(async (submissionId: string) => {
+  const refresh = useCallback(async (
+    submissionId: string,
+    request: { assignmentId: string | null; generation: number },
+  ) => {
     const [detail, revisionRows, feedbackRows] = await Promise.all([
       learningApi.mySubmission(submissionId),
       learningApi.myRevisions(submissionId),
       learningApi.myFeedback(submissionId),
     ]);
+    if (assignmentRequestRef.current !== request || detail.assignmentId !== request.assignmentId) {
+      return false;
+    }
     setSubmission(detail);
     setRevisions(revisionRows);
     setFeedback(feedbackRows);
+    return true;
   }, []);
 
   useEffect(() => {
+    const request = assignmentRequestRef.current;
+    busyRef.current = false;
+    setBusy(false);
     setSubmission(null);
     setRevisions([]);
     setFeedback([]);
     setTextBody('');
     idemKey.current = newLearningIdempotencyKey();
     if (assignment?.mySubmissionId) {
-      void refresh(assignment.mySubmissionId).catch(() => toast.error(copy.failed));
+      void refresh(assignment.mySubmissionId, request).catch(() => {
+        if (assignmentRequestRef.current === request) toast.error(copy.failed);
+      });
     }
   }, [assignment, copy, refresh]);
 
-  const editable = submission == null || submission.status === 'DRAFT' || submission.status === 'RETURNED';
+  const activeSubmission = submission?.assignmentId === assignment?.id ? submission : null;
+  const editable = activeSubmission == null
+    || activeSubmission.status === 'DRAFT'
+    || activeSubmission.status === 'RETURNED';
 
   const run = async (action: () => Promise<LearningSubmission>, ok: string) => {
-    if (!assignment || busyRef.current) return;
+    const request = assignmentRequestRef.current;
+    if (!assignment || request.assignmentId !== assignment.id || busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     try {
       const result = await action();
+      if (assignmentRequestRef.current !== request || result.assignmentId !== request.assignmentId) return;
       setSubmission(result);
-      await refresh(result.id);
+      const refreshed = await refresh(result.id, request);
+      if (!refreshed || assignmentRequestRef.current !== request) return;
       toast.success(ok);
       onChanged();
     } catch (cause) {
-      toast.error(friendlyError(copy, cause));
+      if (assignmentRequestRef.current === request) toast.error(friendlyError(copy, cause));
     } finally {
-      busyRef.current = false;
-      setBusy(false);
+      if (assignmentRequestRef.current === request) {
+        busyRef.current = false;
+        setBusy(false);
+      }
     }
   };
 
@@ -345,7 +372,7 @@ function StudentWorkModal({
 
   const save = () => run(async () => {
     const file = await pickFile(fileRef.current);
-    return learningApi.saveDraft(submission!.id, {
+    return learningApi.saveDraft(activeSubmission!.id, {
       textBody: textBody || null,
       ...(file ?? {}),
     });
@@ -370,18 +397,18 @@ function StudentWorkModal({
             {copy.deadline}: {assignment.deadlineAt ? formatDateTime(assignment.deadlineAt) : '—'}
           </p>
 
-          {submission == null ? (
+          {activeSubmission == null ? (
             <Button onClick={() => void ensureDraft()} disabled={busy || assignment.status !== 'PUBLISHED'}>
               <Upload className="mr-2 h-4 w-4" />{copy.draftWork}
             </Button>
           ) : (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <span className={cn('rounded-full px-2 py-0.5 text-xs', statusToneClass(submissionTone(submission.status)))}>
-                  {copy.statusLabels[submission.status] ?? submission.status}
+                <span className={cn('rounded-full px-2 py-0.5 text-xs', statusToneClass(submissionTone(activeSubmission.status)))}>
+                  {copy.statusLabels[activeSubmission.status] ?? activeSubmission.status}
                 </span>
-                {submission.submittedAt ? (
-                  <span className="text-xs text-muted-foreground">{formatDateTime(submission.submittedAt)}</span>
+                {activeSubmission.submittedAt ? (
+                  <span className="text-xs text-muted-foreground">{formatDateTime(activeSubmission.submittedAt)}</span>
                 ) : null}
               </div>
 
@@ -397,7 +424,7 @@ function StudentWorkModal({
                   <label className="block text-xs font-medium">{copy.attachFile}</label>
                   <input ref={fileRef} type="file" accept={UPLOAD_ACCEPT_COURSEWORK} className="block w-full text-xs" data-testid="learning-file-input" aria-label={copy.attachFile} />
                   <div className="flex flex-wrap gap-2">
-                    {submission.status === 'DRAFT' ? (
+                    {activeSubmission.status === 'DRAFT' ? (
                       <>
                         <Button size="sm" variant="outline" onClick={() => void save()} disabled={busy}>
                           {copy.saveDraft}
