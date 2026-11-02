@@ -131,7 +131,7 @@ export default function ResetPasswordPage() {
     <button
       type="button"
       onClick={toggle}
-      className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      className="-mr-2 flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       aria-label={visible ? messages.login.hidePassword : messages.login.showPassword}
       title={visible ? messages.login.hidePassword : messages.login.showPassword}
       aria-pressed={visible}
@@ -182,7 +182,7 @@ export default function ResetPasswordPage() {
             </LocalizedLink>
             <LocalizedLink
               href="/login"
-              className="inline-flex min-h-8 items-center justify-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 text-sm font-medium text-primary hover:underline"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               {copy.backToSignIn}
@@ -310,7 +310,7 @@ export default function ResetPasswordPage() {
           <p className="text-sm text-muted-foreground">
             <LocalizedLink
               href="/login"
-              className="inline-flex min-h-8 items-center gap-1.5 font-medium text-primary hover:underline"
+              className="inline-flex min-h-11 items-center gap-1.5 font-medium text-primary hover:underline"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               {copy.backToSignIn}
