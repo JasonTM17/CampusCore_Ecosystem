@@ -81,8 +81,8 @@ test('lecturer grade saves submit only edited rows, not the seeded roster', () =
   assert.match(page, /updates\.length === 0/);
   assert.doesNotMatch(page, /Array\.from\(grades\.values\(\)\)/);
   // Scores are nullable so a both-null row can clear a saved draft grade.
-  assert.match(read('src/lib/api.ts'), /processScore: number \| null; finalExamScore: number \| null/);
-  assert.doesNotMatch(read('src/lib/api.ts'), /grades: \{ enrollmentId: string; finalGrade/);
+  assert.match(read('src/types/api.ts'), /processScore: number \| null;\s*finalExamScore: number \| null/);
+  assert.doesNotMatch(read('src/types/api.ts'), /grades: \{ enrollmentId: string; finalGrade/);
 });
 
 test('grade score inputs use canonical 50-50 components and derive the letter grade', () => {
