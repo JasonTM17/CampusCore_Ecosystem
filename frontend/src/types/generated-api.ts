@@ -723,7 +723,7 @@ export interface paths {
     post: operations["transition"];
   };
   "/api/v1/careers/staff/grants": {
-    /** Danh sách grants careers (org/reviewer) */
+    /** Grants careers của tôi (org/reviewer) */
     get: operations["grants_2"];
     /** Cấp grant theo tổ chức hoặc reviewer (admin) */
     post: operations["grant_2"];
@@ -1029,7 +1029,7 @@ export interface paths {
     post: operations["create_3"];
   };
   "/api/v1/events/staff/grants": {
-    /** Danh sách staff grants */
+    /** Staff grants của tôi */
     get: operations["grants_1"];
     /** Cấp grant STAFF:events (admin) */
     post: operations["grant_1"];
@@ -1329,7 +1329,7 @@ export interface paths {
     post: operations["retire"];
   };
   "/api/v1/library/staff/grants": {
-    /** Danh sách staff grants */
+    /** Staff grant của tôi */
     get: operations["grants"];
     /** Cấp grant STAFF:library (admin) */
     post: operations["grant"];
@@ -2008,6 +2008,10 @@ export interface paths {
     get: operations["listReportsByRound"];
   };
   "/api/v1/thesis/rounds/{id}/repository": {
+    /**
+     * Kho báo cáo của đợt
+     * @description Trả về mảng báo cáo đã được phân quyền; thêm page/limit để phân trang kèm X-Total-Count và ba tổng X-Archive-*; thêm search để lọc theo đúng quy tắc tìm kiếm trên web
+     */
     get: operations["listRepository"];
   };
   "/api/v1/thesis/students/search": {
@@ -2016,7 +2020,7 @@ export interface paths {
   "/api/v1/thesis/topics": {
     /**
      * Lấy danh sách đề tài theo đợt khóa luận
-     * @description Truy xuất danh sách các đề tài khóa luận trong đợt đã chọn, có quyền bảo mật ẩn đề tài nháp/lưu trữ đối với sinh viên
+     * @description Truy xuất danh sách các đề tài khóa luận trong đợt đã chọn, có quyền bảo mật ẩn đề tài nháp/lưu trữ đối với sinh viên. Thêm search để lọc đúng như trang danh mục; khi có page/limit trả thêm X-Topic-Total-Count (tổng trước khi lọc).
      */
     get: operations["list_1"];
     post: operations["createTopic"];
@@ -3459,6 +3463,8 @@ export interface components {
       enrollmentId: string;
       finalExamScore?: number;
       processScore?: number;
+      /** Format: int32 */
+      version?: number;
     };
     GradeUpdateRequest: {
       grades: components["schemas"]["GradeUpdate"][];
@@ -4376,6 +4382,8 @@ export interface components {
       studentCode?: string;
       studentId?: string;
       studentName?: string;
+      /** Format: int32 */
+      version?: number;
     };
     SectionGradesResponse: {
       courseCode?: string;
@@ -7861,7 +7869,7 @@ export interface operations {
       };
     };
   };
-  /** Danh sách grants careers (org/reviewer) */
+  /** Grants careers của tôi (org/reviewer) */
   grants_2: {
     parameters: {
       query?: {
@@ -7872,7 +7880,7 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Danh sách grants careers */
+      /** @description Grants careers của tôi */
       200: {
         headers: {
           /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
@@ -9210,7 +9218,7 @@ export interface operations {
       };
     };
   };
-  /** Danh sách staff grants */
+  /** Staff grants của tôi */
   grants_1: {
     parameters: {
       query?: {
@@ -9221,7 +9229,7 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Danh sách staff grants */
+      /** @description Staff grants của tôi */
       200: {
         headers: {
           /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
@@ -10528,7 +10536,7 @@ export interface operations {
       };
     };
   };
-  /** Danh sách staff grants */
+  /** Staff grant của tôi */
   grants: {
     responses: {
       /** @description OK */
@@ -10576,11 +10584,19 @@ export interface operations {
     parameters: {
       query?: {
         status?: string;
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
       };
     };
     responses: {
-      /** @description OK */
+      /** @description Hàng đợi đơn mượn */
       200: {
+        headers: {
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["LoanRequestResponse"][];
         };
@@ -13316,15 +13332,37 @@ export interface operations {
       };
     };
   };
+  /**
+   * Kho báo cáo của đợt
+   * @description Trả về mảng báo cáo đã được phân quyền; thêm page/limit để phân trang kèm X-Total-Count và ba tổng X-Archive-*; thêm search để lọc theo đúng quy tắc tìm kiếm trên web
+   */
   listRepository: {
     parameters: {
+      query?: {
+        /** @description Từ khóa tìm kiếm trên kho báo cáo (chỉ một giá trị); so khớp không dấu, không phân biệt hoa thường */
+        search?: string;
+        /** @description Trang bắt đầu từ 0; cần đi cùng limit */
+        page?: number;
+        /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
+        limit?: number;
+      };
       path: {
         id: string;
       };
     };
     responses: {
-      /** @description OK */
+      /** @description Kho báo cáo */
       200: {
+        headers: {
+          /** @description Số báo cáo đã phân quyền có tên tệp khác rỗng, không phụ thuộc search */
+          "X-Archive-File-Count"?: number;
+          /** @description Tổng số báo cáo đã phân quyền của đợt, không phụ thuộc search */
+          "X-Archive-Total-Count"?: number;
+          /** @description Số báo cáo đã phân quyền có URL khác rỗng, không phụ thuộc search */
+          "X-Archive-Url-Count"?: number;
+          /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
+          "X-Total-Count"?: number;
+        };
         content: {
           "*/*": components["schemas"]["RepositoryReportResponse"][];
         };
@@ -13348,7 +13386,7 @@ export interface operations {
   };
   /**
    * Lấy danh sách đề tài theo đợt khóa luận
-   * @description Truy xuất danh sách các đề tài khóa luận trong đợt đã chọn, có quyền bảo mật ẩn đề tài nháp/lưu trữ đối với sinh viên
+   * @description Truy xuất danh sách các đề tài khóa luận trong đợt đã chọn, có quyền bảo mật ẩn đề tài nháp/lưu trữ đối với sinh viên. Thêm search để lọc đúng như trang danh mục; khi có page/limit trả thêm X-Topic-Total-Count (tổng trước khi lọc).
    */
   list_1: {
     parameters: {
@@ -13357,6 +13395,8 @@ export interface operations {
         roundId: string;
         /** @description Trạng thái đề tài (PUBLISHED, APPROVED, DRAFT...) */
         status?: "DRAFT" | "PUBLISHED" | "APPROVED" | "REJECTED" | "ARCHIVED";
+        /** @description Từ khoá lọc theo đúng ngữ nghĩa trang danh mục; bỏ trống hoặc 'all' là không lọc */
+        search?: string;
         /** @description Trang bắt đầu từ 0; cần đi cùng limit */
         page?: number;
         /** @description Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ */
@@ -13367,6 +13407,8 @@ export interface operations {
       /** @description Truy xuất danh sách đề tài thành công */
       200: {
         headers: {
+          /** @description Số đề tài người gọi được xem trước khi áp dụng search (chỉ khi có page/limit) */
+          "X-Topic-Total-Count"?: number;
           /** @description Số bản ghi trước khi phân trang (chỉ khi có page/limit) */
           "X-Total-Count"?: number;
         };
@@ -13374,7 +13416,7 @@ export interface operations {
           "*/*": components["schemas"]["TopicResponse"][];
         };
       };
-      /** @description Tham số roundId hoặc page/limit không hợp lệ */
+      /** @description Tham số roundId, search hoặc page/limit không hợp lệ */
       400: {
         content: {
           "*/*": components["schemas"]["TopicResponse"][];
