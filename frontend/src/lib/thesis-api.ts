@@ -6,7 +6,11 @@ import {
   parseAssistantStreamEvent,
   AssistantStreamOrder,
 } from '@/lib/assistant-stream';
-import { toArrayListPage, type ArrayListPage } from '@/lib/array-list-page';
+import {
+  parseCountHeader,
+  toArrayListPage,
+  type ArrayListPage,
+} from '@/lib/array-list-page';
 export {
   createAssistantSseParser,
   parseAssistantStreamEvent,
@@ -136,6 +140,20 @@ export interface ThesisRepositoryReport {
   supervisors: ThesisRepositorySupervisor[];
   members: ThesisRepositoryMember[];
 }
+
+export interface ThesisRepositorySummary {
+  total?: number;
+  files?: number;
+  urls?: number;
+}
+
+export type ThesisRepositoryPage = ArrayListPage<ThesisRepositoryReport> & {
+  summary: ThesisRepositorySummary;
+};
+
+export type ThesisTopicCatalogPage = ArrayListPage<ThesisTopic> & {
+  catalogTotal?: number;
+};
 
 export type ThesisProgressMilestone =
   | 'ROUND_SELECTED'
@@ -749,19 +767,23 @@ export const thesisApi = {
 
   listTopicsPage: async (
     roundId: string,
-    options: { status?: ThesisTopicStatus; page: number; limit: number },
+    options: { status?: ThesisTopicStatus; search?: string; page: number; limit: number },
     signal?: AbortSignal,
-  ): Promise<ArrayListPage<ThesisTopic>> => {
+  ): Promise<ThesisTopicCatalogPage> => {
     const response = await api.get<ThesisTopic[]>('/thesis/topics', {
       params: {
         roundId,
         status: options.status ?? 'PUBLISHED',
+        ...(options.search !== undefined ? { search: options.search } : {}),
         page: options.page,
         limit: options.limit,
       },
       ...(signal ? { signal } : {}),
     });
-    return toArrayListPage(response.data, options.page, response.headers, options.limit);
+    return {
+      ...toArrayListPage(response.data, options.page, response.headers, options.limit),
+      catalogTotal: parseCountHeader(response.headers, 'X-Topic-Total-Count'),
+    };
   },
 
   getTopic: async (topicId: string): Promise<ThesisTopic> => {
@@ -1036,6 +1058,32 @@ export const thesisApi = {
       '/thesis/rounds/' + roundId + '/repository',
     );
     return response.data || [];
+  },
+
+  listRoundRepositoryPage: async (
+    roundId: string,
+    options: { search?: string; page: number; limit: number },
+    signal?: AbortSignal,
+  ): Promise<ThesisRepositoryPage> => {
+    const response = await api.get<ThesisRepositoryReport[]>(
+      '/thesis/rounds/' + roundId + '/repository',
+      {
+        params: {
+          ...(options.search !== undefined ? { search: options.search } : {}),
+          page: options.page,
+          limit: options.limit,
+        },
+        ...(signal ? { signal } : {}),
+      },
+    );
+    return {
+      ...toArrayListPage(response.data || [], options.page, response.headers, options.limit),
+      summary: {
+        total: parseCountHeader(response.headers, 'X-Archive-Total-Count'),
+        files: parseCountHeader(response.headers, 'X-Archive-File-Count'),
+        urls: parseCountHeader(response.headers, 'X-Archive-Url-Count'),
+      },
+    };
   },
 
   getMyProgress: async (roundId: string): Promise<ThesisProgressResponse> => {

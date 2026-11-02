@@ -449,6 +449,10 @@ export const thesisWorkflowEn = {
     requiredDescription:
       'Enter a keyword, click a quick suggestion, or click "Browse all topics in this round".',
     noMatch: 'No topic matches your search.',
+    unknownCountTitle: 'Topic totals unavailable',
+    unknownCountDescription: 'The catalogue did not return usable totals for this result. Retry to check again.',
+    loadErrorTitle: 'The topic catalogue could not be loaded',
+    loadErrorDescription: 'Retry to load the published topics for this round.',
     quickPills: [
       'Artificial Intelligence',
       'Software & Web',
@@ -460,6 +464,8 @@ export const thesisWorkflowEn = {
     ],
   },
   repository: {
+    searchLabel: 'Search report archive',
+    clearSearch: 'Clear archive search',
     attachedFiles: 'attached files',
     externalLinks: 'external links',
     loadErrorTitle: 'The report archive could not be loaded',
@@ -467,6 +473,9 @@ export const thesisWorkflowEn = {
       'Research groups will submit their thesis reports here once ready for archival.',
     noMatchDescription:
       'Try adjusting your search keywords by topic, student ID or supervisor.',
+    unknownCountTitle: 'Archive totals unavailable',
+    unknownCountDescription:
+      'The archive did not return a usable total for this result. Retry to check again.',
     roundLabel: 'Round:',
     notAssigned: 'Not assigned',
     unnamedSupervisor: 'Unnamed supervisor',
@@ -504,6 +513,7 @@ export const thesisWorkflowEn = {
   listPager: {
     topicsNav: 'Topic list pagination',
     groupsNav: 'Group list pagination',
+    repositoryNav: 'Report archive pagination',
     showing: 'Showing',
     to: 'to',
     of: 'of',
@@ -947,6 +957,10 @@ export const thesisWorkflowVi: Widen<typeof thesisWorkflowEn> = {
     requiredDescription:
       'Bạn có thể nhập từ khóa, chọn chuyên ngành gợi ý hoặc bấm "Xem tất cả đề tài đợt này".',
     noMatch: 'Không có đề tài nào khớp từ khóa.',
+    unknownCountTitle: 'Không đọc được tổng số đề tài',
+    unknownCountDescription: 'Danh mục chưa trả về tổng số hợp lệ cho kết quả này. Hãy thử tải lại.',
+    loadErrorTitle: 'Không thể tải danh mục đề tài',
+    loadErrorDescription: 'Hãy thử tải lại danh sách đề tài đã công bố của đợt này.',
     quickPills: [
       'Trí tuệ nhân tạo (AI)',
       'Phần mềm & Web',
@@ -958,6 +972,8 @@ export const thesisWorkflowVi: Widen<typeof thesisWorkflowEn> = {
     ],
   },
   repository: {
+    searchLabel: 'Tìm kiếm kho báo cáo',
+    clearSearch: 'Xóa tìm kiếm kho báo cáo',
     attachedFiles: 'tài liệu đính kèm',
     externalLinks: 'liên kết ngoài',
     loadErrorTitle: 'Không thể tải kho lưu trữ báo cáo',
@@ -965,6 +981,9 @@ export const thesisWorkflowVi: Widen<typeof thesisWorkflowEn> = {
       'Các nhóm nghiên cứu sau khi hoàn thành sẽ nộp báo cáo tại đây để lưu trữ và thẩm định.',
     noMatchDescription:
       'Thử thay đổi từ khóa tìm kiếm theo tên đề tài, mã số sinh viên hoặc giảng viên hướng dẫn.',
+    unknownCountTitle: 'Không đọc được tổng số kho báo cáo',
+    unknownCountDescription:
+      'Kho báo cáo chưa trả về tổng số hợp lệ cho kết quả này. Hãy thử tải lại.',
     roundLabel: 'Đợt:',
     notAssigned: 'Chưa phân công',
     unnamedSupervisor: 'Chưa có tên',
@@ -1002,6 +1021,7 @@ export const thesisWorkflowVi: Widen<typeof thesisWorkflowEn> = {
   listPager: {
     topicsNav: 'Phân trang danh sách đề tài',
     groupsNav: 'Phân trang danh sách nhóm',
+    repositoryNav: 'Phân trang kho báo cáo',
     showing: 'Đang hiển thị',
     to: 'đến',
     of: 'trên',

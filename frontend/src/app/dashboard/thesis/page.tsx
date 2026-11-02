@@ -40,6 +40,7 @@ import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { RichContentRenderer } from '@/components/ui/rich-content-renderer';
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useRovingTabs } from '@/components/ui/use-roving-tabs';
+import { ListPager } from '@/components/ui/list-pager';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { PageHeader, SectionEyebrow } from '@/components/ui/page-header';
@@ -86,6 +87,8 @@ import {
   type ThesisTopic,
   type ThesisTopicSupervisor,
 } from '@/lib/thesis-api';
+import { useThesisPagedList } from '@/components/dashboard/thesis/useThesisPagedList';
+import { archiveEmptyState } from '@/lib/thesis-page-list';
 
 /** Shape of the API error envelope (`{ code, message }`) used for domain conflicts. */
 interface ThesisApiErrorShape {
@@ -135,13 +138,36 @@ function getGradeClassification(score: number): {
 }
 
 export default function ThesisPage() {
-  const { user, isStudent, isLecturer, isAdmin: isAdminRole, isSuperAdmin, isFacultyHead } = useAuth();
+  const {
+    user,
+    isStudent,
+    isLecturer,
+    isAdmin: isAdminRole,
+    isSuperAdmin,
+    isFacultyHead,
+    isLoggingOut,
+  } = useAuth();
   const isAdmin = Boolean(isAdminRole || isSuperAdmin || isFacultyHead);
   const isDepartmentHead = Boolean(user?.roles?.includes('TRUONG_BO_MON'));
   const canLoadStaffRelations = Boolean(isLecturer || isDepartmentHead || isAdmin);
   const canProposeTopics = canLoadStaffRelations;
   const isTopicApprover = Boolean(isAdmin || isDepartmentHead);
   const isSupervisorOrAdmin = canLoadStaffRelations;
+  const accountId = user?.id ?? '';
+  const authorizationScope = JSON.stringify([
+    [...(user?.roles ?? [])].sort(),
+    user?.studentId ?? null,
+    user?.lecturerId ?? null,
+  ]);
+  const authSignature = JSON.stringify([accountId, isLoggingOut]);
+  const authSessionRef = useRef({ signature: authSignature, epoch: 0 });
+  if (authSessionRef.current.signature !== authSignature) {
+    authSessionRef.current = {
+      signature: authSignature,
+      epoch: authSessionRef.current.epoch + 1,
+    };
+  }
+  const authSessionEpoch = authSessionRef.current.epoch;
   const { locale, formatDateTime, messages } = useI18n();
   const pageCopy = messages.thesisWorkflow.page;
   const isVi = locale === 'vi';
@@ -155,7 +181,6 @@ export default function ThesisPage() {
   const [selectedRoundId, setSelectedRoundId] = useState('');
   const topicRequestRef = useRef(0);
   const councilRequestRef = useRef(0);
-  const repositoryRequestRef = useRef(0);
   const selectedRoundRef = useRef(selectedRoundId);
   selectedRoundRef.current = selectedRoundId;
   const [viewingTopic, setViewingTopic] = useState<ThesisTopic | null>(null);
@@ -327,13 +352,50 @@ export default function ThesisPage() {
     [],
   );
 
-  // Thesis Repository State (Faculty archive of submitted theses)
-  const [repositoryReports, setRepositoryReports] = useState<ThesisRepositoryReport[]>([]);
-  const [isRepositoryLoading, setIsRepositoryLoading] = useState(false);
-  // A failed archive load must never read as "no reports yet": this flag keeps
-  // an outage distinguishable from a genuinely empty repository.
-  const [repositoryError, setRepositoryError] = useState('');
+  // Archive rows are fetched independently from the complete topic/group
+  // projections that drive membership, workload and management actions.
   const [repositorySearch, setRepositorySearch] = useState('');
+  const [appliedRepositorySearch, setAppliedRepositorySearch] = useState('');
+  const [repositorySearchPending, setRepositorySearchPending] = useState(false);
+  const repositorySearchTimerRef = useRef<number | null>(null);
+  const loadRepositoryPage = useCallback(
+    (page: number, signal: AbortSignal) => thesisApi.listRoundRepositoryPage(
+      selectedRoundId,
+      { search: appliedRepositorySearch, page, limit: 20 },
+      signal,
+    ),
+    [appliedRepositorySearch, selectedRoundId],
+  );
+  const repositoryPage = useThesisPagedList({
+    accountId,
+    authSessionEpoch,
+    authorizationScope,
+    roundId: selectedRoundId,
+    listKind: 'repository',
+    search: appliedRepositorySearch,
+    limit: 20,
+    enabled: canLoadStaffRelations && Boolean(selectedRoundId) && !isLoggingOut && !repositorySearchPending,
+    load: loadRepositoryPage,
+  });
+  const invalidateRepositoryPage = repositoryPage.invalidate;
+  const handleRepositorySearchChange = useCallback((value: string) => {
+    invalidateRepositoryPage();
+    setRepositorySearch(value);
+    setRepositorySearchPending(true);
+    if (repositorySearchTimerRef.current !== null) {
+      window.clearTimeout(repositorySearchTimerRef.current);
+    }
+    repositorySearchTimerRef.current = window.setTimeout(() => {
+      setAppliedRepositorySearch(value);
+      setRepositorySearchPending(false);
+      repositorySearchTimerRef.current = null;
+    }, 250);
+  }, [invalidateRepositoryPage]);
+  useEffect(() => () => {
+    if (repositorySearchTimerRef.current !== null) {
+      window.clearTimeout(repositorySearchTimerRef.current);
+    }
+  }, []);
 
   // Supervisors for current student group's topic
   const [currentTopicSupervisors, setCurrentTopicSupervisors] = useState<ThesisTopicSupervisor[]>([]);
@@ -781,15 +843,10 @@ export default function ThesisPage() {
 
     let cancelled = false;
     const councilRequestId = ++councilRequestRef.current;
-    const repositoryRequestId = ++repositoryRequestRef.current;
     const roundId = selectedRoundId;
     const isCouncilCurrent = () =>
       !cancelled
       && councilRequestId === councilRequestRef.current
-      && roundId === selectedRoundRef.current;
-    const isRepositoryCurrent = () =>
-      !cancelled
-      && repositoryRequestId === repositoryRequestRef.current
       && roundId === selectedRoundRef.current;
     const loadWorkspace = async () => {
       setError('');
@@ -803,7 +860,6 @@ export default function ThesisPage() {
           setGroups([]);
         }
         if (canLoadStaffRelations) {
-          setIsRepositoryLoading(true);
           promises.push(
             thesisApi.listCouncils(selectedRoundId).then((cList) => {
               if (isCouncilCurrent()) {
@@ -817,19 +873,6 @@ export default function ThesisPage() {
                 // yet"; keep the failure distinct and retryable instead.
                 setCouncils([]);
                 setCouncilLoadError(messages.thesis.loadFailed);
-              }
-            }),
-            thesisApi.listRoundRepository(selectedRoundId).then((rList) => {
-              if (isRepositoryCurrent()) {
-                setRepositoryReports(rList);
-                setRepositoryError('');
-                setIsRepositoryLoading(false);
-              }
-            }).catch(() => {
-              if (isRepositoryCurrent()) {
-                setRepositoryReports([]);
-                setRepositoryError(messages.thesis.loadFailed);
-                setIsRepositoryLoading(false);
               }
             }),
           );
@@ -874,32 +917,6 @@ export default function ThesisPage() {
       }
     }
   }, [canLoadStaffRelations, loadCouncilDetails, messages.thesis.loadFailed, selectedRoundId]);
-
-  // Retry path for a failed repository load: the reader gets the real failure
-  // with a way back, instead of an archive that silently reads as empty.
-  // The retry can resolve after the reader switched rounds, so — like the
-  // council retry above — every state write is gated on the round still being
-  // selected; a stale answer must not overwrite the new round's archive.
-  const reloadRepository = useCallback(async () => {
-    if (!selectedRoundId || !canLoadStaffRelations) return;
-    const requestId = ++repositoryRequestRef.current;
-    const roundId = selectedRoundId;
-    const isCurrent = () =>
-      requestId === repositoryRequestRef.current && roundId === selectedRoundRef.current;
-    setIsRepositoryLoading(true);
-    setRepositoryError('');
-    try {
-      const reports = await thesisApi.listRoundRepository(roundId);
-      if (!isCurrent()) return;
-      setRepositoryReports(reports);
-    } catch {
-      if (!isCurrent()) return;
-      setRepositoryReports([]);
-      setRepositoryError(messages.thesis.loadFailed);
-    } finally {
-      if (isCurrent()) setIsRepositoryLoading(false);
-    }
-  }, [canLoadStaffRelations, messages.thesis.loadFailed, selectedRoundId]);
 
   const selectedRound = rounds.find((round) => round.id === selectedRoundId);
   const roundGroups = useMemo(() => {
@@ -1111,36 +1128,6 @@ export default function ThesisPage() {
       active = false;
     };
   }, [isSupervisorOrAdmin, supervisedGroups, supervisedReports]);
-
-  const filteredRepositoryReports = useMemo(() => {
-    const raw = repositorySearch.trim();
-    if (!raw) return repositoryReports;
-    const fold = (value: string) =>
-      value
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/đ/g, 'd')
-        .replace(/Đ/g, 'd')
-        .toLowerCase();
-    const foldedQuery = fold(raw);
-    const queryTokens = foldedQuery.split(/\s+/).filter(Boolean);
-    return repositoryReports.filter((report) => {
-      const haystack = fold(
-        [
-          report.topicTitle || report.title || '',
-          report.topicDescription || '',
-          report.note || '',
-          report.fileName || '',
-          report.departmentName || '',
-          report.submittedByDisplayName || '',
-          report.submittedByStudentNumber || '',
-          ...report.supervisors.map((s) => s.displayName || ''),
-          ...report.members.map((m) => `${m.displayName || ''} ${m.studentNumber || ''}`),
-        ].join(' '),
-      );
-      return queryTokens.every((token) => haystack.includes(token));
-    });
-  }, [repositoryReports, repositorySearch]);
 
   const handleDownloadRepositoryReport = async (report: ThesisRepositoryReport) => {
     try {
@@ -2754,7 +2741,7 @@ export default function ThesisPage() {
                           : 'bg-muted text-foreground',
                       )}
                     >
-                      {fillCopy(pageCopy.reportsCount, { count: repositoryReports.length })}
+                      {fillCopy(pageCopy.reportsCount, { count: repositoryPage.summary?.total ?? '—' })}
                     </span>
                   </button>
                   </>
@@ -2904,14 +2891,18 @@ export default function ThesisPage() {
                   messages={messages}
                   locale={locale}
                   formatDateTime={formatDateTime}
-                  reports={repositoryReports}
-                  filteredReports={filteredRepositoryReports}
+                  reports={repositoryPage.items}
+                  filteredTotal={repositoryPage.total}
+                  summary={repositoryPage.summary}
                   roundName={selectedRound?.name}
-                  isLoading={isRepositoryLoading}
-                  loadError={repositoryError}
-                  onRetry={() => void reloadRepository()}
+                  isLoading={repositoryPage.loading}
+                  loadError={repositoryPage.failed ? messages.thesis.loadFailed : undefined}
+                  onRetry={repositoryPage.retry}
                   search={repositorySearch}
-                  onSearchChange={setRepositorySearch}
+                  onSearchChange={handleRepositorySearchChange}
+                  page={repositoryPage.page}
+                  limit={repositoryPage.limit}
+                  onPage={repositoryPage.goToPage}
                   onDownloadReport={handleDownloadRepositoryReport}
                 />
               )}

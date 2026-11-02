@@ -18,10 +18,17 @@ interface SelectionState {
   generation: number;
 }
 
+interface ThesisPageResult<T> extends ArrayListPage<T> {
+  summary?: { total?: number; files?: number; urls?: number };
+  catalogTotal?: number;
+}
+
 interface PageState<T> {
   requestId: string | null;
   items: T[];
   total?: number;
+  summary?: ThesisPageResult<T>['summary'];
+  catalogTotal?: number;
   loading: boolean;
   failed: boolean;
 }
@@ -33,9 +40,10 @@ export interface UseThesisPagedListOptions<T> {
   roundId: string;
   listKind: ThesisPageListKind;
   status?: string;
+  search?: string;
   limit: number;
   enabled: boolean;
-  load: (page: number, signal: AbortSignal) => Promise<ArrayListPage<T>>;
+  load: (page: number, signal: AbortSignal) => Promise<ThesisPageResult<T>>;
 }
 
 export function useThesisPagedList<T>(options: UseThesisPagedListOptions<T>) {
@@ -46,6 +54,7 @@ export function useThesisPagedList<T>(options: UseThesisPagedListOptions<T>) {
     roundId: options.roundId,
     listKind: options.listKind,
     status: options.status,
+    search: options.search,
     limit: options.limit,
   });
   const [selection, setSelection] = useState<SelectionState>({
@@ -74,6 +83,7 @@ export function useThesisPagedList<T>(options: UseThesisPagedListOptions<T>) {
     roundId: options.roundId,
     listKind: options.listKind,
     status: options.status,
+    search: options.search,
     page,
     limit: options.limit,
     generation,
@@ -83,7 +93,15 @@ export function useThesisPagedList<T>(options: UseThesisPagedListOptions<T>) {
   currentKeyRef.current = visibleKey;
   const visibleState: PageState<T> = state.requestId === visibleRequestId
     ? state
-    : { requestId: visibleRequestId, items: [], total: undefined, loading: true, failed: false };
+    : {
+      requestId: visibleRequestId,
+      items: [],
+      total: undefined,
+      summary: undefined,
+      catalogTotal: undefined,
+      loading: true,
+      failed: false,
+    };
 
   useEffect(() => {
     if (!options.enabled || !options.roundId) return undefined;
@@ -95,6 +113,7 @@ export function useThesisPagedList<T>(options: UseThesisPagedListOptions<T>) {
       roundId: options.roundId,
       listKind: options.listKind,
       status: options.status,
+      search: options.search,
       page,
       limit: options.limit,
       generation,
@@ -131,7 +150,7 @@ export function useThesisPagedList<T>(options: UseThesisPagedListOptions<T>) {
       requestSequenceRef.current === key.requestSequence &&
       sameThesisPageRequest(currentKeyRef.current, key);
 
-    void runThesisPageRequest<T>({
+    void runThesisPageRequest<T, ThesisPageResult<T>>({
       requestKey,
       signal: controller.signal,
       correctionAlreadyUsed,
@@ -161,6 +180,8 @@ export function useThesisPagedList<T>(options: UseThesisPagedListOptions<T>) {
             requestId: thesisPageRequestId(key),
             items: result.items,
             total: result.total,
+            summary: result.summary,
+            catalogTotal: result.catalogTotal,
             loading: true,
             failed: false,
           }
@@ -192,6 +213,7 @@ export function useThesisPagedList<T>(options: UseThesisPagedListOptions<T>) {
     options.listKind,
     options.load,
     options.roundId,
+    options.search,
     options.status,
     page,
     generation,
@@ -210,14 +232,31 @@ export function useThesisPagedList<T>(options: UseThesisPagedListOptions<T>) {
     setSelection({ scope: selectionScope, page, generation: generation + 1 });
   }, [generation, page, selectionScope]);
 
+  const invalidate = useCallback(() => {
+    const sequence = requestSequenceRef.current + 1;
+    requestSequenceRef.current = sequence;
+    currentKeyRef.current = null;
+    correctionAttemptRef.current = null;
+    skipNextRequestRef.current = null;
+    setRequestSequence(sequence);
+    setSelection((current) => ({
+      scope: selectionScope,
+      page: current.scope === selectionScope ? current.page : 0,
+      generation: (current.scope === selectionScope ? current.generation : 0) + 1,
+    }));
+  }, [selectionScope]);
+
   return {
     page,
     limit: options.limit,
     items: visibleState.items,
     total: visibleState.total,
+    summary: visibleState.summary,
+    catalogTotal: visibleState.catalogTotal,
     loading: visibleState.loading,
     failed: visibleState.failed,
     goToPage,
+    invalidate,
     retry,
   };
 }

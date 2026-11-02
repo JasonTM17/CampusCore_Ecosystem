@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ArrowUpRight, FileStack, Loader2, Search } from 'lucide-react';
 import { LocalizedLink } from '@/components/LocalizedLink';
@@ -17,10 +17,15 @@ import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { StatusBadge } from '@/components/thesis/StatusBadge';
 import { TopicCardGridSkeleton } from '@/components/ui/skeleton';
-import { normalizeVietnameseText } from '@/lib/registration-browse';
+import { ListPager } from '@/components/ui/list-pager';
 import { plainTextThesisDescription as plainTextDescription } from '@/lib/thesis-text';
+import { catalogEmptyState } from '@/lib/thesis-page-list';
 import { cn } from '@/lib/utils';
 import { useThesisWorkspace } from './useThesisWorkspace';
+import { thesisApi, type ThesisTopic } from '@/lib/thesis-api';
+import { useThesisPagedList } from '@/components/dashboard/thesis/useThesisPagedList';
+
+const CATALOG_PAGE_SIZE = 20;
 
 export default function ThesisTopicCatalogPage() {
   const { user, isLoading: authLoading, hasAccess, isForbidden } = useRequireAuth();
@@ -33,44 +38,42 @@ export default function ThesisTopicCatalogPage() {
   // topic is fetched or rendered until the query is submitted.
   const [submittedQuery, setSubmittedQuery] = useState('');
   const searchActive = showAll || submittedQuery.trim().length > 0;
-  const workspace = useThesisWorkspace(explicitRoundId, { topicsEnabled: searchActive, groupsEnabled: false });
-
-  const normalizedQuery = submittedQuery.trim().toLowerCase();
-  const matchingTopics = useMemo(() => {
-    if (!searchActive) return [];
-    if (showAll || !normalizedQuery || normalizedQuery === 'all') {
-      return workspace.topics;
-    }
-    const topicBilingualKeywords: Record<string, string[]> = {
-      'artificial intelligence': ['artificial intelligence', 'ai', 'trí tuệ nhân tạo'],
-      'software & web': ['software', 'web', 'phần mềm'],
-      'robotics & mechatronics': ['robotics', 'mechatronics', 'cơ điện tử', 'robot'],
-      'information systems': ['information systems', 'hệ thống thông tin'],
-      'iot & telecom': ['iot', 'telecom', 'viễn thông'],
-      'automotive': ['automotive', 'ô tô'],
-      'civil engineering': ['civil engineering', 'xây dựng'],
+  const workspace = useThesisWorkspace(explicitRoundId, { topicsEnabled: false, groupsEnabled: false });
+  const accountId = user?.id ?? '';
+  const authorizationScope = JSON.stringify([
+    [...(user?.roles ?? [])].sort(),
+    user?.studentId ?? null,
+    user?.lecturerId ?? null,
+  ]);
+  const authSignature = JSON.stringify([accountId, authLoading]);
+  const authSessionRef = useRef({ signature: authSignature, epoch: 0 });
+  if (authSessionRef.current.signature !== authSignature) {
+    authSessionRef.current = {
+      signature: authSignature,
+      epoch: authSessionRef.current.epoch + 1,
     };
-
-    const searchTerms = [normalizedQuery];
-    for (const [key, synonyms] of Object.entries(topicBilingualKeywords)) {
-      if (normalizedQuery.includes(key) || key.includes(normalizedQuery)) {
-        searchTerms.push(...synonyms.map((s) => s.toLowerCase()));
-      }
-    }
-
-    return workspace.topics.filter((topic) => {
-      const fullText = normalizeVietnameseText(
-        [topic.title, plainTextDescription(topic.description)].filter(Boolean).join(' '),
-      );
-      return searchTerms.some((term) => {
-        const foldedTerm = normalizeVietnameseText(term);
-        if (!foldedTerm) return true;
-        if (fullText.includes(foldedTerm)) return true;
-        const tokens = foldedTerm.split(/\s+/).filter(Boolean);
-        return tokens.length > 0 && tokens.every((tok) => fullText.includes(tok));
-      });
-    });
-  }, [normalizedQuery, searchActive, showAll, workspace.topics]);
+  }
+  const authSessionEpoch = authSessionRef.current.epoch;
+  const loadTopicsPage = useCallback(
+    (page: number, signal: AbortSignal) => thesisApi.listTopicsPage(
+      workspace.selectedRoundId,
+      { status: 'PUBLISHED', search: submittedQuery, page, limit: CATALOG_PAGE_SIZE },
+      signal,
+    ),
+    [submittedQuery, workspace.selectedRoundId],
+  );
+  const topicsPage = useThesisPagedList<ThesisTopic>({
+    accountId,
+    authSessionEpoch,
+    authorizationScope,
+    roundId: workspace.selectedRoundId,
+    listKind: 'catalog',
+    status: 'PUBLISHED',
+    search: submittedQuery,
+    limit: CATALOG_PAGE_SIZE,
+    enabled: searchActive && Boolean(workspace.selectedRoundId) && !authLoading && hasAccess,
+    load: loadTopicsPage,
+  });
 
   if (authLoading) {
     return <LoadingState label={messages.thesis.loading} />;
@@ -98,7 +101,9 @@ export default function ThesisTopicCatalogPage() {
   const searchCopy = locale === 'vi'
     ? thesisWorkflowVi.topicCatalog
     : thesisWorkflowEn.topicCatalog;
+  const pagerCopy = locale === 'vi' ? thesisWorkflowVi.listPager : thesisWorkflowEn.listPager;
   const quickPills = searchCopy.quickPills;
+  const emptyState = catalogEmptyState(topicsPage.catalogTotal, topicsPage.total);
 
   const handleSearch = (event: React.FormEvent) => {
     event.preventDefault();
@@ -209,7 +214,7 @@ export default function ThesisTopicCatalogPage() {
           />
         </label>
         <Button type="submit" disabled={workspace.workspaceLoading} className="h-11 sm:w-32">
-          {workspace.workspaceLoading ? (
+          {workspace.workspaceLoading || topicsPage.loading ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
           ) : (
             <Search className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -224,23 +229,6 @@ export default function ThesisTopicCatalogPage() {
           description={workspace.error}
           onRetry={() => void workspace.reload()}
         />
-      ) : workspace.workspaceLoading && workspace.topics.length === 0 ? (
-        <Card variant="muted">
-          <CardHeader>
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <CardTitle>{messages.thesis.topicsTitle}</CardTitle>
-                <CardDescription>{messages.thesis.topicsDescription}</CardDescription>
-              </div>
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {messages.thesis.loading}
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <TopicCardGridSkeleton count={6} />
-          </CardContent>
-        </Card>
       ) : !searchActive ? (
         <div className="space-y-6">
           <EmptyState
@@ -278,11 +266,43 @@ export default function ThesisTopicCatalogPage() {
             </div>
           </div>
         </div>
-      ) : matchingTopics.length === 0 ? (
+      ) : topicsPage.loading ? (
+        <Card variant="muted">
+          <CardHeader>
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>{messages.thesis.topicsTitle}</CardTitle>
+                <CardDescription>{messages.thesis.topicsDescription}</CardDescription>
+              </div>
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {messages.thesis.loading}
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <TopicCardGridSkeleton count={6} />
+          </CardContent>
+        </Card>
+      ) : topicsPage.failed ? (
+        <ErrorState
+          title={searchCopy.loadErrorTitle}
+          description={searchCopy.loadErrorDescription}
+          retryLabel={messages.thesis.retry}
+          onRetry={topicsPage.retry}
+        />
+      ) : topicsPage.items.length === 0 ? (
         <EmptyState
           icon={FileStack}
-          title={workspace.topics.length === 0 ? messages.thesis.noTopics : searchCopy.noMatch}
-          description={messages.thesis.noTopicsDescription}
+          title={emptyState === 'empty'
+            ? messages.thesis.noTopics
+            : emptyState === 'no-match'
+              ? searchCopy.noMatch
+              : searchCopy.unknownCountTitle}
+          description={emptyState === 'empty'
+            ? messages.thesis.noTopicsDescription
+            : emptyState === 'no-match'
+              ? searchCopy.noMatch
+              : searchCopy.unknownCountDescription}
         />
       ) : (
         <Card variant="muted">
@@ -293,12 +313,12 @@ export default function ThesisTopicCatalogPage() {
                 <CardDescription>{messages.thesis.topicsDescription}</CardDescription>
               </div>
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {matchingTopics.length} {messages.thesis.topicCountLabel}
+                {topicsPage.total ?? '—'} {messages.thesis.topicCountLabel}
               </span>
             </div>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {matchingTopics.map((topic) => (
+            {topicsPage.items.map((topic) => (
               <LocalizedLink
                 key={topic.id}
                 href={`/dashboard/thesis/topics/${topic.id}`}
@@ -334,6 +354,19 @@ export default function ThesisTopicCatalogPage() {
           </CardContent>
         </Card>
       )}
+      {searchActive && !workspace.error && !topicsPage.loading && !topicsPage.failed ? (
+        <ListPager
+          testId="thesis-topic-catalog-pager"
+          navLabel={pagerCopy.topicsNav}
+          page={topicsPage.page}
+          limit={topicsPage.limit}
+          total={topicsPage.total}
+          itemCount={topicsPage.items.length}
+          pending={topicsPage.loading}
+          copy={pagerCopy}
+          onPage={topicsPage.goToPage}
+        />
+      ) : null}
     </div>
   );
 }
