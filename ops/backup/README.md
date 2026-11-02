@@ -19,6 +19,11 @@ BACKUP_RETENTION_DAYS=14 ./ops/backup/backup-postgres.sh
 ./ops/backup/restore-postgres.sh ops/backups/campuscore-<timestamp>.dump campuscore_restore_<timestamp>
 ```
 
+The default compose file requires `ASSISTANT_RAG_OWNER_ASSERTION_SECRET`:
+`node scripts/local-dev.mjs up` generates it into the git-ignored `.env` on the
+first run, and a plain `docker compose up` needs the same key appended to `.env`
+before the stack starts.
+
 Restore always requires a database name different from `POSTGRES_DB`; the
 script refuses an in-place overwrite. After an isolated restore, verify the
 latest successful Flyway version, readiness, authentication, representative

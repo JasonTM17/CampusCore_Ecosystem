@@ -22,7 +22,7 @@
 #    - Web unit tests (npm test) with assertion that > 0 tests executed.
 #
 # 4. portal-viewport (BLOCKS MERGE):
-#    - Portal shell responsiveness at 1440, 768, and 390 viewports (fail on 0 tests).
+#    - Portal shell responsiveness at 1440, 768, and 390 viewports (fail on 0 or skipped tests).
 #
 # 5. mobile (BLOCKS MERGE):
 #    - Expo mobile dependencies (npm ci), typecheck (tsc --noEmit).
@@ -104,6 +104,7 @@ jobs:
             scripts/ci-secret-output.test.mjs \
             scripts/ci-timing-report.test.mjs \
             scripts/ci-workflow-replay.test.mjs \
+            scripts/compose-contract.test.mjs \
             scripts/contract-verify-options.test.mjs \
             scripts/contract-verify-teardown.test.mjs \
             scripts/dependency-baseline.test.mjs \
@@ -349,6 +350,10 @@ jobs:
     name: Portal viewport shell
     # Playwright 1.59 has no browser build for ubuntu-latest (26.04); stay on a supported image.
     runs-on: ubuntu-24.04
+    env:
+      # The suite may skip locally when no browser or dev server exists; in CI
+      # a skip means the responsive gate checked nothing and must fail.
+      PORTAL_REQUIRE_BROWSER: '1'
     steps:
       - name: Capture CI job start
         id: ci_timing_start
@@ -386,12 +391,26 @@ jobs:
           node -e '
             const fs = require("fs");
             const log = fs.readFileSync("/tmp/portal-viewport.log", "utf8");
-            const m = log.match(/(?:#|ℹ)\s*tests\s+(\d+)/);
-            if (!m || parseInt(m[1], 10) === 0) {
-              console.error("FAIL: Zero viewport tests executed or summary count missing!");
+            const count = (label) => {
+              const match = log.match(new RegExp(`(?:#|ℹ)\\s*${label}\\s+(\\d+)`));
+              return match ? parseInt(match[1], 10) : null;
+            };
+            const tests = count("tests");
+            const passed = count("pass");
+            const skipped = count("skipped");
+            if (tests === null || tests === 0 || passed === null || skipped === null) {
+              console.error("FAIL: Viewport summary is missing tests/pass/skipped counts!");
               process.exit(1);
             }
-            console.log(`PASS: Verified ${m[1]} viewport tests executed.`);
+            if (skipped > 0) {
+              console.error(`FAIL: ${skipped} viewport test(s) skipped; the responsive gate must run them.`);
+              process.exit(1);
+            }
+            if (passed !== tests) {
+              console.error(`FAIL: Only ${passed}/${tests} viewport tests passed.`);
+              process.exit(1);
+            }
+            console.log(`PASS: Verified ${tests} viewport tests executed and passed.`);
           '
       - name: Write and validate CI timing summary
         if: always()
@@ -569,6 +588,10 @@ jobs:
       # role needs a password (>= 16 chars) before the stack can boot. It is
       # committed on purpose (CI-only, not a secret) and never used elsewhere.
       ASSISTANT_DB_PASSWORD: 'dev-ci-password-16chars-min'
+      # docker-compose.yml has no default for the owner-assertion key because a
+      # deployed stack must generate its own; this job still needs a non-empty
+      # value to interpolate the model. CI-only placeholder, not a secret.
+      ASSISTANT_RAG_OWNER_ASSERTION_SECRET: 'dev-ci-owner-assertion-not-a-secret'
     steps:
       - name: Capture CI job start
         id: ci_timing_start

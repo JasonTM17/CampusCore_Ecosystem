@@ -4,6 +4,9 @@ const http = require('node:http');
 const { chromium } = require('@playwright/test');
 
 const baseURL = process.env.PORTAL_BASE_URL ?? 'http://127.0.0.1:4317';
+// CI sets this so a missing server or browser fails the responsive gate instead
+// of turning it into a green run that asserted nothing. Local runs may skip.
+const requireBrowser = process.env.PORTAL_REQUIRE_BROWSER === '1';
 const viewports = [
   { name: 'desktop', width: 1440, height: 960 },
   { name: 'tablet', width: 768, height: 1024 },
@@ -24,16 +27,19 @@ function serverReachable(timeoutMs = 2000) {
   });
 }
 
-// These are live-browser checks: they skip only when the portal dev server or
-// a Chromium channel is absent, never when the shell itself is broken.
+// These are live-browser checks. They skip only when the portal dev server or
+// a Chromium channel is absent, never when the shell itself is broken; with
+// PORTAL_REQUIRE_BROWSER=1 (CI) even that absence is a failure.
 async function openShellBrowserOrSkip(t) {
   if (!(await serverReachable())) {
+    if (requireBrowser) throw new Error(`portal dev server is not reachable at ${baseURL}`);
     t.skip(`portal dev server is not reachable at ${baseURL}; start it with PORTAL_BASE_URL or npm run dev`);
     return null;
   }
   try {
     return await launchBrowser();
-  } catch {
+  } catch (error) {
+    if (requireBrowser) throw error;
     t.skip('no chromium/chrome/msedge channel is installed for Playwright');
     return null;
   }

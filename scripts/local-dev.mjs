@@ -12,11 +12,13 @@
  * - Every decision is a pure exported function so node:test can cover it
  *   without Docker. Process spawning goes through one injected `run`.
  * - `.env` is created from `.env.example` only when absent; this script never
- *   reads or prints environment-file contents (Compose owns interpolation).
+ *   prints environment-file contents. It appends a generated owner-assertion
+ *   key when that key is absent because Compose refuses to start without one.
  * - Commands spawn `docker` directly (no shell) so PowerShell, Git Bash and
  *   POSIX shells get the same argv without hand-quoting.
  */
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
@@ -41,6 +43,7 @@ export const HEALTH_INTERVAL_MS = 3_000;
 
 export const DEMO_STUDENT_EMAIL = 'student@campuscore.edu';
 export const DEMO_CREDENTIALS_POINTER = 'docs/DEMO_RUNBOOK.md';
+export const OWNER_ASSERTION_SECRET = 'ASSISTANT_RAG_OWNER_ASSERTION_SECRET';
 
 // The exact names published by mobile/eas.json (build.local.env) and
 // mobile/README.md. Values are read from eas.json at run time.
@@ -271,6 +274,36 @@ export function ensureEnvFile({ root, fs: fsImpl = fs, log = () => {} }) {
   fsImpl.copyFileSync(template, target);
   log('created .env from .env.example (template values; it is git-ignored)');
   return { created: true, path: target };
+}
+
+function generateOwnerAssertionSecret() {
+  return crypto.randomBytes(48).toString('base64');
+}
+
+// Compose interpolates the owner-assertion key with `:?`, so a missing or empty
+// value aborts every compose command. Generate one per checkout and persist it
+// in the git-ignored .env; never replace a value the operator already set.
+export function ensureOwnerAssertionSecret({
+  root,
+  fs: fsImpl = fs,
+  log = () => {},
+  generate = generateOwnerAssertionSecret,
+}) {
+  const target = path.join(root, '.env');
+  const existing = fsImpl.existsSync(target) ? fsImpl.readFileSync(target, 'utf8') : '';
+  const assignment = new RegExp(`^[ \\t]*${OWNER_ASSERTION_SECRET}[ \\t]*=[ \\t]*(.*)$`, 'm');
+  const match = assignment.exec(existing);
+  if (match && match[1].trim()) return { generated: false, path: target };
+
+  const line = `${OWNER_ASSERTION_SECRET}=${generate()}`;
+  if (match) {
+    fsImpl.writeFileSync(target, existing.replace(assignment, line));
+  } else {
+    const separator = existing && !existing.endsWith('\n') ? '\n' : '';
+    fsImpl.appendFileSync(target, `${separator}${line}\n`);
+  }
+  log(`generated ${OWNER_ASSERTION_SECRET} into .env (git-ignored; Compose requires it)`);
+  return { generated: true, path: target };
 }
 
 /* ------------------------------------------------------------------ */
@@ -708,6 +741,7 @@ async function resolveStack({ flags, deps }) {
 async function up(flags, deps) {
   const { root, log, errorLog } = deps;
   ensureEnvFile({ root, fs: deps.fs, log });
+  ensureOwnerAssertionSecret({ root, fs: deps.fs, log });
   const { files, project, prefix } = await resolveStack({ flags, deps });
   const mobileRecipe = flags.mobile ? readMobileRecipe({ root, fs: deps.fs }) : null;
 

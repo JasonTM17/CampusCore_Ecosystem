@@ -50,7 +50,7 @@ Khi người dùng gặp sự cố hoặc alert kích hoạt, quy trình đối 
    - Tìm kiếm log qua lệnh container hoặc log aggregator:
      ```bash
      # Local / Docker Compose
-     docker compose logs api | grep "<requestId>"
+     docker compose logs restful-api | grep "<requestId>"
 
      # Aggregated Log System (Loki / CloudWatch / Datadog)
      {service="restful-api"} |= "<requestId>"
@@ -160,7 +160,7 @@ Nguyên tắc bất biến: Thông tin xác thực (Bearer token, refresh token,
 
 Gate `contracts` case `contract-probes` chạy sentinel test tự động:
 - Gửi Bearer token dạng `SENTINEL-BEARER-*` và mật khẩu dạng `SENTINEL-PASS-*` tới API thật.
-- Quét toàn bộ log sinh ra (`docker compose logs api`).
+- Quét toàn bộ log sinh ra (`docker compose logs restful-api`).
 - Bất kỳ sự xuất hiện literal nào của chuỗi sentinel trong log lập tức bị đánh trượt (**FAIL** gate).
 
 ---
