@@ -3811,6 +3811,11 @@
             "maximum": 10,
             "minimum": 0,
             "type": "number"
+          },
+          "version": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -6359,6 +6364,10 @@
           },
           "studentName": {
             "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -13452,7 +13461,7 @@
                 }
               }
             },
-            "description": "Danh sách grants careers",
+            "description": "Grants careers của tôi",
             "headers": {
               "X-Total-Count": {
                 "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
@@ -13464,7 +13473,7 @@
             }
           }
         },
-        "summary": "Danh sách grants careers (org/reviewer)",
+        "summary": "Grants careers của tôi (org/reviewer)",
         "tags": [
           "Careers staff"
         ]
@@ -16085,7 +16094,7 @@
                 }
               }
             },
-            "description": "Danh sách staff grants",
+            "description": "Staff grants của tôi",
             "headers": {
               "X-Total-Count": {
                 "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
@@ -16097,7 +16106,7 @@
             }
           }
         },
-        "summary": "Danh sách staff grants",
+        "summary": "Staff grants của tôi",
         "tags": [
           "Events Staff"
         ]
@@ -18704,7 +18713,7 @@
             "description": "OK"
           }
         },
-        "summary": "Danh sách staff grants",
+        "summary": "Staff grant của tôi",
         "tags": [
           "Library Staff"
         ]
@@ -18777,6 +18786,26 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -18791,7 +18820,16 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Hàng đợi đơn mượn",
+            "headers": {
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
         "summary": "Hàng đợi đơn mượn (lọc theo trạng thái)",
@@ -23844,6 +23882,7 @@
     },
     "/api/v1/thesis/rounds/{id}/repository": {
       "get": {
+        "description": "Trả về mảng báo cáo đã được phân quyền; thêm page/limit để phân trang kèm X-Total-Count và ba tổng X-Archive-*; thêm search để lọc theo đúng quy tắc tìm kiếm trên web",
         "operationId": "listRepository",
         "parameters": [
           {
@@ -23853,6 +23892,35 @@
             "schema": {
               "format": "uuid",
               "type": "string"
+            }
+          },
+          {
+            "description": "Từ khóa tìm kiếm trên kho báo cáo (chỉ một giá trị); so khớp không dấu, không phân biệt hoa thường",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Trang bắt đầu từ 0; cần đi cùng limit",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Số bản ghi mỗi trang, 1 đến 100; bỏ qua cả page và limit để lấy toàn bộ",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
             }
           }
         ],
@@ -23868,9 +23936,40 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Kho báo cáo",
+            "headers": {
+              "X-Archive-File-Count": {
+                "description": "Số báo cáo đã phân quyền có tên tệp khác rỗng, không phụ thuộc search",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              },
+              "X-Archive-Total-Count": {
+                "description": "Tổng số báo cáo đã phân quyền của đợt, không phụ thuộc search",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              },
+              "X-Archive-Url-Count": {
+                "description": "Số báo cáo đã phân quyền có URL khác rỗng, không phụ thuộc search",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              },
+              "X-Total-Count": {
+                "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
           }
         },
+        "summary": "Kho báo cáo của đợt",
         "tags": [
           "Thesis Lifecycle Mutations"
         ]
@@ -23911,7 +24010,7 @@
     },
     "/api/v1/thesis/topics": {
       "get": {
-        "description": "Truy xuất danh sách các đề tài khóa luận trong đợt đã chọn, có quyền bảo mật ẩn đề tài nháp/lưu trữ đối với sinh viên",
+        "description": "Truy xuất danh sách các đề tài khóa luận trong đợt đã chọn, có quyền bảo mật ẩn đề tài nháp/lưu trữ đối với sinh viên. Thêm search để lọc đúng như trang danh mục; khi có page/limit trả thêm X-Topic-Total-Count (tổng trước khi lọc).",
         "operationId": "list_1",
         "parameters": [
           {
@@ -23937,6 +24036,15 @@
                 "REJECTED",
                 "ARCHIVED"
               ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Từ khoá lọc theo đúng ngữ nghĩa trang danh mục; bỏ trống hoặc 'all' là không lọc",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           },
@@ -23975,6 +24083,13 @@
             },
             "description": "Truy xuất danh sách đề tài thành công",
             "headers": {
+              "X-Topic-Total-Count": {
+                "description": "Số đề tài người gọi được xem trước khi áp dụng search (chỉ khi có page/limit)",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              },
               "X-Total-Count": {
                 "description": "Số bản ghi trước khi phân trang (chỉ khi có page/limit)",
                 "schema": {
@@ -23995,7 +24110,7 @@
                 }
               }
             },
-            "description": "Tham số roundId hoặc page/limit không hợp lệ"
+            "description": "Tham số roundId, search hoặc page/limit không hợp lệ"
           }
         },
         "summary": "Lấy danh sách đề tài theo đợt khóa luận",
