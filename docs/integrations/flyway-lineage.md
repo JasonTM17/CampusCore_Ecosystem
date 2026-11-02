@@ -14,8 +14,10 @@ The CampusUTE ecosystem employs multiple database technologies and scripts for d
 │     java-services/restful-api/src/main/resources/db/migration          │
 │               Managed by Flyway at Application Startup                 │
 │                                                                        │
-│  Schemas: public, thesis, academic, engagement, assistant, site, auth, │
-│           notification, events, learning, admissions, library, careers │
+│  Schemas: public, thesis, academic, engagement, assistant, site,       │
+│           events, learning, admissions, library, careers,              │
+│           campuscore_auth, campuscore_identity, notifications,         │
+│           campuscore_audit                                             │
 └───────────────────▲────────────────────────────────────────────────────┘
                     │
                     │ Mirrors relational DDL up to V83
@@ -47,8 +49,10 @@ The Flyway migration chain under `java-services/restful-api/src/main/resources/d
 - `academic`: Courses, departments, faculties, student grades, GPA calculation, prerequisites, section enrollments.
 - `engagement`: Articles, categories, rich media galleries, reading metrics, campus announcements.
 - `assistant`: Local active release runtime projection (`knowledge_runtime_state`), conversation scopes, RLS policies.
-- `auth`: Accounts, user credentials, two-factor authentication challenges, password reset tokens, session revocations.
-- `notification`: In-app notifications, delivery markers, device push notification registrations.
+- `campuscore_auth`: Accounts, user credentials, two-factor authentication challenges, password reset tokens, session revocations.
+- `campuscore_identity`: OIDC authorization/consent grants, refresh lineage, BFF sessions and transactions, logout audit.
+- `campuscore_audit`: Admin audit trail.
+- `notifications`: In-app notifications, delivery markers, device push notification registrations.
 - `events`: Campus events, venue management, ticketing, attendance check-ins.
 - `learning`: LMS courses, assignment submissions, lesson modules.
 - `admissions`: Applications, admission quotas, applicant documents.
@@ -76,7 +80,7 @@ The `.sql` files located directly in the root `database/` directory (e.g., `seed
 
 ## 2. Migration Lineage & Version Census
 
-As of version V144, the canonical Flyway migration sequence contains **141 migration files**, spanning from `V1` to `V144`.
+As of version V148, the canonical Flyway migration sequence contains **145 migration files**, spanning from `V1` to `V148`.
 
 ### 2.1 Duplicates
 - **0 duplicate version numbers**. Every migration version number is strictly unique. Duplicate versions cause non-deterministic execution in Flyway and are prevented by CI validation.
@@ -101,7 +105,7 @@ Any gap outside this explicit set is treated as an unexpected missing migration 
 
 ## 3. H2 Test Fixture Chain Boundary
 
-A parallel test migration chain exists under `java-services/restful-api/src/test/resources/db/migration-h2/` (62 files).
+A parallel test migration chain exists under `java-services/restful-api/src/test/resources/db/migration-h2/` (64 files).
 
 - **Purpose**: A lightweight, trimmed-down schema definition designed solely for rapid in-memory execution during Maven unit test passes (`mvn test`).
 - **Structure**: Skips non-essential historical data seeds (jumps directly from V24 to V85, and V93 to V109).
@@ -114,9 +118,9 @@ A parallel test migration chain exists under `java-services/restful-api/src/test
 
 ### 4.1 Fresh Installation
 On a newly provisioned PostgreSQL instance:
-1. Ensure the target database exists and the application user has DDL permissions on the relevant schemas (`thesis`, `academic`, `engagement`, `assistant`, `site`, `auth`, `notification`, `events`, `learning`, `admissions`, `library`, `careers`, `public`).
-2. Boot the Java RESTful API service or run `mvn flyway:migrate`.
-3. Flyway replays all 141 migrations in numerical order (`V1` to `V144`), recording installed versions in `thesis.flyway_schema_history`.
+1. Ensure the target database exists and the application user has DDL permissions on the relevant schemas (`thesis`, `academic`, `engagement`, `assistant`, `site`, `events`, `learning`, `admissions`, `library`, `careers`, `campuscore_auth`, `campuscore_identity`, `notifications`, `campuscore_audit`, `public`).
+2. Boot the Java RESTful API service with `FLYWAY_ENABLED=true` (the default); Flyway migrates on startup. This repository declares no Flyway Maven plugin and has no root POM, so `mvn flyway:*` goals do not resolve.
+3. Flyway replays all 145 migrations in numerical order (`V1` to `V148`), recording installed versions in `thesis.flyway_schema_history`.
 4. All checksums match the committed repository files by construction.
 
 ### 4.2 Supported Upgrade from Long-Lived Databases (Stale Checksums)
@@ -141,33 +145,35 @@ Migration checksum mismatch for migration version X:
    ```
 
 2. **Validate Detected Drift**:
-   Run Flyway validate to determine the exact mismatched versions:
-   ```bash
-   mvn -f java-services/pom.xml flyway:validate -Dflyway.url="$DB_URL"
-   ```
+   Booting with Flyway enabled (the default outside Compose; in Compose,
+   `rag-service` runs Flyway) is the supported validation path:
+   `validate-on-migrate` is on by default, so startup fails with a
+   `FlywayValidateException` naming the mismatched version. This repository
+   declares no Flyway Maven plugin and has no root POM, so `mvn flyway:*` goals
+   cannot be resolved.
 
 3. **Realign Checksums with Repair**:
-   If—and **ONLY** if—the validation failures belong strictly to the known 12 early migrations listed above, execute:
-   ```bash
-   mvn -f java-services/pom.xml flyway:repair -Dflyway.url="$DB_URL"
-   ```
+   No repair command ships in this repository. If—and **ONLY** if—the validation
+   failures belong strictly to the known 12 early migrations listed above,
+   realign the stored checksums with a Flyway CLI installed outside this
+   repository (`flyway repair` with `-url`, `-user`, `-password` for the same
+   database), then boot the service again. On a disposable local database,
+   recreating the database is the supported alternative.
    > [!IMPORTANT]
-   > `flyway:repair` only realigns the `checksum` column in `flyway_schema_history` to match the current local files. It performs **no DDL changes** and **modifies no business data**.
+   > Repair only realigns the `checksum` column in `flyway_schema_history` to match the current local files. It performs **no DDL changes** and **modifies no business data**.
 
 4. **Confirm Clean Validation**:
-   Re-run validation to verify that stored checksums now match the local files:
-   ```bash
-   mvn -f java-services/pom.xml flyway:validate -Dflyway.url="$DB_URL"
-   ```
+   Boot the service again; a clean start proves the stored checksums now match
+   the local files.
 
 5. **Apply Forward Migrations**:
-   Boot the Java service. Flyway will seamlessly apply all remaining pending migrations up to `V144`.
+   Boot the Java service. Flyway will seamlessly apply all remaining pending migrations up to `V148`.
 
 ### 4.3 Operational Invariants & Anti-Patterns
-- **No Blind Repair**: Never run `flyway:repair` if checksum drift occurs on migrations outside the 12 known legacy versions. Unrecognized drift indicates unauthorized manual SQL edits or file corruption that must be investigated before proceeding.
+- **No Blind Repair**: Never run a Flyway repair if checksum drift occurs on migrations outside the 12 known legacy versions. Unrecognized drift indicates unauthorized manual SQL edits or file corruption that must be investigated before proceeding.
 - **Never Edit Merged Migrations**: Once a migration file has been merged into `main` or deployed to any environment, it is strictly immutable. All bug fixes, data corrections, and index adjustments must be authored as new forward migrations (`V<n+1>__fix_description.sql`).
 - **Never Disable `validateOnMigrate`**: Setting `validate-on-migrate=false` masks underlying schema divergence, resulting in unrepeatable deployments and hard-to-diagnose production defects.
-- **Never Run `flyway:clean` on Shared or Production Databases**: `clean` completely drops all database objects and schemas.
+- **Never Run `flyway clean` on Shared or Production Databases**: `clean` completely drops all database objects and schemas.
 
 ---
 
@@ -200,7 +206,7 @@ Uses the Node.js built-in test runner (`node:test`):
 node --test scripts/flyway-lineage-check.test.mjs
 ```
 The test suite verifies:
-- Production migration directory passes with 141 files, V1..V144, and gaps `[56, 91, 119]`.
+- Production migration directory passes with 145 files, V1..V148, and gaps `[56, 91, 119]`.
 - Duplicate version detection catches conflicts.
 - Gap detection identifies unapproved gaps outside the allow-list.
 - Filename and non-positive version syntax errors are reported.

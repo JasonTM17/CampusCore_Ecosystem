@@ -138,12 +138,12 @@ sequenceDiagram
         alt Đã đăng ký trước đó
             DB-->>API: Vi phạm Unique Constraint (academic_enrollment_active_student_section_uq)
             API->>DB: ROLLBACK
-            API-->>Web: HTTP 409 Conflict (ALREADY_ENROLLED)
+            API-->>Web: HTTP 409 Conflict (ENROLLMENT_DUPLICATE)
             Web-->>Student: Báo lỗi: Bạn đã có tên trong lớp này!
         else Đăng ký mới hợp lệ
             DB-->>API: Insert thành công
             API->>DB: COMMIT TRANSACTION
-            API-->>Web: HTTP 201 Created (EnrollmentDTO)
+            API-->>Web: HTTP 200 OK (EnrollmentResponse)
             Web-->>Student: Thông báo đăng ký thành công & Cập nhật TKB!
         end
     end
@@ -180,11 +180,11 @@ sequenceDiagram
     API->>API: Kiểm tra JWT Token & Session
     API->>API: AssistantInputGuard: Quét Prompt Injection song ngữ (VI/EN)
     alt Phát hiện tấn công Jailbreak
-        API-->>Web: HTTP 400 Bad Request (PROMPT_INJECTION)
+        API-->>Web: HTTP 200 OK (reasonCode=PROMPT_INJECTION, terminalStatus=REJECTED)
     else Hợp lệ
         API->>DB: CAS Quota Check (Tối đa 20 lượt/ngày)
         alt Hết hạn ngạch
-            API-->>Web: HTTP 429 Too Many Requests (QUOTA_EXCEEDED)
+            API-->>Web: HTTP 200 OK (reasonCode=QUOTA_EXCEEDED)
         else Còn quota
             API->>Sidecar: POST /internal/rag/assistant
             activate Sidecar

@@ -9,7 +9,7 @@
 
 ---
 
-## 1. Metric Inventory: Code Verification vs "TO INSTRUMENT"
+## 1. Metric Inventory: Code Verification
 
 To ensure zero phantom metrics, every metric used in our operational contracts is explicitly audited
 against the `java-services/restful-api` and `frontend` source code.
@@ -27,10 +27,10 @@ against the `java-services/restful-api` and `frontend` source code.
 | `api.client.request` (Ring buffer) | `frontend/src/lib/observability.ts:18` & `mobile/.../observability.ts` | **VERIFIED_IN_CODE** | In-memory 100-entry ring buffer on client for diagnostic and future OTel telemetry. |
 | `http_server_requests_seconds_*` | `pom.xml`, `GET /actuator/prometheus` (`X-Metrics-Key`) | **VERIFIED_IN_CODE** | Standard Spring Boot HTTP request timer exported via `micrometer-registry-prometheus`. |
 | `hikaricp_connections_*` | `pom.xml`, `GET /actuator/prometheus` (`X-Metrics-Key`) | **VERIFIED_IN_CODE** | HikariCP connection pool metrics exported via Prometheus registry. |
-| `campuscore_assistant_requests_total` | `ThesisAssistantController.java` | **TO INSTRUMENT** | Custom Micrometer meter with tags `{degraded="true|false", reason_code="..."}`. |
-| `campuscore_assistant_quota_consumed`| `ThesisAssistantTurnRepository.java` | **TO INSTRUMENT** | Custom Micrometer gauge/counter for user & global daily quota tracking. |
-| `campuscore_assistant_turn_stale_recovered`| `ThesisAssistantService.java:recovery` | **TO INSTRUMENT** | Counter incremented on recovery sweep of expired `RESERVED`/`DISPATCHED` leases. |
-| `campuscore_assistant_rls_verified` | `AssistantDatabaseConfiguration.java` | **TO INSTRUMENT** | Gauge tracking verified (1) vs degraded (0) Assistant RLS database state. |
+| `campuscore_assistant_requests_total` | `java-services/restful-api/.../config/MetricsConfiguration.java:86` | **VERIFIED_IN_CODE** | Custom Micrometer counter; the only exported tag is `{degraded="true|false"}` (`reason_code` is intentionally not exported). |
+| `campuscore_assistant_quota_consumed_daily` | `java-services/restful-api/.../config/MetricsConfiguration.java:93` | **VERIFIED_IN_CODE** | Gauge for committed user & global daily quota tracking. |
+| `campuscore_assistant_turn_stale_recovered_total` | `java-services/restful-api/.../config/MetricsConfiguration.java:88` | **VERIFIED_IN_CODE** | Counter incremented on recovery sweep of expired `RESERVED`/`DISPATCHED` leases. |
+| `campuscore_assistant_rls_verified` | `java-services/restful-api/.../config/MetricsConfiguration.java:89` | **VERIFIED_IN_CODE** | Gauge tracking verified (1) vs degraded (0) Assistant RLS database state. |
 
 ---
 
@@ -43,13 +43,13 @@ Enforces API availability and latency/error-rate SLOs across critical user journ
 - **Sign-in Journey** (`POST /api/v1/auth/login`, `POST /oauth2/token`):
   - Latency: P95 < 800ms (`SignInLatencyP95Breached`)
   - Server Error Rate: 5xx < 0.1% (`SignInServerErrorRateHigh`)
-- **Course Registration Journey** (`POST /api/v1/academic/me/enrollments`, `POST /api/v1/academic/enrollments`, `DELETE /api/v1/academic/me/enrollments/{sectionId}`):
+- **Course Registration Journey** (`POST /api/v1/me/enrollments`, `POST /api/v1/me/enrollments/{id}/drop`):
   - Latency: P95 < 500ms (`RegistrationLatencyP95Breached`)
   - Server Error Rate: 5xx < 0.2% (`RegistrationServerErrorRateHigh`)
 - **Attendance Check-in Journey** (`POST /api/v1/attendance/sessions/{id}/checkin`):
   - Latency: P95 < 600ms (`AttendanceCheckinLatencyP95Breached`)
   - Server Error Rate: 5xx < 0.1% (`AttendanceCheckinServerErrorRateHigh`)
-- **Grades & Transcript Read Journey** (`GET /api/v1/enrollments/my/grades`, `GET /api/v1/enrollments/my/transcript`, `GET /api/v1/grades/.*`):
+- **Grades & Transcript Read Journey** (`GET /api/v1/enrollments/my/grades`, `GET /api/v1/enrollments/my/transcript`, `GET /api/v1/grades/.*`, `GET /api/v1/sections/{id}/grades`):
   - Latency: P95 < 300ms (`GradesReadLatencyP95Breached`)
   - Server Error Rate: 5xx < 0.05% (`GradesReadServerErrorRateHigh`)
 - **Rate-Limit Anomalies** (`RateLimitFilter`):

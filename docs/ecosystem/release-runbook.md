@@ -93,7 +93,7 @@ resolve/404 phản ánh go-live chưa mở, không phải lỗi cần sửa tron
 
 | Item | Probe result (2026-10-30) | Owner action khi mở go-live |
 | --- | --- | --- |
-| `id.campusute.io.vn` (OIDC issuer) | NXDOMAIN | Trỏ DNS về hosting đã chọn; issuer env `IDENTITY_ISSUER` phải khớp |
+| `id.campusute.io.vn` (OIDC issuer) | NXDOMAIN | Trỏ DNS về hosting đã chọn; issuer env `IDENTITY_ISSUER_URI` phải khớp |
 | `api.campusute.io.vn` | NXDOMAIN | Trỏ DNS về API service (hoặc giữ `/api/v1` proxy và bỏ host này khỏi registry) |
 | `/.well-known/assetlinks.json` | 404 trên www | Deploy frontend ≥ commit `4471465a`; fingerprint đã bind keystore release local (`0A:0B:8C:…`, xem `device-runbook.md`) |
 | `/.well-known/apple-app-site-association` | 404 trên www | Cùng deploy; TeamID còn `SYNTH00000` — điền khi enroll Apple Developer (proposal trong `device-runbook.md`) |
