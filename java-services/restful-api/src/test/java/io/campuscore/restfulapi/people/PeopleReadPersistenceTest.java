@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -384,9 +384,9 @@ class PeopleReadPersistenceTest {
                     "curriculumId" VARCHAR(120) NOT NULL,
                     "year" INTEGER NOT NULL,
                     "status" VARCHAR(40) NOT NULL,
-                    "admissionDate" TIMESTAMP NOT NULL,
-                    "createdAt" TIMESTAMP NOT NULL,
-                    "updatedAt" TIMESTAMP NOT NULL
+                    "admissionDate" TIMESTAMP WITH TIME ZONE NOT NULL,
+                    "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL,
+                    "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL
                 )
                 """);
         jdbc.execute("""
@@ -400,8 +400,8 @@ class PeopleReadPersistenceTest {
                     "office" VARCHAR(120),
                     "phone" VARCHAR(80),
                     "isActive" BOOLEAN NOT NULL,
-                    "createdAt" TIMESTAMP NOT NULL,
-                    "updatedAt" TIMESTAMP NOT NULL
+                    "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL,
+                    "updatedAt" TIMESTAMP WITH TIME ZONE NOT NULL
                 )
                 """);
     }
@@ -441,8 +441,8 @@ class PeopleReadPersistenceTest {
                         + " (\"id\", \"userId\", \"studentId\", \"curriculumId\", \"year\", \"status\","
                         + " \"admissionDate\", \"createdAt\", \"updatedAt\") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 id, userId, studentId, curriculumId, year, status,
-                localDateTime(BASE_TIME.minusSeconds(31_536_000)),
-                localDateTime(createdAt), localDateTime(createdAt));
+                zonedDateTime(BASE_TIME.minusSeconds(31_536_000)),
+                zonedDateTime(createdAt), zonedDateTime(createdAt));
     }
 
     private void insertLecturer(String id, String employeeId, Instant createdAt) {
@@ -454,7 +454,7 @@ class PeopleReadPersistenceTest {
                         + " \"specialization\", \"office\", \"phone\", \"isActive\", \"createdAt\", \"updatedAt\")"
                         + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 id, userId, "department-se", employeeId, "Dr.", "Distributed Systems", "A-101",
-                "+84123456789", true, localDateTime(createdAt), localDateTime(createdAt));
+                "+84123456789", true, zonedDateTime(createdAt), zonedDateTime(createdAt));
     }
 
     private void insertUser(String id, String email, String firstName, String lastName) {
@@ -489,8 +489,8 @@ class PeopleReadPersistenceTest {
         return departmentId.endsWith("cs") ? "CS" : "SE";
     }
 
-    private static LocalDateTime localDateTime(Instant value) {
-        return LocalDateTime.ofInstant(value, ZoneOffset.UTC);
+    private static OffsetDateTime zonedDateTime(Instant value) {
+        return OffsetDateTime.ofInstant(value, ZoneOffset.UTC);
     }
     @Test
     void lecturerDirectoryScopeIsLimitedToOwnSections() throws Exception {

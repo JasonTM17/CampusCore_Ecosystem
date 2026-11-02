@@ -867,6 +867,37 @@ class EventContractPersistenceTest {
     }
 
     @Test
+    void publishRejectsAnEventWhoseStartAlreadyPassed() throws Exception {
+        String expiredId = createPastDraft(Instant.now().minus(2, ChronoUnit.HOURS),
+                Instant.now().minus(1, ChronoUnit.HOURS));
+        mvc.perform(post("/api/v1/events/staff/" + expiredId + "/publish").with(staffJwt))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EVENT_WINDOW_INVALID"));
+
+        // An in-progress window is the same dead end: registration can never
+        // open, so the event could be published but never completed.
+        String startedId = createPastDraft(Instant.now().minus(1, ChronoUnit.HOURS),
+                Instant.now().plus(1, ChronoUnit.HOURS));
+        mvc.perform(post("/api/v1/events/staff/" + startedId + "/publish").with(staffJwt))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EVENT_WINDOW_INVALID"));
+        Integer drafts = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM events.\"Event\" WHERE \"id\" IN (?, ?) AND \"status\" = 'DRAFT'",
+                Integer.class, expiredId, startedId);
+        assertThat(drafts).isEqualTo(2);
+    }
+
+    /** Creates a draft without a registration window so a past event window is legal input. */
+    private String createPastDraft(Instant startsAt, Instant endsAt) throws Exception {
+        MvcResult result = mvc.perform(post("/api/v1/events/staff").with(staffJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createEventJson(5, startsAt, endsAt, null, null)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asText();
+    }
+
+    @Test
     void oversizedIdempotencyKeyIsRejectedAsBadRequest() throws Exception {
         String eventId = openEventId();
         mvc.perform(post("/api/v1/events/" + eventId + "/register").with(studentJwt)
