@@ -102,6 +102,11 @@ export const en = {
       TRUONG_BO_MON: 'Department head',
       USER: 'User',
     },
+    unsavedChanges: {
+      title: 'Unsaved changes',
+      body: 'You have unsaved changes. Leaving this page will discard them. Continue?',
+      beforeUnload: 'You have unsaved changes. Leaving this page will discard them.',
+    },
     campusErrors: {
       network:
         'CampusUTE could not reach the campus portal right now. Try again in a moment.',
@@ -1193,6 +1198,7 @@ export const en = {
       filterAction: 'Action contains',
       filterEntity: 'Entity type',
       filterSearch: 'Search summary/actor/entity',
+      searchPlaceholder: 'e.g. password reset or an email address',
       applyFilters: 'Apply',
       clearFilters: 'Clear',
       tableTitle: 'Recorded operations (newest first)',
@@ -3124,6 +3130,11 @@ export const vi: I18nMessages = {
       TRUONG_BO_MON: 'Trưởng bộ môn',
       USER: 'Người dùng',
     },
+    unsavedChanges: {
+      title: 'Nội dung chưa được lưu',
+      body: 'Bạn có nội dung chưa được lưu. Rời khỏi sẽ mất các thay đổi. Tiếp tục?',
+      beforeUnload: 'Bạn có nội dung chưa được lưu. Rời khỏi trang sẽ mất thay đổi.',
+    },
     campusErrors: {
       network:
         'CampusUTE chưa kết nối được cổng học vụ lúc này. Hãy thử lại sau một lát.',
@@ -4214,6 +4225,7 @@ export const vi: I18nMessages = {
       filterAction: 'Hành động chứa',
       filterEntity: 'Loại thực thể',
       filterSearch: 'Tìm theo mô tả/tác nhân/thực thể',
+      searchPlaceholder: 'Ví dụ: đặt lại mật khẩu hoặc địa chỉ email',
       applyFilters: 'Áp dụng',
       clearFilters: 'Xóa lọc',
       tableTitle: 'Thao tác đã ghi nhận (mới nhất trước)',

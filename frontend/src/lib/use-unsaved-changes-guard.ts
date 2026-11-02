@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { useI18n } from '@/i18n';
+
 export interface UnsavedChangesGuardOptions {
   /**
    * Returns whether the current form state would be lost on navigation.
@@ -67,12 +69,22 @@ type PendingKind = 'explicit' | 'anchor' | 'popstate';
  */
 export function useUnsavedChangesGuard({
   isDirty,
-  beforeUnloadMessage = 'Bạn có nội dung chưa được lưu. Rời khỏi trang sẽ mất thay đổi.',
-  confirmTitle = 'Nội dung chưa được lưu',
-  confirmBody = 'Bạn có nội dung chưa được lưu. Rời khỏi sẽ mất các thay đổi. Tiếp tục?',
+  beforeUnloadMessage,
+  confirmTitle,
+  confirmBody,
   enabled = true,
   interceptRouteChanges = false,
 }: UnsavedChangesGuardOptions): UnsavedChangesGuard {
+  // The guard owns its own copy because it owns the beforeunload dialog and
+  // supplies the confirm strings; Vietnamese-only defaults used to leak onto
+  // English editor and grade-matrix screens. Copy overrides remain available
+  // to callers that need page-specific wording.
+  const { messages } = useI18n();
+  const copy = messages.common.unsavedChanges;
+  const beforeUnloadCopy = beforeUnloadMessage ?? copy.beforeUnload;
+  const confirmTitleCopy = confirmTitle ?? copy.title;
+  const confirmBodyCopy = confirmBody ?? copy.body;
+
   const [confirmOpen, setConfirmOpen] = useState(false);
   const pendingActionRef = useRef<(() => void) | null>(null);
   const pendingKindRef = useRef<PendingKind>('explicit');
@@ -98,12 +110,12 @@ export function useUnsavedChangesGuard({
       if (!enabledRef.current || !dirtyRef.current()) return;
       event.preventDefault();
       // Chrome requires returnValue to be set to show the dialog.
-      event.returnValue = beforeUnloadMessage;
-      return beforeUnloadMessage;
+      event.returnValue = beforeUnloadCopy;
+      return beforeUnloadCopy;
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [beforeUnloadMessage]);
+  }, [beforeUnloadCopy]);
 
   const armSentinel = useCallback(() => {
     if (typeof window === 'undefined' || typeof window.history.pushState !== 'function') return;
@@ -247,5 +259,12 @@ export function useUnsavedChangesGuard({
     return () => window.removeEventListener('popstate', handlePopState);
   }, [interceptRouteChanges, armLeave, replayHistoryBack]);
 
-  return { confirmOpen, confirmTitle, confirmBody, requestLeave, confirmLeave, cancelLeave };
+  return {
+    confirmOpen,
+    confirmTitle: confirmTitleCopy,
+    confirmBody: confirmBodyCopy,
+    requestLeave,
+    confirmLeave,
+    cancelLeave,
+  };
 }

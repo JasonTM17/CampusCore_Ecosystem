@@ -207,7 +207,7 @@ export default function AdminSemestersPage() {
           createTitle: 'Tạo học kỳ',
           fields: {
             name: 'Tên học kỳ',
-            namePlaceholder: 'Ví dụ: Thu 2026',
+            namePlaceholder: 'Ví dụ: Học kỳ Thu 2026',
             type: 'Loại',
             academicYear: 'Năm học',
             startDate: 'Ngày bắt đầu',
@@ -258,7 +258,7 @@ export default function AdminSemestersPage() {
           createTitle: 'Create semester',
           fields: {
             name: 'Semester name',
-            namePlaceholder: 'e.g. Fall 2026',
+            namePlaceholder: 'e.g. Fall Semester 2026',
             type: 'Type',
             academicYear: 'Academic year',
             startDate: 'Start date',
@@ -685,11 +685,7 @@ export default function AdminSemestersPage() {
                     nameVi: event.target.value,
                   }))
                 }
-                placeholder={
-                  locale === 'vi'
-                    ? 'Ví dụ: Học kỳ Thu 2026'
-                    : 'e.g. Học kỳ Thu 2026'
-                }
+                placeholder={copy.fields.namePlaceholder}
                 required
               />
             </AdminFormField>

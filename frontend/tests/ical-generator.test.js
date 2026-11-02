@@ -206,7 +206,10 @@ test('iCalendar localized display descriptions preserve exact output and bytes',
     assert.equal(event.dtstart, '20260907T080000');
     assert.equal(event.dtend, '20260907T093000');
     assert.equal(event.rrule, 'FREQ=WEEKLY;UNTIL=20261231T165959Z');
-    assert.equal(getMessages(locale).studentPages.ics.defaultCalendarName, 'CampusUTE Timetable');
+    assert.equal(
+      getMessages(locale).studentPages.ics.defaultCalendarName,
+      locale === 'vi' ? 'Thời khóa biểu CampusUTE' : 'CampusUTE Timetable',
+    );
   }
 
   withFixedDate('2026-11-01T12:34:56.000Z', () => {

@@ -578,7 +578,7 @@ export default function ThesisAdvisorDirectoryPage() {
     },
     {
       key: 'workload',
-      title: isVi ? 'Tải hướng dẫn' : 'Supervision Quota',
+      title: isVi ? 'Chỉ tiêu hướng dẫn' : 'Supervision Quota',
       render: (record) => {
         const workload = workloadFor(advisorWorkloadMap, record.id);
         const isAvailable = workload.topicCount < workload.maxTopics;

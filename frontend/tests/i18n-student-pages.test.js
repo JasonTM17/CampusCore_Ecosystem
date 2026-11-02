@@ -235,13 +235,15 @@ test('student print and export copy matches the previous output except approved 
   assert.equal(en.studentPages.schedule.ics.semesterNameFallback, 'CampusUTE');
   assert.equal(vi.studentPages.schedule.ics.semesterNameFallback, 'CampusUTE');
   assert.equal(en.studentPages.ics.defaultCalendarName, 'CampusUTE Timetable');
-  assert.equal(vi.studentPages.ics.defaultCalendarName, 'CampusUTE Timetable');
+  assert.equal(vi.studentPages.ics.defaultCalendarName, 'Thời khóa biểu CampusUTE');
+  assert.equal(en.studentPages.announcements.banner.imageAlt, 'HCMUTE Campus Banner');
+  assert.equal(vi.studentPages.announcements.banner.imageAlt, 'Ảnh bìa khuôn viên HCMUTE');
   assert.equal(en.studentPages.announcements.banner.campusPortal, 'HCMUTE Campus Portal');
-  assert.equal(vi.studentPages.announcements.banner.campusPortal, 'HCMUTE Campus Portal');
+  assert.equal(vi.studentPages.announcements.banner.campusPortal, 'Cổng thông tin HCMUTE');
   assert.equal(en.studentPages.schedule.courseCodeFallback, 'Course');
-  assert.equal(vi.studentPages.schedule.courseCodeFallback, 'Course');
+  assert.equal(vi.studentPages.schedule.courseCodeFallback, 'Môn học');
   assert.equal(en.studentPages.schedule.courseNameFallback, 'Unavailable');
-  assert.equal(vi.studentPages.schedule.courseNameFallback, 'Unavailable');
+  assert.equal(vi.studentPages.schedule.courseNameFallback, 'Chưa cập nhật');
 });
 
 test('student page consumers read the central catalog and contain no extracted literal copy', () => {
