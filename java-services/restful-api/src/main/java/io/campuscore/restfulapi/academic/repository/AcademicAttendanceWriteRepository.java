@@ -47,10 +47,14 @@ public class AcademicAttendanceWriteRepository {
     }
 
     public boolean attendanceExists(String sectionId, String studentId, Instant date) {
+        // DSJ-03: legacy rows may carry a non-midnight time for the same day
+        // key. Match the day range the delete and read paths already use.
         Long count = jdbc.queryForObject("SELECT COUNT(*) FROM " + ATTENDANCE
-                + " WHERE \"sectionId\"=:section AND \"studentId\"=:student AND \"date\"=:date",
+                + " WHERE \"sectionId\"=:section AND \"studentId\"=:student"
+                + " AND \"date\">=:dayStart AND \"date\"<:dayEnd",
                 new MapSqlParameterSource("section", sectionId).addValue("student", studentId)
-                        .addValue("date", utcTimestamp(date)), Long.class);
+                        .addValue("dayStart", utcTimestamp(startOfUtcDay(date)))
+                        .addValue("dayEnd", utcTimestamp(endOfUtcDay(date))), Long.class);
         return count != null && count > 0;
     }
 
@@ -88,8 +92,8 @@ public class AcademicAttendanceWriteRepository {
                         + " AND \"studentId\" IN (:studentIds)",
                 new MapSqlParameterSource()
                         .addValue("sectionId", sectionId)
-                        .addValue("dayStart", utcTimestamp(date.truncatedTo(java.time.temporal.ChronoUnit.DAYS)))
-                        .addValue("dayEnd", utcTimestamp(date.truncatedTo(java.time.temporal.ChronoUnit.DAYS).plusSeconds(86400)))
+                        .addValue("dayStart", utcTimestamp(startOfUtcDay(date)))
+                        .addValue("dayEnd", utcTimestamp(endOfUtcDay(date)))
                         .addValue("studentIds", studentIds));
     }
 
@@ -128,5 +132,14 @@ public class AcademicAttendanceWriteRepository {
     private static java.time.OffsetDateTime utcTimestamp(Instant date) {
         // V8 uses TIMESTAMPTZ: retain the instant independently of JVM/DB zone.
         return date.atOffset(java.time.ZoneOffset.UTC);
+    }
+
+    /** Same UTC day boundary used by the delete and read paths. */
+    private static Instant startOfUtcDay(Instant date) {
+        return date.truncatedTo(java.time.temporal.ChronoUnit.DAYS);
+    }
+
+    private static Instant endOfUtcDay(Instant date) {
+        return startOfUtcDay(date).plusSeconds(86400);
     }
 }
