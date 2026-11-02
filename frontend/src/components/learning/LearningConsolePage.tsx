@@ -308,7 +308,14 @@ function StudentWorkModal({
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const idemKey = useRef(newLearningIdempotencyKey());
+  // The server binds one Idempotency-Key to one request hash, so each write
+  // intent keeps its own key: a retry replays its intent instead of colliding
+  // with the draft or submit that came before it.
+  const idemKeys = useRef<Record<'draft' | 'submit' | 'resubmit', string | null>>({
+    draft: null,
+    submit: null,
+    resubmit: null,
+  });
   const assignmentRequestRef = useRef({ assignmentId: assignment?.id ?? null, generation: 0 });
   if (assignmentRequestRef.current.assignmentId !== (assignment?.id ?? null)) {
     assignmentRequestRef.current = {
@@ -343,7 +350,7 @@ function StudentWorkModal({
     setRevisions([]);
     setFeedback([]);
     setTextBody('');
-    idemKey.current = newLearningIdempotencyKey();
+    idemKeys.current = { draft: null, submit: null, resubmit: null };
     if (assignment?.mySubmissionId) {
       void refresh(assignment.mySubmissionId, request).catch(() => {
         if (assignmentRequestRef.current === request) toast.error(copy.failed);
@@ -387,8 +394,16 @@ function StudentWorkModal({
     }
   };
 
+  const idemKeyFor = (intent: 'draft' | 'submit' | 'resubmit') => {
+    const existing = idemKeys.current[intent];
+    if (existing) return existing;
+    const created = newLearningIdempotencyKey();
+    idemKeys.current[intent] = created;
+    return created;
+  };
+
   const ensureDraft = () => run(
-    () => learningApi.openDraft(assignment!.id, idemKey.current), copy.draftSaved);
+    () => learningApi.openDraft(assignment!.id, idemKeyFor('draft')), copy.draftSaved);
 
   const save = () => run(async () => {
     const file = await pickFile(fileRef.current);
@@ -399,14 +414,14 @@ function StudentWorkModal({
   }, copy.draftSaved);
 
   const submit = () => run(
-    () => learningApi.submit(assignment!.id, idemKey.current), copy.submittedOk);
+    () => learningApi.submit(assignment!.id, idemKeyFor('submit')), copy.submittedOk);
 
   const resubmit = () => run(async () => {
     const file = await pickFile(fileRef.current);
     return learningApi.resubmit(assignment!.id, {
       textBody: textBody || null,
       ...(file ?? {}),
-    }, idemKey.current);
+    }, idemKeyFor('resubmit'));
   }, copy.submittedOk);
 
   return (

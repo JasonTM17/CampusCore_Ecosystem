@@ -65,6 +65,40 @@ export function createRequestId(): string {
   const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
+// The Idempotency-Key identifies the user's intent, not the HTTP call. A retry
+// after an unknown outcome replays the same key so the server returns the
+// committed write instead of answering a duplicate; a settled answer (success
+// or definitive rejection) ends the attempt.
+const pendingMutationKeys = new Map<string, string>();
+
+function isUnknownMutationOutcome(error: unknown): boolean {
+  const response = (
+    error as
+      | { response?: { status?: number; data?: { code?: string } } }
+      | undefined
+  )?.response;
+  if (response?.status === undefined || response.status === 0) return true;
+  if (response.status === 408 || response.status >= 500) return true;
+  const code = response.data?.code;
+  return typeof code === 'string' && code.startsWith('IDEMPOTENCY_');
+}
+
+async function withIdempotencyKey<T>(
+  intent: string,
+  send: (key: string) => Promise<T>,
+): Promise<T> {
+  const key = pendingMutationKeys.get(intent) ?? createRequestId();
+  pendingMutationKeys.set(intent, key);
+  try {
+    const result = await send(key);
+    pendingMutationKeys.delete(intent);
+    return result;
+  } catch (error) {
+    if (!isUnknownMutationOutcome(error)) pendingMutationKeys.delete(intent);
+    throw error;
+  }
+}
+
 type ApiObject = Record<string, unknown>;
 type AuthRequestConfig = AxiosRequestConfig & {
   skipAuthRefresh?: boolean;
@@ -576,10 +610,15 @@ api.interceptors.response.use(
 
         return api(originalConfig);
       } catch (refreshError) {
-        const refreshRejected401 =
-          (refreshError as { response?: { status?: number } } | undefined)
-            ?.response?.status === 401;
-        if (refreshRejected401 && isBrowser() && !originalConfig.skipAuthRedirect) {
+        // The refresh endpoint answers 400 when the cookie is gone, and 401/403
+        // when it is invalid; all three mean the session cannot be renewed,
+        // while a transport failure or a 5xx does not.
+        const refreshStatus = (
+          refreshError as { response?: { status?: number } } | undefined
+        )?.response?.status;
+        const refreshRejected =
+          refreshStatus === 400 || refreshStatus === 401 || refreshStatus === 403;
+        if (refreshRejected && isBrowser() && !originalConfig.skipAuthRedirect) {
           redirectToLogin('session-expired');
         }
 
@@ -1003,20 +1042,22 @@ export const enrollmentsApi = {
     sectionId: string,
     locale?: 'en' | 'vi',
   ): Promise<EnrollmentActionResult> => {
-    const response = await api.post<EnrollmentActionResult>(
-      '/me/enrollments',
-      { sectionId, locale },
-      { headers: { 'Idempotency-Key': createRequestId() } },
-    );
+    const response = await withIdempotencyKey(`enroll:${sectionId}`, (key) =>
+      api.post<EnrollmentActionResult>(
+        '/me/enrollments',
+        { sectionId, locale },
+        { headers: { 'Idempotency-Key': key } },
+      ));
     return response.data;
   },
 
   drop: async (enrollmentId: string): Promise<{ message: string }> => {
-    const response = await api.post<{ message: string }>(
-      `/me/enrollments/${enrollmentId}/drop`,
-      {},
-      { headers: { 'Idempotency-Key': createRequestId() } },
-    );
+    const response = await withIdempotencyKey(`drop:${enrollmentId}`, (key) =>
+      api.post<{ message: string }>(
+        `/me/enrollments/${enrollmentId}/drop`,
+        {},
+        { headers: { 'Idempotency-Key': key } },
+      ));
     return response.data;
   },
 
