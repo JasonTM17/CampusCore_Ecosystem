@@ -286,6 +286,14 @@ public class EventService {
             throw problem(HttpStatus.FORBIDDEN, "EVENT_NOT_OWNER",
                     "Only the event owner can publish this event");
         }
+        // Registration opens only before startsAt and completion requires the
+        // registration transitions, so a window that already started could
+        // never leave PUBLISHED.
+        Instant startsAt = toInstant(event.get("starts_at"));
+        if (startsAt == null || !Instant.now().isBefore(startsAt)) {
+            throw problem(HttpStatus.BAD_REQUEST, "EVENT_WINDOW_INVALID",
+                    "startsAt must be in the future to publish an event");
+        }
         transition(eventId, "DRAFT", "PUBLISHED", actorId, null);
         return findEvent(eventId, null);
     }
