@@ -36,6 +36,7 @@ import {
 import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
 import { campusErrorMessage } from '@/lib/campus-error';
+import { createRequestEpoch } from '@/lib/request-epoch';
 import {
   getLocalizedCourseLabel,
   getLocalizedName,
@@ -116,6 +117,70 @@ interface ScheduleEntry {
 const sectionStatuses = ['OPEN', 'CLOSED', 'CANCELLED'] as const;
 type SectionStatus = (typeof sectionStatuses)[number];
 
+type SectionScheduleSnapshot = {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  classroomId?: string;
+  classroom?: { id?: string };
+};
+
+function sectionScheduleListsEqual(
+  left: SectionScheduleSnapshot[],
+  right: SectionScheduleSnapshot[],
+): boolean {
+  const normalize = (schedules: SectionScheduleSnapshot[]) => schedules
+    .map((schedule) => ({
+      dayOfWeek: schedule.dayOfWeek,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      classroomId: schedule.classroomId ?? schedule.classroom?.id ?? '',
+    }))
+    .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  return JSON.stringify(normalize(left)) === JSON.stringify(normalize(right));
+}
+
+function hasSectionSnapshotChanged(baseline: Section, current: Section): boolean {
+  return baseline.courseId !== current.courseId
+    || baseline.semesterId !== current.semesterId
+    || baseline.sectionNumber !== current.sectionNumber
+    || (baseline.lecturerId || '') !== (current.lecturerId || '')
+    || baseline.capacity !== current.capacity
+    || baseline.status !== current.status
+    || !sectionScheduleListsEqual(baseline.schedules || [], current.schedules || []);
+}
+
+function buildSectionUpdatePayload(
+  baseline: Section,
+  formData: {
+    courseId: string;
+    semesterId: string;
+    sectionNumber: string;
+    capacity: number;
+    status: string;
+    lecturerId: string;
+  },
+  schedules: ScheduleEntry[],
+  schedulesLoaded: boolean,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (formData.courseId !== baseline.courseId) payload.courseId = formData.courseId;
+  if (formData.semesterId !== baseline.semesterId) payload.semesterId = formData.semesterId;
+  if (formData.sectionNumber !== baseline.sectionNumber) payload.sectionNumber = formData.sectionNumber;
+  if (Number(formData.capacity) !== baseline.capacity) payload.capacity = Number(formData.capacity);
+  if (formData.status !== baseline.status) payload.status = formData.status;
+  if (formData.lecturerId !== (baseline.lecturerId || '')) payload.lecturerId = formData.lecturerId;
+  if (schedulesLoaded && !sectionScheduleListsEqual(baseline.schedules || [], schedules)) {
+    payload.schedules = schedules.map(({ dayOfWeek, startTime, endTime, classroomId }) => ({
+      dayOfWeek,
+      startTime,
+      endTime,
+      classroomId,
+    }));
+  }
+  return payload;
+}
+
 function isSectionStatus(value: string): value is SectionStatus {
   return sectionStatuses.includes(value as SectionStatus);
 }
@@ -140,6 +205,7 @@ export default function AdminSectionsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSection, setEditingSection] = useState<Section | null>(null);
+  const [editingSectionBaseline, setEditingSectionBaseline] = useState<Section | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [deletingSectionId, setDeletingSectionId] = useState<string | null>(null);
   const deletingRef = useRef(false);
@@ -153,6 +219,7 @@ export default function AdminSectionsPage() {
   });
   const [schedules, setSchedules] = useState<ScheduleEntry[]>([]);
   const scheduleLoadRequestRef = useRef(0);
+  const sectionsEpoch = useRef(createRequestEpoch()).current;
   // A failed schedule read must never read as "no schedules added yet": this
   // flag keeps an outage distinguishable from a schedule-free section.
   const [schedulesError, setSchedulesError] = useState('');
@@ -200,6 +267,7 @@ export default function AdminSectionsPage() {
   }, [copy]);
 
   const fetchSections = useCallback(async () => {
+    const epoch = sectionsEpoch.begin();
     setIsLoading(true);
     setError('');
 
@@ -210,14 +278,21 @@ export default function AdminSectionsPage() {
         semesterId: semesterFilter || undefined,
         search: search || undefined,
       });
+      if (!sectionsEpoch.isCurrent(epoch)) return;
       setSections(response.data || []);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
+      if (!sectionsEpoch.isCurrent(epoch)) return;
       setError(copy.loadFailed);
     } finally {
+      if (!sectionsEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [copy, page, search, semesterFilter]);
+  }, [copy, page, search, sectionsEpoch, semesterFilter]);
+
+  useEffect(() => () => {
+    sectionsEpoch.invalidate();
+  }, [sectionsEpoch]);
 
   useEffect(() => {
     const trimmed = searchInput.trim();
@@ -337,6 +412,7 @@ export default function AdminSectionsPage() {
   const resetForm = () => {
     scheduleLoadRequestRef.current += 1;
     setEditingSection(null);
+    setEditingSectionBaseline(null);
     setFormData({
       courseId: '',
       semesterId: '',
@@ -366,6 +442,7 @@ export default function AdminSectionsPage() {
     try {
       const fullSection = await adminSectionsApi.getById(section.id);
       if (!isCurrent()) return;
+      setEditingSectionBaseline({ ...section, schedules: fullSection.schedules || [] });
       setSchedules(
         (fullSection.schedules || []).map((schedule) => ({
           rowId: schedule.id || createScheduleRowId(),
@@ -387,6 +464,7 @@ export default function AdminSectionsPage() {
 
   const openEdit = (section: Section) => {
     setEditingSection(section);
+    setEditingSectionBaseline(section);
     setFormData({
       courseId: section.courseId,
       semesterId: section.semesterId,
@@ -450,20 +528,28 @@ export default function AdminSectionsPage() {
     setIsSaving(true);
 
     try {
-      const payload = {
-        ...formData,
-        capacity: Number(formData.capacity),
-        // An empty known list means delete every meeting. An unavailable read
-        // omits the field so a metadata edit preserves the stored schedule.
-        schedules: schedulesLoaded
-          ? schedules.map(({ dayOfWeek, startTime, endTime, classroomId }) => ({ dayOfWeek, startTime, endTime, classroomId }))
-          : undefined,
-      };
-
       if (editingSection) {
+        const currentSection = await adminSectionsApi.getById(editingSection.id);
+        if (hasSectionSnapshotChanged(editingSectionBaseline || editingSection, currentSection)) {
+          toast.error(copy.staleEdit);
+          return;
+        }
+        const payload = buildSectionUpdatePayload(
+          editingSectionBaseline || editingSection,
+          formData,
+          schedules,
+          schedulesLoaded,
+        );
         await adminSectionsApi.update(editingSection.id, payload);
         toast.success(copy.updated);
       } else {
+        const payload = {
+          ...formData,
+          capacity: Number(formData.capacity),
+          schedules: schedulesLoaded
+            ? schedules.map(({ dayOfWeek, startTime, endTime, classroomId }) => ({ dayOfWeek, startTime, endTime, classroomId }))
+            : undefined,
+        };
         await adminSectionsApi.create(payload);
         toast.success(copy.created);
       }

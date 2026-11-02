@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { CheckCircle2, ClipboardCheck, Clock3, RefreshCw, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -25,7 +25,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { statusToneClass, type StatusTone } from '@/components/ui/status';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state-block';
 import { WorkspaceForbiddenState } from '@/components/ProtectedRoute';
-import { campusErrorMessage } from '@/lib/campus-error';
+import { campusCodeMessage, campusErrorCode, campusErrorMessage } from '@/lib/campus-error';
+import { createRequestEpoch } from '@/lib/request-epoch';
 
 type StatusFilter = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL';
 type ReviewDecision = 'APPROVED' | 'REJECTED';
@@ -57,6 +58,7 @@ export default function AdminCreditLimitApplicationsPage() {
   const [note, setNote] = useState('');
   const [reviewError, setReviewError] = useState('');
   const [saving, setSaving] = useState(false);
+  const applicationsEpoch = useRef(createRequestEpoch()).current;
 
   useEffect(() => {
     if (authLoading || isLoggingOut) return;
@@ -70,16 +72,25 @@ export default function AdminCreditLimitApplicationsPage() {
   }, [authLoading, href, isAdmin, isLoggingOut, isSuperAdmin, router, user]);
 
   const load = useCallback(async () => {
+    const epoch = applicationsEpoch.begin();
     setLoading(true);
     setError('');
     try {
-      setApplications(await adminRegistrationApi.creditLimitApplications(filter));
+      const result = await adminRegistrationApi.creditLimitApplications(filter);
+      if (!applicationsEpoch.isCurrent(epoch)) return;
+      setApplications(result);
     } catch (cause) {
+      if (!applicationsEpoch.isCurrent(epoch)) return;
       setError(campusErrorMessage(cause, messages.common.campusErrors, copy.loadFailed));
     } finally {
+      if (!applicationsEpoch.isCurrent(epoch)) return;
       setLoading(false);
     }
-  }, [copy.loadFailed, filter, messages.common.campusErrors]);
+  }, [applicationsEpoch, copy.loadFailed, filter, messages.common.campusErrors]);
+
+  useEffect(() => () => {
+    applicationsEpoch.invalidate();
+  }, [applicationsEpoch]);
 
   useEffect(() => {
     if (canAccess) void load();
@@ -119,7 +130,18 @@ export default function AdminCreditLimitApplicationsPage() {
       toast.success(copy.reviewed);
       await load();
     } catch (cause) {
-      setReviewError(campusErrorMessage(cause, messages.common.campusErrors, copy.loadFailed));
+      const code = campusErrorCode(cause);
+      const errorCopy = {
+        ...messages.common.campusErrors,
+        codes: {
+          ...messages.common.campusErrors.codes,
+          CREDIT_LIMIT_APPLICATION_NOT_PENDING: copy.alreadyReviewed,
+        },
+      };
+      setReviewError(campusCodeMessage(cause, errorCopy, copy.loadFailed));
+      if (code === 'CREDIT_LIMIT_APPLICATION_NOT_PENDING') {
+        await load();
+      }
     } finally {
       setSaving(false);
     }

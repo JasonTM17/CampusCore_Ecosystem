@@ -57,6 +57,7 @@ test('AUD-001 section schedule reads only update the matching edit request', asy
       },
     },
     setSchedules: (value) => scheduleRows.push(value),
+    setEditingSectionBaseline() {},
     setSchedulesError() {},
     setSchedulesLoaded() {},
     copy: { schedulesLoadFailed: 'failed' },

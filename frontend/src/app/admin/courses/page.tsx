@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BookOpen, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -32,6 +32,7 @@ import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { useI18n } from '@/i18n';
 import { adminAcademicsEn, adminAcademicsVi } from '@/i18n/messages-admin-academics';
 import { campusErrorMessage } from '@/lib/campus-error';
+import { createRequestEpoch } from '@/lib/request-epoch';
 import {
   getLocalizedDescription,
   getLocalizedName,
@@ -51,6 +52,56 @@ interface Course {
   departmentId: string;
   department?: { name: string; nameEn?: string; nameVi?: string };
   isActive: boolean;
+}
+
+function hasCourseSnapshotChanged(baseline: Course, current: Course): boolean {
+  return baseline.code !== current.code
+    || baseline.name !== current.name
+    || (baseline.nameEn || baseline.name) !== (current.nameEn || current.name)
+    || (baseline.nameVi || '') !== (current.nameVi || '')
+    || baseline.description !== current.description
+    || (baseline.descriptionEn || baseline.description || '')
+      !== (current.descriptionEn || current.description || '')
+    || (baseline.descriptionVi || '') !== (current.descriptionVi || '')
+    || baseline.credits !== current.credits
+    || baseline.departmentId !== current.departmentId
+    || baseline.isActive !== current.isActive;
+}
+
+function buildCourseUpdatePayload(
+  baseline: Course,
+  formData: {
+    code: string;
+    nameEn: string;
+    nameVi: string;
+    credits: number;
+    departmentId: string;
+    descriptionEn: string;
+    descriptionVi: string;
+  },
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  const nameEnChanged = formData.nameEn !== (baseline.nameEn || baseline.name);
+  const nameViChanged = formData.nameVi !== (baseline.nameVi || '');
+  const descriptionEnChanged = formData.descriptionEn
+    !== (baseline.descriptionEn || baseline.description || '');
+  const descriptionViChanged = formData.descriptionVi !== (baseline.descriptionVi || '');
+
+  if (formData.code !== baseline.code) payload.code = formData.code;
+  if (nameEnChanged) payload.nameEn = formData.nameEn;
+  if (nameViChanged) payload.nameVi = formData.nameVi;
+  const name = formData.nameEn || formData.nameVi;
+  if ((nameEnChanged || nameViChanged) && name !== baseline.name) payload.name = name;
+  if (formData.credits !== baseline.credits) payload.credits = formData.credits;
+  if (formData.departmentId !== baseline.departmentId) payload.departmentId = formData.departmentId;
+  if (descriptionEnChanged) payload.descriptionEn = formData.descriptionEn;
+  if (descriptionViChanged) payload.descriptionVi = formData.descriptionVi;
+  const description = formData.descriptionEn || formData.descriptionVi;
+  if ((descriptionEnChanged || descriptionViChanged)
+      && description !== (baseline.description || '')) {
+    payload.description = description;
+  }
+  return payload;
 }
 
 interface Department {
@@ -77,6 +128,7 @@ export default function AdminCoursesPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const coursesEpoch = useRef(createRequestEpoch()).current;
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     code: '',
@@ -120,6 +172,7 @@ export default function AdminCoursesPage() {
   }, [copy]);
 
   const fetchCourses = useCallback(async () => {
+    const epoch = coursesEpoch.begin();
     setIsLoading(true);
     setError('');
 
@@ -136,14 +189,21 @@ export default function AdminCoursesPage() {
       };
       const response = await coursesApi.getAll(query);
 
+      if (!coursesEpoch.isCurrent(epoch)) return;
       setCourses(response.data || []);
       setTotalPages(response.meta?.totalPages || 1);
     } catch {
+      if (!coursesEpoch.isCurrent(epoch)) return;
       setError(copy.loadFailed);
     } finally {
+      if (!coursesEpoch.isCurrent(epoch)) return;
       setIsLoading(false);
     }
-  }, [copy, departmentFilter, page, search]);
+  }, [copy, coursesEpoch, departmentFilter, page, search]);
+
+  useEffect(() => () => {
+    coursesEpoch.invalidate();
+  }, [coursesEpoch]);
 
   useEffect(() => {
     const trimmed = searchInput.trim();
@@ -281,17 +341,23 @@ export default function AdminCoursesPage() {
     setIsSaving(true);
 
     try {
-      const payload = {
-        ...formData,
-        name: formData.nameEn || formData.nameVi,
-        description: formData.descriptionEn || formData.descriptionVi,
-        descriptionEn: formData.descriptionEn,
-        descriptionVi: formData.descriptionVi,
-      };
       if (editingCourse) {
+        const currentCourse = await coursesApi.getById(editingCourse.id);
+        if (hasCourseSnapshotChanged(editingCourse, currentCourse)) {
+          toast.error(copy.staleEdit);
+          return;
+        }
+        const payload = buildCourseUpdatePayload(editingCourse, formData);
         await coursesApi.update(editingCourse.id, payload);
         toast.success(copy.updated);
       } else {
+        const payload = {
+          ...formData,
+          name: formData.nameEn || formData.nameVi,
+          description: formData.descriptionEn || formData.descriptionVi,
+          descriptionEn: formData.descriptionEn,
+          descriptionVi: formData.descriptionVi,
+        };
         await coursesApi.create(payload);
         toast.success(copy.created);
       }

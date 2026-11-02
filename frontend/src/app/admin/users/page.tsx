@@ -70,6 +70,11 @@ const defaultRole: ManagedRole = 'STUDENT';
 
 const ACCOUNT_STATUSES = ['ACTIVE', 'PENDING', 'SUSPENDED', 'LOCKED', 'DISABLED'] as const;
 
+function hasUserStatusChanged(loadedStatus: string | undefined, formStatus: string): boolean {
+  const normalize = (status: string | undefined) => status?.trim().toUpperCase() || 'ACTIVE';
+  return normalize(loadedStatus) !== normalize(formStatus);
+}
+
 function usesLecturerProfileRole(role: string): boolean {
   const normalized = role.trim().toUpperCase();
   return (
@@ -570,8 +575,10 @@ export default function AdminUsersPage() {
         const payload: Record<string, any> = {
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
-          status: formData.status,
         };
+        if (hasUserStatusChanged(editingUser.status, formData.status)) {
+          payload.status = formData.status;
+        }
         // Sending the displayed primary role replaces the complete system-role
         // set. Preserve companion roles (such as TRUONG_BO_MON + LECTURER)
         // on ordinary edits; only an explicit selector change is a conversion.
