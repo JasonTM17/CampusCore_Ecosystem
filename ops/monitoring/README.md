@@ -7,6 +7,10 @@
 > hosted target would need. This workspace runs local-first and wires no Prometheus/Alertmanager:
 > shipping the collector is **deferred — future deployment work**.
 
+CI checks the three rule files and runs `promtool test rules
+ops/monitoring/alert-tests.yml` with Prometheus 2.55.1. These offline rule
+checks do not imply that a live collector or alert destination is configured.
+
 ---
 
 ## 1. Metric Inventory: Code Verification
@@ -69,6 +73,13 @@ Monitors platform health, connection pool capacity, and container lifecycles:
   - Warning: Instance running but unready for > 90s (`ProlongedColdStartUnready`)
 - **Frontend Health**:
   - Critical: Web route `/health` failing for > 1m (`WebFrontendHealthFailed`)
+
+External blackbox scrape jobs must be named
+`blackbox-http-api-liveness`, `blackbox-http-api-readiness`, and
+`blackbox-http-frontend-health`. Use the standard `job` and `instance` labels;
+the API liveness and readiness targets for one service instance must share the
+same `instance` value. The alert rules do not depend on custom `endpoint` or
+`service` labels.
 
 ### 3. `alerts-assistant.yml`
 Monitors AI campus assistant service health, provider availability, and quotas:

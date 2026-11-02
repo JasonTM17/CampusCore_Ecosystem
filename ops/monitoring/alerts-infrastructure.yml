@@ -70,7 +70,7 @@ groups:
       # -----------------------------------------------------------------------
       - alert: ServiceLivenessFailed
         expr: >-
-          probe_success{job="blackbox-http",endpoint=~"/api/v1/health/liveness|/actuator/health/liveness"} == 0
+          probe_success{job="blackbox-http-api-liveness"} == 0
         for: 30s
         labels:
           severity: critical
@@ -86,7 +86,7 @@ groups:
 
       - alert: ServiceReadinessFailed
         expr: >-
-          probe_success{job="blackbox-http",endpoint="/api/v1/health/readiness"} == 0
+          probe_success{job="blackbox-http-api-readiness"} == 0
         for: 1m
         labels:
           severity: warning
@@ -106,9 +106,9 @@ groups:
       # -----------------------------------------------------------------------
       - alert: ProlongedColdStartUnready
         expr: >-
-          (probe_success{job="blackbox-http",endpoint="/api/v1/health/liveness"} == 1)
-          and on (job, instance)
-          (probe_success{job="blackbox-http",endpoint="/api/v1/health/readiness"} == 0)
+          (probe_success{job="blackbox-http-api-liveness"} == 1)
+          and on (instance)
+          (probe_success{job="blackbox-http-api-readiness"} == 0)
         for: 90s
         labels:
           severity: warning
@@ -130,7 +130,7 @@ groups:
       # -----------------------------------------------------------------------
       - alert: WebFrontendHealthFailed
         expr: >-
-          probe_success{job="blackbox-http",endpoint="/health",service="frontend"} == 0
+          probe_success{job="blackbox-http-frontend-health"} == 0
         for: 1m
         labels:
           severity: critical

@@ -107,7 +107,7 @@ Disable export with `management.prometheus.metrics.export.enabled=false`, or rem
 | `campuscore_assistant_turn_stale_recovered_total` | Successful repository recovery CAS, incremented after commit | Includes sweep and opportunistic recovery; rollback and lost CAS do not increment. Process-local counter resets on restart. |
 | `campuscore_assistant_rls_verified` | Actual `AssistantRlsState` | 1 only after verification; absent/disabled/degraded verifier is 0. No reason string or raw state detail is exported. |
 | `campuscore_assistant_executor_active`, `_queued`, `_max`, `_rejected_total` | Both direct-handoff executors; only `executor="student|internal"` | Queue remains zero by existing policy; rejection increments before the original exception is rethrown. No new queue/SLO thresholds. |
-| `probe_success` | External blackbox exporter, not the Java registry | Requires separately authorized deployment/collection setup. Relabel `instance` to a stable service-instance identity shared by its liveness/readiness probes. Send `X-Health-Key` securely for the primary readiness probe. |
+| `probe_success` | External blackbox exporter, not the Java registry; rules use its standard `job` and `instance` labels | Configure `blackbox-http-api-liveness`, `blackbox-http-api-readiness`, and `blackbox-http-frontend-health` scrape jobs. The API jobs must use the same stable `instance` value for each service instance so cold-start rules can join them. No custom `endpoint` or `service` labels are required. Send `X-Health-Key` securely for the primary readiness probe. |
 
 The quota alert now uses `max(campuscore_assistant_quota_consumed_daily) > 180`:
 a gauge can decrease after refunds/day rollover, and replicas observe the same

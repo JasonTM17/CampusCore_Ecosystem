@@ -6,7 +6,13 @@ import { fileURLToPath } from 'node:url';
 
 const scriptsDirectory = dirname(fileURLToPath(import.meta.url));
 const alerts = readFileSync(resolve(scriptsDirectory, '../ops/monitoring/alerts-api-slo.yml'), 'utf8');
+const infrastructure = readFileSync(resolve(scriptsDirectory, '../ops/monitoring/alerts-infrastructure.yml'), 'utf8');
+const assistant = readFileSync(resolve(scriptsDirectory, '../ops/monitoring/alerts-assistant.yml'), 'utf8');
 const fixtures = readFileSync(resolve(scriptsDirectory, '../ops/monitoring/alert-tests.yml'), 'utf8');
+const metrics = readFileSync(resolve(
+  scriptsDirectory,
+  '../java-services/restful-api/src/main/java/io/campuscore/restfulapi/config/MetricsConfiguration.java',
+), 'utf8');
 
 // Route templates come from the Spring MVC uri tag on the controllers:
 // RegistrationController @RequestMapping("/api/v1") + me/enrollments(/{id}/drop),
@@ -48,4 +54,35 @@ test('alert fixtures exercise the live enrollment and grade templates', () => {
     'fixtures must feed the emitted /api/v1/me/enrollments template');
   assert.ok(fixtures.includes('uri="/api/v1/sections/{id}/grades"'),
     'fixtures must feed the emitted /api/v1/sections/{id}/grades template');
+});
+
+test('blackbox alerts and fixtures use only the configured job and instance labels', () => {
+  for (const job of [
+    'blackbox-http-api-liveness',
+    'blackbox-http-api-readiness',
+    'blackbox-http-frontend-health',
+  ]) {
+    assert.ok(infrastructure.includes(`job="${job}"`), `alert rules must use configured job ${job}`);
+    assert.ok(fixtures.includes(`job="${job}"`), `alert tests must cover configured job ${job}`);
+  }
+  assert.match(infrastructure, /and on \(instance\)/,
+    'liveness and readiness use the shared API instance label across jobs');
+  assert.doesNotMatch(fixtures, /probe_success\{[^\n]*(?:endpoint|service)=/,
+    'blackbox fixtures must not invent endpoint or service labels');
+  assert.match(fixtures, /probe_success\{job="blackbox-http-api-liveness",instance="api-[12]"\}/);
+  assert.match(fixtures, /probe_success\{job="blackbox-http-api-readiness",instance="api-[12]"\}/);
+  assert.match(fixtures, /probe_success\{job="blackbox-http-frontend-health",instance="web-1"\}/);
+});
+
+test('assistant alert metric names match the Micrometer producers', () => {
+  assert.match(metrics, /registry\.counter\("campuscore\.assistant\.requests"/);
+  assert.match(metrics, /Gauge\.builder\("campuscore\.assistant\.quota\.consumed\.daily"/);
+  assert.match(metrics, /Gauge\.builder\("campuscore\.assistant\.rls\.verified"/);
+  for (const metric of [
+    'campuscore_assistant_requests_total',
+    'campuscore_assistant_quota_consumed_daily',
+    'campuscore_assistant_rls_verified',
+  ]) {
+    assert.ok(assistant.includes(metric), `assistant alert rules must select exported metric ${metric}`);
+  }
 });

@@ -74,15 +74,15 @@ tests:
     values: 0+0x80
   - series: hikaricp_connections_timeout_total{pool="primary"}
     values: 0+0x80
-  - series: probe_success{job="blackbox-http",instance="down",endpoint="/api/v1/health/liveness"}
+  - series: probe_success{job="blackbox-http-api-liveness",instance="api-1"}
     values: 1+0x80
-  - series: probe_success{job="blackbox-http",instance="down",endpoint="/api/v1/health/readiness"}
+  - series: probe_success{job="blackbox-http-api-readiness",instance="api-1"}
     values: 1+0x80
-  - series: probe_success{job="blackbox-http",instance="cold",endpoint="/api/v1/health/liveness"}
+  - series: probe_success{job="blackbox-http-api-liveness",instance="api-2"}
     values: 1+0x80
-  - series: probe_success{job="blackbox-http",instance="cold",endpoint="/api/v1/health/readiness"}
+  - series: probe_success{job="blackbox-http-api-readiness",instance="api-2"}
     values: 1+0x80
-  - series: probe_success{job="blackbox-http",instance="web",endpoint="/health",service="frontend"}
+  - series: probe_success{job="blackbox-http-frontend-health",instance="web-1"}
     values: 1+0x80
   - series: campuscore_assistant_requests_total{degraded="true"}
     values: 0+0x80
@@ -159,15 +159,15 @@ tests:
     values: 3+0x40 0+0x40
   - series: hikaricp_connections_timeout_total{pool="primary"}
     values: 0+1x20 0+1x20 20+0x40
-  - series: probe_success{job="blackbox-http",instance="down",endpoint="/api/v1/health/liveness"}
+  - series: probe_success{job="blackbox-http-api-liveness",instance="api-1"}
     values: 0+0x40 1+0x40
-  - series: probe_success{job="blackbox-http",instance="down",endpoint="/api/v1/health/readiness"}
+  - series: probe_success{job="blackbox-http-api-readiness",instance="api-1"}
     values: 0+0x40 1+0x40
-  - series: probe_success{job="blackbox-http",instance="cold",endpoint="/api/v1/health/liveness"}
+  - series: probe_success{job="blackbox-http-api-liveness",instance="api-2"}
     values: 1+0x80
-  - series: probe_success{job="blackbox-http",instance="cold",endpoint="/api/v1/health/readiness"}
+  - series: probe_success{job="blackbox-http-api-readiness",instance="api-2"}
     values: 0+0x40 1+0x40
-  - series: probe_success{job="blackbox-http",instance="web",endpoint="/health",service="frontend"}
+  - series: probe_success{job="blackbox-http-frontend-health",instance="web-1"}
     values: 0+0x40 1+0x40
   - series: campuscore_assistant_requests_total{degraded="true"}
     values: 0+80x20 0+80x20 1600+0x40
