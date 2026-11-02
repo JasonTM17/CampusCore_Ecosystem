@@ -93,6 +93,10 @@ export default function NotificationsCenterPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [olderError, setOlderError] = useState('');
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [failedAction, setFailedAction] = useState<
+    { kind: 'markRead'; id: string } | { kind: 'markAll' } | null
+  >(null);
   const [status, setStatus] = useState('');
   const filterRefs = useRef<Record<Filter, HTMLButtonElement | null>>({
     all: null,
@@ -102,6 +106,8 @@ export default function NotificationsCenterPage() {
   const fetchNotifications = useCallback(async () => {
     setIsLoading(true);
     setError('');
+    setActionError('');
+    setFailedAction(null);
     setStatus('');
 
     try {
@@ -174,7 +180,8 @@ export default function NotificationsCenterPage() {
 
   async function markRead(id: string) {
     setBusyId(id);
-    setError('');
+    setActionError('');
+    setFailedAction(null);
     try {
       await notificationsApi.markRead(id);
       setItems((current) =>
@@ -183,7 +190,8 @@ export default function NotificationsCenterPage() {
         ),
       );
     } catch {
-      setError(copy.updateFailed);
+      setActionError(copy.updateFailed);
+      setFailedAction({ kind: 'markRead', id });
     } finally {
       setBusyId(null);
     }
@@ -193,17 +201,27 @@ export default function NotificationsCenterPage() {
     if (unreadCount === 0) return;
 
     setIsMarkingAll(true);
-    setError('');
+    setActionError('');
+    setFailedAction(null);
     setStatus('');
     try {
       const response = await notificationsApi.markAllRead();
       const updated = response.updated ?? unreadCount;
-      setStatus(copy.updatedCount.replace('{count}', String(updated)));
       await fetchNotifications();
+      setStatus(copy.updatedCount.replace('{count}', String(updated)));
     } catch {
-      setError(copy.updateFailed);
+      setActionError(copy.updateFailed);
+      setFailedAction({ kind: 'markAll' });
     } finally {
       setIsMarkingAll(false);
+    }
+  }
+
+  function retryFailedAction() {
+    if (failedAction?.kind === 'markRead') {
+      void markRead(failedAction.id);
+    } else if (failedAction?.kind === 'markAll') {
+      void markAllRead();
     }
   }
 
@@ -331,6 +349,23 @@ export default function NotificationsCenterPage() {
         tabIndex={0}
         className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
+        {actionError ? (
+          <div
+            role="alert"
+            className={`mb-3 flex flex-col gap-2 rounded-md border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between ${statusToneClass('danger')}`}
+          >
+            <span>{actionError}</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={retryFailedAction}
+              className="shrink-0 self-start sm:self-auto"
+            >
+              {messages.common.actions.retry}
+            </Button>
+          </div>
+        ) : null}
         {error ? (
           <ErrorState
             title={copy.title}
@@ -343,7 +378,7 @@ export default function NotificationsCenterPage() {
           <EmptyState
             icon={Inbox}
             title={filter === 'unread' ? copy.noUnread : copy.noAll}
-            description={filter === 'unread' ? copy.noUnread : copy.empty}
+            description=""
             action={
               <LinkButton href="/dashboard" variant="outline">
                 {messages.common.actions.openDashboard}

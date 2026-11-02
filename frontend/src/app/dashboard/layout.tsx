@@ -255,6 +255,10 @@ function resolveNotificationTarget(notification: {
 // The bell shows a plain-text preview via the shared htmlToPlainText helper.
 const notificationPreview = htmlToPlainText;
 
+function unreadAriaLabel(label: string, unreadCount: number, unreadLabel: string): string {
+  return unreadCount > 0 ? `${label}, ${unreadCount} ${unreadLabel.toLowerCase()}` : label;
+}
+
 export default function DashboardLayout({
   children,
 }: {
@@ -1275,13 +1279,20 @@ export default function DashboardLayout({
                   variant="ghost"
                   size="icon"
                   onClick={() => setNotificationsOpen((current) => !current)}
-                  aria-label={messages.dashboardShell.controls.toggleNotifications}
+                  aria-label={unreadAriaLabel(
+                    messages.dashboardShell.controls.toggleNotifications,
+                    unreadCount,
+                    messages.dashboardShell.notifications.unread,
+                  )}
                   aria-expanded={notificationsOpen}
                   aria-controls="dashboard-notifications-panel"
                 >
                   <Bell className="h-5 w-5" aria-hidden="true" />
                   {unreadCount > 0 ? (
-                    <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[hsl(var(--accent-warm))]" />
+                    <span
+                      aria-hidden="true"
+                      className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-[hsl(var(--accent-warm))]"
+                    />
                   ) : null}
                 </Button>
 
@@ -1588,7 +1599,11 @@ export default function DashboardLayout({
                     key="mobile-menu"
                     type="button"
                     onClick={() => setSidebarOpen(true)}
-                    aria-label={messages.dashboardShell.controls.openSidebar}
+                    aria-label={unreadAriaLabel(
+                      messages.dashboardShell.controls.openSidebar,
+                      unreadCount,
+                      messages.dashboardShell.notifications.unread,
+                    )}
                     aria-expanded={sidebarOpen}
                     aria-controls="dashboard-sidebar"
                     className={cn(
@@ -1606,7 +1621,10 @@ export default function DashboardLayout({
                       {messages.dashboardShell.controls.bottomNav.menu}
                     </span>
                     {unreadCount > 0 ? (
-                      <span className="absolute right-1 top-1 min-w-4 rounded-md bg-primary px-1 text-center text-[11px] font-semibold leading-4 text-primary-foreground">
+                      <span
+                        aria-hidden="true"
+                        className="absolute right-1 top-1 min-w-4 rounded-md bg-primary px-1 text-center text-[11px] font-semibold leading-4 text-primary-foreground"
+                      >
                         {unreadCount > 99 ? '99+' : unreadCount}
                       </span>
                     ) : null}

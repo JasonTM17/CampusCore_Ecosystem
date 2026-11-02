@@ -139,13 +139,15 @@ export function summarizeGrades(records: StudentGradeRecord[]): GradeSummary {
   }
   const countedCourses = [...bestAttempts.values()];
   const totalCredits = countedCourses.reduce((sum, grade) => sum + grade.credits, 0);
-  const totalPoints = countedCourses.reduce(
-    (sum, grade) => sum + gradePoints[grade.letterGrade!] * grade.credits,
+  // Integer hundredths of a point: matches the backend's BigDecimal HALF_UP
+  // and avoids float totals such as 0.5249999999999999 rounding down.
+  const totalPointCents = countedCourses.reduce(
+    (sum, grade) => sum + Math.round(gradePoints[grade.letterGrade!] * 100) * grade.credits,
     0,
   );
-  const gpa = totalCredits > 0 ? totalPoints / totalCredits : 0;
+  const gpaCents = totalCredits > 0 ? Math.round(totalPointCents / totalCredits) : 0;
   return {
-    gpa: gpa.toFixed(2),
+    gpa: (gpaCents / 100).toFixed(2),
     courseCount: records.length,
     gradedCount: gradedCourses.length,
     completedCredits: countedCourses

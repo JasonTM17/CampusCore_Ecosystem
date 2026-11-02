@@ -94,7 +94,7 @@ export function computeGradeSummary(students: GradeExportStudent[]): GradeDistri
 
   let gradedCount = 0;
   let passedCount = 0;
-  let totalScoreSum = 0;
+  let totalScoreCents = 0;
 
   students.forEach((student) => {
     const total = student.totalScore !== undefined && student.totalScore !== null
@@ -103,7 +103,7 @@ export function computeGradeSummary(students: GradeExportStudent[]): GradeDistri
 
     if (total !== null && Number.isFinite(total)) {
       gradedCount += 1;
-      totalScoreSum += total;
+      totalScoreCents += Math.round(total * 100);
       const letter = student.letterGrade || calculateGrade(total);
       if (letter in counts) {
         counts[letter as keyof typeof counts] += 1;
@@ -118,7 +118,9 @@ export function computeGradeSummary(students: GradeExportStudent[]): GradeDistri
   const ungradedCount = totalStudents - gradedCount;
   const failedCount = gradedCount - passedCount;
   const passRate = gradedCount > 0 ? Math.round((passedCount / gradedCount) * 1000) / 10 : 0;
-  const averageScore = gradedCount > 0 ? Math.round((totalScoreSum / gradedCount) * 100) / 100 : null;
+  // Integer-cent sum: matches the backend's BigDecimal HALF_UP, where a
+  // float average can land just below an exact .005 tie.
+  const averageScore = gradedCount > 0 ? Math.round(totalScoreCents / gradedCount) / 100 : null;
 
   return {
     totalStudents,
