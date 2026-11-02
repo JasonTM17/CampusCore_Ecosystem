@@ -1,11 +1,14 @@
 import { ImageResponse } from 'next/og';
+import { getSocialImageCopy, SOCIAL_IMAGE_SIZE } from '@/lib/social-image-copy';
+
+// File-convention image routes carry no locale segment, so this fallback card
+// renders the default locale (vi). Locale-aware metadata points crawlers at
+// `/social-image/[locale]`; both render `messages.meta.socialImage`.
+const social = getSocialImageCopy();
 
 export const dynamic = 'force-dynamic';
-export const alt = 'CampusUTE - Cổng Thông Tin Đào Tạo & Quản Lý Sinh Viên HCMUTE';
-export const size = {
-  width: 1200,
-  height: 630,
-};
+export const alt = social.alt;
+export const size = SOCIAL_IMAGE_SIZE;
 export const contentType = 'image/png';
 
 export default function OpenGraphImage() {
@@ -65,7 +68,7 @@ export default function OpenGraphImage() {
                   background: '#f59e0b',
                 }}
               />
-              CampusUTE · HCMUTE
+              {social.eyebrow}
             </div>
             <div
               style={{
@@ -76,7 +79,7 @@ export default function OpenGraphImage() {
                 color: '#ffffff',
               }}
             >
-              Cổng Thông Tin Đào Tạo & Học Vụ Sinh Viên
+              {social.title}
             </div>
             <div
               style={{
@@ -86,7 +89,7 @@ export default function OpenGraphImage() {
                 maxWidth: 860,
               }}
             >
-              Trường Đại học Công nghệ Kỹ thuật TP.HCM — Đăng ký học phần, thời khóa biểu, điểm số, và đồ án tốt nghiệp.
+              {social.description}
             </div>
           </div>
 
@@ -97,12 +100,7 @@ export default function OpenGraphImage() {
               flexWrap: 'wrap',
             }}
           >
-            {[
-              '🎓 Cổng Đào Tạo HCM-UTE',
-              '📚 Đăng Ký Môn Học',
-              '📊 Tra Cứu Điểm Số',
-              '🏆 Đồ Án Tốt Nghiệp',
-            ].map((item) => (
+            {social.badges.map((item) => (
               <div
                 key={item}
                 style={{

@@ -294,7 +294,7 @@ const TINYMCE_TEMPLATES = [
     titleEn: 'Official Academic Notice',
     descriptionVi: 'Mẫu thông báo ban hành từ phòng đào tạo có tiêu đề, bảng thời gian và lưu ý',
     descriptionEn: 'Official notice from academic affairs with timeline and notes',
-    content: `
+    contentVi: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
         <div style="text-align: center; border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px;">
           <h4 style="margin: 0; text-transform: uppercase; color: #64748b; font-size: 13px; letter-spacing: 1px;">TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM</h4>
@@ -337,13 +337,56 @@ const TINYMCE_TEMPLATES = [
         </div>
       </div>
     `,
+    contentEn: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
+        <div style="text-align: center; border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px;">
+          <h4 style="margin: 0; text-transform: uppercase; color: #64748b; font-size: 13px; letter-spacing: 1px;">HCMC UNIVERSITY OF TECHNOLOGY AND ENGINEERING</h4>
+          <h2 style="margin: 8px 0 0 0; color: #0f172a; font-size: 20px; font-weight: 700;">OFFICIAL ACADEMIC NOTICE</h2>
+          <p style="margin: 4px 0 0 0; color: #64748b; font-size: 13px;">No.: {{số văn bản}} | {{Học kỳ - Năm học}}</p>
+        </div>
+
+        <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 14px 18px; border-radius: 6px; margin-bottom: 20px;">
+          <strong style="color: #1d4ed8; font-size: 14px;">Attention:</strong> All faculty members and full-time students of all cohorts.
+        </div>
+
+        <h3 style="color: #0369a1; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">1. Detailed plan</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px;">
+          <thead>
+            <tr style="background-color: #f1f5f9; text-align: left;">
+              <th style="border: 1px solid #cbd5e1; padding: 10px; font-weight: 600;">Item</th>
+              <th style="border: 1px solid #cbd5e1; padding: 10px; font-weight: 600;">Start Time</th>
+              <th style="border: 1px solid #cbd5e1; padding: 10px; font-weight: 600;">End Time</th>
+              <th style="border: 1px solid #cbd5e1; padding: 10px; font-weight: 600;">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="border: 1px solid #cbd5e1; padding: 10px;">{{Hạng mục kế hoạch 1}}</td>
+              <td style="border: 1px solid #cbd5e1; padding: 10px;">{{giờ - ngày bắt đầu}}</td>
+              <td style="border: 1px solid #cbd5e1; padding: 10px;">{{giờ - ngày kết thúc}}</td>
+              <td style="border: 1px solid #cbd5e1; padding: 10px;">{{đối tượng áp dụng}}</td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #cbd5e1; padding: 10px;">{{Hạng mục kế hoạch 2}}</td>
+              <td style="border: 1px solid #cbd5e1; padding: 10px;">{{giờ - ngày bắt đầu}}</td>
+              <td style="border: 1px solid #cbd5e1; padding: 10px;">{{giờ - ngày kết thúc}}</td>
+              <td style="border: 1px solid #cbd5e1; padding: 10px;">{{đối tượng áp dụng}}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="background-color: #fefce8; border-left: 4px solid #eab308; padding: 14px 18px; border-radius: 6px; margin-bottom: 20px;">
+          <strong style="color: #a16207;">Important note:</strong> Students must check the prerequisite requirements carefully before submitting their registration. For any questions, contact the Office of Academic Affairs A1-101.
+        </div>
+      </div>
+    `,
   },
   {
     titleVi: 'Đề cương đề tài khóa luận / NCKH',
     titleEn: 'Thesis / Research Proposal Outline',
     descriptionVi: 'Mẫu đề xuất đề tài tốt nghiệp có mục tiêu, phương pháp và danh mục công việc',
     descriptionEn: 'Academic proposal outline with objectives, methodology, and work plan',
-    content: `
+    contentVi: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
         <h2 style="color: #0f172a; border-bottom: 2px solid #0284c7; padding-bottom: 8px;">ĐỀ CƯƠNG ĐỀ TÀI KHÓA LUẬN TỐT NGHIỆP</h2>
 
@@ -393,13 +436,63 @@ const TINYMCE_TEMPLATES = [
         </table>
       </div>
     `,
+    contentEn: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
+        <h2 style="color: #0f172a; border-bottom: 2px solid #0284c7; padding-bottom: 8px;">GRADUATION THESIS / RESEARCH PROPOSAL OUTLINE</h2>
+
+        <p><strong>1. Thesis title (Vietnamese):</strong> {{tên đề tài tiếng Việt}}</p>
+        <p><strong>2. Thesis title (English):</strong> {{tên đề tài tiếng Anh}}</p>
+        <p><strong>3. Supervisor:</strong> {{học hàm/học vị, họ tên GVHD}}</p>
+        <p><strong>4. Student team:</strong></p>
+        <ul>
+          <li>{{họ tên trưởng nhóm}} (Team leader - Student ID: {{MSSV}})</li>
+          <li>{{họ tên thành viên}} (Student ID: {{MSSV}})</li>
+        </ul>
+
+        <h3 style="color: #0369a1; margin-top: 20px;">I. Rationale for the topic</h3>
+        <p>Present the practical context, the limitations of existing systems, and the reasons for choosing this research topic.</p>
+
+        <h3 style="color: #0369a1; margin-top: 20px;">II. Research objectives</h3>
+        <ol>
+          <li>{{Mục tiêu tổng quát: sản phẩm/kết quả chính của đề tài}}</li>
+          <li>{{Mục tiêu cụ thể 1 đo lường được}}</li>
+          <li>{{Mục tiêu cụ thể 2 đo lường được}}</li>
+        </ol>
+
+        <h3 style="color: #0369a1; margin-top: 20px;">III. Implementation plan (Gantt)</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+          <thead>
+            <tr style="background-color: #f1f5f9;">
+              <th style="border: 1px solid #cbd5e1; padding: 8px;">Phase</th>
+              <th style="border: 1px solid #cbd5e1; padding: 8px;">Work items</th>
+              <th style="border: 1px solid #cbd5e1; padding: 8px;">Timeline</th>
+              <th style="border: 1px solid #cbd5e1; padding: 8px;">Expected outcome</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="border: 1px solid #cbd5e1; padding: 8px;">1</td>
+              <td style="border: 1px solid #cbd5e1; padding: 8px;">Survey and architecture design</td>
+              <td style="border: 1px solid #cbd5e1; padding: 8px;">Week 1 - Week 3</td>
+              <td style="border: 1px solid #cbd5e1; padding: 8px;">SRS & Architecture Spec report</td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #cbd5e1; padding: 8px;">2</td>
+              <td style="border: 1px solid #cbd5e1; padding: 8px;">Core Engine & Web Portal development</td>
+              <td style="border: 1px solid #cbd5e1; padding: 8px;">Week 4 - Week 10</td>
+              <td style="border: 1px solid #cbd5e1; padding: 8px;">System running in the Staging environment</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `,
   },
   {
     titleVi: 'Quyết định của Hiệu trưởng',
     titleEn: 'Official Rector Decision',
     descriptionVi: 'Mẫu quyết định công văn chuẩn hành chính đại học có quốc hiệu, căn cứ và nơi nhận',
     descriptionEn: 'Official administrative rector decision format with distribution and seal',
-    content: `
+    contentVi: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
         <div style="text-align: center; border-bottom: 2px solid #0d509d; padding-bottom: 12px; margin-bottom: 20px;">
           <h4 style="margin: 0; text-transform: uppercase; color: #64748b; font-size: 13px; letter-spacing: 1px;">TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM</h4>
@@ -428,13 +521,42 @@ const TINYMCE_TEMPLATES = [
         </div>
       </div>
     `,
+    contentEn: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
+        <div style="text-align: center; border-bottom: 2px solid #0d509d; padding-bottom: 12px; margin-bottom: 20px;">
+          <h4 style="margin: 0; text-transform: uppercase; color: #64748b; font-size: 13px; letter-spacing: 1px;">HCMC UNIVERSITY OF TECHNOLOGY AND ENGINEERING</h4>
+          <h2 style="margin: 8px 0 0 0; color: #0d509d; font-size: 20px; font-weight: 700;">DECISION ON PROMULGATING ACADEMIC AFFAIRS & TRAINING REGULATIONS</h2>
+          <p style="margin: 4px 0 0 0; color: #64748b; font-size: 13px;">Pursuant to the Law on Higher Education and the Development Plan of HCMC University of Technology and Engineering</p>
+        </div>
+
+        <p><strong>THE RECTOR OF HCMC UNIVERSITY OF TECHNOLOGY AND ENGINEERING DECIDES:</strong></p>
+
+        <p><strong>Article 1.</strong> Promulgate with this Decision the Regulations on credit-based training and the rules for assessing student conduct scores.</p>
+        <p><strong>Article 2.</strong> This Decision takes effect from the date of signing and applies to all full-time student cohorts.</p>
+        <p><strong>Article 3.</strong> The Head of the Office of Academic Affairs, the Dean of the Faculty of Information Technology and related units are responsible for implementing this Decision.</p>
+
+        <div style="margin-top: 30px; display: flex; justify-content: space-between;">
+          <div style="font-size: 12px; color: #64748b;">
+            <strong>Recipients:</strong><br/>
+            - As in Article 3;<br/>
+            - Board of Rectors (for reporting);<br/>
+            - Filed: Secretariat, Office of Academic Affairs.
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 0; font-weight: 700; text-transform: uppercase;">RECTOR</p>
+            <div style="height: 50px;"></div>
+            <p style="margin: 0; font-weight: 700; color: #0d509d;">{{Học hàm, Học vị, Họ tên}}</p>
+          </div>
+        </div>
+      </div>
+    `,
   },
   {
     titleVi: 'Thông báo quy chế thi & phúc khảo',
     titleEn: 'Exam Regulations & Appeal Notice',
     descriptionVi: 'Quy định phòng thi, phân ca thi và thủ tục nộp đơn phúc khảo trực tuyến',
     descriptionEn: 'Exam hall regulations, schedule sessions, and online score appeal procedure',
-    content: `
+    contentVi: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
         <h2 style="color: #0d509d; border-bottom: 2px solid #0d509d; padding-bottom: 8px;">KẾ HOẠCH TỔ CHỨC THI KẾT THÚC HỌC PHẦN & PHÚC KHẢO ĐIỂM</h2>
 
@@ -451,6 +573,25 @@ const TINYMCE_TEMPLATES = [
 
         <h3 style="color: #0369a1;">2. Thủ tục nộp đơn phúc khảo điểm thi</h3>
         <p>Sinh viên có quyền gửi yêu cầu phúc khảo trực tuyến trên cổng học vụ trong vòng <strong>07 ngày làm việc</strong> kể từ ngày giảng viên công bố điểm chính thức.</p>
+      </div>
+    `,
+    contentEn: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
+        <h2 style="color: #0d509d; border-bottom: 2px solid #0d509d; padding-bottom: 8px;">END-OF-COURSE EXAMINATION & SCORE APPEAL PLAN</h2>
+
+        <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 12px 16px; border-radius: 6px; margin: 16px 0;">
+          <strong style="color: #1d4ed8;">Office of Testing & Quality Assurance</strong> announces the examination schedule and the regulations for students taking the term examinations.
+        </div>
+
+        <h3 style="color: #0369a1;">1. Exam room regulations</h3>
+        <ul>
+          <li>Students must present a valid photo student ID card or citizen ID card.</li>
+          <li>Reference materials, mobile phones and transmitting or receiving devices are strictly prohibited in the exam room.</li>
+          <li>Be present in the exam room at least 15 minutes before the start time.</li>
+        </ul>
+
+        <h3 style="color: #0369a1;">2. Score appeal procedure</h3>
+        <p>Students may submit an online appeal request on the academic portal within <strong>07 working days</strong> from the date the instructor publishes the official score.</p>
       </div>
     `,
   },
@@ -681,7 +822,7 @@ export function TinyMceEditor({
                         type="button"
                         role="menuitem"
                         tabIndex={-1}
-                        onClick={() => handleInsertTemplate(tmpl.content)}
+                        onClick={() => handleInsertTemplate(isVi ? tmpl.contentVi : tmpl.contentEn)}
                         className="w-full text-left rounded p-2 text-xs transition-colors hover:bg-secondary focus-visible:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                       >
                         <div className="font-semibold text-foreground">

@@ -256,3 +256,378 @@ test('rich-content callout labels follow the active locale', () => {
     assert.ok(source.includes(`label: ${label}`), `callout label must branch on locale: ${label}`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// S5 — every academic template carries a real English body beside the
+// Vietnamese one. The locale decision must use the same `isVi` signal the
+// template names already use, and the English body must not leak Vietnamese
+// prose (placeholder tokens are preserved verbatim and excluded).
+// ---------------------------------------------------------------------------
+
+const VIETNAMESE =
+  /[ăâđêôơưàáạảãằắặẳẵầấậẩẫèéẹẻẽềếệểễìíịỉĩòóọỏõồốộổỗờớợởỡùúụủũừứựửữỳýỵỷỹ]/i;
+
+const PLACEHOLDER = /\{\{[^}]*\}\}|\$\{[^}]*\}/g;
+
+function visibleProse(markup) {
+  return markup.replace(PLACEHOLDER, '');
+}
+
+function placeholders(markup) {
+  return [...markup.matchAll(PLACEHOLDER)].map((match) => match[0]);
+}
+
+/** Text of a string/template literal, with `${…}` expressions left as tokens. */
+function literalText(node) {
+  if (ts.isNoSubstitutionTemplateLiteral(node) || ts.isStringLiteral(node)) {
+    return node.text;
+  }
+  assert.ok(ts.isTemplateExpression(node), `unsupported template initializer: ${node.getText()}`);
+  let text = node.head.text;
+  for (const span of node.templateSpans) {
+    text += `\${${span.expression.getText()}}${span.literal.text}`;
+  }
+  return text;
+}
+
+function findVariableInitializer(sourceFile, name) {
+  let found = null;
+  const visit = (node) => {
+    if (found) return;
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === name
+    ) {
+      found = node.initializer ?? null;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return found;
+}
+
+function templateObjects(relativePath, arrayName) {
+  const sourceFile = ts.createSourceFile(
+    relativePath,
+    read(relativePath),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const initializer = findVariableInitializer(sourceFile, arrayName);
+  assert.ok(initializer, `${arrayName} must stay declared in ${relativePath}`);
+  assert.ok(ts.isArrayLiteralExpression(initializer), `${arrayName} must stay an array literal`);
+
+  return initializer.elements.map((element, index) => {
+    assert.ok(ts.isObjectLiteralExpression(element), `${arrayName}[${index}] must stay an object literal`);
+    const properties = new Map();
+    for (const property of element.properties) {
+      assert.ok(ts.isPropertyAssignment(property), `${arrayName}[${index}] must use plain properties`);
+      properties.set(property.name.getText(), literalText(property.initializer));
+    }
+    return properties;
+  });
+}
+
+function assertBilingualTemplate(displayName, labels, properties) {
+  for (const label of labels) {
+    assert.equal(typeof properties.get(label), 'string', `${displayName} must declare ${label}`);
+    assert.ok(properties.get(label).trim(), `${displayName}.${label} must be non-empty`);
+  }
+  const viBody = properties.get('contentVi');
+  const enBody = properties.get('contentEn');
+  assert.notEqual(viBody, enBody, `${displayName} English body must be a real translation`);
+  assert.match(viBody, VIETNAMESE, `${displayName} Vietnamese body must stay Vietnamese`);
+  assert.doesNotMatch(
+    visibleProse(enBody),
+    VIETNAMESE,
+    `${displayName} English body must not contain Vietnamese prose`,
+  );
+  assert.deepEqual(
+    placeholders(enBody),
+    placeholders(viBody),
+    `${displayName} must preserve every placeholder exactly`,
+  );
+}
+
+test('Markdown editor templates insert an English body in the English locale', () => {
+  const templates = templateObjects('src/components/ui/rich-text-editor.tsx', 'ACADEMIC_TEMPLATES');
+  assert.equal(templates.length, 3, 'the Markdown editor must keep its three academic templates');
+  for (const properties of templates) {
+    assertBilingualTemplate(
+      properties.get('nameEn'),
+      ['nameVi', 'nameEn', 'descriptionVi', 'descriptionEn', 'contentVi', 'contentEn'],
+      properties,
+    );
+  }
+
+  const source = read('src/components/ui/rich-text-editor.tsx');
+  assert.match(
+    source,
+    /handleTextChange\(isVi \? tmpl\.contentVi : tmpl\.contentEn\)/,
+    'the template menu must insert the body that matches the editor locale',
+  );
+});
+
+test('TinyMCE templates insert an English body in the English locale', () => {
+  const templates = templateObjects('src/components/ui/tinymce-editor.tsx', 'TINYMCE_TEMPLATES');
+  assert.equal(templates.length, 4, 'the TinyMCE editor must keep its four academic templates');
+  for (const properties of templates) {
+    assertBilingualTemplate(
+      properties.get('titleEn'),
+      ['titleVi', 'titleEn', 'descriptionVi', 'descriptionEn', 'contentVi', 'contentEn'],
+      properties,
+    );
+  }
+
+  const source = read('src/components/ui/tinymce-editor.tsx');
+  assert.match(
+    source,
+    /handleInsertTemplate\(isVi \? tmpl\.contentVi : tmpl\.contentEn\)/,
+    'the template menu must insert the body that matches the editor locale',
+  );
+});
+
+test('editor block library and template library resolve bodies by locale', () => {
+  const templates = loadModule('src/lib/editor-templates.ts');
+  const { EDITOR_BLOCK_TYPES, EDITOR_BLOCK_HTML, EDITOR_BLOCK_HTML_EN } = templates;
+  const { EDITOR_TEMPLATE_IDS, EDITOR_TEMPLATE_HTML, EDITOR_TEMPLATE_HTML_EN } = templates;
+
+  assert.equal(EDITOR_BLOCK_TYPES.length, 7, 'the block builder must keep its seven blocks');
+  assert.deepEqual(
+    Object.keys(EDITOR_BLOCK_HTML_EN).sort(),
+    [...EDITOR_BLOCK_TYPES].sort(),
+    'every block must ship an English body',
+  );
+  for (const type of EDITOR_BLOCK_TYPES) {
+    const viBody = EDITOR_BLOCK_HTML[type];
+    const enBody = EDITOR_BLOCK_HTML_EN[type];
+    assert.match(viBody, VIETNAMESE, `block.${type} Vietnamese body must stay Vietnamese`);
+    assert.doesNotMatch(visibleProse(enBody), VIETNAMESE, `block.${type} English body must not contain Vietnamese`);
+    assert.equal(templates.getEditorBlockHtml(type, true), viBody, `block.${type} must resolve VI for isVi`);
+    assert.equal(templates.getEditorBlockHtml(type, false), enBody, `block.${type} must resolve EN for !isVi`);
+  }
+
+  assert.equal(EDITOR_TEMPLATE_IDS.length, 3, 'the template library must keep its three templates');
+  assert.deepEqual(
+    Object.keys(EDITOR_TEMPLATE_HTML_EN).sort(),
+    [...EDITOR_TEMPLATE_IDS].sort(),
+    'every library template must ship an English body',
+  );
+  for (const id of EDITOR_TEMPLATE_IDS) {
+    const viBody = EDITOR_TEMPLATE_HTML[id];
+    const enBody = EDITOR_TEMPLATE_HTML_EN[id];
+    assert.match(viBody, VIETNAMESE, `template.${id} Vietnamese body must stay Vietnamese`);
+    assert.doesNotMatch(visibleProse(enBody), VIETNAMESE, `template.${id} English body must not contain Vietnamese`);
+    assert.equal(templates.getEditorTemplateHtml(id, true), viBody, `template.${id} must resolve VI for isVi`);
+    assert.equal(templates.getEditorTemplateHtml(id, false), enBody, `template.${id} must resolve EN for !isVi`);
+  }
+
+  const page = read('src/app/dashboard/editor/page.tsx');
+  assert.match(page, /htmlContent: getEditorBlockHtml\(type, isVi\)/);
+  assert.match(page, /buildDefaultBlocks\(messages\.editor\.blocks, isVi\)/);
+  assert.match(page, /applyTemplate\(getEditorTemplateHtml\(templateId, isVi\), templateCopy\.name\)/);
+});
+
+// ---------------------------------------------------------------------------
+// S7 — one institutional taxonomy owns every article-category label. The
+// homepage tabs, the keyword heuristics and the reader badges used to declare
+// their own strings, and they had already drifted ("Student Life" vs
+// "Student Life & Youth", "Việc làm & Doanh nghiệp" vs "Cơ hội Việc làm").
+// ---------------------------------------------------------------------------
+
+const CATEGORY_SLUGS = {
+  RESEARCH_TECH: 'research-tech',
+  AWARDS_HONORS: 'awards-honors',
+  STUDENT_LIFE: 'student-life',
+  CULTURE_ARTS: 'culture-arts',
+  ACADEMIC_AFFAIRS: 'academic-affairs',
+  CAREER_OPPORTUNITIES: 'career-opportunities',
+};
+
+function loadPresentation() {
+  return loadModule('src/lib/announcement-presentation.ts', {
+    '@/lib/html-sanitizer': loadModule('src/lib/html-sanitizer.ts'),
+    '@/lib/api': {},
+    '@/i18n/config': {},
+  });
+}
+
+test('article-category labels resolve from INSTITUTIONAL_ARTICLE_CATEGORIES', () => {
+  const {
+    INSTITUTIONAL_ARTICLE_CATEGORIES,
+    articleCategoryLabel,
+    resolveAnnouncementDomain,
+  } = loadPresentation();
+
+  assert.equal(
+    typeof articleCategoryLabel,
+    'function',
+    'announcement-presentation must export one label resolver',
+  );
+
+  for (const [code, meta] of Object.entries(INSTITUTIONAL_ARTICLE_CATEGORIES)) {
+    assert.equal(articleCategoryLabel(code, 'vi'), meta.nameVi, `${code} VI taxonomy label`);
+    assert.equal(articleCategoryLabel(code, 'en'), meta.nameEn, `${code} EN taxonomy label`);
+
+    const vi = resolveAnnouncementDomain({ categoryId: CATEGORY_SLUGS[code] }, 'vi');
+    const en = resolveAnnouncementDomain({ categoryId: CATEGORY_SLUGS[code] }, 'en');
+    assert.equal(vi.categoryCode, code, `${code} category-id branch must keep its code`);
+    assert.equal(vi.categoryLabel, meta.nameVi, `${code} category-id branch VI label`);
+    assert.equal(en.categoryLabel, meta.nameEn, `${code} category-id branch EN label`);
+  }
+
+  const heuristicCases = [
+    ['Quyết định mở cổng đăng ký học phần', 'ACADEMIC_AFFAIRS'],
+    ['Nhạc hội chào tân sinh viên', 'CULTURE_ARTS'],
+    ['Mùa hè xanh tình nguyện', 'STUDENT_LIFE'],
+    ['Học bổng khuyến khích học tập', 'AWARDS_HONORS'],
+    ['Nghiên cứu bán dẫn', 'RESEARCH_TECH'],
+    ['Ngày hội tuyển dụng', 'CAREER_OPPORTUNITIES'],
+    ['Thư viện mở cửa cuối tuần', 'ACADEMIC_AFFAIRS'],
+    ['Thông báo chung', 'ACADEMIC_AFFAIRS'],
+  ];
+
+  for (const [title, code] of heuristicCases) {
+    const meta = INSTITUTIONAL_ARTICLE_CATEGORIES[code];
+    const vi = resolveAnnouncementDomain({ title });
+    const en = resolveAnnouncementDomain({ title }, 'en');
+    assert.equal(vi.categoryCode, code, `heuristic "${title}" must resolve to ${code}`);
+    assert.equal(vi.categoryLabel, meta.nameVi, `heuristic "${title}" VI label`);
+    assert.equal(en.categoryLabel, meta.nameEn, `heuristic "${title}" EN label`);
+  }
+
+  const source = read('src/lib/announcement-presentation.ts');
+  assert.equal(
+    /categoryLabel:\s*isVi\s*\?\s*'/.test(source),
+    false,
+    'resolveAnnouncementDomain must not re-declare category label strings inline',
+  );
+  assert.equal(
+    (source.match(/categoryLabel:\s*articleCategoryLabel\(/g) || []).length,
+    14,
+    'every heuristic branch must resolve its label from the taxonomy',
+  );
+});
+
+test('homepage category tabs read their labels from the taxonomy', () => {
+  const source = read('src/components/home/HomeNewsSection.tsx');
+
+  assert.match(
+    source,
+    /import \{[\s\S]*?articleCategoryLabel[\s\S]*?\} from '@\/lib\/announcement-presentation'/,
+    'HomeNewsSection must consume the shared label resolver',
+  );
+  assert.equal(source.includes('labelVi'), false, 'tab labels must not be re-declared in Vietnamese');
+  assert.equal(source.includes('labelEn'), false, 'tab labels must not be re-declared in English');
+  assert.match(source, /articleCategoryLabel\(tab\.key, locale\)/);
+
+  const order = [...source.matchAll(/\{ key: '([A-Z_]+)', icon:/g)].map((match) => match[1]);
+  assert.deepEqual(
+    order,
+    [
+      'ALL',
+      'RESEARCH_TECH',
+      'AWARDS_HONORS',
+      'STUDENT_LIFE',
+      'CULTURE_ARTS',
+      'ACADEMIC_AFFAIRS',
+      'CAREER_OPPORTUNITIES',
+    ],
+    'tab count and order must stay identical',
+  );
+});
+
+// ---------------------------------------------------------------------------
+// S8 — the static opengraph/twitter card is the default-locale fallback for
+// `messages.meta.socialImage`, the same catalogue the localized route reads.
+// ---------------------------------------------------------------------------
+
+function loadSocialImageCopy() {
+  return loadModule('src/lib/social-image-copy.ts', {
+    '@/i18n/config': loadModule('src/i18n/config.ts'),
+    '@/i18n/messages': loadMessages(),
+  });
+}
+
+test('social-card copy comes from the catalogue for both locales', () => {
+  const { getSocialImageCopy, SOCIAL_IMAGE_SIZE } = loadSocialImageCopy();
+  const { en, vi } = loadMessages();
+
+  assert.deepEqual(SOCIAL_IMAGE_SIZE, { width: 1200, height: 630 }, 'the 1200x630 contract must not change');
+
+  const viCopy = getSocialImageCopy();
+  assert.equal(viCopy.locale, 'vi', 'the file convention has no locale segment, so it renders the default locale');
+  assert.equal(viCopy.eyebrow, vi.meta.socialImage.eyebrow);
+  assert.equal(viCopy.title, vi.meta.socialImage.title);
+  assert.equal(viCopy.description, vi.meta.socialImage.description);
+  assert.deepEqual(viCopy.badges, vi.meta.socialImage.badges);
+  assert.equal(viCopy.alt, `${vi.meta.socialImage.eyebrow} — ${vi.meta.socialImage.title}`);
+
+  const enCopy = getSocialImageCopy('en');
+  assert.equal(enCopy.locale, 'en');
+  assert.equal(enCopy.title, en.meta.socialImage.title);
+  assert.notEqual(enCopy.title, viCopy.title, 'the two locales must not share a title');
+
+  assert.equal(getSocialImageCopy('fr').locale, 'vi', 'unknown locales fall back to the default locale');
+});
+
+test('static opengraph image renders catalogue copy instead of hardcoded Vietnamese', () => {
+  const source = read('src/app/opengraph-image.tsx');
+
+  assert.match(
+    source,
+    /import \{ getSocialImageCopy, SOCIAL_IMAGE_SIZE \} from '@\/lib\/social-image-copy'/,
+  );
+  assert.match(source, /const social = getSocialImageCopy\(\)/);
+  assert.match(source, /export const alt = social\.alt/);
+  assert.match(source, /export const size = SOCIAL_IMAGE_SIZE/);
+  assert.match(source, /export const contentType = 'image\/png'/);
+  assert.match(source, /\{social\.title\}/);
+  assert.match(source, /\{social\.description\}/);
+  assert.match(source, /social\.badges\.map/);
+
+  for (const literal of [
+    'Cổng Thông Tin Đào Tạo',
+    'Đăng Ký Môn Học',
+    'Tra Cứu Điểm Số',
+    'Đồ Án Tốt Nghiệp',
+  ]) {
+    assert.equal(source.includes(literal), false, `opengraph-image must not hardcode ${literal}`);
+  }
+});
+
+test('localized social-image route resolves the same catalogue copy', () => {
+  const source = read('src/app/social-image/[locale]/route.tsx');
+
+  assert.match(source, /export const runtime = 'edge'/);
+  assert.match(source, /getSocialImageCopy\(locale\)/);
+  assert.match(source, /SOCIAL_IMAGE_SIZE/);
+});
+
+// ---------------------------------------------------------------------------
+// S9 — the site editor author fallback must follow the active locale instead of
+// printing a Vietnamese office name on the English editor/preview.
+// ---------------------------------------------------------------------------
+
+test('site editor author fallbacks follow the active locale', () => {
+  const source = read('src/app/dashboard/editor/page.tsx');
+
+  assert.equal(source.includes(": 'Phòng Đào Tạo & Ban Giám Hiệu';"), false);
+  assert.equal(source.includes("ann.publishedBy || 'Phòng Đào tạo'"), false);
+  assert.match(
+    source,
+    /isVi\s*\?\s*'Phòng Đào Tạo & Ban Giám Hiệu'\s*:\s*'Academic Affairs Office & Board of Directors'/,
+  );
+  assert.match(
+    source,
+    /const fallbackPublisher = isVi\s*\?\s*'Phòng Đào tạo'\s*:\s*'Academic Affairs Office'/,
+  );
+  assert.equal(
+    (source.match(/fallbackPublisher/g) || []).length,
+    3,
+    'the fallback must be declared once and reused by the title and the cell',
+  );
+});

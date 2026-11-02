@@ -1,18 +1,10 @@
 import { ImageResponse } from 'next/og';
-import { defaultLocale, isLocale } from '@/i18n/config';
-import { getMessages } from '@/i18n/messages';
+import { getSocialImageCopy, SOCIAL_IMAGE_SIZE } from '@/lib/social-image-copy';
 
 export const runtime = 'edge';
 
-const size = {
-  width: 1200,
-  height: 630,
-};
-
 function buildImage(locale: string) {
-  const resolvedLocale = isLocale(locale) ? locale : defaultLocale;
-  const messages = getMessages(resolvedLocale);
-  const social = messages.meta.socialImage;
+  const social = getSocialImageCopy(locale);
 
   return new ImageResponse(
     (
@@ -119,7 +111,7 @@ function buildImage(locale: string) {
         </div>
       </div>
     ),
-    size,
+    SOCIAL_IMAGE_SIZE,
   );
 }
 
