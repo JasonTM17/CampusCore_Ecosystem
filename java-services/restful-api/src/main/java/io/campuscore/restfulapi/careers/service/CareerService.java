@@ -200,15 +200,20 @@ public class CareerService {
             throw problem(HttpStatus.FORBIDDEN, "CAREERS_STAFF_REQUIRED",
                     "A careers grant is required to list grants");
         }
-        MapSqlParameterSource params = new MapSqlParameterSource("scope", SCOPE);
+        MapSqlParameterSource params = new MapSqlParameterSource("scope", SCOPE)
+                .addValue("actor", actorId);
         Long total = null;
         if (window != null) {
             total = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope",
+                    "SELECT COUNT(*) FROM " + STAFF_GRANT
+                            + " WHERE \"scope\" = :scope AND \"userId\" = :actor",
                     params, Long.class);
         }
+        // Self-view over the grant table: a staffer sees only its own rows
+        // (org recruiter and/or platform reviewer), never a staff directory.
         String sql = "SELECT \"id\", \"userId\", \"scope\", \"organizationId\", \"grantedBy\", \"createdAt\""
-                + " FROM " + STAFF_GRANT + " WHERE \"scope\" = :scope ORDER BY \"createdAt\"";
+                + " FROM " + STAFF_GRANT
+                + " WHERE \"scope\" = :scope AND \"userId\" = :actor ORDER BY \"createdAt\"";
         if (window != null) {
             sql += ", \"id\" LIMIT :limit OFFSET :offset";
             params.addValue("limit", window.limit()).addValue("offset", window.offset());

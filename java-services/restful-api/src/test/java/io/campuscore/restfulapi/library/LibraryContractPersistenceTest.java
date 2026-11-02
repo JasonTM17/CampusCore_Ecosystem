@@ -542,6 +542,34 @@ class LibraryContractPersistenceTest {
     }
 
     @Test
+    void grantsListShowsOnlyTheCallersOwnGrant() throws Exception {
+        RequestPostProcessor secondStaff = CurrentAccountJwt.fixtureJwt(jdbc, "staff-2", "STUDENT");
+        jdbc.update("INSERT INTO library.\"StaffGrant\" (\"id\", \"userId\", \"scope\", \"grantedBy\")"
+                + " VALUES ('g-2', 'staff-2', 'library', 'admin-user-2')");
+
+        // Foreign staff rows disappear; the caller keeps only its own grant.
+        mvc.perform(get("/api/v1/library/staff/grants").with(staffJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value("g-1"))
+                .andExpect(jsonPath("$[0].userId").value("staff-1"));
+        mvc.perform(get("/api/v1/library/staff/grants").with(secondStaff))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value("g-2"))
+                .andExpect(jsonPath("$[0].userId").value("staff-2"))
+                .andExpect(jsonPath("$[0].grantedBy").value("admin-user-2"));
+
+        // The response stays a bare array and the grant gate stays a 403.
+        mvc.perform(get("/api/v1/library/staff/grants").with(outsiderJwt))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("LIBRARY_STAFF_REQUIRED"));
+        mvc.perform(get("/api/v1/library/staff/grants").with(adminJwt))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("LIBRARY_STAFF_REQUIRED"));
+    }
+
+    @Test
     void repeatedGrantReplaysStoredProvenance() throws Exception {
         RequestPostProcessor secondAdmin = CurrentAccountJwt.fixtureJwt(jdbc, "admin-user-2", "ADMIN");
         MvcResult first = mvc.perform(post("/api/v1/library/staff/grants")

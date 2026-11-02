@@ -3,10 +3,13 @@ package io.campuscore.restfulapi.careers;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -348,6 +351,61 @@ class CareerContractPersistenceTest {
                 .andExpect(jsonPath("$.organizationId").value("org-alpha"));
         mvc.perform(get("/api/v1/careers/staff/opportunities").with(candidate2))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void grantsListShowsOnlyTheCallersOwnRows() throws Exception {
+        // The grant list is a self-view, not a staff directory: other-org
+        // recruiters, same-org peers and other reviewers are not enumerated.
+        mvc.perform(get("/api/v1/careers/staff/grants").with(recruiterAlpha))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value("g-ra"))
+                .andExpect(jsonPath("$[0].userId").value("recruiter-alpha"));
+        mvc.perform(get("/api/v1/careers/staff/grants").with(recruiterBeta))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value("g-rb"))
+                .andExpect(jsonPath("$[0].userId").value("recruiter-beta"));
+        mvc.perform(get("/api/v1/careers/staff/grants").with(reviewer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value("g-rev"))
+                .andExpect(jsonPath("$[0].userId").value("reviewer-1"));
+
+        // A dual-grant caller (org recruiter + platform reviewer) keeps all
+        // of its own rows.
+        MvcResult dual = mvc.perform(get("/api/v1/careers/staff/grants").with(reviewerInAlpha))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andReturn();
+        JsonNode dualRows = objectMapper.readTree(dual.getResponse().getContentAsString());
+        List<String> dualIds = new ArrayList<>();
+        dualRows.forEach(row -> dualIds.add(row.get("id").asText()));
+        assertThat(dualIds).containsExactlyInAnyOrder("g-ra2", "g-ra3");
+        dualRows.forEach(row ->
+                assertThat(row.get("userId").asText()).isEqualTo("reviewer-alpha"));
+
+        // Paged totals count only the caller's visible rows.
+        mvc.perform(get("/api/v1/careers/staff/grants")
+                        .param("page", "0").param("limit", "1").with(reviewerInAlpha))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "2"))
+                .andExpect(jsonPath("$.length()").value(1));
+        mvc.perform(get("/api/v1/careers/staff/grants")
+                        .param("page", "1").param("limit", "1").with(reviewerInAlpha))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "2"))
+                .andExpect(jsonPath("$.length()").value(1));
+
+        // The membership gate is unchanged: no careers grant, including the
+        // ADMIN role alone, remains a 403.
+        mvc.perform(get("/api/v1/careers/staff/grants").with(candidate1))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("CAREERS_STAFF_REQUIRED"));
+        mvc.perform(get("/api/v1/careers/staff/grants").with(adminJwt))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("CAREERS_STAFF_REQUIRED"));
     }
 
     @Test

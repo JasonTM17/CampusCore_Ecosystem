@@ -65,8 +65,8 @@ public class CareerStaffController {
 
     // ------------------------- grants ---------------------------------
 
-    @Operation(summary = "Danh sách grants careers (org/reviewer)")
-    @ApiResponse(responseCode = "200", description = "Danh sách grants careers", headers = @Header(
+    @Operation(summary = "Grants careers của tôi (org/reviewer)")
+    @ApiResponse(responseCode = "200", description = "Grants careers của tôi", headers = @Header(
             name = ListPaging.TOTAL_COUNT_HEADER, description = ListPaging.TOTAL_COUNT_DOC,
             schema = @Schema(type = "integer")))
     @GetMapping("/grants")

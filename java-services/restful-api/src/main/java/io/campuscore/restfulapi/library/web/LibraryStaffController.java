@@ -164,7 +164,7 @@ public class LibraryStaffController {
                 request == null ? null : request.expectedVersion());
     }
 
-    @Operation(summary = "Danh sách staff grants")
+    @Operation(summary = "Staff grant của tôi")
     @GetMapping("/grants")
     @PreAuthorize("isAuthenticated()")
     public List<StaffGrantResponse> grants(@AuthenticationPrincipal Jwt jwt) {
