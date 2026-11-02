@@ -75,6 +75,26 @@ test('parseArgs short-circuits --help without validating the rest', () => {
   assert.equal(parsed.help, true);
 });
 
+test('status exits nonzero when a health probe prints FAIL', async () => {
+  const output = [];
+  const exitCode = await main(['status', '--project', 'campusute'], {
+    root: repoRoot,
+    env: {},
+    run: (_command, args) => ({
+      code: 0,
+      stdout: args.includes('ps')
+        ? JSON.stringify([{ Service: 'restful-api', State: 'running' }, { Service: 'web', State: 'running' }])
+        : '127.0.0.1:4010\n',
+      stderr: '',
+    }),
+    fetch: async () => ({ status: 503 }),
+    log: (message) => output.push(message),
+    errorLog: (message) => output.push(message),
+  });
+  assert.equal(output.some((line) => line.includes('FAIL  API liveness')), true);
+  assert.equal(exitCode, 1, 'status must not report success while a health check fails');
+});
+
 test('compose argv keeps flags shell-free and mirrors --mobile/--no-build', () => {
   assert.deepEqual(
     buildUpArgs({ project: 'demo', files: ['docker-compose.yml'], build: true }),

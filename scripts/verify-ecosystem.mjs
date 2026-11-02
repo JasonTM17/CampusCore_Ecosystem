@@ -50,6 +50,44 @@ function parseArgs(argv) {
   return args;
 }
 
+function isPathInside(parent, candidate) {
+  const relative = path.relative(path.resolve(parent), path.resolve(candidate));
+  return relative === '' || (relative !== '..'
+    && !relative.startsWith(`..${path.sep}`)
+    && !path.isAbsolute(relative));
+}
+
+export function resolveEvidenceDir(repoRoot, value, fsImpl = fs) {
+  const realRepo = fsImpl.realpathSync(repoRoot);
+  const candidate = path.resolve(repoRoot, value);
+  let probe = candidate;
+  const missingSegments = [];
+
+  for (;;) {
+    try {
+      fsImpl.lstatSync(probe);
+    } catch (error) {
+      if (!['ENOENT', 'ENOTDIR'].includes(error?.code)) throw error;
+      const parent = path.dirname(probe);
+      if (parent === probe) throw new Error('--evidence must resolve inside the repository');
+      missingSegments.unshift(path.basename(probe));
+      probe = parent;
+      continue;
+    }
+
+    let resolved;
+    try {
+      resolved = path.resolve(fsImpl.realpathSync(probe), ...missingSegments);
+    } catch {
+      throw new Error('--evidence contains a path that cannot be resolved safely');
+    }
+    if (!isPathInside(realRepo, resolved)) {
+      throw new Error('--evidence must resolve inside the repository');
+    }
+    return resolved;
+  }
+}
+
 function maskSecrets(text) {
   return String(text).replace(MASK_RE, (_m, k, _mid, sep) => `${k}${sep}***`);
 }
@@ -150,10 +188,13 @@ function main() {
     console.error(`NOT_RUN gate '${args.gate}' is not registered or has no cases`);
     process.exit(EXIT.NOT_RUN);
   }
-  const evidenceDir = args.evidence
-    ? path.resolve(REPO, args.evidence)
-    : path.join(REPO, 'artifacts', 'verification', args.gate);
-  if (!evidenceDir.startsWith(REPO)) usage('--evidence must be a repo-relative path');
+  const evidenceValue = args.evidence || path.join('artifacts', 'verification', args.gate);
+  let evidenceDir;
+  try {
+    evidenceDir = resolveEvidenceDir(REPO, evidenceValue);
+  } catch {
+    usage('--evidence must be a repo-relative path inside the repository');
+  }
   fs.mkdirSync(evidenceDir, { recursive: true });
   const ctx = {
     gate: args.gate, target: args.target, evidenceDir,
@@ -233,4 +274,6 @@ function main() {
   process.exit(code);
 }
 
-main();
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+  main();
+}
