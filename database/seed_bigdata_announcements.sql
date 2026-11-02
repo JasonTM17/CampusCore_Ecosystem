@@ -1,5 +1,17 @@
 -- Seed Comprehensive Big Data Academic Announcements for HCMUTE (CampusCore)
 -- Covers Registration, Thesis, Scholarships, Exams, Career, AI/Big Data Lab, and Student Services
+--
+-- Safety guard: one-off demo scratch script with zero runtime authority. It rewrites
+-- live rows, so it must only run when the operator opts in for the session:
+--     SET campuscore.demo_seed = 'on';
+BEGIN;
+
+DO $$
+BEGIN
+    IF current_setting('campuscore.demo_seed', true) IS DISTINCT FROM 'on' THEN
+        RAISE EXCEPTION 'seed_bigdata_announcements.sql is demo-only: run SET campuscore.demo_seed = ''on''; in this session to opt in';
+    END IF;
+END $$;
 
 INSERT INTO engagement."Announcement" (
     id,
@@ -404,3 +416,5 @@ ON CONFLICT (id) DO UPDATE SET
     "semesterName" = EXCLUDED."semesterName",
     "updatedAt" = EXCLUDED."updatedAt",
     version = engagement."Announcement".version + 1;
+
+COMMIT;

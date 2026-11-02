@@ -150,6 +150,7 @@ jobs:
             scripts/provision-assistant-runtime.test.mjs \
             scripts/runtime-env-inventory.test.mjs \
             scripts/secret-hygiene.test.mjs \
+            scripts/seed-script-guard.test.mjs \
             scripts/text-encoding.test.mjs \
             scripts/verify-backup.test.mjs \
             2>&1 | tee /tmp/root-script-tests.log

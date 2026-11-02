@@ -1,5 +1,17 @@
 -- Update all raw 'admin-user' and technical identifiers in publishedBy to official HCMUTE departments
 
+-- Safety guard: one-off demo scratch script with zero runtime authority. It rewrites
+-- live rows, so it must only run when the operator opts in for the session:
+--     SET campuscore.demo_seed = 'on';
+BEGIN;
+
+DO $$
+BEGIN
+    IF current_setting('campuscore.demo_seed', true) IS DISTINCT FROM 'on' THEN
+        RAISE EXCEPTION 'update_professional_publishers.sql is demo-only: run SET campuscore.demo_seed = ''on''; in this session to opt in';
+    END IF;
+END $$;
+
 -- 1. General fallback for any remaining admin-user
 UPDATE engagement."Announcement"
 SET "publishedBy" = 'Phòng Đào Tạo UTE'
@@ -46,3 +58,5 @@ WHERE id IN ('announcement-library-resources');
 UPDATE engagement."Announcement"
 SET "publishedBy" = 'Phòng Đào Tạo & Trung Tâm CNTT'
 WHERE id IN ('announcement-v26-lecturer-training');
+
+COMMIT;
