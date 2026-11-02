@@ -127,6 +127,7 @@ public class SecurityConfig {
                 "Sunset",
                 "Idempotency-Key",
                 "X-Total-Count",
+                "X-Next-Cursor",
                 "X-Archive-Total-Count",
                 "X-Archive-File-Count",
                 "X-Archive-Url-Count",

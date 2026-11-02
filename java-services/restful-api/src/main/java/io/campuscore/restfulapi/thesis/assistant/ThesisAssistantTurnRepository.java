@@ -416,10 +416,10 @@ public class ThesisAssistantTurnRepository {
         // same client request key.
         jdbc.update("UPDATE assistant.provider_dispatch_registry SET state='CANCELLED',cancelled_at=CURRENT_TIMESTAMP WHERE owner_id=:owner AND client_request_id=:request AND lease_generation=:generation AND state='DISPATCHED'",
                 p().addValue("owner", ownerId).addValue("request", row.clientRequestId()).addValue("generation", row.leaseGeneration()));
-        if (row.conversationId() != null) {
-            jdbc.update("DELETE FROM assistant.chat_conversation WHERE id=:id AND owner_id=:owner AND state='PENDING' AND NOT EXISTS (SELECT 1 FROM assistant.chat_message WHERE conversation_id=:id)",
-                    p().addValue("id", row.conversationId()).addValue("owner", ownerId));
-        }
+        // The conversation id may already be in the client's hands: the stream
+        // meta carries it before a Stop can claim the turn.  Deleting the empty
+        // PENDING row here would turn every later send for that id into a 404,
+        // so the row stays and retention purges it when no message ever lands.
         notifyHandleFence(fence, new DispatchHandle(row.clientRequestId(), row.leaseGeneration()));
         return new CancelResult(true, "CANCELLED");
     }
