@@ -254,7 +254,7 @@ export default function LecturerSchedulePage() {
       />
 
       {semesterError ? (
-        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive print:hidden">
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground print:hidden">
           <span>{semesterError}</span>
           <Button type="button" variant="outline" size="sm" onClick={() => void fetchSemesters()}>
             {messages.common.actions.retry}

@@ -177,7 +177,7 @@ export default function StudentGroupCard({
                 </div>
               </div>
             ) : (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-start gap-2">
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-status-danger-foreground flex items-start gap-2">
                 <Shield className="h-4 w-4 shrink-0 mt-0.5" />
                 <div>
                   <strong>{pageCopy.topicRejectedLabel}</strong> {group.rejectionReason || pageCopy.rejectedTopicFallback}

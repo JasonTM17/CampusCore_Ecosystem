@@ -718,7 +718,7 @@ export default function AdminThesisPage() {
       {loadError ? (
         <div
           role="alert"
-          className="mb-6 flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+          className="mb-6 flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground"
         >
           <span>{loadError}</span>
           <button
@@ -731,7 +731,7 @@ export default function AdminThesisPage() {
         </div>
       ) : null}
       {error ? (
-        <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+        <div className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground">
           {error}
         </div>
       ) : null}
@@ -1213,7 +1213,7 @@ export default function AdminThesisPage() {
       >
         <div className="space-y-4">
           {roundFormError ? (
-            <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground">
               {roundFormError}
             </div>
           ) : null}
@@ -1421,7 +1421,7 @@ export default function AdminThesisPage() {
       >
         <div className="space-y-4">
           {roundFormError ? (
-            <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground">
               {roundFormError}
             </div>
           ) : null}
@@ -1587,7 +1587,7 @@ export default function AdminThesisPage() {
             {messages.thesis.admin.reportDeadlineModalDescription}
           </p>
           {extendDeadlineError ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground">
               {extendDeadlineError}
             </div>
           ) : null}

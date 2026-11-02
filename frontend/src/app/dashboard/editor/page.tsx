@@ -962,14 +962,14 @@ function AcademicEditorPage({ draftOwnerId }: { draftOwnerId: string }) {
         <div
           role="alert"
           aria-live="polite"
-          className="flex items-start justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+          className="flex items-start justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground"
         >
           <span>{deepLinkCopy}</span>
           <button
             type="button"
             onClick={() => setDeepLinkNotice(null)}
             aria-label={copy.dismissDeepLinkWarning}
-            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-destructive transition-colors hover:bg-destructive/10"
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-status-danger-foreground transition-colors hover:bg-destructive/10"
           >
             <X className="h-4 w-4" />
           </button>

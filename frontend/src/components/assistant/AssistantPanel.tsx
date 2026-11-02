@@ -1157,7 +1157,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
 
               {state.error ? (
                 <div
-                  className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+                  className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground"
                   role="alert"
                 >
                   <p>{errorLabel}</p>
@@ -1176,7 +1176,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
                       variant="ghost"
                       size="sm"
                       disabled={historyLocked}
-                      className="mt-2 min-h-10 px-0 text-destructive hover:bg-transparent hover:underline"
+                      className="mt-2 min-h-10 px-0 text-status-danger-foreground hover:bg-transparent hover:underline"
                       onClick={(event) =>
                         void sendMessage(event, lastPrompt, { retry: true })
                       }
@@ -1188,7 +1188,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
                 </div>
               ) : historyLoadFailure ? (
                 <div
-                  className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+                  className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground"
                   role="alert"
                 >
                   <p>{messages.assistant.unavailable}</p>
@@ -1197,7 +1197,7 @@ export function AssistantPanel({ onReady }: { onReady?: () => void } = {}) {
                     variant="ghost"
                     size="sm"
                     disabled={isSending || isReconciling}
-                    className="mt-2 min-h-10 px-0 text-destructive hover:bg-transparent hover:underline"
+                    className="mt-2 min-h-10 px-0 text-status-danger-foreground hover:bg-transparent hover:underline"
                     onClick={retryHistoryLoad}
                   >
                     <RotateCcw className="mr-1 h-3.5 w-3.5" aria-hidden="true" />

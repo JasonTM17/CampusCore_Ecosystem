@@ -32,16 +32,12 @@ export default async function LoggedOutPage() {
         <h1 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>
           {copy.title}
         </h1>
-        <p style={{ color: '#555', marginBottom: '1.5rem' }}>
+        <p className="mb-6 text-muted-foreground">
           {copy.body}
         </p>
         <Link
           href={homeHref}
-          style={{
-            color: '#1d4ed8',
-            textDecoration: 'none',
-            fontWeight: 600,
-          }}
+          className="font-semibold text-primary no-underline"
         >
           {copy.returnHome}
         </Link>

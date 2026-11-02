@@ -66,7 +66,7 @@ export function ErrorState({
       )}
     >
       <div className="flex flex-col items-start gap-4 sm:flex-row">
-        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-status-danger-foreground">
           <AlertCircle className="h-5 w-5" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1 space-y-1">

@@ -482,14 +482,14 @@ export function AssistantMessages({
                       {message.feedbackRetry ? (
                         <div
                           role="alert"
-                          className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-2.5 py-2 text-xs text-destructive"
+                          className="mt-1 flex items-center justify-between gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-2.5 py-2 text-xs text-status-danger-foreground"
                         >
                           <span>{messages.assistant.feedbackSaveFailed}</span>
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="min-h-9 shrink-0 px-2 text-destructive hover:bg-transparent hover:underline"
+                            className="min-h-9 shrink-0 px-2 text-status-danger-foreground hover:bg-transparent hover:underline"
                             onClick={() => {
                               const retry = message.feedbackRetry;
                               if (retry) onFeedback(message.id, retry.rating, retry.reason);

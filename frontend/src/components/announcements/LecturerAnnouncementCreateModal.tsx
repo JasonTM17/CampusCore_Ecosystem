@@ -313,7 +313,7 @@ export function LecturerAnnouncementCreateModal({
             </div>
           ) : sectionsState === 'error' ? (
             <div className="flex items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm">
-              <span className="text-destructive">
+              <span className="text-status-danger-foreground">
                 {copy.loadSectionsFailed}
               </span>
               <button

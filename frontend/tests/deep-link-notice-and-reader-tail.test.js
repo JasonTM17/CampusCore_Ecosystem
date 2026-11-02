@@ -69,7 +69,7 @@ test('the banner reads in both themes and the [locale] route reuses this page', 
   );
   assert.ok(banner.length > 0, 'the banner must sit above the tab controller');
   assert.deepEqual(fixedLightSurfaces(banner), []);
-  assert.match(banner, /text-destructive/);
+  assert.match(banner, /text-status-danger-foreground/);
   assert.equal(
     read('src/app/[locale]/dashboard/editor/page.tsx').trim(),
     "export { default } from '../../../dashboard/editor/page';",

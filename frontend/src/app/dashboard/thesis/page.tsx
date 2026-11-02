@@ -124,7 +124,7 @@ const GRADE_BADGE_CLASS: Record<GradeBand, string> = {
   AVERAGE: 'bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30',
   BELOW_AVERAGE: 'bg-yellow-500/15 text-yellow-800 dark:text-yellow-300 border-yellow-500/30',
   PASS: 'bg-zinc-500/15 text-zinc-700 dark:text-zinc-300 border-zinc-500/30',
-  RETAKE: 'bg-destructive/15 text-destructive border-destructive/30',
+  RETAKE: 'bg-destructive/15 text-status-danger-foreground border-destructive/30',
 };
 
 function getGradeClassification(score: number): {
@@ -2189,7 +2189,7 @@ export default function ThesisPage() {
           </div>
         ) : groupReportLoadError ? (
           <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3">
-            <p className="flex items-start gap-2 text-xs text-destructive">
+            <p className="flex items-start gap-2 text-xs text-status-danger-foreground">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <span>{groupReportLoadError}</span>
             </p>
@@ -2215,7 +2215,7 @@ export default function ThesisPage() {
             className="mt-4 space-y-3 border-t border-border/60 pt-4"
           >
             {reportError ? (
-              <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2.5 text-xs text-destructive">
+              <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2.5 text-xs text-status-danger-foreground">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>{reportError}</span>
               </div>
@@ -2292,7 +2292,7 @@ export default function ThesisPage() {
                     className={cn(
                       'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
                       reportFileIssue
-                        ? 'bg-destructive/10 text-destructive'
+                        ? 'bg-destructive/10 text-status-danger-foreground'
                         : 'bg-status-success/15 text-status-success-foreground',
                     )}
                   >
@@ -2595,7 +2595,7 @@ export default function ThesisPage() {
             </div>
           ) : null}
           {actionError ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive shadow-xs">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground shadow-xs">
               <span>{actionError}</span>
               {topicRefreshFailed ? (
                 <Button size="sm" variant="outline" onClick={() => void retryTopicRefresh()}>
@@ -3173,7 +3173,7 @@ export default function ThesisPage() {
             );
           })()}
           {proposeError ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground">
               {proposeError}
             </div>
           ) : null}
@@ -3354,7 +3354,7 @@ export default function ThesisPage() {
             {messages.thesis.rejectModalDescription}
           </p>
           {rejectError ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground">
               {rejectError}
             </div>
           ) : null}
@@ -3404,7 +3404,7 @@ export default function ThesisPage() {
       >
         <div className="space-y-4">
           {addMemberError ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground">
               {addMemberError}
             </div>
           ) : null}
@@ -3605,7 +3605,7 @@ export default function ThesisPage() {
         >
           <div className="space-y-4">
             {topicActionError ? (
-              <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground">
                 {topicActionError}
               </p>
             ) : null}
@@ -3711,7 +3711,7 @@ export default function ThesisPage() {
             {messages.thesis.editTopicDescription}
           </p>
           {editError ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-status-danger-foreground">
               {editError}
             </div>
           ) : null}

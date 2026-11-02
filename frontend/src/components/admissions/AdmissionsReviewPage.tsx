@@ -375,33 +375,38 @@ export function AdmissionsReviewPage() {
                       <h3 className="font-semibold">{copy.checklist}</h3>
                       <div className="mt-2 space-y-2" data-testid="admissions-checklist">
                         {checklist.map((item, index) => (
-                          <div key={index} className="grid gap-2 sm:grid-cols-[1fr_120px_1fr]">
-                            <Input
-                              value={item.item}
-                              placeholder={copy.checklistItem}
-                              onChange={(event) => setChecklist((current) => current.map(
-                                (entry, i) => (i === index ? { ...entry, item: event.target.value } : entry)))}
-                            />
-                            <select
-                              className="rounded-md border border-border bg-background px-2 text-sm"
-                              aria-label={copy.checklistResult}
-                              value={item.result ?? 'NOTE'}
-                              onChange={(event) => setChecklist((current) => current.map(
-                                (entry, i) => (i === index
-                                  ? { ...entry, result: event.target.value as ChecklistItem['result'] }
-                                  : entry)))}
-                            >
-                              <option value="PASS">PASS</option>
-                              <option value="FAIL">FAIL</option>
-                              <option value="NOTE">NOTE</option>
-                            </select>
-                            <Input
-                              value={item.note ?? ''}
-                              placeholder={copy.checklistNote}
-                              onChange={(event) => setChecklist((current) => current.map(
-                                (entry, i) => (i === index ? { ...entry, note: event.target.value } : entry)))}
-                            />
-                          </div>
+                          <fieldset key={index} className="m-0 min-w-0 border-0 p-0">
+                            <legend className="sr-only">{`${copy.checklistItem} ${index + 1}`}</legend>
+                            <div className="grid gap-2 sm:grid-cols-[1fr_120px_1fr]">
+                              <Input
+                                value={item.item}
+                                placeholder={copy.checklistItem}
+                                aria-label={`${copy.checklistItem} ${index + 1}`}
+                                onChange={(event) => setChecklist((current) => current.map(
+                                  (entry, i) => (i === index ? { ...entry, item: event.target.value } : entry)))}
+                              />
+                              <select
+                                className="rounded-md border border-border bg-background px-2 text-sm"
+                                aria-label={`${copy.checklistResult} ${index + 1}`}
+                                value={item.result ?? 'NOTE'}
+                                onChange={(event) => setChecklist((current) => current.map(
+                                  (entry, i) => (i === index
+                                    ? { ...entry, result: event.target.value as ChecklistItem['result'] }
+                                    : entry)))}
+                              >
+                                <option value="PASS">PASS</option>
+                                <option value="FAIL">FAIL</option>
+                                <option value="NOTE">NOTE</option>
+                              </select>
+                              <Input
+                                value={item.note ?? ''}
+                                placeholder={copy.checklistNote}
+                                aria-label={`${copy.checklistNote} ${index + 1}`}
+                                onChange={(event) => setChecklist((current) => current.map(
+                                  (entry, i) => (i === index ? { ...entry, note: event.target.value } : entry)))}
+                              />
+                            </div>
+                          </fieldset>
                         ))}
                       </div>
                       <Button

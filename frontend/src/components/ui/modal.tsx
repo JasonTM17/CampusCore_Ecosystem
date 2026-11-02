@@ -157,7 +157,7 @@ export function Modal({
               ref={closeButtonRef}
               type="button"
               onClick={onClose}
-              className="absolute right-3 top-3 z-20 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary/80 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 print:hidden shadow-xs"
+              className="absolute right-3 top-3 z-20 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-secondary/80 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 print:hidden shadow-xs"
               aria-label={closeLabel || messages.common.states.closeModal}
             >
               <X className="h-5 w-5" />
@@ -244,7 +244,7 @@ export function ConfirmModal({
         {error ? (
           <div
             role="alert"
-            className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm leading-6 text-destructive"
+            className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm leading-6 text-status-danger-foreground"
           >
             {error}
           </div>

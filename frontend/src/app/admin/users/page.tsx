@@ -1097,7 +1097,7 @@ export default function AdminUsersPage() {
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           {formError ? (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-status-danger-foreground">
               {formError}
             </div>
           ) : null}
