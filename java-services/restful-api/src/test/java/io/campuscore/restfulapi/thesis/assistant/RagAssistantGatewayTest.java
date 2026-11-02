@@ -3,6 +3,7 @@ package io.campuscore.restfulapi.thesis.assistant;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import tools.jackson.databind.ObjectMapper;
@@ -24,6 +25,7 @@ import io.campuscore.restfulapi.web.DomainException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -582,6 +584,26 @@ class RagAssistantGatewayTest {
                 .map(ThesisAssistantService.StreamDelta::text).reduce("", String::concat);
         assertEquals("Before outside after.", answer);
         assertTrue(events.stream().anyMatch(ThesisAssistantService.StreamDone.class::isInstance));
+    }
+
+    @Test
+    void nonStandardUpstreamStatusIsATransientGatewayFailure() throws Exception {
+        startServer(exchange -> {
+            byte[] response = "{\"message\":\"origin down\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(520, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        }, "/chat");
+
+        DomainException failure = assertThrows(DomainException.class,
+                () -> gateway().chat(new ChatRequest("Quy chế học vụ", "vi", UUID.randomUUID(), null), "owner-a"));
+
+        // A CDN/LB status Spring does not enumerate is an upstream outage, not
+        // a caller error: it must stay on the designed local-fallback chain.
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, failure.status());
+        assertEquals("RAG_SERVICE_UNAVAILABLE", failure.code());
+        assertTrue(gateway().isTransientFailure(failure));
     }
 
     private RagAssistantGateway gateway() {

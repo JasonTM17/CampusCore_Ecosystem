@@ -70,6 +70,8 @@ class SecurityConfigTest {
         assertTrue(corsConfig.getExposedHeaders().contains("X-RateLimit-Remaining"));
         assertTrue(corsConfig.getExposedHeaders().contains("X-RateLimit-Reset"));
         assertTrue(corsConfig.getExposedHeaders().contains("Retry-After"));
+        assertTrue(corsConfig.getExposedHeaders().contains("X-Next-Cursor"),
+                "cross-origin assistant history pages cannot paginate without the cursor header");
     }
 
     @Test
