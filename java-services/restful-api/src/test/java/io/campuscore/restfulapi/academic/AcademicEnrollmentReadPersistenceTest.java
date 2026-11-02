@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.academic;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -9,6 +10,8 @@ import java.sql.PreparedStatement;
 import java.sql.Types;
 import java.time.Instant;
 import java.util.List;
+import io.campuscore.restfulapi.academic.repository.AcademicEnrollmentReadRepository;
+import io.campuscore.restfulapi.common.LikePattern;
 import io.campuscore.restfulapi.testsupport.AccountAuthorityFixture;
 import io.campuscore.restfulapi.testsupport.CurrentAccountJwt;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +21,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
@@ -39,6 +43,9 @@ class AcademicEnrollmentReadPersistenceTest {
 
     @Autowired
     private MockMvc mvc;
+
+    @Autowired
+    private AcademicEnrollmentReadRepository repository;
 
     @BeforeEach
     void prepareReadOnlyFixture() {
@@ -460,6 +467,79 @@ class AcademicEnrollmentReadPersistenceTest {
                         .with(adminJwt()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    void countJoinTrimmingMatchesLegacyJoinedQueryForEnrollmentCourseAndSearchFilters() {
+        assertThat(repository.countEnrollments(null, null, null, null, null))
+                .isEqualTo(legacyCount(null, null, null, null, null, null));
+        assertThat(repository.countEnrollments("COMPLETED", "semester-1", "student-1", null, "section-1"))
+                .isEqualTo(legacyCount("COMPLETED", "semester-1", "student-1", null, "section-1", null));
+        assertThat(repository.countEnrollments(null, null, null, "course-1", null))
+                .isEqualTo(legacyCount(null, null, null, "course-1", null, null));
+        assertThat(repository.countEnrollments(null, null, null, null, null, "SE401"))
+                .isEqualTo(legacyCount(null, null, null, null, null, "SE401"));
+    }
+
+    private long legacyCount(
+            String status,
+            String semesterId,
+            String studentId,
+            String courseId,
+            String sectionId,
+            String search) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource();
+        List<String> filters = new java.util.ArrayList<>();
+        addLegacyFilter(filters, parameters, "status", status, "e.\"status\" = :status");
+        addLegacyFilter(filters, parameters, "semesterId", semesterId, "e.\"semesterId\" = :semesterId");
+        addLegacyFilter(filters, parameters, "studentId", studentId, "e.\"studentId\" = :studentId");
+        addLegacyFilter(filters, parameters, "courseId", courseId, "section.\"courseId\" = :courseId");
+        addLegacyFilter(filters, parameters, "sectionId", sectionId, "e.\"sectionId\" = :sectionId");
+        List<String> tokens = LikePattern.tokens(search);
+        if (!tokens.isEmpty()) {
+            parameters.addValue("foldFrom", LikePattern.FOLD_FROM);
+            parameters.addValue("foldTo", LikePattern.FOLD_TO);
+            for (int i = 0; i < tokens.size(); i++) {
+                String name = "searchToken" + i;
+                parameters.addValue(name, tokens.get(i));
+                filters.add("(TRANSLATE(LOWER(student.\"studentId\"), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\'"
+                        + " OR TRANSLATE(LOWER(student_user.\"firstName\"), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\'"
+                        + " OR TRANSLATE(LOWER(student_user.\"lastName\"), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\'"
+                        + " OR TRANSLATE(LOWER(student_user.\"email\"), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\'"
+                        + " OR TRANSLATE(LOWER(section.\"sectionNumber\"), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\'"
+                        + " OR TRANSLATE(LOWER(course.\"code\"), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\'"
+                        + " OR TRANSLATE(LOWER(course.\"name\"), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\'"
+                        + " OR TRANSLATE(LOWER(COALESCE(lecturer_user.\"firstName\", '')), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\'"
+                        + " OR TRANSLATE(LOWER(COALESCE(lecturer_user.\"lastName\", '')), :foldFrom, :foldTo) LIKE :" + name + " ESCAPE '\\')");
+            }
+        }
+        String where = filters.isEmpty() ? "" : " WHERE " + String.join(" AND ", filters);
+        Long count = new org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate(jdbc)
+                .queryForObject(
+                        "SELECT COUNT(*) FROM \"academic\".\"Enrollment\" e"
+                                + " JOIN \"academic\".\"Section\" section ON section.\"id\" = e.\"sectionId\""
+                                + " JOIN \"academic\".\"Course\" course ON course.\"id\" = section.\"courseId\""
+                                + " JOIN \"academic\".\"Semester\" semester ON semester.\"id\" = e.\"semesterId\""
+                                + " JOIN \"academic\".\"Student\" student ON student.\"id\" = e.\"studentId\""
+                                + " JOIN \"campuscore_auth\".\"User\" student_user ON student_user.\"id\" = student.\"userId\""
+                                + " LEFT JOIN \"academic\".\"Lecturer\" lecturer ON lecturer.\"id\" = section.\"lecturerId\""
+                                + " LEFT JOIN \"campuscore_auth\".\"User\" lecturer_user ON lecturer_user.\"id\" = lecturer.\"userId\""
+                                + where,
+                        parameters,
+                        Long.class);
+        return count == null ? 0L : count;
+    }
+
+    private static void addLegacyFilter(
+            List<String> filters,
+            MapSqlParameterSource parameters,
+            String name,
+            String value,
+            String expression) {
+        if (value != null) {
+            filters.add(expression);
+            parameters.addValue(name, value);
+        }
     }
 
     private RequestPostProcessor studentJwt(String subject, String studentId) {

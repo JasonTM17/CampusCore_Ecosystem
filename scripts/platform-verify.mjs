@@ -26,7 +26,7 @@ const PROJECT_RE = /^campuscore-[a-z0-9-]+$/;
 
 function usage(msg) {
   if (msg) console.error(`USAGE_FAIL ${msg}`);
-  console.error('Usage: platform-verify.mjs <image|stack|pgit> --project <campuscore-*> [--evidence dir]');
+  console.error('Usage: platform-verify.mjs <image|stack|pgit> --project <campuscore-*> [--evidence dir] [--its class,...]');
   process.exit(2);
 }
 
@@ -42,6 +42,48 @@ function parseArgs(argv) {
     else usage(`unknown arg ${a}`);
   }
   return args;
+}
+
+export function inspectRequestedItReports(requestedClasses, reports) {
+  return requestedClasses.map((requestedClass) => {
+    const matches = reports.filter((report) => {
+      const suite = report.xml.match(/<testsuite\b([^>]*)>/);
+      const suiteName = suite?.[1].match(/\bname="([^"]+)"/)?.[1]
+        || report.file.replace(/^TEST-/, '').replace(/\.xml$/, '');
+      return requestedClass.includes('.') ? suiteName === requestedClass : suiteName.split('.').at(-1) === requestedClass;
+    });
+    if (matches.length !== 1) {
+      return {
+        class: requestedClass, tests: 0, skipped: 0, executed: 0, failures: 0, errors: 0,
+        passed: false, reason: matches.length ? 'ambiguous report' : 'report missing',
+      };
+    }
+    const report = matches[0];
+    const suite = report.xml.match(/<testsuite\b([^>]*)>/);
+    if (!suite) {
+      return {
+        class: requestedClass, tests: 0, skipped: 0, executed: 0, failures: 0, errors: 0,
+        passed: false, reason: 'invalid report',
+      };
+    }
+    const attribute = (name) => {
+      const value = suite[1].match(new RegExp(`\\b${name}="(\\d+)"`))?.[1];
+      return value === undefined ? 0 : Number(value);
+    };
+    const tests = attribute('tests');
+    const skipped = attribute('skipped');
+    const failures = attribute('failures');
+    const errors = attribute('errors');
+    const executed = tests - skipped;
+    const fresh = report.currentRun === true;
+    const passed = fresh && tests > 0 && executed > 0 && skipped === 0 && failures === 0 && errors === 0;
+    const reason = passed ? 'executed' : !fresh ? 'report not produced by this run'
+      : tests === 0 ? 'zero tests executed'
+        : skipped > 0 ? 'unexpected skipped tests'
+          : executed === 0 ? 'zero tests executed'
+          : failures > 0 || errors > 0 ? 'class failures or errors' : 'invalid test counts';
+    return { class: requestedClass, tests, skipped, executed, failures, errors, passed, reason };
+  });
 }
 
 function run(cmd, argv, opts = {}) {
@@ -311,6 +353,9 @@ async function casePgit(args) {
       'campuscore_restful_e2e_assistant_mig',
       'campuscore_council_race_credential_20261016',
       'campuscore_restful_e2e_report',
+      'attendance_g1_test',
+      'campuscore_w14_index_fresh_test',
+      'campuscore_w14_index_upgrade_test',
       // correction-migration ITs require a *fresh* db per scenario whose name
       // matches /policy_migration_test_[a-z0-9_]+ (asserted by the fixtures)
       ...policyScenarios.map((s) => `policy_migration_test_policy_${s}`),
@@ -352,6 +397,9 @@ async function casePgit(args) {
       ...env('CAMPUSCORE_REPORT_POSTGRES', 'campuscore_restful_e2e_report'),
       ...env('ASSISTANT_POSTGRES', 'campuscore_restful_e2e_assistant'),
       ...env('ASSISTANT_MIGRATION_POSTGRES', 'campuscore_restful_e2e_assistant_mig'),
+      ...env('ATTENDANCE_LOCAL_POSTGRES', 'attendance_g1_test'),
+      ...env('W14_INDEX_FRESH_POSTGRES', 'campuscore_w14_index_fresh_test'),
+      ...env('W14_INDEX_UPGRADE_POSTGRES', 'campuscore_w14_index_upgrade_test'),
       // demo-team/spring-focus ITs create their own scenario DBs through an
       // admin URL that must point at the maintenance database /postgres
       CAMPUSCORE_DEMO_TEAM_PG_ADMIN_URL: `${jdbcBase}/postgres`,
@@ -393,6 +441,10 @@ async function casePgit(args) {
       CAMPUSCORE_DEMO_TEAM_PG_ENABLED: 'true',
       CAMPUSCORE_SPRING_FOCUS_PG_ENABLED: 'true',
     };
+    const reportDir = path.join(REPO, 'java-services', 'restful-api', 'target', 'failsafe-reports');
+    const requestedClasses = args.its && args.its !== '*PostgresIT'
+      ? args.its.split(',').map((name) => name.trim()).filter(Boolean)
+      : [];
     const t0 = Date.now();
     const res = tryRun('mvn', [
       '-f', 'java-services/pom.xml', '-pl', 'restful-api', 'verify',
@@ -412,11 +464,24 @@ async function casePgit(args) {
     const executed = totals[0] - totals[3];
     const itRan = executed > 0;
     result.executedTests = executed;
-    result.verdict = res.ok && itRan && totals[1] === 0 && totals[2] === 0 ? 'PASS' : 'FAIL';
     result.zeroTestGuard = itRan ? 'executed' : 'NO_ITS_RAN — refuse to count as pass';
+    const reports = fs.existsSync(reportDir)
+      ? fs.readdirSync(reportDir).filter((file) => file.startsWith('TEST-') && file.endsWith('.xml')).map((file) => ({
+        file,
+        xml: fs.readFileSync(path.join(reportDir, file), 'utf8'),
+        currentRun: fs.statSync(path.join(reportDir, file)).mtimeMs >= t0,
+      }))
+      : [];
+    const requestedItResults = inspectRequestedItReports(requestedClasses, reports);
+    result.requestedItClasses = requestedItResults;
+    const requestedItsPassed = requestedItResults.every((check) => check.passed);
+    result.requestedItGuard = requestedClasses.length === 0
+      ? 'aggregate zero-test guard only'
+      : requestedItsPassed ? 'all requested classes executed without skips' : 'FAIL: requested class did not execute cleanly';
+    result.verdict = res.ok && itRan && totals[1] === 0 && totals[2] === 0 && requestedItsPassed ? 'PASS' : 'FAIL';
     writeJson(dir, args.resultName || 'pgit.json', result);
     if (result.verdict !== 'PASS') {
-      throw new Error(`pgit verdict FAIL exit=${res.code} totals=${JSON.stringify(result.totals)} — see ${args.logName || 'pgit-mvn.log'}`);
+      throw new Error(`pgit verdict FAIL exit=${res.code} totals=${JSON.stringify(result.totals)} requested=${JSON.stringify(requestedItResults)} — see ${args.logName || 'pgit-mvn.log'}`);
     }
     console.log(`PASS pgit tests=${totals[0]} failures=${totals[1]} errors=${totals[2]} skipped=${totals[3]} in ${result.mvnMs}ms`);
   } finally {
@@ -446,4 +511,6 @@ async function main() {
   else usage(`unknown subcommand ${cmd}`);
 }
 
-main().catch((e) => { console.error(`FAIL ${e.message || e}`); process.exit(1); });
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+  main().catch((e) => { console.error(`FAIL ${e.message || e}`); process.exit(1); });
+}
