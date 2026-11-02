@@ -5,7 +5,8 @@
 > local quick start: [README.md](../../README.md#quick-start-local).
 
 Single inventory of every runtime variable referenced by
-`java-services/restful-api/src/main/resources/application.yml` (115 `${...}` names),
+`java-services/restful-api/src/main/resources/application.yml` (117 `${...}`
+environment names; 118 placeholders including the `${java.io.tmpdir}` JVM property),
 `AttendanceCheckinProperties` + `PushProperties` (`@ConfigurationProperties` relaxed binding),
 `frontend/.env.example` + `frontend/next.config.mjs` + `process.env` usage,
 `mobile/` `EXPO_PUBLIC_*` usage, and `docker-compose*.yml`.
@@ -45,9 +46,9 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | `SERVER_PORT`, `PORT` | HTTP port of restful-api (`PORT` = PaaS/Render alias) | config | all | safe default `4010` |
 | `SERVER_FORWARD_HEADERS_STRATEGY` | Tomcat forwarded-header handling behind proxy | config | prod | safe default (`native`) |
 | `TOMCAT_MAX_THREADS`, `TOMCAT_MIN_SPARE_THREADS` | Tomcat worker pool sizing | config | optional tuning | safe default |
-| `SPRING_PROFILES_ACTIVE` | Active Spring profile (`e2e` in e2e compose) | config | e2e | safe default |
+| `SPRING_PROFILES_ACTIVE` | Active Spring profile; must include `persistence` (Compose and e2e Compose set it; no `e2e` profile exists) | config | local, compose, e2e | required |
 | `JAVA_TOOL_OPTIONS` | JVM flags (Render memory tuning) | config | render | safe default |
-| `APP_PUBLIC_BASE_URL` | Public origin used in outbound mail links | config | prod (links correct) | safe default localhost |
+| `APP_PUBLIC_BASE_URL` | Public origin used in outbound mail links | config | compose (password reset), prod | no safe default: `application.yml` falls back to `http://localhost:3100`, which no documented stack serves; set `APP_PUBLIC_BASE_URL=http://localhost:3000` in `.env` for the local Compose stack |
 | `APP_CORS_ALLOWED_ORIGIN_PATTERNS` | Extra CORS origins for non-web clients | config | optional | safe default (empty) |
 
 ## 2. Sessions & security
@@ -63,7 +64,7 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | `COOKIE_SECURE` | `Secure` flag on cookies | config | all | safe default dev; must be `true` behind HTTPS |
 | `HEALTH_READINESS_KEY` | Bearer key for `X-Health-Key` readiness probe | secret | all | required; local Compose and `.env.example` ship the dev-only constant `local-course-health-key` (replace it anywhere shared) |
 | `METRICS_SCRAPE_KEY` | Bearer key for `X-Metrics-Key` header on `GET /actuator/prometheus` | secret | when metrics scraping is enabled | safe default `""` (endpoint fails closed with 403 when unset; boots cleanly) |
-| `INTERNAL_SERVICE_TOKEN` | Internal service-to-service auth token | secret | e2e | required when used |
+| `INTERNAL_SERVICE_TOKEN` | Reserved name set by `docker-compose.e2e.yml`; no service reads it (the internal lane authenticates with `ASSISTANT_RAG_SERVICE_TOKEN`) | secret | — | unused; setting it has no effect |
 
 ## 3. Databases & pools
 
@@ -82,10 +83,10 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 
 | Variable | Purpose | Class | Required in | Default policy |
 | --- | --- | --- | --- | --- |
-| `MAIL_ENABLED` | Enable outbound email (2FA OTP, notifications) | config | all | safe default `false` |
-| `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT` | SMTP host/port (Mailpit local, real SMTP prod) | config | compose, prod | safe default Mailpit |
+| `MAIL_ENABLED` | Enable outbound email (2FA OTP, notifications) | config | all | application default `true`; local Compose sets `false` |
+| `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT` | SMTP host/port (Mailpit local, real SMTP prod) | config | compose, prod | application default `smtp.gmail.com:587`; local Compose overrides `mailpit:1025` |
 | `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` | SMTP credentials | secret | prod | required when auth enabled |
-| `SPRING_MAIL_PROPERTIES_MAIL_SMTP_*` (`_AUTH`, `_STARTTLS_ENABLE`, `_STARTTLS_REQUIRED`, `_CONNECTIONTIMEOUT`, `_TIMEOUT`, `_WRITETIMEOUT`) | Relaxed-binding overrides for `spring.mail.properties.mail.smtp.*` | config | optional | safe default |
+| `SPRING_MAIL_PROPERTIES_MAIL_SMTP_*` (`_AUTH`, `_STARTTLS_ENABLE`, `_STARTTLS_REQUIRED`, `_CONNECTIONTIMEOUT`, `_TIMEOUT`, `_WRITETIMEOUT`) | Relaxed-binding overrides for `spring.mail.properties.mail.smtp.*` | config | optional | application default `AUTH=true`, `STARTTLS_ENABLE=true`, `STARTTLS_REQUIRED=true`; local Compose sets all three `false` |
 | `MAIL_FROM`, `MAIL_SENDER_NAME` | Envelope/header sender identity | config | optional | safe default |
 
 ## 5. Rate limiting, demo gate, academic
@@ -165,7 +166,7 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 
 | Variable | Purpose | Class | Required in | Default policy |
 | --- | --- | --- | --- | --- |
-| `EXPO_PUBLIC_API_MODE` | `preview` (offline sample data) or `live` | public | mobile-build | safe default `preview` |
+| `EXPO_PUBLIC_API_MODE` | `preview` (bundled sample data, no network) or `live` | public | mobile-build | safe default `live`; set `preview` explicitly for an offline review |
 | `EXPO_PUBLIC_API_URL` | REST base (`10.0.2.2` emulator / LAN IP / prod host) | public | mobile-build live | required in live mode |
 | `EXPO_PUBLIC_ISSUER_URL` | OIDC issuer when it differs from API host | public | prod sign-in | required for prod login |
 | `EXPO_PUBLIC_PORTAL_URL` | Deep-link back to web portal | public | optional | safe default |
@@ -177,10 +178,10 @@ Closes audit item AUD-27 and reconciles runtime variable discovery.
 | Variable | Purpose | Class | Required in | Default policy |
 | --- | --- | --- | --- | --- |
 | `RESTFUL_API_HOST_PORT`, `FRONTEND_HOST_PORT`, `MAILPIT_UI_HOST_PORT`, `MAILPIT_SMTP_HOST_PORT` | Host port publishes | config | compose | safe defaults `4010/3000/8025/1025` |
-| `CAMPUSCORE_IMAGE_REGISTRY`, `CAMPUSCORE_IMAGE_TAG` | Image coordinates for a future self-hosted stack | config | future hosted (deferred) | required there |
+| `CAMPUSCORE_IMAGE_TAG` | Image tag for the published-artifact overlay (`docker-compose.rag.override.yml`; the registry is hardcoded to `ghcr.io`) | config | future hosted (deferred) | required there |
 | `CAMPUSCORE_DOMAIN`, `ACME_EMAIL` | Caddy domain + ACME registration email (`ops/caddy/Caddyfile`) | config | future hosted (deferred) | required there |
 | `E2E_CORE_API_IMAGE`, `E2E_API_HOST_PORT` | Image under test + e2e host port | config | e2e | required/safe default |
-| `SWAGGER_ENABLED`, `*_READ_ENABLED`, `*_WRITE_ENABLED`, `AUTH_LOGIN_ENABLED`, `THESIS_ASSISTANT_ENABLED`, `ACADEMIC_*_ENABLED`, `ENGAGEMENT_*_ENABLED`, `PEOPLE_READ_ENABLED`, `FINANCE_READ_ENABLED`, `ANALYTICS_READ_ENABLED`, `NOTIFICATIONS_READ_ENABLED`, `THESIS_READ_ENABLED`, `ACADEMIC_ENROLLMENT_READ_ENABLED`, `ACADEMIC_SCHEDULE_READ_ENABLED`, `ACADEMIC_WAITLIST_READ_ENABLED`, `ACADEMIC_ATTENDANCE_READ_ENABLED`, `ACADEMIC_SECTION_READ_ENABLED`, `ACADEMIC_CONTEXT_ENABLED` | E2E feature-gate matrix toggles | config | e2e | safe default |
+| `SWAGGER_ENABLED`, `*_READ_ENABLED`, `*_WRITE_ENABLED`, `AUTH_LOGIN_ENABLED`, `THESIS_ASSISTANT_ENABLED`, `ACADEMIC_*_ENABLED`, `ENGAGEMENT_*_ENABLED`, `PEOPLE_READ_ENABLED`, `FINANCE_READ_ENABLED`, `ANALYTICS_READ_ENABLED`, `NOTIFICATIONS_READ_ENABLED`, `THESIS_READ_ENABLED`, `ACADEMIC_ENROLLMENT_READ_ENABLED`, `ACADEMIC_SCHEDULE_READ_ENABLED`, `ACADEMIC_WAITLIST_READ_ENABLED`, `ACADEMIC_ATTENDANCE_READ_ENABLED`, `ACADEMIC_SECTION_READ_ENABLED`, `ACADEMIC_CONTEXT_ENABLED` | Reserved E2E names set by `docker-compose.e2e.yml`; no Java/TS/MJS consumer exists in this repository, so setting them has no effect | config | e2e | unused |
 
 ## 11. Attendance check-in & privacy (relaxed binding)
 
@@ -267,9 +268,9 @@ excluded by design.
 ### Reconciliation findings
 
 1. **Explicit placeholders vs relaxed binding:**
-   - A mechanical extraction of `application.yml` confirms 114 `${...}` placeholder
-     variables (plus the JVM property `${java.io.tmpdir}`). All 114 are documented
-     in sections 1 through 7 above.
+   - A mechanical extraction of `application.yml` confirms 117 `${...}` environment
+     names (118 placeholders including the JVM property `${java.io.tmpdir}`). All 117
+     are documented in sections 1 through 7 above.
    - Initial audit reports hypothesized that "over 30 active ${VAR} properties in
      application.yml were omitted". Exhaustive reconciliation proves that **zero**
      explicit `${...}` placeholders were missing from the documentation tables.
