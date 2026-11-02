@@ -2,7 +2,7 @@
     admin localhost:2019
     email {$ACME_EMAIL}
     auto_https disable_redirects
-    grace_period 10s
+    grace_period 5m
 }
 
 {$CAMPUSCORE_DOMAIN} {
