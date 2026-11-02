@@ -5,6 +5,7 @@ import io.campuscore.restfulapi.identity.IdentityProperties.Surface;
 import io.campuscore.restfulapi.identity.bff.BffSessionService.ResolvedSession;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -22,6 +23,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.unit.DataSize;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.RestController;
@@ -61,11 +63,28 @@ public class BffApiProxyController {
     private static final List<String> JDK_RESTRICTED = List.of(
             "connection", "content-length", "expect", "host", "upgrade");
 
+    /**
+     * Largest body any allowlisted route legitimately accepts. Multipart
+     * uploads are bounded by spring.servlet.multipart.max-request-size (21 MB
+     * in production, one megabyte above the 20 MB file limit); every other
+     * write is JSON, which the resource lane caps at 1 MB. The same sizes
+     * bound upstream responses: the largest legitimate one is a 20 MB file
+     * download. Bodies above their ceiling are answered 413 before the proxy
+     * buffers them, so an authenticated caller cannot hand the heap an
+     * arbitrary body (the JSON filter deliberately ignores non-JSON types and
+     * the servlet multipart limits only run once a part is parsed).
+     */
+    private static final long MAX_JSON_BODY_BYTES = 1024 * 1024L;
+    private static final long DEFAULT_MULTIPART_BYTES = 1024 * 1024L;
+    private static final int READ_CHUNK_BYTES = 8192;
+
     private final IdentityProperties properties;
     private final BffSurfaceRegistry registry;
     private final BffSessionService sessions;
     private final BffSessionController sessionEndpoints;
     private final int loopbackPort;
+    private final long maxMultipartRequestBytes;
+    private final long maxUpstreamResponseBytes;
     // Loopback-only transport: HTTP/1.1, no redirect chasing, and the same
     // 5s connect / 30s response ceilings the previous per-request wiring had.
     // Unlike HttpURLConnection it supports every verb (PATCH included).
@@ -86,6 +105,24 @@ public class BffApiProxyController {
         String port = environment.getProperty("local.server.port",
                 environment.getProperty("server.port", "4010"));
         this.loopbackPort = Integer.parseInt(port);
+        this.maxMultipartRequestBytes = dataSize(environment,
+                "spring.servlet.multipart.max-request-size", DEFAULT_MULTIPART_BYTES);
+        this.maxUpstreamResponseBytes = Math.max(maxMultipartRequestBytes,
+                dataSize(environment, "spring.servlet.multipart.max-file-size",
+                        DEFAULT_MULTIPART_BYTES));
+    }
+
+    private static long dataSize(org.springframework.core.env.Environment environment,
+            String property, long fallback) {
+        String configured = environment.getProperty(property);
+        if (configured == null || configured.isBlank()) {
+            return fallback;
+        }
+        try {
+            return DataSize.parse(configured).toBytes();
+        } catch (IllegalArgumentException invalid) {
+            return fallback;
+        }
     }
 
     @RequestMapping("/bff/api/**")
@@ -137,9 +174,18 @@ public class BffApiProxyController {
             String upstream, Surface surface, String accessToken)
             throws IOException {
         String method = request.getMethod();
-        byte[] requestBody = "GET".equals(method) || "HEAD".equals(method)
-                ? null
-                : request.getInputStream().readAllBytes();
+        byte[] requestBody = null;
+        if (!"GET".equals(method) && !"HEAD".equals(method)) {
+            long ceiling = requestBodyCeiling(request);
+            long declared = request.getContentLengthLong();
+            if (declared > ceiling) {
+                return tooLarge();
+            }
+            requestBody = readWithinCeiling(request.getInputStream(), ceiling);
+            if (requestBody == null) {
+                return tooLarge();
+            }
+        }
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create("http://127.0.0.1:" + loopbackPort + upstream
                         + (request.getQueryString() == null ? "" : "?" + request.getQueryString())))
@@ -196,7 +242,16 @@ public class BffApiProxyController {
         int status = upstreamResponse.statusCode();
         byte[] payload;
         try (InputStream body = upstreamResponse.body()) {
-            payload = body == null ? new byte[0] : body.readAllBytes();
+            long declared = upstreamResponse.headers()
+                    .firstValueAsLong(HttpHeaders.CONTENT_LENGTH).orElse(-1);
+            if (declared > maxUpstreamResponseBytes) {
+                return json(HttpStatus.BAD_GATEWAY, "UPSTREAM_RESPONSE_TOO_LARGE");
+            }
+            payload = body == null ? new byte[0]
+                    : readWithinCeiling(body, maxUpstreamResponseBytes);
+        }
+        if (payload == null) {
+            return json(HttpStatus.BAD_GATEWAY, "UPSTREAM_RESPONSE_TOO_LARGE");
         }
         org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
         upstreamResponse.headers().map().forEach((name, values) -> {
@@ -211,6 +266,42 @@ public class BffApiProxyController {
             headers.set(HttpHeaders.CACHE_CONTROL, "no-store");
         }
         return ResponseEntity.status(status).headers(headers).body(payload);
+    }
+
+    private long requestBodyCeiling(HttpServletRequest request) {
+        String contentType = request.getContentType();
+        if (contentType != null
+                && contentType.toLowerCase(Locale.ROOT).startsWith("multipart/")) {
+            return maxMultipartRequestBytes;
+        }
+        return MAX_JSON_BODY_BYTES;
+    }
+
+    private static ResponseEntity<byte[]> tooLarge() {
+        return json(HttpStatus.PAYLOAD_TOO_LARGE, "REQUEST_BODY_TOO_LARGE");
+    }
+
+    /**
+     * Returns the body, or null as soon as it exceeds the ceiling. The
+     * declared length only allows the cheap rejection above; the bytes are
+     * counted while buffering here so a lying or chunked length cannot make
+     * the proxy read an unbounded body.
+     */
+    private static byte[] readWithinCeiling(InputStream input, long ceiling)
+            throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream(
+                (int) Math.min(ceiling, READ_CHUNK_BYTES));
+        byte[] chunk = new byte[READ_CHUNK_BYTES];
+        long total = 0;
+        int read;
+        while ((read = input.read(chunk)) != -1) {
+            total += read;
+            if (total > ceiling) {
+                return null;
+            }
+            buffer.write(chunk, 0, read);
+        }
+        return buffer.toByteArray();
     }
 
     static boolean stripsRequestHeader(String name) {
