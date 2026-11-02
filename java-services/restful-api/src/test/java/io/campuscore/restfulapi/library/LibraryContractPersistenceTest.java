@@ -446,6 +446,34 @@ class LibraryContractPersistenceTest {
     }
 
     @Test
+    void catalogueSearchTreatsLikeWildcardsLiterally() throws Exception {
+        jdbc.update("INSERT INTO library.\"Title\" (\"id\", \"title\", \"author\", \"category\")"
+                + " VALUES ('title-pct', '100% Solutions', 'Author P', 'CS')");
+        jdbc.update("INSERT INTO library.\"Title\" (\"id\", \"title\", \"author\", \"category\")"
+                + " VALUES ('title-und', 'Under_Score Book', 'Author U', 'CS')");
+
+        // % and _ are literal characters in the stored titles, never wildcards.
+        mvc.perform(get("/api/v1/library/catalogue").param("query", "%").with(borrowerJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value("title-pct"));
+        mvc.perform(get("/api/v1/library/catalogue").param("query", "_").with(borrowerJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value("title-und"));
+        mvc.perform(get("/api/v1/library/catalogue").param("query", "demo").with(borrowerJwt))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+        // Paging still applies to the filtered set.
+        mvc.perform(get("/api/v1/library/catalogue")
+                        .param("query", "demo").param("page", "0").param("limit", "1")
+                        .with(borrowerJwt))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Count", "2"))
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
     void oneActiveRequestPerCopyAndPerBorrower() throws Exception {
         requestCopy(borrowerJwt, "copy-3", "lc-race-1");
 

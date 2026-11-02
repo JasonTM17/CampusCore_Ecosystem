@@ -1,5 +1,6 @@
 package io.campuscore.restfulapi.library.service;
 
+import io.campuscore.restfulapi.common.LikePattern;
 import io.campuscore.restfulapi.events.web.ListPaging;
 import io.campuscore.restfulapi.library.web.LibraryDtos.BorrowRequest;
 import io.campuscore.restfulapi.library.web.LibraryDtos.CopyResponse;
@@ -11,7 +12,6 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
@@ -81,10 +81,18 @@ public class LibraryPatronService {
                         + " \"publishedYear\", \"description\", \"version\" FROM " + TITLE);
         MapSqlParameterSource params = new MapSqlParameterSource();
         String filter = "";
-        if (query != null && !query.isBlank()) {
-            filter = " WHERE LOWER(\"title\") LIKE :q OR LOWER(\"author\") LIKE :q"
-                    + " OR LOWER(\"isbn\") LIKE :q OR LOWER(\"category\") LIKE :q";
-            params.addValue("q", "%" + query.trim().toLowerCase(Locale.ROOT) + "%");
+        String pattern = LikePattern.contains(query);
+        if (pattern != null) {
+            params.addValue("foldFrom", LikePattern.FOLD_FROM)
+                    .addValue("foldTo", LikePattern.FOLD_TO)
+                    .addValue("q", pattern);
+            filter = " WHERE TRANSLATE(LOWER(\"title\"), :foldFrom, :foldTo) LIKE :q ESCAPE '\\'"
+                    + " OR TRANSLATE(LOWER(COALESCE(\"author\", '')), :foldFrom, :foldTo)"
+                    + " LIKE :q ESCAPE '\\'"
+                    + " OR TRANSLATE(LOWER(COALESCE(\"isbn\", '')), :foldFrom, :foldTo)"
+                    + " LIKE :q ESCAPE '\\'"
+                    + " OR TRANSLATE(LOWER(COALESCE(\"category\", '')), :foldFrom, :foldTo)"
+                    + " LIKE :q ESCAPE '\\'";
         }
         sql.append(filter);
         long total = window == null ? 0 : jdbc.queryForObject(
