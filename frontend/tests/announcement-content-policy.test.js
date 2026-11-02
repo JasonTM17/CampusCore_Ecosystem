@@ -9,14 +9,22 @@ function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');
 }
 
-function loadTs(relativePath) {
+function loadTs(relativePath, aliases = {}) {
   const ts = require('typescript');
   const output = ts.transpileModule(read(relativePath), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText;
   const moduleRecord = { exports: {} };
-  Function('module', 'exports', output)(moduleRecord, moduleRecord.exports);
+  const resolve = (specifier) =>
+    Object.hasOwn(aliases, specifier) ? aliases[specifier] : require(specifier);
+  Function('module', 'exports', 'require', output)(moduleRecord, moduleRecord.exports, resolve);
   return moduleRecord.exports;
+}
+
+function loadAnnouncementLimits() {
+  return loadTs('src/lib/announcement-limits.ts', {
+    '@/i18n/messages-announcements': loadTs('src/i18n/messages-announcements.ts'),
+  });
 }
 
 const FIXTURE = JSON.parse(read('tests/fixtures/announcement-content-policy.json'));
@@ -51,7 +59,7 @@ test('RT-P2-5 TypeScript sanitizer policy matches the shared allowlist fixture',
 });
 
 test('RT-P1-2 client image cap is derived from the server cap and stays satisfiable', () => {
-  const limits = loadTs('src/lib/announcement-limits.ts');
+  const limits = loadAnnouncementLimits();
   const serverCap = FIXTURE.editorLimits.maxContentChars;
 
   assert.equal(limits.MAX_ANNOUNCEMENT_CONTENT_CHARS, serverCap);
@@ -118,7 +126,7 @@ test('RT-P1-2 editor enforces the derived image cap and warns before the server 
 });
 
 test('RT-P1-2 several images at the cap cannot compose an unpublishable document', () => {
-  const limits = loadTs('src/lib/announcement-limits.ts');
+  const limits = loadAnnouncementLimits();
   const serverCap = FIXTURE.editorLimits.maxContentChars;
 
   // The per-image cap alone does not bound the document. Two images at the cap
@@ -145,7 +153,7 @@ test('RT-P1-2 several images at the cap cannot compose an unpublishable document
 });
 
 test('RT-P1-2 publish is blocked client-side on every authoring surface', () => {
-  const limits = loadTs('src/lib/announcement-limits.ts');
+  const limits = loadAnnouncementLimits();
 
   // A warning is not a gate: content over the cap that still reaches the server
   // comes back as an opaque 400 with nothing actionable, which is the dead-end

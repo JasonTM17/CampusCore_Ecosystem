@@ -58,17 +58,22 @@ function keyPaths(value, prefix = '') {
 // ---------------------------------------------------------------------------
 
 function renderTableTemplate() {
-  const line = read('src/components/ui/rich-text-editor.tsx')
+  const source = read('src/components/ui/rich-text-editor.tsx');
+  const line = source
     .split(/\r?\n/)
-    .find((candidate) => candidate.includes("| ${isVi ? 'Tiêu chí'"));
+    .find((candidate) => candidate.includes('copy.table.header1'));
 
   assert.ok(line, 'the three-column table template must stay in rich-text-editor.tsx');
+  assert.match(source, /const copy = isVi \? editorSurfacesVi\.richText : editorSurfacesEn\.richText/);
   const start = line.indexOf('`');
   const end = line.lastIndexOf('`');
   assert.ok(start !== -1 && end > start, 'table template must be a template literal');
   const template = line.slice(start + 1, end);
+  const { editorSurfacesEn, editorSurfacesVi } = loadModule('src/i18n/messages-editor.ts');
 
-  return (isVi) => Function('isVi', `return \`${template}\`;`)(isVi);
+  return (isVi) => Function('copy', `return \`${template}\`;`)(
+    isVi ? editorSurfacesVi.richText : editorSurfacesEn.richText,
+  );
 }
 
 test('rich-text-editor inserts a structurally valid three-column table in both locales', () => {
@@ -100,6 +105,7 @@ test('rich-text-editor inserts a structurally valid three-column table in both l
 
 test('rich-text-editor code snippet comment follows the active locale', () => {
   const source = read('src/components/ui/rich-text-editor.tsx');
+  const { editorSurfacesEn, editorSurfacesVi } = loadModule('src/i18n/messages-editor.ts');
 
   assert.equal(
     source.includes("insertSnippet('```java\\n// Mã nguồn minh họa\\n```')"),
@@ -112,9 +118,11 @@ test('rich-text-editor code snippet comment follows the active locale', () => {
     .find((candidate) => candidate.includes('insertSnippet(') && candidate.includes('```java'));
   assert.ok(codeLine, 'the code-block snippet must stay in rich-text-editor.tsx');
   assert.ok(
-    codeLine.includes("isVi ? '// Mã nguồn minh họa' : '// Sample code'"),
-    `code-block snippet must branch on locale: ${codeLine}`,
+    codeLine.includes('copy.codeComment'),
+    `code-block snippet must use the editor fragment: ${codeLine}`,
   );
+  assert.equal(editorSurfacesVi.richText.codeComment, '// Mã nguồn minh họa');
+  assert.equal(editorSurfacesEn.richText.codeComment, '// Sample code');
 });
 
 // ---------------------------------------------------------------------------
@@ -123,15 +131,32 @@ test('rich-text-editor code snippet comment follows the active locale', () => {
 
 test('semester name placeholder is English in the English locale', () => {
   const source = read('src/app/admin/semesters/page.tsx');
+  // W17 P3: the semester page copy moved into the adminAcademics fragment, so
+  // the placeholder values are asserted on the catalogue the page now reads.
+  const { adminAcademicsEn, adminAcademicsVi } = loadModule('src/i18n/messages-admin-academics.ts');
 
   assert.match(
     source,
     /placeholder=\{copy\.fields\.namePlaceholder\}/,
     'the name field must read the localized placeholder from its page copy',
   );
-  assert.equal(source.includes("'e.g. Học kỳ Thu 2026'"), false, 'English placeholder must not mix Vietnamese');
-  assert.match(source, /namePlaceholder: 'e\.g\. Fall Semester 2026'/);
-  assert.match(source, /namePlaceholder: 'Ví dụ: Học kỳ Thu 2026'/);
+  assert.match(
+    source,
+    /placeholder=\{copy\.fields\.englishNamePlaceholder\}/,
+    'the English-name field must read its localized placeholder from the page copy',
+  );
+  assert.equal(
+    adminAcademicsEn.semesters.fields.englishNamePlaceholder,
+    'e.g. Fall 2026',
+    'English placeholder must not mix Vietnamese',
+  );
+  assert.equal(
+    adminAcademicsEn.semesters.fields.namePlaceholder,
+    'e.g. Fall Semester 2026',
+    'the English page copy keeps the English semester-name example',
+  );
+  assert.equal(adminAcademicsVi.semesters.fields.namePlaceholder, 'Ví dụ: Học kỳ Thu 2026');
+  assert.equal(adminAcademicsVi.semesters.fields.englishNamePlaceholder, 'Ví dụ: Fall 2026');
 });
 
 // ---------------------------------------------------------------------------
@@ -224,15 +249,20 @@ test('advisor directory supervision column label is semantically aligned', () =>
 test('admin audit search placeholder is neutral and localized', () => {
   const source = read('src/app/admin/audit/page.tsx');
 
-  assert.match(source, /placeholder=\{copy\.searchPlaceholder\}/);
+  assert.match(source, /placeholder=\{\(locale === 'vi' \? adminOpsVi : adminOpsEn\)\.audit\.searchPlaceholder\}/);
   assert.equal(source.includes('Nguyễn Tiến Sơn'), false);
   assert.equal(source.includes('E2E PROBE'), false);
 
-  const { en, vi } = loadMessages();
-  assert.ok(en.admin.auditTrail.searchPlaceholder.trim());
-  assert.ok(vi.admin.auditTrail.searchPlaceholder.trim());
-  assert.notEqual(en.admin.auditTrail.searchPlaceholder, vi.admin.auditTrail.searchPlaceholder);
-  assert.doesNotMatch(en.admin.auditTrail.searchPlaceholder, /Nguyễn Tiến Sơn|E2E PROBE/);
+  const opsOutput = ts.transpileModule(read('src/i18n/messages-admin-ops.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const opsModule = { exports: {} };
+  Function('module', 'exports', 'require', opsOutput)(opsModule, opsModule.exports, () => ({}));
+  const { adminOpsEn, adminOpsVi } = opsModule.exports;
+  assert.ok(adminOpsEn.audit.searchPlaceholder.trim());
+  assert.ok(adminOpsVi.audit.searchPlaceholder.trim());
+  assert.notEqual(adminOpsEn.audit.searchPlaceholder, adminOpsVi.audit.searchPlaceholder);
+  assert.doesNotMatch(adminOpsEn.audit.searchPlaceholder, /Nguyễn Tiến Sơn|E2E PROBE/);
 });
 
 // ---------------------------------------------------------------------------
@@ -242,18 +272,22 @@ test('admin audit search placeholder is neutral and localized', () => {
 
 test('rich-content callout labels follow the active locale', () => {
   const source = read('src/components/ui/rich-content-renderer.tsx');
+  const { editorSurfacesEn, editorSurfacesVi } = loadModule('src/i18n/messages-editor.ts');
 
   assert.match(source, /function AlertCallout[\s\S]*?const \{ locale \} = useI18n\(\)/);
+  assert.match(source, /const calloutCopy = vi \? editorSurfacesVi\.renderer\.callout : editorSurfacesEn\.renderer\.callout/);
 
   const labels = [
-    ["vi ? 'LƯU Ý (NOTE)' : 'NOTE'"],
-    ["vi ? 'MẸO (TIP)' : 'TIP'"],
-    ["vi ? 'QUAN TRỌNG (IMPORTANT)' : 'IMPORTANT'"],
-    ["vi ? 'CẢNH BÁO (WARNING)' : 'WARNING'"],
-    ["vi ? 'CHÚ Ý NGUY CƠ (CAUTION)' : 'CAUTION'"],
+    ['note', 'Note', 'LƯU Ý (NOTE)'],
+    ['tip', 'Tip', 'MẸO (TIP)'],
+    ['important', 'Important', 'QUAN TRỌNG (IMPORTANT)'],
+    ['warning', 'Warning', 'CẢNH BÁO (WARNING)'],
+    ['caution', 'Caution', 'CHÚ Ý NGUY CƠ (CAUTION)'],
   ];
-  for (const label of labels) {
-    assert.ok(source.includes(`label: ${label}`), `callout label must branch on locale: ${label}`);
+  for (const [key, en, vi] of labels) {
+    assert.ok(source.includes(`label: calloutCopy.${key}`), `${key} callout label must use localized copy`);
+    assert.equal(editorSurfacesEn.renderer.callout[key], en);
+    assert.equal(editorSurfacesVi.renderer.callout[key], vi);
   }
 });
 
@@ -316,8 +350,11 @@ function templateObjects(relativePath, arrayName) {
     true,
     ts.ScriptKind.TSX,
   );
-  const initializer = findVariableInitializer(sourceFile, arrayName);
+  let initializer = findVariableInitializer(sourceFile, arrayName);
   assert.ok(initializer, `${arrayName} must stay declared in ${relativePath}`);
+  if (ts.isAsExpression(initializer) || ts.isTypeAssertionExpression(initializer) || ts.isSatisfiesExpression(initializer)) {
+    initializer = initializer.expression;
+  }
   assert.ok(ts.isArrayLiteralExpression(initializer), `${arrayName} must stay an array literal`);
 
   return initializer.elements.map((element, index) => {
@@ -355,15 +392,23 @@ function assertBilingualTemplate(displayName, labels, properties) {
 test('Markdown editor templates insert an English body in the English locale', () => {
   const templates = templateObjects('src/components/ui/rich-text-editor.tsx', 'ACADEMIC_TEMPLATES');
   assert.equal(templates.length, 3, 'the Markdown editor must keep its three academic templates');
+  const { editorSurfacesEn, editorSurfacesVi } = loadModule('src/i18n/messages-editor.ts');
   for (const properties of templates) {
+    const id = properties.get('id');
     assertBilingualTemplate(
-      properties.get('nameEn'),
-      ['nameVi', 'nameEn', 'descriptionVi', 'descriptionEn', 'contentVi', 'contentEn'],
+      id,
+      ['contentVi', 'contentEn'],
       properties,
     );
+    assert.ok(editorSurfacesEn.templates.richText[id].title.trim(), `${id} English title must be localized`);
+    assert.ok(editorSurfacesVi.templates.richText[id].title.trim(), `${id} Vietnamese title must be localized`);
+    assert.ok(editorSurfacesEn.templates.richText[id].description.trim(), `${id} English description must be localized`);
+    assert.ok(editorSurfacesVi.templates.richText[id].description.trim(), `${id} Vietnamese description must be localized`);
   }
 
   const source = read('src/components/ui/rich-text-editor.tsx');
+  assert.match(source, /templateCopy\[tmpl\.id\]\.title/);
+  assert.match(source, /templateCopy\[tmpl\.id\]\.description/);
   assert.match(
     source,
     /handleTextChange\(isVi \? tmpl\.contentVi : tmpl\.contentEn\)/,
@@ -374,15 +419,23 @@ test('Markdown editor templates insert an English body in the English locale', (
 test('TinyMCE templates insert an English body in the English locale', () => {
   const templates = templateObjects('src/components/ui/tinymce-editor.tsx', 'TINYMCE_TEMPLATES');
   assert.equal(templates.length, 4, 'the TinyMCE editor must keep its four academic templates');
+  const { editorSurfacesEn, editorSurfacesVi } = loadModule('src/i18n/messages-editor.ts');
   for (const properties of templates) {
+    const id = properties.get('id');
     assertBilingualTemplate(
-      properties.get('titleEn'),
-      ['titleVi', 'titleEn', 'descriptionVi', 'descriptionEn', 'contentVi', 'contentEn'],
+      id,
+      ['contentVi', 'contentEn'],
       properties,
     );
+    assert.ok(editorSurfacesEn.templates.tinyMce[id].title.trim(), `${id} English title must be localized`);
+    assert.ok(editorSurfacesVi.templates.tinyMce[id].title.trim(), `${id} Vietnamese title must be localized`);
+    assert.ok(editorSurfacesEn.templates.tinyMce[id].description.trim(), `${id} English description must be localized`);
+    assert.ok(editorSurfacesVi.templates.tinyMce[id].description.trim(), `${id} Vietnamese description must be localized`);
   }
 
   const source = read('src/components/ui/tinymce-editor.tsx');
+  assert.match(source, /templateCopy\[tmpl\.id\]\.title/);
+  assert.match(source, /templateCopy\[tmpl\.id\]\.description/);
   assert.match(
     source,
     /handleInsertTemplate\(isVi \? tmpl\.contentVi : tmpl\.contentEn\)/,
@@ -427,8 +480,8 @@ test('editor block library and template library resolve bodies by locale', () =>
 
   const page = read('src/app/dashboard/editor/page.tsx');
   assert.match(page, /htmlContent: getEditorBlockHtml\(type, isVi\)/);
-  assert.match(page, /buildDefaultBlocks\(messages\.editor\.blocks, isVi\)/);
-  assert.match(page, /applyTemplate\(getEditorTemplateHtml\(templateId, isVi\), templateCopy\.name\)/);
+  assert.match(page, /buildDefaultBlocks\(copy\.blocks, isVi\)/);
+  assert.match(page, /applyTemplate\(getEditorTemplateHtml\(templateId, isVi\), templateCopy\.title\)/);
 });
 
 // ---------------------------------------------------------------------------
@@ -452,6 +505,7 @@ function loadPresentation() {
     '@/lib/html-sanitizer': loadModule('src/lib/html-sanitizer.ts'),
     '@/lib/api': {},
     '@/i18n/config': {},
+    '@/i18n/messages-announcements': loadModule('src/i18n/messages-announcements.ts'),
   });
 }
 
@@ -614,17 +668,16 @@ test('localized social-image route resolves the same catalogue copy', () => {
 
 test('site editor author fallbacks follow the active locale', () => {
   const source = read('src/app/dashboard/editor/page.tsx');
+  const { editorSurfacesEn, editorSurfacesVi } = loadModule('src/i18n/messages-editor.ts');
 
   assert.equal(source.includes(": 'Phòng Đào Tạo & Ban Giám Hiệu';"), false);
   assert.equal(source.includes("ann.publishedBy || 'Phòng Đào tạo'"), false);
-  assert.match(
-    source,
-    /isVi\s*\?\s*'Phòng Đào Tạo & Ban Giám Hiệu'\s*:\s*'Academic Affairs Office & Board of Directors'/,
-  );
-  assert.match(
-    source,
-    /const fallbackPublisher = isVi\s*\?\s*'Phòng Đào tạo'\s*:\s*'Academic Affairs Office'/,
-  );
+  assert.match(source, /: copy\.publisherFallback/);
+  assert.match(source, /const fallbackPublisher = copy\.authorFallback/);
+  assert.equal(editorSurfacesVi.studio.publisherFallback, 'Phòng Đào Tạo & Ban Giám Hiệu');
+  assert.equal(editorSurfacesEn.studio.publisherFallback, 'Academic Affairs Office & Board of Directors');
+  assert.equal(editorSurfacesVi.studio.authorFallback, 'Phòng Đào tạo');
+  assert.equal(editorSurfacesEn.studio.authorFallback, 'Academic Affairs Office');
   assert.equal(
     (source.match(/fallbackPublisher/g) || []).length,
     3,

@@ -418,15 +418,23 @@ test('dogfood audit: admin enrollments section lookup respects the 100 cap and c
 
 test('feedback polish: admin enrollment opens a student-focused detail profile', () => {
   const page = read('src/app/admin/enrollments/page.tsx');
+  // W17 P3: the profile labels live in the adminAcademics fragment now; the
+  // page still renders them through its `copy` group.
+  const catalogue = read('src/i18n/messages-admin-academics.ts');
 
   assert.match(page, /function getLearnerLabel\(enrollment: Enrollment\)/);
   assert.match(page, /function getStudentCodeLabel\(enrollment: Enrollment\)/);
-  assert.match(page, /viewStudentLabel: \(learnerLabel: string\) =>/);
-  assert.match(page, /type="button"[\s\S]{0,500}?copy\.viewStudentLabel\(learnerLabel\)/);
+  assert.match(page, /const viewStudentLabel = \(learnerLabel: string\) =>/);
+  assert.match(page, /type="button"[\s\S]{0,500}?viewStudentLabel\(learnerLabel\)/);
   assert.match(page, /title=\{copy\.detail\.title\}/);
-  assert.match(page, /studentProfile: 'Student profile'/);
-  assert.match(page, /studentCode: 'Student code'/);
-  assert.match(page, /enrollmentId: 'Enrollment ID'/);
+  for (const literal of [
+    "studentProfile: 'Student profile'",
+    "studentCode: 'Student code'",
+    "enrollmentId: 'Enrollment ID'",
+  ]) {
+    assert.equal(catalogue.includes(literal), true, `the catalogue must carry ${literal}`);
+    assert.equal(page.includes(literal), false, `the page still owns ${literal}`);
+  }
   assert.match(page, /getStudentCodeLabel\(selectedEnrollment\)/);
   assert.match(page, /selectedEnrollment\.finalGrade !== null &&[\s\S]{0,90}?selectedEnrollment\.finalGrade !== undefined/);
   assert.doesNotMatch(page, /selectedEnrollment\.finalGrade \?/);

@@ -9,6 +9,7 @@ import { AuthShell } from '@/components/auth/AuthShell';
 import { LocalizedLink } from '@/components/LocalizedLink';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { authPagesEn, authPagesVi } from '@/i18n/messages-auth';
 import { useI18n } from '@/i18n';
 import type { User } from '@/types/api';
 import { API_BASE_URL, SessionVerificationError } from '@/lib/api';
@@ -108,6 +109,7 @@ export default function LoginPage() {
   const formErrorRef = useRef<HTMLDivElement>(null);
   const { login, verifyTwoFactor, logout } = useAuth();
   const { href, messages, locale } = useI18n();
+  const loginCopy = locale === 'vi' ? authPagesVi.login : authPagesEn.login;
   const router = useRouter();
   const searchParams = useSearchParams();
   const portal = parseLoginPortal(searchParams.get('portal'));
@@ -374,7 +376,7 @@ export default function LoginPage() {
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <span className="font-semibold text-foreground flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-              {locale === 'vi' ? 'Tài khoản demo để trải nghiệm:' : 'Demo account to experience the system:'}
+              {loginCopy.demoIntro}
             </span>
             <button
               type="button"
@@ -389,11 +391,11 @@ export default function LoginPage() {
               className="inline-flex min-h-8 shrink-0 items-center text-primary hover:underline font-semibold text-xs gap-1 cursor-pointer"
             >
               <ArrowRight className="h-3.5 w-3.5" />
-              {locale === 'vi' ? 'Điền nhanh' : 'Quick fill'}
+              {loginCopy.quickFill}
             </button>
           </div>
           {portal === 'student' ? (
-            <div className="space-y-1" role="group" aria-label={locale === 'vi' ? 'Chọn tài khoản sinh viên demo' : 'Choose a demo student account'}>
+            <div className="space-y-1" role="group" aria-label={loginCopy.chooseDemoAria}>
               {STUDENT_DEMO_ACCOUNTS.map((account) => {
                 const active = email === account.email;
                 return (
@@ -414,7 +416,7 @@ export default function LoginPage() {
                       {account.name}
                       {account.leader ? (
                         <span className="ml-1.5 rounded bg-primary/15 px-1.5 py-px text-[10px] font-semibold text-primary align-middle">
-                          {locale === 'vi' ? 'Nhóm trưởng' : 'Leader'}
+                          {loginCopy.leaderBadge}
                         </span>
                       ) : null}
                     </span>
@@ -424,7 +426,7 @@ export default function LoginPage() {
               })}
               <div className="flex items-center justify-between gap-2 px-2 pt-1">
                 <span className="text-[11px] text-muted-foreground">
-                  {locale === 'vi' ? 'Mật khẩu chung' : 'Shared password'}
+                  {loginCopy.sharedPassword}
                 </span>
                 <span className="text-[11px] bg-secondary px-2 py-0.5 rounded text-foreground font-mono font-medium">
                   {demoCredentials.password}
@@ -497,12 +499,12 @@ export default function LoginPage() {
                     )}
                   >
                     {reason === 'signed-out'
-                      ? (locale === 'vi' ? 'Đã đăng xuất an toàn' : 'Signed Out Securely')
+                      ? (loginCopy.signedOutTitle)
                       : notice.title}
                   </span>
                   {reason === 'signed-out' && (
                     <span className="inline-flex items-center rounded-xs bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
-                      {locale === 'vi' ? 'Bảo mật hệ thống' : 'System Secured'}
+                      {loginCopy.securedTitle}
                     </span>
                   )}
                 </div>
@@ -527,7 +529,7 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => setNoticeDismissed(true)}
                 className="absolute top-3.5 right-3.5 rounded-md p-1 text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
-                aria-label={locale === 'vi' ? 'Đóng thông báo' : 'Dismiss notice'}
+                aria-label={loginCopy.dismissNoticeAria}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -661,7 +663,7 @@ export default function LoginPage() {
                 : email === demoCredentials.email) ? (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-400">
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  {locale === 'vi' ? 'Tài khoản demo để trải nghiệm' : 'Demo experience account'}
+                  {loginCopy.demoSectionAria}
                 </span>
               ) : null}
             </div>
@@ -716,9 +718,9 @@ export default function LoginPage() {
                   href="/forgot-password"
                   className="font-medium text-primary hover:underline"
                 >
-                  {locale === 'vi' ? 'Quên mật khẩu?' : 'Forgot your password?'}
+                  {loginCopy.forgotPassword}
                 </LocalizedLink>{' '}
-                {locale === 'vi' ? 'Liên hệ ' : 'Contact '}
+                {loginCopy.contactPrefix}
                 {portalCopy.officeSupport}.
               </p>
             )}
@@ -756,7 +758,7 @@ export default function LoginPage() {
                 </div>
                 <div className="relative flex justify-center text-xs">
                   <span className="bg-background px-2 text-muted-foreground">
-                    {locale === 'vi' ? 'hoặc' : 'or'}
+                    {loginCopy.or}
                   </span>
                 </div>
               </div>
@@ -769,7 +771,7 @@ export default function LoginPage() {
                 className="inline-flex w-full min-h-10 items-center justify-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                {locale === 'vi' ? 'Đăng nhập qua SSO' : 'Sign in with SSO'}
+                {loginCopy.sso}
               </a>
             </div>
           ) : null}

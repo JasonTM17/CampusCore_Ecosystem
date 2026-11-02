@@ -153,8 +153,12 @@ test('student enrollments use complete mobile cards and a separate desktop table
 
 test('enrollment and thesis status fallbacks stay human-readable', () => {
   const enrollmentPage = read('src/app/admin/enrollments/page.tsx');
-  assert.match(enrollmentPage, /ENROLLED: 'Đã đăng ký'/);
-  assert.match(enrollmentPage, /ENROLLED: 'Registered'/);
+  // W17 P3: the status vocabulary moved to the adminAcademics fragment; the page
+  // still resolves unknown service enums through it before the shared fallback.
+  const enrollmentCatalogue = read('src/i18n/messages-admin-academics.ts');
+  assert.match(enrollmentCatalogue, /ENROLLED: 'Đã đăng ký'/);
+  assert.match(enrollmentCatalogue, /ENROLLED: 'Registered'/);
+  assert.match(enrollmentPage, /copy\.statusOptions\[status as keyof typeof copy\.statusOptions\]/);
   assert.match(enrollmentPage, /messages\.common\.statuses\.UNKNOWN/);
   assert.doesNotMatch(enrollmentPage, /\?\?\s*(?:enrollment|selectedEnrollment)\.status/);
 
@@ -356,14 +360,17 @@ test('milestone 2: component i18n localization in admin and announcements', () =
   assert.equal(rawPdt, null, 'all PĐT avatar badges must be localized');
 
   const editModal = read('src/components/announcements/AnnouncementEditModal.tsx');
-  assert.match(editModal, /isVi\s*\?\s*'Chỉnh sửa nhanh qua giao diện quản trị Bảng tin'\s*:\s*'Quick edit via Admin Announcements'/);
-  assert.match(editModal, /publishedBy \|\| \(isVi \? 'Phòng Đào tạo' : 'Office of Academic Affairs'\)/);
+  // The quick-edit copy moved to the announcement workspace catalogue; the
+  // component resolves it by locale instead of owning the two strings.
+  assert.match(editModal, /@\/i18n\/messages-announcements/);
+  assert.match(editModal, /copy\.quickEditReason/);
+  assert.match(editModal, /copy\.defaultPublisher/);
 
   const createModal = read('src/components/announcements/LecturerAnnouncementCreateModal.tsx');
-  assert.match(createModal, /defaultContentVi:/);
-  assert.match(createModal, /defaultContentEn:/);
-  assert.match(createModal, /isVi \? PRESETS\[0\]\.defaultContentVi : PRESETS\[0\]\.defaultContentEn/);
-  assert.match(createModal, /setContent\(isVi \? preset\.defaultContentVi : preset\.defaultContentEn\)/);
+  assert.match(createModal, /@\/i18n\/messages-announcements/);
+  assert.match(createModal, /const templateBodies = workspaceCopy\.templates\.body;/);
+  assert.match(createModal, /setContent\(templateBodies\[preset\.key\]\)/);
+  assert.doesNotMatch(createModal, /defaultContentVi|defaultContentEn/);
 
   const notFound = read('src/app/not-found.tsx');
   assert.match(notFound, /useI18n/);
@@ -380,14 +387,8 @@ test('milestone 2: a11y keyboard focus indicators and accessible names', () => {
   );
 
   const editor = read('src/components/ui/rich-text-editor.tsx');
-  assert.match(
-    editor,
-    /aria-label=\{isVi \? 'Hoàn tác \(Ctrl\+Z\)' : 'Undo \(Ctrl\+Z\)'\}/,
-  );
-  assert.match(
-    editor,
-    /aria-label=\{isVi \? 'Chèn liên kết \(Ctrl\+K\)' : 'Insert Link \(Ctrl\+K\)'\}/,
-  );
+  assert.match(editor, /aria-label=\{copy\.undo\}/);
+  assert.match(editor, /aria-label=\{copy\.insertLink\}/);
 
   const feedCard = read('src/components/announcements/feed/AnnouncementFeedCard.tsx');
   const matches = feedCard.match(

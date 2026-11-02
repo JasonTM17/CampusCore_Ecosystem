@@ -34,6 +34,10 @@ import { useConfirmationDialog } from '@/components/ui/use-confirmation-dialog';
 import { EDIT_BANNER_PRESETS } from '@/components/announcements/AnnouncementEditModal';
 import { cn } from '@/lib/utils';
 import { replaceCoverBlock, removeCoverBlock } from '@/lib/cover-banner';
+import {
+  announcementWorkspaceEn,
+  announcementWorkspaceVi,
+} from '@/i18n/messages-announcements';
 import { toast } from 'sonner';
 
 interface LecturerAnnouncementCreateModalProps {
@@ -49,137 +53,13 @@ interface PresetItem {
   key: PresetKey;
   icon: React.ElementType;
   defaultPriority: 'NORMAL' | 'HIGH' | 'URGENT';
-  defaultContent: string;
-  defaultContentVi: string;
-  defaultContentEn: string;
 }
 
 const PRESETS: PresetItem[] = [
-  {
-    key: 'LEAVE_MAKEUP',
-    icon: CalendarOff,
-    defaultPriority: 'HIGH',
-    defaultContent: `<p>Kính gửi các bạn sinh viên lớp học phần,</p>
-<p>Giảng viên phụ trách thông báo về việc hoãn buổi học và kế hoạch học bù như sau:</p>
-<ul>
-  <li><strong>Thời gian nghỉ:</strong> Buổi học ngày ... (Thứ ..., Tiết ...).</li>
-  <li><strong>Lý do:</strong> Công tác chuyên môn đột xuất của Giảng viên.</li>
-  <li><strong>Kế hoạch học bù:</strong> Buổi học bù dự kiến diễn ra vào Thứ ..., ngày ... (Tiết ...) tại phòng học ... / học trực tuyến qua MS Teams.</li>
-</ul>
-<p>Đề nghị ban cán sự lớp thông báo đến toàn thể các bạn sinh viên trong lớp để nắm thông tin và tham gia học bù đầy đủ.</p>
-<p>Trân trọng cảm ơn các em./.</p>`,
-    defaultContentVi: `<p>Kính gửi các bạn sinh viên lớp học phần,</p>
-<p>Giảng viên phụ trách thông báo về việc hoãn buổi học và kế hoạch học bù như sau:</p>
-<ul>
-  <li><strong>Thời gian nghỉ:</strong> Buổi học ngày ... (Thứ ..., Tiết ...).</li>
-  <li><strong>Lý do:</strong> Công tác chuyên môn đột xuất của Giảng viên.</li>
-  <li><strong>Kế hoạch học bù:</strong> Buổi học bù dự kiến diễn ra vào Thứ ..., ngày ... (Tiết ...) tại phòng học ... / học trực tuyến qua MS Teams.</li>
-</ul>
-<p>Đề nghị ban cán sự lớp thông báo đến toàn thể các bạn sinh viên trong lớp để nắm thông tin và tham gia học bù đầy đủ.</p>
-<p>Trân trọng cảm ơn các em./.</p>`,
-    defaultContentEn: `<p>Dear students of the course section,</p>
-<p>The instructor announces a class postponement and the makeup session plan as follows:</p>
-<ul>
-  <li><strong>Postponed session:</strong> Class on ... (Day ..., Period ...).</li>
-  <li><strong>Reason:</strong> Urgent academic or professional duty.</li>
-  <li><strong>Makeup session plan:</strong> Scheduled for Day ..., date ... (Period ...) at room ... / online via MS Teams.</li>
-</ul>
-<p>Class representatives are requested to notify all students to ensure full attendance.</p>
-<p>Best regards./.</p>`,
-  },
-  {
-    key: 'ASSIGNMENT_DEADLINE',
-    icon: FileCheck,
-    defaultPriority: 'HIGH',
-    defaultContent: `<p>Kính gửi sinh viên các nhóm lớp học phần,</p>
-<p>Giảng viên xin nhắc nhở về thời hạn và quy cách nộp sản phẩm Bài tập lớn / Đồ án môn học như sau:</p>
-<ul>
-  <li><strong>Hạn chót nộp bài:</strong> 23h59 ngày ... (Hệ thống sẽ tự động khóa nộp bài sau thời gian này).</li>
-  <li><strong>Hồ sơ nộp gồm:</strong> Báo cáo định dạng PDF, Slide thuyết trình và Mã nguồn đính kèm đặt tên theo cú pháp: <code>[Nhom_XX]_[TenMonHoc].zip</code>.</li>
-  <li><strong>Lưu ý:</strong> Mọi trường hợp nộp muộn vì lý do cá nhân không chính đáng sẽ bị trừ điểm theo quy định. Các nhóm gặp sự cố kỹ thuật cần báo ngay cho giảng viên trước hạn chót.</li>
-</ul>
-<p>Chúc các bạn hoàn thành bài tập đúng tiến độ và đạt kết quả cao./.</p>`,
-    defaultContentVi: `<p>Kính gửi sinh viên các nhóm lớp học phần,</p>
-<p>Giảng viên xin nhắc nhở về thời hạn và quy cách nộp sản phẩm Bài tập lớn / Đồ án môn học như sau:</p>
-<ul>
-  <li><strong>Hạn chót nộp bài:</strong> 23h59 ngày ... (Hệ thống sẽ tự động khóa nộp bài sau thời gian này).</li>
-  <li><strong>Hồ sơ nộp gồm:</strong> Báo cáo định dạng PDF, Slide thuyết trình và Mã nguồn đính kèm đặt tên theo cú pháp: <code>[Nhom_XX]_[TenMonHoc].zip</code>.</li>
-  <li><strong>Lưu ý:</strong> Mọi trường hợp nộp muộn vì lý do cá nhân không chính đáng sẽ bị trừ điểm theo quy định. Các nhóm gặp sự cố kỹ thuật cần báo ngay cho giảng viên trước hạn chót.</li>
-</ul>
-<p>Chúc các bạn hoàn thành bài tập đúng tiến độ và đạt kết quả cao./.</p>`,
-    defaultContentEn: `<p>Dear students and course project teams,</p>
-<p>This is a reminder regarding the deadline and submission requirements for the major assignment / course project:</p>
-<ul>
-  <li><strong>Submission deadline:</strong> 23:59 on ... (The submission portal will close automatically after this deadline).</li>
-  <li><strong>Submission deliverables:</strong> PDF report, presentation slides, and source code archive named: <code>[Group_XX]_[CourseCode].zip</code>.</li>
-  <li><strong>Note:</strong> Late submissions without prior valid approval will be penalized per course regulations. Any technical issues must be reported to the instructor before the deadline.</li>
-</ul>
-<p>Wishing you productive completion and high marks on your submission./.</p>`,
-  },
-  {
-    key: 'EXAM_SCHEDULE',
-    icon: GraduationCap,
-    defaultPriority: 'URGENT',
-    defaultContent: `<p>Kính gửi các bạn sinh viên,</p>
-<p>Kế hoạch bài kiểm tra giữa kỳ (chiếm 50% điểm quá trình học phần) được sắp xếp cụ thể như sau:</p>
-<ul>
-  <li><strong>Thời gian kiểm tra:</strong> Tiết ..., Thứ ..., ngày ... tại phòng học ...</li>
-  <li><strong>Hình thức:</strong> Bài kiểm tra trắc nghiệm kết hợp tự luận (Thời gian làm bài: 60 phút).</li>
-  <li><strong>Nội dung trọng tâm:</strong> Toàn bộ kiến thức từ Chương 1 đến Chương ...</li>
-  <li><strong>Quy định:</strong> Sinh viên mang theo Thẻ sinh viên hoặc CCCD để đối chiếu; không sử dụng tài liệu trong phòng thi.</li>
-</ul>
-<p>Đề nghị các bạn sinh viên chuẩn bị chu đáo để làm bài đạt kết quả tốt nhất./.</p>`,
-    defaultContentVi: `<p>Kính gửi các bạn sinh viên,</p>
-<p>Kế hoạch bài kiểm tra giữa kỳ (chiếm 50% điểm quá trình học phần) được sắp xếp cụ thể như sau:</p>
-<ul>
-  <li><strong>Thời gian kiểm tra:</strong> Tiết ..., Thứ ..., ngày ... tại phòng học ...</li>
-  <li><strong>Hình thức:</strong> Bài kiểm tra trắc nghiệm kết hợp tự luận (Thời gian làm bài: 60 phút).</li>
-  <li><strong>Nội dung trọng tâm:</strong> Toàn bộ kiến thức từ Chương 1 đến Chương ...</li>
-  <li><strong>Quy định:</strong> Sinh viên mang theo Thẻ sinh viên hoặc CCCD để đối chiếu; không sử dụng tài liệu trong phòng thi.</li>
-</ul>
-<p>Đề nghị các bạn sinh viên chuẩn bị chu đáo để làm bài đạt kết quả tốt nhất./.</p>`,
-    defaultContentEn: `<p>Dear students,</p>
-<p>The midterm exam schedule (accounting for 50% of the course continuous assessment) is arranged as follows:</p>
-<ul>
-  <li><strong>Exam schedule:</strong> Period ..., Day ..., date ... in room ...</li>
-  <li><strong>Exam format:</strong> Multiple-choice combined with constructed response (Duration: 60 minutes).</li>
-  <li><strong>Scope:</strong> Core topics from Chapter 1 through Chapter ...</li>
-  <li><strong>Regulations:</strong> Students must present their Student ID or National ID card; no unauthorized reference materials allowed in the exam room.</li>
-</ul>
-<p>Please prepare thoroughly to achieve your best performance./.</p>`,
-  },
-  {
-    key: 'COURSE_GENERAL',
-    icon: BookOpen,
-    defaultPriority: 'NORMAL',
-    defaultContent: `<p>Kính gửi các bạn sinh viên lớp học phần,</p>
-<p>Giảng viên gửi đến các bạn một số thông tin và dặn dò quan trọng cho tuần học tiếp theo:</p>
-<ul>
-  <li>Đã tải lên Slide bài giảng và bài tập thực hành tuần này lên hệ thống.</li>
-  <li>Các bạn sinh viên vui lòng đọc trước tài liệu trước khi đến lớp.</li>
-  <li>Chuẩn bị sẵn môi trường cài đặt phần mềm trên laptop cá nhân.</li>
-</ul>
-<p>Nếu có thắc mắc trong quá trình làm bài, các bạn có thể trao đổi trong giờ học hoặc gửi email cho giảng viên.</p>
-<p>Chúc các bạn có một tuần học tập hiệu quả./.</p>`,
-    defaultContentVi: `<p>Kính gửi các bạn sinh viên lớp học phần,</p>
-<p>Giảng viên gửi đến các bạn một số thông tin và dặn dò quan trọng cho tuần học tiếp theo:</p>
-<ul>
-  <li>Đã tải lên Slide bài giảng và bài tập thực hành tuần này lên hệ thống.</li>
-  <li>Các bạn sinh viên vui lòng đọc trước tài liệu trước khi đến lớp.</li>
-  <li>Chuẩn bị sẵn môi trường cài đặt phần mềm trên laptop cá nhân.</li>
-</ul>
-<p>Nếu có thắc mắc trong quá trình làm bài, các bạn có thể trao đổi trong giờ học hoặc gửi email cho giảng viên.</p>
-<p>Chúc các bạn có một tuần học tập hiệu quả./.</p>`,
-    defaultContentEn: `<p>Dear students of the course section,</p>
-<p>Please note the following important updates and guidelines for the upcoming academic week:</p>
-<ul>
-  <li>Lecture slides and lab practice materials for this week have been uploaded to the portal.</li>
-  <li>Please read the assigned materials prior to class.</li>
-  <li>Ensure all required software and development tools are set up on your personal laptops.</li>
-</ul>
-<p>If you have questions, please ask during class or contact the instructor by email.</p>
-<p>Wishing you an effective and rewarding study week./.</p>`,
-  },
+  { key: 'LEAVE_MAKEUP', icon: CalendarOff, defaultPriority: 'HIGH' },
+  { key: 'ASSIGNMENT_DEADLINE', icon: FileCheck, defaultPriority: 'HIGH' },
+  { key: 'EXAM_SCHEDULE', icon: GraduationCap, defaultPriority: 'URGENT' },
+  { key: 'COURSE_GENERAL', icon: BookOpen, defaultPriority: 'NORMAL' },
 ];
 
 export function LecturerAnnouncementCreateModal({
@@ -190,6 +70,9 @@ export function LecturerAnnouncementCreateModal({
 }: LecturerAnnouncementCreateModalProps) {
   const { locale, messages } = useI18n();
   const isVi = locale === 'vi';
+  const workspaceCopy = { en: announcementWorkspaceEn, vi: announcementWorkspaceVi }[locale];
+  const copy = workspaceCopy.composer.lecturer;
+  const templateBodies = workspaceCopy.templates.body;
   const templateCopy = messages.announcementTemplates;
   const templateMeta = (key: PresetKey) => templateCopy[key];
   const initialTemplate = templateMeta(PRESETS[0].key);
@@ -200,10 +83,10 @@ export function LecturerAnnouncementCreateModal({
   // are the pristine baseline every reset returns to and every dirty check
   // compares against.
   const initialTitle = initialTemplate.defaultTitle;
-  const initialContent = isVi ? PRESETS[0].defaultContentVi : PRESETS[0].defaultContentEn;
+  const initialContent = templateBodies.LEAVE_MAKEUP;
 
   const [title, setTitle] = useState(initialTemplate.defaultTitle);
-  const [content, setContent] = useState(isVi ? PRESETS[0].defaultContentVi : PRESETS[0].defaultContentEn);
+  const [content, setContent] = useState(templateBodies.LEAVE_MAKEUP);
   const [priority, setPriority] = useState<'URGENT' | 'HIGH' | 'NORMAL' | 'LOW'>('HIGH');
   const [selectedPreset, setSelectedPreset] = useState<PresetKey>('LEAVE_MAKEUP');
   const [editorMode, setEditorMode] = useState<'visual' | 'code' | 'preview'>('visual');
@@ -268,7 +151,7 @@ export function LecturerAnnouncementCreateModal({
   const resetForm = () => {
     setSelectedPreset(PRESETS[0].key);
     setTitle(initialTemplate.defaultTitle);
-    setContent(isVi ? PRESETS[0].defaultContentVi : PRESETS[0].defaultContentEn);
+    setContent(templateBodies.LEAVE_MAKEUP);
     setPriority('HIGH');
     setEditorMode('visual');
     setValidationError('');
@@ -297,22 +180,22 @@ export function LecturerAnnouncementCreateModal({
   const handleApplyPreset = (preset: PresetItem) => {
     setSelectedPreset(preset.key);
     setTitle(templateMeta(preset.key).defaultTitle);
-    setContent(isVi ? preset.defaultContentVi : preset.defaultContentEn);
+    setContent(templateBodies[preset.key]);
     setPriority(preset.defaultPriority);
     setValidationError('');
   };
 
   const handleFormSubmit = async (submitForReview: boolean) => {
     if (!title.trim()) {
-      setValidationError(isVi ? 'Vui lòng nhập tiêu đề thông báo' : 'Please enter a title');
+      setValidationError(copy.validationTitle);
       return;
     }
     if (!content.trim()) {
-      setValidationError(isVi ? 'Vui lòng nhập nội dung thông báo' : 'Please enter notice content');
+      setValidationError(copy.validationContent);
       return;
     }
     if (!selectedSectionId) {
-      setValidationError(isVi ? 'Vui lòng chọn lớp học phần nhận thông báo' : 'Please select the class section for this notice');
+      setValidationError(copy.validationSection);
       return;
     }
     // A fourth authoring surface: this modal writes announcements directly, so it
@@ -321,7 +204,7 @@ export function LecturerAnnouncementCreateModal({
     const overflow = findAnnouncementLengthViolation(content);
     if (overflow) {
       setValidationError(
-        announcementLengthViolationMessage(overflow, isVi ? 'vi' : 'en'),
+        announcementLengthViolationMessage(overflow, locale),
       );
       return;
     }
@@ -347,27 +230,15 @@ export function LecturerAnnouncementCreateModal({
       if (submitForReview) {
         try {
           await announcementsApi.submit(created.id);
-          toast.success(
-            isVi
-              ? 'Đã gửi thông báo vào hàng chờ duyệt — người duyệt khác sẽ xuất bản.'
-              : 'Notice submitted for review — another reviewer publishes it.',
-          );
+          toast.success(copy.submittedForReview);
         } catch {
           // The draft already exists — reporting a save failure would invite
           // a retry that creates a duplicate. The queue shows it for a
           // one-click submit instead.
-          toast.success(
-            isVi
-              ? 'Đã lưu bản nháp — gửi duyệt từ danh sách bài của bạn.'
-              : 'Draft saved — submit it for review from your notices list.',
-          );
+          toast.success(copy.draftSaved);
         }
       } else {
-        toast.success(
-          isVi
-            ? 'Đã lưu bản nháp — gửi duyệt từ danh sách bài của bạn.'
-            : 'Draft saved — submit it for review from your notices list.',
-        );
+        toast.success(copy.draftSaved);
       }
       // LEC-P3-B2: clear the saved draft BEFORE closing. The host page
       // keeps this modal mounted, so leftover state used to reopen showing
@@ -376,10 +247,7 @@ export function LecturerAnnouncementCreateModal({
       onSuccess();
       onClose();
     } catch (err: any) {
-      toast.error(
-        err?.response?.data?.message ||
-        (isVi ? 'Không thể lưu thông báo. Vui lòng thử lại.' : 'Could not save the notice. Please try again.')
-      );
+      toast.error(err?.response?.data?.message || copy.saveFailed);
     } finally {
       setIsSubmitting(false);
     }
@@ -390,7 +258,7 @@ export function LecturerAnnouncementCreateModal({
     <Modal
       isOpen={isOpen}
       onClose={() => void requestClose()}
-      title={isVi ? 'Soạn thông báo gửi sinh viên lớp học phần' : 'Draft announcement for students'}
+      title={copy.title}
       className="max-w-3xl"
     >
       <form onSubmit={(e) => { e.preventDefault(); void handleFormSubmit(true); }} className="space-y-5">
@@ -398,7 +266,7 @@ export function LecturerAnnouncementCreateModal({
         <div className="space-y-2">
           <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
-            {isVi ? 'Chọn mẫu học vụ soạn nhanh:' : 'Select quick academic template:'}
+            {copy.presetLabel}
           </label>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {PRESETS.map((p) => {
@@ -436,17 +304,17 @@ export function LecturerAnnouncementCreateModal({
             htmlFor="lecturer-announcement-section"
             className="text-xs font-semibold text-foreground"
           >
-            {isVi ? 'Lớp học phần nhận thông báo *' : 'Target class section *'}
+            {copy.sectionLabel}
           </label>
           {sectionsState === 'loading' ? (
             <div className="flex items-center gap-2 rounded-md border border-border/80 bg-secondary/20 px-3 py-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              {isVi ? 'Đang tải danh sách lớp học phần...' : 'Loading your class sections...'}
+              {copy.loadingSections}
             </div>
           ) : sectionsState === 'error' ? (
             <div className="flex items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm">
               <span className="text-destructive">
-                {isVi ? 'Không tải được danh sách lớp học phần.' : 'Could not load your class sections.'}
+                {copy.loadSectionsFailed}
               </span>
               <button
                 type="button"
@@ -454,14 +322,12 @@ export function LecturerAnnouncementCreateModal({
                 className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
               >
                 <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-                {isVi ? 'Thử lại' : 'Retry'}
+                {copy.retry}
               </button>
             </div>
           ) : sectionsState === 'ready' && sections.length === 0 ? (
             <div className="rounded-md border border-border/80 bg-secondary/20 px-3 py-2 text-sm text-muted-foreground">
-              {isVi
-                ? 'Bạn chưa được phân công lớp học phần nào — chưa thể đăng thông báo.'
-                : 'You have no assigned class sections — posting is unavailable.'}
+              {copy.noSections}
             </div>
           ) : (
             <select
@@ -471,13 +337,13 @@ export function LecturerAnnouncementCreateModal({
               className="w-full rounded-md border border-border/80 bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <option value="">
-                {isVi ? '— Chọn lớp học phần —' : '— Select a class section —'}
+                {copy.selectSection}
               </option>
               {sections.map((section) => (
                 <option key={section.id} value={section.id}>
                   {(isVi ? section.courseNameVi : section.courseNameEn) || section.courseName}
                   {' · '}
-                  {isVi ? 'Lớp' : 'Section'} {section.sectionNumber}
+                  {copy.sectionWord} {section.sectionNumber}
                   {section.semesterName ? ` · ${section.semesterName}` : ''}
                 </option>
               ))}
@@ -492,7 +358,7 @@ export function LecturerAnnouncementCreateModal({
               htmlFor="lecturer-announcement-priority"
               className="text-xs font-semibold text-foreground"
             >
-              {isVi ? 'Mức độ ưu tiên' : 'Priority'}
+              {copy.priorityLabel}
             </label>
             <select
               id="lecturer-announcement-priority"
@@ -500,20 +366,20 @@ export function LecturerAnnouncementCreateModal({
               onChange={(e) => setPriority(e.target.value as any)}
               className="w-full rounded-md border border-border/80 bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
-              <option value="NORMAL">{isVi ? 'Thông thường (NORMAL)' : 'Normal'}</option>
-              <option value="HIGH">{isVi ? 'Quan trọng (HIGH)' : 'High'}</option>
-              <option value="URGENT">{isVi ? 'Khẩn cấp (URGENT)' : 'Urgent'}</option>
-              <option value="LOW">{isVi ? 'Tham khảo (LOW)' : 'Low'}</option>
+              <option value="NORMAL">{copy.priority.NORMAL}</option>
+              <option value="HIGH">{copy.priority.HIGH}</option>
+              <option value="URGENT">{copy.priority.URGENT}</option>
+              <option value="LOW">{copy.priority.LOW}</option>
             </select>
           </div>
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-foreground">
-              {isVi ? 'Đối tượng nhận thông báo' : 'Target Audience'}
+              {copy.audienceLabel}
             </label>
             <div className="flex items-center gap-2 rounded-md border border-border/80 bg-secondary/20 px-3 py-2 text-sm text-foreground">
               <GraduationCap className="h-4 w-4 shrink-0 text-primary" />
-              <span className="min-w-0 font-medium">{isVi ? 'Sinh viên các lớp học phần' : 'Students'}</span>
+              <span className="min-w-0 font-medium">{copy.students}</span>
               <span className="ml-auto shrink-0 rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
                 STUDENT
               </span>
@@ -524,13 +390,13 @@ export function LecturerAnnouncementCreateModal({
         {/* Title */}
         <div className="space-y-1.5">
           <label htmlFor="lecturer-announcement-title" className="text-xs font-semibold text-foreground">
-            {isVi ? 'Tiêu đề thông báo *' : 'Notice Title *'}
+            {copy.titleLabel}
           </label>
           <Input
             id="lecturer-announcement-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder={isVi ? 'Nhập tiêu đề thông báo...' : 'Enter notice title...'}
+            placeholder={copy.titlePlaceholder}
             className="text-sm font-medium"
           />
         </div>
@@ -540,7 +406,7 @@ export function LecturerAnnouncementCreateModal({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <ImageIcon className="h-3.5 w-3.5 text-primary" />
-              {isVi ? 'Ảnh bìa học thuật (Bộ sưu tập HCMUTE):' : 'Editorial Cover Image (HCMUTE Collection):'}
+              {copy.coverLabel}
             </span>
             {activeCoverUrl ? (
               <button
@@ -549,15 +415,16 @@ export function LecturerAnnouncementCreateModal({
                 className="shrink-0 text-[11px] font-medium text-destructive hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <X className="h-3 w-3" />
-                {isVi ? 'Gỡ ảnh bìa' : 'Remove Cover'}
+                {copy.removeCover}
               </button>
             ) : null}
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {EDIT_BANNER_PRESETS.map((banner) => {
               const isSelected = activeCoverUrl === banner.url;
-              const bannerTitle = isVi ? banner.titleVi : banner.titleEn;
-              const bannerTag = isVi ? banner.tagVi : banner.tagEn;
+              const cover = workspaceCopy.covers[banner.id];
+              const bannerTitle = cover.title;
+              const bannerTag = cover.tag;
               return (
                 <button
                   key={banner.id}
@@ -599,7 +466,7 @@ export function LecturerAnnouncementCreateModal({
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <label className="text-xs font-semibold text-foreground">
-              {isVi ? 'Nội dung thông báo * (Hỗ trợ TinyMCE trực quan & HTML)' : 'Notice Content * (TinyMCE WYSIWYG & HTML)'}
+              {copy.contentLabel}
             </label>
             <div className="flex items-center gap-1 rounded-md border border-border/80 bg-background p-0.5 text-xs [&_button]:whitespace-nowrap">
               <button
@@ -613,7 +480,7 @@ export function LecturerAnnouncementCreateModal({
                 )}
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                {isVi ? 'Trực quan (TinyMCE)' : 'Visual'}
+                {copy.modes.visual}
               </button>
               <button
                 type="button"
@@ -626,7 +493,7 @@ export function LecturerAnnouncementCreateModal({
                 )}
               >
                 <FileEdit className="h-3.5 w-3.5" />
-                {isVi ? 'Mã nguồn' : 'Code'}
+                {copy.modes.code}
               </button>
               <button
                 type="button"
@@ -639,7 +506,7 @@ export function LecturerAnnouncementCreateModal({
                 )}
               >
                 <Eye className="h-3.5 w-3.5" />
-                {isVi ? 'Xem trước' : 'Preview'}
+                {copy.modes.preview}
               </button>
             </div>
           </div>
@@ -659,9 +526,7 @@ export function LecturerAnnouncementCreateModal({
                 locale={locale}
                 height={280}
                 placeholder={
-                  isVi
-                    ? 'Soạn thảo nội dung thông báo chuẩn học thuật gửi đến sinh viên...'
-                    : 'Compose academic notice for students...'
+                  copy.visualPlaceholder
                 }
               />
             </div>
@@ -670,7 +535,7 @@ export function LecturerAnnouncementCreateModal({
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={9}
-              placeholder={isVi ? 'Nhập nội dung thông báo gửi đến sinh viên (mã HTML hoặc văn bản)...' : 'Enter notice body (HTML or plain text)...'}
+              placeholder={copy.bodyPlaceholder}
               className="font-mono text-xs leading-relaxed"
             />
           )}
@@ -691,7 +556,7 @@ export function LecturerAnnouncementCreateModal({
             onClick={() => void requestClose()}
             disabled={isSubmitting}
           >
-            {isVi ? 'Hủy bỏ' : 'Cancel'}
+            {copy.cancel}
           </Button>
           <Button
             type="button"
@@ -699,7 +564,7 @@ export function LecturerAnnouncementCreateModal({
             disabled={isSubmitting}
             onClick={() => void handleFormSubmit(false)}
           >
-            {isVi ? 'Lưu bản nháp' : 'Save draft'}
+            {copy.saveDraft}
           </Button>
           <Button
             type="submit"
@@ -709,12 +574,12 @@ export function LecturerAnnouncementCreateModal({
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>{isVi ? 'Đang gửi duyệt...' : 'Submitting...'}</span>
+                <span>{copy.submitting}</span>
               </>
             ) : (
               <>
                 <Send className="h-4 w-4" />
-                <span>{isVi ? 'Gửi duyệt' : 'Submit for review'}</span>
+                <span>{copy.submitReview}</span>
               </>
             )}
           </Button>

@@ -17,6 +17,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { AnnouncementRecord } from '@/lib/api';
 import type { Locale } from '@/i18n/config';
+import { localeCodes } from '@/i18n/config';
 import { RichContentRenderer } from '@/components/ui/rich-content-renderer';
 import {
   calculateReadingTime,
@@ -36,6 +37,10 @@ import { TableOfContents } from '../TableOfContents';
 import { RelatedAnnouncements } from '../RelatedAnnouncements';
 import type { ReadingPreferences } from '../ReadingToolbar';
 import { useArticleTaxonomy } from '@/lib/use-article-taxonomy';
+import {
+  announcementWorkspaceEn,
+  announcementWorkspaceVi,
+} from '@/i18n/messages-announcements';
 
 interface EditorialArticleMagazineProps {
   announcement: AnnouncementRecord;
@@ -53,6 +58,7 @@ export function EditorialArticleMagazine({
   locale = 'vi',
 }: EditorialArticleMagazineProps) {
   const isVi = locale === 'vi';
+  const copy = { en: announcementWorkspaceEn, vi: announcementWorkspaceVi }[locale].reader.magazine;
   const { categories } = useArticleTaxonomy();
   const domain = resolveAnnouncementDomain(announcement, locale, categories);
   const readingTime = calculateReadingTime(announcement.content, locale);
@@ -137,7 +143,7 @@ export function EditorialArticleMagazine({
           {announcement.priority === 'HIGH' || announcement.priority === 'URGENT' ? (
             <span className="inline-flex items-center gap-1 rounded-md bg-rose-500/15 px-3 py-1 text-xs font-bold text-rose-600 dark:text-rose-400 border border-rose-500/30">
               <Sparkles className="h-3.5 w-3.5" />
-              <span>{isVi ? 'Tiêu điểm' : 'Featured'}</span>
+              <span>{copy.featured}</span>
             </span>
           ) : null}
         </div>
@@ -177,7 +183,7 @@ export function EditorialArticleMagazine({
               {publisher}
             </p>
             <p className="text-[11px] text-muted-foreground">
-              {isVi ? 'Trường Đại học Công nghệ Kỹ thuật TP.HCM' : 'Ho Chi Minh City University of Technology and Engineering'}
+              {copy.universityName}
             </p>
           </div>
         </div>
@@ -186,7 +192,7 @@ export function EditorialArticleMagazine({
           <Calendar className="h-3.5 w-3.5 text-primary" />
           <span>
             {new Date(announcement.publishAt || announcement.createdAt).toLocaleDateString(
-              isVi ? 'vi-VN' : 'en-US',
+              localeCodes[locale],
               {
                 weekday: 'long',
                 year: 'numeric',

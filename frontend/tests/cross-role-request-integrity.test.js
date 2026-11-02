@@ -182,6 +182,7 @@ function enrollmentDeps(api, calls, overrides = {}) {
     page: 1,
     search: '',
     locale: 'en',
+    copy: { loadFailed: 'LOAD_FAILED' },
     enrollmentsApi: api,
     setEnrollments: record('enrollments'),
     setTotalPages: record('totalPages'),
@@ -241,6 +242,7 @@ test('course sections clear immediately for an empty selection and invalidate a 
   const pending = deferred();
   const deps = {
     locale: 'en',
+    copy: { sectionsLoadFailed: 'SECTIONS_FAILED' },
     sectionsApi: { getAll: () => pending.promise },
     fetchAllPages: async (fn) => (await fn(1, 50)).data,
     setSections: record('sections'),
@@ -266,6 +268,7 @@ test('a pending load for the new course clears the previous options midflight', 
   let call = 0;
   const deps = {
     locale: 'en',
+    copy: { sectionsLoadFailed: 'SECTIONS_FAILED' },
     sectionsApi: {
       getAll: ({ courseId }) => {
         call += 1;
@@ -297,6 +300,7 @@ test('a stale section-options completion cannot overwrite the newer course', asy
   let call = 0;
   const deps = {
     locale: 'en',
+    copy: { sectionsLoadFailed: 'SECTIONS_FAILED' },
     sectionsApi: {
       getAll: ({ courseId }) => {
         call += 1;

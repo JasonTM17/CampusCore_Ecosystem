@@ -51,6 +51,10 @@ import {
   formatAnnouncementSemester,
 } from '@/lib/announcement-presentation';
 import { cn } from '@/lib/utils';
+import {
+  announcementWorkspaceEn,
+  announcementWorkspaceVi,
+} from '@/i18n/messages-announcements';
 import { hasNextPage } from '@/lib/pager';
 import { createRequestEpoch } from '@/lib/request-epoch';
 
@@ -115,76 +119,7 @@ function LecturerAnnouncementsWorkspace({ auth }: { auth: ReturnType<typeof useR
     queueEpoch.invalidate();
   }, [queueEpoch]);
 
-  const copy =
-    locale === 'vi'
-      ? {
-          eyebrow: 'Cổng Giảng viên',
-          title: 'Thông báo Giảng dạy & Nghiên cứu',
-          description:
-            'Cổng thông báo chuyên trách dành cho Cán bộ giảng dạy về kế hoạch đào tạo, lịch coi thi, nhập điểm và nghiên cứu khoa học.',
-          backToDashboard: 'Quay lại trang tổng quan giảng viên',
-          refresh: 'Làm mới',
-          loading: 'Đang tải thông báo',
-          unavailableTitle: 'Thông báo chưa sẵn sàng',
-          emptyTitle: 'Không tìm thấy thông báo phù hợp',
-          emptyDescription:
-            'Không có thông báo nào khớp với bộ lọc hoặc từ khóa tìm kiếm của Thầy/Cô.',
-          recentNotices: 'Bảng Tin Thông Báo Chính Thức',
-          semesterPrefix: 'Học kỳ',
-          sectionPrefix: 'Lớp học phần',
-          loadFailed: 'Hiện chưa thể tải thông báo.',
-          readFull: 'Đọc toàn văn',
-          officialBadge: 'Khoa CNTT & Phòng Đào Tạo',
-          searchPlaceholder: 'Tìm kiếm thông báo nghiệp vụ, khảo thí, đề tài...',
-          filterAll: 'Tất cả thông báo',
-          filterGlobal: '🌐 Thông báo toàn trường',
-          filterLecturerOnly: '👨‍🏫 Nghiệp vụ Giảng viên',
-          filterExamGrades: 'Khảo thí & Sổ điểm',
-          filterResearch: 'NCKH & Đề cương',
-          loadMore: 'Tải thêm thông báo',
-          loadingMore: 'Đang tải thêm…',
-          loadMoreFailed: 'Chưa tải thêm được — nhấn lại để thử.',
-          queueTitle: 'Bài của tôi & hàng chờ duyệt',
-          queueEmpty: 'Chưa có bài nào trong nhóm trạng thái này.',
-          queueLoadFailed: 'Chưa tải được danh sách bài của bạn.',
-          queueOwnBadge: 'Bài của tôi',
-          queueReviewBadge: 'Chờ duyệt',
-          queueCancel: 'Hủy',
-        }
-      : {
-          eyebrow: 'Lecturer area',
-          title: 'Teaching & Research Notices',
-          description:
-            'Dedicated announcement board for faculty members regarding academic planning, exams, grading, and scientific research.',
-          backToDashboard: 'Back to lecturer dashboard',
-          refresh: 'Refresh',
-          loading: 'Loading announcements',
-          unavailableTitle: 'Announcements unavailable',
-          emptyTitle: 'No matching notices found',
-          emptyDescription:
-            'There are no announcements matching your selected category or search keywords.',
-          recentNotices: 'Official Notice Feed',
-          semesterPrefix: 'Semester',
-          sectionPrefix: 'Class',
-          loadFailed: 'Announcements could not be loaded right now.',
-          readFull: 'Read full notice',
-          officialBadge: 'Faculty of IT & Academic Office',
-          searchPlaceholder: 'Search teaching notices, exams, research...',
-          filterAll: 'All notices',
-          filterGlobal: '🌐 Campus-wide',
-          filterLecturerOnly: '👨‍🏫 Faculty dedicated',
-          filterExamGrades: 'Exams & Gradebook',
-          filterResearch: 'Research & Syllabus',
-          loadMore: 'Load more notices',
-          loadingMore: 'Loading more…',
-          loadMoreFailed: 'Could not load more — press again to retry.',
-          queueTitle: 'My notices & review queue',
-          queueEmpty: 'No notices in this status group yet.',
-          queueLoadFailed: 'Your notices could not be loaded.',
-          queueOwnBadge: 'Mine',
-          queueReviewBadge: 'Awaiting review',
-          queueCancel: 'Cancel',
-        };
+  const copy = { en: announcementWorkspaceEn, vi: announcementWorkspaceVi }[locale].lecturer;
 
   const fetchFeed = useCallback(async (nextPage = 1) => {
     const epoch = feedEpoch.begin();
@@ -308,9 +243,7 @@ function LecturerAnnouncementsWorkspace({ auth }: { auth: ReturnType<typeof useR
       await fetchQueue();
     } catch {
       toast.error(
-        locale === 'vi'
-          ? 'Không thể chuyển trạng thái thông báo. Vui lòng thử lại.'
-          : 'Could not transition the notice. Please try again.',
+        copy.transitionFailed,
       );
     } finally {
       finishQueueMutation(actionKey);
@@ -333,9 +266,7 @@ function LecturerAnnouncementsWorkspace({ auth }: { auth: ReturnType<typeof useR
       await fetchQueue();
     } catch {
       toast.error(
-        locale === 'vi'
-          ? 'Không thể trả thông báo về nháp. Vui lòng thử lại.'
-          : 'Could not return the notice to draft. Please try again.',
+        copy.returnFailed,
       );
     } finally {
       finishQueueMutation(actionKey);
@@ -356,26 +287,23 @@ function LecturerAnnouncementsWorkspace({ auth }: { auth: ReturnType<typeof useR
   const handleArchiveOwn = async (announcement: AnnouncementRecord) => {
     const actionKey = `archive:${announcement.id}`;
     if (!beginQueueMutation(actionKey)) return;
-    const isVi = locale === 'vi';
     try {
       const confirmed = await confirm({
-        title: isVi ? 'Lưu trữ thông báo?' : 'Archive this notice?',
-        message: isVi
-          ? 'Thông báo sẽ được đưa vào lưu trữ và sinh viên không còn thấy trên bảng tin.'
-          : 'The notice will be archived and students will no longer see it in the feed.',
-        confirmText: isVi ? 'Lưu trữ' : 'Archive',
-        cancelText: isVi ? 'Hủy' : 'Cancel',
+        title: copy.archiveTitle,
+        message: copy.archiveMessage,
+        confirmText: copy.archiveConfirm,
+        cancelText: copy.archiveCancel,
         variant: 'destructive',
       });
       if (!confirmed) return;
       setArchivingId(announcement.id);
       try {
         await announcementsApi.delete(announcement.id);
-        toast.success(isVi ? 'Đã lưu trữ thông báo' : 'Notice archived');
+        toast.success(copy.archived);
         await fetchFeed(1);
         await fetchQueue();
       } catch {
-        toast.error(isVi ? 'Không thể lưu trữ thông báo. Vui lòng thử lại.' : 'Could not archive the notice. Please try again.');
+        toast.error(copy.archiveFailed);
       }
     } finally {
       setArchivingId(null);
@@ -442,7 +370,7 @@ function LecturerAnnouncementsWorkspace({ auth }: { auth: ReturnType<typeof useR
           <div className="flex flex-wrap gap-3">
             <Button type="button" onClick={() => setIsComposerOpen(true)}>
               <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-              {locale === 'vi' ? 'Soạn thông báo cho sinh viên' : 'Draft student announcement'}
+              {copy.draftAction}
             </Button>
             <LinkButton
               href="/dashboard/lecturer"
@@ -649,8 +577,8 @@ function LecturerAnnouncementsWorkspace({ auth }: { auth: ReturnType<typeof useR
                         >
                           <Archive className="h-3.5 w-3.5" />
                           {archivingId === item.id
-                            ? (locale === 'vi' ? 'Đang lưu trữ…' : 'Archiving…')
-                            : (locale === 'vi' ? 'Lưu trữ' : 'Archive')}
+                            ? copy.archiving
+                            : copy.archiveAction}
                         </button>
                       ) : null}
                     </div>
@@ -746,7 +674,7 @@ function LecturerAnnouncementsWorkspace({ auth }: { auth: ReturnType<typeof useR
                       </span>
                       {announcementIsUpdated(announcement) ? (
                         <span className="rounded-md bg-secondary px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                          {locale === 'vi' ? 'Đã cập nhật' : 'Updated'}
+                          {copy.updated}
                         </span>
                       ) : null}
                     </div>
@@ -787,8 +715,8 @@ function LecturerAnnouncementsWorkspace({ auth }: { auth: ReturnType<typeof useR
                           >
                             <Archive className="h-3.5 w-3.5" />
                             {archivingId === announcement.id
-                              ? (locale === 'vi' ? 'Đang lưu trữ…' : 'Archiving…')
-                              : (locale === 'vi' ? 'Lưu trữ' : 'Archive')}
+                              ? copy.archiving
+                              : copy.archiveAction}
                           </button>
                         ) : null}
                         <span className="inline-flex items-center gap-1.5 text-xs font-bold text-primary group-hover:underline">
