@@ -45,6 +45,7 @@ import org.springframework.stereotype.Component;
 @Profile("persistence")
 public class RagAssistantGateway {
     private static final String OWNER_HEADER = "X-Assistant-Owner";
+    private static final String OWNER_ASSERTION_HEADER = AssistantOwnerAssertion.HEADER;
     private static final String TOKEN_HEADER = "X-Rag-Service-Token";
     private static final ScheduledThreadPoolExecutor BODY_DEADLINES = bodyDeadlineScheduler();
 
@@ -59,11 +60,13 @@ public class RagAssistantGateway {
     }
 
     private final AssistantRagProperties properties;
+    private final AssistantOwnerAssertion ownerAssertions;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
     public RagAssistantGateway(AssistantRagProperties properties, ObjectMapper objectMapper) {
         this.properties = properties;
+        this.ownerAssertions = new AssistantOwnerAssertion(properties);
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(properties.connectTimeoutMs()))
@@ -212,7 +215,8 @@ public class RagAssistantGateway {
                 .timeout(Duration.ofMillis(properties.readTimeoutMs()))
                 .header("Accept", accept)
                 .header(TOKEN_HEADER, properties.serviceToken())
-                .header(OWNER_HEADER, ownerId == null ? "" : ownerId);
+                .header(OWNER_ASSERTION_HEADER, ownerAssertions.issueAssistant(ownerId))
+                .header(OWNER_HEADER, ownerId);
         if (jsonBody) {
             builder.header("Content-Type", "application/json");
         }
