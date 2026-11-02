@@ -175,3 +175,22 @@ This is a scaffold, not a claim of live Expo, device, API, or visual validation.
 ## Mobile excellence v2
 
 Token một nguồn (`contracts/ecosystem/tokens.json`) sinh adapter cho web và mobile (`node scripts/sync-tokens.mjs --check`). Màn hình dùng `useTheme`/`useThemedStyles` (sáng/tối theo hệ thống) và `useWindowClass` (compact < 600 dp, medium 600-839, expanded >= 840). Chi tiết, dependency đã đóng băng và khóa i18n: `docs/ecosystem/mobile-excellence.md`. Test: `npm test` (node), `npm run test:component` (RNTL), `npm run typecheck`. Trợ lý dùng transport buffered cho tới khi canary SSE trên dev build qua; push mặc định tắt (`src/config/features.ts`).
+
+## EAS profiles
+
+`mobile/eas.json` is local-first: no profile carries a `*.campusute.io.vn` host,
+and `production` leaves the deployment URLs unset so a real future deployment
+supplies them deliberately. `scripts/eas-profile-check.mjs` enforces this policy
+and `scripts/eas-profile-check.test.mjs` runs it in the root CI suite.
+
+| Profile | Purpose | Expected `EXPO_PUBLIC_*` source | Works today? (local stack) |
+| --- | --- | --- | --- |
+| `development` | Dev client served by Metro (`developmentClient: true`, internal APK) | `mobile/.env` or the shell that starts `expo start`; nothing committed | Yes: dev mode falls back to `http://10.0.2.2:4010` on Android and `http://127.0.0.1:4010` elsewhere until a value is supplied |
+| `preview` | Internal release-type APK for smoke checks | Build environment only (`eas env` or the shell); nothing committed | No: with no API URL the live client fails closed, and a non-dev build has no issuer fallback |
+| `local` | Release-type APK wired to the Docker stack (`docker-compose.mobile-local.yml`) | Checked-in Android-emulator values: API `http://10.0.2.2:4010/api/v1`, issuer `http://10.0.2.2:4010`, cleartext opt-in `1` | Yes on the Android emulator; a physical device needs its own LAN values, which this profile does not provide |
+| `production` | Future deployment (deferred; the real production web app lives in another repository) | Deliberately unset; a real deployment supplies API, portal, and issuer | No by design: the app fails closed until those values are configured |
+
+`EXPO_PUBLIC_PORTAL_URL` stays unset in `local` because
+`https://portal.localhost:3102` is a host-side web address the Android emulator
+cannot resolve; web hand-off is therefore unavailable in a release-type local
+build. That portal default applies to development builds only.
