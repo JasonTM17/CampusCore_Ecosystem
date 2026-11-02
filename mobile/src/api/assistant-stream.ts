@@ -50,6 +50,8 @@ export interface AssistantErrorEvent {
   type: 'error';
   code: string;
   retryable: boolean;
+  /** Whole seconds from a Retry-After response header, when the transport saw one. */
+  retryAfterSeconds?: number;
 }
 
 export type AssistantStreamEvent =
@@ -338,6 +340,14 @@ export function responseErrorCode(status: number, bodyText: string): string {
   return cancelFallbackCode[status] ?? 'HTTP_ERROR';
 }
 
+/** Retry-After is a whole number of seconds; unusable values fall back to the caller's default. */
+export function parseRetryAfterSeconds(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const seconds = Number(value.trim());
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  return Math.max(1, Math.ceil(seconds));
+}
+
 export function requestId(): string {
   const cryptoApi = globalThis.crypto as Crypto | undefined;
   if (cryptoApi?.randomUUID) return cryptoApi.randomUUID();
@@ -555,17 +565,19 @@ export function* bufferedReplyEvents(
 }
 
 function bufferedError(error: unknown): AssistantErrorEvent {
-  const value = error as { code?: unknown; status?: unknown; retryable?: unknown };
+  const value = error as { code?: unknown; status?: unknown; retryable?: unknown; retryAfter?: unknown };
   const status = typeof value?.status === 'number' ? value.status : 0;
   const code = typeof value?.code === 'string'
     ? value.code
     : error instanceof TypeError ? 'STREAM_CONNECTION_LOST' : 'ASSISTANT_UNAVAILABLE';
+  const retryAfter = parseRetryAfterSeconds(typeof value?.retryAfter === 'string' ? value.retryAfter : null);
   return {
     type: 'error',
     code,
     retryable: typeof value?.retryable === 'boolean'
       ? value.retryable
       : status === 0 || status === 429 || status >= 500,
+    ...(retryAfter === null ? {} : { retryAfterSeconds: retryAfter }),
   };
 }
 

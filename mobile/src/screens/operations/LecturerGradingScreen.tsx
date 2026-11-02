@@ -5,6 +5,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { Button, Card, Notice, ProgressBar, StatePanel, StatusPill, UiText } from '../../components/Ui';
 import { Dialog, SearchBar } from '../../components/ui/primitives';
 import { fillCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
 import type { MobileScreenProps } from '../../navigation/types';
 import { GradeRowCard } from './GradeRowCard';
 import { lecturerApi, type SectionGradeSheet } from './lecturer-api';
@@ -234,7 +235,7 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
       }
       setStaleVersion(false);
       setChangedRows(NO_CHANGED_ROWS);
-      setMessage({ tone: 'success', message: fillCopy(copy.scoresSaved, { n: draft.changes.length }) });
+      setMessage({ tone: 'success', message: fillCopy(countForm(draft.changes.length, copy.scoresSavedOne, copy.scoresSaved), { n: draft.changes.length }) });
       reload();
     } catch (error) {
       if (currentSectionId.current !== savingSectionId) return;
@@ -338,7 +339,7 @@ export function LecturerGradingScreen(_props: MobileScreenProps) {
                 ) : null}
                 {dirty > 0 ? (
                   <UiText variant="bodySmall" tone="muted">
-                    {fillCopy(copy.changesCount, { n: dirty })}
+                    {fillCopy(countForm(dirty, copy.changesCountOne, copy.changesCount), { n: dirty })}
                   </UiText>
                 ) : null}
                 {remoteChanged && !staleVersion ? (

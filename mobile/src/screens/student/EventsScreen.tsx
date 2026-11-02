@@ -7,6 +7,7 @@ import { apiClient } from '../../api/client';
 import type { MobileEvent, MobileEventRegistration } from '../../api/client';
 import { tokens } from '../../design/tokens';
 import { fillCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
 import { eventsMessages } from '../../i18n/events-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { contentApi } from '../content/content-api';
@@ -154,7 +155,7 @@ export function EventsScreen(_props: MobileScreenProps) {
             <Card>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={joinMeta([event.title, labels[event.status] ?? event.status, eventMeta(event), fillCopy(copy.seats, { n: Math.max(0, event.seatsRemaining) })])}
+                accessibilityLabel={joinMeta([event.title, labels[event.status] ?? event.status, eventMeta(event), fillCopy(countForm(Math.max(0, event.seatsRemaining), copy.seatsOne, copy.seats), { n: Math.max(0, event.seatsRemaining) })])}
                 onPress={() => setSelectedId(event.id)}
                 style={styles.rowMain}
               >
@@ -164,7 +165,7 @@ export function EventsScreen(_props: MobileScreenProps) {
                   <UiText variant="bodySmall" tone="muted">{eventMeta(event)}</UiText>
                   <View style={styles.chips}>
                     <StatusChip code={event.myRegistrationStatus === 'REGISTERED' ? 'REGISTERED' : event.status} labels={labels} />
-                    <UiText variant="meta" tone="muted">{fillCopy(copy.seats, { n: Math.max(0, event.seatsRemaining) })}</UiText>
+                    <UiText variant="meta" tone="muted">{fillCopy(countForm(Math.max(0, event.seatsRemaining), copy.seatsOne, copy.seats), { n: Math.max(0, event.seatsRemaining) })}</UiText>
                   </View>
                 </View>
                 <ContentChevron />

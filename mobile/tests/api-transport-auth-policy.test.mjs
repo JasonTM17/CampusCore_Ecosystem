@@ -395,6 +395,23 @@ test('JSON path is unchanged: headers, bodies, 204, text and failed refresh brid
   }
 });
 
+test('a rate-limited response keeps Retry-After on the error for the caller', async () => {
+  const { options } = makeSession();
+  const client = createApiClient(options);
+  const net = installFetch(() => json(429, { code: 'RATE_LIMIT_EXCEEDED', message: 'slow down' }, { 'Retry-After': '45' }));
+  try {
+    await assert.rejects(
+      client.post('/assistant/chat', { message: 'Hi' }),
+      (error) => error instanceof ApiClientError
+        && error.status === 429
+        && error.code === 'RATE_LIMIT_EXCEEDED'
+        && error.retryAfter === '45',
+    );
+  } finally {
+    net.restore();
+  }
+});
+
 test('JSON 401 from a stale epoch lane does not evict the new session', async () => {
   const { state, options } = makeSession();
   const client = createApiClient({

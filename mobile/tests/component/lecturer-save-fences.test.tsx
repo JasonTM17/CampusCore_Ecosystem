@@ -230,7 +230,7 @@ test('a deferred attendance save does not apply section A state to section B', a
   });
 
   expect(screen.queryByText(fillCopy(operationsMessages.vi.saved, { n: 1 }))).toBeNull();
-  expect(screen.queryByText(fillCopy(operationsMessages.vi.unsaved, { n: 1 }))).toBeNull();
+  expect(screen.queryByText(fillCopy(operationsMessages.vi.unsavedOne, { n: 1 }))).toBeNull();
   expect(screen.getByText('Bravo')).toBeTruthy();
 });
 
@@ -257,7 +257,7 @@ test('an attendance save for a revisited sheet preserves its current baseline', 
   });
 
   expect(screen.getByText(fillCopy(operationsMessages.vi.saved, { n: 1 }))).toBeTruthy();
-  expect(screen.queryByText(fillCopy(operationsMessages.vi.unsaved, { n: 1 }))).toBeNull();
+  expect(screen.queryByText(fillCopy(operationsMessages.vi.unsavedOne, { n: 1 }))).toBeNull();
 });
 
 test.each([
@@ -283,7 +283,7 @@ test.each([
     await pending.promise.catch(() => undefined);
   });
 
-  expect(screen.queryByText(fillCopy(operationsMessages.en.scoresSaved, { n: 1 }))).toBeNull();
+  expect(screen.queryByText(fillCopy(operationsMessages.en.scoresSavedOne, { n: 1 }))).toBeNull();
   expect(screen.queryByText(operationsMessages.en.saveScoresFailed)).toBeNull();
   expect(screen.getByText('Bravo')).toBeTruthy();
   expect(screen.getByLabelText(processLabelB).props.value).toBe('8');
@@ -310,7 +310,7 @@ test('a grading save for a revisited section preserves its new draft', async () 
     await pending.promise;
   });
 
-  expect(screen.getByText(fillCopy(operationsMessages.en.scoresSaved, { n: 1 }))).toBeTruthy();
+  expect(screen.getByText(fillCopy(operationsMessages.en.scoresSavedOne, { n: 1 }))).toBeTruthy();
   expect(screen.getByLabelText(processLabelA).props.value).toBe('8');
 });
 
@@ -335,7 +335,7 @@ test('a note-only server edit is stale and keeps the attendance draft', async ()
   await view.rerender(screenElement(<LecturerAttendanceScreen {...props} />));
 
   expect(screen.getByText(operationsMessages.vi.stale)).toBeTruthy();
-  expect(screen.getByText(fillCopy(operationsMessages.vi.unsaved, { n: 1 }))).toBeTruthy();
+  expect(screen.getByText(fillCopy(operationsMessages.vi.unsavedOne, { n: 1 }))).toBeTruthy();
   expect(screen.getByRole('radio', { name: markPresent }).props.accessibilityState?.checked).toBe(true);
 });
 
@@ -364,7 +364,7 @@ test('attendance refresh during a pending save preserves the dirty rows and base
   expect(screen.getByText('Alpha')).toBeTruthy();
   expect(screen.queryByText('Remote Alpha')).toBeNull();
   expect(screen.getByText(operationsMessages.vi.stale)).toBeTruthy();
-  expect(screen.getByText(fillCopy(operationsMessages.vi.unsaved, { n: 1 }))).toBeTruthy();
+  expect(screen.getByText(fillCopy(operationsMessages.vi.unsavedOne, { n: 1 }))).toBeTruthy();
   expect(screen.getByRole('radio', { name: markPresent }).props.accessibilityState?.checked).toBe(true);
 
   await act(async () => {
@@ -393,7 +393,7 @@ test('grading refresh during a pending save preserves the dirty rows and baselin
   expect(screen.getByText('Alpha')).toBeTruthy();
   expect(screen.queryByText('Remote Alpha')).toBeNull();
   expect(screen.getByText(operationsMessages.en.gradesStale)).toBeTruthy();
-  expect(screen.getByText(fillCopy(operationsMessages.en.changesCount, { n: 1 }))).toBeTruthy();
+  expect(screen.getByText(fillCopy(operationsMessages.en.changesCountOne, { n: 1 }))).toBeTruthy();
 
   await act(async () => {
     pending.resolve(undefined);

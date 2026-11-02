@@ -4,6 +4,7 @@ import { Button, Card, UiText } from '../../components/Ui';
 import type { MobileEvent } from '../../api/client';
 import { eventsMessages } from '../../i18n/events-messages';
 import { fillCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
 import { eventAction } from './content-rules';
 import { ContentHero, DetailFrame, FlashNotice, MetaRow, StatusChip, useContentCopy, type Flash } from './content-ui';
 
@@ -42,7 +43,7 @@ export function EventDetail({ event, busy, flash, onBack, onRegister, onCancel }
             <MetaRow label={copy.endsAt} value={formatDateTime(event.endsAt)} />
             <MetaRow label={copy.opensAt} value={event.registrationOpensAt ? formatDateTime(event.registrationOpensAt) : null} />
             <MetaRow label={copy.closesAt} value={event.registrationClosesAt ? formatDateTime(event.registrationClosesAt) : null} />
-            <MetaRow label={copy.capacity} value={`${event.registeredCount}/${event.capacity} · ${fillCopy(copy.seats, { n: Math.max(0, event.seatsRemaining) })}`} />
+            <MetaRow label={copy.capacity} value={`${event.registeredCount}/${event.capacity} · ${fillCopy(countForm(Math.max(0, event.seatsRemaining), copy.seatsOne, copy.seats), { n: Math.max(0, event.seatsRemaining) })}`} />
           </View>
         </Card>
         {action === 'register' ? <Button label={copy.register} loading={busy} onPress={() => onRegister(event)} /> : null}

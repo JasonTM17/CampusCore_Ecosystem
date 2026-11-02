@@ -116,8 +116,16 @@ export function formatNumber(value: number | null | undefined, locale: AppLocale
 export function formatCredits(value: number | null | undefined, locale: AppLocale): string {
   const text = formatNumber(value, locale, { maximumFractionDigits: 1 });
   if (text === EMPTY) return EMPTY;
-  if (locale === 'en') return `${text} ${value === 1 ? 'credit' : 'credits'}`;
+  if (locale === 'en') return `${text} ${countForm(value ?? 0, 'credit', 'credits')}`;
   return `${text} tín chỉ`;
+}
+
+/**
+ * Picks the one/other copy for a count, the same rule formatCredits applies.
+ * Callers pass the pair for the active locale; Vietnamese pairs repeat the same text.
+ */
+export function countForm(count: number, one: string, other: string): string {
+  return count === 1 ? one : other;
 }
 
 export function formatBytes(bytes: number | null | undefined, locale: AppLocale): string {

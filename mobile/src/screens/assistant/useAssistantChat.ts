@@ -55,6 +55,8 @@ export interface ChatMessage {
 export interface ChatFailure {
   kind: FailureKind;
   code?: string;
+  /** Whole seconds the server asked the client to wait, when the response carried Retry-After. */
+  retryAfterSeconds?: number;
   /** True when the same clientRequestId may be sent again without creating a second turn. */
   resubmittable: boolean;
 }
@@ -218,7 +220,13 @@ export function useAssistantChat() {
       const snapshot = accumulator.snapshot();
       const code = snapshot.error?.code;
       const kind = classifyFailure(code, snapshot.connectionLost);
-      setFailure({ kind, code, resubmittable: result.resubmittable });
+      const retryAfterSeconds = snapshot.error?.retryAfterSeconds;
+      setFailure({
+        kind,
+        code,
+        resubmittable: result.resubmittable,
+        ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
+      });
       if (!result.resubmittable) {
         // A definitive failure created no answer: return the text to the composer and drop the echo.
         const echo = optimisticIdRef.current;

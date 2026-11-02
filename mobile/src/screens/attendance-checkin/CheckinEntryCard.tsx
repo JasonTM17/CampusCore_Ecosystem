@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { Button, Card, IconChip, UiText } from '../../components/Ui';
 import { LANE_FLAGS } from '../../config/lane-flags';
 import { fillCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
 import { checkinMessages } from '../../i18n/checkin-messages';
 import { useLocale } from '../../i18n/locale-provider';
 import { laneAllowedForSession, type LaneScreenId } from '../../navigation/routes';
@@ -56,7 +57,7 @@ export function CheckinEntryCard({ api, navigation }: { api?: AttendanceApi; nav
         <IconChip icon="map-marker-check-outline" size={32} />
         <View style={styles.entryCopy}>
           <UiText variant="bodyMedium">{copy.entryTitle}</UiText>
-          <UiText variant="bodySmall" tone="muted">{fillCopy(copy.entryDetail, { n: openCount })}</UiText>
+          <UiText variant="bodySmall" tone="muted">{fillCopy(countForm(openCount, copy.entryDetailOne, copy.entryDetail), { n: openCount })}</UiText>
         </View>
         <View testID="checkin-entry-open">
           <Button

@@ -16,6 +16,7 @@ import {
   StatePanel,
 } from '../../components/Ui';
 import { apiClient, campusApi, type JsonObject, type MobileEnrollment } from '../../api/client';
+import { countForm } from '../../i18n/locale';
 import { fillShellCopy, shellMessages } from '../../i18n/shell-messages';
 import { buildAgenda, localizedName, nextMeetings } from '../academic/academic-model';
 import { useLocale } from '../../i18n/locale-provider';
@@ -106,8 +107,8 @@ export const StudentDashboardScreen = memo(function StudentDashboardScreen({ nav
       <HeroCard
         icon="school-outline"
         eyebrow={c.currentSemester}
-        title={fillShellCopy(c.activeSections, { n: activeSectionCount })}
-        detail={apiClient.mode === 'preview' || announcementsError || announcementsLoading ? undefined : fillShellCopy(c.announcements, { n: liveAnnouncements.length })}
+        title={fillShellCopy(countForm(activeSectionCount, c.activeSectionsOne, c.activeSections), { n: activeSectionCount })}
+        detail={apiClient.mode === 'preview' || announcementsError || announcementsLoading ? undefined : fillShellCopy(countForm(liveAnnouncements.length, c.announcementsOne, c.announcements), { n: liveAnnouncements.length })}
       >
         <Button icon="calendar-week-outline" label={c.openSchedule} onPress={() => navigation.navigate('schedule')} variant="secondary" onBrand />
       </HeroCard>

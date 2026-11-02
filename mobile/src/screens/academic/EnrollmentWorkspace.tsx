@@ -5,6 +5,7 @@ import { Button, Card, IconChip, InlineError, StatePanel, StatusPill, UiText } f
 import { useTheme } from '../../design/theme';
 import { tokens } from '../../design/tokens';
 import { fillCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
 import type { MobileNavigation } from '../../navigation/types';
 import { academicApi } from './academic-api';
 import {
@@ -93,7 +94,7 @@ export function EnrollmentWorkspace({ navigation, title }: EnrollmentWorkspacePr
                           <StatusPill label={copy.status[item.status] ?? item.status} tone={item.status === 'COMPLETED' ? 'success' : 'primary'} />
                         </View>
                         <UiText variant="headlineSmall">{name}</UiText>
-                        <UiText variant="meta" tone="muted">{fillCopy(copy.credits, { n: item.section?.course?.credits ?? 0 })}</UiText>
+                        <UiText variant="meta" tone="muted">{fillCopy(countForm(item.section?.course?.credits ?? 0, copy.creditsOne, copy.credits), { n: item.section?.course?.credits ?? 0 })}</UiText>
                         {item.section?.sectionNumber ? (
                           <UiText variant="meta" tone="muted">{copy.sectionLabel}: {item.section.sectionNumber}</UiText>
                         ) : null}

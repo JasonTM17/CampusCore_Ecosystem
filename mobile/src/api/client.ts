@@ -808,14 +808,17 @@ export class ApiClientError extends Error {
   readonly code?: string;
   readonly requestId: string;
   readonly kind: ApiErrorKind;
+  /** The response's Retry-After header, when the server sent one. */
+  readonly retryAfter: string | null;
 
-  constructor(message: string, status: number, requestId: string, code?: string) {
+  constructor(message: string, status: number, requestId: string, code?: string, retryAfter: string | null = null) {
     super(message);
     this.name = 'ApiClientError';
     this.status = status;
     this.requestId = requestId;
     this.code = code;
     this.kind = classifyApiError(status, code);
+    this.retryAfter = retryAfter;
   }
 
   /** A retry of the same intent may succeed; callers must still reuse the idempotency key. */
@@ -1208,6 +1211,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
           response.status,
           requestId,
           details.code,
+          response.headers.get('Retry-After'),
         );
       }
 

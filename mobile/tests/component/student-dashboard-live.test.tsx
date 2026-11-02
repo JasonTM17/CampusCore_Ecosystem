@@ -212,4 +212,54 @@ describe('student dashboard live mode', () => {
     expect(screen.queryByText('Học kỳ xem thử')).toBeNull();
     expect(screen.getByText('3 lớp đang học')).toBeOnTheScreen();
   });
+
+  test('a single section and a single announcement use the singular English count', async () => {
+    mockQueries.enrollments = {
+      data: [{
+        id: 'enr-one',
+        sectionId: 'sec-one',
+        semesterId: 'sem-1',
+        status: 'ENROLLED',
+        section: {
+          id: 'sec-one',
+          sectionNumber: 'N01',
+          semesterId: 'sem-1',
+          capacity: 40,
+          enrolledCount: 1,
+          status: 'OPEN',
+          course: { code: 'PE101', name: 'Physical Education', credits: 1 },
+        },
+      }],
+    };
+    mockQueries.announcements = { data: [{ id: 'a' }] };
+    await renderScreen('en');
+    expect(screen.getByText('1 active section')).toBeOnTheScreen();
+    expect(screen.getByText('1 campus announcement')).toBeOnTheScreen();
+    expect(screen.queryByText('1 active sections')).toBeNull();
+    expect(screen.queryByText('1 campus announcements')).toBeNull();
+  });
+
+  test('the Vietnamese count copy keeps its single form', async () => {
+    mockQueries.enrollments = {
+      data: [{
+        id: 'enr-one',
+        sectionId: 'sec-one',
+        semesterId: 'sem-1',
+        status: 'ENROLLED',
+        section: {
+          id: 'sec-one',
+          sectionNumber: 'N01',
+          semesterId: 'sem-1',
+          capacity: 40,
+          enrolledCount: 1,
+          status: 'OPEN',
+          course: { code: 'PE101', name: 'Giáo dục thể chất', credits: 1 },
+        },
+      }],
+    };
+    mockQueries.announcements = { data: [{ id: 'a' }] };
+    await renderScreen('vi');
+    expect(screen.getByText('1 lớp đang học')).toBeOnTheScreen();
+    expect(screen.getByText('1 thông báo của trường')).toBeOnTheScreen();
+  });
 });

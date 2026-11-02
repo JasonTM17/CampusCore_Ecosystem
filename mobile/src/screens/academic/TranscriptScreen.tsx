@@ -6,6 +6,7 @@ import { ChartSummary } from '../../components/ui/chart-summary';
 import { groupedRows, type GroupedRow } from '../../components/perf/grouped-rows';
 import { GroupCard } from '../../components/perf/group-card';
 import { useLocale } from '../../i18n/locale-provider';
+import { countForm } from '../../i18n/locale';
 import { fillCopy } from '../../i18n/academic-messages';
 import type { MobileScreenProps } from '../../navigation/types';
 import { academicApi } from './academic-api';
@@ -55,7 +56,7 @@ function TermCard({ entry }: { entry: GroupedRow<TranscriptTerm, TranscriptRecor
               <View style={academicStyles.rowCopy}>
                 <StatusPill label={record.courseCode} tone="primary" />
                 <UiText variant="bodyMedium">{record.courseName}</UiText>
-                <UiText variant="meta" tone="muted">{fillCopy(copy.credits, { n: record.credits })}</UiText>
+                <UiText variant="meta" tone="muted">{fillCopy(countForm(record.credits, copy.creditsOne, copy.credits), { n: record.credits })}</UiText>
               </View>
               {published && record.finalGrade != null ? (
                 <View style={styles.gradeResult}>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 
 import { fillCopy, type AcademicCopy } from '../../i18n/academic-messages';
+import { countForm } from '../../i18n/locale';
 import { dropEnrollmentById, enrollInSection, isDeviceOffline, isOfflineError } from './academic-api';
 import { basketReducer, emptyBasket } from './registration-basket';
 import { registrationErrorKey } from './registration-browse';
@@ -72,7 +73,7 @@ export function useRegistrationActions({ copy, locale, preview, knownOffline, re
         }
       }
       if (offline) setNotice({ tone: 'error', text: copy.offlineNoMutation });
-      else if (registered > 0) setNotice({ tone: 'success', text: fillCopy(copy.registered, { n: registered }) });
+      else if (registered > 0) setNotice({ tone: 'success', text: fillCopy(countForm(registered, copy.registeredOne, copy.registered), { n: registered }) });
     } finally {
       inFlight.current = false;
       setBusy(false);
